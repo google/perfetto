@@ -17,51 +17,223 @@ import {arrayEquals} from '../base/array_utils';
 import {duration, time, TimeSpan} from '../base/time';
 import {Track} from './track';
 
+/**
+ * Represents content that may be in a loading state.
+ */
 export interface ContentWithLoadingFlag {
+  /**
+   * Indicates whether the content is currently loading.
+   */
   readonly isLoading: boolean;
+  /**
+   * The actual content to be displayed.
+   */
   readonly content: m.Children;
 }
 
+/**
+ * Defines a tab within the area selection details panel.
+ */
 export interface AreaSelectionTab {
-  // Unique id for this tab.
+  /**
+   * Unique ID for this tab.
+   */
   readonly id: string;
 
-  // A name for this tab.
+  /**
+   * A human-readable name for this tab.
+   */
   readonly name: string;
 
-  // Defines the sort order of this tab - higher values appear first.
+  /**
+   * Defines the sort order of this tab - higher values appear first.
+   */
   readonly priority?: number;
 
   /**
    * Called every Mithril render cycle to render the content of the tab. The
    * returned content will be displayed inside the current selection tab.
    *
-   * If undefined is returned then the tab handle will be hidden, which gives
+   * If `undefined` is returned then the tab handle will be hidden, which gives
    * the tab the option to dynamically remove itself from the list of tabs if it
    * has nothing relevant to show.
    *
-   * The |isLoading| flag is used to avoid flickering. If set to true, we keep
-   * hold of the the previous vnodes, rendering them instead, for up to 50ms
+   * The `isLoading` flag is used to avoid flickering. If set to `true`, we keep
+   * hold of the previous vnodes, rendering them instead, for up to 50ms
    * before switching to the new content. This avoids very fast load times
    * from causing flickering loading screens, which can be somewhat jarring.
+   * @param selection The current area selection.
+   * @returns The content to render, or `undefined` if the tab should be hidden.
    */
   render(selection: AreaSelection): ContentWithLoadingFlag | undefined;
 }
 
 /**
- * Compare two area selections for equality. Returns true if the selections are
- * equivalent, false otherwise.
+ * Represents the different types of selections that can be made in the UI.
  */
-export function areaSelectionsEqual(a: AreaSelection, b: AreaSelection) {
-  if (a.start !== b.start) return false;
-  if (a.end !== b.end) return false;
-  if (!arrayEquals(a.trackUris, b.trackUris)) {
-    return false;
-  }
-  return true;
+export type Selection =
+  | TrackEventSelection
+  | TrackSelection
+  | AreaSelection
+  | NoteSelection
+  | EmptySelection;
+
+/**
+ * Defines how changes to selection affect the rest of the UI state.
+ */
+export interface SelectionOpts {
+  /**
+   * If `true`, clears the search input. Defaults to `true`.
+   */
+  readonly clearSearch?: boolean;
+  /**
+   * If `true`, switches to the tab relevant to the current selection. Defaults
+   * to `true`.
+   */
+  readonly switchToCurrentSelectionTab?: boolean;
+  /**
+   * If `true`, scrolls the timeline to reveal the selection. Defaults to `false`.
+   */
+  readonly scrollToSelection?: boolean;
 }
 
+/**
+ * Represents a selection of a specific track event.
+ */
+export interface TrackEventSelection extends TrackEventDetails {
+  /**
+   * The kind of selection, always 'track_event'.
+   */
+  readonly kind: 'track_event';
+  /**
+   * The URI of the track where the event is located.
+   */
+  readonly trackUri: string;
+  /**
+   * The ID of the selected event.
+   */
+  readonly eventId: number;
+}
+
+/**
+ * Represents a selection of an entire track.
+ */
+export interface TrackSelection {
+  /**
+   * The kind of selection, always 'track'.
+   */
+  readonly kind: 'track';
+  /**
+   * The URI of the selected track.
+   */
+  readonly trackUri: string;
+}
+
+/**
+ * Details about a track event.
+ */
+export interface TrackEventDetails {
+  /**
+   * The timestamp of the event. Required by the core.
+   */
+  readonly ts: time;
+
+  /**
+   * The duration of the event. Can be 0 for instant events or -1 for DNF
+   * slices. Will be `undefined` if this selection has no duration (e.g.,
+   * profile/counter samples).
+   */
+  readonly dur?: duration;
+}
+
+/**
+ * Defines an area on the timeline.
+ */
+export interface Area {
+  /**
+   * The start timestamp of the area.
+   */
+  readonly start: time;
+  /**
+   * The end timestamp of the area.
+   */
+  readonly end: time;
+  /**
+   * An array of URIs of the tracks included in the area.
+   */
+  readonly trackUris: ReadonlyArray<string>;
+}
+
+/**
+ * Represents a selection of an area on the timeline.
+ */
+export interface AreaSelection extends Area {
+  /**
+   * The kind of selection, always 'area'.
+   */
+  readonly kind: 'area';
+
+  /**
+   * This array contains the resolved Tracks from `Area.trackUris`. The
+   * resolution is done by `SelectionManager` whenever a `kind='area'` selection
+   * is performed.
+   */
+  readonly tracks: ReadonlyArray<Track>;
+}
+
+/**
+ * Represents a selection of a note.
+ */
+export interface NoteSelection {
+  /**
+   * The kind of selection, always 'note'.
+   */
+  readonly kind: 'note';
+  /**
+   * The ID of the selected note.
+   */
+  readonly id: string;
+}
+
+/**
+ * Represents an empty selection.
+ */
+export interface EmptySelection {
+  /**
+   * The kind of selection, always 'empty'.
+   */
+  readonly kind: 'empty';
+}
+
+/**
+ * Resolves SQL events to track events.
+ */
+export interface SqlSelectionResolver {
+  /**
+   * The name of the SQL table to resolve.
+   */
+  readonly sqlTableName: string;
+  /**
+   * A callback function that resolves an event ID from a SQL table to a track
+   * URI and event ID.
+   * @param id The ID of the event in the SQL table.
+   * @param sqlTable The name of the SQL table.
+   * @returns A promise that resolves to an object containing `trackUri` and
+   *   `eventId`, or `undefined` if not found.
+   */
+  callback(
+    id: number,
+    sqlTable: string,
+  ): Promise<{readonly trackUri: string; readonly eventId: number} | undefined>;
+}
+
+/**
+ * Manages the current selection state in the UI.
+ */
 export interface SelectionManager {
+  /**
+   * The current selection.
+   */
   readonly selection: Selection;
 
   /**
@@ -70,16 +242,16 @@ export interface SelectionManager {
   readonly areaSelectionTabs: ReadonlyArray<AreaSelectionTab>;
 
   /**
-   * Clears the current selection, selects nothing.
+   * Clears the current selection, selecting nothing.
    */
   clearSelection(): void;
 
   /**
-   * Select a track event.
+   * Selects a track event.
    *
-   * @param trackUri - The URI of the track to select.
-   * @param eventId - The value of the events ID column.
-   * @param opts - Additional options.
+   * @param trackUri The URI of the track to select.
+   * @param eventId The value of the event's ID column.
+   * @param opts Additional options for the selection.
    */
   selectTrackEvent(
     trackUri: string,
@@ -88,43 +260,47 @@ export interface SelectionManager {
   ): void;
 
   /**
-   * Select a track.
+   * Selects a track.
    *
-   * @param trackUri - The URI for the track to select.
-   * @param opts - Additional options.
+   * @param trackUri The URI for the track to select.
+   * @param opts Additional options for the selection.
    */
   selectTrack(trackUri: string, opts?: SelectionOpts): void;
 
   /**
-   * Resolves events via a sql table name + ids.
+   * Resolves events via a SQL table name and IDs.
    *
-   * @param sqlTableName - The name of the SQL table to resolve.
-   * @param ids - The IDs of the events in that table.
+   * @param sqlTableName The name of the SQL table to resolve.
+   * @param ids The IDs of the events in that table.
+   * @returns A promise that resolves to an array of objects containing eventId
+   *   and trackUri.
    */
   resolveSqlEvents(
     sqlTableName: string,
     ids: ReadonlyArray<number>,
-  ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>>;
+  ): Promise<
+    ReadonlyArray<{readonly eventId: number; readonly trackUri: string}>
+  >;
 
   /**
-   * Select a track event via a sql table name + id.
+   * Selects a track event via a SQL table name and ID.
    *
-   * @param sqlTableName - The name of the SQL table to resolve.
-   * @param id - The ID of the event in that table.
-   * @param opts - Additional options.
+   * @param sqlTableName The name of the SQL table to resolve.
+   * @param id The ID of the event in that table.
+   * @param opts Additional options for the selection.
    */
   selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts): void;
 
   /**
-   * Create an area selection for the purposes of aggregation.
+   * Creates an area selection for the purposes of aggregation.
    *
-   * @param args - The area to select.
-   * @param opts - Additional options.
+   * @param args The area to select.
+   * @param opts Additional options for the selection.
    */
   selectArea(args: Area, opts?: SelectionOpts): void;
 
   /**
-   * Scroll the timeline horizontally and vertically to reveal the currently
+   * Scrolls the timeline horizontally and vertically to reveal the currently
    * selected entity.
    */
   scrollToSelection(): void;
@@ -133,78 +309,32 @@ export interface SelectionManager {
    * Returns the smallest time span that contains the currently selected entity.
    *
    * @returns The time span, if a timeline entity is selected, otherwise
-   * undefined.
+   *   `undefined`.
    */
   getTimeSpanOfSelection(): TimeSpan | undefined;
 
   /**
-   * Register a new tab under the area selection details panel.
+   * Registers a new tab under the area selection details panel.
+   * @param tab The area selection tab to register.
    */
   registerAreaSelectionTab(tab: AreaSelectionTab): void;
 }
 
-export type Selection =
-  | TrackEventSelection
-  | TrackSelection
-  | AreaSelection
-  | NoteSelection
-  | EmptySelection;
-
-/** Defines how changes to selection affect the rest of the UI state */
-export interface SelectionOpts {
-  clearSearch?: boolean; // Default: true.
-  switchToCurrentSelectionTab?: boolean; // Default: true.
-  scrollToSelection?: boolean; // Default: false.
-}
-
-export interface TrackEventSelection extends TrackEventDetails {
-  readonly kind: 'track_event';
-  readonly trackUri: string;
-  readonly eventId: number;
-}
-
-export interface TrackSelection {
-  readonly kind: 'track';
-  readonly trackUri: string;
-}
-
-export interface TrackEventDetails {
-  // ts and dur are required by the core, and must be provided.
-  readonly ts: time;
-
-  // Note: dur can be 0 for instant events or -1 for DNF slices. Will be
-  // undefined if this selection has no duration, i.e. profile / counter
-  // samples.
-  readonly dur?: duration;
-}
-
-export interface Area {
-  readonly start: time;
-  readonly end: time;
-  readonly trackUris: ReadonlyArray<string>;
-}
-
-export interface AreaSelection extends Area {
-  readonly kind: 'area';
-
-  // This array contains the resolved Tracks from Area.trackUris. The resolution
-  // is done by SelectionManager whenever a kind='area' selection is performed.
-  readonly tracks: ReadonlyArray<Track>;
-}
-
-export interface NoteSelection {
-  readonly kind: 'note';
-  readonly id: string;
-}
-
-export interface EmptySelection {
-  readonly kind: 'empty';
-}
-
-export interface SqlSelectionResolver {
-  readonly sqlTableName: string;
-  readonly callback: (
-    id: number,
-    sqlTable: string,
-  ) => Promise<{trackUri: string; eventId: number} | undefined>;
+/**
+ * Compare two area selections for equality. Returns true if the selections are
+ * equivalent, false otherwise.
+ * @param a The first area selection.
+ * @param b The second area selection.
+ * @returns `true` if the selections are equal, `false` otherwise.
+ */
+export function areaSelectionsEqual(
+  a: AreaSelection,
+  b: AreaSelection,
+): boolean {
+  if (a.start !== b.start) return false;
+  if (a.end !== b.end) return false;
+  if (!arrayEquals(a.trackUris, b.trackUris)) {
+    return false;
+  }
+  return true;
 }

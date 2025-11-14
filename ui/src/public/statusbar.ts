@@ -15,17 +15,42 @@
 import m from 'mithril';
 import {Intent} from '../widgets/common';
 
+/**
+ * Represents an item to be displayed in the status bar.
+ */
 export interface StatusbarItem {
-  readonly renderItem: () => {
+  /**
+   * A function that returns the properties for rendering the status bar item.
+   * @returns An object with label, optional icon, optional intent, and an
+   *   optional click handler.
+   */
+  renderItem(): {
     readonly label: string;
     readonly icon?: string;
     readonly intent?: Intent;
-    readonly onclick?: (event: MouseEvent) => void;
+    onclick?(event: MouseEvent): void;
   };
-  readonly popupContent?: () => m.Children;
+
+  /**
+   * An optional function that returns the content to be displayed in a popup
+   * when the status bar item is clicked.
+   * @returns The Mithril children to render in the popup.
+   */
+  popupContent?(): m.Children;
 }
 
+/**
+ * Manages items in the status bar.
+ */
 export interface StatusbarManager {
+  /**
+   * A read-only array of all currently registered status bar items.
+   */
   readonly statusBarItems: ReadonlyArray<StatusbarItem>;
+
+  /**
+   * Registers a new item to be displayed in the status bar.
+   * @param item The status bar item to register.
+   */
   registerItem(item: StatusbarItem): void;
 }

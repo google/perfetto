@@ -32,7 +32,7 @@ import {SearchManager} from './search';
 // Lists all the possible event listeners using the key as the event name and
 // the type as the type of the callback.
 export interface EventListeners {
-  traceready: () => Promise<void> | void;
+  traceready(): Promise<void> | void;
 }
 
 /**

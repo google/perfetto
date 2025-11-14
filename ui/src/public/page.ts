@@ -15,24 +15,46 @@
 import m from 'mithril';
 
 /**
- * Allows to register custom page endpoints that response to given routes, e.g.
- * /viewer, /record etc.
+ * Manages custom page registration and routing.
+ *
+ * Use this to register pages that respond to specific routes (e.g.,
+ * '/settings', '/query'). Pages are automatically unregistered when the
+ * trace is closed or the plugin is unloaded.
  */
 export interface PageManager {
   /**
-   * Example usage:
-   *   registerPage({route: '/foo', page: FooPage})
-   *   class FooPage implements m.ClassComponent<PageWithTrace> {
-   *     view({attrs}: m.CVnode<PageWithTrace>) {
-   *        return m('div', ...
-   *            onclick: () => attrs.trace.timeline.zoom(...);
-   *        )
-   *     }
+   * Registers a new custom page handler.
+   *
+   * The page handler defines the route it responds to and the content to
+   * render. Returns a `Disposable` that can be used to unregister the page.
+   *
+   * @param pageHandler The page handler to register.
+   * @returns A `Disposable` to unregister the page.
+   *
+   * @example
+   * ```ts
+   * // Example usage:
+   * registerPage({route: '/foo', render: (subpage) => m(FooPage, {subpage})})
+   *
+   * class FooPage implements m.ClassComponent<{subpage?: string}> {
+   *   view({attrs}: m.CVnode<{subpage?: string}>) {
+   *      return m('div',
+   *          m('h1', `Foo Page ${attrs.subpage ? `(${attrs.subpage})` : ''}`),
+   *          m('button', {onclick: () => console.log('Button clicked')}, 'Click me')
+   *      );
    *   }
+   * }
+   * ```
    */
   registerPage(pageHandler: PageHandler): Disposable;
 }
 
+/**
+ * Defines a handler for a custom page.
+ *
+ * A page handler specifies the route it responds to and provides a render
+ * function to display its content.
+ */
 export interface PageHandler {
   /**
    * The route path this page handler responds to (e.g., '/', '/viewer').
@@ -50,7 +72,8 @@ export interface PageHandler {
    * Renders the page content.
    * Called during each Mithril render cycle.
    *
-   * @param subpage Optional subpage path segment after the main route
+   * @param subpage Optional subpage path segment after the main route.
+   * @returns The Mithril children to render for the page.
    */
-  readonly render: (subpage: string | undefined) => m.Children;
+  render(subpage: string | undefined): m.Children;
 }
