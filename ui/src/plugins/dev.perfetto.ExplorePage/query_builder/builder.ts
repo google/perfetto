@@ -176,8 +176,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.queryExecuted = false;
       this.isQueryRunning = false;
       this.isAnalyzing = false;
-      // Keep the current selected view when switching nodes
       const hasModifyPanel = selectedNode.nodeSpecificModify() != null;
+      // If current view is Info, switch to Modify (if available) when selecting a new node
+      if (this.selectedView === SelectedView.kInfo && hasModifyPanel) {
+        this.selectedView = SelectedView.kModify;
+      }
       // If current view is Modify but modify panel is not available, switch to Info
       if (this.selectedView === SelectedView.kModify && !hasModifyPanel) {
         this.selectedView = SelectedView.kInfo;
