@@ -21,7 +21,7 @@ import {
   MultiSourceNode,
 } from '../../query_node';
 import protos from '../../../../protos';
-import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {ColumnInfo, columnInfoFromName} from '../column_info';
 import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
@@ -53,7 +53,97 @@ export class IntervalIntersectNode implements MultiSourceNode {
   readonly state: IntervalIntersectNodeState;
 
   get finalCols(): ColumnInfo[] {
-    return newColumnInfoList(this.prevNodes[0]?.finalCols ?? [], true);
+    if (this.prevNodes.length === 0) {
+      return [];
+    }
+
+    const finalCols: ColumnInfo[] = [];
+    const seenColumns = new Set<string>();
+
+    // Add ts and dur from the intersection (without suffix)
+    finalCols.push(columnInfoFromName('ts', true));
+    finalCols.push(columnInfoFromName('dur', true));
+    seenColumns.add('ts');
+    seenColumns.add('dur');
+
+    // Add partition columns (without suffix)
+    if (this.state.partitionColumns) {
+      for (const col of this.state.partitionColumns) {
+        finalCols.push(columnInfoFromName(col, true));
+        seenColumns.add(col);
+      }
+    }
+
+    // For each input node, add id_N, ts_N, dur_N
+    for (let i = 0; i < this.prevNodes.length; i++) {
+      const node = this.prevNodes[i];
+      if (node === undefined) continue;
+
+      // Find the actual column info for id, ts, dur to get their types
+      const nodeCols = node.finalCols;
+      const idCol = nodeCols.find((c) => c.name === 'id');
+      const tsCol = nodeCols.find((c) => c.name === 'ts');
+      const durCol = nodeCols.find((c) => c.name === 'dur');
+
+      finalCols.push({
+        ...idCol,
+        name: `id_${i}`,
+        type: idCol?.type ?? 'NA',
+        checked: true,
+        column: {name: `id_${i}`},
+      });
+      finalCols.push({
+        ...tsCol,
+        name: `ts_${i}`,
+        type: tsCol?.type ?? 'NA',
+        checked: true,
+        column: {name: `ts_${i}`},
+      });
+      finalCols.push({
+        ...durCol,
+        name: `dur_${i}`,
+        type: durCol?.type ?? 'NA',
+        checked: true,
+        column: {name: `dur_${i}`},
+      });
+    }
+
+    // First, identify which columns are duplicated across inputs
+    const columnCounts = new Map<string, number>();
+    for (const node of this.prevNodes) {
+      if (node === undefined) continue;
+
+      for (const col of node.finalCols) {
+        if (
+          col.name !== 'id' &&
+          col.name !== 'ts' &&
+          col.name !== 'dur' &&
+          !seenColumns.has(col.name)
+        ) {
+          columnCounts.set(col.name, (columnCounts.get(col.name) ?? 0) + 1);
+        }
+      }
+    }
+
+    // Add only non-duplicated columns (columns that appear in exactly one input)
+    for (const node of this.prevNodes) {
+      if (node === undefined) continue;
+
+      for (const col of node.finalCols) {
+        if (
+          col.name !== 'id' &&
+          col.name !== 'ts' &&
+          col.name !== 'dur' &&
+          !seenColumns.has(col.name) &&
+          columnCounts.get(col.name) === 1
+        ) {
+          finalCols.push({...col, checked: true});
+          seenColumns.add(col.name);
+        }
+      }
+    }
+
+    return finalCols;
   }
 
   constructor(state: IntervalIntersectNodeState) {
@@ -448,13 +538,25 @@ export class IntervalIntersectNode implements MultiSourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    return StructuredQueryBuilder.withIntervalIntersect(
+    const sq = StructuredQueryBuilder.withIntervalIntersect(
       this.prevNodes[0],
       this.prevNodes.slice(1),
       this.state.partitionColumns,
       this.state.filterNegativeDur,
       this.nodeId,
     );
+
+    if (!sq) return undefined;
+
+    // Add select_columns to explicitly specify which columns to return
+    // This ensures we only expose the clean, well-defined columns from finalCols
+    sq.selectColumns = this.finalCols.map((col) => {
+      const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+      selectCol.columnNameOrExpression = col.name;
+      return selectCol;
+    });
+
+    return sq;
   }
 
   serializeState(): IntervalIntersectSerializedState {
