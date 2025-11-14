@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "../theme";
+
 .pf-canvas {
   isolation: isolate; // Don't allow z-index to escape container.
   overflow: hidden; // Clip overflowing content.

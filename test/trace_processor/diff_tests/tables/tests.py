@@ -593,14 +593,17 @@ class Tables(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('trace_user_list.pftrace'),
         query="""
+        INCLUDE PERFETTO MODULE android.user_list;
+
+
         SELECT
-          uid,
+          user_id,
           type
-        FROM android_users
-        ORDER BY uid;
+        FROM android_user_list
+        ORDER BY user_id;
         """,
         out=Csv("""
-        "uid","type" 
+        "user_id","type" 
         0,"android.os.usertype.system.HEADLESS" 
         10,"android.os.usertype.full.SECONDARY" 
         11,"android.os.usertype.full.GUEST"

@@ -244,11 +244,11 @@ PACKAGE_LIST_TABLE = Table(
 
 USER_LIST_TABLE = Table(
     python_module=__file__,
-    class_name='UserListTable',
+    class_name='AndroidUserListTable',
     sql_name='__intrinsic_user_list',
     columns=[
         C('type', CppString()),
-        C('uid', CppInt64()),
+        C('user_id', CppInt64()),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -258,7 +258,7 @@ USER_LIST_TABLE = Table(
         group='Misc',
         columns={
             'type': '''user type eg. SECONDARY''',
-            'uid': '''User id on device''',
+            'user_id': '''User id on device''',
         }))
 
 STACK_PROFILE_MAPPING_TABLE = Table(
@@ -1172,7 +1172,6 @@ ALL_TABLES = [
     INSTRUMENTS_SAMPLE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
     PACKAGE_LIST_TABLE,
-    USER_LIST_TABLE,
     PERF_SAMPLE_TABLE,
     PERF_SESSION_TABLE,
     PROFILER_SMAPS_TABLE,
@@ -1180,5 +1179,6 @@ ALL_TABLES = [
     STACK_PROFILE_FRAME_TABLE,
     STACK_PROFILE_MAPPING_TABLE,
     SYMBOL_TABLE,
+    USER_LIST_TABLE,
     VULKAN_MEMORY_ALLOCATIONS_TABLE,
 ]
