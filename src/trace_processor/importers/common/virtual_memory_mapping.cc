@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
@@ -81,14 +80,17 @@ UserMemoryMapping::UserMemoryMapping(TraceProcessorContext* context,
 
 UserMemoryMapping::~UserMemoryMapping() = default;
 
-FrameId VirtualMemoryMapping::InternFrame(uint64_t rel_pc,
-                                          base::StringView function_name) {
+FrameId VirtualMemoryMapping::InternFrame(
+    uint64_t rel_pc,
+    base::StringView function_name,
+    std::optional<base::StringView> source_file,
+    std::optional<uint32_t> line_number) {
   auto [frame_id, was_inserted] =
-      jit_cache_ ? jit_cache_->InternFrame(this, rel_pc, function_name)
-                 : InternFrameImpl(rel_pc, function_name);
+      jit_cache_
+          ? jit_cache_->InternFrame(this, rel_pc, function_name)
+          : InternFrameImpl(rel_pc, function_name, source_file, line_number);
   if (was_inserted) {
     frames_by_rel_pc_[rel_pc].push_back(frame_id);
-    context_->stack_profile_tracker->OnFrameCreated(frame_id);
   }
   return frame_id;
 }
@@ -102,21 +104,48 @@ std::vector<FrameId> VirtualMemoryMapping::FindFrameIds(uint64_t rel_pc) const {
 
 std::pair<FrameId, bool> VirtualMemoryMapping::InternFrameImpl(
     uint64_t rel_pc,
-    base::StringView function_name) {
+    base::StringView function_name,
+    std::optional<base::StringView> source_file,
+    std::optional<uint32_t> line_number) {
   const FrameKey frame_key{rel_pc,
                            context_->storage->InternString(function_name)};
   if (FrameId* id = interned_frames_.Find(frame_key); id) {
     return {*id, false};
   }
 
+  // Create symbol entry first if source_file or line_number is provided
+  std::optional<uint32_t> symbol_set_id;
+  if (source_file || line_number) {
+    symbol_set_id = CreateSymbol(function_name, source_file, line_number);
+  }
+
   const FrameId frame_id =
       context_->storage->mutable_stack_profile_frame_table()
-          ->Insert(
-              {frame_key.name_id, mapping_id_, static_cast<int64_t>(rel_pc)})
+          ->Insert({frame_key.name_id, mapping_id_,
+                    static_cast<int64_t>(rel_pc), symbol_set_id})
           .id;
   interned_frames_.Insert(frame_key, frame_id);
 
   return {frame_id, true};
+}
+
+std::optional<uint32_t> VirtualMemoryMapping::CreateSymbol(
+    base::StringView function_name,
+    std::optional<base::StringView> source_file,
+    std::optional<uint32_t> line_number) {
+  uint32_t symbol_set_id = context_->storage->symbol_table().row_count();
+
+  StringId source_file_id = kNullStringId;
+  if (source_file) {
+    source_file_id = context_->storage->InternString(*source_file);
+  }
+
+  StringId function_name_id = context_->storage->InternString(function_name);
+
+  context_->storage->mutable_symbol_table()->Insert(
+      {symbol_set_id, function_name_id, source_file_id, line_number});
+
+  return symbol_set_id;
 }
 
 DummyMemoryMapping::~DummyMemoryMapping() = default;
@@ -125,24 +154,25 @@ DummyMemoryMapping::DummyMemoryMapping(TraceProcessorContext* context,
                                        CreateMappingParams params)
     : VirtualMemoryMapping(context, std::move(params)) {}
 
-FrameId DummyMemoryMapping::InternDummyFrame(base::StringView function_name,
-                                             base::StringView source_file) {
+FrameId DummyMemoryMapping::InternDummyFrame(
+    base::StringView function_name,
+    std::optional<base::StringView> source_file,
+    std::optional<uint32_t> line_number) {
+  StringId source_file_id = kNullStringId;
+  if (source_file) {
+    source_file_id = context()->storage->InternString(*source_file);
+  }
+
   DummyFrameKey key{context()->storage->InternString(function_name),
-                    context()->storage->InternString(source_file)};
+                    source_file_id, line_number};
 
   if (FrameId* id = interned_dummy_frames_.Find(key); id) {
     return *id;
   }
 
-  uint32_t symbol_set_id = context()->storage->symbol_table().row_count();
-
-  tables::SymbolTable::Id symbol_id =
-      context()
-          ->storage->mutable_symbol_table()
-          ->Insert({symbol_set_id, key.function_name_id, key.source_file_id})
-          .id;
-
-  PERFETTO_CHECK(symbol_set_id == symbol_id.value);
+  // Create symbol entry first using the shared helper
+  std::optional<uint32_t> symbol_set_id =
+      CreateSymbol(function_name, source_file, line_number);
 
   const FrameId frame_id =
       context()

@@ -310,6 +310,13 @@ THREAD_TABLE = Table(
             CppOptional(CppTableId(MACHINE_TABLE)),
             cpp_access=CppAccess.READ,
         ),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='thread',),
     tabledoc=TableDoc(
@@ -366,6 +373,9 @@ THREAD_TABLE = Table(
                 '''
                   Machine identifier, non-null for threads on a remote machine.
                 ''',
+            'arg_set_id':
+                ColumnDoc(
+                    'Extra args for this thread.', joinable='args.arg_set_id'),
         },
     ),
 )
@@ -836,6 +846,24 @@ MODULES_TABLE = Table(
             'name': '''Name of the enabled module.''',
         }))
 
+TRACE_IMPORT_LOGS_TABLE = Table(
+    python_module=__file__,
+    class_name='TraceImportLogsTable',
+    sql_name='__intrinsic_trace_import_logs',
+    columns=[
+        C('trace_id', CppUint32()),
+        C('ts', CppOptional(CppInt64())),
+        C('byte_offset', CppOptional(CppInt64())),
+        C('severity', CppString()),
+        C('name', CppString()),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
@@ -847,6 +875,7 @@ ALL_TABLES = [
     EXP_MISSING_CHROME_PROC_TABLE,
     FILEDESCRIPTOR_TABLE,
     FTRACE_EVENT_TABLE,
+    TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,
     MODULES_TABLE,

@@ -30,10 +30,16 @@ import {
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
-import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
+import {
+  Grid,
+  GridColumn,
+  GridHeaderCell,
+  GridCell,
+  GridRow,
+} from '../../widgets/grid';
 import {FtraceFilter, FtraceStat} from './common';
 
-const ROW_H = 20;
+const ROW_H = 24;
 
 interface FtraceExplorerAttrs {
   cache: FtraceExplorerCache;
@@ -130,33 +136,42 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
       this.reloadData(attrs);
     });
 
+    const columns: GridColumn[] = [
+      {key: 'id', header: m(GridHeaderCell, 'ID')},
+      {key: 'timestamp', header: m(GridHeaderCell, 'Timestamp')},
+      {key: 'name', header: m(GridHeaderCell, 'Name')},
+      {key: 'cpu', header: m(GridHeaderCell, 'CPU')},
+      {key: 'process', header: m(GridHeaderCell, 'Process')},
+      {key: 'args', header: m(GridHeaderCell, 'Args')},
+    ];
+
     return m(
       DetailsShell,
       {
         title: this.renderTitle(),
         buttons: this.renderFilterPanel(attrs),
-        fillParent: true,
+        fillHeight: true,
       },
-      m(VirtualTable, {
+      m(Grid, {
         className: 'pf-ftrace-explorer',
-        columns: [
-          {header: 'ID', width: '5em'},
-          {header: 'Timestamp', width: '13em'},
-          {header: 'Name', width: '24em'},
-          {header: 'CPU', width: '3em'},
-          {header: 'Process', width: '24em'},
-          {header: 'Args', width: '200em'},
-        ],
-        firstRowOffset: this.data?.offset ?? 0,
-        numRows: this.data?.numEvents ?? 0,
-        rowHeight: ROW_H,
-        rows: this.renderData(),
-        onReload: (offset, count) => {
-          this.pagination = {offset, count};
-          this.reloadData(attrs);
+        columns,
+        rowData: {
+          data: this.renderData(),
+          total: this.data?.numEvents ?? 0,
+          offset: this.data?.offset ?? 0,
+          onLoadData: (offset, count) => {
+            this.pagination = {offset, count};
+            this.reloadData(attrs);
+          },
         },
-        onRowHover: (id) => {
-          const event = this.data?.events.find((event) => event.id === id);
+        virtualization: {
+          rowHeightPx: ROW_H,
+        },
+        fillHeight: true,
+        onRowHover: (rowIndex) => {
+          // Calculate the actual row index from virtualization offset
+          const actualIndex = rowIndex - (this.data?.offset ?? 0);
+          const event = this.data?.events[actualIndex];
           if (event) {
             attrs.trace.timeline.hoverCursorTimestamp = event.ts;
           }
@@ -179,31 +194,30 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     });
   }
 
-  private renderData(): VirtualTableRow[] {
+  private renderData(): ReadonlyArray<GridRow> {
     if (!this.data) {
       return [];
     }
 
     return this.data.events.map((event) => {
       const {ts, name, cpu, process, args, id} = event;
-      const timestamp = m(Timestamp, {trace: this.trace, ts});
       const color = materialColorScheme(name).base.cssString;
 
-      return {
-        id,
-        cells: [
-          id,
-          timestamp,
+      return [
+        m(GridCell, {align: 'right'}, id),
+        m(GridCell, m(Timestamp, {trace: this.trace, ts})),
+        m(
+          GridCell,
           m(
             '.pf-ftrace-namebox',
             m('.pf-ftrace-colorbox', {style: {background: color}}),
             name,
           ),
-          cpu,
-          process,
-          args,
-        ],
-      };
+        ),
+        m(GridCell, {align: 'right'}, cpu),
+        m(GridCell, process ?? ''),
+        m(GridCell, args),
+      ];
     });
   }
 
@@ -239,7 +253,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     return m(PopupMultiSelect, {
       label: 'Filter',
       icon: 'filter_list_alt',
-      popupPosition: PopupPosition.Top,
+      position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {
         const newList = new Set<string>(excludeList);

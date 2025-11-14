@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+@import "../common";
 @import "./filter.scss";
 @import "./aggregations.scss";
 
@@ -23,15 +23,12 @@
 
   .pf-exp-section {
     padding: 1rem;
-    border: 1px solid var(--pf-color-border);
-    border-radius: 0.5rem;
-    background-color: var(--pf-color-background);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
     h2 {
       margin-top: 0;
       margin-bottom: 1rem;
-      font-size: 1.2em;
+      font-size: var(--pf-exp-font-size-md);
       font-weight: 500;
     }
 

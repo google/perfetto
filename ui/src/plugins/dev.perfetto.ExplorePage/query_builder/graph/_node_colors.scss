@@ -1,0 +1,74 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+$kTable-color: #ffcdd2;
+$kSimpleSlices-color: #c8e6c9;
+$kSqlSource-color: #b3e5fc;
+$kAggregation-color: #f8bbd0;
+$kModifyColumns-color: #d1c4e9;
+$kAddColumns-color: #c5cae9;
+$kLimitAndOffset-color: #b2dfdb;
+$kSort-color: #fff9c4;
+$kIntervalIntersect-color: #ffecb3;
+$kUnion-color: #b2ebf2;
+$other-color: #f0f4c3;
+
+@mixin set-node-color($node-type) {
+  @if $node-type == "kTable" {
+    background-color: color-mix(in srgb, $kTable-color, transparent 85%);
+    border-left: 4px solid $kTable-color;
+  } @else if $node-type == "kSimpleSlices" {
+    background-color: color-mix(in srgb, $kSimpleSlices-color, transparent 85%);
+    border-left: 4px solid $kSimpleSlices-color;
+  } @else if $node-type == "kSqlSource" {
+    background-color: color-mix(in srgb, $kSqlSource-color, transparent 85%);
+    border-left: 4px solid $kSqlSource-color;
+  } @else if $node-type == "kAggregation" {
+    background-color: color-mix(in srgb, $kAggregation-color, transparent 85%);
+    border-left: 4px solid $kAggregation-color;
+  } @else if $node-type == "kModifyColumns" {
+    background-color: color-mix(
+      in srgb,
+      $kModifyColumns-color,
+      transparent 85%
+    );
+    border-left: 4px solid $kModifyColumns-color;
+  } @else if $node-type == "kAddColumns" {
+    background-color: color-mix(in srgb, $kAddColumns-color, transparent 85%);
+    border-left: 4px solid $kAddColumns-color;
+  } @else if $node-type == "kLimitAndOffset" {
+    background-color: color-mix(
+      in srgb,
+      $kLimitAndOffset-color,
+      transparent 85%
+    );
+    border-left: 4px solid $kLimitAndOffset-color;
+  } @else if $node-type == "kSort" {
+    background-color: color-mix(in srgb, $kSort-color, transparent 85%);
+    border-left: 4px solid $kSort-color;
+  } @else if $node-type == "kIntervalIntersect" {
+    background-color: color-mix(
+      in srgb,
+      $kIntervalIntersect-color,
+      transparent 85%
+    );
+    border-left: 4px solid $kIntervalIntersect-color;
+  } @else if $node-type == "kUnion" {
+    background-color: color-mix(in srgb, $kUnion-color, transparent 85%);
+    border-left: 4px solid $kUnion-color;
+  } @else {
+    background-color: color-mix(in srgb, $other-color, transparent 85%);
+    border-left: 4px solid $other-color;
+  }
+}

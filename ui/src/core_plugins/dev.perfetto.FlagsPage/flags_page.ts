@@ -16,7 +16,6 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {channelChanged, getNextChannel, setChannel} from '../../core/channels';
 import {featureFlags} from '../../core/feature_flags';
-import {Router} from '../../core/router';
 import {Flag, OverrideState} from '../../public/feature_flag';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Card, CardStack} from '../../widgets/card';
@@ -30,34 +29,48 @@ import {FuzzyFinder} from '../../base/fuzzy';
 import {classNames} from '../../base/classnames';
 import {Intent} from '../../widgets/common';
 import {Anchor} from '../../widgets/anchor';
+import {Popup} from '../../widgets/popup';
+import {Box} from '../../widgets/box';
 
 const RELEASE_PROCESS_URL =
   'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
 
 interface FlagOption {
-  id: string;
-  name: string;
+  readonly id: string;
+  readonly name: string;
 }
 
 interface SelectWidgetAttrs {
-  id: string;
-  label: string;
-  description: m.Children;
-  options: FlagOption[];
-  selected: string;
-  onSelect: (id: string) => void;
+  readonly id: string;
+  readonly label: string;
+  readonly description: m.Children;
+  readonly options: FlagOption[];
+  readonly selected: string;
+  readonly onSelect: (id: string) => void;
 }
 
 class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
-  view(vnode: m.Vnode<SelectWidgetAttrs>) {
-    const route = Router.parseUrl(window.location.href);
-    const attrs = vnode.attrs;
-    const className = route.subpage === `/${attrs.id}` ? '.focused' : '';
-
-    const {id} = attrs;
-    return m(Stack, {orientation: 'horizontal', id, className}, [
+  view({attrs}: m.Vnode<SelectWidgetAttrs>) {
+    return m(Stack, {orientation: 'horizontal'}, [
       m(Stack, [
-        m('label', attrs.label),
+        m(
+          Stack,
+          {
+            orientation: 'horizontal',
+            gap: 'small',
+            className: 'pf-flags-page__label-row',
+          },
+          attrs.label,
+          m(
+            '.pf-flags-page__link-button',
+            m(Anchor, {
+              href: `#!/flags/${encodeURIComponent(attrs.id)}`,
+              icon: 'link',
+              title: 'Link to this flag',
+            }),
+          ),
+        ),
+        m('.pf-flags-page__flag-id', attrs.id),
         m('.pf-flags-page__description', attrs.description),
       ]),
       m(StackAuto),
@@ -81,17 +94,25 @@ class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
 }
 
 interface FlagWidgetAttrs {
-  flag: Flag;
+  readonly flag: Flag;
+  readonly focused: boolean;
 }
 
 class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
-  view(vnode: m.Vnode<FlagWidgetAttrs>) {
-    const flag = vnode.attrs.flag;
+  view({attrs}: m.Vnode<FlagWidgetAttrs>) {
+    const flag = attrs.flag;
     const defaultState = flag.defaultValue ? 'Enabled' : 'Disabled';
     const isChanged = flag.isOverridden();
+
     return m(
       Card,
-      {className: classNames(isChanged && 'pf-flags-page__card--changed')},
+      {
+        id: flag.id,
+        className: classNames(
+          isChanged && 'pf-flags-page__card--changed',
+          attrs.focused && 'pf-flags-page__card--focused',
+        ),
+      },
       m(SelectWidget, {
         label: flag.name,
         id: flag.id,
@@ -153,7 +174,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
     }
   }
 
-  view() {
+  view({attrs}: m.Vnode<FlagsPageAttrs>): m.Children {
     const isFiltering = this.filterText !== '';
     const flags = featureFlags
       .allFlags()
@@ -163,17 +184,47 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
     const filteredFlags = finder.find(this.filterText);
     const needsReload = channelChanged();
 
+    const subpage = decodeURIComponent(attrs.subpage ?? '');
+
     return m(
       SettingsShell,
       {
         stickyHeaderContent: m(
           Stack,
           {orientation: 'horizontal'},
-          m(Button, {
-            icon: 'restore',
-            label: 'Restore Defaults',
-            onclick: () => featureFlags.resetAll(),
-          }),
+          m(
+            Popup,
+            {
+              trigger: m(Button, {
+                icon: 'restore',
+                label: 'Restore Defaults',
+              }),
+            },
+            m(
+              Box,
+              m(
+                Stack,
+                'Are you sure you want to restore all flags to their default values? This action cannot be undone!',
+                m(
+                  Stack,
+                  {orientation: 'horizontal'},
+                  m(StackAuto),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    variant: ButtonVariant.Filled,
+                    label: 'Cancel',
+                  }),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    intent: Intent.Danger,
+                    variant: ButtonVariant.Filled,
+                    label: 'Restore Defaults',
+                    onclick: () => featureFlags.resetAll(),
+                  }),
+                ),
+              ),
+            ),
+          ),
           needsReload &&
             m(Button, {
               icon: 'refresh',
@@ -200,6 +251,12 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
         {spacing: 'large'},
         m(
           Card,
+          {
+            id: 'releaseChannel',
+            className: classNames(
+              subpage === `/releaseChannel` && 'pf-flags-page__card--focused',
+            ),
+          },
           m(SelectWidget, {
             label: 'Release channel',
             id: 'releaseChannel',
@@ -239,8 +296,11 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           ? this.renderEmptyState(isFiltering)
           : m(
               CardStack,
-              filteredFlags.map((filteredFlag) =>
-                m(FlagWidget, {flag: filteredFlag.item}),
+              filteredFlags.map((flag) =>
+                m(FlagWidget, {
+                  flag: flag.item,
+                  focused: attrs.subpage === `/${flag.item.id}`,
+                }),
               ),
             ),
         m(
@@ -257,7 +317,8 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<FlagsPageAttrs>) {
-    const flagId = /[/](\w+)/.exec(vnode.attrs.subpage ?? '')?.slice(1, 2)[0];
+    const subpage = decodeURIComponent(vnode.attrs.subpage ?? '');
+    const flagId = /[/](\w+)/.exec(subpage)?.slice(1, 2)[0];
     if (flagId) {
       const flag = vnode.dom.querySelector(`#${flagId}`);
       if (flag) {

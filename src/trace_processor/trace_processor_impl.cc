@@ -70,6 +70,7 @@
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -258,7 +259,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
     new_package.modules.Insert(module_name_and_sql.first,
                                {module_name_and_sql.second, false});
   }
-  return std::move(new_package);
+  return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
 
 class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
@@ -414,7 +415,7 @@ sql_modules::NameToPackage GetStdlibPackages() {
 std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
     const TraceStorage& storage) {
   int64_t start_ns = std::numeric_limits<int64_t>::max();
-  int64_t end_ns = std::numeric_limits<int64_t>::min();
+  int64_t end_ns = 0;
   for (auto it = storage.ftrace_event_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
@@ -534,6 +535,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   context()->heap_graph_tracker =
       std::make_unique<HeapGraphTracker>(context()->storage.get());
 
+  // Initialize deobfuscation tracker.
+  context()->deobfuscation_tracker =
+      std::make_unique<DeobfuscationTracker>(context());
+
   const std::vector<std::string> sanitized_extension_paths =
       SanitizeMetricMountPaths(config_.skip_builtin_metric_paths);
   std::vector<std::string> skip_prefixes;
@@ -568,10 +573,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
          /*allow_override=*/false});
   }
 
+  // Compute initial trace bounds before any tables are finalized.
+  cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
+
   engine_ = InitPerfettoSqlEngine(
       context(), context()->storage.get(), config_, &dataframe_shared_storage_,
       registered_sql_packages_, sql_metrics_, &metrics_descriptor_pool_,
-      &proto_fn_name_to_path_, this, notify_eof_called_);
+      &proto_fn_name_to_path_, this, notify_eof_called_, cached_trace_bounds_);
 
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -610,8 +618,9 @@ void TraceProcessorImpl::Flush() {
 void TraceProcessorImpl::FlushInternal(bool should_build_bounds_table) {
   TraceProcessorStorageImpl::Flush();
   if (should_build_bounds_table) {
-    BuildBoundsTable(engine_->sqlite_engine()->db(),
-                     GetTraceTimestampBoundsNs(*context()->storage));
+    // Update cached bounds and rebuild bounds table.
+    cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
+    BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
   }
 }
 
@@ -631,15 +640,20 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   // Last opportunity to flush all pending data.
   FlushInternal(false);
 
+  HeapGraphTracker::Get(context())->FinalizeAllProfiles();
   RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
+  DeobfuscationTracker::Get(context())->NotifyEndOfFile();
 
   // Rebuild the bounds table once everything has been completed: we do this
   // so that if any data was added to tables in
   // TraceProcessorStorageImpl::NotifyEndOfFile, this will be counted in
   // trace bounds: this is important for parsers like ninja which wait until
   // the end to flush all their data.
-  BuildBoundsTable(engine_->sqlite_engine()->db(),
-                   GetTraceTimestampBoundsNs(*context()->storage));
+  //
+  // Cache the bounds before finalization so we can reuse them in
+  // RestoreInitialTables without iterating over finalized dataframes.
+  cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
+  BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
 
   TraceProcessorStorageImpl::DestroyContext();
   context()->storage->ShrinkToFitTables();
@@ -888,11 +902,12 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
-  // Reset the engine to its initial state.
+  // Reset the engine to its initial state. Pass cached bounds to avoid
+  // iterating over finalized dataframes.
   engine_ = InitPerfettoSqlEngine(
       context(), context()->storage.get(), config_, &dataframe_shared_storage_,
       registered_sql_packages_, sql_metrics_, &metrics_descriptor_pool_,
-      &proto_fn_name_to_path_, this, notify_eof_called_);
+      &proto_fn_name_to_path_, this, notify_eof_called_, cached_trace_bounds_);
 
   // The registered count should now be the same as it was in the constructor.
   uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
@@ -1214,7 +1229,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     const DescriptorPool* metrics_descriptor_pool,
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
     TraceProcessor* trace_processor,
-    bool notify_eof_called) {
+    bool notify_eof_called,
+    std::pair<int64_t, int64_t> cached_trace_bounds) {
   auto engine = std::make_unique<PerfettoSqlEngine>(
       storage->mutable_string_pool(), dataframe_shared_storage,
       config.enable_extra_checks);
@@ -1260,7 +1276,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<TablePtrBind>(engine.get());
   RegisterFunction<ExportJson>(engine.get(), storage);
   RegisterFunction<ExtractArg>(engine.get(), storage);
-  RegisterFunction<ArgSetToJson>(engine.get(), storage);
+  RegisterFunction<ArgSetToJson>(
+      engine.get(), std::make_unique<ArgSetToJson::Context>(storage));
   RegisterFunction<AbsTimeStr>(engine.get(), context->clock_converter.get());
   RegisterFunction<Reverse>(engine.get());
   RegisterFunction<ToMonotonic>(engine.get(), context->clock_converter.get());
@@ -1443,8 +1460,9 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     }
   }
 
-  // Fill trace bounds table.
-  BuildBoundsTable(db, GetTraceTimestampBoundsNs(*storage));
+  // Fill trace bounds table with the passed in bounds. The bounds should be
+  // computed in Flush/NotifyEndOfFile before tables are finalized.
+  BuildBoundsTable(db, cached_trace_bounds);
 
   return engine;
 }

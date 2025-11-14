@@ -29,6 +29,9 @@ import {FuzzyFinder} from '../../base/fuzzy';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
 import {EmptyState} from '../../widgets/empty_state';
+import {Popup} from '../../widgets/popup';
+import {Box} from '../../widgets/box';
+import {Anchor} from '../../widgets/anchor';
 
 enum SortOrder {
   Name = 'name',
@@ -80,10 +83,14 @@ function sortText(sortOrder: SortOrder) {
   }
 }
 
-export class PluginsPage implements m.ClassComponent {
+export interface PluginsPageAttrs {
+  readonly subpage?: string;
+}
+
+export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
   private filterText: string = '';
 
-  view() {
+  view({attrs}: m.Vnode<PluginsPageAttrs>): m.Children {
     const pluginManager = AppImpl.instance.plugins;
     const registeredPlugins = pluginManager.getAllPlugins();
     const needsRestart = registeredPlugins.some((p) => {
@@ -101,6 +108,7 @@ export class PluginsPage implements m.ClassComponent {
     const filteredPlugins = isFiltering
       ? finder.find(this.filterText)
       : sorted.map((item) => ({item, segments: []}));
+    const subpage = decodeURIComponent(attrs.subpage ?? '');
 
     return m(
       SettingsShell,
@@ -114,19 +122,47 @@ export class PluginsPage implements m.ClassComponent {
           },
           m(
             ButtonBar,
-            m(Button, {
-              icon: 'restore',
-              disabled: !anyNonDefaults,
-              label: 'Restore Defaults',
-              title: anyNonDefaults
-                ? 'Restore all plugins to their default enabled/disabled state'
-                : 'All plugins are in their default state',
-              onclick: () => {
-                for (const plugin of registeredPlugins) {
-                  plugin.enableFlag.reset();
-                }
+            m(
+              Popup,
+              {
+                trigger: m(Button, {
+                  icon: 'restore',
+                  disabled: !anyNonDefaults,
+                  label: 'Restore Defaults',
+                  title: anyNonDefaults
+                    ? 'Restore all plugins to their default enabled/disabled state'
+                    : 'All plugins are in their default state',
+                }),
               },
-            }),
+              m(
+                Box,
+                m(
+                  Stack,
+                  'Are you sure you want to restore all plugins to their default enabled/disabled state? This action cannot be undone!',
+                  m(
+                    Stack,
+                    {orientation: 'horizontal'},
+                    m(StackAuto),
+                    m(Button, {
+                      className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                      variant: ButtonVariant.Filled,
+                      label: 'Cancel',
+                    }),
+                    m(Button, {
+                      className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                      intent: Intent.Danger,
+                      variant: ButtonVariant.Filled,
+                      label: 'Restore Defaults',
+                      onclick: () => {
+                        for (const plugin of registeredPlugins) {
+                          plugin.enableFlag.reset();
+                        }
+                      },
+                    }),
+                  ),
+                ),
+              ),
+            ),
             needsRestart && reloadButton(),
           ),
           m(StackAuto),
@@ -162,7 +198,12 @@ export class PluginsPage implements m.ClassComponent {
         filteredPlugins.length > 0
           ? m(
               CardStack,
-              filteredPlugins.map(({item}) => this.renderPluginCard(item)),
+              filteredPlugins.map(({item: plugin}) => {
+                return this.renderPluginCard(
+                  plugin,
+                  subpage === `/${plugin.desc.id}`,
+                );
+              }),
             )
           : this.renderEmptyState(isFiltering),
       ),
@@ -195,21 +236,42 @@ export class PluginsPage implements m.ClassComponent {
     }
   }
 
-  private renderPluginCard(plugin: PluginWrapper): m.Children {
+  private renderPluginCard(
+    plugin: PluginWrapper,
+    focused: boolean,
+  ): m.Children {
     const loadTime = plugin.traceContext?.loadTimeMs;
     return m(
       Card,
       {
+        id: plugin.desc.id,
         className: classNames(
           'pf-plugins-page__card',
           plugin.active && 'pf-plugins-page__card--active',
           plugin.enableFlag.get() && 'pf-plugins-page__card--enabled',
+          focused && 'pf-plugins-page__card--focused',
         ),
         key: plugin.desc.id,
       },
       m(
         '.pf-plugins-page__details',
-        m('h1', plugin.desc.id),
+        m(
+          Stack,
+          {
+            orientation: 'horizontal',
+            gap: 'small',
+            className: 'pf-plugins-page__label-row',
+          },
+          m('h1', plugin.desc.id),
+          m(
+            '.pf-plugins-page__link-button',
+            m(Anchor, {
+              href: `#!/plugins/${encodeURIComponent(plugin.desc.id)}`,
+              icon: 'link',
+              title: 'Link to this plugin',
+            }),
+          ),
+        ),
         plugin.desc.description &&
           m('.pf-plugins-page__description', plugin.desc.description),
       ),
@@ -236,6 +298,20 @@ export class PluginsPage implements m.ClassComponent {
         }),
       ),
     );
+  }
+
+  oncreate(vnode: m.VnodeDOM<PluginsPageAttrs>) {
+    const subpage = decodeURIComponent(vnode.attrs.subpage ?? '');
+    console.log(subpage);
+    const pluginId = /[/](.+)/.exec(subpage)?.[1];
+    console.log('Scrolling to plugin', pluginId);
+    if (pluginId) {
+      const plugin = vnode.dom.querySelector(`#${CSS.escape(pluginId)}`);
+      console.log('Scrolling to plugin', pluginId, plugin);
+      if (plugin) {
+        plugin.scrollIntoView({block: 'center'});
+      }
+    }
   }
 }
 

@@ -18,23 +18,28 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
+  createFinalColumns,
+  SourceNode,
+  nextNodeId,
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
+import {Card} from '../../../../../widgets/card';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
-import {TableAndColumnImpl} from '../../../../dev.perfetto.SqlModules/sql_modules_impl';
-import {createFiltersProto, FilterOperation} from '../../operations/filter';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
-import {SourceNode} from '../../source_node';
+import {
+  createFiltersProto,
+  FilterOperation,
+  UIFilter,
+} from '../../operations/filter';
 
 export interface SlicesSourceSerializedState {
   slice_name?: string;
   thread_name?: string;
   process_name?: string;
   track_name?: string;
-  filters: FilterDefinition[];
-  customTitle?: string;
+  filters?: UIFilter[];
+  comment?: string;
 }
 
 export interface SlicesSourceState extends QueryNodeState {
@@ -45,22 +50,26 @@ export interface SlicesSourceState extends QueryNodeState {
   onchange?: () => void;
 }
 
-export class SlicesSourceNode extends SourceNode {
+export class SlicesSourceNode implements SourceNode {
+  readonly nodeId: string;
   readonly state: SlicesSourceState;
-
-  get sourceCols() {
-    return slicesSourceNodeColumns(true);
-  }
+  readonly finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
 
   constructor(attrs: SlicesSourceState) {
-    super(attrs);
+    this.nodeId = nextNodeId();
     this.state = attrs;
     this.state.onchange = attrs.onchange;
+    this.finalCols = createFinalColumns(slicesSourceNodeColumns(true));
     this.nextNodes = [];
   }
 
   get type() {
     return NodeType.kSimpleSlices;
+  }
+
+  validate(): boolean {
+    return true;
   }
 
   clone(): QueryNode {
@@ -69,18 +78,13 @@ export class SlicesSourceNode extends SourceNode {
       thread_name: this.state.thread_name?.slice(),
       process_name: this.state.process_name?.slice(),
       track_name: this.state.track_name?.slice(),
-      filters: this.state.filters.map((f) => ({...f})),
-      customTitle: this.state.customTitle,
+      filters: this.state.filters ? [...this.state.filters] : undefined,
     };
     return new SlicesSourceNode(stateCopy);
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? 'Simple slices';
-  }
-
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+    return 'Simple slices';
   }
 
   serializeState(): SlicesSourceSerializedState {
@@ -90,7 +94,7 @@ export class SlicesSourceNode extends SourceNode {
       process_name: this.state.process_name,
       track_name: this.state.track_name,
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 
@@ -108,10 +112,7 @@ export class SlicesSourceNode extends SourceNode {
 
     sq.simpleSlices = ss;
 
-    const filtersProto = createFiltersProto(
-      this.state.filters,
-      this.sourceCols,
-    );
+    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
     if (filtersProto) sq.filters = filtersProto;
 
     const selectedColumns = createSelectColumnsProto(this);
@@ -145,7 +146,7 @@ export class SlicesSourceNode extends SourceNode {
     return m(
       '',
       m(
-        '.pf-slice-source-box',
+        Card,
         m(
           '.pf-slice-source-label',
           m('span', 'Slice name'),
@@ -213,9 +214,9 @@ export class SlicesSourceNode extends SourceNode {
       ),
       m(FilterOperation, {
         filters: this.state.filters,
-        sourceCols: this.sourceCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-          this.state.filters = newFilters as FilterDefinition[];
+        sourceCols: this.finalCols,
+        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+          this.state.filters = [...newFilters];
           this.state.onchange?.();
         },
       }),
@@ -228,51 +229,47 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
     {
       name: 'id',
       type: {
-        name: 'ID(slice.id)',
-        shortName: 'id',
-        tableAndColumn: new TableAndColumnImpl('string', 'id'),
+        kind: 'id',
+        source: {
+          table: 'slice',
+          column: 'id',
+        },
       },
     },
     {
       name: 'ts',
       type: {
-        name: 'TIMESTAMP',
-        shortName: 'TIMESTAMP',
+        kind: 'timestamp',
       },
     },
     {
       name: 'dur',
       type: {
-        name: 'DURATION',
-        shortName: 'DURATION',
+        kind: 'duration',
       },
     },
     {
       name: 'slice_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'thread_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'process_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'track_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
   ];

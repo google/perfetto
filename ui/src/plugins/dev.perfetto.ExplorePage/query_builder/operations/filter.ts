@@ -13,11 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  FilterDefinition,
-  FilterValue,
-} from '../../../../components/widgets/data_grid/common';
 import {Button} from '../../../../widgets/button';
+import {Card} from '../../../../widgets/card';
 import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
 import {Select} from '../../../../widgets/select';
@@ -27,45 +24,49 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Stack} from '../../../../widgets/stack';
 
-// Partial representation of FilterDefinition used in the UI.
-export interface UIFilter {
-  readonly column?: string;
-  readonly op?: FilterValue['op'] | 'is null' | 'is not null';
-  readonly value?: SqlValue;
+interface FilterValue {
+  readonly column: string;
+  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob';
+  readonly value: SqlValue;
 }
+
+interface FilterNull {
+  readonly column: string;
+  readonly op: 'is null' | 'is not null';
+}
+
+export type UIFilter = FilterValue | FilterNull;
 
 /**
  * Attributes for the FilterOperation component.
  */
 export interface FilterAttrs {
   readonly sourceCols: ColumnInfo[];
-  readonly filters: ReadonlyArray<FilterDefinition>;
-  readonly onFiltersChanged?: (
-    filters: ReadonlyArray<FilterDefinition>,
-  ) => void;
+  readonly filters?: ReadonlyArray<UIFilter>;
+  readonly onFiltersChanged?: (filters: ReadonlyArray<UIFilter>) => void;
   readonly onchange?: () => void;
 }
 
 export class FilterOperation implements m.ClassComponent<FilterAttrs> {
   private error?: string;
-  private uiFilters: UIFilter[] = [];
-  private editingFilter?: UIFilter;
+  private uiFilters: Partial<UIFilter>[] = [];
+  private editingFilter?: Partial<UIFilter>;
 
   oncreate({attrs}: m.Vnode<FilterAttrs>) {
-    this.uiFilters = [...attrs.filters];
+    this.uiFilters = [...(attrs.filters ?? [])];
   }
 
   onbeforeupdate({attrs}: m.Vnode<FilterAttrs>) {
     // If we are not in editing mode, sync with the parent.
     if (this.editingFilter === undefined) {
-      this.uiFilters = [...attrs.filters];
+      this.uiFilters = [...(attrs.filters ?? [])];
     }
   }
 
   private setFilters(
-    nextFilters: UIFilter[],
+    nextFilters: Partial<UIFilter>[],
     attrs: FilterAttrs,
-    editing?: UIFilter,
+    editing?: Partial<UIFilter>,
   ) {
     this.uiFilters = nextFilters;
     this.editingFilter = editing;
@@ -105,8 +106,9 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           });
 
-    return m('.pf-exp-query-operations', [
-      m('.pf-exp-section', [
+    return m(
+      '.pf-exp-query-operations',
+      m(Card, {}, [
         m(
           '.pf-exp-filters-header',
           m('h2.pf-exp-filters-title', 'Filters'),
@@ -177,23 +179,23 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
                 );
                 this.setFilters(nextFilters, attrs, undefined);
               } else {
-                const newFilter = {};
+                const newFilter: Partial<UIFilter> = {};
                 const nextFilters = [...this.uiFilters, newFilter];
                 this.setFilters(nextFilters, attrs, newFilter);
               }
             },
           }),
         ),
-        editor && m('.pf-exp-filter-editor-box', editor),
+        editor && m('.pf-exp-editor-box', editor),
       ]),
-    ]);
+    );
   }
 }
 
 interface FilterEditorAttrs {
-  readonly filter: UIFilter;
+  readonly filter: Partial<UIFilter>;
   readonly sourceCols: ColumnInfo[];
-  readonly onUpdate: (filter: UIFilter) => void;
+  readonly onUpdate: (filter: Partial<UIFilter>) => void;
   readonly onRemove: () => void;
   readonly onDone: () => void;
 }
@@ -225,7 +227,7 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
     });
 
     return m(
-      '.pf-exp-filter-editor',
+      '.pf-exp-editor',
       {className: isValid ? 'is-valid' : 'is-invalid'},
       [
         m(
@@ -251,7 +253,7 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
               const newOp = ALL_FILTER_OPS.find(
                 (op) => op.key === target.value,
               );
-              const newFilter: UIFilter = {
+              const newFilter: Partial<UIFilter> = {
                 ...filter,
                 op: newOp?.displayName as UIFilter['op'],
               };
@@ -271,11 +273,10 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
             oninput: (e: Event) => {
               const target = e.target as HTMLInputElement;
               const value = parseFilterValue(target.value);
-              const {value: _value, ...rest} = filter;
               if (value !== undefined) {
-                onUpdate({...rest, value});
+                onUpdate({...filter, value} as Partial<UIFilter>);
               } else {
-                onUpdate(rest);
+                onUpdate(filter);
               }
             },
           }),
@@ -302,8 +303,8 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
  * @returns True if the filter is valid.
  */
 export function isFilterDefinitionValid(
-  filter: UIFilter,
-): filter is FilterDefinition & UIFilter {
+  filter: Partial<UIFilter>,
+): filter is UIFilter {
   const {column, op} = filter;
 
   if (column === undefined || op === undefined) {
@@ -329,7 +330,7 @@ export function isFilterDefinitionValid(
 // for simple filters and does not support complex values with spaces or quotes.
 // TODO(mayzner): Improve this parser to handle more complex cases, such as
 // quoted strings, escaped characters, or operators within values.
-function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
+function fromString(text: string, sourceCols: ColumnInfo[]): Partial<UIFilter> {
   // Sort operators by length descending to match "is not null" before "is
   // null".
   const ops = ALL_FILTER_OPS.slice().sort(
@@ -389,7 +390,7 @@ function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
     };
   }
 
-  const result: UIFilter = {
+  const result: Partial<UIFilter> = {
     column: col.name,
     op: op.displayName as UIFilter['op'],
   };
@@ -495,15 +496,15 @@ export const ALL_FILTER_OPS: FilterOp[] = [
 ];
 
 export function createFiltersProto(
-  filters: FilterDefinition[],
+  filters: UIFilter[] | undefined,
   sourceCols: ColumnInfo[],
 ): protos.PerfettoSqlStructuredQuery.Filter[] | undefined {
-  if (filters.length === 0) {
+  if (filters === undefined || filters.length === 0) {
     return undefined;
   }
 
   const protoFilters: protos.PerfettoSqlStructuredQuery.Filter[] = filters.map(
-    (f: FilterDefinition): protos.PerfettoSqlStructuredQuery.Filter => {
+    (f: UIFilter): protos.PerfettoSqlStructuredQuery.Filter => {
       const result = new protos.PerfettoSqlStructuredQuery.Filter();
       result.columnName = f.column;
 

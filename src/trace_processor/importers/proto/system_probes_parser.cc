@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -592,7 +593,7 @@ void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
   }
 }
 
-void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
+void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
   protos::pbzero::ProcessTree::Decoder ps(blob);
 
   for (auto it = ps.processes(); it; ++it) {
@@ -666,10 +667,24 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     UniquePid pupid = context_->process_tracker->GetOrCreateProcess(ppid);
     UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
 
-    upid =
-        context_->process_tracker->UpdateProcessWithParent(upid, pupid, true);
+    upid = context_->process_tracker->UpdateProcessWithParent(
+        upid, pupid, /*associate_main_thread=*/true);
 
     context_->process_tracker->SetProcessMetadata(upid, argv0, joined_cmdline);
+
+    // perfetto v50+: additionally, if we know that the "cmdline" contents are
+    // coming from the main thread's name ("comm"), then set the thread name as
+    // well. This comes up with kernel threads, which are in fact single-thread
+    // processes without a /proc/pid/cmdline. The reuse of "cmdline" for this
+    // scenario is historical, but we maintain compatibility. Note:
+    // cmdline_is_comm is not equivalent to "is a kernel thread", as the field
+    // could also be set for e.g. zombie processes.
+    if (proc.cmdline_is_comm()) {
+      auto utid = context_->process_tracker->GetOrCreateThread(pid);
+      auto thread_name_id = context_->storage->InternString(joined_cmdline);
+      context_->process_tracker->UpdateThreadName(
+          utid, thread_name_id, ThreadNamePriority::kProcessTree);
+    }
 
     if (proc.has_uid()) {
       context_->process_tracker->SetProcessUid(
@@ -678,17 +693,17 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 
     // note: early kernel threads can have an age of zero (at tick resolution)
     if (proc.has_process_start_from_boot()) {
-      base::StatusOr<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
+      std::optional<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
           protos::pbzero::BUILTIN_CLOCK_BOOTTIME,
           static_cast<int64_t>(proc.process_start_from_boot()));
-      if (start_ts.ok()) {
+      if (start_ts) {
         context_->process_tracker->SetStartTsIfUnset(upid, *start_ts);
       }
     }
 
     // Linux v6.4+: explicit field for whether this is a kernel thread.
     if (proc.has_is_kthread()) {
-      context_->process_tracker->AddArgsTo(upid).AddArg(
+      context_->process_tracker->AddArgsToProcess(upid).AddArg(
           is_kthread_id_, Variadic::Boolean(proc.is_kthread()));
     }
   }
@@ -711,8 +726,11 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       for (auto nstid_it = thd.nstid(); nstid_it; nstid_it++) {
         nstid.emplace_back(static_cast<int64_t>(*nstid_it));
       }
-      context_->process_tracker->UpdateNamespacedThread(tgid, tid,
-                                                        std::move(nstid));
+      if (!context_->process_tracker->UpdateNamespacedThread(
+              tgid, tid, std::move(nstid))) {
+        context_->import_logs_tracker->RecordParserError(
+            stats::namespaced_thread_missing_process, ts);
+      }
     }
   }
 }

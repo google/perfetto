@@ -25,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -649,8 +650,12 @@ void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
                    ThreadNamePriority::kTraceProcessorConstant);
 }
 
-ArgsTracker::BoundInserter ProcessTracker::AddArgsTo(UniquePid upid) {
-  return args_tracker_.AddArgsTo(upid);
+ArgsTracker::BoundInserter ProcessTracker::AddArgsToProcess(UniquePid upid) {
+  return args_tracker_.AddArgsToProcess(upid);
+}
+
+ArgsTracker::BoundInserter ProcessTracker::AddArgsToThread(UniqueTid utid) {
+  return args_tracker_.AddArgsToThread(utid);
 }
 
 void ProcessTracker::NotifyEndOfFile() {
@@ -670,15 +675,20 @@ void ProcessTracker::UpdateNamespacedProcess(int64_t pid,
   namespaced_processes_[pid] = {pid, std::move(nspid), {}};
 }
 
-void ProcessTracker::UpdateNamespacedThread(int64_t pid,
+bool ProcessTracker::UpdateNamespacedThread(int64_t pid,
                                             int64_t tid,
                                             std::vector<int64_t> nstid) {
-  PERFETTO_DCHECK(namespaced_processes_.find(pid) !=
-                  namespaced_processes_.end());
+  // It's possible with data loss that we collect the thread namespace
+  // information but not the process. In that case, just ignore the thread
+  // association.
+  if (namespaced_processes_.find(pid) == namespaced_processes_.end()) {
+    return false;
+  }
   auto& process = namespaced_processes_[pid];
   process.threads.emplace(tid);
 
   namespaced_threads_[tid] = {pid, tid, std::move(nstid)};
+  return true;
 }
 
 }  // namespace perfetto::trace_processor

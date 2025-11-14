@@ -54,7 +54,7 @@ export default class implements PerfettoPlugin {
       group.addChildInOrder(node);
     }
     if (group.children.length) {
-      ctx.workspace.addChildInOrder(group);
+      ctx.defaultWorkspace.addChildInOrder(group);
     }
   }
 

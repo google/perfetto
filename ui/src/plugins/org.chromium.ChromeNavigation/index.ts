@@ -51,7 +51,7 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.PinNavigationTracks',
       name: 'Chrome Navigation: Pin relevant tracks',
       callback: () => {
-        trace.workspace.flatTracks
+        trace.currentWorkspace.flatTracks
           .filter((t) => PIN_TRACK_NAME_PATTERNS.some((p) => t.name.match(p)))
           .forEach((t) => t.pin());
       },
@@ -81,7 +81,7 @@ export default class implements PerfettoPlugin {
         }
 
         // Find all tracks that we want to be visible.
-        trace.workspace.flatTracks
+        trace.currentWorkspace.flatTracks
           .filter((t) =>
             INTERESTING_TRACKS_NAME_PATTERNS.some((p) => t.name.match(p)),
           )
@@ -112,7 +112,7 @@ export default class implements PerfettoPlugin {
 
         // Create the workspace and add all the relevant tracks to it.
         ws = trace.workspaces.createEmptyWorkspace(NAVIGATION_WORKSPACE_NAME);
-        for (const track of trace.workspace.children) {
+        for (const track of trace.currentWorkspace.children) {
           const maybeTrack = visit(track);
           if (maybeTrack !== undefined) {
             ws.addChildInOrder(maybeTrack);

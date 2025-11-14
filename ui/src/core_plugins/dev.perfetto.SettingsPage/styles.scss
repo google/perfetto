@@ -15,6 +15,23 @@
 @import "../../assets/theme";
 
 .pf-settings-page {
+  &__plugin-section {
+    margin-bottom: 32px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &__plugin-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    padding: 8px 12px;
+    background: var(--pf-minimal-background);
+    border-radius: 4px;
+  }
+
   &__card {
     display: flex;
     flex-direction: row;
@@ -24,6 +41,15 @@
     &--changed {
       border-left: solid 3px var(--pf-color-primary);
     }
+
+    &--focused {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-highlight) 70%,
+        transparent
+      );
+      animation: highlight-flash 1s ease-out;
+    }
   }
 
   &__details {
@@ -32,9 +58,20 @@
     gap: 6px;
   }
 
+  &__setting-id {
+    font-size: 0.7em;
+    color: var(--pf-color-text-muted);
+    font-family: var(--pf-font-monospace);
+    margin-bottom: 6px;
+  }
+
   &__description {
     font-size: smaller;
     white-space: pre-line;
+  }
+
+  &__link-button {
+    visibility: hidden;
   }
 
   &__controls {
@@ -50,5 +87,25 @@
     gap: 4px;
     color: var(--pf-color-danger);
     font-size: 14px;
+  }
+}
+
+.pf-card:hover .pf-settings-page__link-button {
+  visibility: visible;
+}
+
+@keyframes highlight-flash {
+  0% {
+    background-color: transparent;
+  }
+  30% {
+    background-color: var(--pf-color-highlight);
+  }
+  100% {
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-highlight) 70%,
+      transparent
+    );
   }
 }

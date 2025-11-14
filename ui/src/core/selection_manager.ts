@@ -226,10 +226,10 @@ export class SelectionManagerImpl implements SelectionManager {
     return this.detailsPanels.get(this._selection);
   }
 
-  async resolveSqlEvent(
+  async resolveSqlEvents(
     sqlTableName: string,
-    id: number,
-  ): Promise<{eventId: number; trackUri: string} | undefined> {
+    ids: ReadonlyArray<number>,
+  ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>> {
     // This function:
     // 1. Find the list of tracks whose rootTableName is the same as the one we
     //    are looking for
@@ -240,6 +240,7 @@ export class SelectionManagerImpl implements SelectionManager {
     // One flaw of this approach is that.
     const groups = new Map<string, [SourceDataset, Track][]>();
     const tracksWithNoFilter: [SourceDataset, Track][] = [];
+    const matches: {eventId: number; trackUri: string}[] = [];
 
     this.trackManager
       .getAllTracks()
@@ -264,10 +265,13 @@ export class SelectionManagerImpl implements SelectionManager {
     // Run one query per no-filter track. This is the only way we can reliably
     // keep track of which track the event belonged to.
     for (const [dataset, track] of tracksWithNoFilter) {
-      const query = `select id from (${dataset.query()}) where id = ${id}`;
+      const query = `select id from (${dataset.query()}) where id IN (${ids.join(',')})`;
       const result = await this.engine.query(query);
       if (result.numRows() > 0) {
-        return {eventId: id, trackUri: track.uri};
+        matches.push({
+          eventId: result.firstRow({id: NUM}).id,
+          trackUri: track.uri,
+        });
       }
     }
 
@@ -287,34 +291,45 @@ export class SelectionManagerImpl implements SelectionManager {
 
       // Make sure to include the filter value in the schema.
       const schema = {...union.schema, [colName]: UNKNOWN};
-      const query = `select * from (${union.query(schema)}) where id = ${id}`;
+      const query = `select * from (${union.query(schema)}) where id IN (${ids.join(',')})`;
       const result = await this.engine.query(query);
 
+      const getTrackFromFilterValue = function (value: SqlValue) {
+        let trackUri = map.get(value);
+
+        // If that didn't work, try converting the value to a number if it's a
+        // bigint. Unless specified as a NUM type, any integers on the wire will
+        // be parsed as a bigint to avoid losing precision.
+        if (trackUri === undefined && typeof value === 'bigint') {
+          trackUri = map.get(Number(value));
+        }
+        return trackUri;
+      };
+
       const row = result.iter(schema);
-      const value = row.get(colName);
-
-      let trackUri = map.get(value);
-
-      // If that didn't work, try converting the value to a number if it's a
-      // bigint. Unless specified as a NUM type, any integers on the wire will
-      // be parsed as a bigint to avoid losing precision.
-      if (trackUri === undefined && typeof value === 'bigint') {
-        trackUri = map.get(Number(value));
-      }
-
-      if (trackUri) {
-        return {eventId: id, trackUri};
+      for (; row.valid(); row.next()) {
+        const value = row.get(colName);
+        const trackUri = getTrackFromFilterValue(value);
+        if (trackUri) {
+          matches.push({eventId: row.id as number, trackUri});
+        }
       }
     }
 
-    return undefined;
+    return matches;
   }
 
-  selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts): void {
-    this.resolveSqlEvent(sqlTableName, id).then((selection) => {
-      selection &&
-        this.selectTrackEvent(selection.trackUri, selection.eventId, opts);
-    });
+  async resolveSqlEvent(
+    sqlTableName: string,
+    id: number,
+  ): Promise<{eventId: number; trackUri: string} | undefined> {
+    const matches = await this.resolveSqlEvents(sqlTableName, [id]);
+    return matches[0];
+  }
+
+  async selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts) {
+    const event = await this.resolveSqlEvent(sqlTableName, id);
+    event && this.selectTrackEvent(event.trackUri, event.eventId, opts);
   }
 
   private setSelection(selection: Selection, opts?: SelectionOpts) {

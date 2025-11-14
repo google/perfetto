@@ -14,9 +14,21 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 
+#include <cstdint>
+#include <limits>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
 #include "src/trace_processor/util/json_writer.h"
 
@@ -42,18 +54,30 @@ void WriteVariadic(const Variadic& v,
     case Variadic::Type::kReal:
       std::move(writer).WriteDouble(v.real_value);
       break;
-    case Variadic::Type::kString:
-      std::move(writer).WriteString(storage->GetString(v.string_value).c_str());
+    case Variadic::Type::kString: {
+      if (v.string_value.is_null()) {
+        std::move(writer).WriteNull();
+        break;
+      }
+      NullTermStringView str = storage->GetString(v.string_value);
+      std::move(writer).WriteString(str.c_str());
       break;
+    }
     case Variadic::Type::kPointer: {
       std::move(writer).WriteString(base::Uint64ToHexString(v.pointer_value));
       break;
     }
-    case Variadic::Type::kJson:
+    case Variadic::Type::kJson: {
       // For JSON values, we need to parse and reconstruct them properly
       // For now, just treat as string
-      std::move(writer).WriteString(storage->GetString(v.json_value).c_str());
+      if (v.json_value.is_null()) {
+        std::move(writer).WriteNull();
+        break;
+      }
+      NullTermStringView str = storage->GetString(v.json_value);
+      std::move(writer).WriteString(str.c_str());
       break;
+    }
   }
 }
 
@@ -150,9 +174,15 @@ void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     case Variadic::Type::kPointer:
       return sqlite::result::Long(ctx, *rr.int_value());
     case Variadic::Type::kJson:
-    case Variadic::Type::kString:
-      return sqlite::result::StaticString(
-          ctx, storage->GetString(rr.string_value()).c_str());
+    case Variadic::Type::kString: {
+      auto opt_string_id = rr.string_value();
+      if (!opt_string_id.has_value() || opt_string_id->is_null()) {
+        sqlite::result::Null(ctx);
+        return;
+      }
+      NullTermStringView value = storage->GetString(*opt_string_id);
+      return sqlite::result::StaticString(ctx, value.c_str());
+    }
     case Variadic::Type::kReal:
       return sqlite::result::Double(ctx, *rr.real_value());
     case Variadic::Type::kNull:
@@ -172,35 +202,39 @@ void ArgSetToJson::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   }
   uint32_t arg_set_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
 
-  auto* storage = GetUserData(ctx);
+  auto* user_data = GetUserData(ctx);
+  auto* storage = user_data->storage;
   const auto& arg_table = storage->arg_table();
-  auto cursor = arg_table.CreateCursor({dataframe::FilterSpec{
-      tables::ArgTable::ColumnIndex::arg_set_id,
-      0,
-      dataframe::Eq{},
-      std::nullopt,
-  }});
-  cursor.SetFilterValueUnchecked(0, arg_set_id);
-  ArgSet arg_set;
-  for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
-    const auto row_number = cursor.ToRowNumber();
+
+  // Reuse cursor - just update the filter value
+  user_data->arg_cursor.SetFilterValueUnchecked(0, arg_set_id);
+
+  // Reuse arg_set - clear but retain capacity
+  user_data->arg_set.Clear();
+  for (user_data->arg_cursor.Execute(); !user_data->arg_cursor.Eof();
+       user_data->arg_cursor.Next()) {
+    const auto row_number = user_data->arg_cursor.ToRowNumber();
     const auto row = row_number.ToRowReference(arg_table);
 
-    const auto result =
-        arg_set.AppendArg(storage->GetString(row.key()),
-                          storage->GetArgValue(row_number.row_number()));
+    const auto result = user_data->arg_set.AppendArg(
+        storage->GetString(row.key()),
+        storage->GetArgValue(row_number.row_number()));
     if (!result.ok()) {
       return sqlite::result::Error(ctx, result.c_message());
     }
   }
-  std::string result = json::Write([&](json::JsonValueWriter&& json_writer) {
-    std::move(json_writer).WriteDict([&](json::JsonDictWriter& writer) {
-      for (const auto& [key, value] : arg_set.root().GetDict()) {
-        WriteArgNode(value, storage, writer, key);
-      }
-    });
-  });
-  return sqlite::result::TransientString(ctx, result.c_str());
+
+  // Reuse json_writer - clear but retain capacity
+  user_data->json_writer.Clear();
+  json::JsonValueWriter(user_data->json_writer)
+      .WriteDict([&](json::JsonDictWriter& writer) {
+        for (const auto& [key, value] : user_data->arg_set.root().GetDict()) {
+          WriteArgNode(value, storage, writer, key);
+        }
+      });
+  auto json_sv = user_data->json_writer.GetStringView();
+  return sqlite::result::TransientString(ctx, json_sv.data(),
+                                         static_cast<int>(json_sv.size()));
 }
 
 }  // namespace perfetto::trace_processor

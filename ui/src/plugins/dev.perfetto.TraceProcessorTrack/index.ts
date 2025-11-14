@@ -34,6 +34,7 @@ import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
   LONG,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
@@ -113,8 +114,8 @@ export default class implements PerfettoPlugin {
       upid: NUM_NULL,
       threadName: STR_NULL,
       processName: STR_NULL,
-      tid: NUM_NULL,
-      pid: NUM_NULL,
+      tid: LONG_NULL,
+      pid: LONG_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
       machine: NUM_NULL,
@@ -250,9 +251,9 @@ export default class implements PerfettoPlugin {
       upid: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
-      tid: NUM_NULL,
+      tid: LONG_NULL,
       threadName: STR_NULL,
-      pid: NUM_NULL,
+      pid: LONG_NULL,
       processName: STR_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
@@ -362,15 +363,17 @@ export default class implements PerfettoPlugin {
         break;
       }
       case undefined: {
-        this.getGroupByName(ctx.workspace.tracks, group, upid).addChildInOrder(
-          track,
-        );
+        this.getGroupByName(
+          ctx.defaultWorkspace.tracks,
+          group,
+          upid,
+        ).addChildInOrder(track);
         break;
       }
       default: {
         const standardGroup = ctx.plugins
           .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.workspace, topLevelGroup);
+          .getOrCreateStandardGroup(ctx.defaultWorkspace, topLevelGroup);
         this.getGroupByName(standardGroup, group, null).addChildInOrder(track);
         break;
       }
@@ -468,7 +471,7 @@ export default class implements PerfettoPlugin {
         const processGroupsPlugin = ctx.plugins.getPlugin(
           ProcessThreadGroupsPlugin,
         );
-        const topLevelTracks = ctx.workspace.children;
+        const topLevelTracks = ctx.defaultWorkspace.children;
         const upidOrderMap = new Map<number, number>();
 
         // Get the position of each upid's process group in the top-level tracks

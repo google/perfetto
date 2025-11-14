@@ -213,8 +213,8 @@ int64_t GProfileBuilder::Mapping::ComputeMainBinaryScore() const {
 bool GProfileBuilder::SampleAggregator::AddSample(
     const protozero::PackedVarInt& location_ids,
     const std::vector<int64_t>& values) {
-  SerializedLocationId key(location_ids.data(),
-                           location_ids.data() + location_ids.size());
+  SerializedLocationId key{std::vector<uint8_t>(
+      location_ids.data(), location_ids.data() + location_ids.size())};
   std::vector<int64_t>* agg_values = samples_.Find(key);
   if (!agg_values) {
     samples_.Insert(std::move(key), values);
@@ -239,8 +239,8 @@ void GProfileBuilder::SampleAggregator::WriteTo(Profile& profile) {
     Sample* sample = profile.add_sample();
     sample->set_value(values);
     // Map key is the serialized varint. Just append the bytes.
-    sample->AppendBytes(Sample::kLocationIdFieldNumber, it.key().data(),
-                        it.key().size());
+    sample->AppendBytes(Sample::kLocationIdFieldNumber, it.key().data.data(),
+                        it.key().data.size());
   }
 }
 

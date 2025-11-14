@@ -32,7 +32,7 @@ import {Trace} from '../../public/trace';
 export function showThreadDetailsMenuItem(
   trace: Trace,
   utid: Utid,
-  tid?: number,
+  tid?: bigint,
 ): m.Children {
   return m(MenuItem, {
     icon: Icons.ExternalLink,
@@ -57,7 +57,7 @@ export function threadRefMenuItems(
   info: {
     utid: Utid;
     name?: string;
-    tid?: number;
+    tid?: bigint;
   },
 ): m.Children {
   // We capture a copy to be able to pass it across async boundary to `onclick`.
@@ -89,7 +89,7 @@ export function renderThreadRef(
   info: {
     utid: Utid;
     name?: string;
-    tid?: number;
+    tid?: bigint;
   },
 ): m.Children {
   return m(

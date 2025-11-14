@@ -18,66 +18,53 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
+  MultiSourceNode,
 } from '../../query_node';
 import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
-import {Select} from '../../../../widgets/select';
 import {NodeIssues} from '../node_issues';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {UIFilter} from '../operations/filter';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
-  filters: FilterDefinition[];
-  customTitle?: string;
+  filters?: UIFilter[];
+  comment?: string;
 }
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
   readonly prevNodes: QueryNode[];
   readonly allNodes: QueryNode[];
-  intervalNodes: QueryNode[];
   onExecute?: () => void;
 }
 
-export class IntervalIntersectNode implements QueryNode {
+export class IntervalIntersectNode implements MultiSourceNode {
   readonly nodeId: string;
   readonly type = NodeType.kIntervalIntersect;
   readonly prevNodes: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: IntervalIntersectNodeState;
-  meterialisedAs?: string;
-
-  get sourceCols(): ColumnInfo[] {
-    return this.prevNodes[0]?.finalCols ?? this.prevNodes[0]?.sourceCols ?? [];
-  }
 
   get finalCols(): ColumnInfo[] {
-    return newColumnInfoList(this.sourceCols, true);
+    return newColumnInfoList(this.prevNodes[0]?.finalCols ?? [], true);
   }
 
   constructor(state: IntervalIntersectNodeState) {
     this.nodeId = nextNodeId();
     this.state = {
       ...state,
+      autoExecute: state.autoExecute ?? false,
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
   }
 
   validate(): boolean {
-    if (this.prevNodes.length !== 1) {
+    if (this.prevNodes.length < 2) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error(
-        'Interval intersect node requires one base source node.',
-      );
-      return false;
-    }
-
-    if (this.state.intervalNodes.length !== 1) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
-        'Interval intersect node requires one interval source to be selected.',
+        'Interval intersect node requires one base source and at least one interval source.',
       );
       return false;
     }
@@ -87,12 +74,14 @@ export class IntervalIntersectNode implements QueryNode {
       this.state.issues.queryError = undefined;
     }
 
-    if (!this.prevNodes[0].validate()) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError =
-        this.prevNodes[0].state.issues?.queryError ??
-        new Error(`Previous node '${this.prevNodes[0].getTitle()}' is invalid`);
-      return false;
+    for (const prevNode of this.prevNodes) {
+      if (!prevNode.validate()) {
+        if (!this.state.issues) this.state.issues = new NodeIssues();
+        this.state.issues.queryError =
+          prevNode.state.issues?.queryError ??
+          new Error(`Previous node '${prevNode.getTitle()}' is invalid`);
+        return false;
+      }
     }
 
     const checkColumns = (node: QueryNode, required: string[]) => {
@@ -110,60 +99,75 @@ export class IntervalIntersectNode implements QueryNode {
       return true;
     };
 
-    if (!checkColumns(this.prevNodes[0], ['id', 'ts', 'dur'])) return false;
-
-    for (const intervalNode of this.state.intervalNodes) {
-      if (!intervalNode.validate()) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError =
-          intervalNode.state.issues?.queryError ??
-          new Error(`Interval node '${intervalNode.getTitle()}' is invalid`);
-        return false;
-      }
-      if (!checkColumns(intervalNode, ['id', 'ts', 'dur'])) {
-        return false;
-      }
+    for (const prevNode of this.prevNodes) {
+      if (!checkColumns(prevNode, ['id', 'ts', 'dur'])) return false;
     }
 
     return true;
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? 'Interval Intersect';
+    return 'Interval Intersect';
   }
 
   nodeSpecificModify(onExecute?: () => void): m.Child {
-    return m(IntervalIntersectComponent, {
-      node: this,
-      onExecute,
-    });
+    this.validate();
+    const error = this.state.issues?.queryError;
+
+    return m(
+      '.pf-exp-query-operations',
+      error && m(Callout, {icon: 'error'}, error.message),
+      m(
+        '.pf-exp-section',
+        m(
+          '.pf-exp-operations-container',
+          m('h2', 'Interval Intersect'),
+          this.prevNodes.slice(1).map((intervalNode, index) =>
+            m(
+              '.pf-exp-interval-node',
+              m('span', `Interval ${index + 1}: ${intervalNode.getTitle()}`),
+              m(Button, {
+                icon: 'delete',
+                onclick: () => {
+                  const nextNodeIndex = intervalNode.nextNodes.indexOf(this);
+                  if (nextNodeIndex > -1) {
+                    intervalNode.nextNodes.splice(nextNodeIndex, 1);
+                  }
+                  this.prevNodes.splice(index + 1, 1);
+                  this.state.onchange?.();
+                },
+              }),
+            ),
+          ),
+          m(Button, {
+            label: 'Run',
+            onclick: onExecute,
+          }),
+        ),
+      ),
+    );
   }
 
   clone(): QueryNode {
     const stateCopy: IntervalIntersectNodeState = {
-      prevNodes: this.state.prevNodes,
+      prevNodes: [...this.state.prevNodes],
       allNodes: this.state.allNodes,
-      intervalNodes: [...this.state.intervalNodes],
-      filters: [],
-      customTitle: this.state.customTitle,
+      filters: this.state.filters ? [...this.state.filters] : undefined,
       onchange: this.state.onchange,
       onExecute: this.state.onExecute,
     };
     return new IntervalIntersectNode(stateCopy);
   }
 
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
-  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
     const baseSq = this.prevNodes[0].getStructuredQuery();
     if (baseSq === undefined) return undefined;
 
-    const intervalSqs = this.state.intervalNodes.map((node) =>
-      node.getStructuredQuery(),
-    );
+    const intervalSqs = this.prevNodes
+      .slice(1)
+      .map((node) => node.getStructuredQuery());
     if (intervalSqs.some((sq) => sq === undefined)) return undefined;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
@@ -178,105 +182,22 @@ export class IntervalIntersectNode implements QueryNode {
 
   serializeState(): IntervalIntersectSerializedState {
     return {
-      intervalNodes: this.state.intervalNodes.map((n) => n.nodeId),
+      intervalNodes: this.prevNodes.slice(1).map((n) => n.nodeId),
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 
   static deserializeState(
     nodes: Map<string, QueryNode>,
     state: IntervalIntersectSerializedState,
-  ): {intervalNodes: QueryNode[]} {
+    baseNode: QueryNode,
+  ): {prevNodes: QueryNode[]} {
     const intervalNodes = state.intervalNodes
       .map((id) => nodes.get(id))
       .filter((node): node is QueryNode => node !== undefined);
     return {
-      intervalNodes,
+      prevNodes: [baseNode, ...intervalNodes],
     };
-  }
-}
-
-interface IntervalIntersectComponentAttrs {
-  node: IntervalIntersectNode;
-  onExecute?: () => void;
-}
-
-class IntervalIntersectComponent
-  implements m.ClassComponent<IntervalIntersectComponentAttrs>
-{
-  view({attrs}: m.CVnode<IntervalIntersectComponentAttrs>) {
-    const {node, onExecute} = attrs;
-    node.validate();
-    const availableNodes = node.state.allNodes.filter(
-      (n) =>
-        n !== node &&
-        !node.state.intervalNodes.includes(n) &&
-        !node.prevNodes.includes(n),
-    );
-    const error = node.state.issues?.queryError;
-
-    return m(
-      '.pf-exp-query-operations',
-      error && m(Callout, {icon: 'error'}, error.message),
-      m(
-        '.pf-exp-section',
-        m(
-          '.pf-exp-operations-container',
-          m('h2', 'Interval Intersect'),
-          node.state.intervalNodes.map((intervalNode, index) =>
-            m(
-              '.pf-exp-interval-node',
-              m('span', `Interval ${index + 1}: ${intervalNode.getTitle()}`),
-              m(Button, {
-                icon: 'delete',
-                onclick: () => {
-                  const intervalNode = node.state.intervalNodes[index];
-                  const nextNodeIndex = intervalNode.nextNodes.indexOf(node);
-                  if (nextNodeIndex > -1) {
-                    intervalNode.nextNodes.splice(nextNodeIndex, 1);
-                  }
-                  node.state.intervalNodes.splice(index, 1);
-                  node.state.onchange?.();
-                },
-              }),
-            ),
-          ),
-          node.state.intervalNodes.length === 0 &&
-            m(
-              '.pf-exp-add-interval',
-              m(
-                Select,
-                {
-                  onchange: (e: Event) => {
-                    const selectedNodeId = (e.target as HTMLSelectElement)
-                      .value;
-                    const selectedNode = availableNodes.find(
-                      (n) => n.nodeId === selectedNodeId,
-                    );
-                    if (selectedNode) {
-                      node.state.intervalNodes.push(selectedNode);
-                      selectedNode.nextNodes.push(node);
-                      node.state.onchange?.();
-                    }
-                  },
-                },
-                m(
-                  'option',
-                  {disabled: true, selected: true},
-                  'Select a source',
-                ),
-                availableNodes.map((n) =>
-                  m('option', {value: n.nodeId}, n.getTitle()),
-                ),
-              ),
-            ),
-          m(Button, {
-            label: 'Run',
-            onclick: onExecute,
-          }),
-        ),
-      ),
-    );
   }
 }

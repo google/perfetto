@@ -34,9 +34,6 @@
     --pf-color-border: #ccc;
     --pf-color-border-secondary: #e0e0e0;
     --pf-color-text-hint: #808080;
-    --pf-color-track-summary-collapsed: #f4fafb;
-    --pf-color-track-summary-expanded: #262f3b;
-    --pf-color-track-summary-expanded-text: #e8eaed;
     --pf-color-box-shadow: rgba(0, 0, 0, 0.2);
     --pf-color-neutral: gray;
     --pf-color-accent: #2667e7;
@@ -50,6 +47,11 @@
     --pf-color-text-on-success: white;
     --pf-color-warning: rgb(232, 158, 0);
     --pf-color-text-on-warning: var(--pf-color-text);
+
+    --pf-color-track-summary-collapsed: #f4fafb;
+    --pf-color-track-summary-expanded: #262f3b;
+    --pf-color-track-summary-expanded-text: #e8eaed;
+    --pf-color-timeline-overlay: black;
 
     // In light mode, the sidebar has a custom distinct blue color scheme.
     --pf-sidebar-surface: #262f3c;
@@ -70,13 +72,10 @@
     --pf-color-border: #626568;
     --pf-color-border-secondary: #404042;
     --pf-color-text-hint: #9aa0a6;
-    --pf-color-track-summary-collapsed: #2f3437;
-    --pf-color-track-summary-expanded: #454d55;
-    --pf-color-track-summary-expanded-text: #e8eaed;
     --pf-color-box-shadow: rgba(0, 0, 0, 0.4);
     --pf-color-neutral: gray;
     --pf-color-accent: #2667e7;
-    --pf-color-highlight: #ffe263;
+    --pf-color-highlight: #5f4d06;
 
     --pf-color-primary: #7197e3;
     --pf-color-text-on-primary: #333;
@@ -86,6 +85,11 @@
     --pf-color-text-on-success: #333;
     --pf-color-warning: rgb(244, 188, 67);
     --pf-color-text-on-warning: #333;
+
+    --pf-color-track-summary-collapsed: #2f3437;
+    --pf-color-track-summary-expanded: #454d55;
+    --pf-color-track-summary-expanded-text: #e8eaed;
+    --pf-color-timeline-overlay: white;
 
     // In dark mode, the sidebar uses the same styles as the rest of the app
     --pf-sidebar-surface: var(--pf-color-background-secondary);

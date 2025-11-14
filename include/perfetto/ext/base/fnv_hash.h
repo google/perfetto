@@ -114,7 +114,7 @@ class FnvHasher {
   uint64_t result_ = kFnv1a64OffsetBasis;
 };
 
-// base::FnvHash uses base::FnvHasher for integer values and falls base to
+// base::FnvHash uses base::FnvHasher for integer values and falls back to
 // std::hash for other types. This is needed as std::hash for integers is just
 // the identity function and Perfetto uses open-addressing hash table, which are
 // very sensitive to hash quality and are known to degrade in performance

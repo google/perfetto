@@ -35,8 +35,8 @@ import {
   TraceFileStream,
   TraceHttpStream,
   TraceMultipleFilesStream,
-  TraceStream,
 } from '../core/trace_stream';
+import {TraceStream} from '../public/stream';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
@@ -185,6 +185,8 @@ async function loadTraceIntoEngine(
     traceStream = new TraceBufferStream(traceSource.buffer);
   } else if (traceSource.type === 'URL') {
     traceStream = new TraceHttpStream(traceSource.url);
+  } else if (traceSource.type === 'STREAM') {
+    traceStream = traceSource.stream;
   } else if (traceSource.type === 'HTTP_RPC') {
     traceStream = undefined;
   } else if (traceSource.type === 'MULTIPLE_FILES') {
@@ -250,11 +252,11 @@ async function loadTraceIntoEngine(
 
   let nextPage = route.page;
   if (route.page === '/' || route.page === '') {
-    // Current'y on the home page, navigate to the timeline page.
+    // Currently on the home page, navigate to the timeline page.
     nextPage = '/viewer';
   }
 
-  Router.navigate(`#!${nextPage}?local_cache_key=${cacheUuid}`);
+  Router.navigate(`#!${nextPage}${route.subpage}?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);

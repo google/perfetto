@@ -36,7 +36,7 @@ export interface FormAttrs extends HTMLAttrs {
 
   // Action to take when the form is submitted either by the enter key or
   // the submit button.
-  onSubmit?: () => void;
+  onSubmit?: (e: Event) => void;
 
   // Action to take when the form is cancelled.
   onCancel?: () => void;
@@ -77,7 +77,7 @@ export class Form implements m.ClassComponent<FormAttrs> {
           variant: ButtonVariant.Filled,
           onclick: (e: Event) => {
             preventDefault && e.preventDefault();
-            onSubmit();
+            onSubmit(e);
           },
         }),
         // This cancel button just closes the popup if we are inside one.
@@ -97,6 +97,25 @@ export class Form implements m.ClassComponent<FormAttrs> {
           }),
       ),
     );
+  }
+
+  oncreate(vnode: m.VnodeDOM<FormAttrs, this>) {
+    this.maybeDisableSubmitButton(vnode.dom);
+  }
+
+  onupdate(vnode: m.VnodeDOM<FormAttrs, this>) {
+    this.maybeDisableSubmitButton(vnode.dom);
+  }
+
+  private maybeDisableSubmitButton(dom: Element) {
+    // Work out if the form is valid and enable/disable the submit button.
+    const formElement = dom as HTMLFormElement;
+    const submitButton = formElement.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement | null;
+    if (submitButton) {
+      submitButton.disabled = !formElement.checkValidity();
+    }
   }
 }
 

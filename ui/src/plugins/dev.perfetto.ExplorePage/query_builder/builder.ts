@@ -12,20 +12,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// QUERY EXECUTION MODEL
+// ====================
+//
+// The Explore Page uses a two-phase execution model:
+//
+// PHASE 1: ANALYSIS (Validation)
+// ------------------------------
+// When a node's state changes:
+// 1. NodeExplorer.updateQuery() is called (debounced via AsyncLimiter)
+// 2. Calls analyzeNode() which sends structured queries to the engine
+// 3. Engine VALIDATES the query and returns generated SQL (doesn't execute)
+// 4. Returns a Query object: {sql, textproto, modules, preambles, columns}
+// 5. Calls onQueryAnalyzed() callback with the validated query
+//
+// PHASE 2: EXECUTION (Running)
+// ----------------------------
+// After analysis, execution happens based on node.state.autoExecute:
+// - If autoExecute = true (default): Query runs automatically
+// - If autoExecute = false: User must click "Run" button
+//
+// Auto-execute is set to FALSE for:
+// - SqlSourceNode: User writes SQL manually, should control execution
+// - IntervalIntersectNode: Multi-node operation, potentially expensive
+// - UnionNode: Multi-node operation, potentially expensive
+//
+// Execution flow:
+// 1. Builder.runQuery() is called (auto or manual)
+// 2. Calls queryService.runQuery() with the full SQL string
+// 3. SQL = modules + preambles + query.sql
+// 4. Creates InMemoryDataSource with results
+// 5. Updates node.state.issues with any errors/warnings
+// 6. For SqlSourceNode, updates available columns
+//
+// STATE MANAGEMENT
+// ---------------
+// - this.query: Current validated query (from analysis phase)
+// - this.queryExecuted: Flag to prevent duplicate execution
+// - this.response: Query results from execution
+// - this.dataSource: Wrapped data source for DataGrid display
+
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, Query, isAQuery, queryToRun, NodeType} from '../query_node';
+import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
 import {ExplorePageHelp} from './help';
 import {NodeExplorer} from './node_explorer';
-import {Graph} from './graph';
+import {Graph} from './graph/graph';
 import {Trace} from 'src/public/trace';
 import {DataExplorer} from './data_explorer';
 import {
   DataGridDataSource,
   DataGridModel,
-  FilterDefinition,
 } from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
@@ -34,38 +73,42 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
-import {NodeBoxLayout} from './node_box';
+import {UIFilter} from './operations/filter';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
-
   readonly sqlModules: SqlModules;
+
+  readonly devMode?: boolean;
+
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
-  readonly nodeLayouts: Map<string, NodeBoxLayout>;
+  readonly nodeLayouts: Map<string, {x: number; y: number}>;
+
+  readonly onDevModeChange?: (enabled: boolean) => void;
+
+  // Add nodes.
+  readonly onAddSourceNode: (id: string) => void;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
-  readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
+  readonly onNodeLayoutChange: (
+    nodeId: string,
+    layout: {x: number; y: number},
+  ) => void;
 
-  // Add source nodes.
-  readonly onAddStdlibTableSource: () => void;
-  readonly onAddSlicesSource: () => void;
-  readonly onAddSqlSource: () => void;
-
-  // Add derived nodes.
-  readonly onAddAggregationNode: (node: QueryNode) => void;
-  readonly onAddModifyColumnsNode: (node: QueryNode) => void;
-  readonly onAddIntervalIntersectNode: (node: QueryNode) => void;
-
+  readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
+
+  // Import / Export JSON
   readonly onImport: () => void;
-  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
+
+  readonly onImportWithStatement: () => void;
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -88,9 +131,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       rootNodes,
       onNodeSelected,
       selectedNode,
-      onAddStdlibTableSource,
-      onAddSlicesSource,
-      onAddSqlSource,
       onClearAllNodes,
       sqlModules,
     } = attrs;
@@ -123,13 +163,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           trace,
           node: selectedNode,
           resolveNode: (nodeId: string) => this.resolveNode(nodeId, rootNodes),
-          onQueryAnalyzed: (
-            query: Query | Error,
-            reexecute = selectedNode.type !== NodeType.kSqlSource &&
-              selectedNode.type !== NodeType.kIntervalIntersect,
-          ) => {
+          onQueryAnalyzed: (query: Query | Error) => {
             this.query = query;
-            if (isAQuery(this.query) && reexecute) {
+            const shouldAutoExecute = selectedNode.state.autoExecute ?? true;
+            if (isAQuery(this.query) && shouldAutoExecute) {
               this.queryExecuted = false;
               this.runQuery(selectedNode);
             }
@@ -148,14 +185,14 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             const sqlTable = sqlModules.getTable(tableName);
             if (!sqlTable) return;
 
-            onRootNodeCreated(
-              new TableSourceNode({
-                trace,
-                sqlModules,
-                sqlTable,
-                filters: [],
-              }),
-            );
+            const newNode = new TableSourceNode({
+              trace,
+              sqlModules,
+              sqlTable,
+              filters: [],
+            });
+            newNode.state.autoExecute = true;
+            onRootNodeCreated(newNode);
           },
         });
 
@@ -170,20 +207,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           nodeLayouts: attrs.nodeLayouts,
           onNodeLayoutChange: attrs.onNodeLayoutChange,
           onDeselect: attrs.onDeselect,
-          onAddStdlibTableSource,
-          onAddSlicesSource,
-          onAddSqlSource,
+          onAddSourceNode: attrs.onAddSourceNode,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
-          onAddAggregation: attrs.onAddAggregationNode,
-          onAddModifyColumns: attrs.onAddModifyColumnsNode,
-          onAddIntervalIntersect: attrs.onAddIntervalIntersectNode,
-          onDeleteNode: (node: QueryNode) => {
-            if (node.isMaterialised()) {
-              trace.engine.query(`DROP TABLE IF EXISTS ${node.meterialisedAs}`);
-            }
-            attrs.onDeleteNode(node);
-          },
+          onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
+          devMode: attrs.devMode,
+          onDevModeChange: attrs.onDevModeChange,
+          onDeleteNode: attrs.onDeleteNode,
           onImport: attrs.onImport,
           onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
@@ -198,38 +228,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             queryService: this.queryService,
             query: this.query,
             node: selectedNode,
-            executeQuery: !this.queryExecuted,
             response: this.response,
             dataSource: this.dataSource,
             onchange: () => {},
-            onQueryExecuted: ({
-              columns,
-              error,
-              warning,
-              noDataWarning,
-            }: {
-              columns: string[];
-              error?: Error;
-              warning?: Error;
-              noDataWarning?: Error;
-            }) => {
-              this.queryExecuted = true;
-
-              if (error || warning || noDataWarning) {
-                if (!selectedNode.state.issues) {
-                  selectedNode.state.issues = new NodeIssues();
-                }
-                selectedNode.state.issues.queryError = error;
-                selectedNode.state.issues.responseError = warning;
-                selectedNode.state.issues.dataError = noDataWarning;
-              } else {
-                selectedNode.state.issues = undefined;
-              }
-
-              if (selectedNode instanceof SqlSourceNode) {
-                selectedNode.onQueryExecuted(columns);
-              }
-            },
             onPositionChange: (pos: 'left' | 'right' | 'bottom') => {
               this.tablePosition = pos;
             },

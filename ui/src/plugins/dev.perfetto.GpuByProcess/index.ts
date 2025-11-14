@@ -14,6 +14,7 @@
 
 import {
   LONG,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
@@ -39,7 +40,7 @@ export default class implements PerfettoPlugin {
 
     const it = results.iter({
       upid: NUM_NULL,
-      pid: NUM_NULL,
+      pid: LONG_NULL,
       name: STR_NULL,
     });
 
@@ -85,7 +86,7 @@ export default class implements PerfettoPlugin {
         uri,
         name: `GPU ${processName}`,
       });
-      ctx.workspace.addChildInOrder(track);
+      ctx.defaultWorkspace.addChildInOrder(track);
     }
   }
 }

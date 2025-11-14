@@ -20,7 +20,6 @@ import {ExplorePageHelp} from './help';
 import {
   analyzeNode,
   isAQuery,
-  NodeType,
   Query,
   QueryNode,
   queryToRun,
@@ -30,16 +29,16 @@ import {Icon} from '../../../widgets/icon';
 import {Icons} from '../../../base/semantic_icons';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {TextInput} from '../../../widgets/text_input';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
+import {Intent} from '../../../widgets/common';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
-  readonly onQueryAnalyzed: (query: Query | Error, reexecute?: boolean) => void;
+  readonly onQueryAnalyzed: (query: Query | Error) => void;
   readonly onExecute: () => void;
   readonly onchange?: () => void;
   readonly resolveNode: (nodeId: string) => QueryNode | undefined;
@@ -66,36 +65,32 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     attrs: NodeExplorerAttrs,
     renderMenu: () => m.Child,
   ): m.Child {
+    const autoExecute = node.state.autoExecute ?? true;
     return m(
-      '.pf-node-explorer__title-row',
+      '.pf-exp-node-explorer__title-row',
       m(
         '.title',
-        !node.validate() &&
-          m(Icon, {
-            icon: Icons.Warning,
-            filled: true,
-            className: classNames('pf-node-explorer__warning-icon--error'),
-            title: `Invalid node: \n${node.state.issues?.getTitle() ?? ''}`,
-          }),
-        m(TextInput, {
-          placeholder: node.getTitle(),
-          oninput: (e: InputEvent) => {
-            if (!e.target) return;
-            node.state.customTitle = (
-              e.target as HTMLInputElement
-            ).value.trim();
-            if (node.state.customTitle === '') {
-              node.state.customTitle = undefined;
-            }
-          },
-        }),
-        ` [${node.nodeId}]`,
+        m(
+          'h2',
+          !node.validate() &&
+            m(Icon, {
+              icon: Icons.Warning,
+              filled: true,
+              className: classNames(
+                'pf-exp-node-explorer__warning-icon--error',
+              ),
+              title: `Invalid node: \n${node.state.issues?.getTitle() ?? ''}`,
+            }),
+          node.getTitle(),
+        ),
       ),
       m('span.spacer'), // Added spacer to push menu to the right
-      m(Button, {
-        label: 'Run',
-        onclick: attrs.onExecute,
-      }),
+      !autoExecute &&
+        m(Button, {
+          label: 'Run',
+          onclick: attrs.onExecute,
+          intent: Intent.Primary,
+        }),
       renderMenu(),
     );
   }
@@ -136,7 +131,10 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
     const curSqString = JSON.stringify(sq.toJSON(), null, 2);
 
-    if (curSqString !== this.prevSqString) {
+    if (curSqString !== this.prevSqString || node.state.hasOperationChanged) {
+      if (node.state.hasOperationChanged) {
+        node.state.hasOperationChanged = false;
+      }
       this.tableAsyncLimiter.schedule(async () => {
         this.currentQuery = await analyzeNode(node, attrs.trace.engine);
         if (!isAQuery(this.currentQuery)) {
@@ -145,11 +143,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         if (node instanceof AggregationNode) {
           node.updateGroupByColumns();
         }
-        attrs.onQueryAnalyzed(
-          this.currentQuery,
-          node.type !== NodeType.kSqlSource &&
-            node.type !== NodeType.kAggregation,
-        );
+        attrs.onQueryAnalyzed(this.currentQuery);
         this.prevSqString = curSqString;
       });
     }
@@ -171,6 +165,15 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       'article',
       this.selectedView === SelectedView.kModify && [
         node.nodeSpecificModify(attrs.onExecute),
+        m('textarea.pf-exp-node-explorer__comment', {
+          'aria-label': 'Comment',
+          'placeholder': 'Add a comment...',
+          'oninput': (e: InputEvent) => {
+            if (!e.target) return;
+            node.state.comment = (e.target as HTMLTextAreaElement).value;
+          },
+          'value': node.state.comment,
+        }),
       ],
       this.selectedView === SelectedView.kSql &&
         (isAQuery(this.currentQuery)
@@ -223,8 +226,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     };
 
     return m(
-      `.pf-node-explorer${
-        node instanceof SqlSourceNode ? '.pf-node-explorer-sql-source' : ''
+      `.pf-exp-node-explorer${
+        node instanceof SqlSourceNode ? '.pf-exp-node-explorer-sql-source' : ''
       }`,
       this.renderTitleRow(node, attrs, renderModeMenu),
       this.renderContent(node, attrs),

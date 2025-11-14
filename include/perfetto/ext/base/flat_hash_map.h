@@ -22,9 +22,16 @@
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/public/compiler.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <limits>
+#include <memory>
+#include <type_traits>
+#include <utility>
 
 namespace perfetto {
 namespace base {
@@ -80,6 +87,37 @@ struct QuadraticHalfProbe {
   }
 };
 
+// Non-templated base class to hold helpers for FlatHashMap.
+struct FlatHashMapBase {
+ public:
+  // Helper to detect if a hasher has is_transparent defined.
+  template <typename, typename = void>
+  struct HasIsTransparent : std::false_type {};
+
+  template <typename H>
+  struct HasIsTransparent<H, std::void_t<typename H::is_transparent>>
+      : std::true_type {};
+
+  // Helper to check if a lookup key type K is allowed.
+  // Returns true if:
+  // 1. K can be implicitly converted to Key, OR
+  // 2. Hasher has is_transparent AND Hasher is invocable with K AND Key and K
+  // are equality comparable
+  template <typename K, typename Key, typename Hasher>
+  static constexpr bool IsLookupKeyAllowed() {
+    if constexpr (HasIsTransparent<Hasher>::value) {
+      return std::is_invocable_v<Hasher, const K&> &&
+             std::is_same_v<decltype(std::declval<const Key&>() ==
+                                     std::declval<const K&>()),
+                            bool>;
+    } else if constexpr (std::is_convertible_v<K, Key>) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+};
+
 template <typename Key,
           typename Value,
           typename Hasher =
@@ -88,7 +126,7 @@ template <typename Key,
                                  base::FnvHash<Key>>,
           typename Probe = QuadraticProbe,
           bool AppendOnly = false>
-class FlatHashMap {
+class FlatHashMap : protected FlatHashMapBase {
  public:
   class Iterator {
    public:
@@ -127,7 +165,6 @@ class FlatHashMap {
     const FlatHashMap* map_ = nullptr;
     size_t idx_ = 0;
   };  // Iterator
-
   static constexpr int kDefaultLoadLimitPct = 75;
   explicit FlatHashMap(size_t initial_capacity = 0,
                        int load_limit_pct = kDefaultLoadLimitPct)
@@ -256,14 +293,16 @@ class FlatHashMap {
     return std::make_pair(value_idx, true);
   }
 
-  Value* Find(const Key& key) const {
+  template <typename K = Key>
+  Value* Find(const K& key) const {
     const size_t idx = FindInternal(key);
     if (idx == kNotFound)
       return nullptr;
     return &values_[idx];
   }
 
-  bool Erase(const Key& key) {
+  template <typename K = Key>
+  bool Erase(const K& key) {
     if (AppendOnly)
       PERFETTO_FATAL("Erase() not supported because AppendOnly=true");
     size_t idx = FindInternal(key);
@@ -305,7 +344,13 @@ class FlatHashMap {
   enum ReservedTags : uint8_t { kFreeSlot = 0, kTombstone = 1 };
   static constexpr size_t kNotFound = std::numeric_limits<size_t>::max();
 
-  size_t FindInternal(const Key& key) const {
+  template <typename K = Key>
+  size_t FindInternal(const K& key) const {
+    static_assert(
+        IsLookupKeyAllowed<K, Key, Hasher>(),
+        "Heterogeneous lookup requires Hasher to define is_transparent and "
+        "support hashing the lookup key type. For same-type lookup, Key and K "
+        "must match exactly.");
     const size_t key_hash = Hasher{}(key);
     const uint8_t tag = HashToTag(key_hash);
     PERFETTO_DCHECK((capacity_ & (capacity_ - 1)) == 0);  // Must be a pow2.

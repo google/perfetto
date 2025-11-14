@@ -23,15 +23,18 @@ CREATE PERFETTO VIEW android_windowmanager (
   arg_set_id ARGSETID,
   -- Raw proto message
   base64_proto_id LONG,
-  -- Focused display id for this entry
-  focused_display_id LONG
+  -- Focused display id for this snapshot
+  focused_display_id LONG,
+  -- Indicates whether snapshot was recorded without elapsed timestamp
+  has_invalid_elapsed_ts BOOL
 ) AS
 SELECT
   id,
   ts,
   arg_set_id,
   base64_proto_id,
-  focused_display_id
+  focused_display_id,
+  has_invalid_elapsed_ts
 FROM __intrinsic_windowmanager;
 
 -- Android WindowManager WindowContainer (from android.windowmanager data source).

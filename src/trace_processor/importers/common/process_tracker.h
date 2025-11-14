@@ -30,13 +30,12 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Thread names can come from different sources, and we don't always want to
 // overwrite the previously set name. This enum determines the priority of
 // different sources.
-enum class ThreadNamePriority {
+enum class ThreadNamePriority : uint8_t {
   kOther = 0,
   kFtrace = 1,
   kEtwTrace = 1,
@@ -186,7 +185,7 @@ class ProcessTracker {
 
   // Returns the upid for a given pid.
   std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
-    auto it = pids_.Find(pid);
+    auto* it = pids_.Find(pid);
     return it ? std::make_optional(*it) : std::nullopt;
   }
 
@@ -214,7 +213,12 @@ class ProcessTracker {
   // Returns a BoundInserter to add arguments to the arg set of a process.
   // Arguments are flushed into trace storage only after the trace was loaded in
   // its entirety.
-  ArgsTracker::BoundInserter AddArgsTo(UniquePid upid);
+  ArgsTracker::BoundInserter AddArgsToProcess(UniquePid upid);
+
+  // Returns a BoundInserter to add arguments to the arg set of a thread.
+  // Arguments are flushed into trace storage only after the trace was loaded in
+  // its entirety.
+  ArgsTracker::BoundInserter AddArgsToThread(UniqueTid utid);
 
   // Called when the trace was fully loaded.
   void NotifyEndOfFile();
@@ -224,9 +228,10 @@ class ProcessTracker {
 
   // Tracks the namespace-local thread ids for a thread running in a pid
   // namespace.
-  void UpdateNamespacedThread(int64_t pid,
-                              int64_t tid,
-                              std::vector<int64_t> nstid);
+  // Returns false if the corresponding process was not found (likely due to
+  // data loss).
+  PERFETTO_WARN_UNUSED_RESULT bool
+  UpdateNamespacedThread(int64_t pid, int64_t tid, std::vector<int64_t> nstid);
 
   // The UniqueTid of the swapper thread, is 0 for the default machine and is
   // > 0 for remote machines.
@@ -322,7 +327,6 @@ class ProcessTracker {
   UniqueTid swapper_utid_ = 0;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PROCESS_TRACKER_H_

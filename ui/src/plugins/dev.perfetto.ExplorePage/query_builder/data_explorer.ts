@@ -18,7 +18,8 @@ import {Icons} from '../../../base/semantic_icons';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
-  FilterDefinition,
+  FilterNull,
+  FilterValue,
 } from '../../../components/widgets/data_grid/common';
 import {
   DataGrid,
@@ -29,6 +30,7 @@ import {Button} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {Spinner} from '../../../widgets/spinner';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {Query, QueryNode} from '../query_node';
 import {QueryService} from './query_service';
@@ -38,15 +40,8 @@ export interface DataExplorerAttrs {
   readonly queryService: QueryService;
   readonly node: QueryNode;
   readonly query?: Query | Error;
-  readonly executeQuery: boolean;
   readonly response?: QueryResponse;
   readonly dataSource?: DataGridDataSource;
-  readonly onQueryExecuted: (result: {
-    columns: string[];
-    error?: Error;
-    warning?: Error;
-    noDataWarning?: Error;
-  }) => void;
   readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
@@ -59,11 +54,17 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     const statusText = this.getStatusText(attrs.query, attrs.response);
     const message = errors ? `Error: ${errors.message}` : statusText;
 
+    // Show spinner when data is updating (query exists but response hasn't arrived yet)
+    const isUpdating =
+      attrs.query !== undefined &&
+      !(attrs.query instanceof Error) &&
+      attrs.response === undefined;
+
     return m(
       DetailsShell,
       {
-        title: 'Query data',
-        fillParent: true,
+        title: ['Query data', isUpdating && m(Spinner)],
+        fillHeight: true,
         buttons: this.renderMenu(attrs),
       },
       this.renderContent(attrs, message),
@@ -145,10 +146,29 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           columns: attrs.response.columns.map((c) => ({name: c})),
           data: attrs.dataSource,
           showFiltersInToolbar: true,
-          filters: attrs.node.state.filters,
-          onFiltersChanged: (filters: ReadonlyArray<FilterDefinition>) => {
-            attrs.node.state.filters = [...filters];
-            attrs.onchange?.();
+          // We don't actually want the datagrid to display or apply any filters
+          // to the datasource itself, so we define this but fix it as an empty
+          // array.
+          filters: [],
+          onFilterAdd: (filter) => {
+            // These are the filters supported by the explore page currently.
+            const supportedOps = [
+              '=',
+              '!=',
+              '<',
+              '<=',
+              '>',
+              '>=',
+              'is null',
+              'is not null',
+            ];
+            if (supportedOps.includes(filter.op)) {
+              attrs.node.state.filters = [
+                ...(attrs.node.state.filters ?? []),
+                filter as FilterValue | FilterNull,
+              ];
+              attrs.onchange?.();
+            }
           },
           cellRenderer: (value: SqlValue, name: string) => {
             return renderCell(value, name);

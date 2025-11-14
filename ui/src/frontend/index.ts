@@ -35,7 +35,12 @@ import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
 import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
-import {renderViewerPage} from './viewer_page/viewer_page';
+import {
+  DEFAULT_TRACK_MIN_HEIGHT_PX,
+  MINIMUM_TRACK_MIN_HEIGHT_PX,
+  TRACK_MIN_HEIGHT_SETTING,
+} from './timeline_page/track_view';
+import {renderTimelinePage} from './timeline_page/timeline_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
@@ -325,7 +330,7 @@ function onCssLoaded() {
 
   const pages = AppImpl.instance.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
-  pages.registerPage({route: '/viewer', render: () => renderViewerPage()});
+  pages.registerPage({route: '/viewer', render: () => renderTimelinePage()});
   const router = new Router();
   router.onRouteChanged = routeChange;
 
@@ -335,6 +340,15 @@ function onCssLoaded() {
     description: 'Warning: Dark mode is not fully supported yet.',
     schema: z.enum(['dark', 'light']),
     defaultValue: 'light',
+  });
+
+  AppImpl.instance.settings.register({
+    id: TRACK_MIN_HEIGHT_SETTING,
+    name: 'Track Height',
+    description:
+      'Minimum height of tracks in the trace viewer page, in pixels.',
+    schema: z.number().int().min(MINIMUM_TRACK_MIN_HEIGHT_PX),
+    defaultValue: DEFAULT_TRACK_MIN_HEIGHT_PX,
   });
 
   // Add command to toggle the theme.
@@ -375,7 +389,7 @@ function onCssLoaded() {
             focusable: false,
           },
           [
-            m(OverlayContainer, {fillParent: true}, [
+            m(OverlayContainer, {fillHeight: true}, [
               m(UiMain, {key: themeSetting.get()}),
             ]),
           ],
@@ -423,8 +437,8 @@ function onCssLoaded() {
 
   // Initialize plugins, now that we are ready to go.
   const pluginManager = AppImpl.instance.plugins;
-  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
-  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
+  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(overrides);

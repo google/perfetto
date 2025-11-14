@@ -26,6 +26,14 @@ export interface ColumnDefinition {
   // An optional aggregation for data in this column displayed in the header
   // bar.
   readonly aggregation?: AggregationFunction;
+
+  // Optional extra menu items to add to the header column's context menu.
+  readonly headerMenuItems?: m.Children;
+
+  // Optional function that returns extra menu items to add to each data cell's
+  // context menu. The function receives the cell value and the complete row
+  // data.
+  readonly cellMenuItems?: (value: SqlValue, row: RowDef) => m.Children;
 }
 
 export interface FilterValue {
@@ -34,12 +42,18 @@ export interface FilterValue {
   readonly value: SqlValue;
 }
 
+export interface FilterIn {
+  readonly column: string;
+  readonly op: 'in' | 'not in';
+  readonly value: ReadonlyArray<SqlValue>;
+}
+
 export interface FilterNull {
   readonly column: string;
   readonly op: 'is null' | 'is not null';
 }
 
-export type FilterDefinition = FilterValue | FilterNull;
+export type DataGridFilter = FilterValue | FilterNull | FilterIn;
 
 export interface SortByColumn {
   readonly column: string;
@@ -75,7 +89,7 @@ export interface AggregateSpec {
 export interface DataGridModel {
   readonly columns?: ReadonlyArray<string>;
   readonly sorting?: Sorting;
-  readonly filters?: ReadonlyArray<FilterDefinition>;
+  readonly filters?: ReadonlyArray<DataGridFilter>;
   readonly pagination?: Pagination;
   readonly aggregates?: ReadonlyArray<AggregateSpec>;
 }

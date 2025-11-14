@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../assets/theme";
-@import "./data_explorer.scss";
-@import "./graph.scss";
+@import "common";
+@import "./graph/graph.scss";
+@import "./empty_graph.scss";
 @import "./help.scss";
-@import "./node_box.scss";
+@import "./graph/node_box.scss";
 @import "./node_explorer.scss";
 @import "./operations/operation_component.scss";
 @import "./nodes/sources/slices_source.scss";
@@ -26,7 +26,7 @@
 
 .pf-query-builder-layout {
   display: grid;
-  grid-template-columns: 50% 50%;
+  grid-template-columns: 1fr 1fr;
   height: 100%;
 
   &.no-selection {

@@ -16,7 +16,12 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -105,8 +110,8 @@ export default class implements PerfettoPlugin {
       cpu: NUM_NULL,
       scope: NUM_NULL,
       isCounter: NUM,
-      tid: NUM_NULL,
-      pid: NUM_NULL,
+      tid: LONG_NULL,
+      pid: LONG_NULL,
     });
 
     for (; it.valid(); it.next()) {
@@ -181,8 +186,8 @@ export default class implements PerfettoPlugin {
 
   private getTrackName(
     name: string,
-    pid: number | undefined,
-    tid: number | undefined,
+    pid: bigint | undefined,
+    tid: bigint | undefined,
     cpu: number | undefined,
     scope: number | undefined,
   ): string {
@@ -225,7 +230,7 @@ export default class implements PerfettoPlugin {
       return assertExists(
         ctx.plugins
           .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.workspace, 'CPU'),
+          .getOrCreateStandardGroup(ctx.defaultWorkspace, 'CPU'),
       );
     }
     // custom-scoped event: "Kernel -> Kernel track events".
@@ -233,7 +238,7 @@ export default class implements PerfettoPlugin {
       const kernelGroup = assertExists(
         ctx.plugins
           .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.workspace, 'KERNEL'),
+          .getOrCreateStandardGroup(ctx.defaultWorkspace, 'KERNEL'),
       );
       this.kernelTrackEventsNode = new TrackNode({
         name: 'Kernel track events',

@@ -34,7 +34,7 @@ const TRACK_NAME_FIELD_REF = 'TRACK_NAME_FIELD';
 function chooseDefaultColumn(
   columns: ReadonlyArray<string>,
   name: string,
-): string {
+): string | undefined {
   // Search for exact match
   const exactMatch = columns.find((col) => col === name);
   if (exactMatch) return exactMatch;
@@ -48,7 +48,7 @@ function chooseDefaultColumn(
     return '0';
   }
 
-  return '';
+  return undefined;
 }
 
 type TrackType = 'slice' | 'counter';
@@ -68,7 +68,7 @@ export class AddDebugTrackMenu
 {
   private trackName = '';
   private trackType: TrackType = 'slice';
-  private readonly options: ConfigurationOptions;
+  private readonly options: Partial<ConfigurationOptions>;
 
   constructor({attrs}: m.Vnode<AddDebugTrackMenuAttrs>) {
     const columns = attrs.availableColumns;
@@ -80,7 +80,7 @@ export class AddDebugTrackMenu
       name: chooseDefaultColumn(columns, 'name'),
       value: chooseDefaultColumn(columns, 'value'),
       argSetId: chooseDefaultColumn(columns, 'arg_set_id'),
-      pivot: '',
+      pivot: undefined,
     };
   }
 
@@ -103,6 +103,7 @@ export class AddDebugTrackMenu
       {
         onSubmit: () => this.createTracks(attrs),
         submitLabel: 'Add Track',
+        cancelLabel: 'Cancel',
       },
       m(FormLabel, {for: 'track_name'}, 'Track name'),
       m(
@@ -118,6 +119,7 @@ export class AddDebugTrackMenu
             if (!e.target) return;
             this.trackName = (e.target as HTMLInputElement).value;
           },
+          placeholder: 'Enter track name...',
         },
         this.trackName,
       ),
@@ -166,11 +168,12 @@ export class AddDebugTrackMenu
       this.renderFormSelectInput('ts', 'ts', availableColumns),
       this.renderFormSelectInput('dur', 'dur', ['0', ...availableColumns]),
       this.renderFormSelectInput('name', 'name', availableColumns),
-      this.renderFormSelectInput('arg_set_id', 'argSetId', [
-        '',
-        ...availableColumns,
-      ]),
-      this.renderFormSelectInput('pivot', 'pivot', ['', ...availableColumns]),
+      this.renderFormSelectInput('arg_set_id', 'argSetId', availableColumns, {
+        optional: true,
+      }),
+      this.renderFormSelectInput('pivot', 'pivot', availableColumns, {
+        optional: true,
+      }),
     ];
   }
 
@@ -178,7 +181,9 @@ export class AddDebugTrackMenu
     return [
       this.renderFormSelectInput('ts', 'ts', availableColumns),
       this.renderFormSelectInput('value', 'value', availableColumns),
-      this.renderFormSelectInput('pivot', 'pivot', ['', ...availableColumns]),
+      this.renderFormSelectInput('pivot', 'pivot', availableColumns, {
+        optional: true,
+      }),
     ];
   }
 
@@ -186,21 +191,48 @@ export class AddDebugTrackMenu
     name: string,
     optionKey: K,
     options: ReadonlyArray<string>,
+    opts: Partial<{optional: boolean}> = {},
   ) {
+    const {optional} = opts;
     return [
       m(FormLabel, {for: name}, name),
       m(
         Select,
         {
           id: name,
+          required: !optional,
           oninput: (e: Event) => {
             if (!e.target) return;
-            this.options[optionKey] = (e.target as HTMLSelectElement).value;
+            const newValue = (e.target as HTMLSelectElement).value;
+            if (newValue === '') {
+              delete this.options[optionKey];
+            } else {
+              this.options[optionKey] = newValue;
+            }
           },
-          value: this.options[optionKey],
         },
+        optional
+          ? m(
+              'option',
+              {selected: this.options[optionKey] === undefined, value: ''},
+              '--None--',
+            )
+          : m(
+              'option',
+              {
+                selected: this.options[optionKey] === undefined,
+                value: '',
+                hidden: true,
+                disabled: true,
+              },
+              'Select a column...',
+            ),
         options.map((opt) =>
-          m('option', {selected: this.options[optionKey] === opt}, opt),
+          m(
+            'option',
+            {selected: this.options[optionKey] === opt, value: opt},
+            opt,
+          ),
         ),
       ),
     ];
@@ -222,7 +254,7 @@ export class AddDebugTrackMenu
             name: this.options.name,
           },
           argSetIdColumn: this.options.argSetId,
-          argColumns: attrs.availableColumns,
+          rawColumns: attrs.availableColumns,
           pivotOn: this.options.pivot,
         });
         break;

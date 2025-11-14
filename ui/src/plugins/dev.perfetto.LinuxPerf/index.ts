@@ -23,7 +23,13 @@ import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -170,7 +176,7 @@ export default class implements PerfettoPlugin {
       number,
       {
         threadName: string | null;
-        tid: number;
+        tid: bigint;
         upid: number | null;
         cntrName: string;
         sessionId: number;
@@ -179,7 +185,7 @@ export default class implements PerfettoPlugin {
     for (
       const it = tResult.iter({
         utid: NUM,
-        tid: NUM,
+        tid: LONG,
         threadName: STR_NULL,
         upid: NUM_NULL,
         cntrName: STR,
@@ -308,7 +314,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (perfCountersGroup.hasChildren) {
-      trace.workspace.addChildInOrder(perfCountersGroup);
+      trace.defaultWorkspace.addChildInOrder(perfCountersGroup);
     }
 
     trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));

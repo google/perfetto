@@ -53,13 +53,37 @@ INCLUDE PERFETTO MODULE *;
 -- However, note, that both patterns are not allowed in stdlib.
 ```
 
+## Types
+
+PerfettoSQL supports the following types, which can be used in table and view
+schemas, function arguments and return types:
+
+| Type | Description |
+|------|-------------|
+| `INT` | 64-bit signed integer |
+| `DOUBLE` | Double precision floating-point number |
+| `BOOLEAN` | Boolean value (true/false) |
+| `STRING` | Text string |
+| `BYTES` | Binary data |
+| `TIMESTAMP` | Absolute timestamp in nanoseconds |
+| `DURATION` | Time duration in nanoseconds |
+| `ARGSETID` | An identifier for a set of arguments. This set can be obtained by joining with an `args` table on `arg_set_id` column. |
+| `ID` | An ID column for this table. Each table can have only one ID column, whose values should be unique and fit into `uint32`. |
+| `JOINID(table.column)` | A foreign key reference into a given table. `table` should exist, should have column named `column` of type `ID`. |
+| `ID(table.column)` | A variant of the `ID` type, which is both primary key for this table and simultaneusly is a foreign key reference into another table. Useful when a given table is based on a subset of rows from another table (e.g. `slice`). |
+
 ## Defining functions
-`CREATE PEFETTO FUNCTION` allows functions to be defined in SQL. The syntax is
-similar to the syntax in PostgreSQL or GoogleSQL.
+`CREATE PEFETTO FUNCTION` allows functions to be defined in SQL, which can be
+either scalar (returning a single value) or table-value (returning a set of rows).
+The syntax is similar to the syntax in PostgreSQL or GoogleSQL:
+- Scalar: `CREATE PERFETTO FUNCTION function_name(arg_list) RETURNS return_type AS sql_select_statement;`
+- Table-valued: `CREATE PERFETTO FUNCTION function_name(arg_list) RETURNS TABLE(column_list) AS sql_select_statement;`
 
-<!-- TODO(b/290185551): talk about different possible argument/return types. -->
+`arg_list` and `column_list` is a comma-separated list of an arbitrary number `argument_name argument_type` pairs.
 
-Example:
+`sql_select_statement` should be a valid SQL statement, which can use `$argument_name` syntax to refer to the argument values.
+
+Examples:
 ```sql
 -- Create a scalar function with no arguments.
 CREATE PERFETTO FUNCTION constant_fn() RETURNS INT AS SELECT 1;
@@ -117,7 +141,7 @@ WHERE name = 'foo';
 
 Perfetto tables can have an optional explicit schema. The schema syntax is the
 same as the function argument or returned-from-a-function table,
-i.e. a comma-separated list of (column name, colum type) pairs in parenthesis
+i.e. a comma-separated list of (column name, column type) pairs in parenthesis
 after table or view name.
 
 ```sql
@@ -199,12 +223,17 @@ is inspired by the macros in Rust.
 
 The following are recommended uses of macros:
 - Passing tables as arguments to a "function-like" snippet of SQL.
+- Defining simple constants for performance-sensitive queries.
 
 Macros are powerful but also dangerous if used incorrectly, making debugging
 extremely difficult. For this reason, it's recommended that they are used
 sparingly when they are needed and only for the recommended uses described
-above. If only passing around scalar SQL values, use functions as discussed
 above.
+
+If only passing around scalar SQL values, functions are generally preferred
+for their clarity. However, for simple constants used many times in a
+performance-sensitive query, a macro can be more efficient as it avoids the
+potential overhead of function calls in a large number.
 
 NOTE: Macros are expanded with a pre-processing step *before* any execution
 happens. Expansion is a purely syntatic operation involves replacing the macro

@@ -14,10 +14,12 @@
 
 import protos from '../../protos';
 import m from 'mithril';
+import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
-import {FilterDefinition} from '../../components/widgets/data_grid/common';
+import {UIFilter} from './query_builder/operations/filter';
 import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
+import {Trace} from '../../public/trace';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {
@@ -31,40 +33,59 @@ export enum NodeType {
   kSqlSource,
 
   // Single node operations
-  kSubQuery,
   kAggregation,
   kModifyColumns,
+  kAddColumns,
+  kLimitAndOffset,
+  kSort,
 
   // Multi node operations
   kIntervalIntersect,
+  kUnion,
+}
+
+export function singleNodeOperation(type: NodeType): boolean {
+  switch (type) {
+    case NodeType.kAggregation:
+    case NodeType.kModifyColumns:
+    case NodeType.kAddColumns:
+    case NodeType.kLimitAndOffset:
+    case NodeType.kSort:
+      return true;
+    default:
+      return false;
+  }
 }
 
 // All information required to create a new node.
 export interface QueryNodeState {
+  prevNode?: QueryNode;
   prevNodes?: QueryNode[];
-  customTitle?: string;
+  comment?: string;
+  trace?: Trace;
+  sqlModules?: SqlModules;
+  sqlTable?: SqlTable;
 
   // Operations
-  filters: FilterDefinition[];
+  filters?: UIFilter[];
 
   issues?: NodeIssues;
 
   onchange?: () => void;
 
   // Caching
-  isExecuted?: boolean;
   hasOperationChanged?: boolean;
+
+  // Whether queries should automatically execute when this node changes.
+  // If false, the user must manually click "Run" to execute queries.
+  // Set by the node registry when the node is created.
+  autoExecute?: boolean;
 }
 
-export interface QueryNode {
+export interface BaseNode {
   readonly nodeId: string;
-  meterialisedAs?: string;
   readonly type: NodeType;
-  prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
-
-  // Columns that are available in the source data.
-  readonly sourceCols: ColumnInfo[];
 
   // Columns that are available after applying all operations.
   readonly finalCols: ColumnInfo[];
@@ -79,8 +100,26 @@ export interface QueryNode {
   nodeDetails?(): m.Child | undefined;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
-  isMaterialised(): boolean;
   serializeState(): object;
+  onPrevNodesUpdated?(): void;
+}
+
+export interface SourceNode extends BaseNode {}
+
+export interface ModificationNode extends BaseNode {
+  prevNode?: QueryNode;
+}
+
+export interface MultiSourceNode extends BaseNode {
+  prevNodes: (QueryNode | undefined)[];
+}
+
+export type QueryNode = SourceNode | ModificationNode | MultiSourceNode;
+
+export function notifyNextNodes(node: QueryNode) {
+  for (const nextNode of node.nextNodes) {
+    nextNode.onPrevNodesUpdated?.();
+  }
 }
 
 export interface Query {
@@ -109,8 +148,8 @@ export function createSelectColumnsProto(
   return selectedColumns;
 }
 
-export function createFinalColumns(node: QueryNode) {
-  return newColumnInfoList(node.sourceCols, true);
+export function createFinalColumns(sourceCols: ColumnInfo[]) {
+  return newColumnInfoList(sourceCols, true);
 }
 
 function getStructuredQueries(
@@ -127,11 +166,19 @@ function getStructuredQueries(
       return;
     }
     revStructuredQueries.push(curSq);
-    if (curNode.prevNodes?.[0]) {
-      if (!curNode.prevNodes[0].validate()) {
+
+    let prevNode: QueryNode | undefined;
+    if ('prevNode' in curNode) {
+      prevNode = curNode.prevNode;
+    } else if ('prevNodes' in curNode && curNode.prevNodes.length > 0) {
+      prevNode = curNode.prevNodes[0];
+    }
+
+    if (prevNode) {
+      if (!prevNode.validate()) {
         return;
       }
-      curNode = curNode.prevNodes[0];
+      curNode = prevNode;
     } else {
       curNode = undefined;
     }
@@ -149,21 +196,6 @@ export async function analyzeNode(
   node: QueryNode,
   engine: Engine,
 ): Promise<Query | undefined | Error> {
-  if (
-    node.state.isExecuted &&
-    !node.state.hasOperationChanged &&
-    node.type !== NodeType.kSqlSource
-  ) {
-    const sql: Query = {
-      sql: `SELECT * FROM ${node.meterialisedAs ?? ''}`,
-      textproto: '',
-      modules: [],
-      preambles: [],
-      columns: [],
-    };
-    return sql;
-  }
-
   const structuredQueries = getStructuredQueries(node);
   if (structuredQueries === undefined) return;
 
@@ -186,20 +218,8 @@ export async function analyzeNode(
     return Error('No textproto in structured query results');
   }
 
-  let finalSql = lastRes.sql;
-  if (materialise(node)) {
-    if (!node.meterialisedAs) {
-      node.meterialisedAs = `exp_${node.nodeId}`;
-    }
-    const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${
-      node.meterialisedAs ?? `exp_${node.nodeId}`
-    } AS \n${lastRes.sql}`;
-    const selectSql = `SELECT * FROM ${node.meterialisedAs ?? `exp_${node.nodeId}`}`;
-    finalSql = `${createTableSql};\n${selectSql}`;
-  }
-
   const sql: Query = {
-    sql: finalSql,
+    sql: lastRes.sql,
     textproto: lastRes.textproto ?? '',
     modules: lastRes.modules ?? [],
     preambles: lastRes.preambles ?? [],
@@ -210,13 +230,14 @@ export async function analyzeNode(
 
 export function setOperationChanged(node: QueryNode) {
   let curr: QueryNode | undefined = node;
+  const queue: QueryNode[] = [];
   while (curr) {
     if (curr.state.hasOperationChanged) {
-      // Already marked as changed, and so are the children.
-      break;
+      // Already marked as changed, skip this branch
+      curr = queue.shift();
+      continue;
     }
     curr.state.hasOperationChanged = true;
-    const queue: QueryNode[] = [];
     curr.nextNodes.forEach((child) => {
       queue.push(child);
     });
@@ -231,12 +252,5 @@ export function isAQuery(
     maybeQuery !== undefined &&
     !(maybeQuery instanceof Error) &&
     maybeQuery.sql !== undefined
-  );
-}
-
-function materialise(node: QueryNode): boolean {
-  return (
-    node.type !== NodeType.kSqlSource &&
-    node.type != NodeType.kIntervalIntersect
   );
 }

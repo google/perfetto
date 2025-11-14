@@ -1414,8 +1414,13 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
 
   // Start the periodic drain tasks if we should to save the trace into a file.
   if (tracing_session->config.write_into_file()) {
-    weak_runner_.PostDelayedTask([this, tsid] { ReadBuffersIntoFile(tsid); },
-                                 DelayToNextWritePeriodMs(*tracing_session));
+    bool async_flush_buffers_before_read =
+        !tracing_session->config.no_flush_before_write_into_file();
+    weak_runner_.PostDelayedTask(
+        [this, tsid, async_flush_buffers_before_read] {
+          ReadBuffersIntoFile(tsid, async_flush_buffers_before_read);
+        },
+        DelayToNextWritePeriodMs(*tracing_session));
   }
 
   // Start the periodic flush tasks if the config specified a flush period.
@@ -1513,9 +1518,6 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
     return;
   }
 
-  MaybeLogUploadEvent(tracing_session->config, tracing_session->trace_uuid,
-                      PerfettoStatsdAtom::kTracedDisableTracing);
-
   switch (tracing_session->state) {
     // Spurious call to DisableTracing() while already disabled, nothing to do.
     case TracingSession::DISABLED:
@@ -1547,6 +1549,21 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
 
     // This is the nominal case, continues below.
     case TracingSession::STARTED:
+      // Log the disable tracing event only when the session was actually
+      // started. This avoids double-logging in scenarios where DisableTracing
+      // is called multiple times for the same session. A common case is with
+      // traces that have a timeout (e.g. using `trigger_timeout_ms`):
+      // 1. The service's timer expires and it calls `DisableTracing`
+      // internally.
+      // 2. The service notifies the consumer (e.g. `perfetto_cmd`) that the
+      //    trace has ended.
+      // 3. The consumer, as part of its cleanup, calls `FreeBuffers()`.
+      // 4. `FreeBuffers()` on the service-side calls `DisableTracing()` again
+      //    as a safeguard.
+      // By logging only when transitioning from the `STARTED` state, we ensure
+      // we only log the effective disable event.
+      MaybeLogUploadEvent(tracing_session->config, tracing_session->trace_uuid,
+                          PerfettoStatsdAtom::kTracedDisableTracing);
       break;
   }
 
@@ -1949,7 +1966,9 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
 
   if (tracing_session->write_into_file) {
     tracing_session->write_period_ms = 0;
-    ReadBuffersIntoFile(tracing_session->id);
+    // Buffers are scraped, no need to flush before reading into file.
+    ReadBuffersIntoFile(tracing_session->id,
+                        /* async_flush_buffers_before_read = */ false);
   }
 
   MaybeLogUploadEvent(tracing_session->config, tracing_session->trace_uuid,
@@ -2435,7 +2454,9 @@ bool TracingServiceImpl::ReadBuffersIntoConsumer(
   return true;
 }
 
-bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
+bool TracingServiceImpl::ReadBuffersIntoFile(
+    TracingSessionID tsid,
+    bool async_flush_buffers_before_read) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
@@ -2452,35 +2473,62 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
   if (IsWaitingForTrigger(tracing_session))
     return false;
 
-  // ReadBuffers() can allocate memory internally, for filtering. By limiting
-  // the data that ReadBuffers() reads to kWriteIntoChunksSize per iteration,
-  // we limit the amount of memory used on each iteration.
-  //
-  // It would be tempting to split this into multiple tasks like in
-  // ReadBuffersIntoConsumer, but that's not currently possible.
-  // ReadBuffersIntoFile has to read the whole available data before returning,
-  // to support the disable_immediately=true code paths.
-  bool has_more = true;
-  bool stop_writing_into_file = false;
-  do {
-    std::vector<TracePacket> packets =
-        ReadBuffers(tracing_session, kWriteIntoFileChunkSize, &has_more);
+  auto do_read_buffers_into_file_fn =
+      [this, tsid](bool async_flush_buffers_before_read) {
+        TracingSession* tracing_session = GetTracingSession(tsid);
+        if (!tracing_session)
+          return;
+        // ReadBuffers() can allocate memory internally, for filtering. By
+        // limiting the data that ReadBuffers() reads to kWriteIntoChunksSize
+        // per iteration, we limit the amount of memory used on each iteration.
+        //
+        // It would be tempting to split this into multiple tasks like in
+        // ReadBuffersIntoConsumer, but that's not currently possible.
+        // ReadBuffersIntoFile has to read the whole available data before
+        // returning, to support the disable_immediately=true code paths.
+        bool has_more = true;
+        bool stop_writing_into_file = false;
+        do {
+          std::vector<TracePacket> packets =
+              ReadBuffers(tracing_session, kWriteIntoFileChunkSize, &has_more);
 
-    stop_writing_into_file = WriteIntoFile(tracing_session, std::move(packets));
-  } while (has_more && !stop_writing_into_file);
+          stop_writing_into_file =
+              WriteIntoFile(tracing_session, std::move(packets));
+        } while (has_more && !stop_writing_into_file);
 
-  if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
-    // Ensure all data was written to the file before we close it.
-    base::FlushFile(tracing_session->write_into_file.get());
-    tracing_session->write_into_file.reset();
-    tracing_session->write_period_ms = 0;
-    if (tracing_session->state == TracingSession::STARTED)
-      DisableTracing(tsid);
-    return true;
+        // Ensure all data was written to the file.
+        base::FlushFile(tracing_session->write_into_file.get());
+
+        if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
+          tracing_session->write_into_file.reset();
+          tracing_session->write_period_ms = 0;
+          if (tracing_session->state == TracingSession::STARTED)
+            DisableTracing(tsid);
+          return;
+        }
+
+        weak_runner_.PostDelayedTask(
+            [this, tsid, async_flush_buffers_before_read] {
+              ReadBuffersIntoFile(tsid, async_flush_buffers_before_read);
+            },
+            DelayToNextWritePeriodMs(*tracing_session));
+      };
+
+  if (async_flush_buffers_before_read) {
+    Flush(
+        tsid, 0,
+        [do_read_buffers_into_file_fn](bool success) {
+          if (!success)
+            PERFETTO_ELOG("ReadBuffersIntoFile flush timed out");
+          do_read_buffers_into_file_fn(
+              /* async_flush_buffers_before_read= */ true);
+        },
+        FlushFlags(FlushFlags::Initiator::kTraced,
+                   FlushFlags::Reason::kPeriodic));
+  } else {
+    do_read_buffers_into_file_fn(/* async_flush_buffers_before_read= */ false);
   }
 
-  weak_runner_.PostDelayedTask([this, tsid] { ReadBuffersIntoFile(tsid); },
-                               DelayToNextWritePeriodMs(*tracing_session));
   return true;
 }
 
@@ -4505,7 +4553,9 @@ base::Status TracingServiceImpl::FinishCloneSession(
   if (output_file_fd) {
     cloned_session->write_into_file = std::move(output_file_fd);
     cloned_session->write_period_ms = 0;
-    ReadBuffersIntoFile(cloned_session->id);
+    // Buffers are flushed, no need to flush again before reading into file.
+    ReadBuffersIntoFile(cloned_session->id,
+                        /* async_flush_buffers_before_read= */ false);
   }
 
   return base::OkStatus();

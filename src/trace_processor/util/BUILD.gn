@@ -64,6 +64,17 @@ source_set("build_id") {
   ]
 }
 
+source_set("blob") {
+  sources = [ "trace_blob.cc" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/trace_processor:basic_types",
+    "../../../include/perfetto/trace_processor:util",
+    "../../../protos/perfetto/common:zero",
+  ]
+}
+
 source_set("clock") {
   sources = [ "clock_synchronizer.h" ]
   deps = [
@@ -227,6 +238,7 @@ source_set("args_utils") {
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
+    "../containers",
     "../storage",
     "../types",
   ]
