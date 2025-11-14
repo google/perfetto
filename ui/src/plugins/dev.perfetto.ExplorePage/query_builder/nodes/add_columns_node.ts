@@ -33,6 +33,7 @@ import {
   ColumnSpec,
   JoinCondition,
 } from '../structured_query_builder';
+import {setValidationError} from '../node_issues';
 
 export type AddColumnsMode = 'guided' | 'free';
 
@@ -727,14 +728,41 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   validate(): boolean {
-    if (this.prevNode === undefined) return false;
-    if (this.rightNode === undefined) return true; // No node connected is valid (pass-through)
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.prevNode === undefined) {
+      setValidationError(this.state, 'No input node connected');
+      return false;
+    }
+
+    if (!this.prevNode.validate()) {
+      setValidationError(this.state, 'Previous node is invalid');
+      return false;
+    }
+
+    // Require a node to be connected to add columns from
+    if (this.rightNode === undefined) {
+      setValidationError(this.state, 'No node connected to add columns from');
+      return false;
+    }
 
     // In free mode, we use default join columns, so it's always valid
-    if (this.state.mode === 'free') return true;
+    if (this.state.mode === 'free') {
+      return true;
+    }
 
     // In guided mode, we need valid join columns
-    if (!this.state.leftColumn || !this.state.rightColumn) return false;
+    if (!this.state.leftColumn || !this.state.rightColumn) {
+      setValidationError(
+        this.state,
+        'Guided mode requires both left and right join columns to be selected',
+      );
+      return false;
+    }
+
     return true;
   }
 

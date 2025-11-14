@@ -360,10 +360,10 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
                     WITH
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2)
-                    SELECT ii.ts, ii.dur, iibase.*, iisource0.*
+                    SELECT ii.ts, ii.dur, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*
                     FROM _interval_intersect!((iibase, iisource0), ()) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -2803,10 +2803,10 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectWithPartitionColumns) {
                     WITH
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2)
-                    SELECT ii.ts, ii.dur, ii.utid, iibase.*, iisource0.*
+                    SELECT ii.ts, ii.dur, ii.utid, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*
                     FROM _interval_intersect!((iibase, iisource0), (utid)) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -2850,10 +2850,10 @@ TEST(StructuredQueryGeneratorTest,
                     WITH
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2)
-                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, iibase.*, iisource0.*
+                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*
                     FROM _interval_intersect!((iibase, iisource0), (utid, upid)) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -2901,10 +2901,10 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectWithEmptyPartitionColumns) {
                     WITH
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2)
-                    SELECT ii.ts, ii.dur, iibase.*, iisource0.*
+                    SELECT ii.ts, ii.dur, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*
                     FROM _interval_intersect!((iibase, iisource0), ()) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -3250,11 +3250,11 @@ TEST(StructuredQueryGeneratorTest,
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2),
                       iisource1 AS (SELECT * FROM sq_3)
-                    SELECT ii.ts, ii.dur, ii.utid, iibase.*, iisource0.*, iisource1.*
+                    SELECT ii.ts, ii.dur, ii.utid, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*, source_2.id AS id_2, source_2.ts AS ts_2, source_2.dur AS dur_2, source_2.*
                     FROM _interval_intersect!((iibase, iisource0, iisource1), (utid)) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
-                    JOIN iisource1 ON ii.id_2 = iisource1.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
+                    JOIN iisource1 AS source_2 ON ii.id_2 = source_2.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -3315,12 +3315,12 @@ TEST(StructuredQueryGeneratorTest,
                       iisource0 AS (SELECT * FROM sq_2),
                       iisource1 AS (SELECT * FROM sq_3),
                       iisource2 AS (SELECT * FROM sq_4)
-                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, iibase.*, iisource0.*, iisource1.*, iisource2.*
+                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*, source_2.id AS id_2, source_2.ts AS ts_2, source_2.dur AS dur_2, source_2.*, source_3.id AS id_3, source_3.ts AS ts_3, source_3.dur AS dur_3, source_3.*
                     FROM _interval_intersect!((iibase, iisource0, iisource1, iisource2), (utid, upid)) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
-                    JOIN iisource1 ON ii.id_2 = iisource1.id
-                    JOIN iisource2 ON ii.id_3 = iisource2.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
+                    JOIN iisource1 AS source_2 ON ii.id_2 = source_2.id
+                    JOIN iisource2 AS source_3 ON ii.id_3 = source_3.id
                   )
                 )
                 SELECT * FROM sq_0

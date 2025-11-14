@@ -302,18 +302,15 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
 
 ModuleResult AndroidProbesModule::ParseAndroidUserList(
     protozero::ConstBytes blob) {
-  protos::pbzero::UserList::Decoder user_list(blob.data, blob.size);
+  protos::pbzero::AndroidUserList::Decoder user_list(blob.data, blob.size);
   auto* table = context_->storage->mutable_user_list_table();
 
-  if (user_list.has_read_error() && user_list.read_error()) {
-    context_->storage->IncrementStats(stats::user_list_read_errors);
-  }
-  if (user_list.has_parse_error() && user_list.parse_error()) {
-    context_->storage->IncrementStats(stats::user_list_parse_errors);
+  if (user_list.error() < 0) {
+    context_->storage->IncrementStats(stats::user_list_errors);
   }
 
   for (auto it = user_list.users(); it; ++it) {
-    protos::pbzero::UserList_UserInfo::Decoder user(*it);
+    protos::pbzero::AndroidUserList_UserInfo::Decoder user(*it);
     table->Insert({context_->storage->InternString(user.type()),
                    static_cast<int64_t>(user.uid())});
   }
