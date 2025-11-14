@@ -61,14 +61,6 @@ export class PerfettoTestHelper {
       .map(([k, v]) => `${k}=${v}`)
       .join('&');
     await this.page.goto('/?' + qs);
-    await this.page.addStyleTag({
-      content: `
-        body {
-          -webkit-font-smoothing: antialiased !important;
-          font-kerning: none !important;
-        }
-      `,
-    });
     const file = await this.page.waitForSelector('input.trace_file', {
       state: 'attached',
     });
@@ -78,6 +70,14 @@ export class PerfettoTestHelper {
     const tracePath = this.getTestTracePath(traceName);
     assertExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
+    await this.page.addStyleTag({
+      content: `
+        body {
+          -webkit-font-smoothing: antialiased !important;
+          font-kerning: none !important;
+        }
+      `,
+    });
     await this.page.mouse.move(0, 0);
   }
 
