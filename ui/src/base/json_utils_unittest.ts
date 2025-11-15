@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {stringifyJsonWithBigints} from './json_utils';
+import {stringifyJsonWithBigints, parseJsonWithBigints} from './json_utils';
 
 test('stringifyJsonWithBigints', () => {
   const obj = {foo: 'bar', baz: 123n};
@@ -27,4 +27,33 @@ test('stringifyJsonWithBigints with space', () => {
   "baz": "123"
 }`;
   expect(stringifyJsonWithBigints(obj, 2)).toEqual(expected);
+});
+
+test('parseJsonWithBigints', () => {
+  const json = '{"foo":"bar","baz":123}';
+  const result = parseJsonWithBigints(json);
+  expect(result.foo).toEqual('bar');
+  expect(result.baz).toEqual(123n);
+});
+
+test('parseJsonWithBigints with nested objects and arrays', () => {
+  const json = '{"outer":{"inner":456},"value":789,"numbers":[1,2,3]}';
+  const result = parseJsonWithBigints(json);
+  expect(result.outer.inner).toEqual(456n);
+  expect(result.value).toEqual(789n);
+  expect(result.numbers).toEqual([1n, 2n, 3n]);
+});
+
+test('parseJsonWithBigints preserves non-integer numbers', () => {
+  const json = '{"float":3.14,"int":42}';
+  const result = parseJsonWithBigints(json);
+  expect(result.float).toEqual(3.14);
+  expect(result.int).toEqual(42n);
+});
+
+test('parseJsonWithBigints handles large integers', () => {
+  const json = `{"large":12345678901234567890}}`;
+  const result = parseJsonWithBigints(json);
+  expect(result.large).toEqual(12345678901234567890n);
+  expect(typeof result.large).toEqual('bigint');
 });
