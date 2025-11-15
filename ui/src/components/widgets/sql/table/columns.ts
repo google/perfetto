@@ -42,6 +42,7 @@ import {
   PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
+import {parseJsonWithBigints} from '../../../../base/json_utils';
 
 function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   return renderError(
@@ -485,7 +486,7 @@ class ArgColumn implements TableColumn {
     this.display = new SqlExpression(
       (cols: string[]) => `json_object(
           'id', ${cols[0]},
-          'int_value', CAST(${cols[1]} AS TEXT),
+          'int_value', ${cols[1]},
           'real_value', ${cols[2]},
           'string_value', ${cols[3]},
           'display_value', ${cols[4]}
@@ -535,13 +536,13 @@ class ArgColumn implements TableColumn {
         ),
       };
     }
-    const argValue = JSON.parse(value);
+    const argValue = parseJsonWithBigints(value);
     if (argValue['id'] === null) {
       return renderStandardCell(null, this.getRawColumn('id'), tableManager);
     }
     if (argValue['int_value'] !== null) {
       return renderStandardCell(
-        BigInt(argValue['int_value']),
+        argValue['int_value'],
         this.getRawColumn('int_value'),
         tableManager,
       );
