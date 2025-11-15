@@ -28,6 +28,7 @@
     gap: 6px;
     padding: 8px 8px 5px 8px;
     border-bottom: 1px solid var(--pf-color-border);
+    background: var(--pf-color-background);
 
     .pf-header-title {
       font-size: 18px;
@@ -50,6 +51,19 @@
       min-width: min-content;
       gap: 4px;
       align-items: baseline;
+    }
+  }
+
+  &.pf-fill-buttons-space {
+    .pf-header-bar {
+      .pf-header-description {
+        flex-grow: 0;
+        flex-shrink: 1;
+      }
+
+      .pf-header-buttons {
+        flex-grow: 1;
+      }
     }
   }
 

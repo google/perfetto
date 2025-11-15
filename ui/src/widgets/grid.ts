@@ -262,6 +262,7 @@ export interface GridAttrs {
     position: ReorderPosition,
   ) => void;
   readonly onReady?: (api: GridApi) => void;
+  readonly emptyState?: m.Children;
 }
 
 /**
@@ -445,6 +446,9 @@ export class Grid implements m.ClassComponent<GridAttrs> {
             attrs,
           )
         : this.renderGridBody(columns, rows, attrs),
+      totalRows === 0 &&
+        attrs.emptyState !== undefined &&
+        m('.pf-grid__empty-state', attrs.emptyState),
     );
   }
 
