@@ -324,3 +324,42 @@ SELECT
   tag,
   msg
 FROM __intrinsic_android_logs;
+
+-- Materialized mapping from stat key to severity and name.
+CREATE PERFETTO TABLE _stat_key_to_severity_and_name AS
+SELECT DISTINCT
+  key,
+  severity,
+  name
+FROM stats
+ORDER BY
+  key;
+
+-- Contains logs of errors and warnings that occurred during trace import.
+CREATE PERFETTO VIEW _trace_import_logs (
+  -- The id of the log entry.
+  id ID,
+  -- The id of the trace file this log belongs to.
+  trace_id LONG,
+  -- The timestamp when the error occurred (if available).
+  ts TIMESTAMP,
+  -- The byte offset in the trace file where the error occurred (if available).
+  byte_offset LONG,
+  -- The severity of the log entry ('info', 'data_loss', or 'error').
+  severity STRING,
+  -- The name of the stat/error type.
+  name STRING,
+  -- The id of the argument set associated with this log entry.
+  arg_set_id ARGSETID
+) AS
+SELECT
+  l.id,
+  l.trace_id,
+  l.ts,
+  l.byte_offset,
+  s.severity,
+  s.name,
+  l.arg_set_id
+FROM __intrinsic_trace_import_logs AS l
+JOIN _stat_key_to_severity_and_name AS s
+  ON l.stat_key = s.key;
