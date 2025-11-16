@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           tools/run_presubmit \
-            --skip-formatters "eslint,prettier" \
+            --skip-formatters "eslint,prettier,rustfmt" \
             --merge-base origin/${{ github.base_ref }}
 
       - name: Check merged protos (tools/gen_all)

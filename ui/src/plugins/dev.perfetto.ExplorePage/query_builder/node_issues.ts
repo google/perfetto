@@ -52,3 +52,21 @@ export class NodeIssues {
     this.warnings = [];
   }
 }
+
+/**
+ * Helper function to set a validation error on a node's state.
+ * Creates a NodeIssues instance if one doesn't exist and sets the queryError.
+ *
+ * @param state - The node state object that may contain issues
+ * @param state.issues - Optional NodeIssues instance
+ * @param message - The error message to set
+ */
+export function setValidationError(
+  state: {issues?: NodeIssues},
+  message: string,
+): void {
+  if (!state.issues) {
+    state.issues = new NodeIssues();
+  }
+  state.issues.queryError = new Error(message);
+}

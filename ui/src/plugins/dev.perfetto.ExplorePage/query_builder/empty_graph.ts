@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {Card} from '../../../widgets/card';
 import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Icon} from '../../../widgets/icon';
-import {Switch} from '../../../widgets/switch';
 import {nodeRegistry} from './node_registry';
 
 interface SourceCardAttrs {
@@ -31,8 +31,20 @@ const SourceCard: m.Component<SourceCardAttrs> = {
   view({attrs}) {
     const {title, description, icon, hotkey, onclick} = attrs;
     return m(
-      '.pf-source-card',
-      {onclick},
+      Card,
+      {
+        interactive: true,
+        onclick,
+        tabindex: 0,
+        role: 'button',
+        className: 'pf-source-card',
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onclick();
+          }
+        },
+      },
       m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', title)),
       m('p', description),
       hotkey ? m('.pf-source-card-hotkey', m(Keycap, hotkey)) : null,
@@ -43,9 +55,6 @@ const SourceCard: m.Component<SourceCardAttrs> = {
 export interface EmptyGraphAttrs {
   readonly onAddSourceNode: (id: string) => void;
   readonly onImport: () => void;
-  readonly onImportWithStatement: () => void;
-  readonly devMode?: boolean;
-  readonly onDevModeChange?: (enabled: boolean) => void;
 }
 
 export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
@@ -54,9 +63,6 @@ export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
       .list()
       .filter(([_id, node]) => node.type === 'source')
       .map(([id, node]) => {
-        if (node.devOnly && !attrs.devMode) {
-          return null;
-        }
         return m(SourceCard, {
           title: node.name,
           description: node.description,
@@ -66,42 +72,21 @@ export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
         });
       });
 
-    return [
+    return m(
+      '.pf-exp-node-graph-add-button-container.pf-empty-graph-hero',
+      m('h2.pf-empty-graph-hero__title', 'Welcome to the Explore Page'),
       m(
-        'div.dev-mode-switch',
-        m(Switch, {
-          label: 'Dev mode',
-          checked: attrs.devMode,
-          onchange: (e: Event) => {
-            if (attrs.onDevModeChange) {
-              attrs.onDevModeChange((e.target as HTMLInputElement).checked);
-            }
-          },
-        }),
+        'p.pf-empty-graph-hero__subtitle',
+        'Build and execute SQL queries on your trace data using a visual ' +
+          'node-based editor. Get started by adding a source node below.',
       ),
-      m(
-        '.pf-exp-node-graph-add-button-container.pf-empty-graph-hero',
-        m('h2.pf-empty-graph-hero__title', 'Welcome to the Explore Page'),
-        m(
-          'p.pf-empty-graph-hero__subtitle',
-          'Build and execute SQL queries on your trace data using a visual ' +
-            'node-based editor. Get started by adding a source node below.',
-        ),
-        m('.pf-exp-node-graph-add-buttons', sourceNodes),
-        m(Button, {
-          label: 'Import',
-          onclick: attrs.onImport,
-          variant: ButtonVariant.Filled,
-          icon: 'file_upload',
-        }),
-        m(Button, {
-          label: 'Import from WITH statement',
-          onclick: attrs.onImportWithStatement,
-          variant: ButtonVariant.Filled,
-          icon: 'code',
-          style: {marginLeft: '8px'},
-        }),
-      ),
-    ];
+      m('.pf-exp-node-graph-add-buttons', sourceNodes),
+      m(Button, {
+        label: 'Import from json',
+        onclick: attrs.onImport,
+        variant: ButtonVariant.Filled,
+        icon: 'file_upload',
+      }),
+    );
   }
 }

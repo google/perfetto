@@ -167,7 +167,7 @@ export class StructuredQueryBuilder {
     sq.id = nodeId ?? nextNodeId();
     sq.innerQuery = query;
 
-    if (limit !== undefined && limit > 0) {
+    if (limit !== undefined && limit >= 0) {
       sq.limit = limit;
     }
 

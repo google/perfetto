@@ -74,6 +74,7 @@ source_set("probes_src") {
     "statsd_client",
     "sys_stats",
     "system_info",
+    "user_list",
   ]
   sources = [
     "probes_producer.cc",
@@ -114,5 +115,6 @@ perfetto_unittest_source_set("unittests") {
     "statsd_client:unittests",
     "sys_stats:unittests",
     "system_info:unittests",
+    "user_list:unittests",
   ]
 }

@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::env;
-use std::path::{Path, PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -47,6 +49,17 @@ fn main() {
                 source_file.display()
             );
         }
+        // Extra code to verify that size of `std::atomic<bool>` and `_Atomic(bool)`
+        // match `bool` type. Only targets where this is the case are supported.
+        let atomic_bool_check_file = out_path.join("atomic_bool_check.cc");
+        fs::write(
+            &atomic_bool_check_file,
+            r#"
+            #include <atomic>
+            int check_size[sizeof(std::atomic<bool>) == sizeof(bool) ? 1 : -1];
+        "#,
+        )
+        .unwrap();
         let mut build = cc::Build::new();
         // `PERFETTO_SYS_LIB_DEBUG=true` enables debug build of the shared library.
         let lib_debug = env::var("PERFETTO_SYS_LIB_DEBUG").ok().as_deref() == Some("true");
@@ -56,10 +69,11 @@ fn main() {
         build
             .cpp(true)
             .file(source_file)
+            .file(atomic_bool_check_file)
             .std("c++17")
             .debug(lib_debug)
             .warnings(false)
-            .compile("libperfetto_c");
+            .compile("perfetto_c");
         println!("cargo:rerun-if-changed=libperfetto_c/perfetto_c.cc");
         println!("cargo:rerun-if-changed=libperfetto_c/perfetto_c.h");
         println!("cargo:rerun-if-env-changed=PERFETTO_SYS_LIB_DEBUG");
@@ -76,6 +90,11 @@ fn main() {
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
+        // This ensures that bindgen generates `bool` type for `_Atomic(bool)`.
+        // We include some extra code in the vendored shared library above to
+        // verify that the size of `_Atomic(bool)` and `bool` match.
+        .clang_arg("-DINCLUDE_PERFETTO_PUBLIC_ABI_ATOMIC_H_")
+        .clang_arg("-DPERFETTO_ATOMIC(x)=x")
         .clang_arg(format!("-I{}", include_path))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .allowlist_type("(?:Perfetto|perfetto).*")

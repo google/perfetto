@@ -1431,6 +1431,57 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedUnionNode.state.selectedColumns[1].checked).toBe(false);
   });
 
+  test('merge node filters duplicate columns and includes equality columns', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    // Both tables have the same columns: name, ts, dur
+    // When joining on 'name', the final columns should:
+    // - Include 'name' once (the equality column)
+    // - Exclude 'ts' and 'dur' (duplicated across both inputs)
+    const mergeNode = new MergeNode({
+      prevNodes: [tableNode1, tableNode2],
+      leftQueryAlias: 'left',
+      rightQueryAlias: 'right',
+      conditionType: 'equality',
+      leftColumn: 'name',
+      rightColumn: 'name',
+      sqlExpression: '',
+    });
+    tableNode1.nextNodes.push(mergeNode);
+    tableNode2.nextNodes.push(mergeNode);
+
+    // Verify finalCols behavior
+    const finalCols = mergeNode.finalCols;
+    const colNames = finalCols.map((c) => c.name);
+
+    // Should include the equality column once
+    expect(colNames).toContain('name');
+    expect(colNames.filter((n) => n === 'name').length).toBe(1);
+
+    // Should NOT include duplicated columns (ts, dur appear in both tables)
+    expect(colNames).not.toContain('ts');
+    expect(colNames).not.toContain('dur');
+
+    // Verify the structured query includes select_columns
+    const sq = mergeNode.getStructuredQuery();
+    expect(sq).toBeDefined();
+    expect(sq?.selectColumns).toBeDefined();
+    expect(sq?.selectColumns?.length).toBe(finalCols.length);
+    expect(sq?.selectColumns?.map((c) => c.columnNameOrExpression)).toEqual(
+      colNames,
+    );
+  });
+
   test('serializes and deserializes modify columns node with selected columns', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),

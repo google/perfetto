@@ -40,36 +40,31 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       schema: z.boolean(),
       requiresReload: true, // Hotkeys are registered on trace load.
     });
+  }
 
+  async onTraceLoad(ctx: Trace): Promise<void> {
     // Register this command up front to block the print dialog from appearing
     // when pressing the hotkey before the trace is loaded.
-    app.commands.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.FindTrackByName',
       name: 'Find track by name',
       callback: async () => {
-        const trace = app.trace;
-        if (!trace) {
-          return;
-        }
-
-        const tracksWithUris = trace.currentWorkspace.flatTracksOrdered.filter(
+        const tracksWithUris = ctx.currentWorkspace.flatTracksOrdered.filter(
           (track) => track.uri !== undefined,
         ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
-        const track = await app.omnibox.prompt('Choose a track...', {
+        const track = await ctx.omnibox.prompt('Choose a track...', {
           values: tracksWithUris,
           getName: (track) => track.fullPath.join(' \u2023 '),
         });
         track &&
-          trace.selection.selectTrack(track.uri, {
+          ctx.selection.selectTrack(track.uri, {
             scrollToSelection: true,
           });
       },
       // This is analogous to the 'Find file' hotkey in VSCode.
       defaultHotkey: '!Mod+P',
     });
-  }
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryInSelectedTimeWindow',
       name: `Run query in selected time window`,

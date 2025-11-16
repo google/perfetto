@@ -16,26 +16,27 @@
 
 #include "src/trace_processor/read_trace_internal.h"
 
+#include <fcntl.h>
+#include <algorithm>
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <functional>
+#include <utility>
+
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
-#include "perfetto/ext/base/utils.h"
-#include "perfetto/protozero/proto_utils.h"
-#include "perfetto/trace_processor/trace_processor.h"
-
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/forwarding_trace_parser.h"
-#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "perfetto/trace_processor/trace_processor.h"
 
-#include "protos/perfetto/trace/trace.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 // 1MB chunk size seems the best tradeoff on a MacBook Pro 2013 - i7 2.8 GHz.
@@ -112,5 +113,4 @@ base::Status ReadTraceUnfinalized(
     progress_callback(bytes_read);
   return base::OkStatus();
 }
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -14,7 +14,7 @@
 # limitations under the License.
 """Pulls LUCI-generated binaries and generates .zip files for GitHub releases.
 
-Usage: ./tools/package_prebuilts_for_github_release v20.0
+Usage: ./tools/release/package_prebuilts_for_github_release v20.0
 
 This will generate one .zip file for every os-arch combo (e.g. android-arm.zip)
 into /tmp/perfetto-prebuilts-v20.0/ .

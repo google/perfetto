@@ -25,6 +25,7 @@ import protos from '../../../../protos';
 import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
 import {StructuredQueryBuilder} from '../structured_query_builder';
+import {setValidationError} from '../node_issues';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
   prevNode: QueryNode;
@@ -178,7 +179,22 @@ export class LimitAndOffsetNode implements ModificationNode {
   }
 
   validate(): boolean {
-    return this.prevNode !== undefined;
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.prevNode === undefined) {
+      setValidationError(this.state, 'No input node connected');
+      return false;
+    }
+
+    if (!this.prevNode.validate()) {
+      setValidationError(this.state, 'Previous node is invalid');
+      return false;
+    }
+
+    return true;
   }
 
   clone(): QueryNode {
@@ -188,7 +204,7 @@ export class LimitAndOffsetNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
 
-    const hasLimit = this.state.limit !== undefined && this.state.limit > 0;
+    const hasLimit = this.state.limit !== undefined && this.state.limit >= 0;
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
 
     if (!hasLimit && !hasOffset) {

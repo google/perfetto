@@ -1,2 +1,10 @@
-debug
+# build artifacts
 target
+
+# lockfiles
+# (only the top-level workspace lockfile should be committed)
+**/Cargo.lock
+!Cargo.lock
+
+# amalgamated shared library source
+perfetto-sys/libperfetto_c

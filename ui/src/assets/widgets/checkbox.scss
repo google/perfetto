@@ -58,6 +58,7 @@
 
   // The span forms the "box" of the checkbox
   span {
+    flex: 0 0 auto;
     display: inline-block;
     position: relative; // Align tick to this box
     align-self: center;

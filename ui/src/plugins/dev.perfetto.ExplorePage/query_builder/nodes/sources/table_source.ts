@@ -35,6 +35,7 @@ import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
 import {perfettoSqlTypeToString} from '../../../../../trace_processor/perfetto_sql_type';
+import {setValidationError} from '../../node_issues';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
@@ -131,7 +132,17 @@ export class TableSourceNode implements SourceNode {
   }
 
   validate(): boolean {
-    return this.state.sqlTable !== undefined;
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.state.sqlTable === undefined) {
+      setValidationError(this.state, 'No table selected');
+      return false;
+    }
+
+    return true;
   }
 
   getTitle(): string {

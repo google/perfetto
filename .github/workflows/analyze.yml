@@ -118,6 +118,13 @@ jobs:
     needs: analyze
     uses: ./.github/workflows/repo-checks.yml
 
+  rust-sdk:
+    needs: analyze
+    if:
+      needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
+      needs.analyze.outputs.TRIVIAL_CHANGE == '0'
+    uses: ./.github/workflows/rust-sdk-tests.yml
+
   # This final step joins the results of the nested workflows and succeeds if
   # all the non-skipped workflows have suceeded. This job is used by the
   # "require CI to pass" GitHub ruleset.
@@ -130,6 +137,7 @@ jobs:
       - bazel
       - fuzzer
       - repo-checks
+      - rust-sdk
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -144,9 +152,17 @@ jobs:
               exit 1
             fi
           }
+          warn() {
+            job="$1"
+            result="$2"
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "::warning::$job failed with result: $result"
+            fi
+          }
           check linux ${{ needs.linux.result }}
           check android ${{ needs.android.result }}
           check ui ${{ needs.ui.result }}
           check bazel ${{ needs.bazel.result }}
           check fuzzer ${{ needs.fuzzer.result }}
           check repo-checks ${{ needs.repo-checks.result }}
+          warn rust-sdk ${{ needs.rust-sdk.result }}

@@ -716,6 +716,7 @@ perfetto_cc_library(
             ":src_traced_probes_sys_stats_sys_stats",
             ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
+            ":src_traced_probes_user_list_user_list",
             ":src_tracing_ipc_producer_producer",
         ],
     }),
@@ -4384,6 +4385,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/user_list:user_list
+perfetto_filegroup(
+    name = "src_traced_probes_user_list_user_list",
+    srcs = [
+        "src/traced/probes/user_list/user_list_data_source.cc",
+        "src/traced/probes/user_list/user_list_data_source.h",
+    ],
+)
+
 # GN target: //src/traced/probes:data_source
 perfetto_filegroup(
     name = "src_traced_probes_data_source",
@@ -5489,6 +5499,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/protolog_config.proto",
         "protos/perfetto/config/android/surfaceflinger_layers_config.proto",
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
+        "protos/perfetto/config/android/user_list_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
     ],
     visibility = [
@@ -6305,6 +6316,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/network_trace.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/user_list.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -6577,6 +6589,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/ftrace_event.proto",
         "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto",
         "protos/perfetto/trace/ftrace/ftrace_stats.proto",
+        "protos/perfetto/trace/ftrace/fwtp_ftrace.proto",
         "protos/perfetto/trace/ftrace/g2d.proto",
         "protos/perfetto/trace/ftrace/generic.proto",
         "protos/perfetto/trace/ftrace/google_icc_trace.proto",

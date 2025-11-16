@@ -35,6 +35,7 @@ import {
 import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
+import {setValidationError} from '../../node_issues';
 
 export interface SqlSourceSerializedState {
   sql?: string;
@@ -92,7 +93,17 @@ export class SqlSourceNode implements MultiSourceNode {
   }
 
   validate(): boolean {
-    return this.state.sql !== undefined && this.state.sql.trim() !== '';
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.state.sql === undefined || this.state.sql.trim() === '') {
+      setValidationError(this.state, 'SQL query is empty');
+      return false;
+    }
+
+    return true;
   }
 
   getTitle(): string {

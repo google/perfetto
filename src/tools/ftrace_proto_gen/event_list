@@ -589,3 +589,4 @@ gpu_scheduler/drm_sched_job_done
 gpu_scheduler/drm_sched_job_queue
 gpu_scheduler/drm_sched_job_run
 gpu_scheduler/drm_sched_job_unschedulable
+fwtp_ftrace/fwtp_perfetto_counter

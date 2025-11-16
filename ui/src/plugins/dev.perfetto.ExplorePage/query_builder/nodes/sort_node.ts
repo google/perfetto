@@ -32,6 +32,7 @@ import {
   StructuredQueryBuilder,
   SortCriterion as BuilderSortCriterion,
 } from '../structured_query_builder';
+import {setValidationError} from '../node_issues';
 
 export interface SortCriterion {
   colName: string;
@@ -240,11 +241,27 @@ export class SortNode implements ModificationNode {
   }
 
   validate(): boolean {
-    return (
-      this.prevNode !== undefined &&
-      this.sortCols !== undefined &&
-      this.sortCols.length > 0
-    );
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.prevNode === undefined) {
+      setValidationError(this.state, 'No input node connected');
+      return false;
+    }
+
+    if (!this.prevNode.validate()) {
+      setValidationError(this.state, 'Previous node is invalid');
+      return false;
+    }
+
+    if (this.sortCols === undefined || this.sortCols.length === 0) {
+      setValidationError(this.state, 'No sort columns selected');
+      return false;
+    }
+
+    return true;
   }
 
   clone(): QueryNode {

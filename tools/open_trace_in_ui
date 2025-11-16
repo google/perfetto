@@ -87,7 +87,14 @@ def main():
   parser.add_argument('positional_trace', metavar='trace', nargs='?')
   parser.add_argument(
       '-n', '--no-open-browser', action='store_true', default=False)
-  parser.add_argument('--origin', default='https://ui.perfetto.dev')
+  origin_group = parser.add_mutually_exclusive_group()
+  origin_group.add_argument('--origin', default='https://ui.perfetto.dev')
+  origin_group.add_argument(
+      '--dev-server',
+      action='store_true',
+      default=False,
+      help='Open the trace in the locally hosted devserver. Shorthand for "--origin http://localhost:10000"'
+  )
   parser.add_argument(
       '-i', '--trace', help='input filename (overrides positional argument)')
 
@@ -107,8 +114,12 @@ def main():
     prt('%s not found ' % trace_file, ANSI.RED)
     sys.exit(1)
 
+  origin = args.origin
+  if args.dev_server:
+    origin = 'http://localhost:10000'
+
   prt('Opening the trace (%s) in the browser' % trace_file)
-  open_trace(trace_file, open_browser, args.origin)
+  open_trace(trace_file, open_browser, origin)
 
 
 if __name__ == '__main__':

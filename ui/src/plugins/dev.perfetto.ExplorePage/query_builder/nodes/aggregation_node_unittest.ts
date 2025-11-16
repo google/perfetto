@@ -27,18 +27,18 @@ describe('AggregationNode', () => {
     return {} as Trace;
   }
 
-  function createMockPrevNode(): QueryNode {
+  function createMockPrevNode(cols: ColumnInfo[] = []): QueryNode {
     return {
       nodeId: 'mock',
       type: NodeType.kTable,
       nextNodes: [],
-      finalCols: [],
+      finalCols: cols,
       state: {},
       validate: () => true,
       getTitle: () => 'Mock',
       nodeSpecificModify: () => null,
       nodeInfo: () => null,
-      clone: () => createMockPrevNode(),
+      clone: () => createMockPrevNode(cols),
       getStructuredQuery: () => undefined,
       serializeState: () => ({}),
     } as QueryNode;
@@ -496,6 +496,171 @@ describe('AggregationNode', () => {
       expect(node.state.aggregations[0].aggregationOp).toBe('MEDIAN');
       expect(node.state.aggregations[0].column?.name).toBe('value');
       expect(node.state.aggregations[0].newColumnName).toBe('median_value');
+    });
+  });
+
+  describe('node validation', () => {
+    let mockPrevNode: QueryNode;
+
+    beforeEach(() => {
+      mockPrevNode = createMockPrevNode([
+        createColumnInfo('name', 'STRING'),
+        createColumnInfo('dur', 'INT'),
+        createColumnInfo('ts', 'INT'),
+      ]);
+    });
+
+    it('should validate node with only group by columns (no aggregations)', () => {
+      const node = new AggregationNode({
+        trace: createMockTrace(),
+        prevNode: mockPrevNode,
+        groupByColumns: [
+          {...createColumnInfo('name', 'STRING'), checked: true},
+          {...createColumnInfo('dur', 'INT'), checked: false},
+        ],
+        aggregations: [],
+      });
+
+      expect(node.validate()).toBe(true);
+    });
+
+    it('should validate node with only aggregations (no group by)', () => {
+      const node = new AggregationNode({
+        trace: createMockTrace(),
+        prevNode: mockPrevNode,
+        groupByColumns: [
+          {...createColumnInfo('name', 'STRING'), checked: false},
+          {...createColumnInfo('dur', 'INT'), checked: false},
+        ],
+        aggregations: [
+          {
+            aggregationOp: 'COUNT_ALL',
+            isValid: true,
+          },
+        ],
+      });
+
+      expect(node.validate()).toBe(true);
+    });
+
+    it('should validate node with both group by and aggregations', () => {
+      const node = new AggregationNode({
+        trace: createMockTrace(),
+        prevNode: mockPrevNode,
+        groupByColumns: [
+          {...createColumnInfo('name', 'STRING'), checked: true},
+          {...createColumnInfo('dur', 'INT'), checked: false},
+        ],
+        aggregations: [
+          {
+            aggregationOp: 'SUM',
+            column: createColumnInfo('dur', 'INT'),
+            isValid: true,
+          },
+        ],
+      });
+
+      expect(node.validate()).toBe(true);
+    });
+
+    it('should invalidate node with neither group by nor aggregations', () => {
+      const node = new AggregationNode({
+        trace: createMockTrace(),
+        prevNode: mockPrevNode,
+        groupByColumns: [
+          {...createColumnInfo('name', 'STRING'), checked: false},
+          {...createColumnInfo('dur', 'INT'), checked: false},
+        ],
+        aggregations: [],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toContain(
+        'requires at least one group by column or aggregation function',
+      );
+    });
+
+    it('should invalidate node with invalid aggregations and no group by', () => {
+      const node = new AggregationNode({
+        trace: createMockTrace(),
+        prevNode: mockPrevNode,
+        groupByColumns: [
+          {...createColumnInfo('name', 'STRING'), checked: false},
+        ],
+        aggregations: [
+          {
+            aggregationOp: 'SUM',
+            // Missing column - invalid
+            isValid: false,
+          },
+        ],
+      });
+
+      expect(node.validate()).toBe(false);
+    });
+
+    it('should validate multiple aggregations without group by', () => {
+      const node = new AggregationNode({
+        trace: createMockTrace(),
+        prevNode: mockPrevNode,
+        groupByColumns: [
+          {...createColumnInfo('name', 'STRING'), checked: false},
+        ],
+        aggregations: [
+          {
+            aggregationOp: 'COUNT_ALL',
+            isValid: true,
+          },
+          {
+            aggregationOp: 'SUM',
+            column: createColumnInfo('dur', 'INT'),
+            isValid: true,
+          },
+          {
+            aggregationOp: 'MAX',
+            column: createColumnInfo('ts', 'INT'),
+            isValid: true,
+          },
+        ],
+      });
+
+      expect(node.validate()).toBe(true);
+    });
+
+    it('should invalidate node when group by columns are missing from input', () => {
+      const node = new AggregationNode({
+        trace: createMockTrace(),
+        prevNode: mockPrevNode,
+        groupByColumns: [
+          {...createColumnInfo('name', 'STRING'), checked: true},
+          {...createColumnInfo('missing_col', 'INT'), checked: true},
+        ],
+        aggregations: [],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toContain(
+        'not found in input',
+      );
+    });
+
+    it('should invalidate node without prevNode', () => {
+      const node = new AggregationNode({
+        trace: createMockTrace(),
+        prevNode: undefined as unknown as QueryNode,
+        groupByColumns: [],
+        aggregations: [
+          {
+            aggregationOp: 'COUNT_ALL',
+            isValid: true,
+          },
+        ],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toBe(
+        'No input node connected',
+      );
     });
   });
 

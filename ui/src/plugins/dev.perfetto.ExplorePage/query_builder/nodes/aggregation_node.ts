@@ -175,9 +175,19 @@ export class AggregationNode implements ModificationNode {
       return false;
     }
 
-    if (!this.state.groupByColumns.find((c) => c.checked)) {
+    // Must have at least one of: group by columns OR aggregation functions
+    const hasGroupBy = this.state.groupByColumns.find((c) => c.checked);
+
+    // Validate aggregations first
+    for (const agg of this.state.aggregations) {
+      agg.isValid = validateAggregation(agg);
+    }
+    const hasAggregations =
+      this.state.aggregations.filter((a) => a.isValid).length > 0;
+
+    if (!hasGroupBy && !hasAggregations) {
       this.setValidationError(
-        'Aggregation node has no group by columns selected',
+        'Aggregation node requires at least one group by column or aggregation function',
       );
       return false;
     }
@@ -283,7 +293,7 @@ export class AggregationNode implements ModificationNode {
       'div',
       m(
         'p',
-        'Group rows by one or more columns and compute summary statistics like ',
+        'Compute summary statistics like ',
         m('code', 'SUM'),
         ', ',
         m('code', 'COUNT'),
@@ -297,15 +307,24 @@ export class AggregationNode implements ModificationNode {
         m('code', 'MEDIAN'),
         ', or ',
         m('code', 'PERCENTILE'),
-        '.',
+        '. Optionally group rows by one or more columns.',
       ),
       m(
         'p',
-        'Select GROUP BY columns, then add aggregation functions. Each aggregation creates a new column.',
+        'Add aggregation functions to create new columns. Optionally select GROUP BY columns to group the results.',
       ),
       m(
         'p',
-        m('strong', 'Example:'),
+        m('strong', 'Example 1:'),
+        ' Aggregate without grouping: ',
+        m('code', 'COUNT(*)'),
+        ' to count all rows, or ',
+        m('code', 'AVG(dur)'),
+        ' to get average duration across all slices.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example 2:'),
         ' Group slices by ',
         m('code', 'name'),
         ' and compute ',
@@ -361,20 +380,29 @@ export class AggregationNode implements ModificationNode {
       }
     }
 
-    // Apply group by with this.nodeId (builder handles wrapping if needed)
-    const sq = StructuredQueryBuilder.withGroupBy(
-      this.prevNode,
-      groupByColumns,
-      aggregations,
-      this.nodeId,
-    );
+    // Only use GROUP BY if we have group by columns
+    // Otherwise, aggregations apply to the entire result set
+    const sq =
+      groupByColumns.length > 0
+        ? StructuredQueryBuilder.withGroupBy(
+            this.prevNode,
+            groupByColumns,
+            aggregations,
+            this.nodeId,
+          )
+        : StructuredQueryBuilder.withGroupBy(
+            this.prevNode,
+            [], // Empty group by columns means aggregate entire result set
+            aggregations,
+            this.nodeId,
+          );
     if (!sq) return undefined;
 
     // For aggregation, we must always set select_columns to match GROUP BY + aggregates
     // Clear any previous select_columns and set to the correct aggregation output
     sq.selectColumns = [];
 
-    // Add GROUP BY columns
+    // Add GROUP BY columns (if any)
     for (const colName of groupByColumns) {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
       selectCol.columnName = colName;
@@ -461,8 +489,7 @@ export function createGroupByProto(
   groupByColumns: ColumnInfo[],
   aggregations: Aggregation[],
 ): protos.PerfettoSqlStructuredQuery.GroupBy | undefined {
-  if (!groupByColumns.find((c) => c.checked)) return;
-
+  // Allow group by with empty column names (aggregates entire result set)
   const groupByProto = new protos.PerfettoSqlStructuredQuery.GroupBy();
   groupByProto.columnNames = groupByColumns
     .filter((c) => c.checked)
@@ -474,6 +501,10 @@ export function createGroupByProto(
   groupByProto.aggregates = aggregations
     .filter((agg) => agg.isValid)
     .map(GroupByAggregationAttrsToProto);
+
+  // Only return undefined if we have no aggregates at all
+  if (groupByProto.aggregates.length === 0) return undefined;
+
   return groupByProto;
 }
 
@@ -586,15 +617,9 @@ class AggregationOperationComponent
   implements m.ClassComponent<AggregationOperationComponentAttrs>
 {
   view({attrs}: m.CVnode<AggregationOperationComponentAttrs>) {
-    const hasGroupByColumns = attrs.groupByColumns.some((c) => c.checked);
-
-    if (hasGroupByColumns && attrs.aggregations.length === 0) {
+    // Initialize with an aggregation editor if we don't have any aggregations yet
+    if (attrs.aggregations.length === 0) {
       attrs.aggregations.push({isEditing: true});
-    }
-
-    if (!hasGroupByColumns && attrs.aggregations.length > 0) {
-      // Clear aggregations if no group by columns are selected
-      attrs.aggregations.length = 0;
     }
 
     // Use the utility function to determine if a column is valid for the given operation
@@ -770,10 +795,6 @@ class AggregationOperationComponent
     };
 
     const aggregationsList = (): m.Children => {
-      if (!hasGroupByColumns) {
-        return null;
-      }
-
       const lastAgg = attrs.aggregations[attrs.aggregations.length - 1];
       const showAddButton = lastAgg.isValid;
 
