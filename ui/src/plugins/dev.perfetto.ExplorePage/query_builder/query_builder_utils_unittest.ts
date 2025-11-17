@@ -29,6 +29,7 @@ describe('query_builder_utils', () => {
       validate: () => true,
       getTitle: () => 'Test',
       nodeSpecificModify: () => null,
+      nodeInfo: () => null,
       clone: () => createMockNode(nodeId),
       getStructuredQuery: () => undefined,
       serializeState: () => ({}),

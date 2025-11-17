@@ -13,15 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Popup, PopupPosition} from '../widgets/popup';
-import {assertFalse} from '../base/logging';
-import {OmniboxMode} from '../core/omnibox_manager';
-import {AppImpl} from '../core/app_impl';
-import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 import {classNames} from '../base/classnames';
-import {Button} from '../widgets/button';
+import {assertFalse} from '../base/logging';
+import {AppImpl} from '../core/app_impl';
+import {OmniboxMode} from '../core/omnibox_manager';
 import {Router} from '../core/router';
+import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
+import {Button} from '../widgets/button';
 import {Intent} from '../widgets/common';
+import {Popup, PopupPosition} from '../widgets/popup';
+import {Omnibox} from './omnibox';
 
 class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
   private tracePopupErrorDismissed = false;
@@ -70,13 +71,12 @@ class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
 }
 
 export interface TopbarAttrs {
-  omnibox: m.Children;
-  trace?: TraceImpl;
+  readonly trace?: TraceImpl;
 }
 
 export class Topbar implements m.ClassComponent<TopbarAttrs> {
   view({attrs}: m.Vnode<TopbarAttrs>) {
-    const {omnibox, trace} = attrs;
+    const {trace} = attrs;
     return m(
       '.pf-topbar',
       {
@@ -84,7 +84,7 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
           !AppImpl.instance.sidebar.visible && 'pf-topbar--hide-sidebar',
         ),
       },
-      omnibox,
+      m(Omnibox, {trace}),
       trace && m(TraceErrorIcon, {trace}),
     );
   }

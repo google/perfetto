@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{ffi::c_void, time::Duration};
 use thiserror::Error;
 
@@ -207,9 +207,9 @@ impl Drop for TracingSession {
 
 #[cfg(test)]
 mod tests {
-    use crate::data_source::*;
+    use crate::data_source::DataSource;
     use crate::tests::{TracingSessionBuilder, acquire_test_environment};
-    use crate::{track_event::*, track_event_categories, track_event_category_enabled};
+    use crate::{track_event::TrackEvent, track_event_categories};
     use std::{
         error::Error,
         sync::{MutexGuard, OnceLock},
@@ -219,6 +219,7 @@ mod tests {
     static DATA_SOURCE: OnceLock<DataSource> = OnceLock::new();
 
     fn get_data_source() -> &'static DataSource<'static> {
+        use crate::data_source::DataSourceArgsBuilder;
         DATA_SOURCE.get_or_init(|| {
             let data_source_args = DataSourceArgsBuilder::new();
             let mut data_source = DataSource::new();
@@ -231,6 +232,7 @@ mod tests {
 
     #[test]
     fn data_source() -> Result<(), Box<dyn Error>> {
+        use crate::data_source::*;
         let _lock = acquire_test_environment();
         let data_source = get_data_source();
         let mut session = TracingSessionBuilder::new()
@@ -275,7 +277,7 @@ mod tests {
 
     #[test]
     fn track_event() -> Result<(), Box<dyn Error>> {
-        use crate::trace_for_category;
+        use crate::{trace_for_category, track_event::TraceContext, track_event_category_enabled};
         use session_test_te_ns as perfetto_te_ns;
         let _fx = TeTestFixture::new();
         let mut session = TracingSessionBuilder::new()
@@ -297,6 +299,7 @@ mod tests {
 
     #[test]
     fn read_trace() -> Result<(), Box<dyn Error>> {
+        use crate::data_source::TraceContext;
         use crate::pb_decoder::{PbDecoder, PbDecoderField};
         use crate::protos::trace::{test_event::*, trace::*, trace_packet::*};
         use std::sync::{Arc, Mutex};

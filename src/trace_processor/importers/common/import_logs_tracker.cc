@@ -15,8 +15,17 @@
  */
 
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -71,6 +80,14 @@ void ImportLogsTracker::RecordParserError(
     int64_t timestamp,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
   RecordImportLog(stat_key, timestamp,
+                  /*byte_offset=*/std::nullopt, std::move(args_callback));
+}
+
+void ImportLogsTracker::RecordAnalysisError(
+    size_t stat_key,
+    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+  RecordImportLog(stat_key,
+                  /*timestamp=*/std::nullopt,
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 

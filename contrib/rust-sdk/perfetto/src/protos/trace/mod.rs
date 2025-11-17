@@ -22,6 +22,9 @@ pub mod clock_snapshot;
 /// `interned_data` protos.
 pub mod interned_data;
 
+/// `profiling` protos.
+pub mod profiling;
+
 /// `test_event` protos.
 #[path = "test_event.pz.rs"]
 pub mod test_event;

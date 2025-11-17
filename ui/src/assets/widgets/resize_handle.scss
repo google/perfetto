@@ -18,6 +18,7 @@
   height: 7px;
   z-index: 10;
   position: relative;
+  touch-action: none;
 
   &:hover {
     background: var(--pf-color-accent);

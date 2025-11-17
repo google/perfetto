@@ -23,8 +23,8 @@
 #include <tuple>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -40,20 +40,22 @@ class ClockTrackerTest : public ::testing::Test {
  public:
   ClockTrackerTest() {
     context_.storage.reset(new TraceStorage());
+    context_.global_args_tracker.reset(
+        new GlobalArgsTracker(context_.storage.get()));
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
+    context_.import_logs_tracker.reset(new ImportLogsTracker(&context_, 1));
+    ct_ = std::make_unique<ClockTracker>(
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+  }
+  std::optional<int64_t> Convert(ClockTracker::ClockId src_clock_id,
+                                 int64_t src_timestamp,
+                                 ClockTracker::ClockId target_clock_id) {
+    return ct_->Convert(src_clock_id, src_timestamp, target_clock_id, {});
   }
 
-  // using ClockId = uint64_t;
   TraceProcessorContext context_;
-  std::unique_ptr<ClockSynchronizerListenerImpl> ct_companion_ =
-      std::make_unique<ClockSynchronizerListenerImpl>(&context_);
-  ClockTracker ct_{std::move(ct_companion_)};
-  base::StatusOr<int64_t> Convert(ClockTracker::ClockId src_clock_id,
-                                  int64_t src_timestamp,
-                                  ClockTracker::ClockId target_clock_id) {
-    return ct_.Convert(src_clock_id, src_timestamp, target_clock_id);
-  }
+  std::unique_ptr<ClockTracker> ct_;
 };
 
 namespace {
@@ -69,38 +71,38 @@ constexpr auto MONOTONIC_COARSE =
 constexpr auto MONOTONIC_RAW = protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
 
 TEST_F(ClockTrackerTest, ClockDomainConversions) {
-  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
+  EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 0).has_value());
 
-  ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-  ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
-  ct_.AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
-  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  ct_->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
+  ct_->AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
+  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 0), 10000);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 1), 10001);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 10009);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 10), 10010);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 11), 10011);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 19), 10019);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 20), 20220);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 21), 20221);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 29), 20229);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 30), 30030);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 40), 30040);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 0), 10000);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 1), 10001);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 9), 10009);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 11), 10011);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 19), 10019);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 20), 20220);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 21), 20221);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 29), 20229);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 30), 30030);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 40), 30040);
 
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 0), 100000 - 1000);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 999), 100000 - 1);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1000), 100000);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1e6),
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 0), 100000 - 1000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 999), 100000 - 1);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000), 100000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1e6),
             static_cast<int64_t>(100000 - 1000 + 1e6));
 }
 
 TEST_F(ClockTrackerTest, ToTraceTimeFromSnapshot) {
-  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
+  EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 0).has_value());
 
-  EXPECT_EQ(*ct_.ToTraceTimeFromSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}}),
+  EXPECT_EQ(*ct_->ToTraceTimeFromSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}}),
             10010);
-  EXPECT_EQ(ct_.ToTraceTimeFromSnapshot({{MONOTONIC, 10}, {REALTIME, 10010}}),
+  EXPECT_EQ(ct_->ToTraceTimeFromSnapshot({{MONOTONIC, 10}, {REALTIME, 10010}}),
             std::nullopt);
 }
 
@@ -110,27 +112,27 @@ TEST_F(ClockTrackerTest, ToTraceTimeFromSnapshot) {
 // You can't convert 2.10AM REALTIME to BOOTTIME because there are two possible
 // answers, but you can still unambiguosly convert BOOTTIME into REALTIME.
 TEST_F(ClockTrackerTest, RealTimeClockMovingBackwards) {
-  ct_.AddSnapshot({{BOOTTIME, 10010}, {REALTIME, 10}});
+  ct_->AddSnapshot({{BOOTTIME, 10010}, {REALTIME, 10}});
 
   // At this point conversions are still possible in both ways because we
   // haven't broken monotonicity yet.
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 11), 10011);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 11), 10011);
 
-  ct_.AddSnapshot({{BOOTTIME, 10020}, {REALTIME, 20}});
-  ct_.AddSnapshot({{BOOTTIME, 30040}, {REALTIME, 40}});
-  ct_.AddSnapshot({{BOOTTIME, 40030}, {REALTIME, 30}});
+  ct_->AddSnapshot({{BOOTTIME, 10020}, {REALTIME, 20}});
+  ct_->AddSnapshot({{BOOTTIME, 30040}, {REALTIME, 40}});
+  ct_->AddSnapshot({{BOOTTIME, 40030}, {REALTIME, 30}});
 
   // Now only BOOTIME -> REALTIME conversion should be possible.
-  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 11).ok());
+  EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 11).has_value());
   EXPECT_EQ(*Convert(BOOTTIME, 10011, REALTIME), 11);
   EXPECT_EQ(*Convert(BOOTTIME, 10029, REALTIME), 29);
   EXPECT_EQ(*Convert(BOOTTIME, 40030, REALTIME), 30);
   EXPECT_EQ(*Convert(BOOTTIME, 40040, REALTIME), 40);
 
-  ct_.AddSnapshot({{BOOTTIME, 50000}, {REALTIME, 50}});
+  ct_->AddSnapshot({{BOOTTIME, 50000}, {REALTIME, 50}});
   EXPECT_EQ(*Convert(BOOTTIME, 50005, REALTIME), 55);
 
-  ct_.AddSnapshot({{BOOTTIME, 60020}, {REALTIME, 20}});
+  ct_->AddSnapshot({{BOOTTIME, 60020}, {REALTIME, 20}});
   EXPECT_EQ(*Convert(BOOTTIME, 60020, REALTIME), 20);
 }
 
@@ -141,29 +143,29 @@ TEST_F(ClockTrackerTest, RealTimeClockMovingBackwards) {
 // Then resolve MONOTONIC_COARSE. This requires a two-level resolution:
 // MONOTONIC_COARSE -> MONOTONIC -> BOOTTIME.
 TEST_F(ClockTrackerTest, ChainedResolutionSimple) {
-  ct_.AddSnapshot({{MONOTONIC_COARSE, 1}, {MONOTONIC, 11}});
-  ct_.AddSnapshot({{MONOTONIC, 100}, {BOOTTIME, 1100}});
-  ct_.AddSnapshot({{MONOTONIC, 200}, {BOOTTIME, 2200}});
+  ct_->AddSnapshot({{MONOTONIC_COARSE, 1}, {MONOTONIC, 11}});
+  ct_->AddSnapshot({{MONOTONIC, 100}, {BOOTTIME, 1100}});
+  ct_->AddSnapshot({{MONOTONIC, 200}, {BOOTTIME, 2200}});
 
   // MONOTONIC_COARSE@100 == MONOTONIC@110 == BOOTTIME@1100.
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 110), 1110);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC_COARSE, 100), 100 + 10 + 1000);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC_COARSE, 202), 202 + 10 + 2000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 110), 1110);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC_COARSE, 100), 100 + 10 + 1000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC_COARSE, 202), 202 + 10 + 2000);
 }
 
 TEST_F(ClockTrackerTest, ChainedResolutionHard) {
   // MONOTONIC_COARSE = MONOTONIC_RAW - 1.
-  ct_.AddSnapshot({{MONOTONIC_RAW, 10}, {MONOTONIC_COARSE, 9}});
+  ct_->AddSnapshot({{MONOTONIC_RAW, 10}, {MONOTONIC_COARSE, 9}});
 
   // MONOTONIC = MONOTONIC_COARSE - 50.
-  ct_.AddSnapshot({{MONOTONIC_COARSE, 100}, {MONOTONIC, 50}});
+  ct_->AddSnapshot({{MONOTONIC_COARSE, 100}, {MONOTONIC, 50}});
 
   // BOOTTIME = MONOTONIC + 1000 until T=100 (see below).
-  ct_.AddSnapshot({{MONOTONIC, 1}, {BOOTTIME, 1001}, {REALTIME, 10001}});
+  ct_->AddSnapshot({{MONOTONIC, 1}, {BOOTTIME, 1001}, {REALTIME, 10001}});
 
   // BOOTTIME = MONOTONIC + 2000 from T=100.
   // At the same time, REALTIME goes backwards.
-  ct_.AddSnapshot({{MONOTONIC, 101}, {BOOTTIME, 2101}, {REALTIME, 9101}});
+  ct_->AddSnapshot({{MONOTONIC, 101}, {BOOTTIME, 2101}, {REALTIME, 9101}});
 
   // 1-hop conversions.
   EXPECT_EQ(*Convert(MONOTONIC_RAW, 2, MONOTONIC_COARSE), 1);
@@ -192,13 +194,13 @@ TEST_F(ClockTrackerTest, ChainedResolutionHard) {
 // MONOTONIC_COARSE might be stuck to the last value. We should still be able
 // to convert both ways in this case.
 TEST_F(ClockTrackerTest, NonStrictlyMonotonic) {
-  ct_.AddSnapshot({{BOOTTIME, 101}, {MONOTONIC, 51}, {MONOTONIC_COARSE, 50}});
-  ct_.AddSnapshot({{BOOTTIME, 105}, {MONOTONIC, 55}, {MONOTONIC_COARSE, 50}});
+  ct_->AddSnapshot({{BOOTTIME, 101}, {MONOTONIC, 51}, {MONOTONIC_COARSE, 50}});
+  ct_->AddSnapshot({{BOOTTIME, 105}, {MONOTONIC, 55}, {MONOTONIC_COARSE, 50}});
 
   // This last snapshot is deliberately identical to the previous one. This
   // is to simulate the case of taking two snapshots so close to each other
   // that all clocks are identical.
-  ct_.AddSnapshot({{BOOTTIME, 105}, {MONOTONIC, 55}, {MONOTONIC_COARSE, 50}});
+  ct_->AddSnapshot({{BOOTTIME, 105}, {MONOTONIC, 55}, {MONOTONIC_COARSE, 50}});
 
   EXPECT_EQ(*Convert(MONOTONIC_COARSE, 49, MONOTONIC), 50);
   EXPECT_EQ(*Convert(MONOTONIC_COARSE, 50, MONOTONIC), 55);
@@ -214,37 +216,37 @@ TEST_F(ClockTrackerTest, NonStrictlyMonotonic) {
 }
 
 TEST_F(ClockTrackerTest, SequenceScopedClocks) {
-  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
   ClockTracker::ClockId c64_1 = ClockTracker::SequenceToGlobalClock(1, 64);
   ClockTracker::ClockId c65_1 = ClockTracker::SequenceToGlobalClock(1, 65);
   ClockTracker::ClockId c66_1 = ClockTracker::SequenceToGlobalClock(1, 66);
   ClockTracker::ClockId c66_2 = ClockTracker::SequenceToGlobalClock(2, 64);
 
-  ct_.AddSnapshot({{MONOTONIC, 10000},
-                   {c64_1, 100000},
-                   {c65_1, 100, /*unit=*/1000, /*incremental=*/false},
-                   {c66_1, 10, /*unit=*/1000, /*incremental=*/true}});
+  ct_->AddSnapshot({{MONOTONIC, 10000},
+                    {c64_1, 100000},
+                    {c65_1, 100, /*unit=*/1000, /*incremental=*/false},
+                    {c66_1, 10, /*unit=*/1000, /*incremental=*/true}});
 
   // c64_1 is non-incremental and in nanos.
   EXPECT_EQ(*Convert(c64_1, 150000, MONOTONIC), 60000);
   EXPECT_EQ(*Convert(c64_1, 150000, BOOTTIME), 159000);
-  EXPECT_EQ(*ct_.ToTraceTime(c64_1, 150000), 159000);
+  EXPECT_EQ(*ct_->ToTraceTime(c64_1, 150000), 159000);
 
   // c65_1 is non-incremental and in micros.
   EXPECT_EQ(*Convert(c65_1, 150, MONOTONIC), 60000);
   EXPECT_EQ(*Convert(c65_1, 150, BOOTTIME), 159000);
-  EXPECT_EQ(*ct_.ToTraceTime(c65_1, 150), 159000);
+  EXPECT_EQ(*ct_->ToTraceTime(c65_1, 150), 159000);
 
   // c66_1 is incremental and in micros.
   EXPECT_EQ(*Convert(c66_1, 1 /* abs 11 */, MONOTONIC), 11000);
   EXPECT_EQ(*Convert(c66_1, 1 /* abs 12 */, MONOTONIC), 12000);
   EXPECT_EQ(*Convert(c66_1, 1 /* abs 13 */, BOOTTIME), 112000);
-  EXPECT_EQ(*ct_.ToTraceTime(c66_1, 2 /* abs 15 */), 114000);
+  EXPECT_EQ(*ct_->ToTraceTime(c66_1, 2 /* abs 15 */), 114000);
 
-  ct_.AddSnapshot(
+  ct_->AddSnapshot(
       {{MONOTONIC, 20000}, {c66_1, 20, /*unit=*/1000, /*incremental=*/true}});
-  ct_.AddSnapshot(
+  ct_->AddSnapshot(
       {{MONOTONIC, 20000}, {c66_2, 20, /*unit=*/1000, /*incremental=*/true}});
 
   // c66_1 and c66_2 are both incremental and in micros, but shouldn't affect
@@ -255,8 +257,8 @@ TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   EXPECT_EQ(*Convert(c66_2, 2 /* abs 24 */, MONOTONIC), 24000);
   EXPECT_EQ(*Convert(c66_1, 1 /* abs 23 */, BOOTTIME), 122000);
   EXPECT_EQ(*Convert(c66_2, 2 /* abs 26 */, BOOTTIME), 125000);
-  EXPECT_EQ(*ct_.ToTraceTime(c66_1, 2 /* abs 25 */), 124000);
-  EXPECT_EQ(*ct_.ToTraceTime(c66_2, 4 /* abs 30 */), 129000);
+  EXPECT_EQ(*ct_->ToTraceTime(c66_1, 2 /* abs 25 */), 124000);
+  EXPECT_EQ(*ct_->ToTraceTime(c66_2, 4 /* abs 30 */), 129000);
 }
 
 // Tests that the cache doesn't affect the results of Convert() in unexpected
@@ -270,11 +272,11 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResults) {
   for (int i = 0; i < 1000; i++) {
     last_mono += increments[rnd() % base::ArraySize(increments)];
     last_boot += increments[rnd() % base::ArraySize(increments)];
-    ct_.AddSnapshot({{MONOTONIC, last_mono}, {BOOTTIME, last_boot}});
+    ct_->AddSnapshot({{MONOTONIC, last_mono}, {BOOTTIME, last_boot}});
 
     last_raw += increments[rnd() % base::ArraySize(increments)];
     last_boot += increments[rnd() % base::ArraySize(increments)];
-    ct_.AddSnapshot({{MONOTONIC_RAW, last_raw}, {BOOTTIME, last_boot}});
+    ct_->AddSnapshot({{MONOTONIC_RAW, last_raw}, {BOOTTIME, last_boot}});
   }
 
   for (int i = 0; i < 1000; i++) {
@@ -296,11 +298,11 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResults) {
         PERFETTO_FATAL("j out of bounds");
       }
       // It will still write the cache, just not lookup.
-      ct_.set_cache_lookups_disabled_for_testing(true);
+      ct_->set_cache_lookups_disabled_for_testing(true);
       auto not_cached = Convert(src, val, tgt);
 
       // This should 100% hit the cache.
-      ct_.set_cache_lookups_disabled_for_testing(false);
+      ct_->set_cache_lookups_disabled_for_testing(false);
       auto cached = Convert(src, val, tgt);
 
       ASSERT_EQ(not_cached.value(), cached.value());
@@ -317,11 +319,11 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResultsTwoStep) {
   for (int i = 0; i < 1000; i++) {
     last_raw += increments[rnd() % base::ArraySize(increments)];
     last_mono += increments[rnd() % base::ArraySize(increments)];
-    ct_.AddSnapshot({{MONOTONIC_RAW, last_raw}, {MONOTONIC, last_mono}});
+    ct_->AddSnapshot({{MONOTONIC_RAW, last_raw}, {MONOTONIC, last_mono}});
 
     last_mono += increments[rnd() % base::ArraySize(increments)];
     last_boot += increments[rnd() % base::ArraySize(increments)];
-    ct_.AddSnapshot({{MONOTONIC, last_mono}, {BOOTTIME, last_boot}});
+    ct_->AddSnapshot({{MONOTONIC, last_mono}, {BOOTTIME, last_boot}});
   }
 
   for (int i = 0; i < 1000; i++) {
@@ -330,11 +332,11 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResultsTwoStep) {
     ClockTracker::ClockId tgt = BOOTTIME;
 
     // It will still write the cache, just not lookup.
-    ct_.set_cache_lookups_disabled_for_testing(true);
+    ct_->set_cache_lookups_disabled_for_testing(true);
     auto not_cached = Convert(src, val, tgt);
 
     // This should 100% hit the cache.
-    ct_.set_cache_lookups_disabled_for_testing(false);
+    ct_->set_cache_lookups_disabled_for_testing(false);
     auto cached = Convert(src, val, tgt);
 
     ASSERT_EQ(not_cached.value(), cached.value());
@@ -343,46 +345,46 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResultsTwoStep) {
 
 // Test clock conversion with offset to the host.
 TEST_F(ClockTrackerTest, ClockOffset) {
-  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
+  EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 0).has_value());
 
   context_.machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   // Client-to-host BOOTTIME offset is -10000 ns.
-  ct_.SetRemoteClockOffset(BOOTTIME, -10000);
+  ct_->SetRemoteClockOffset(BOOTTIME, -10000);
 
-  ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-  ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
-  ct_.AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
-  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  ct_->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
+  ct_->AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
+  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
   auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
   auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(2, 64);
-  ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
-  ct_.AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
+  ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
+  ct_->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 0), 20000);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 1), 20001);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 20009);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 10), 20010);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 11), 20011);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 19), 20019);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 20), 30220);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 21), 30221);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 29), 30229);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 30), 40030);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 40), 40040);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 0), 20000);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 1), 20001);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 9), 20009);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 20010);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 11), 20011);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 19), 20019);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 20), 30220);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 21), 30221);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 29), 30229);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 30), 40030);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 40), 40040);
 
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 0), 100000 - 1000 + 10000);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 999), 100000 - 1 + 10000);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1000), 100000 + 10000);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1e6),
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 0), 100000 - 1000 + 10000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 999), 100000 - 1 + 10000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000), 100000 + 10000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1e6),
             static_cast<int64_t>(100000 - 1000 + 1e6 + 10000));
 
   // seq_clock_1 -> MONOTONIC -> BOOTTIME -> apply offset.
-  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000 + 10000);
+  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000 + 10000);
   // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME -> apply offset.
-  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_2, 2100),
+  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_2, 2100),
             (100 * 10) + 100 + 1000 + 100000 + 10000);
 }
 
@@ -393,33 +395,33 @@ TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
   context_.machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
-  ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-  ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
-  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  ct_->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
+  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
   auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
   auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(2, 64);
-  ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
-  ct_.AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
+  ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
+  ct_->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 0), 10000);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 10009);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 10), 10010);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 11), 10011);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 19), 10019);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 20), 20220);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 21), 20221);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 0), 10000);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 9), 10009);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 11), 10011);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 19), 10019);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 20), 20220);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 21), 20221);
 
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 0), 100000 - 1000);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 999), 100000 - 1);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1000), 100000);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1e6),
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 0), 100000 - 1000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 999), 100000 - 1);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000), 100000);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1e6),
             static_cast<int64_t>(100000 - 1000 + 1e6));
 
   // seq_clock_1 -> MONOTONIC -> BOOTTIME.
-  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000);
+  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000);
   // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME.
-  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_2, 2100),
+  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_2, 2100),
             (100 * 10) + 100 + 1000 + 100000);
 }
 
@@ -428,64 +430,65 @@ TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
   context_.machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
-  ct_.SetTraceTimeClock(MONOTONIC);
-  ct_.SetRemoteClockOffset(MONOTONIC, -2000);
-  ct_.SetRemoteClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
+  ct_->SetTraceTimeClock(MONOTONIC);
+  ct_->SetRemoteClockOffset(MONOTONIC, -2000);
+  ct_->SetRemoteClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
 
-  ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
   auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
-  ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
+  ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
 
   int64_t realtime_to_trace_time_delta = -10 + 10010 - 100000 + 1000 - (-2000);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 9 + realtime_to_trace_time_delta);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 10), 10 + realtime_to_trace_time_delta);
-  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 20), 20 + realtime_to_trace_time_delta);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 9), 9 + realtime_to_trace_time_delta);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10 + realtime_to_trace_time_delta);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 20), 20 + realtime_to_trace_time_delta);
 
   int64_t mono_to_trace_time_delta = -2000;
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 0), 0 - mono_to_trace_time_delta);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 999), 999 - mono_to_trace_time_delta);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1000), 1000 - mono_to_trace_time_delta);
-  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1e6),
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 0), 0 - mono_to_trace_time_delta);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 999), 999 - mono_to_trace_time_delta);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000),
+            1000 - mono_to_trace_time_delta);
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1e6),
             static_cast<int64_t>(1e6) - mono_to_trace_time_delta);
 
   // seq_clock_1 -> MONOTONIC.
-  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), 1100 - 1200 + 2000 - (-2000));
+  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_1, 1100), 1100 - 1200 + 2000 - (-2000));
 }
 
 TEST_F(ClockTrackerTest, MultiHopCacheIsHit) {
   // Path: MONOTONIC_RAW -> MONOTONIC -> BOOTTIME
-  ct_.AddSnapshot({{MONOTONIC_RAW, 100}, {MONOTONIC, 200}});
-  ct_.AddSnapshot({{MONOTONIC, 300}, {BOOTTIME, 4000}});
+  ct_->AddSnapshot({{MONOTONIC_RAW, 100}, {MONOTONIC, 200}});
+  ct_->AddSnapshot({{MONOTONIC, 300}, {BOOTTIME, 4000}});
 
   // First conversion should be a cache miss.
-  uint32_t hits = ct_.cache_hits_for_testing();
+  uint32_t hits = ct_->cache_hits_for_testing();
   int64_t expected_ts = 10 + (200 - 100) + (4000 - 300);
   EXPECT_EQ(*Convert(MONOTONIC_RAW, 10, BOOTTIME), expected_ts);
-  EXPECT_EQ(ct_.cache_hits_for_testing(), hits);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), hits);
 
   // Second conversion should be a cache hit.
   EXPECT_EQ(*Convert(MONOTONIC_RAW, 10, BOOTTIME), expected_ts);
-  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 1);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), hits + 1);
 
   // Another conversion within the same range.
   EXPECT_EQ(*Convert(MONOTONIC_RAW, 20, BOOTTIME), expected_ts + 10);
-  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 2);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), hits + 2);
 
   // Add a new snapshot. This should clear the cache.
-  ct_.AddSnapshot({{MONOTONIC, 500}, {BOOTTIME, 6000}});
+  ct_->AddSnapshot({{MONOTONIC, 500}, {BOOTTIME, 6000}});
 
   // This conversion should now cause another cache miss.
-  hits = ct_.cache_hits_for_testing();
+  hits = ct_->cache_hits_for_testing();
   EXPECT_EQ(*Convert(MONOTONIC_RAW, 10, BOOTTIME), expected_ts);
-  EXPECT_EQ(ct_.cache_hits_for_testing(), hits);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), hits);
 }
 
 TEST_F(ClockTrackerTest, CacheBoundaries) {
-  ct_.AddSnapshot({{MONOTONIC, 100}, {BOOTTIME, 1000}});
-  ct_.AddSnapshot({{MONOTONIC, 200}, {BOOTTIME, 2000}});
-  ct_.AddSnapshot({{MONOTONIC, 300}, {BOOTTIME, 3000}});
+  ct_->AddSnapshot({{MONOTONIC, 100}, {BOOTTIME, 1000}});
+  ct_->AddSnapshot({{MONOTONIC, 200}, {BOOTTIME, 2000}});
+  ct_->AddSnapshot({{MONOTONIC, 300}, {BOOTTIME, 3000}});
 
   // Test points around the first snapshot.
   EXPECT_EQ(*Convert(MONOTONIC, 99, BOOTTIME), 999);
@@ -505,49 +508,49 @@ TEST_F(ClockTrackerTest, CacheBoundaries) {
 
 TEST_F(ClockTrackerTest, CacheInvalidationAndPathReoptimization) {
   // 1. Set up a 2-hop path and convert through it.
-  ct_.AddSnapshot({{MONOTONIC, 100}, {MONOTONIC_RAW, 200}});
-  ct_.AddSnapshot({{MONOTONIC_RAW, 300}, {BOOTTIME, 4000}});
+  ct_->AddSnapshot({{MONOTONIC, 100}, {MONOTONIC_RAW, 200}});
+  ct_->AddSnapshot({{MONOTONIC_RAW, 300}, {BOOTTIME, 4000}});
 
   // First conversion is a miss.
   EXPECT_EQ(*Convert(MONOTONIC, 50, BOOTTIME), 50 + (200 - 100) + (4000 - 300));
-  EXPECT_EQ(ct_.cache_hits_for_testing(), 0u);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), 0u);
 
   // Second conversion should be a cache hit.
   EXPECT_EQ(*Convert(MONOTONIC, 50, BOOTTIME), 50 + (200 - 100) + (4000 - 300));
-  EXPECT_EQ(ct_.cache_hits_for_testing(), 1u);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), 1u);
 
   // 2. Add a direct, more optimal path. This will clear the cache.
-  ct_.AddSnapshot({{MONOTONIC, 500}, {BOOTTIME, 6000}});
+  ct_->AddSnapshot({{MONOTONIC, 500}, {BOOTTIME, 6000}});
 
   // 3. Convert again. It should be a miss, and the new, more optimal path
   // should be used for the conversion.
   EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
-  EXPECT_EQ(ct_.cache_hits_for_testing(), 1u);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), 1u);
 
   // The new path should now be cached.
   EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
-  EXPECT_EQ(ct_.cache_hits_for_testing(), 2u);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), 2u);
 }
 
 TEST_F(ClockTrackerTest, ThreeHopConversion) {
   // Path: REALTIME -> MONOTONIC_RAW -> MONOTONIC -> BOOTTIME
-  ct_.AddSnapshot({{REALTIME, 1000}, {MONOTONIC_RAW, 100}});
-  ct_.AddSnapshot({{MONOTONIC_RAW, 200}, {MONOTONIC, 3000}});
-  ct_.AddSnapshot({{MONOTONIC, 4000}, {BOOTTIME, 50000}});
+  ct_->AddSnapshot({{REALTIME, 1000}, {MONOTONIC_RAW, 100}});
+  ct_->AddSnapshot({{MONOTONIC_RAW, 200}, {MONOTONIC, 3000}});
+  ct_->AddSnapshot({{MONOTONIC, 4000}, {BOOTTIME, 50000}});
 
   // First conversion should be a cache miss.
-  uint32_t hits = ct_.cache_hits_for_testing();
+  uint32_t hits = ct_->cache_hits_for_testing();
   int64_t expected_ts = 10 + (100 - 1000) + (3000 - 200) + (50000 - 4000);
   EXPECT_EQ(*Convert(REALTIME, 10, BOOTTIME), expected_ts);
-  EXPECT_EQ(ct_.cache_hits_for_testing(), hits);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), hits);
 
   // Second conversion should be a cache hit.
   EXPECT_EQ(*Convert(REALTIME, 10, BOOTTIME), expected_ts);
-  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 1);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), hits + 1);
 
   // Another conversion within the same range.
   EXPECT_EQ(*Convert(REALTIME, 20, BOOTTIME), expected_ts + 10);
-  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 2);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), hits + 2);
 }
 
 }  // namespace

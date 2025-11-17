@@ -242,7 +242,14 @@ inline TimeNanos GetWallTimeNs() {
 }
 
 inline TimeNanos GetWallTimeRawNs() {
+#if (PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD))
+  // Note: CLOCK_MONOTONIC_RAW is a Linux extension.
+  // FreeBSD doesn't implement it and its CLOCK_MONOTONIC_FAST
+  // doesnt implement the same semantics as CLOCK_MONOTONIC_RAW.
+  return GetTimeInternalNs(CLOCK_MONOTONIC);
+#else
   return GetTimeInternalNs(CLOCK_MONOTONIC_RAW);
+#endif
 }
 
 inline TimeNanos GetThreadCPUTimeNs() {

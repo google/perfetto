@@ -17,7 +17,7 @@ import sys
 import signal
 import dataclasses as dc
 from urllib.parse import urlparse
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.common.query_result_iterator import QueryResultIterator
@@ -113,7 +113,8 @@ class TraceProcessor:
                trace: Optional[TraceReference] = None,
                addr: Optional[str] = None,
                config: TraceProcessorConfig = TraceProcessorConfig(),
-               file_path: Optional[str] = None):
+               file_path: Optional[str] = None,
+               metadata: Optional[Dict[str, str]] = None):
     """Create a trace processor instance.
 
     Args:
@@ -257,6 +258,19 @@ class TraceProcessor:
     metrics.ParseFromString(response.metrics)
     return metrics
 
+  @property
+  def metadata(self) -> Dict[str, str]:
+    """Returns metadata associated with this trace.
+
+    Metadata is provided by trace URI resolvers during trace resolution.
+    If no metadata was provided or the trace was loaded directly from a file,
+    this will return an empty dictionary.
+
+    Returns:
+      A dictionary containing metadata key-value pairs.
+    """
+    return self._metadata
+
   def _create_tp_http(self, addr: str) -> TraceProcessorHttp:
     if addr:
       p = urlparse(addr)
@@ -289,6 +303,8 @@ class TraceProcessor:
           'BatchTraceProcessor to operate on multiple traces.')
 
     resolved = resolved_lst[0]
+    # Capture metadata from the resolved trace
+    self._metadata = resolved.metadata
     for chunk in resolved.generator:
       result = self.http.parse(chunk)
       if result.error:

@@ -15,7 +15,7 @@
 .pf-query-page {
   height: 100%;
   font-family: var(--pf-font-compact);
-  overflow: hidden auto;
+  position: relative;
 
   &__results {
     max-height: 500px;

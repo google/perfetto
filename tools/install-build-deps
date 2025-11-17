@@ -495,6 +495,14 @@ BIGTRACE_DEPS = [
                '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)
 ]
 
+# Dependencies to build Rust SDK.
+BUILD_DEPS_RUST = [
+    Dependency(
+        'buildtools/rustup/rustup-init.sh', 'https://sh.rustup.rs',
+        '17247e4bcacf6027ec2e11c79a72c494c9af69ac8d1abcc1b271fa4375a106c2',
+        'all', 'all'),
+]
+
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
 # These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
 BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
@@ -513,7 +521,7 @@ BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
 ALL_DEPS = (
     BUILD_DEPS_HOST + BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID +
     BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID +
-    EMULATOR_DEPS_ANDROID + UI_DEPS)
+    EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
@@ -526,6 +534,11 @@ PYTHON_VENV_BIN_DIR = os.path.join(
 PYTHON_STATUS_FILE = os.path.join(PYTHON_VENV_DIR, '.last_install')
 PYTHON_REQUIREMENTS = os.path.join(ROOT_DIR, 'python', 'requirements.txt')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
+RUST_TOOLCHAIN = os.environ.get("RUST_TOOLCHAIN", "nightly-2025-01-03")
+RUSTUP_HOME = os.path.join(ROOT_DIR, 'buildtools/rustup')
+RUSTUP_INIT_FILE = os.path.join(RUSTUP_HOME, 'rustup-init.sh')
+CARGO_HOME = os.path.join(ROOT_DIR, '.cargo')
+RUSTUP_FILE = os.path.join(CARGO_HOME, 'bin/rustup')
 
 
 def CheckCallRetry(*args, **kwargs):
@@ -693,6 +706,55 @@ def CheckNodeModules():
   return expected == actual
 
 
+def InstallRustToolchain(force_clean=False):
+  if force_clean:
+    logging.info('Clearing %s', RUSTUP_HOME)
+    subprocess.check_call(
+        ['git', 'clean', '-qxffd', RUSTUP_HOME, '--exclude=rustup-init.sh'],
+        cwd=ROOT_DIR)
+    logging.info('Clearing %s', CARGO_HOME)
+    subprocess.check_call(['git', 'clean', '-qxffd', CARGO_HOME], cwd=ROOT_DIR)
+
+  cmd = [
+      'sh', RUSTUP_INIT_FILE, '-y', f'--default-toolchain={RUST_TOOLCHAIN}',
+      '--no-modify-path', '--profile=minimal', '--component=rustfmt,clippy'
+  ]
+  env = os.environ.copy()
+  env['RUSTUP_HOME'] = RUSTUP_HOME
+  env['CARGO_HOME'] = CARGO_HOME
+  logging.info(f'Installing rust toolchain using `{" ".join(cmd)}`')
+  subprocess.check_call(cmd, cwd=ROOT_DIR, env=env)
+
+
+def CheckRustToolchain():
+  """Returns True if the toolchain is up-to-date.
+
+  Checks if Rust toolchains are up to date using `rustup check`
+  and returns True if up to date, False otherwise.
+  """
+  if not os.path.exists(RUSTUP_FILE):
+    return False
+
+  # Run rustup check and capture its output and exit code.
+  env = os.environ.copy()
+  env['RUSTUP_HOME'] = RUSTUP_HOME
+  env['CARGO_HOME'] = CARGO_HOME
+  result = subprocess.run([RUSTUP_FILE, "check"],
+                          capture_output=True,
+                          text=True,
+                          check=False)
+  if result.returncode == 0:
+    if "update available" not in result.stdout.lower(
+    ) and "update available" not in result.stderr.lower():
+      return True
+  logging.info("rustup check stdout:")
+  logging.info(result.stdout)
+  logging.info("rustup check stderr:")
+  logging.info(result.stderr)
+  logging.info(f"rustup check exit code: {result.returncode}")
+  return False
+
+
 def CheckPythonVenv():
   """Returns True if the python venv is up-to-date."""
   if not os.path.exists(PYTHON_STATUS_FILE):
@@ -700,16 +762,27 @@ def CheckPythonVenv():
   with open(PYTHON_STATUS_FILE, 'r') as f:
     actual = f.read()
   expected = HashLocalFile(PYTHON_REQUIREMENTS)
-  return expected == actual
+  if expected != actual:
+    return False
+  # The venv can be invalidated if the version of python in the system is
+  # upgraded. Detect that by trying to find its own pip.
+  venv_python = os.path.join(PYTHON_VENV_BIN_DIR, 'python3')
+  cmd = [venv_python, '-c', 'import pip']
+  if subprocess.call(cmd, stderr=subprocess.DEVNULL) != 0:
+    logging.warning('The python venv is stale due an upgrade of the system ' +
+                    'python package and needs regeneration')
+    return False
+  return True
 
 
 def InstallPythonVenv():
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
   cur_python_interpreter = sys.executable
-  if not os.path.exists(venv_pip):
-    cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
-    logging.info(f'Installing python venv {" ".join(cmd)}')
-    subprocess.check_call(cmd)
+
+  shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
+  cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+  logging.info(f'Installing python venv {" ".join(cmd)}')
+  subprocess.check_call(cmd)
 
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
@@ -788,6 +861,8 @@ def Main():
       default=GetArch(),
       choices=['arm64', 'x64'],
       help='Override the autodetected build CPU architecture')
+  parser.add_argument(
+      '--rust', action='store_true', help='Rust toolchain to build Rust SDK')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
@@ -819,8 +894,11 @@ def Main():
   # TODO(b/360084012) Change the arg name to bigtrace
   if args.grpc:
     deps += BIGTRACE_DEPS
+  if args.rust:
+    deps += BUILD_DEPS_RUST
   deps_updated = False
   nodejs_updated = False
+  rustup_updated = False
 
   for old_dir in CLEANUP_OLD_DIRS:
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
@@ -866,6 +944,8 @@ def Main():
       shutil.move(download_path, local_path)
       if 'nodejs' in dep.target_folder:
         nodejs_updated = True
+      if 'rustup' in dep.target_folder:
+        rustup_updated = True
 
     assert (HashLocalFile(local_path) == dep.checksum)
 
@@ -923,6 +1003,12 @@ def Main():
       deps_updated |= venv_needs_update
     elif venv_needs_update:
       InstallPythonVenv()
+
+  if args.rust:
+    if args.check_only:
+      deps_updated |= not CheckRustToolchain()
+    else:
+      InstallRustToolchain(force_clean=rustup_updated)
 
   # Install the pre-push hook if the .git/hooks directory exists and it's a
   # non check-only invocation. Not on windows (symlinks are not supported
