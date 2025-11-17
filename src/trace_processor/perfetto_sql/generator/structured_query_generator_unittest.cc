@@ -360,10 +360,10 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
                     WITH
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2)
-                    SELECT ii.ts, ii.dur, iibase.*, iisource0.*
+                    SELECT ii.ts, ii.dur, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*
                     FROM _interval_intersect!((iibase, iisource0), ()) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -1411,10 +1411,30 @@ TEST(StructuredQueryGeneratorTest, UnionWithDifferentColumnOrderSucceeds) {
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
   ASSERT_TRUE(ret.ok()) << ret.status().message();
-  ASSERT_THAT(*ret, testing::HasSubstr("WITH union_query_0 AS"));
-  ASSERT_THAT(*ret, testing::HasSubstr("union_query_1 AS"));
-  ASSERT_THAT(*ret, testing::HasSubstr("SELECT * FROM union_query_0 UNION "
-                                       "SELECT * FROM union_query_1"));
+  EXPECT_EQ(*ret, R"(WITH sq_2 AS (
+  SELECT dur, id, ts
+  FROM sched
+),
+sq_1 AS (
+  SELECT id, ts, dur
+  FROM slice
+),
+sq_0 AS (
+  SELECT *
+  FROM (
+    WITH union_query_0 AS (
+    SELECT *
+    FROM sq_1), union_query_1 AS (
+    SELECT *
+    FROM sq_2)
+    SELECT *
+    FROM union_query_0
+    UNION
+    SELECT *
+    FROM union_query_1)
+)
+SELECT *
+FROM sq_0)");
 }
 
 TEST(StructuredQueryGeneratorTest, AddColumnsWithEqualityColumns) {
@@ -2783,10 +2803,10 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectWithPartitionColumns) {
                     WITH
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2)
-                    SELECT ii.ts, ii.dur, ii.utid, iibase.*, iisource0.*
+                    SELECT ii.ts, ii.dur, ii.utid, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*
                     FROM _interval_intersect!((iibase, iisource0), (utid)) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -2830,10 +2850,10 @@ TEST(StructuredQueryGeneratorTest,
                     WITH
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2)
-                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, iibase.*, iisource0.*
+                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*
                     FROM _interval_intersect!((iibase, iisource0), (utid, upid)) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -2881,10 +2901,10 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectWithEmptyPartitionColumns) {
                     WITH
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2)
-                    SELECT ii.ts, ii.dur, iibase.*, iisource0.*
+                    SELECT ii.ts, ii.dur, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*
                     FROM _interval_intersect!((iibase, iisource0), ()) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -3171,7 +3191,7 @@ TEST(StructuredQueryGeneratorTest,
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
   ASSERT_OK_AND_ASSIGN(std::string res, ret);
-  // Should include the whitespace in the generated SQL
+  // Should include the whitespace in the generated SQL as-is (no normalization)
   ASSERT_THAT(
       res.c_str(),
       testing::HasSubstr("_interval_intersect!((iibase, iisource0), (   ))"));
@@ -3230,11 +3250,11 @@ TEST(StructuredQueryGeneratorTest,
                       iibase AS (SELECT * FROM sq_1),
                       iisource0 AS (SELECT * FROM sq_2),
                       iisource1 AS (SELECT * FROM sq_3)
-                    SELECT ii.ts, ii.dur, ii.utid, iibase.*, iisource0.*, iisource1.*
+                    SELECT ii.ts, ii.dur, ii.utid, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*, source_2.id AS id_2, source_2.ts AS ts_2, source_2.dur AS dur_2, source_2.*
                     FROM _interval_intersect!((iibase, iisource0, iisource1), (utid)) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
-                    JOIN iisource1 ON ii.id_2 = iisource1.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
+                    JOIN iisource1 AS source_2 ON ii.id_2 = source_2.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -3295,12 +3315,12 @@ TEST(StructuredQueryGeneratorTest,
                       iisource0 AS (SELECT * FROM sq_2),
                       iisource1 AS (SELECT * FROM sq_3),
                       iisource2 AS (SELECT * FROM sq_4)
-                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, iibase.*, iisource0.*, iisource1.*, iisource2.*
+                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0, base_0.*, source_1.id AS id_1, source_1.ts AS ts_1, source_1.dur AS dur_1, source_1.*, source_2.id AS id_2, source_2.ts AS ts_2, source_2.dur AS dur_2, source_2.*, source_3.id AS id_3, source_3.ts AS ts_3, source_3.dur AS dur_3, source_3.*
                     FROM _interval_intersect!((iibase, iisource0, iisource1, iisource2), (utid, upid)) ii
-                    JOIN iibase ON ii.id_0 = iibase.id
-                    JOIN iisource0 ON ii.id_1 = iisource0.id
-                    JOIN iisource1 ON ii.id_2 = iisource1.id
-                    JOIN iisource2 ON ii.id_3 = iisource2.id
+                    JOIN iibase AS base_0 ON ii.id_0 = base_0.id
+                    JOIN iisource0 AS source_1 ON ii.id_1 = source_1.id
+                    JOIN iisource1 AS source_2 ON ii.id_2 = source_2.id
+                    JOIN iisource2 AS source_3 ON ii.id_3 = source_3.id
                   )
                 )
                 SELECT * FROM sq_0
@@ -3749,6 +3769,170 @@ TEST(StructuredQueryGeneratorTest, StringIdCollisionWithIndexBasedName) {
     )
     SELECT * FROM sq_foo
   )"));
+}
+
+// Test that SQL is formatted with newlines for better readability
+TEST(StructuredQueryGeneratorTest, SqlFormattingWithNewlines) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table {
+      table_name: "test_table"
+    }
+    filters: {
+      column_name: "id"
+      op: GREATER_THAN
+      int64_rhs: 100
+    }
+    group_by: {
+      column_names: "category"
+      aggregates: {
+        column_name: "value"
+        op: SUM
+        result_column_name: "total_value"
+      }
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "total_value"
+        direction: DESC
+      }
+    }
+    limit: 10
+    offset: 5
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the SQL is formatted with newlines and indentation
+  // SELECT and FROM are always on separate lines at the same indentation
+  EXPECT_EQ(res, R"(WITH sq_0 AS (
+  SELECT category, SUM(value) AS total_value
+  FROM test_table
+  WHERE id > 100
+  GROUP BY category
+  ORDER BY total_value DESC
+  LIMIT 10
+  OFFSET 5
+)
+SELECT *
+FROM sq_0)");
+}
+
+// Test that CTEs with multiple queries are formatted with newlines
+TEST(StructuredQueryGeneratorTest, CteFormattingWithNewlines) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    inner_query {
+      inner_query {
+        table {
+          table_name: "table1"
+        }
+      }
+      filters: {
+        column_name: "id"
+        op: GREATER_THAN
+        int64_rhs: 100
+      }
+    }
+    select_columns: {
+      column_name_or_expression: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify CTEs are formatted with newlines, indentation, and proper separation
+  // SELECT and FROM are always on separate lines at the same indentation
+  EXPECT_EQ(res, R"(WITH sq_2 AS (
+  SELECT *
+  FROM table1
+),
+sq_1 AS (
+  SELECT *
+  FROM sq_2
+  WHERE id > 100
+),
+sq_0 AS (
+  SELECT id
+  FROM sq_1
+)
+SELECT *
+FROM sq_0)");
+}
+
+// Test nested WITH statements (a CTE containing a WITH statement)
+TEST(StructuredQueryGeneratorTest, NestedWithStatements) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    inner_query {
+      sql: {
+        sql: "WITH inner_cte AS (SELECT id, name FROM table1) SELECT id FROM inner_cte WHERE id > 100"
+        column_names: "id"
+      }
+    }
+    select_columns: {
+      column_name_or_expression: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify that SQL we generate is nicely formatted with SELECT/FROM on
+  // separate lines User-provided SQL (the WITH statement) is kept as-is
+  EXPECT_EQ(res, R"(WITH sq_1 AS (
+  SELECT *
+  FROM (
+    SELECT id
+    FROM (
+      WITH inner_cte AS (SELECT id, name FROM table1) SELECT id FROM inner_cte WHERE id > 100
+    ))
+),
+sq_0 AS (
+  SELECT id
+  FROM sq_1
+)
+SELECT *
+FROM sq_0)");
+}
+
+// Test that multi-line SQL inside CTEs is properly indented
+TEST(StructuredQueryGeneratorTest, MultiLineSqlIndentation) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    inner_query {
+      sql: {
+        sql: "SELECT id, name
+FROM table1
+WHERE id > 100"
+        column_names: "id"
+        column_names: "name"
+      }
+    }
+    select_columns: {
+      column_name_or_expression: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify that SQL we generate is nicely formatted with SELECT/FROM on
+  // separate lines User-provided SQL is indented but kept as-is
+  EXPECT_EQ(res, R"(WITH sq_1 AS (
+  SELECT *
+  FROM (
+    SELECT id, name
+    FROM (
+      SELECT id, name
+      FROM table1
+      WHERE id > 100
+    ))
+),
+sq_0 AS (
+  SELECT id
+  FROM sq_1
+)
+SELECT *
+FROM sq_0)");
 }
 
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

@@ -111,8 +111,8 @@ export interface BuilderAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
   readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
+  readonly onFilterAdd: (node: QueryNode, filter: UIFilter) => void;
 
   // Import / Export JSON
   readonly onImport: () => void;
@@ -130,6 +130,13 @@ export interface BuilderAttrs {
   readonly canRedo?: boolean;
 }
 
+enum SelectedView {
+  kInfo = 0,
+  kModify = 1,
+  kResult = 2,
+  kComment = 3,
+}
+
 export class Builder implements m.ClassComponent<BuilderAttrs> {
   private queryService: QueryService;
   private materializationService: MaterializationService;
@@ -142,6 +149,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private response?: QueryResponse;
   private dataSource?: DataGridDataSource;
   private drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+  private selectedView: SelectedView = SelectedView.kInfo;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.queryService = new QueryService(attrs.trace.engine);
@@ -167,6 +175,15 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.queryExecuted = false;
       this.isQueryRunning = false;
       this.isAnalyzing = false;
+      const hasModifyPanel = selectedNode.nodeSpecificModify() != null;
+      // If current view is Info, switch to Modify (if available) when selecting a new node
+      if (this.selectedView === SelectedView.kInfo && hasModifyPanel) {
+        this.selectedView = SelectedView.kModify;
+      }
+      // If current view is Modify but modify panel is not available, switch to Info
+      if (this.selectedView === SelectedView.kModify && !hasModifyPanel) {
+        this.selectedView = SelectedView.kInfo;
+      }
     }
     this.previousSelectedNode = selectedNode;
 
@@ -175,6 +192,30 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         'pf-query-builder-layout',
         this.isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
+
+    // When no nodes exist, show only the graph (which renders EmptyGraph)
+    // without any panels or split layout
+    if (rootNodes.length === 0) {
+      return m(Graph, {
+        rootNodes,
+        selectedNode,
+        onNodeSelected,
+        nodeLayouts: attrs.nodeLayouts,
+        onNodeLayoutChange: attrs.onNodeLayoutChange,
+        onDeselect: attrs.onDeselect,
+        onAddSourceNode: attrs.onAddSourceNode,
+        onClearAllNodes,
+        onDuplicateNode: attrs.onDuplicateNode,
+        onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
+        devMode: attrs.devMode,
+        onDevModeChange: attrs.onDevModeChange,
+        onDeleteNode: attrs.onDeleteNode,
+        onConnectionRemove: attrs.onConnectionRemove,
+        onImport: attrs.onImport,
+        onImportWithStatement: attrs.onImportWithStatement,
+        onExport: attrs.onExport,
+      });
+    }
 
     const explorer = selectedNode
       ? m(NodeExplorer, {
@@ -200,8 +241,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             attrs.onNodeStateChange?.();
           },
           isCollapsed: this.isExplorerCollapsed,
-          onToggleCollapse: () => {
-            this.isExplorerCollapsed = !this.isExplorerCollapsed;
+          selectedView: this.selectedView,
+          onViewChange: (view: number) => {
+            this.selectedView = view;
           },
         })
       : m(ExplorePageHelp, {
@@ -245,6 +287,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onchange: () => {
                 attrs.onNodeStateChange?.();
               },
+              onFilterAdd: (filter) => {
+                attrs.onFilterAdd(selectedNode, filter);
+              },
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
               onFullScreenToggle: () => {
@@ -285,7 +330,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onImport: attrs.onImport,
           onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
-          onRemoveFilter: attrs.onRemoveFilter,
         }),
         selectedNode &&
           m(
@@ -300,18 +344,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                   title: `Invalid node: ${selectedNode.state.issues?.getTitle() ?? ''}`,
                 }),
               ),
-            this.isExplorerCollapsed &&
-              m(Button, {
-                icon: Icons.GoBack,
-                title: 'Expand panel',
-                onclick: () => {
-                  this.isExplorerCollapsed = false;
-                },
-                variant: ButtonVariant.Filled,
-                rounded: true,
-                iconFilled: true,
-                intent: Intent.Primary,
-              }),
           ),
         m(
           '.pf-qb-floating-controls-bottom',
@@ -340,6 +372,92 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         ),
       ),
       m('.pf-qb-explorer', explorer),
+      selectedNode &&
+        m(
+          '.pf-qb-side-panel',
+          m(Button, {
+            icon: Icons.Info,
+            title: 'Info',
+            className:
+              this.selectedView === SelectedView.kInfo &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
+                this.selectedView === SelectedView.kInfo &&
+                !this.isExplorerCollapsed
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kInfo;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+          selectedNode.nodeSpecificModify() != null &&
+            m(Button, {
+              icon: Icons.Edit,
+              title: 'Edit',
+              className:
+                this.selectedView === SelectedView.kModify &&
+                !this.isExplorerCollapsed
+                  ? 'pf-active'
+                  : '',
+              onclick: () => {
+                if (
+                  this.selectedView === SelectedView.kModify &&
+                  !this.isExplorerCollapsed
+                ) {
+                  this.isExplorerCollapsed = true;
+                } else {
+                  this.selectedView = SelectedView.kModify;
+                  this.isExplorerCollapsed = false;
+                }
+              },
+            }),
+          m(Button, {
+            icon: 'code',
+            title: 'Result',
+            className:
+              this.selectedView === SelectedView.kResult &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
+                this.selectedView === SelectedView.kResult &&
+                !this.isExplorerCollapsed
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kResult;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+          m(Button, {
+            icon: 'comment',
+            title: 'Comment',
+            iconFilled: !!selectedNode.state.comment,
+            className:
+              this.selectedView === SelectedView.kComment &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
+                this.selectedView === SelectedView.kComment &&
+                !this.isExplorerCollapsed
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kComment;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+        ),
     );
   }
 
@@ -415,6 +533,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         node.state.issues = undefined;
       }
 
+      // Update columns for SQL source nodes and trigger re-analysis
       if (node instanceof SqlSourceNode) {
         node.onQueryExecuted(this.response.columns);
       }
@@ -427,6 +546,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           console.error('Failed to materialize node:', e);
           // Don't block the UI on materialization errors
         }
+      }
+
+      // Force re-analysis for SQL source nodes so downstream nodes can see updated columns
+      if (node instanceof SqlSourceNode) {
+        this.query = undefined;
+        this.queryExecuted = false;
       }
     } catch (e) {
       console.error('Failed to run query:', e);

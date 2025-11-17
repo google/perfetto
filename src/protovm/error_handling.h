@@ -49,36 +49,36 @@ void LogStacktraceMessage(Stacktrace& stacktrace,
                           const char* file_name,
                           int file_line);
 
-#define PROTOVM_ABORT(fmt, ...)                                               \
-  do {                                                                        \
-    auto status_abort = StatusOr<void>::Abort();                              \
-    LogStacktraceMessage(status_abort.stacktrace(),                           \
-                         ::perfetto::base::Basename(__FILE__), __LINE__, fmt, \
-                         ##__VA_ARGS__);                                      \
-    return status_abort;                                                      \
+#define PROTOVM_ABORT(fmt, ...)                                       \
+  do {                                                                \
+    auto status_abort = StatusOr<void>::Abort();                      \
+    LogStacktraceMessage(status_abort.stacktrace(),                   \
+                         ::perfetto::base::LoggingBasename(__FILE__), \
+                         __LINE__, fmt, ##__VA_ARGS__);               \
+    return status_abort;                                              \
   } while (0)
 
-#define PROTOVM_RETURN(s, ...)                                             \
-  do {                                                                     \
-    if (s.IsAbort()) {                                                     \
-      LogStacktraceMessage(s.stacktrace(),                                 \
-                           ::perfetto::base::Basename(__FILE__), __LINE__, \
-                           ##__VA_ARGS__);                                 \
-    }                                                                      \
-    return s;                                                              \
+#define PROTOVM_RETURN(s, ...)                                          \
+  do {                                                                  \
+    if (s.IsAbort()) {                                                  \
+      LogStacktraceMessage(s.stacktrace(),                              \
+                           ::perfetto::base::LoggingBasename(__FILE__), \
+                           __LINE__, ##__VA_ARGS__);                    \
+    }                                                                   \
+    return s;                                                           \
   } while (0)
 
-#define PROTOVM_RETURN_IF_NOT_OK(s, ...)                                   \
-  do {                                                                     \
-    if (s.IsAbort()) {                                                     \
-      LogStacktraceMessage(s.stacktrace(),                                 \
-                           ::perfetto::base::Basename(__FILE__), __LINE__, \
-                           ##__VA_ARGS__);                                 \
-      return s;                                                            \
-    }                                                                      \
-    if (!s.IsOk()) {                                                       \
-      return s;                                                            \
-    }                                                                      \
+#define PROTOVM_RETURN_IF_NOT_OK(s, ...)                                \
+  do {                                                                  \
+    if (s.IsAbort()) {                                                  \
+      LogStacktraceMessage(s.stacktrace(),                              \
+                           ::perfetto::base::LoggingBasename(__FILE__), \
+                           __LINE__, ##__VA_ARGS__);                    \
+      return s;                                                         \
+    }                                                                   \
+    if (!s.IsOk()) {                                                    \
+      return s;                                                         \
+    }                                                                   \
   } while (0)
 
 enum class Status : uint8_t {

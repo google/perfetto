@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "../theme";
+
 .pf-canvas {
   isolation: isolate; // Don't allow z-index to escape container.
   overflow: hidden; // Clip overflowing content.
@@ -51,6 +53,10 @@
   height: 100%;
   pointer-events: none;
   overflow: visible;
+
+  svg {
+    isolation: isolate;
+  }
 }
 
 .pf-nodegraph-controls {
@@ -130,7 +136,6 @@
 
 // Docked child: flush top edge with no rounded corners or border
 .pf-node.pf-docked-child {
-  border-top-color: var(--pf-color-accent);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
   margin-top: -2px; // Overlap border with parent
@@ -321,9 +326,6 @@ svg {
   color: var(--pf-color-accent);
   stroke-width: 2;
   fill: none;
-  filter: drop-shadow(
-    0 0 4px color-mix(in srgb, var(--pf-color-accent) 50%, transparent)
-  );
   transition:
     stroke-width 0.2s,
     stroke 0.2s;
@@ -331,9 +333,8 @@ svg {
   cursor: pointer;
 }
 
-.pf-connection:hover {
+.pf-connection-group:hover .pf-connection {
   stroke: var(--pf-color-danger);
-  stroke-width: 3;
   filter: drop-shadow(
     0 0 6px color-mix(in srgb, var(--pf-color-danger) 80%, transparent)
   );

@@ -25,7 +25,6 @@ import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {UIFilter} from '../operations/filter';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder} from '../structured_query_builder';
@@ -33,7 +32,6 @@ import {StructuredQueryBuilder} from '../structured_query_builder';
 export interface UnionSerializedState {
   unionNodes: string[];
   selectedColumns: ColumnInfo[];
-  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -49,7 +47,6 @@ export class UnionNode implements MultiSourceNode {
   nextNodes: QueryNode[];
   readonly state: UnionNodeState;
   comment?: string;
-  filters?: UIFilter[];
 
   get finalCols(): ColumnInfo[] {
     return this.state.selectedColumns.filter((col) => col.checked);
@@ -168,6 +165,25 @@ export class UnionNode implements MultiSourceNode {
     return 'Union';
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m(
+        'p',
+        'Stack rows from multiple sources into a single result. All connected sources must have compatible column names and types.',
+      ),
+      m(
+        'p',
+        'Select which common columns to include in the result. Connect at least two sources to the input ports.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Combine CPU slices from multiple processes to analyze them together.',
+      ),
+    );
+  }
+
   nodeDetails(): m.Child {
     const cards: m.Child[] = [];
     const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
@@ -247,7 +263,6 @@ export class UnionNode implements MultiSourceNode {
       selectedColumns: this.state.selectedColumns.map((c) => ({...c})),
     };
     const clone = new UnionNode(stateCopy);
-    clone.filters = this.filters ? [...this.filters] : undefined;
     clone.comment = this.comment;
     return clone;
   }
@@ -267,23 +282,6 @@ export class UnionNode implements MultiSourceNode {
     return {
       unionNodes: this.prevNodes.slice(1).map((n) => n.nodeId),
       selectedColumns: this.state.selectedColumns,
-      filters: this.filters?.map((f) => {
-        // Explicitly extract only serializable fields to avoid circular references
-        if ('value' in f) {
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
       comment: this.comment,
     };
   }

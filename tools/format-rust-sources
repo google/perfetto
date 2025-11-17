@@ -1,4 +1,5 @@
-# Copyright (C) 2024 The Android Open Source Project
+#!/usr/bin/env bash
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Watchlist Rules
-# Refer: https://chromium.googlesource.com/chromium/src/+/refs/heads/main/docs/infra/watchlists.md
-
-{
-  'WATCHLIST_DEFINITIONS': {
-    'ui': {
-      'filepath': 'ui/',
-    },
-    'stdlib': {
-      'filepath': 'src/trace_processor/perfetto_sql/stdlib/',
-    },
-  },
-  'WATCHLISTS': {
-    'ui': ['perfetto-watch+ui@google.com'],
-    'stdlib': ['perfetto-watch+stdlib@google.com'],
-  },
-}
-
+set -eu
+ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
+exec /usr/bin/env python3 $ROOT_DIR/python/tools/code_format_rust.py "$@"

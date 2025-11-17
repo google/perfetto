@@ -21,6 +21,7 @@ import {
   createFinalColumns,
   MultiSourceNode,
   nextNodeId,
+  setOperationChanged,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -34,11 +35,10 @@ import {
 import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
-import {UIFilter} from '../../operations/filter';
+import {setValidationError} from '../../node_issues';
 
 export interface SqlSourceSerializedState {
   sql?: string;
-  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -79,12 +79,13 @@ export class SqlSourceNode implements MultiSourceNode {
 
   onQueryExecuted(columns: string[]) {
     this.setSourceColumns(columns);
+    // Mark node as changed to trigger re-analysis with updated columns
+    setOperationChanged(this);
   }
 
   clone(): QueryNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      filters: this.state.filters ? [...this.state.filters] : undefined,
       issues: this.state.issues,
       trace: this.state.trace,
     };
@@ -92,7 +93,17 @@ export class SqlSourceNode implements MultiSourceNode {
   }
 
   validate(): boolean {
-    return this.state.sql !== undefined && this.state.sql.trim() !== '';
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.state.sql === undefined || this.state.sql.trim() === '') {
+      setValidationError(this.state, 'SQL query is empty');
+      return false;
+    }
+
+    return true;
   }
 
   getTitle(): string {
@@ -102,23 +113,6 @@ export class SqlSourceNode implements MultiSourceNode {
   serializeState(): SqlSourceSerializedState {
     return {
       sql: this.state.sql,
-      filters: this.state.filters?.map((f) => {
-        // Explicitly extract only serializable fields to avoid circular references
-        if ('value' in f) {
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
       comment: this.state.comment,
     };
   }
@@ -129,7 +123,9 @@ export class SqlSourceNode implements MultiSourceNode {
       query: prevNode.getStructuredQuery(),
     }));
 
-    const columnNames = this.finalCols.map((c) => c.column.name);
+    // Pass empty array for column names - the engine will discover them when analyzing the query
+    // Using this.finalCols here would pass stale columns from the previous execution
+    const columnNames: string[] = [];
 
     const sq = StructuredQueryBuilder.fromSql(
       this.state.sql || '',
@@ -185,6 +181,30 @@ export class SqlSourceNode implements MultiSourceNode {
           m.redraw();
         },
       }),
+    );
+  }
+
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m(
+        'p',
+        'Write custom queries to access any data in the trace. Use ',
+        m('code', '$node_id'),
+        ' to reference other nodes in your query.',
+      ),
+      m(
+        'p',
+        'Most flexible option for complex logic or operations not available through other nodes.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Write ',
+        m('code', 'SELECT * FROM slice WHERE dur > 1000'),
+        ' or reference another node with ',
+        m('code', 'SELECT * FROM $other_node WHERE ...'),
+      ),
     );
   }
 

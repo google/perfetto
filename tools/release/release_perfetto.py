@@ -226,7 +226,7 @@ def create_github_release(version):
          "https://luci-scheduler.appspot.com/jobs/perfetto")
 
   info("Packaging prebuilts for GitHub release...")
-  run_cmd('tools/package-prebuilts-for-github-release', version)
+  run_cmd('tools/release/package-prebuilts-for-github-release', version)
 
   prompt(f"Please check that all 10 prebuilt zips are present in "
          f"'/tmp/perfetto-prebuilts-{version}'.")
@@ -241,7 +241,7 @@ def create_github_release(version):
     """)
 
   info("Rolling prebuilts...")
-  run_cmd('tools/roll-prebuilts', version)
+  run_cmd('tools/release/roll-prebuilts', version)
   prompt("Please upload the prebuilt roll CL for review.")
 
   info("Phew, you're done!")

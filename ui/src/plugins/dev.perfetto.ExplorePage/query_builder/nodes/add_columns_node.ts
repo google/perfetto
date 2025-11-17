@@ -23,7 +23,6 @@ import {ColumnInfo, columnInfoFromName} from '../column_info';
 import protos from '../../../../protos';
 import m from 'mithril';
 import {Card, CardStack} from '../../../../widgets/card';
-import {renderFilterOperation} from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {Button} from '../../../../widgets/button';
@@ -34,6 +33,7 @@ import {
   ColumnSpec,
   JoinCondition,
 } from '../structured_query_builder';
+import {setValidationError} from '../node_issues';
 
 export type AddColumnsMode = 'guided' | 'free';
 
@@ -75,7 +75,6 @@ export class AddColumnsNode implements ModificationNode {
     this.prevNode = state.prevNode;
     this.inputNodes = [];
     this.nextNodes = [];
-    this.state.filters = this.state.filters ?? [];
     this.state.selectedColumns = this.state.selectedColumns ?? [];
     this.state.leftColumn = this.state.leftColumn ?? 'id';
     this.state.rightColumn = this.state.rightColumn ?? 'id';
@@ -668,19 +667,6 @@ export class AddColumnsNode implements ModificationNode {
           ),
         ),
       ),
-      renderFilterOperation(
-        this.state.filters,
-        this.state.filterOperator,
-        this.finalCols,
-        (newFilters) => {
-          this.state.filters = [...newFilters];
-          this.state.onchange?.();
-        },
-        (operator) => {
-          this.state.filterOperator = operator;
-          this.state.onchange?.();
-        },
-      ),
     ]);
   }
 
@@ -720,15 +706,63 @@ export class AddColumnsNode implements ModificationNode {
     );
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m(
+        'p',
+        'Enrich your data by adding columns from another table or query. Connect the additional source to the left port.',
+      ),
+      m(
+        'p',
+        'Specify which columns to match (join key) and which columns to add. In Guided mode, get suggestions based on JOINID columns.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Add process details to slices by joining ',
+        m('code', 'upid'),
+        ' with the process table.',
+      ),
+    );
+  }
+
   validate(): boolean {
-    if (this.prevNode === undefined) return false;
-    if (this.rightNode === undefined) return true; // No node connected is valid (pass-through)
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.prevNode === undefined) {
+      setValidationError(this.state, 'No input node connected');
+      return false;
+    }
+
+    if (!this.prevNode.validate()) {
+      setValidationError(this.state, 'Previous node is invalid');
+      return false;
+    }
+
+    // Require a node to be connected to add columns from
+    if (this.rightNode === undefined) {
+      setValidationError(this.state, 'No node connected to add columns from');
+      return false;
+    }
 
     // In free mode, we use default join columns, so it's always valid
-    if (this.state.mode === 'free') return true;
+    if (this.state.mode === 'free') {
+      return true;
+    }
 
     // In guided mode, we need valid join columns
-    if (!this.state.leftColumn || !this.state.rightColumn) return false;
+    if (!this.state.leftColumn || !this.state.rightColumn) {
+      setValidationError(
+        this.state,
+        'Guided mode requires both left and right join columns to be selected',
+      );
+      return false;
+    }
+
     return true;
   }
 
@@ -786,26 +820,6 @@ export class AddColumnsNode implements ModificationNode {
         ? Object.fromEntries(this.state.columnAliases)
         : undefined,
       isGuidedConnection: this.state.isGuidedConnection,
-      filters: this.state.filters?.map((f) => {
-        // Explicitly extract only serializable fields from filters
-        if ('value' in f) {
-          // FilterValue type
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          // FilterNull type
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
-      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
       autoExecute: this.state.autoExecute,
     };

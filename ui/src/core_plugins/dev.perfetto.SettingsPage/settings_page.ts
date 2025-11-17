@@ -29,7 +29,6 @@ import {EmptyState} from '../../widgets/empty_state';
 import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
-import {CORE_PLUGIN_ID} from '../../core/plugin_manager';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Anchor} from '../../widgets/anchor';
@@ -56,8 +55,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
 
     // Sort plugin IDs: CORE_PLUGIN_ID first, then alphabetically
     const sortedPluginIds = Array.from(groupedSettings.keys()).sort((a, b) => {
-      if (a === CORE_PLUGIN_ID) return -1;
-      if (b === CORE_PLUGIN_ID) return 1;
+      if (!a) return -1;
+      if (!b) return 1;
       return a.localeCompare(b);
     });
 
@@ -159,9 +158,9 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     for (const result of settings) {
       const setting = result.item;
       const isCore =
-        setting.pluginId === CORE_PLUGIN_ID ||
+        setting.pluginId === undefined ||
         app.plugins.isCorePlugin(setting.pluginId);
-      const targetGroup = isCore ? CORE_PLUGIN_ID : setting.pluginId;
+      const targetGroup = isCore ? 'Core' : setting.pluginId;
 
       const existing = grouped.get(targetGroup) ?? [];
       existing.push(result);
@@ -175,13 +174,10 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     settings: Array<{item: Setting<unknown>; segments: FuzzySegment[]}>,
     subpage: string,
   ) {
-    // Display CORE_PLUGIN_ID as "Core" in the UI
-    const displayName = pluginId === CORE_PLUGIN_ID ? 'Core' : pluginId;
-
     return m(
       '.pf-settings-page__plugin-section',
       {key: pluginId},
-      m('h2.pf-settings-page__plugin-title', displayName),
+      m('h2.pf-settings-page__plugin-title', pluginId),
       m(
         CardStack,
         settings.map(({item}) => {

@@ -108,6 +108,38 @@ std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
   return {tokenizer.Substr(first_tok, last_statement_start),
           tokenizer.Substr(last_statement_start, statement_end)};
 }
+
+// Indents each line of the input string by the specified number of spaces.
+std::string IndentLines(const std::string& input, size_t indent_spaces) {
+  if (input.empty()) {
+    return input;
+  }
+
+  std::string result;
+  result.reserve(input.size() + indent_spaces * 10);  // Estimate
+
+  std::string indent(indent_spaces, ' ');
+  size_t pos = 0;
+  size_t line_start = 0;
+
+  while (pos < input.size()) {
+    if (input[pos] == '\n') {
+      result.append(indent);
+      result.append(input, line_start, pos - line_start + 1);
+      line_start = pos + 1;
+    }
+    pos++;
+  }
+
+  // Handle last line if it doesn't end with newline
+  if (line_start < input.size()) {
+    result.append(indent);
+    result.append(input, line_start, std::string::npos);
+  }
+
+  return result;
+}
+
 struct QueryState {
   QueryState(QueryType _type,
              protozero::ConstBytes _bytes,
@@ -267,9 +299,9 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       continue;
     }
     if (cte_count > 0) {
-      sql += ", ";
+      sql += ",\n";
     }
-    sql += state.table_name + " AS (" + state.sql + ")";
+    sql += state.table_name + " AS (\n" + IndentLines(state.sql, 2) + "\n)";
     cte_count++;
   }
 
@@ -277,9 +309,9 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
   if (root_only_has_inner_query_and_operations) {
     // The root query is just wrapping an inner query with operations.
     // Apply those operations directly in the final SELECT.
-    sql += " " + state_[0].sql;
+    sql += "\n" + state_[0].sql;
   } else {
-    sql += " SELECT * FROM " + state_[0].table_name;
+    sql += "\nSELECT *\nFROM " + state_[0].table_name;
   }
   return sql;
 }
@@ -351,17 +383,17 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
 
   // Assemble SQL clauses in standard evaluation order:
   // SELECT, FROM, WHERE, GROUP BY, ORDER BY, LIMIT, OFFSET.
-  std::string sql = "SELECT " + select + " FROM " + source;
+  std::string sql = "SELECT " + select + "\nFROM " + source;
   if (!filters.empty()) {
-    sql += " WHERE " + filters;
+    sql += "\nWHERE " + filters;
   }
   if (!group_by.empty()) {
-    sql += " " + group_by;
+    sql += "\n" + group_by;
   }
   if (q.has_order_by()) {
     StructuredQuery::OrderBy::Decoder order_by_decoder(q.order_by());
     ASSIGN_OR_RETURN(std::string order_by, OrderBy(order_by_decoder));
-    sql += " " + order_by;
+    sql += "\n" + order_by;
   }
   if (q.has_offset() && !q.has_limit()) {
     return base::ErrStatus("OFFSET requires LIMIT to be specified");
@@ -371,14 +403,14 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       return base::ErrStatus("LIMIT must be non-negative, got %" PRId64,
                              q.limit());
     }
-    sql += " LIMIT " + std::to_string(q.limit());
+    sql += "\nLIMIT " + std::to_string(q.limit());
   }
   if (q.has_offset()) {
     if (q.offset() < 0) {
       return base::ErrStatus("OFFSET must be non-negative, got %" PRId64,
                              q.offset());
     }
-    sql += " OFFSET " + std::to_string(q.offset());
+    sql += "\nOFFSET " + std::to_string(q.offset());
   }
   return sql;
 }
@@ -452,8 +484,10 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
     cols_str = base::Join(cols, ", ");
   }
 
-  std::string generated_sql = "(SELECT " + cols_str + " FROM (" +
-                              std::move(rewriter).Build().sql() + "))";
+  std::string user_sql = std::move(rewriter).Build().sql();
+  std::string inner =
+      "SELECT " + cols_str + "\nFROM (\n" + IndentLines(user_sql, 2) + "\n)";
+  std::string generated_sql = "(\n" + IndentLines(inner, 2) + ")";
   return generated_sql;
 }
 
@@ -537,20 +571,37 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
   auto ii = interval.interval_intersect();
   for (size_t i = 0; ii; ++ii, ++i) {
     sql += ", iisource" + std::to_string(i) + " AS (SELECT * FROM " +
-           NestedSource(*ii) + ") ";
+           NestedSource(*ii) + ")";
   }
 
-  sql += "SELECT ii.ts, ii.dur";
+  sql += "\nSELECT ii.ts, ii.dur";
   // Add partition columns from ii
   for (const auto& col : partition_cols) {
     sql += ", ii." + col;
   }
-  sql += ", iibase.*";
+
+  // Add renamed columns from iibase (base table gets _0 suffix)
+  // We explicitly rename id, ts, dur for unambiguous access
+  sql += ", base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0";
+  // Also add all other columns from base table
+  sql += ", base_0.*";
+
+  // Add renamed columns from each interval source (they get _1, _2, etc.
+  // suffixes)
   ii = interval.interval_intersect();
   for (size_t i = 0; ii; ++ii, ++i) {
-    sql += ", iisource" + std::to_string(i) + ".*";
+    size_t suffix = i + 1;
+    sql += ", source_" + std::to_string(suffix) + ".id AS id_" +
+           std::to_string(suffix);
+    sql += ", source_" + std::to_string(suffix) + ".ts AS ts_" +
+           std::to_string(suffix);
+    sql += ", source_" + std::to_string(suffix) + ".dur AS dur_" +
+           std::to_string(suffix);
+    // Also add all other columns from this source table
+    sql += ", source_" + std::to_string(suffix) + ".*";
   }
-  sql += " FROM _interval_intersect!((iibase";
+
+  sql += "\nFROM _interval_intersect!((iibase";
   ii = interval.interval_intersect();
   for (size_t i = 0; ii; ++ii, ++i) {
     sql += ", iisource" + std::to_string(i);
@@ -564,14 +615,17 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
     }
     sql += partition_cols[i];
   }
-  sql += ")) ii JOIN iibase ON ii.id_0 = iibase.id";
+  sql += ")) ii\nJOIN iibase AS base_0 ON ii.id_0 = base_0.id";
 
   ii = interval.interval_intersect();
   for (size_t i = 0; ii; ++ii, ++i) {
-    sql += " JOIN iisource" + std::to_string(i) + " ON ii.id_" +
-           std::to_string(i + 1) + " = iisource" + std::to_string(i) + ".id";
+    size_t suffix = i + 1;
+    sql += "\nJOIN iisource" + std::to_string(i) + " AS source_" +
+           std::to_string(suffix) + " ON ii.id_" + std::to_string(suffix) +
+           " = source_" + std::to_string(suffix) + ".id";
   }
   sql += ")";
+
   return sql;
 }
 
@@ -726,22 +780,24 @@ base::StatusOr<std::string> GeneratorImpl::Union(
 
   // Build a local WITH clause to avoid CTE name conflicts with global scope.
   // Similar to IntervalIntersect, we create local CTEs with unique names.
-  std::string sql = "(WITH ";
+  std::string sql = "(\n  WITH ";
   size_t idx = 0;
   for (auto it = union_decoder.queries(); it; ++it, ++idx) {
     if (idx > 0) {
       sql += ", ";
     }
-    sql += "union_query_" + std::to_string(idx) + " AS (SELECT * FROM " +
-           NestedSource(*it) + ")";
+    sql += "union_query_" + std::to_string(idx) + " AS (\n  ";
+    sql += "SELECT *\n  ";
+    sql += "FROM " + NestedSource(*it) + ")";
   }
 
   // Build the UNION/UNION ALL query
   std::string union_keyword =
-      union_decoder.use_union_all() ? " UNION ALL " : " UNION ";
-  sql += " SELECT * FROM union_query_0";
+      union_decoder.use_union_all() ? "UNION ALL" : "UNION";
+  sql += "\n  SELECT *\n  FROM union_query_0";
   for (size_t i = 1; i < query_count; ++i) {
-    sql += union_keyword + "SELECT * FROM union_query_" + std::to_string(i);
+    sql += "\n  " + union_keyword + "\n  SELECT *\n  FROM union_query_" +
+           std::to_string(i);
   }
   sql += ")";
 

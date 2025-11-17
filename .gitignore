@@ -1,9 +1,11 @@
 .aider*
 .android_config
 .cache
+.cargo
 .ccls
 .ccls-cache
 .clangd
+.claude
 .cproject
 .cursor*
 .deps_sha1

@@ -26,7 +26,6 @@ import {
 } from '../../../components/widgets/data_grid/data_grid';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -52,14 +51,11 @@ export interface DataExplorerAttrs {
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
   readonly onchange?: () => void;
+  readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
-    const errors = findErrors(attrs.query, attrs.response);
-    const statusText = this.getStatusText(attrs.query);
-    const message = errors ? `Error: ${errors.message}` : statusText;
-
     return m(
       DetailsShell,
       {
@@ -67,15 +63,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         fillHeight: true,
         buttons: this.renderMenu(attrs),
       },
-      this.renderContent(attrs, message),
+      this.renderContent(attrs),
     );
-  }
-
-  private getStatusText(query?: Query | Error): string | undefined {
-    if (query === undefined) {
-      return 'No data to display';
-    }
-    return undefined;
   }
 
   private renderMenu(attrs: DataExplorerAttrs): m.Children {
@@ -147,16 +136,63 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     ];
   }
 
-  private renderContent(
-    attrs: DataExplorerAttrs,
-    message?: string,
-  ): m.Children {
-    // Show validation errors as callouts
+  private renderContent(attrs: DataExplorerAttrs): m.Children {
+    const errors = findErrors(attrs.query, attrs.response);
+
+    // Show validation errors with centered warning icon
     if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
       return m(
-        Callout,
-        {icon: 'info'},
-        attrs.node.state.issues.queryError.message,
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.queryError.message,
+        ),
+      );
+    }
+
+    // Show execution errors with centered warning icon
+    if (errors) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m('.pf-data-explorer-warning-message', `Error: ${errors.message}`),
+      );
+    }
+
+    // Show response warnings with centered warning icon
+    if (attrs.node.state.issues?.responseError) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.responseError.message,
+        ),
+      );
+    }
+
+    // Show data errors (like "no rows returned") with centered warning icon
+    if (attrs.node.state.issues?.dataError) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.dataError.message,
+        ),
       );
     }
 
@@ -178,19 +214,27 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       );
     }
 
-    if (message) {
-      return m(TextParagraph, {text: message});
+    // Show "No data to display" when no query is available
+    if (attrs.query === undefined) {
+      return m(TextParagraph, {text: 'No data to display'});
     }
 
     if (attrs.response && attrs.dataSource && attrs.node.validate()) {
+      // Show warning for multiple statements with centered icon
       const warning =
         attrs.response.statementWithOutputCount > 1
           ? m(
-              Callout,
-              {icon: 'warning'},
-              `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} `,
-              'statements returned a result. ',
-              'Only the results for the last statement are displayed.',
+              '.pf-data-explorer-empty-state',
+              m(Icon, {
+                className: 'pf-data-explorer-warning-icon',
+                icon: 'warning',
+              }),
+              m(
+                '.pf-data-explorer-warning-message',
+                `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} `,
+                'statements returned a result. ',
+                'Only the results for the last statement are displayed.',
+              ),
             )
           : null;
 
@@ -219,11 +263,17 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
               'is not null',
             ];
             if (supportedOps.includes(filter.op)) {
-              attrs.node.state.filters = [
-                ...(attrs.node.state.filters ?? []),
-                filter as FilterValue | FilterNull,
-              ];
-              attrs.onchange?.();
+              if (attrs.onFilterAdd) {
+                // Delegate to the parent handler which will create a FilterNode
+                attrs.onFilterAdd(filter as FilterValue | FilterNull);
+              } else {
+                // Fallback: add filter directly to node state (legacy behavior)
+                attrs.node.state.filters = [
+                  ...(attrs.node.state.filters ?? []),
+                  filter as FilterValue | FilterNull,
+                ];
+                attrs.onchange?.();
+              }
             }
           },
           cellRenderer: (value: SqlValue, name: string) => {

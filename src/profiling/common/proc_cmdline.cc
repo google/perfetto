@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 namespace profiling {

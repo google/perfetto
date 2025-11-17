@@ -25,15 +25,8 @@ import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
-import {
-  createExperimentalFiltersProto,
-  renderFilterOperation,
-  UIFilter,
-} from '../../operations/filter';
 
 export interface SlicesSourceSerializedState {
-  filters?: UIFilter[];
-  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -53,7 +46,6 @@ export class SlicesSourceNode implements SourceNode {
     this.state.onchange = attrs.onchange;
     this.finalCols = createFinalColumns(slicesSourceNodeColumns(true));
     this.nextNodes = [];
-    this.state.filters = attrs.filters ?? [];
   }
 
   get type() {
@@ -66,7 +58,6 @@ export class SlicesSourceNode implements SourceNode {
 
   clone(): QueryNode {
     const stateCopy: SlicesSourceState = {
-      filters: this.state.filters?.map((f) => ({...f})),
       onchange: this.state.onchange,
     };
     return new SlicesSourceNode(stateCopy);
@@ -78,24 +69,6 @@ export class SlicesSourceNode implements SourceNode {
 
   serializeState(): SlicesSourceSerializedState {
     return {
-      filters: this.state.filters?.map((f) => {
-        // Explicitly extract only serializable fields to avoid circular references
-        if ('value' in f) {
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
-      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }
@@ -110,13 +83,6 @@ export class SlicesSourceNode implements SourceNode {
       this.nodeId,
     );
 
-    const filtersProto = createExperimentalFiltersProto(
-      this.state.filters,
-      this.finalCols,
-      this.state.filterOperator,
-    );
-    if (filtersProto) sq.experimentalFilterGroup = filtersProto;
-
     // Manually create selectColumns for the specific columns we want
     const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
     for (const col of this.finalCols) {
@@ -130,18 +96,24 @@ export class SlicesSourceNode implements SourceNode {
   }
 
   nodeSpecificModify(): m.Child {
-    return renderFilterOperation(
-      this.state.filters,
-      this.state.filterOperator,
-      this.finalCols,
-      (newFilters) => {
-        this.state.filters = [...newFilters];
-        this.state.onchange?.();
-      },
-      (operator) => {
-        this.state.filterOperator = operator;
-        this.state.onchange?.();
-      },
+    return undefined;
+  }
+
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m(
+        'p',
+        'Provides slice data from your trace. Slices represent time intervals with start time (',
+        m('code', 'ts'),
+        ') and duration (',
+        m('code', 'dur'),
+        '), tracking spans of execution like function calls, scheduling periods, or GPU work.',
+      ),
+      m(
+        'p',
+        'Includes context like process and thread information, making it easy to analyze execution patterns.',
+      ),
     );
   }
 }
@@ -232,6 +204,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
           table: 'slice',
           column: 'id',
         },
+      },
+    },
+    {
+      name: 'category',
+      type: {
+        kind: 'string',
       },
     },
   ];

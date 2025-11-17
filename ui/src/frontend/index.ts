@@ -314,10 +314,6 @@ function main() {
 
   cssLoadPromise.then(() => onCssLoaded());
 
-  if (AppImpl.instance.testingMode) {
-    document.body.classList.add('testing');
-  }
-
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
     return new IdleDetector().waitForPerfettoIdle(ms);
   };
@@ -375,6 +371,16 @@ function onCssLoaded() {
           });
         }
       }
+
+      // Add a dummy binding to prevent Mod+P from opening the print dialog.
+      // Firstly, there is no reason to print the UI. Secondly, plugins might
+      // register a Mod+P hotkey later at trace load time. It would be confusing
+      // if this hotkey sometimes does what you want, but sometimes shows the
+      // print dialog.
+      hotkeys.push({
+        hotkey: 'Mod+P',
+        callback: () => {},
+      });
 
       const currentTraceId = app.trace?.engine.engineId ?? 'no-trace';
 
@@ -447,7 +453,7 @@ function onCssLoaded() {
   NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
-  pluginManager.activatePlugins(overrides);
+  pluginManager.activatePlugins(AppImpl.instance, overrides);
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.

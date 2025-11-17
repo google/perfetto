@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["David Reveman <dreveman@gmail.com>"]
 description = "Bindings for the Perfetto tracing framework"
 readme = "README.md"
@@ -20,7 +20,7 @@ intrinsics = []
 vendored = ["perfetto-sdk-sys/vendored"]
 
 [dependencies]
-perfetto-sdk-sys = { path = "../perfetto-sys", version = "0.1.0", default-features = false }
+perfetto-sdk-sys = { path = "../perfetto-sys", version = "0.1", default-features = false }
 bitflags = "2"
 paste = "1"
 thiserror = "1"

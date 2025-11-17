@@ -22,13 +22,17 @@ import {
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {Card} from '../../../../widgets/card';
-import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Button} from '../../../../widgets/button';
+import {
+  PopupMultiSelect,
+  MultiSelectOption,
+  MultiSelectDiff,
+} from '../../../../widgets/multiselect';
 import {
   StructuredQueryBuilder,
   SortCriterion as BuilderSortCriterion,
 } from '../structured_query_builder';
+import {setValidationError} from '../node_issues';
 
 export interface SortCriterion {
   colName: string;
@@ -48,6 +52,7 @@ export class SortNode implements ModificationNode {
   nextNodes: QueryNode[];
   readonly state: SortNodeState;
   sortCols: ColumnInfo[];
+  private showEditControls = false;
 
   constructor(state: SortNodeState) {
     this.nodeId = nextNodeId();
@@ -82,97 +87,181 @@ export class SortNode implements ModificationNode {
   }
 
   nodeDetails(): m.Child {
-    if (this.sortCols.length > 0 && this.state.sortCriteria) {
-      const criteria = this.state.sortCriteria
-        .map((c) => (c.direction === 'DESC' ? `${c.colName} DESC` : c.colName))
-        .join(', ');
-      return m(
-        '.pf-aggregation-node-details',
-        `Sort by `,
-        m('strong', criteria),
-      );
+    if (!this.state.sortCriteria) {
+      this.state.sortCriteria = [];
     }
-    return m('.pf-aggregation-node-details', 'No sort column selected');
-  }
 
-  nodeSpecificModify(): m.Child {
-    return m(Card, [
-      m('label', 'Pick order by columns '),
-      m(MultiselectInput, {
-        options: this.sourceCols.map((c) => ({key: c.name, label: c.name})),
-        selectedOptions: this.sortCols?.map((c) => c.column.name) ?? [],
-        onOptionAdd: (key: string) => {
-          if (!this.state.sortCriteria) {
-            this.state.sortCriteria = [];
-          }
-          this.state.sortCriteria.push({colName: key, direction: 'ASC'});
-          this.sortCols = this.resolveSortCols();
-          this.state.onchange?.();
-          m.redraw();
+    const sortOptions: MultiSelectOption[] = this.sourceCols.map((col) => ({
+      id: col.name,
+      name: col.name,
+      checked:
+        this.state.sortCriteria?.some((c) => c.colName === col.name) ?? false,
+    }));
+
+    const label =
+      this.state.sortCriteria.length > 0
+        ? this.state.sortCriteria
+            .map((c) =>
+              c.direction === 'DESC' ? `${c.colName} ↓` : `${c.colName} ↑`,
+            )
+            .join(', ')
+        : 'None';
+
+    return m('div', [
+      m(
+        '.pf-sort-selector',
+        {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom:
+              this.showEditControls && this.state.sortCriteria.length > 0
+                ? '8px'
+                : '0',
+          },
         },
-        onOptionRemove: (key: string) => {
-          if (this.state.sortCriteria) {
-            this.state.sortCriteria = this.state.sortCriteria.filter(
-              (c) => c.colName !== key,
-            );
+        m('label', 'Sort by:'),
+        m(PopupMultiSelect, {
+          label,
+          options: sortOptions,
+          showNumSelected: false,
+          compact: true,
+          onChange: (diffs: MultiSelectDiff[]) => {
+            if (!this.state.sortCriteria) {
+              this.state.sortCriteria = [];
+            }
+            for (const diff of diffs) {
+              if (diff.checked) {
+                // Add column if not already present
+                if (
+                  !this.state.sortCriteria.some((c) => c.colName === diff.id)
+                ) {
+                  this.state.sortCriteria.push({
+                    colName: diff.id,
+                    direction: 'ASC',
+                  });
+                }
+              } else {
+                // Remove column
+                this.state.sortCriteria = this.state.sortCriteria.filter(
+                  (c) => c.colName !== diff.id,
+                );
+              }
+            }
             this.sortCols = this.resolveSortCols();
             this.state.onchange?.();
-            m.redraw();
-          }
-        },
-      }),
-      this.state.sortCriteria?.map((criterion, index) =>
-        m(
-          '.sort-criterion',
-          {
-            draggable: true,
-            ondragstart: (e: DragEvent) => {
-              e.dataTransfer!.setData('text/plain', index.toString());
-            },
-            ondragover: (e: DragEvent) => {
-              e.preventDefault();
-            },
-            ondrop: (e: DragEvent) => {
-              e.preventDefault();
-              if (!this.state.sortCriteria) return;
-              const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
-              const to = index;
-
-              const newSortCriteria = [...this.state.sortCriteria];
-              const [removed] = newSortCriteria.splice(from, 1);
-              newSortCriteria.splice(to, 0, removed);
-              this.state.sortCriteria = newSortCriteria;
-              this.sortCols = this.resolveSortCols();
-              this.state.onchange?.();
+          },
+        }),
+        this.state.sortCriteria.length > 0 &&
+          m(Button, {
+            icon: 'edit',
+            minimal: true,
+            onclick: () => {
+              this.showEditControls = !this.showEditControls;
               m.redraw();
             },
-          },
-          [
-            m('span.pf-drag-handle', '☰'),
-            m('span', criterion.colName),
-            m(Button, {
-              label: criterion.direction,
-              onclick: () => {
-                if (this.state.sortCriteria) {
-                  this.state.sortCriteria[index].direction =
-                    criterion.direction === 'ASC' ? 'DESC' : 'ASC';
-                  this.state.onchange?.();
-                  m.redraw();
-                }
-              },
-            }),
-          ],
-        ),
+          }),
       ),
+      this.showEditControls &&
+        this.state.sortCriteria?.map((criterion, index) =>
+          m(
+            '.sort-criterion',
+            {
+              draggable: true,
+              ondragstart: (e: DragEvent) => {
+                e.dataTransfer!.setData('text/plain', index.toString());
+              },
+              ondragover: (e: DragEvent) => {
+                e.preventDefault();
+              },
+              ondrop: (e: DragEvent) => {
+                e.preventDefault();
+                if (!this.state.sortCriteria) return;
+                const from = parseInt(
+                  e.dataTransfer!.getData('text/plain'),
+                  10,
+                );
+                const to = index;
+
+                const newSortCriteria = [...this.state.sortCriteria];
+                const [removed] = newSortCriteria.splice(from, 1);
+                newSortCriteria.splice(to, 0, removed);
+                this.state.sortCriteria = newSortCriteria;
+                this.sortCols = this.resolveSortCols();
+                this.state.onchange?.();
+                m.redraw();
+              },
+            },
+            [
+              m('span.pf-drag-handle', '☰'),
+              m('span', criterion.colName),
+              m(Button, {
+                label: criterion.direction,
+                onclick: () => {
+                  if (this.state.sortCriteria) {
+                    this.state.sortCriteria[index].direction =
+                      criterion.direction === 'ASC' ? 'DESC' : 'ASC';
+                    this.state.onchange?.();
+                    m.redraw();
+                  }
+                },
+              }),
+            ],
+          ),
+        ),
     ]);
   }
 
-  validate(): boolean {
-    return (
-      this.prevNode !== undefined &&
-      this.sortCols !== undefined &&
-      this.sortCols.length > 0
+  nodeSpecificModify(): m.Child {
+    return null;
+  }
+
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m(
+        'p',
+        'Order rows by one or more columns, either ascending or descending. Drag to reorder sort columns.',
+      ),
+      m(
+        'p',
+        'When you specify multiple columns, the first is the primary sort, the second is the tiebreaker, and so on.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Sort by ',
+        m('code', 'ts'),
+        ' ascending, then by ',
+        m('code', 'dur'),
+        ' descending to see events in chronological order with longest durations first for each timestamp.',
+      ),
     );
+  }
+
+  validate(): boolean {
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.prevNode === undefined) {
+      setValidationError(this.state, 'No input node connected');
+      return false;
+    }
+
+    if (!this.prevNode.validate()) {
+      setValidationError(this.state, 'Previous node is invalid');
+      return false;
+    }
+
+    if (this.sortCols === undefined || this.sortCols.length === 0) {
+      setValidationError(this.state, 'No sort columns selected');
+      return false;
+    }
+
+    return true;
   }
 
   clone(): QueryNode {
