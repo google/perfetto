@@ -19,9 +19,8 @@ BUCKET_NAME = 'ui.perfetto.dev'
 
 REQ_HEADERS = [
     'Accept',
-    # TODO(primiano): re-enable once the gzip handling outage fixed.
-    # 'Accept-Encoding',
-    # 'Cache-Control',
+    'Accept-Encoding',
+    'Cache-Control',
 ]
 
 RESP_HEADERS = [
@@ -30,8 +29,12 @@ RESP_HEADERS = [
     'Content-Length',
     'Cache-Control',
     'Date',
+    'ETag',
+    'Last-Modified',
     'Expires',
 ]
+
+CACHE_CONTROL = 'public, max-age=3600, no-transform'
 
 app = flask.Flask(__name__)
 
@@ -48,16 +51,27 @@ def version_redirect(x, y, z):
 def main(path=''):
   path = '/' + path
   path += 'index.html' if path.endswith('/') else ''
-  req_headers = {}
+
+  # If the HTTP client didn't ask for compression, pass it to the requests
+  # module so it doesn't automatically try to use gzip encoding.
+  req_headers = {'Accept-Encoding': 'identity'}
   for key in set(flask.request.headers.keys()).intersection(REQ_HEADERS):
     req_headers[key] = flask.request.headers.get(key)
+
   url = 'https://commondatastorage.googleapis.com/' + BUCKET_NAME + path
-  req = requests.get(url, headers=req_headers)
+  req = requests.get(url, headers=req_headers, stream=True)
   if (req.status_code != 200):
     return flask.abort(req.status_code)
-  resp = flask.Response(req.content)
+
+  req.raw.decode_content = False
+  # Note: content_raw will possibly be gzipped if the request headers passed
+  # 'Accept-Encoding: gzip'.
+  content_raw = req.raw.read()
+  resp = flask.Response(content_raw)
   for key in set(req.headers.keys()).intersection(RESP_HEADERS):
     resp.headers[key] = req.headers.get(key)
+  if not path.endswith('/index.html'):
+    resp.headers['Cache-Control'] = CACHE_CONTROL
   return resp
 
 
