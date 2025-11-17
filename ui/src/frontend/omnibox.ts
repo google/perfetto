@@ -75,7 +75,8 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
   }
 
   private renderPromptOmnibox(): m.Children {
-    const omnibox = AppImpl.instance.omnibox;
+    const app = AppImpl.instance;
+    const omnibox = app.omnibox;
     const prompt = assertExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
@@ -120,7 +121,8 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private renderCommandOmnibox(): m.Children {
     // Fuzzy-filter commands by the filter string.
-    const {commands, omnibox} = AppImpl.instance;
+    const app = AppImpl.instance;
+    const {commands, omnibox} = app;
     const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent

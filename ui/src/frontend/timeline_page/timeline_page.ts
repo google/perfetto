@@ -57,12 +57,14 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
 
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
+    const zenMode = AppImpl.instance.zenModeEnabled;
+    const showOverview = OVERVIEW_PANEL_FLAG.get() && !zenMode;
     return m(
       '.pf-timeline-page',
       m(
         TabPanel,
         {trace},
-        OVERVIEW_PANEL_FLAG.get() &&
+        showOverview &&
           m(Minimap, {
             trace,
             className: 'pf-timeline-page__overview',

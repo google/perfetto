@@ -35,6 +35,21 @@
     }
   }
 
+  // Zen mode: hide topbar by default, show when it has focus or when explicitly shown
+  &.pf-zen-mode {
+    display: none;
+
+    // Show topbar when explicitly marked to show (has text, pending focus, or non-search mode)
+    &.pf-zen-mode--show {
+      display: flex;
+    }
+
+    // Always show topbar when it has focus (user is interacting with omnibox)
+    &:focus-within {
+      display: flex;
+    }
+  }
+
   &__error-box {
     position: absolute;
     right: 10px;

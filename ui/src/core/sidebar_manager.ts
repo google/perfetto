@@ -20,14 +20,14 @@ export type SidebarMenuItemInternal = SidebarMenuItem & {
 };
 
 export class SidebarManagerImpl implements SidebarManager {
-  readonly enabled: boolean;
+  private _enabled: boolean;
   private _visible: boolean;
   private lastId = 0;
 
   readonly menuItems = new Registry<SidebarMenuItemInternal>((m) => m.id);
 
   constructor(args: {disabled?: boolean; hidden?: boolean}) {
-    this.enabled = !args.disabled;
+    this._enabled = !args.disabled;
     this._visible = !args.hidden;
   }
 
@@ -39,12 +39,26 @@ export class SidebarManagerImpl implements SidebarManager {
     return this.menuItems.register(itemInt);
   }
 
+  public get enabled() {
+    return this._enabled;
+  }
+
   public get visible() {
     return this._visible;
   }
 
+  public toggleEnabled() {
+    this._enabled = !this._enabled;
+  }
+
   public toggleVisibility() {
-    if (!this.enabled) return;
+    // When sidebar is disabled, just enable it and make it visible
+    // (This typically happens when exiting zen mode via sidebar commands)
+    if (!this._enabled) {
+      this._enabled = true;
+      this._visible = true;
+      return;
+    }
     this._visible = !this._visible;
   }
 }

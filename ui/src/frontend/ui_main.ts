@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {classNames} from '../base/classnames';
 import {AppImpl} from '../core/app_impl';
 import {CookieConsent} from '../core/cookie_consent';
 import {featureFlags} from '../core/feature_flags';
+import {OmniboxMode} from '../core/omnibox_manager';
 import {LinearProgress} from '../widgets/linear_progress';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
@@ -57,9 +59,25 @@ export class UiMain implements m.ClassComponent {
       (trace?.engine.numRequestsPending ?? 0) > 0 ||
       taskTracker.hasPendingTasks();
 
+    const zenMode = app.zenModeEnabled;
+    const showStatusBar = showStatusBarFlag.get() && !zenMode;
+
+    // In zen mode, topbar visibility is controlled by CSS classes
+    // Show topbar when: not in search mode, has text, or should focus
+    const shouldShowTopbarInZenMode =
+      app.omnibox.mode !== OmniboxMode.Search ||
+      app.omnibox.text.length > 0 ||
+      app.omnibox.focusOmniboxNextRender;
+
     return m('main.pf-ui-main', [
-      m(Sidebar),
-      m(Topbar, {trace}),
+      app.sidebar.enabled && m(Sidebar),
+      m(Topbar, {
+        trace,
+        className: classNames(
+          zenMode && 'pf-zen-mode',
+          zenMode && shouldShowTopbarInZenMode && 'pf-zen-mode--show',
+        ),
+      }),
       m(LinearProgress, {
         className: 'pf-ui-main__loading',
         state: isSomethingLoading ? 'indeterminate' : 'none',
@@ -67,7 +85,7 @@ export class UiMain implements m.ClassComponent {
       m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
       m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
-      showStatusBarFlag.get() && renderStatusBar(trace),
+      showStatusBar && renderStatusBar(trace),
       app.perfDebugging.renderPerfStats(),
     ]);
   }

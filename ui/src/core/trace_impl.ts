@@ -314,6 +314,14 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.isInternalUser;
   }
 
+  get zenModeEnabled(): boolean {
+    return this.app.zenModeEnabled;
+  }
+
+  toggleZenMode(): void {
+    this.app.toggleZenMode();
+  }
+
   get perfDebugging() {
     return this.app.perfDebugging;
   }

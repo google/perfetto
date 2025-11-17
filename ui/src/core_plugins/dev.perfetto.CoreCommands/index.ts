@@ -205,6 +205,43 @@ export default class CoreCommands implements PerfettoPlugin {
       icon: 'folder_open',
     });
 
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ToggleSidebar',
+      name: 'Toggle sidebar',
+      callback: () => {
+        const app = AppImpl.instance;
+        // If in zen mode, exit zen mode instead of just toggling sidebar
+        if (app.zenModeEnabled) {
+          app.toggleZenMode();
+        } else {
+          app.sidebar.toggleEnabled();
+        }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ToggleSidebarVisibility',
+      name: 'Toggle sidebar visibility',
+      callback: () => {
+        const app = AppImpl.instance;
+        // If in zen mode, exit zen mode instead of just toggling visibility
+        if (app.zenModeEnabled) {
+          app.toggleZenMode();
+        } else {
+          app.sidebar.toggleVisibility();
+        }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ToggleZenMode',
+      name: 'Toggle zen mode',
+      defaultHotkey: 'Shift+Z',
+      callback: () => {
+        AppImpl.instance.toggleZenMode();
+      },
+    });
+
     const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
     ctx.commands.registerCommand({
       id: OPEN_LEGACY_COMMAND_ID,

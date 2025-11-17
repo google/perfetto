@@ -72,16 +72,18 @@ class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
 
 export interface TopbarAttrs {
   readonly trace?: TraceImpl;
+  readonly className?: string;
 }
 
 export class Topbar implements m.ClassComponent<TopbarAttrs> {
   view({attrs}: m.Vnode<TopbarAttrs>) {
-    const {trace} = attrs;
+    const {trace, className} = attrs;
     return m(
       '.pf-topbar',
       {
         className: classNames(
           !AppImpl.instance.sidebar.visible && 'pf-topbar--hide-sidebar',
+          className,
         ),
       },
       m(Omnibox, {trace}),

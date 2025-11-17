@@ -43,6 +43,10 @@ export const SIDEBAR_SECTIONS = {
 export type SidebarSections = keyof typeof SIDEBAR_SECTIONS;
 
 export interface SidebarManager {
+  /**
+   * Whether the sidebar is enabled (rendered in DOM).
+   * When false, the sidebar is completely removed from rendering.
+   */
   readonly enabled: boolean;
 
   /**
@@ -53,13 +57,22 @@ export interface SidebarManager {
   addMenuItem(menuItem: SidebarMenuItem): void;
 
   /**
-   * Gets the current visibility of the sidebar.
+   * Gets the current visibility of the sidebar (CSS visibility).
+   * Different from enabled - when visible=false, sidebar is hidden but still in DOM.
    */
   get visible(): boolean;
 
   /**
-   * Toggles the visibility of the sidebar. Can only be called when
-   * `sidebarEnabled` returns `ENABLED`.
+   * Toggles whether the sidebar is enabled (rendered in DOM).
+   * When disabled, the sidebar is completely removed from rendering.
+   */
+  toggleEnabled(): void;
+
+  /**
+   * Toggles the visibility of the sidebar (CSS visibility).
+   * If the sidebar is disabled, this will enable it and make it visible.
+   * Otherwise, toggles between visible and hidden states.
+   * Note: When in zen mode, use the zen mode toggle commands instead.
    */
   toggleVisibility(): void;
 }

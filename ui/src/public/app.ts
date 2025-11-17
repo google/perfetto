@@ -61,6 +61,16 @@ export interface App {
   // certain internal links or expose certain experimental features by default.
   readonly isInternalUser: boolean;
 
+  // True if zen mode is enabled. Zen mode hides the sidebar, overview,
+  // and status bar to provide a distraction-free viewing experience.
+  readonly zenModeEnabled: boolean;
+
+  /**
+   * Toggle zen mode on/off. Zen mode hides the sidebar, overview,
+   * and status bar to provide a distraction-free viewing experience.
+   */
+  toggleZenMode(): void;
+
   /**
    * Navigate to a new page.
    */

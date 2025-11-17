@@ -126,6 +126,7 @@ export class AppImpl implements App {
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
   readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
   private _isInternalUser?: boolean;
+  private _zenModeEnabled = false;
 
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
@@ -195,6 +196,16 @@ export class AppImpl implements App {
     return {
       register: (settings: FlagSettings) => featureFlags.register(settings),
     };
+  }
+
+  get zenModeEnabled(): boolean {
+    return this._zenModeEnabled;
+  }
+
+  toggleZenMode(): void {
+    this._zenModeEnabled = !this._zenModeEnabled;
+    // Zen mode controls sidebar existence
+    this.sidebar.toggleEnabled();
   }
 
   openTraceFromFile(file: File) {
