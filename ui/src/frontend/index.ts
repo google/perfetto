@@ -24,7 +24,7 @@ import {addErrorHandler, reportError} from '../base/logging';
 import {featureFlags} from '../core/feature_flags';
 import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
-import {initWasm} from '../trace_processor/wasm_engine_proxy';
+import {warmupWasmWorker} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
@@ -71,6 +71,45 @@ import {
 } from '../core/command_manager';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
+
+// =============================================================================
+// UI INITIALIZATION STAGES
+// =============================================================================
+//
+// This file orchestrates the Perfetto UI startup through three main stages:
+//
+//   Time ───────────────────────────────────────────────────────────────────>
+//
+//   [Module Load]
+//        │
+//        ├─► main() ───────────────────────────────────────────────────────┐
+//        │    ├─ Setup CSP                                                 │
+//        │    ├─ Init settings & app                                       │
+//        │    ├─ Start CSS load (async) ──────┐                            │
+//        │    ├─ Setup error handlers          │                           │
+//        │    └─ Register window.onload ───────┼──────────┐                │
+//        │                                     │          │                │
+//        │    [User sees blank/loading page]   │          │                │
+//        │                                     ↓          │                │
+//        │                                 CSS loaded     |                │
+//        │                                     │          │                │
+//        │                        onCssLoaded() ◄──────┘  │                │
+//        │                          ├─ Mount Mithril UI   │                │
+//        │                          ├─ Register routes    │                │
+//        │                          ├─ Init plugins       │                │
+//        │                          └─ Check RPC          │                │
+//        │                                                │                │
+//        │    [User sees interactive UI]                  │                │
+//        │                                                ↓                │
+//        │                          All resources loaded (fonts, images)   │
+//        │                                                │                │
+//        │                        onWindowLoaded() ◄──────┘                │
+//        │                          ├─ Warmup Wasm (engine_bundle.js)      │
+//        │                          └─ Install service worker              │
+//        │                                                                 │
+//        └─────────────────────────────────────────────────────────────────┘
+//
+// =============================================================================
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -303,9 +342,6 @@ function main() {
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 
-  initWasm();
-  AppImpl.instance.serviceWorkerController.install();
-
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
 
@@ -323,6 +359,13 @@ function main() {
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
     return new IdleDetector().waitForPerfettoIdle(ms);
   };
+
+  // Keep at the end. Potentially it calls into the next stage (onWindowLoaded).
+  if (document.readyState === 'complete') {
+    onWindowLoaded();
+  } else {
+    window.addEventListener('load', () => onWindowLoaded());
+  }
 }
 
 function onCssLoaded() {
@@ -460,6 +503,14 @@ function onCssLoaded() {
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(AppImpl.instance, overrides);
+}
+
+// This function is called only later after all the sub-resources (fonts,
+// images) have been loaded.
+function onWindowLoaded() {
+  // These two functions cause large network fetches and are not load bearing.
+  AppImpl.instance.serviceWorkerController.install();
+  warmupWasmWorker();
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.
