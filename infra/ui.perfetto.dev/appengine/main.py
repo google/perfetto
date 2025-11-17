@@ -34,7 +34,11 @@ RESP_HEADERS = [
     'Expires',
 ]
 
+# Cache-control response header for everything but index.html.
 CACHE_CONTROL = 'public, max-age=3600, no-transform'
+
+# Cache-control response header for index.html.
+CACHE_CONTROL_INDEX_HTML = 'no-cache, no-transform'
 
 app = flask.Flask(__name__)
 
@@ -70,7 +74,9 @@ def main(path=''):
   resp = flask.Response(content_raw)
   for key in set(req.headers.keys()).intersection(RESP_HEADERS):
     resp.headers[key] = req.headers.get(key)
-  if not path.endswith('/index.html'):
+  if path.endswith('/index.html'):
+    resp.headers['Cache-Control'] = CACHE_CONTROL_INDEX_HTML
+  else:
     resp.headers['Cache-Control'] = CACHE_CONTROL
   return resp
 
