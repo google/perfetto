@@ -70,7 +70,7 @@ import {
   commandInvocationArraySchema,
 } from '../core/command_manager';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
-import {timeoutPromise} from '../base/utils';
+import {sleepMs} from '../base/utils';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -283,7 +283,7 @@ function main() {
   document.body.classList.add('pf-fonts-loading');
   document.head.append(css);
 
-  Promise.race([document.fonts.ready, timeoutPromise(15000)]).then(() => {
+  Promise.race([document.fonts.ready, sleepMs(15000)]).then(() => {
     document.body.classList.remove('pf-fonts-loading');
   });
 
