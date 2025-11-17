@@ -80,7 +80,7 @@ export async function loadImportErrorsData(
         name,
         byte_offset,
         __intrinsic_arg_set_to_json(arg_set_id) as args
-      from __intrinsic_trace_import_logs
+      from _trace_import_logs
       where name = '${category.name}' AND severity = 'error'
       order by ts
     `);
