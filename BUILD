@@ -3746,6 +3746,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/gpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/l3.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/mt6897_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_1d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_1.sql",

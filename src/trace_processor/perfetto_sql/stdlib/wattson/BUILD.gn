@@ -27,6 +27,7 @@ perfetto_sql_source_set("wattson") {
     "curves/cpu_2d.sql",
     "curves/gpu.sql",
     "curves/l3.sql",
+    "curves/mt6897_2d.sql",
     "curves/tg5_cpu_1d.sql",
     "curves/tg5_cpu_2d.sql",
     "curves/tg5_cpu_2d_1.sql",
