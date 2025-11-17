@@ -134,15 +134,15 @@ def main():
   print('===================================================================')
   print('Uploading to gs://%s' % BUCKET_NAME)
   print('===================================================================')
-  # Do NOT set cache-headers here, it messes up with GCS' handling of
-  # transparent gzip content-encoding. Cache-control headers are set instead by
-  # the GAE instance (see /infra/ui.perfetto.dev/appengine/main.py).
   for name in os.listdir(merged_dist_dir):
     path = pjoin(merged_dist_dir, name)
     if os.path.isdir(path):
       if version_exists(name):
         print('Skipping upload of %s because it already exists on GCS' % name)
         continue
+      # Do NOT set cache-headers here, it messes up with GCS' handling of
+      # transparent gzip content-encoding. Public cache-control headers are set
+      # by the GAE instance (see /infra/ui.perfetto.dev/appengine/main.py).
       # Do NOT add 'html' to the -z list. We want to set 'no-cache' on
       # index.html to prevent that the GAE instance is subject to caching on
       # autopush, but cache-control and -z are mutually exclusive (b/327213431).
