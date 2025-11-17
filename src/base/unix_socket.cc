@@ -24,6 +24,8 @@
 #include <sys/types.h>
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/android_utils.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -1294,6 +1296,22 @@ void UnixSocket::EventListener::OnNewIncomingConnection(
 void UnixSocket::EventListener::OnConnect(UnixSocket*, bool) {}
 void UnixSocket::EventListener::OnDisconnect(UnixSocket*) {}
 void UnixSocket::EventListener::OnDataAvailable(UnixSocket*) {}
+
+std::unique_ptr<LinuxFileWatch> WatchUnixSocketCreation(
+    TaskRunner* task_runner,
+    const char* sock_name,
+    std::function<void()> callback) {
+  if (!base::flags::use_unix_socket_inotify)
+    return nullptr;
+
+  if (!sock_name || base::GetSockFamily(sock_name) != base::SockFamily::kUnix ||
+      sock_name[0] == '@') {
+    // We can add a inotify watch only for non-abstract (linked) Unix sockets.
+    return nullptr;
+  }
+  return LinuxFileWatch::WatchFileCreation(task_runner, sock_name,
+                                           std::move(callback));
+}
 
 }  // namespace base
 }  // namespace perfetto
