@@ -37,7 +37,15 @@ struct StatsModule : sqlite::Module<StatsModule> {
     size_t key = 0;
     TraceStorage::Stats::IndexMap::const_iterator it{};
   };
-  enum Column { kName = 0, kIndex, kSeverity, kSource, kValue, kDescription };
+  enum Column {
+    kName = 0,
+    kIndex,
+    kSeverity,
+    kSource,
+    kValue,
+    kDescription,
+    kKey
+  };
 
   static constexpr auto kType = kEponymousOnly;
   static constexpr bool kSupportsWrites = false;
