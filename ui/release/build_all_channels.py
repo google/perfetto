@@ -134,10 +134,10 @@ def main():
   print('===================================================================')
   print('Uploading to gs://%s' % BUCKET_NAME)
   print('===================================================================')
-  # TODO(primiano): re-enable caching once the gzip-related outage is restored.
-  # cache_hdr = 'Cache-Control:public, max-age=3600'
-  cache_hdr = 'Cache-Control:no-cache'
-  cp_cmd = ['gsutil', '-m', '-h', cache_hdr, 'cp', '-j', 'html,js,css,wasm,map']
+  # Do NOT set cache-headers here, it messes up with GCS' handling of
+  # transparent gzip content-encoding. Cache-control headers are set instead by
+  # the GAE instance (see /infra/ui.perfetto.dev/appengine/main.py).
+  cp_cmd = ['gsutil', '-m', 'cp', '-j', 'html,js,json,css,wasm,map']
   for name in os.listdir(merged_dist_dir):
     path = pjoin(merged_dist_dir, name)
     if os.path.isdir(path):

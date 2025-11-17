@@ -12452,6 +12452,7 @@ filegroup {
         "src/base/bits_unittest.cc",
         "src/base/circular_queue_unittest.cc",
         "src/base/dynamic_string_writer_unittest.cc",
+        "src/base/file_utils_unittest.cc",
         "src/base/fixed_string_writer_unittest.cc",
         "src/base/flags_unittest.cc",
         "src/base/flat_hash_map_unittest.cc",
