@@ -363,20 +363,56 @@ export class Sidebar implements m.ClassComponent {
   private _asyncJobPending = new Set<string>();
   private _sectionExpanded = new Map<string, boolean>();
 
-  view({attrs}: m.CVnode) {
+  view() {
     const app = AppImpl.instance;
     const sidebar = app.sidebar;
     const trace = app.trace;
     if (!sidebar.enabled) return null;
 
-    const sidebarClasses = classNames(
-      sidebar.collapsed && 'pf-sidebar--collapsed',
-    );
+    return sidebar.collapsed
+      ? this.renderCollapsed(trace)
+      : this.renderExpanded(trace);
+  }
 
+  private renderCollapsed(trace: TraceImpl | undefined) {
+    return m(
+      'nav.pf-sidebar.pf-sidebar--collapsed',
+      {
+        // 150 here matches --sidebar-timing in the css.
+        // TODO(hjd): Should link to the CSS variable.
+        ontransitionstart: (e: TransitionEvent) => {
+          if (e.target !== e.currentTarget) return;
+          this._redrawWhileAnimating.start(150);
+        },
+        ontransitionend: (e: TransitionEvent) => {
+          if (e.target !== e.currentTarget) return;
+          this._redrawWhileAnimating.stop();
+        },
+      },
+      m(
+        'header',
+        m(Button, {
+          icon: 'menu',
+          className: 'pf-sidebar-button',
+          onclick: () => AppImpl.instance.sidebar.toggleCollapsed(),
+        }),
+      ),
+      m(
+        '.pf-sidebar__scroll',
+        m(
+          '.pf-sidebar__scroll-container',
+          (Object.keys(SIDEBAR_SECTIONS) as SidebarSections[]).map((s) =>
+            this.renderSection(s, trace),
+          ),
+        ),
+      ),
+    );
+  }
+
+  private renderExpanded(trace: TraceImpl | undefined) {
     return m(
       'nav.pf-sidebar',
       {
-        class: sidebarClasses,
         // 150 here matches --sidebar-timing in the css.
         // TODO(hjd): Should link to the CSS variable.
         ontransitionstart: (e: TransitionEvent) => {
@@ -395,7 +431,7 @@ export class Sidebar implements m.ClassComponent {
         m(Button, {
           icon: 'menu',
           className: 'pf-sidebar-button',
-          onclick: () => sidebar.toggleCollapsed(),
+          onclick: () => AppImpl.instance.sidebar.toggleCollapsed(),
         }),
       ),
       m(
@@ -405,7 +441,7 @@ export class Sidebar implements m.ClassComponent {
           (Object.keys(SIDEBAR_SECTIONS) as SidebarSections[]).map((s) =>
             this.renderSection(s, trace),
           ),
-          m(SidebarFooter, attrs),
+          m(SidebarFooter, {trace}),
         ),
       ),
     );
@@ -696,7 +732,7 @@ function getSupportGlobalItems(): SidebarMenuItemInternal[] {
       section: 'support',
       text: 'Keyboard shortcuts',
       action: toggleHelp,
-      icon: 'help',
+      icon: 'keyboard',
     },
     {
       id: 'perfetto.Documentation',
