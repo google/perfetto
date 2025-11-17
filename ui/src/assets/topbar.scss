@@ -29,12 +29,6 @@
   justify-content: center;
   align-items: center;
 
-  &--hide-sidebar {
-    .pf-omnibox--query-mode {
-      padding-left: 48px;
-    }
-  }
-
   &__error-box {
     position: absolute;
     right: 10px;

@@ -17,6 +17,7 @@
 .pf-sidebar {
   --sidebar-padding-bottom: 40px;
   --sidebar-timing: 0.15s;
+  --sidebar-collapsed-width: 60px;
 
   color: var(--pf-sidebar-on-surface);
   grid-area: sidebar;
@@ -30,6 +31,7 @@
   border-right: 1px solid var(--pf-sidebar-border);
   transition:
     margin-left var(--anim-easing) var(--sidebar-timing),
+    width var(--anim-easing) var(--sidebar-timing),
     visibility linear var(--sidebar-timing);
   > * {
     border-bottom: 1px solid var(--pf-sidebar-border-secondary);
@@ -82,7 +84,6 @@
     left: calc(var(--sidebar-width) - 50px);
     border-radius: 0;
     border-bottom: inherit;
-    visibility: visible; // So stays visible when the sidebar is hidden.
     transition: left var(--anim-easing) var(--sidebar-timing);
     width: 50px;
     overflow: hidden;
@@ -91,15 +92,66 @@
     }
   }
 
-  &--hidden {
-    visibility: hidden;
-    margin-left: calc(var(--sidebar-width) * -1);
+  &--collapsed {
+    width: var(--sidebar-collapsed-width);
+
     .pf-sidebar-button {
-      left: 0;
-      background-color: transparent;
-      border-radius: unset;
-      border-bottom: none;
-      color: #aaaaaa;
+      left: calc((var(--sidebar-collapsed-width) - 50px) / 2);
+    }
+
+    .pf-sidebar__brand {
+      display: none;
+    }
+
+    .pf-sidebar__scroll-container {
+      > section {
+        .pf-sidebar__section-header {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+
+          > h1,
+          > h2 {
+            display: none;
+          }
+
+          &:before {
+            display: none;
+          }
+
+          .pf-sidebar__section-icon {
+            display: block;
+            font-size: 24px;
+          }
+        }
+      }
+
+      .pf-sidebar__section-content {
+        li {
+          a {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            // Hide text in collapsed mode, show only icons
+            .pf-sidebar__button-icon {
+              margin-right: 0;
+            }
+
+            .pf-sidebar__button-text {
+              display: none;
+            }
+          }
+        }
+      }
+    }
+
+    .pf-sidebar__footer {
+      grid-template-columns: repeat(2, min-content);
+
+      .pf-sidebar__version {
+        display: none;
+      }
     }
   }
 
@@ -151,6 +203,9 @@
           font-size: 12px;
           margin-top: 8px;
           font-weight: 400;
+        }
+        .pf-sidebar__section-icon {
+          display: none;
         }
         &:before {
           @include material-icon("expand_more");

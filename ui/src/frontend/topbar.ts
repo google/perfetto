@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../base/classnames';
 import {assertFalse} from '../base/logging';
 import {AppImpl} from '../core/app_impl';
 import {OmniboxMode} from '../core/omnibox_manager';
@@ -79,11 +78,6 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
     const {trace} = attrs;
     return m(
       '.pf-topbar',
-      {
-        className: classNames(
-          !AppImpl.instance.sidebar.visible && 'pf-topbar--hide-sidebar',
-        ),
-      },
       m(Omnibox, {trace}),
       trace && m(TraceErrorIcon, {trace}),
     );

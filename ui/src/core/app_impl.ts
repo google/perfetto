@@ -145,7 +145,7 @@ export class AppImpl implements App {
       self.location.search.indexOf('testing=1') >= 0;
     this.sidebar = new SidebarManagerImpl({
       disabled: this.embeddedMode,
-      hidden: this.initialRouteArgs.hideSidebar,
+      collapsed: this.initialRouteArgs.hideSidebar,
     });
     this.analytics = initAnalytics(
       this.testingMode,

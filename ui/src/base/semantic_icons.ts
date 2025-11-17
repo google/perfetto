@@ -74,4 +74,15 @@ export class Icons {
   static readonly Play = 'play_arrow';
   static readonly Edit = 'edit';
   static readonly DragHandle = 'drag_indicator';
+
+  // Sidebar sections
+  static readonly FolderOpen = 'folder_open';
+  static readonly ShowChart = 'show_chart';
+  static readonly Description = 'description';
+  static readonly Settings = 'settings';
+  static readonly Transform = 'transform';
+
+  // Platform/browser icons
+  static readonly Android = 'android';
+  static readonly Web = 'language';
 }

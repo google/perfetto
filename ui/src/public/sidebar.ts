@@ -12,31 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Icons} from '../base/semantic_icons';
+
 // For now sections are fixed and cannot be extended by plugins.
 export const SIDEBAR_SECTIONS = {
   navigation: {
     title: 'Navigation',
     summary: 'Open or record a new trace',
+    icon: Icons.FolderOpen,
   },
   current_trace: {
     title: 'Current Trace',
     summary: 'Actions on the current trace',
+    icon: Icons.ShowChart,
   },
   example_traces: {
     title: 'Example Traces',
     summary: 'Open an example trace',
+    icon: Icons.Description,
   },
   settings: {
     title: 'Settings',
     summary: 'Preferences and configuration',
+    icon: Icons.Settings,
   },
   support: {
     title: 'Support',
     summary: 'Documentation & Bugs',
+    icon: Icons.Help,
   },
   convert_trace: {
     title: 'Convert trace',
     summary: 'Convert to other formats',
+    icon: Icons.Transform,
   },
 } as const;
 
@@ -53,15 +61,16 @@ export interface SidebarManager {
   addMenuItem(menuItem: SidebarMenuItem): void;
 
   /**
-   * Gets the current visibility of the sidebar.
+   * Gets the current collapsed state of the sidebar.
+   * When collapsed, the sidebar shows icons only.
    */
-  get visible(): boolean;
+  get collapsed(): boolean;
 
   /**
-   * Toggles the visibility of the sidebar. Can only be called when
-   * `sidebarEnabled` returns `ENABLED`.
+   * Toggles the collapsed state of the sidebar.
+   * Can only be called when `sidebarEnabled` returns `ENABLED`.
    */
-  toggleVisibility(): void;
+  toggleCollapsed(): void;
 }
 
 export type SidebarMenuItem = {

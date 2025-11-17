@@ -162,7 +162,7 @@ export default class CoreCommands implements PerfettoPlugin {
         id: 'dev.perfetto.ToggleLeftSidebar',
         name: 'Toggle left sidebar',
         callback: () => {
-          ctx.sidebar.toggleVisibility();
+          ctx.sidebar.toggleCollapsed();
         },
         defaultHotkey: '!Mod+B',
       });

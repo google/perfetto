@@ -21,14 +21,14 @@ export type SidebarMenuItemInternal = SidebarMenuItem & {
 
 export class SidebarManagerImpl implements SidebarManager {
   readonly enabled: boolean;
-  private _visible: boolean;
+  private _collapsed: boolean;
   private lastId = 0;
 
   readonly menuItems = new Registry<SidebarMenuItemInternal>((m) => m.id);
 
-  constructor(args: {disabled?: boolean; hidden?: boolean}) {
+  constructor(args: {disabled?: boolean; collapsed?: boolean}) {
     this.enabled = !args.disabled;
-    this._visible = !args.hidden;
+    this._collapsed = args.collapsed ?? false;
   }
 
   addMenuItem(item: SidebarMenuItem): Disposable {
@@ -39,12 +39,12 @@ export class SidebarManagerImpl implements SidebarManager {
     return this.menuItems.register(itemInt);
   }
 
-  public get visible() {
-    return this._visible;
+  public get collapsed() {
+    return this._collapsed;
   }
 
-  public toggleVisibility() {
+  public toggleCollapsed() {
     if (!this.enabled) return;
-    this._visible = !this._visible;
+    this._collapsed = !this._collapsed;
   }
 }

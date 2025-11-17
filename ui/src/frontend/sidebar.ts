@@ -47,6 +47,7 @@ import {assetSrc} from '../base/assets';
 import {assertExists} from '../base/logging';
 import {Icon} from '../widgets/icon';
 import {Button} from '../widgets/button';
+import {Tooltip} from '../widgets/tooltip';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 const TRACE_SUFFIX = '.perfetto-trace';
@@ -367,10 +368,15 @@ export class Sidebar implements m.ClassComponent {
     const sidebar = app.sidebar;
     const trace = app.trace;
     if (!sidebar.enabled) return null;
+
+    const sidebarClasses = classNames(
+      sidebar.collapsed && 'pf-sidebar--collapsed',
+    );
+
     return m(
       'nav.pf-sidebar',
       {
-        class: sidebar.visible ? undefined : 'pf-sidebar--hidden',
+        class: sidebarClasses,
         // 150 here matches --sidebar-timing in the css.
         // TODO(hjd): Should link to the CSS variable.
         ontransitionstart: (e: TransitionEvent) => {
@@ -389,7 +395,7 @@ export class Sidebar implements m.ClassComponent {
         m(Button, {
           icon: 'menu',
           className: 'pf-sidebar-button',
-          onclick: () => sidebar.toggleVisibility(),
+          onclick: () => sidebar.toggleCollapsed(),
         }),
       ),
       m(
@@ -446,18 +452,33 @@ export class Sidebar implements m.ClassComponent {
     if (menuItems.length === 0) return undefined;
 
     const expanded = getOrCreate(this._sectionExpanded, sectionId, () => true);
+    const sidebar = AppImpl.instance.sidebar;
+
+    const sectionHeader = m(
+      '.pf-sidebar__section-header',
+      {
+        onclick: () => {
+          this._sectionExpanded.set(sectionId, !expanded);
+        },
+      },
+      m('h1', {title: section.title}, section.title),
+      m('h2', section.summary),
+      sidebar.collapsed &&
+        m(Icon, {
+          className: 'pf-sidebar__section-icon',
+          icon: section.icon,
+        }),
+    );
+
     return m(
       `section${expanded ? '.pf-sidebar__section--expanded' : ''}`,
-      m(
-        '.pf-sidebar__section-header',
-        {
-          onclick: () => {
-            this._sectionExpanded.set(sectionId, !expanded);
-          },
-        },
-        m('h1', {title: section.title}, section.title),
-        m('h2', section.summary),
-      ),
+      sidebar.collapsed
+        ? m(
+            Tooltip,
+            {trigger: sectionHeader},
+            m('div', `${section.title}: ${section.summary}`),
+          )
+        : sectionHeader,
       m('.pf-sidebar__section-content', m('ul', menuItems)),
     );
   }
@@ -507,29 +528,39 @@ export class Sidebar implements m.ClassComponent {
       href = item.href;
       target = href.startsWith('#') ? null : '_blank';
     }
+
+    // When sidebar is collapsed, always show the text as a tooltip since
+    // the text label is hidden
+    const finalTooltip = tooltip ?? text;
+    const sidebar = AppImpl.instance.sidebar;
+
+    const linkElement = m(
+      'a',
+      {
+        className: classNames(
+          valueOrCallback(item.cssClass),
+          this._asyncJobPending.has(item.id) && 'pending',
+        ),
+        onclick: onclick && this.wrapClickHandler(item.id, onclick),
+        href,
+        target,
+        disabled,
+        title: sidebar.collapsed ? undefined : finalTooltip,
+      },
+      exists(item.icon) &&
+        m(Icon, {
+          className: 'pf-sidebar__button-icon',
+          icon: valueOrCallback(item.icon),
+        }),
+      m('span.pf-sidebar__button-text', text),
+    );
+
     return m(
       'li',
       {key: item.id}, // This is to work around a mithril bug (b/449784590).
-      m(
-        'a',
-        {
-          className: classNames(
-            valueOrCallback(item.cssClass),
-            this._asyncJobPending.has(item.id) && 'pending',
-          ),
-          onclick: onclick && this.wrapClickHandler(item.id, onclick),
-          href,
-          target,
-          disabled,
-          title: tooltip,
-        },
-        exists(item.icon) &&
-          m(Icon, {
-            className: 'pf-sidebar__button-icon',
-            icon: valueOrCallback(item.icon),
-          }),
-        text,
-      ),
+      sidebar.collapsed
+        ? m(Tooltip, {trigger: linkElement}, finalTooltip)
+        : linkElement,
     );
   }
 
