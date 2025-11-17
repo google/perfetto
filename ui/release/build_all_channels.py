@@ -137,7 +137,7 @@ def main():
   # Do NOT set cache-headers here, it messes up with GCS' handling of
   # transparent gzip content-encoding. Cache-control headers are set instead by
   # the GAE instance (see /infra/ui.perfetto.dev/appengine/main.py).
-  cp_cmd = ['gsutil', '-m', 'cp', '-j', 'html,js,json,css,wasm,map']
+  cp_cmd = ['gsutil', '-m', 'cp', '-z', 'html,js,json,css,wasm,map']
   for name in os.listdir(merged_dist_dir):
     path = pjoin(merged_dist_dir, name)
     if os.path.isdir(path):
