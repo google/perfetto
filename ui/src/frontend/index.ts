@@ -70,6 +70,7 @@ import {
   commandInvocationArraySchema,
 } from '../core/command_manager';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
+import {timeoutPromise} from '../base/utils';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -279,7 +280,12 @@ function main() {
   if (favicon instanceof HTMLLinkElement) {
     favicon.href = assetSrc('assets/favicon.png');
   }
+  document.body.classList.add('pf-fonts-loading');
   document.head.append(css);
+
+  Promise.race([document.fonts.ready, timeoutPromise(15000)]).then(() => {
+    document.body.classList.remove('pf-fonts-loading');
+  });
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
