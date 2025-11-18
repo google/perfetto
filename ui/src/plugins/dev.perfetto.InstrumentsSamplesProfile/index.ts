@@ -34,7 +34,9 @@ import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
-import {Flamegraph} from '../../widgets/flamegraph';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {Store} from '../../base/store';
+import {z} from 'zod';
 
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;
@@ -42,24 +44,50 @@ export interface Data extends TrackData {
 
 const INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND = 'InstrumentsSamplesProfileTrack';
 
+const INSTRUMENTS_SAMPLES_PROFILE_PLUGIN_STATE_SCHEMA = z.object({
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+});
+
+type InstrumentsSamplesProfilePluginState = z.infer<
+  typeof INSTRUMENTS_SAMPLES_PROFILE_PLUGIN_STATE_SCHEMA
+>;
+
 function makeUriForProc(upid: number) {
   return `/process_${upid}/instruments_samples_profile`;
 }
 
 export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.InstrumentsSamplesProfile';
-
-  private areaSelectionSerialization = Flamegraph.createEmptySerialization();
-  private detailsPanelSerialization = Flamegraph.createEmptySerialization();
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
+  private store?: Store<InstrumentsSamplesProfilePluginState>;
+
+  private migrateInstrumentsSamplesProfilePluginState(
+    init: unknown,
+  ): InstrumentsSamplesProfilePluginState {
+    const result =
+      INSTRUMENTS_SAMPLES_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
+    if (result.success) {
+      return result.data;
+    }
+    return {
+      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
+      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
+    };
+  }
+
   async onTraceLoad(ctx: Trace): Promise<void> {
+    this.store = ctx.mountStore(InstrumentsSamplesProfilePlugin.id, (init) =>
+      this.migrateInstrumentsSamplesProfilePluginState(init),
+    );
     const pResult = await ctx.engine.query(`
       select distinct upid
       from instruments_sample
       join thread using (utid)
       where callsite_id is not null and upid is not null
     `);
+    const store = assertExists(this.store);
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const uri = makeUriForProc(upid);
@@ -73,7 +101,12 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
           ctx,
           uri,
           upid,
-          this.detailsPanelSerialization,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
         ),
       });
       const group = ctx.plugins
@@ -123,7 +156,12 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
           ctx,
           uri,
           utid,
-          this.detailsPanelSerialization,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
         ),
       });
       const group = ctx.plugins
@@ -143,7 +181,6 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
   private createAreaSelectionTab(trace: Trace) {
     let previousSelection: undefined | AreaSelection;
     let flamegraph: undefined | QueryFlamegraph;
-
     return {
       id: 'instruments_sample_flamegraph',
       name: 'Instruments Sample Flamegraph',
@@ -151,7 +188,6 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
         const changed =
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
-
         if (changed) {
           flamegraph = this.computeInstrumentsSampleFlamegraph(
             trace,
@@ -159,17 +195,17 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
           );
           previousSelection = selection;
         }
-
         if (flamegraph === undefined) {
           return undefined;
         }
-
         return {
           isLoading: false,
           content: flamegraph.render(
-            this.areaSelectionSerialization.state,
+            assertExists(this.store).state.areaSelectionFlamegraphState,
             (state) => {
-              this.areaSelectionSerialization.state = state;
+              assertExists(this.store).edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
             },
           ),
         };
@@ -212,7 +248,13 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
       ],
       'include perfetto module appleos.instruments.samples',
     );
-    Flamegraph.updateSerialization(this.areaSelectionSerialization, metrics);
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
     return new QueryFlamegraph(trace, metrics);
   }
 }

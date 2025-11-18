@@ -35,8 +35,10 @@ import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
-import {Flamegraph, FlamegraphSerialization} from '../../widgets/flamegraph';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {CallstackDetailsSection} from './callstack_details_section';
+import {Store} from '../../base/store';
+import {z} from 'zod';
 
 function createTrackEventDetailsPanel(trace: Trace) {
   return () =>
@@ -44,6 +46,12 @@ function createTrackEventDetailsPanel(trace: Trace) {
       rightSections: [new CallstackDetailsSection(trace)],
     });
 }
+
+const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+});
+
+type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
 
 export default class TrackEventPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackEvent';
@@ -53,10 +61,22 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
-  private areaSelectionSerialization: FlamegraphSerialization =
-    Flamegraph.createEmptySerialization();
+  private store?: Store<TrackEventPluginState>;
+
+  private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
+    const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
+    if (result.success) {
+      return result.data;
+    }
+    return {
+      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
+    };
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    this.store = ctx.mountStore(TrackEventPlugin.id, (init) =>
+      this.migrateTrackEventPluginState(init),
+    );
     const res = await ctx.engine.query(`
       include perfetto module viz.summary.track_event;
       select
@@ -246,9 +266,11 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         return {
           isLoading: false,
           content: flamegraph.render(
-            this.areaSelectionSerialization.state,
+            assertExists(this.store).state.areaSelectionFlamegraphState,
             (state) => {
-              this.areaSelectionSerialization.state = state;
+              assertExists(this.store).edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
             },
           ),
         };
@@ -335,7 +357,13 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         },
       ],
     );
-    Flamegraph.updateSerialization(this.areaSelectionSerialization, metrics);
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
     return new QueryFlamegraph(trace, metrics);
   }
 

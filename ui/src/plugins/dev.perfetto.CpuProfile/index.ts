@@ -25,19 +25,44 @@ import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
-import {Flamegraph} from '../../widgets/flamegraph';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {assertExists} from '../../base/logging';
+import {Store} from '../../base/store';
+import {z} from 'zod';
 
 const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
+
+const CPU_PROFILE_PLUGIN_STATE_SCHEMA = z
+  .object({
+    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+    detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  })
+  .readonly();
+
+type CpuProfilePluginState = z.infer<typeof CPU_PROFILE_PLUGIN_STATE_SCHEMA>;
 
 export default class CpuProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
-  private areaSelectionSerialization = Flamegraph.createEmptySerialization();
-  private detailsPanelSerialization = Flamegraph.createEmptySerialization();
+  private store?: Store<CpuProfilePluginState>;
+
+  private migrateCpuProfilePluginState(init: unknown): CpuProfilePluginState {
+    const result = CPU_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
+    if (result.success) {
+      return result.data;
+    }
+    // Return default state with empty state
+    return {
+      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
+      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
+    };
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    this.store = ctx.mountStore(CpuProfilePlugin.id, (init) =>
+      this.migrateCpuProfilePluginState(init),
+    );
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (
         select distinct utid
@@ -53,6 +78,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       where not is_idle
     `);
 
+    const store = assertExists(this.store);
     const it = result.iter({
       utid: NUM,
       upid: NUM_NULL,
@@ -74,7 +100,12 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
           ctx,
           uri,
           utid,
-          this.detailsPanelSerialization,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
         ),
       });
       const group = ctx.plugins
@@ -119,9 +150,11 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         return {
           isLoading: false,
           content: flamegraph.render(
-            this.areaSelectionSerialization.state,
+            assertExists(this.store).state.areaSelectionFlamegraphState,
             (state) => {
-              this.areaSelectionSerialization.state = state;
+              assertExists(this.store).edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
             },
           ),
         };
@@ -175,7 +208,13 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         },
       ],
     );
-    Flamegraph.updateSerialization(this.areaSelectionSerialization, metrics);
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
     return new QueryFlamegraph(trace, metrics);
   }
 }
