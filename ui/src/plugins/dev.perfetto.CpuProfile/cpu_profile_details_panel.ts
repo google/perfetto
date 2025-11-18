@@ -17,6 +17,7 @@ import {time} from '../../base/time';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
@@ -30,12 +31,11 @@ import {
   FlamegraphState,
   FLAMEGRAPH_STATE_SCHEMA,
 } from '../../widgets/flamegraph';
-import {assertExists} from '../../base/logging';
 
 export class CpuProfileSampleFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private flamegraph?: QueryFlamegraph;
+  private flamegraph: QueryFlamegraph;
 
   // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
   // We moved serialization from being attached to selections to instead being
@@ -47,16 +47,17 @@ export class CpuProfileSampleFlamegraphDetailsPanel
     state: undefined,
   };
 
+  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+
   constructor(
     private readonly trace: Trace,
     private readonly ts: time,
     private readonly utid: number,
     private state: FlamegraphState,
     private readonly onStateChange: (state: FlamegraphState) => void,
-  ) {}
-
-  async load() {
-    const metrics = metricsFromTableOrSubquery(
+  ) {
+    this.flamegraph = new QueryFlamegraph(trace);
+    this.metrics = metricsFromTableOrSubquery(
       `
         (
           select
@@ -90,15 +91,20 @@ export class CpuProfileSampleFlamegraphDetailsPanel
         },
       ],
     );
+  }
+
+  async load() {
     // If the state in the serialization is not undefined, we should read from
     // it.
     // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
     if (this.serialization.state !== undefined) {
-      this.state = Flamegraph.updateState(this.serialization.state, metrics);
+      this.state = Flamegraph.updateState(
+        this.serialization.state,
+        this.metrics,
+      );
       this.onStateChange(this.state);
       this.serialization.state = undefined;
     }
-    this.flamegraph = new QueryFlamegraph(this.trace, metrics);
   }
 
   render() {
@@ -115,9 +121,13 @@ export class CpuProfileSampleFlamegraphDetailsPanel
             m(Timestamp, {trace: this.trace, ts: this.ts}),
           ),
         },
-        assertExists(this.flamegraph).render(this.state, (state) => {
-          this.state = state;
-          this.onStateChange(state);
+        this.flamegraph.render({
+          metrics: this.metrics,
+          state: this.state,
+          onStateChange: (state) => {
+            this.state = state;
+            this.onStateChange(state);
+          },
         }),
       ),
     );

@@ -18,6 +18,7 @@ import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
@@ -91,47 +92,47 @@ export function createPerfCallsitesTrack(
         state: undefined,
       };
       let state = detailsPanelState;
-      let flamegraph: QueryFlamegraph | undefined = undefined;
+      const flamegraph = new QueryFlamegraph(trace);
+      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
+        metricsFromTableOrSubquery(
+          `
+            (
+              select
+                id,
+                parent_id as parentId,
+                name,
+                mapping_name,
+                source_file || ':' || line_number as source_location,
+                self_count
+              from _callstacks_for_callsites!((
+                select ps.callsite_id
+                from perf_sample ps
+                join thread t using (utid)
+                where ps.ts = ${row.ts}
+                  and ${trackConstraints}
+              ))
+            )
+          `,
+          [
+            {
+              name: 'count',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'include perfetto module linux.perf.samples',
+          [{name: 'mapping_name', displayName: 'Mapping'}],
+          [
+            {
+              name: 'source_location',
+              displayName: 'Source location',
+              mergeAggregation: 'ONE_OR_SUMMARY',
+            },
+          ],
+        );
 
       return {
         load: async () => {
-          // for callstack view when selecting a single sample
-          const metrics = metricsFromTableOrSubquery(
-            `
-              (
-                select
-                  id,
-                  parent_id as parentId,
-                  name,
-                  mapping_name,
-                  source_file || ':' || line_number as source_location,
-                  self_count
-                from _callstacks_for_callsites!((
-                  select ps.callsite_id
-                  from perf_sample ps
-                  join thread t using (utid)
-                  where ps.ts = ${row.ts}
-                    and ${trackConstraints}
-                ))
-              )
-            `,
-            [
-              {
-                name: 'count',
-                unit: '',
-                columnName: 'self_count',
-              },
-            ],
-            'include perfetto module linux.perf.samples',
-            [{name: 'mapping_name', displayName: 'Mapping'}],
-            [
-              {
-                name: 'source_location',
-                displayName: 'Source location',
-                mergeAggregation: 'ONE_OR_SUMMARY',
-              },
-            ],
-          );
           // If the state in the serialization is not undefined, we should read from
           // it.
           // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
@@ -140,12 +141,12 @@ export function createPerfCallsitesTrack(
             onDetailsPanelStateChange(state);
             serialization.state = undefined;
           }
-          flamegraph = new QueryFlamegraph(trace, metrics);
         },
         render: () =>
           renderDetailsPanel(
             trace,
-            flamegraph!,
+            flamegraph,
+            metrics,
             Time.fromRaw(row.ts),
             state,
             (newState) => {
@@ -162,6 +163,7 @@ export function createPerfCallsitesTrack(
 function renderDetailsPanel(
   trace: Trace,
   flamegraph: QueryFlamegraph,
+  metrics: ReadonlyArray<QueryFlamegraphMetric>,
   ts: time,
   state: FlamegraphState,
   onStateChange: (state: FlamegraphState) => void,
@@ -183,7 +185,7 @@ function renderDetailsPanel(
           ]),
         ]),
       },
-      flamegraph.render(state, onStateChange),
+      flamegraph.render({metrics, state, onStateChange}),
     ),
   );
 }

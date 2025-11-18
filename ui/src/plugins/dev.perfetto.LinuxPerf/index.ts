@@ -16,6 +16,7 @@ import {assertExists} from '../../base/logging';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
@@ -391,8 +392,8 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   }
 
   private createAreaSelectionTab(trace: Trace) {
-    let previousSelection: undefined | AreaSelection;
-    let flamegraph: undefined | QueryFlamegraph;
+    let previousSelection: AreaSelection | undefined;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
 
     return {
       id: 'perf_sample_flamegraph',
@@ -401,26 +402,29 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         const changed =
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
-
         if (changed) {
-          flamegraph = this.computePerfSampleFlamegraph(trace, selection);
+          flamegraphWithMetrics = this.computePerfSampleFlamegraph(
+            trace,
+            selection,
+          );
           previousSelection = selection;
         }
-
-        if (flamegraph === undefined) {
+        if (flamegraphWithMetrics === undefined) {
           return undefined;
         }
-
+        const {flamegraph, metrics} = flamegraphWithMetrics;
+        const store = assertExists(this.store);
         return {
           isLoading: false,
-          content: flamegraph.render(
-            assertExists(this.store).state.areaSelectionFlamegraphState,
-            (state) => {
-              assertExists(this.store).edit((draft) => {
+          content: flamegraph.render({
+            metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
                 draft.areaSelectionFlamegraphState = state;
               });
             },
-          ),
+          }),
         };
       },
     };
@@ -429,7 +433,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   private computePerfSampleFlamegraph(
     trace: Trace,
     currentSelection: AreaSelection,
-  ) {
+  ): QueryFlamegraphWithMetrics | undefined {
     const processTrackTags = getSelectedProcessTrackTags(currentSelection);
     const threadTrackTags = getSelectedThreadTrackTags(currentSelection);
     if (processTrackTags.length === 0 && threadTrackTags.length === 0) {
@@ -491,7 +495,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return new QueryFlamegraph(trace, metrics);
+    return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 }
 

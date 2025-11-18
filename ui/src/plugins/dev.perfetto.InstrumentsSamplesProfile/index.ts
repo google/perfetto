@@ -33,6 +33,7 @@ import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
@@ -180,7 +181,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
 
   private createAreaSelectionTab(trace: Trace) {
     let previousSelection: undefined | AreaSelection;
-    let flamegraph: undefined | QueryFlamegraph;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
     return {
       id: 'instruments_sample_flamegraph',
       name: 'Instruments Sample Flamegraph',
@@ -189,25 +190,28 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
         if (changed) {
-          flamegraph = this.computeInstrumentsSampleFlamegraph(
+          flamegraphWithMetrics = this.computeInstrumentsSampleFlamegraph(
             trace,
             selection,
           );
           previousSelection = selection;
         }
-        if (flamegraph === undefined) {
+        if (flamegraphWithMetrics === undefined) {
           return undefined;
         }
+        const {flamegraph, metrics} = flamegraphWithMetrics;
+        const store = assertExists(this.store);
         return {
           isLoading: false,
-          content: flamegraph.render(
-            assertExists(this.store).state.areaSelectionFlamegraphState,
-            (state) => {
-              assertExists(this.store).edit((draft) => {
+          content: flamegraph.render({
+            metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
                 draft.areaSelectionFlamegraphState = state;
               });
             },
-          ),
+          }),
         };
       },
     };
@@ -216,7 +220,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
   private computeInstrumentsSampleFlamegraph(
     trace: Trace,
     currentSelection: AreaSelection,
-  ) {
+  ): QueryFlamegraphWithMetrics | undefined {
     const upids = getUpidsFromInstrumentsSampleAreaSelection(currentSelection);
     const utids = getUtidsFromInstrumentsSampleAreaSelection(currentSelection);
     if (utids.length === 0 && upids.length === 0) {
@@ -255,7 +259,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return new QueryFlamegraph(trace, metrics);
+    return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 }
 
