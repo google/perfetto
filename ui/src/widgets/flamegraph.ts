@@ -161,6 +161,18 @@ export const FLAMEGRAPH_STATE_SCHEMA = z
 
 export type FlamegraphState = z.infer<typeof FLAMEGRAPH_STATE_SCHEMA>;
 
+/**
+ * Reusable serialization object for flamegraph state.
+ *
+ * This object should usually be owned by a high level object (e.g. in a plugin)
+ * to allow preserving user-configured filters across selection changes (e.g.
+ * clicking different events, changing area selections).
+ */
+export interface FlamegraphSerialization {
+  schema: typeof FLAMEGRAPH_STATE_SCHEMA;
+  state: FlamegraphState;
+}
+
 interface FlamegraphMetric {
   readonly name: string;
   readonly unit: string;
@@ -399,6 +411,71 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       selectedMetricName: metrics[0].name,
       filters: [],
       view: {kind: 'TOP_DOWN'},
+    };
+  }
+
+  /**
+   * Creates an uninitialized FlamegraphSerialization for avoiding undefined
+   * when typing objects.
+   *
+   * IMPORTANT: The returned object must NOT be passed directly to Flamegraph
+   * or used for rendering. It should only be store and later populated with
+   * metrics using updateSerialization() before use.
+   *
+   * This function exists to allow plugins to initialize serialization objects
+   * early (e.g., in constructors) before metrics are available. This enables
+   * state sharing across multiple details panel instances without requiring
+   * wrapper objects like {current: FlamegraphSerialization | undefined}.
+   *
+   * Typical usage pattern:
+   * ```
+   * class MyPlugin {
+   *   private serialization = Flamegraph.createEmptySerialization();
+   *
+   *   createDetailsPanel(data) {
+   *     const metrics = computeMetrics(data);
+   *     Flamegraph.updateSerialization(this.serialization, metrics);
+   *     // Now serialization.state is populated and safe to use
+   *     return new QueryFlamegraph(trace, metrics, this.serialization);
+   *   }
+   * }
+   * ```
+   */
+  static createEmptySerialization(): FlamegraphSerialization {
+    return {
+      schema: FLAMEGRAPH_STATE_SCHEMA,
+      state: {
+        view: {
+          kind: 'TOP_DOWN',
+        },
+        selectedMetricName: '',
+        filters: [],
+      },
+    };
+  }
+
+  /**
+   * Updates or initializes a FlamegraphSerialization object with new metrics,
+   * preserving filters where possible.
+   */
+  static updateSerialization(
+    serialization: FlamegraphSerialization,
+    metrics: ReadonlyArray<FlamegraphMetric>,
+  ) {
+    if (serialization.state.selectedMetricName === '') {
+      serialization.state = Flamegraph.createDefaultState(metrics);
+      return;
+    }
+    const state = serialization.state;
+    const metricStillExists = metrics.some(
+      (m) => m.name === state.selectedMetricName,
+    );
+    serialization.state = {
+      filters: state.filters,
+      view: state.view,
+      selectedMetricName: metricStillExists
+        ? state.selectedMetricName
+        : metrics[0].name,
     };
   }
 

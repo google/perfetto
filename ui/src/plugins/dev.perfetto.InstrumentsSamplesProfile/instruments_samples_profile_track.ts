@@ -22,7 +22,7 @@ import {
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, time} from '../../base/time';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {Flamegraph, FlamegraphSerialization} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -34,6 +34,7 @@ export function createProcessInstrumentsSamplesProfileTrack(
   trace: Trace,
   uri: string,
   upid: number,
+  serialization: FlamegraphSerialization,
 ) {
   return SliceTrack.create({
     trace,
@@ -100,10 +101,7 @@ export function createProcessInstrumentsSamplesProfileTrack(
           },
         ],
       );
-      const serialization = {
-        schema: FLAMEGRAPH_STATE_SCHEMA,
-        state: Flamegraph.createDefaultState(metrics),
-      };
+      Flamegraph.updateSerialization(serialization, metrics);
       const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
       return {
         render: () =>
@@ -118,6 +116,7 @@ export function createThreadInstrumentsSamplesProfileTrack(
   trace: Trace,
   uri: string,
   utid: number,
+  serialization: FlamegraphSerialization,
 ) {
   return SliceTrack.create({
     trace,
@@ -182,10 +181,7 @@ export function createThreadInstrumentsSamplesProfileTrack(
           },
         ],
       );
-      const serialization = {
-        schema: FLAMEGRAPH_STATE_SCHEMA,
-        state: Flamegraph.createDefaultState(metrics),
-      };
+      Flamegraph.updateSerialization(serialization, metrics);
       const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
       return {
         render: () =>

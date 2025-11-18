@@ -30,9 +30,12 @@ import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
-export default class implements PerfettoPlugin {
+export default class DayExplorerPlugin implements PerfettoPlugin {
   static readonly id = 'com.android.DayExplorer';
   static readonly dependencies = [StandardGroupsPlugin, SupportPlugin];
+
+  private dayExplorerFlamegraphSerialization =
+    Flamegraph.createEmptySerialization();
 
   private support(ctx: Trace) {
     return ctx.plugins.getPlugin(SupportPlugin);
@@ -153,7 +156,10 @@ export default class implements PerfettoPlugin {
     };
   }
 
-  computeDayExplorerFlameGraph(trace: Trace, currentSelection: AreaSelection) {
+  private computeDayExplorerFlameGraph(
+    trace: Trace,
+    currentSelection: AreaSelection,
+  ) {
     // The flame graph will be shown when any day explorer track is in the area
     // selection. The selection is used to filter by time, but not by track. All
     // day explorer tracks are considered for the graph.
@@ -204,9 +210,15 @@ export default class implements PerfettoPlugin {
         },
       ],
     );
-    return new QueryFlamegraph(trace, metrics, {
-      state: Flamegraph.createDefaultState(metrics),
-    });
+    Flamegraph.updateSerialization(
+      this.dayExplorerFlamegraphSerialization,
+      metrics,
+    );
+    return new QueryFlamegraph(
+      trace,
+      metrics,
+      this.dayExplorerFlamegraphSerialization,
+    );
   }
 
   async addDayExplorerUsage(
