@@ -105,7 +105,9 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
     }
     attrs.onStateChange({
       ...attrs.state,
-      flamegraphState: Flamegraph.createDefaultState(profile.metrics),
+      flamegraphState: attrs.state.flamegraphState
+        ? Flamegraph.updateState(attrs.state.flamegraphState, profile.metrics)
+        : Flamegraph.createDefaultState(profile.metrics),
     });
     this.flamegraph = new QueryFlamegraph(attrs.trace, profile.metrics);
   }

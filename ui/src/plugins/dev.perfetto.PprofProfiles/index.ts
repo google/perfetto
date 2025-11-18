@@ -39,9 +39,8 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(
-      'dev.perfetto.PprofProfiles',
-      (init) => this.migratePprofPageState(init),
+    this.store = trace.mountStore('dev.perfetto.PprofProfiles', (init) =>
+      this.migratePprofPageState(init),
     );
     const profiles = await this.getPprofProfiles(trace);
     if (profiles.length === 0) {
