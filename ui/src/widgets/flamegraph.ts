@@ -282,6 +282,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
             this.drawCanvas(ctx, virtualCanvasSize, canvasRect);
           },
+          onscroll: () => {
+            // Trigger a redraw to re-evaluate popup visibility
+            m.redraw();
+          },
         },
         m(
           'div',
@@ -380,8 +384,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               fitContent: true,
               position: PopupPosition.Right,
               isOpen:
-                this.tooltipPos?.state === 'HOVER' ||
-                this.tooltipPos?.state === 'CLICK',
+                this.isPopupAnchorVisible() &&
+                (this.tooltipPos?.state === 'HOVER' ||
+                  this.tooltipPos?.state === 'CLICK'),
               className: 'pf-flamegraph-tooltip-popup',
               offset: NODE_HEIGHT,
             },
@@ -561,6 +566,29 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         ctx.lineWidth = 0.5;
       }
     }
+  }
+
+  private isPopupAnchorVisible(): boolean {
+    if (!this.tooltipPos) {
+      return false;
+    }
+    // The anchor is positioned absolutely within the scrollable div
+    // We need to check if it's within the visible viewport of the scroll container
+    const scrollContainer = document.querySelector('.pf-virtual-canvas');
+    if (!scrollContainer) {
+      return false;
+    }
+
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const {y} = this.tooltipPos;
+    const scrollTop = scrollContainer.scrollTop;
+
+    // Calculate the actual viewport position of the anchor
+    // y is relative to the content div, so we need to account for scroll
+    const viewportY = y - scrollTop;
+
+    // Check if the anchor is within the visible viewport
+    return viewportY >= 0 && viewportY <= containerRect.height;
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
@@ -1161,17 +1189,17 @@ const BLACK_COLOR = new HSLColor([0, 0, 0]);
 const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 62]);
 
 function makeColorScheme(base: Color, variant: Color) {
+  // Use the same text color for both base and variant to prevent text color
+  // switching on hover. The text color is determined by the base color only.
+  const textColor =
+    base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
+      ? BLACK_COLOR
+      : WHITE_COLOR;
   return {
     base,
     variant,
-    textBase:
-      base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
-        ? BLACK_COLOR
-        : WHITE_COLOR,
-    textVariant:
-      variant.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
-        ? BLACK_COLOR
-        : WHITE_COLOR,
+    textBase: textColor,
+    textVariant: textColor,
   };
 }
 
