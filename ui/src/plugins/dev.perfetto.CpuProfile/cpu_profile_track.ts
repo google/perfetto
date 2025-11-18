@@ -19,8 +19,15 @@ import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Time} from '../../base/time';
 import {getColorForSample} from '../../components/colorizer';
+import {FlamegraphState} from '../../widgets/flamegraph';
 
-export function createCpuProfileTrack(trace: Trace, uri: string, utid: number) {
+export function createCpuProfileTrack(
+  trace: Trace,
+  uri: string,
+  utid: number,
+  detailsPanelState: FlamegraphState,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+) {
   return SliceTrack.create({
     trace,
     uri,
@@ -43,6 +50,8 @@ export function createCpuProfileTrack(trace: Trace, uri: string, utid: number) {
         trace,
         Time.fromRaw(row.ts),
         utid,
+        detailsPanelState,
+        onDetailsPanelStateChange,
       );
     },
   });
