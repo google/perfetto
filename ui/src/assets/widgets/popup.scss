@@ -30,6 +30,12 @@
   top: 0;
 }
 
+.pf-popup-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 9; // Below popups (z-index: 10) but above page content
+}
+
 .pf-popup {
   background: var(--pf-color-background);
   border: solid 1px var(--pf-color-border);
