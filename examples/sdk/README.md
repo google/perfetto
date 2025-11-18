@@ -27,7 +27,7 @@ cmake --build build
 ```
 
 Note: If amalgamated source files are not present, generate them using
-`cd perfetto ; tools/gen_amalgamated --output sdk/perfetto`.
+`cd perfetto ; tools/gen_amalgamated --sdk cpp --output sdk/perfetto`.
 [Learn more](https://perfetto.dev/docs/contributing/sdk-releasing#building-and-tagging-the-release)
 at the release section.
 

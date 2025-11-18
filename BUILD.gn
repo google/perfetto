@@ -302,6 +302,19 @@ if (!build_with_chromium) {
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "gn:protobuf_lite" ]
   }
+
+  # Static library for the C SDK, used for amalgamation.
+  static_library("libperfetto_c_sdk") {
+    complete_static_lib = true
+    public_deps = [
+      "gn:default_deps",
+      "include/perfetto/public",
+      "src/shared_lib:shared_lib",
+    ]
+    assert_no_deps = [ "gn:protobuf_lite" ]
+  }
+
+  all_targets += [ "src/shared_lib:libperfetto_c" ]
 }
 
 # TODO(primiano): there seem to be two "libperfetto" and one

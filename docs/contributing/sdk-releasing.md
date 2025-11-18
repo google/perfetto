@@ -85,9 +85,12 @@ v16.0 - 2021-06-01:
 
 ```bash
 tools/gen_amalgamated --output sdk/perfetto
-git add sdk/perfetto.{cc,h}
+git add sdk/perfetto.{cc,h} sdk/perfetto_c.{cc,h}
 git commit -m "Amalgamated source for vX.Y"
 ```
+
+This generates both the C++ SDK (`perfetto.{h,cc}`) and C SDK (`perfetto_c.{h,cc}`)
+amalgamated files.
 
 2. Check that the SDK example code works with the new release.
 
