@@ -234,8 +234,7 @@ std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
 bool NameMatchesFilter(const std::string& name,
                        const std::vector<std::string>& name_filter,
                        const std::vector<std::string>& name_regex_filter) {
-  bool filter_is_set = !name_filter.empty() || !name_regex_filter.empty();
-  if (!filter_is_set)
+  if (name_filter.empty() && name_regex_filter.empty())
     return true;
   bool filter_matches = std::find(name_filter.begin(), name_filter.end(),
                                   name) != name_filter.end();
@@ -3166,20 +3165,35 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return nullptr;
   }
+
+  // Check machine name filter for multi-machine (traced_relay) tracing.
+  bool is_host_machine =
+      producer->client_identity().machine_id() == kDefaultMachineID;
   if (cfg_data_source.machine_name_filter_size()) {
-    auto machine_id = producer->client_identity().machine_id();
-    auto cfg_machine_names = cfg_data_source.machine_name_filter();
-    if (!NameMatchesFilter(producer->machine_name_, cfg_machine_names, {}) &&
-        !(machine_id == kDefaultMachineID &&
-          NameMatchesFilter("host", cfg_machine_names, {}))) {
+    // Explicit set of machines to match.
+    const auto& cfg_names = cfg_data_source.machine_name_filter();
+    bool filter_match =
+        NameMatchesFilter(producer->machine_name_, cfg_names, {});
+    bool host_match =
+        is_host_machine && NameMatchesFilter("host", cfg_names, {});
+    if (!filter_match && !host_match) {
       PERFETTO_DLOG("Data source: %s is filtered out for machine: %s",
                     cfg_data_source.config().name().c_str(),
                     producer->machine_name_.c_str());
       return nullptr;
     }
+  } else {
+    // Default matching behaviour starting from perfetto v54: match only host,
+    // unless the config sets a top level flag.
+    if (!tracing_session->config.machine_filter_default() && !is_host_machine) {
+      PERFETTO_DLOG("Data source: %s is filtered out for remote machine: %s",
+                    cfg_data_source.config().name().c_str(),
+                    producer->machine_name_.c_str());
+      return nullptr;
+    }
   }
-  // TODO(primiano): Add tests for registration ordering (data sources vs
-  // consumers).
+
+  // Check producer name filter.
   if (!NameMatchesFilter(producer->name_,
                          cfg_data_source.producer_name_filter(),
                          cfg_data_source.producer_name_regex_filter())) {
