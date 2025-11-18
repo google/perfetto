@@ -685,9 +685,9 @@ export abstract class EngineBase implements Engine, Disposable {
 
 // Lightweight engine proxy which annotates all queries with a tag
 export class EngineProxy implements Engine, Disposable {
-  readonly tag: string;
   private engine: EngineBase;
   private disposed = false;
+  private tag: string;
 
   get queryLog() {
     return this.engine.queryLog;
