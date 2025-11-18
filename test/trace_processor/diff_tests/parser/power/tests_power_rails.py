@@ -468,6 +468,7 @@ class PowerPowerRails(TestSuite):
           power_rails {
             energy_data {
               index: 0
+              timestamp_ms: 4
               energy: 400
             }
           }
