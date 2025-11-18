@@ -151,7 +151,15 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
           return undefined;
         }
 
-        return {isLoading: false, content: flamegraph.render()};
+        return {
+          isLoading: false,
+          content: flamegraph.render(
+            this.dayExplorerFlamegraphSerialization.state,
+            (state) => {
+              this.dayExplorerFlamegraphSerialization.state = state;
+            },
+          ),
+        };
       },
     };
   }
@@ -214,11 +222,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       this.dayExplorerFlamegraphSerialization,
       metrics,
     );
-    return new QueryFlamegraph(
-      trace,
-      metrics,
-      this.dayExplorerFlamegraphSerialization,
-    );
+    return new QueryFlamegraph(trace, metrics);
   }
 
   async addDayExplorerUsage(

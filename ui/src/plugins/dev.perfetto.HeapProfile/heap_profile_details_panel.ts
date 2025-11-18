@@ -97,7 +97,7 @@ export class HeapProfileFlamegraphDetailsPanel
     const metrics = flamegraphMetrics(trace, profileType, ts, upid);
     Flamegraph.updateSerialization(serialization, metrics);
     this.serialization = serialization;
-    this.flamegraph = new QueryFlamegraph(trace, metrics, this.serialization);
+    this.flamegraph = new QueryFlamegraph(trace, metrics);
     this.props = {ts, type: profileType};
   }
 
@@ -141,7 +141,12 @@ export class HeapProfileFlamegraphDetailsPanel
               }),
           ]),
         },
-        assertExists(this.flamegraph).render(),
+        assertExists(this.flamegraph).render(
+          this.serialization.state,
+          (state) => {
+            this.serialization.state = state;
+          },
+        ),
       ),
     );
   }

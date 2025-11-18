@@ -164,7 +164,15 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
           return undefined;
         }
 
-        return {isLoading: false, content: flamegraph.render()};
+        return {
+          isLoading: false,
+          content: flamegraph.render(
+            this.areaSelectionSerialization.state,
+            (state) => {
+              this.areaSelectionSerialization.state = state;
+            },
+          ),
+        };
       },
     };
   }
@@ -205,7 +213,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
       'include perfetto module appleos.instruments.samples',
     );
     Flamegraph.updateSerialization(this.areaSelectionSerialization, metrics);
-    return new QueryFlamegraph(trace, metrics, this.areaSelectionSerialization);
+    return new QueryFlamegraph(trace, metrics);
   }
 }
 
