@@ -233,6 +233,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private canvasWidth = 0;
   private labelCharWidth = 0;
+  private canvasRect?: Rect2D;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -380,8 +381,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               fitContent: true,
               position: PopupPosition.Right,
               isOpen:
-                this.tooltipPos?.state === 'HOVER' ||
-                this.tooltipPos?.state === 'CLICK',
+                this.isPopupAnchorVisible() &&
+                (this.tooltipPos?.state === 'HOVER' ||
+                  this.tooltipPos?.state === 'CLICK'),
               className: 'pf-flamegraph-tooltip-popup',
               offset: NODE_HEIGHT,
             },
@@ -448,6 +450,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     size: Size2D,
     rect: Rect2D,
   ) {
+    this.canvasRect = rect;
     this.canvasWidth = size.width;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
@@ -561,6 +564,14 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         ctx.lineWidth = 0.5;
       }
     }
+  }
+
+  private isPopupAnchorVisible(): boolean {
+    if (!this.tooltipPos || !this.canvasRect) {
+      return false;
+    }
+    const {y} = this.tooltipPos;
+    return y >= this.canvasRect.top && y <= this.canvasRect.bottom;
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
@@ -1161,17 +1172,17 @@ const BLACK_COLOR = new HSLColor([0, 0, 0]);
 const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 62]);
 
 function makeColorScheme(base: Color, variant: Color) {
+  // Use the same text color for both base and variant to prevent text color
+  // switching on hover. The text color is determined by the base color only.
+  const textColor =
+    base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
+      ? BLACK_COLOR
+      : WHITE_COLOR;
   return {
     base,
     variant,
-    textBase:
-      base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
-        ? BLACK_COLOR
-        : WHITE_COLOR,
-    textVariant:
-      variant.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
-        ? BLACK_COLOR
-        : WHITE_COLOR,
+    textBase: textColor,
+    textVariant: textColor,
   };
 }
 
