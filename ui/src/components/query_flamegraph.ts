@@ -155,7 +155,7 @@ interface QueryFlamegraphAttrs {
   readonly metrics?: ReadonlyArray<QueryFlamegraphMetric>;
 
   // The current state of the flamegraph (filters, view, selected metric, etc).
-  readonly state: FlamegraphState;
+  readonly state?: FlamegraphState;
 
   // Callback invoked when the flamegraph state changes (e.g., user changes
   // filters, selects a different metric, etc).
@@ -196,17 +196,21 @@ export class QueryFlamegraph implements AsyncDisposable {
 
   render(attrs: QueryFlamegraphAttrs) {
     const {metrics, state, onStateChange} = attrs;
+    this.lastAttrs = attrs;
     if (this.monitor.ifStateChanged()) {
-      this.lastAttrs = attrs;
       this.data = undefined;
-      if (metrics) {
+      if (metrics && state) {
         this.fetchData(metrics, state);
       }
     }
     return m(Flamegraph, {
       metrics: metrics ?? [],
       data: this.data,
-      state,
+      state: state ?? {
+        view: {kind: 'TOP_DOWN'},
+        selectedMetricName: '',
+        filters: [],
+      },
       onStateChange,
     });
   }

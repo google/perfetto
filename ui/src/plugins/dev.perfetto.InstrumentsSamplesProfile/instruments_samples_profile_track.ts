@@ -39,7 +39,7 @@ export function createProcessInstrumentsSamplesProfileTrack(
   trace: Trace,
   uri: string,
   upid: number,
-  detailsPanelState: FlamegraphState,
+  detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   return SliceTrack.create({
@@ -151,7 +151,7 @@ export function createThreadInstrumentsSamplesProfileTrack(
   trace: Trace,
   uri: string,
   utid: number,
-  detailsPanelState: FlamegraphState,
+  detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   return SliceTrack.create({
@@ -262,7 +262,7 @@ function renderDetailsPanel(
   flamegraph: QueryFlamegraph,
   metrics: ReadonlyArray<QueryFlamegraphMetric>,
   ts: time,
-  state: FlamegraphState,
+  state: FlamegraphState | undefined,
   onStateChange: (state: FlamegraphState) => void,
 ) {
   return m(

@@ -35,8 +35,8 @@ const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 
 const CPU_PROFILE_PLUGIN_STATE_SCHEMA = z
   .object({
-    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
-    detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
   })
   .readonly();
 
@@ -50,14 +50,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
 
   private migrateCpuProfilePluginState(init: unknown): CpuProfilePluginState {
     const result = CPU_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    // Return default state with empty state
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {

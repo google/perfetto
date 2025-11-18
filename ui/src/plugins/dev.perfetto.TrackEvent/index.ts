@@ -49,7 +49,7 @@ function createTrackEventDetailsPanel(trace: Trace) {
 }
 
 const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
@@ -66,12 +66,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
   private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
     const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {

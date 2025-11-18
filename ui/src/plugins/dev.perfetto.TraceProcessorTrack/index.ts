@@ -57,7 +57,7 @@ import {Store} from '../../base/store';
 import {z} from 'zod';
 
 const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type TraceProcessorTrackPluginState = z.infer<
@@ -78,12 +78,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     init: unknown,
   ): TraceProcessorTrackPluginState {
     const result = TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {

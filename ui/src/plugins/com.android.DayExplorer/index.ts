@@ -35,7 +35,7 @@ import {assertExists} from '../../base/logging';
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
 const DAY_EXPLORER_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type DayExplorerPluginState = z.infer<typeof DAY_EXPLORER_PLUGIN_STATE_SCHEMA>;
@@ -48,12 +48,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
 
   private migrateDayExplorerPluginState(init: unknown): DayExplorerPluginState {
     const result = DAY_EXPLORER_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   private support(ctx: Trace) {

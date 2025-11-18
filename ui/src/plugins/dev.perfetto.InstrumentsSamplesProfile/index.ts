@@ -46,8 +46,8 @@ export interface Data extends TrackData {
 const INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND = 'InstrumentsSamplesProfileTrack';
 
 const INSTRUMENTS_SAMPLES_PROFILE_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
-  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type InstrumentsSamplesProfilePluginState = z.infer<
@@ -69,13 +69,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
   ): InstrumentsSamplesProfilePluginState {
     const result =
       INSTRUMENTS_SAMPLES_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {

@@ -42,8 +42,8 @@ import {z} from 'zod';
 const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
 const LINUX_PERF_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
-  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type LinuxPerfPluginState = z.infer<typeof LINUX_PERF_PLUGIN_STATE_SCHEMA>;
@@ -63,13 +63,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
 
   private migrateLinuxPerfPluginState(init: unknown): LinuxPerfPluginState {
     const result = LINUX_PERF_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {

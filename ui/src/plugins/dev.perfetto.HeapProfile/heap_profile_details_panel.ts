@@ -102,7 +102,7 @@ export class HeapProfileFlamegraphDetailsPanel
     private readonly upid: number,
     private readonly profileType: ProfileType,
     private readonly ts: time,
-    private state: FlamegraphState,
+    private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
     this.props = {ts, type: profileType};

@@ -42,7 +42,7 @@ export function createPerfCallsitesTrack(
   upid: number | undefined,
   utid: number | undefined,
   sessionId: number | undefined,
-  detailsPanelState: FlamegraphState,
+  detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   const constraints = [];
@@ -165,7 +165,7 @@ function renderDetailsPanel(
   flamegraph: QueryFlamegraph,
   metrics: ReadonlyArray<QueryFlamegraphMetric>,
   ts: time,
-  state: FlamegraphState,
+  state: FlamegraphState | undefined,
   onStateChange: (state: FlamegraphState) => void,
 ) {
   return m(

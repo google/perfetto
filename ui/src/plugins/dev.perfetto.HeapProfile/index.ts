@@ -20,7 +20,7 @@ import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {Track} from '../../public/track';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 import {assertExists} from '../../base/logging';
@@ -28,7 +28,7 @@ import {assertExists} from '../../base/logging';
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
 const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.object({
-  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type HeapProfilePluginState = z.infer<typeof HEAP_PROFILE_PLUGIN_STATE_SCHEMA>;
@@ -42,12 +42,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
     const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {

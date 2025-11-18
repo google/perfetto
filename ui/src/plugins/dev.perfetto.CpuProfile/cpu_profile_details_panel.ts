@@ -53,7 +53,7 @@ export class CpuProfileSampleFlamegraphDetailsPanel
     private readonly trace: Trace,
     private readonly ts: time,
     private readonly utid: number,
-    private state: FlamegraphState,
+    private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
     this.flamegraph = new QueryFlamegraph(trace);
