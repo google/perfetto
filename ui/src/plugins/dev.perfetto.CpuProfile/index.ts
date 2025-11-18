@@ -30,9 +30,12 @@ import {assertExists} from '../../base/logging';
 
 const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 
-export default class implements PerfettoPlugin {
+export default class CpuProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
+
+  private areaSelectionSerialization = Flamegraph.createEmptySerialization();
+  private detailsPanelSerialization = Flamegraph.createEmptySerialization();
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
@@ -67,7 +70,12 @@ export default class implements PerfettoPlugin {
           utid,
           ...(exists(upid) && {upid}),
         },
-        renderer: createCpuProfileTrack(ctx, uri, utid),
+        renderer: createCpuProfileTrack(
+          ctx,
+          uri,
+          utid,
+          this.detailsPanelSerialization,
+        ),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -80,52 +88,51 @@ export default class implements PerfettoPlugin {
       group?.addChildInOrder(track);
     }
 
-    ctx.selection.registerAreaSelectionTab(createAreaSelectionTab(ctx));
+    ctx.selection.registerAreaSelectionTab(this.createAreaSelectionTab(ctx));
 
     ctx.onTraceReady.addListener(async () => {
       await selectCpuProfileCallsite(ctx);
     });
   }
-}
 
-function createAreaSelectionTab(trace: Trace) {
-  let previousSelection: undefined | AreaSelection;
-  let flamegraph: undefined | QueryFlamegraph;
+  private createAreaSelectionTab(trace: Trace) {
+    let previousSelection: undefined | AreaSelection;
+    let flamegraph: undefined | QueryFlamegraph;
 
-  return {
-    id: 'cpu_profile_flamegraph',
-    name: 'CPU Profile Sample Flamegraph',
-    render(selection: AreaSelection) {
-      const changed =
-        previousSelection === undefined ||
-        !areaSelectionsEqual(previousSelection, selection);
+    return {
+      id: 'cpu_profile_flamegraph',
+      name: 'CPU Profile Sample Flamegraph',
+      render: (selection: AreaSelection) => {
+        const changed =
+          previousSelection === undefined ||
+          !areaSelectionsEqual(previousSelection, selection);
 
-      if (changed) {
-        flamegraph = computeCpuProfileFlamegraph(trace, selection);
-        previousSelection = selection;
+        if (changed) {
+          flamegraph = this.computeCpuProfileFlamegraph(trace, selection);
+          previousSelection = selection;
+        }
+
+        if (flamegraph === undefined) {
+          return undefined;
+        }
+
+        return {isLoading: false, content: flamegraph.render()};
+      },
+    };
+  }
+
+  private computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
+    const utids = [];
+    for (const trackInfo of selection.tracks) {
+      if (trackInfo?.tags?.kinds?.includes(CPU_PROFILE_TRACK_KIND)) {
+        utids.push(trackInfo.tags?.utid);
       }
-
-      if (flamegraph === undefined) {
-        return undefined;
-      }
-
-      return {isLoading: false, content: flamegraph.render()};
-    },
-  };
-}
-
-function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
-  const utids = [];
-  for (const trackInfo of selection.tracks) {
-    if (trackInfo?.tags?.kinds?.includes(CPU_PROFILE_TRACK_KIND)) {
-      utids.push(trackInfo.tags?.utid);
     }
-  }
-  if (utids.length === 0) {
-    return undefined;
-  }
-  const metrics = metricsFromTableOrSubquery(
-    `
+    if (utids.length === 0) {
+      return undefined;
+    }
+    const metrics = metricsFromTableOrSubquery(
+      `
       (
         select
           id,
@@ -143,26 +150,26 @@ function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
         ))
       )
     `,
-    [
-      {
-        name: 'CPU Profile Samples',
-        unit: '',
-        columnName: 'self_count',
-      },
-    ],
-    'include perfetto module callstacks.stack_profile',
-    [{name: 'mapping_name', displayName: 'Mapping'}],
-    [
-      {
-        name: 'source_location',
-        displayName: 'Source Location',
-        mergeAggregation: 'ONE_OR_SUMMARY',
-      },
-    ],
-  );
-  return new QueryFlamegraph(trace, metrics, {
-    state: Flamegraph.createDefaultState(metrics),
-  });
+      [
+        {
+          name: 'CPU Profile Samples',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      'include perfetto module callstacks.stack_profile',
+      [{name: 'mapping_name', displayName: 'Mapping'}],
+      [
+        {
+          name: 'source_location',
+          displayName: 'Source Location',
+          mergeAggregation: 'ONE_OR_SUMMARY',
+        },
+      ],
+    );
+    Flamegraph.updateSerialization(this.areaSelectionSerialization, metrics);
+    return new QueryFlamegraph(trace, metrics, this.areaSelectionSerialization);
+  }
 }
 
 async function selectCpuProfileCallsite(trace: Trace) {
