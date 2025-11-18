@@ -22,8 +22,8 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/tracing/default_socket.h"
 
-#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto {
 

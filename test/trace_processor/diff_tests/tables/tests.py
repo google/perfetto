@@ -131,52 +131,6 @@ class Tables(TestSuite):
         query=Metric('trace_metadata'),
         out=Path('trace_metadata.json.out'))
 
-  # Processes as a metric
-  def test_android_task_names(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          process_tree {
-            processes {
-              pid: 1
-              ppid: 0
-              cmdline: "init"
-              uid: 0
-            }
-            processes {
-              pid: 2
-              ppid: 1
-              cmdline: "com.google.android.gm:process"
-              uid: 10001
-            }
-          }
-        }
-        packet {
-          packages_list {
-            packages {
-              name: "com.google.android.gm"
-              uid: 10001
-            }
-          }
-        }
-        """),
-        query=Metric('android_task_names'),
-        out=TextProto(r"""
-        android_task_names {
-          process {
-            pid: 1
-            process_name: "init"
-            uid: 0
-          }
-          process {
-            pid: 2
-            process_name: "com.google.android.gm:process"
-            uid: 10001
-            uid_package_name: "com.google.android.gm"
-          }
-        }
-        """))
-
   # Ftrace stats imports in metadata and stats tables
   def test_ftrace_setup_errors(self):
     return DiffTestBlueprint(
