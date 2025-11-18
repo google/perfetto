@@ -19,6 +19,11 @@ Unreleased:
       measurement of slice durations. Hold Alt to temporarily disable snapping.
   SDK:
     *
+  Tools:
+    * tracebox: Added `tracebox ctl` applet for explicit daemon lifecycle
+      management (start/stop/status). Default behavior now requires daemons
+      to be running on Linux/macOS. Use `tracebox ctl start` to manage
+      persistent daemons or `--autodaemonize` for legacy self-contained mode.
 
 v53.0 - 2025-11-12:
   SDK:

@@ -353,6 +353,10 @@ declare_args() {
       (perfetto_build_standalone || perfetto_build_with_android) &&
       !is_perfetto_build_generator
 
+  # Enables installation of systemd unit files.
+  # Only for standalone Linux builds where users build Perfetto themselves.
+  enable_perfetto_systemd = perfetto_build_standalone && is_linux
+
   # Enables httpd RPC support in the trace processor.
   # Further per-OS conditionals are applied in gn/BUILD.gn.
   # Chromium+Win: httpd support depends on enable_perfetto_ipc, which is not
