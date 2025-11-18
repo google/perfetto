@@ -522,10 +522,11 @@ std::array<FtraceMessageDescriptor, 597> descriptors{{
     },
     {
         "workqueue_activate_work",
-        1,
+        2,
         {
             {},
             {"work", ProtoSchemaType::kUint64},
+            {"function", ProtoSchemaType::kUint64},
         },
     },
     {
@@ -553,9 +554,9 @@ std::array<FtraceMessageDescriptor, 597> descriptors{{
             {},
             {"work", ProtoSchemaType::kUint64},
             {"function", ProtoSchemaType::kUint64},
-            {"workqueue", ProtoSchemaType::kUint64},
-            {"req_cpu", ProtoSchemaType::kUint32},
-            {"cpu", ProtoSchemaType::kUint32},
+            {"workqueue", ProtoSchemaType::kString},
+            {"req_cpu", ProtoSchemaType::kInt32},
+            {"cpu", ProtoSchemaType::kInt32},
         },
     },
     {
