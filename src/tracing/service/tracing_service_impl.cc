@@ -234,8 +234,6 @@ std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
 bool NameMatchesFilter(const std::string& name,
                        const std::vector<std::string>& name_filter,
                        const std::vector<std::string>& name_regex_filter) {
-  if (name_filter.empty() && name_regex_filter.empty())
-    return true;
   bool filter_matches = std::find(name_filter.begin(), name_filter.end(),
                                   name) != name_filter.end();
   bool filter_regex_matches =
@@ -1297,7 +1295,9 @@ void TracingServiceImpl::ChangeTraceConfig(ConsumerEndpointImpl* consumer,
       // Check if the producer name of this data source is present
       // in the name filters. We currently only support new filters, not
       // removing old ones.
-      if (!NameMatchesFilter(producer->name_, new_producer_name_filter,
+      if ((!new_producer_name_filter.empty() ||
+           !new_producer_name_regex_filter.empty()) &&
+          !NameMatchesFilter(producer->name_, new_producer_name_filter,
                              new_producer_name_regex_filter)) {
         continue;
       }
@@ -3194,13 +3194,16 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   }
 
   // Check producer name filter.
-  if (!NameMatchesFilter(producer->name_,
-                         cfg_data_source.producer_name_filter(),
-                         cfg_data_source.producer_name_regex_filter())) {
-    PERFETTO_DLOG("Data source: %s is filtered out for producer: %s",
-                  cfg_data_source.config().name().c_str(),
-                  producer->name_.c_str());
-    return nullptr;
+  if (cfg_data_source.producer_name_filter_size() ||
+      cfg_data_source.producer_name_regex_filter_size()) {
+    if (!NameMatchesFilter(producer->name_,
+                           cfg_data_source.producer_name_filter(),
+                           cfg_data_source.producer_name_regex_filter())) {
+      PERFETTO_DLOG("Data source: %s is filtered out for producer: %s",
+                    cfg_data_source.config().name().c_str(),
+                    producer->name_.c_str());
+      return nullptr;
+    }
   }
 
   auto relative_buffer_id = cfg_data_source.config().target_buffer();
