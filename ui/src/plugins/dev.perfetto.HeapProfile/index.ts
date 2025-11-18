@@ -20,14 +20,16 @@ import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {Track} from '../../public/track';
+import {Flamegraph} from '../../widgets/flamegraph';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
-export default class implements PerfettoPlugin {
+export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   private readonly trackMap = new Map<number, Track>();
+  private detailsPanelSerialization = Flamegraph.createEmptySerialization();
 
   async onTraceLoad(trace: Trace): Promise<void> {
     await this.createHeapProfileTable(trace);
@@ -93,6 +95,7 @@ export default class implements PerfettoPlugin {
           EVENT_TABLE_NAME,
           upid,
           incomplete,
+          this.detailsPanelSerialization,
         ),
       };
 

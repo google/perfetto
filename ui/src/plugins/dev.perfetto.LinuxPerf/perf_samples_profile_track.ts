@@ -22,7 +22,7 @@ import {
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, time} from '../../base/time';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {Flamegraph, FlamegraphSerialization} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -33,9 +33,10 @@ import {Stack} from '../../widgets/stack';
 export function createPerfCallsitesTrack(
   trace: Trace,
   uri: string,
-  upid?: number,
-  utid?: number,
-  sessionId?: number,
+  upid: number | undefined,
+  utid: number | undefined,
+  sessionId: number | undefined,
+  serialization: FlamegraphSerialization,
 ) {
   const constraints = [];
   if (upid !== undefined) {
@@ -111,10 +112,7 @@ export function createPerfCallsitesTrack(
           },
         ],
       );
-      const serialization = {
-        schema: FLAMEGRAPH_STATE_SCHEMA,
-        state: Flamegraph.createDefaultState(metrics),
-      };
+      Flamegraph.updateSerialization(serialization, metrics);
       const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
       return {
         render: () =>

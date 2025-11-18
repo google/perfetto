@@ -53,7 +53,7 @@ import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 
-export default class implements PerfettoPlugin {
+export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
@@ -61,6 +61,7 @@ export default class implements PerfettoPlugin {
   ];
 
   private groups = new Map<string, TrackNode>();
+  private sliceFlamegraphSerialization = Flamegraph.createEmptySerialization();
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCounters(ctx);
@@ -428,7 +429,147 @@ export default class implements PerfettoPlugin {
       createAggregationTab(ctx, new SliceSelectionAggregator()),
     );
     ctx.selection.registerAreaSelectionTab(new PivotTableTab(ctx));
-    ctx.selection.registerAreaSelectionTab(createSliceFlameGraphPanel(ctx));
+    ctx.selection.registerAreaSelectionTab(
+      this.createSliceFlameGraphPanel(ctx),
+    );
+  }
+
+  private createSliceFlameGraphPanel(trace: Trace) {
+    let previousSelection: AreaSelection | undefined;
+    let currentFlamegraph: QueryFlamegraph | undefined;
+    let isLoading = false;
+    const limiter = new AsyncLimiter();
+
+    return {
+      id: 'slice_flamegraph_selection',
+      name: 'Slice Flamegraph',
+      render: (selection: AreaSelection) => {
+        const selectionChanged =
+          previousSelection === undefined ||
+          !areaSelectionsEqual(previousSelection, selection);
+        previousSelection = selection;
+        if (selectionChanged) {
+          limiter.schedule(async () => {
+            // If we had a previous flamegraph, dispose of it now that the new
+            // one is ready.
+            const previousFlamegraph = currentFlamegraph;
+            if (previousFlamegraph) {
+              await previousFlamegraph[Symbol.asyncDispose]();
+            }
+
+            // Unset the flamegraph but set the isLoading flag so we render the
+            // right thing.
+            currentFlamegraph = undefined;
+            isLoading = true;
+
+            // Compute the new flamegraph
+            const flamegraph = await this.computeSliceFlamegraph(
+              trace,
+              selection,
+            );
+
+            // Swap the current flamegraph with the newly computed one, keeping
+            // track of the previous one so we can dispose of it.
+            currentFlamegraph = flamegraph;
+            isLoading = false;
+          });
+        }
+        if (currentFlamegraph === undefined && !isLoading) {
+          return undefined;
+        }
+        return {isLoading: isLoading, content: currentFlamegraph?.render()};
+      },
+    };
+  }
+
+  private async computeSliceFlamegraph(
+    trace: Trace,
+    currentSelection: AreaSelection,
+  ): Promise<QueryFlamegraph | undefined> {
+    const trackIds = [];
+    for (const trackInfo of currentSelection.tracks) {
+      if (!trackInfo?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
+        continue;
+      }
+      if (trackInfo.tags?.trackIds === undefined) {
+        continue;
+      }
+      trackIds.push(...trackInfo.tags.trackIds);
+    }
+    if (trackIds.length === 0) {
+      return undefined;
+    }
+
+    const dataset = new SourceDataset({
+      src: `
+        select
+          id,
+          dur,
+          ts,
+          parent_id,
+          name
+        from slice
+        where track_id in (${trackIds.join(',')})
+      `,
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        parent_id: NUM_NULL,
+        name: STR_NULL,
+      },
+    });
+
+    const iiTable = await createIITable(
+      trace.engine,
+      dataset,
+      currentSelection.start,
+      currentSelection.end,
+    );
+
+    const metrics = metricsFromTableOrSubquery(
+      `(
+        select *
+        from _viz_slice_ancestor_agg!(
+          (
+            select s.id, s.dur
+            from ${iiTable.name} s
+            left join ${iiTable.name} t on t.parent_id = s.id
+            where t.id is null
+          ),
+          ${iiTable.name}
+        )
+      )`,
+      [
+        {
+          name: 'Duration',
+          unit: 'ns',
+          columnName: 'self_dur',
+        },
+        {
+          name: 'Samples',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      'include perfetto module viz.slices;',
+      undefined,
+      [
+        {
+          name: 'simple_count',
+          displayName: 'Slice Count',
+          mergeAggregation: 'SUM',
+          isVisible: (_) => true,
+        },
+      ],
+    );
+    Flamegraph.updateSerialization(this.sliceFlamegraphSerialization, metrics);
+    return new QueryFlamegraph(
+      trace,
+      metrics,
+      this.sliceFlamegraphSerialization,
+      [iiTable],
+    );
   }
 
   private addMinimapContentProvider(ctx: Trace) {
@@ -577,137 +718,4 @@ export default class implements PerfettoPlugin {
       },
     });
   }
-}
-
-function createSliceFlameGraphPanel(trace: Trace) {
-  let previousSelection: AreaSelection | undefined;
-  let currentFlamegraph:
-    | Awaited<ReturnType<typeof computeSliceFlamegraph>>
-    | undefined;
-  const limiter = new AsyncLimiter();
-
-  return {
-    id: 'slice_flamegraph_selection',
-    name: 'Slice Flamegraph',
-    render(selection: AreaSelection) {
-      const selectionChanged =
-        previousSelection === undefined ||
-        !areaSelectionsEqual(previousSelection, selection);
-      previousSelection = selection;
-      if (selectionChanged) {
-        limiter.schedule(async () => {
-          // Compute the new flamegraph
-          const flamegraph = await computeSliceFlamegraph(trace, selection);
-
-          // Swap the current flamegraph with the newly computed one, keeping
-          // track of the previous one so we can dispose of it.
-          const previousFlamegraph = currentFlamegraph;
-          currentFlamegraph = flamegraph;
-
-          // If we had a previous flamegraph, dispose of it now that the new
-          // one is ready.
-          if (previousFlamegraph) {
-            await previousFlamegraph[Symbol.asyncDispose]();
-          }
-        });
-      }
-
-      if (currentFlamegraph === undefined) {
-        return undefined;
-      }
-
-      return {isLoading: false, content: currentFlamegraph.render()};
-    },
-  };
-}
-
-async function computeSliceFlamegraph(
-  trace: Trace,
-  currentSelection: AreaSelection,
-): Promise<QueryFlamegraph | undefined> {
-  const trackIds = [];
-  for (const trackInfo of currentSelection.tracks) {
-    if (!trackInfo?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
-      continue;
-    }
-    if (trackInfo.tags?.trackIds === undefined) {
-      continue;
-    }
-    trackIds.push(...trackInfo.tags.trackIds);
-  }
-  if (trackIds.length === 0) {
-    return undefined;
-  }
-
-  const dataset = new SourceDataset({
-    src: `
-      select
-        id,
-        dur,
-        ts,
-        parent_id,
-        name
-      from slice
-      where track_id in (${trackIds.join(',')})
-    `,
-    schema: {
-      id: NUM,
-      ts: LONG,
-      dur: LONG,
-      parent_id: NUM_NULL,
-      name: STR_NULL,
-    },
-  });
-
-  const iiTable = await createIITable(
-    trace.engine,
-    dataset,
-    currentSelection.start,
-    currentSelection.end,
-  );
-
-  const metrics = metricsFromTableOrSubquery(
-    `(
-      select *
-      from _viz_slice_ancestor_agg!(
-        (
-          select s.id, s.dur
-          from ${iiTable.name} s
-          left join ${iiTable.name} t on t.parent_id = s.id
-          where t.id is null
-        ),
-        ${iiTable.name}
-      )
-    )`,
-    [
-      {
-        name: 'Duration',
-        unit: 'ns',
-        columnName: 'self_dur',
-      },
-      {
-        name: 'Samples',
-        unit: '',
-        columnName: 'self_count',
-      },
-    ],
-    'include perfetto module viz.slices;',
-    undefined,
-    [
-      {
-        name: 'simple_count',
-        displayName: 'Slice Count',
-        mergeAggregation: 'SUM',
-        isVisible: (_) => true,
-      },
-    ],
-  );
-  return new QueryFlamegraph(
-    trace,
-    metrics,
-    {
-      state: Flamegraph.createDefaultState(metrics),
-    },
-    [iiTable],
-  );
 }

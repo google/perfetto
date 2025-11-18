@@ -27,8 +27,8 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {Trace} from '../../public/trace';
 import {
   Flamegraph,
-  FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphState,
+  FlamegraphSerialization,
 } from '../../widgets/flamegraph';
 
 export class CpuProfileSampleFlamegraphDetailsPanel
@@ -41,6 +41,7 @@ export class CpuProfileSampleFlamegraphDetailsPanel
     private readonly trace: Trace,
     private ts: time,
     utid: number,
+    serialization: FlamegraphSerialization,
   ) {
     const metrics = metricsFromTableOrSubquery(
       `
@@ -76,10 +77,8 @@ export class CpuProfileSampleFlamegraphDetailsPanel
         },
       ],
     );
-    this.serialization = {
-      schema: FLAMEGRAPH_STATE_SCHEMA,
-      state: Flamegraph.createDefaultState(metrics),
-    };
+    Flamegraph.updateSerialization(serialization, metrics);
+    this.serialization = serialization;
     this.flamegraph = new QueryFlamegraph(trace, metrics, this.serialization);
   }
 
