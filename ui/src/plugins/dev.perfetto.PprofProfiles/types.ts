@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  QueryFlamegraphMetric,
-  QueryFlamegraphState,
-} from '../../components/query_flamegraph';
+import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import {FlamegraphState} from '../../widgets/flamegraph';
 
 export interface PprofPageState {
-  flamegraphState: QueryFlamegraphState | undefined;
+  flamegraphState: FlamegraphState | undefined;
   selectedProfileId: string | undefined;
 }
 
