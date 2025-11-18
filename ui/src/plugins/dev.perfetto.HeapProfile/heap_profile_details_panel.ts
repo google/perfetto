@@ -80,29 +80,48 @@ interface Props {
 export class HeapProfileFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private readonly flamegraph: QueryFlamegraph;
+  private flamegraph?: QueryFlamegraph;
   private readonly props: Props;
   private flamegraphModalDismissed = false;
 
-  readonly serialization: TrackEventDetailsPanelSerializeArgs<FlamegraphState>;
+  // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+  // We moved serialization from being attached to selections to instead being
+  // attached to the plugin that loaded the panel.
+  readonly serialization: TrackEventDetailsPanelSerializeArgs<
+    FlamegraphState | undefined
+  > = {
+    schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    state: undefined,
+  };
 
   constructor(
-    private trace: Trace,
-    private heapGraphIncomplete: boolean,
-    private upid: number,
-    profileType: ProfileType,
-    ts: time,
-    initialState: FlamegraphState,
+    private readonly trace: Trace,
+    private readonly heapGraphIncomplete: boolean,
+    private readonly upid: number,
+    private readonly profileType: ProfileType,
+    private readonly ts: time,
+    private state: FlamegraphState,
     private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
-    const metrics = flamegraphMetrics(trace, profileType, ts, upid);
-    this.serialization = {
-      schema: FLAMEGRAPH_STATE_SCHEMA,
-      state: Flamegraph.updateState(initialState, metrics),
-    };
-    this.onStateChange(this.serialization.state);
-    this.flamegraph = new QueryFlamegraph(trace, metrics);
     this.props = {ts, type: profileType};
+  }
+
+  async load() {
+    const metrics = flamegraphMetrics(
+      this.trace,
+      this.profileType,
+      this.ts,
+      this.upid,
+    );
+    // If the state in the serialization is not undefined, we should read from
+    // it.
+    // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+    if (this.serialization.state !== undefined) {
+      this.state = Flamegraph.updateState(this.serialization.state, metrics);
+      this.onStateChange(this.state);
+      this.serialization.state = undefined;
+    }
+    this.flamegraph = new QueryFlamegraph(this.trace, metrics);
   }
 
   render() {
@@ -145,13 +164,10 @@ export class HeapProfileFlamegraphDetailsPanel
               }),
           ]),
         },
-        assertExists(this.flamegraph).render(
-          this.serialization.state,
-          (state) => {
-            this.serialization.state = state;
-            this.onStateChange(state);
-          },
-        ),
+        assertExists(this.flamegraph).render(this.state, (state) => {
+          this.state = state;
+          this.onStateChange(state);
+        }),
       ),
     );
   }

@@ -69,59 +69,74 @@ export function createProcessInstrumentsSamplesProfileTrack(
     sliceName: () => 'Instruments Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
-      const metrics = metricsFromTableOrSubquery(
-        `
-          (
-            select
-              id,
-              parent_id as parentId,
-              name,
-              mapping_name,
-              source_file || ':' || line_number as source_location,
-              self_count
-            from _callstacks_for_callsites!((
-              select p.callsite_id
-              from instruments_sample p
-              join thread t using (utid)
-              where p.ts >= ${row.ts}
-                and p.ts <= ${row.ts}
-                and t.upid = ${upid}
-            ))
-          )
-        `,
-        [
-          {
-            name: 'Instruments Samples',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module appleos.instruments.samples',
-        [{name: 'mapping_name', displayName: 'Mapping'}],
-        [
-          {
-            name: 'source_location',
-            displayName: 'Source Location',
-            mergeAggregation: 'ONE_OR_SUMMARY',
-          },
-        ],
-      );
+      // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+      // We moved serialization from being attached to selections to instead being
+      // attached to the plugin that loaded the panel.
       const serialization = {
-        schema: FLAMEGRAPH_STATE_SCHEMA,
-        state: Flamegraph.updateState(detailsPanelState, metrics),
+        schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+        state: undefined as FlamegraphState | undefined,
       };
-      onDetailsPanelStateChange(serialization.state);
-      const flamegraph = new QueryFlamegraph(trace, metrics);
+      let state = detailsPanelState;
+      let flamegraph: QueryFlamegraph | undefined = undefined;
+
       return {
+        load: async () => {
+          const metrics = metricsFromTableOrSubquery(
+            `
+              (
+                select
+                  id,
+                  parent_id as parentId,
+                  name,
+                  mapping_name,
+                  source_file || ':' || line_number as source_location,
+                  self_count
+                from _callstacks_for_callsites!((
+                  select p.callsite_id
+                  from instruments_sample p
+                  join thread t using (utid)
+                  where p.ts >= ${row.ts}
+                    and p.ts <= ${row.ts}
+                    and t.upid = ${upid}
+                ))
+              )
+            `,
+            [
+              {
+                name: 'Instruments Samples',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module appleos.instruments.samples',
+            [{name: 'mapping_name', displayName: 'Mapping'}],
+            [
+              {
+                name: 'source_location',
+                displayName: 'Source Location',
+                mergeAggregation: 'ONE_OR_SUMMARY',
+              },
+            ],
+          );
+          // If the state in the serialization is not undefined, we should read from
+          // it.
+          // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+          if (serialization.state !== undefined) {
+            state = Flamegraph.updateState(serialization.state, metrics);
+            onDetailsPanelStateChange(state);
+            serialization.state = undefined;
+          }
+          flamegraph = new QueryFlamegraph(trace, metrics);
+        },
         render: () =>
           renderDetailsPanel(
             trace,
-            flamegraph,
+            flamegraph!,
             Time.fromRaw(row.ts),
-            serialization.state,
-            (state) => {
-              serialization.state = state;
-              onDetailsPanelStateChange(serialization.state);
+            state,
+            (newState) => {
+              state = newState;
+              onDetailsPanelStateChange(newState);
             },
           ),
         serialization,
@@ -164,58 +179,73 @@ export function createThreadInstrumentsSamplesProfileTrack(
     sliceName: () => 'Instruments Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
-      const metrics = metricsFromTableOrSubquery(
-        `
-          (
-            select
-              id,
-              parent_id as parentId,
-              name,
-              mapping_name,
-              source_file || ':' || line_number as source_location,
-              self_count
-            from _callstacks_for_callsites!((
-              select p.callsite_id
-              from instruments_sample p
-              where p.ts >= ${row.ts}
-                and p.ts <= ${row.ts}
-                and p.utid = ${utid}
-            ))
-          )
-        `,
-        [
-          {
-            name: 'Instruments Samples',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module appleos.instruments.samples',
-        [{name: 'mapping_name', displayName: 'Mapping'}],
-        [
-          {
-            name: 'source_location',
-            displayName: 'Source Location',
-            mergeAggregation: 'ONE_OR_SUMMARY',
-          },
-        ],
-      );
+      // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+      // We moved serialization from being attached to selections to instead being
+      // attached to the plugin that loaded the panel.
       const serialization = {
-        schema: FLAMEGRAPH_STATE_SCHEMA,
-        state: Flamegraph.updateState(detailsPanelState, metrics),
+        schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+        state: undefined as FlamegraphState | undefined,
       };
-      onDetailsPanelStateChange(serialization.state);
-      const flamegraph = new QueryFlamegraph(trace, metrics);
+      let state = detailsPanelState;
+      let flamegraph: QueryFlamegraph | undefined = undefined;
+
       return {
+        load: async () => {
+          const metrics = metricsFromTableOrSubquery(
+            `
+              (
+                select
+                  id,
+                  parent_id as parentId,
+                  name,
+                  mapping_name,
+                  source_file || ':' || line_number as source_location,
+                  self_count
+                from _callstacks_for_callsites!((
+                  select p.callsite_id
+                  from instruments_sample p
+                  where p.ts >= ${row.ts}
+                    and p.ts <= ${row.ts}
+                    and p.utid = ${utid}
+                ))
+              )
+            `,
+            [
+              {
+                name: 'Instruments Samples',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module appleos.instruments.samples',
+            [{name: 'mapping_name', displayName: 'Mapping'}],
+            [
+              {
+                name: 'source_location',
+                displayName: 'Source Location',
+                mergeAggregation: 'ONE_OR_SUMMARY',
+              },
+            ],
+          );
+          // If the state in the serialization is not undefined, we should read from
+          // it.
+          // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+          if (serialization.state !== undefined) {
+            state = Flamegraph.updateState(serialization.state, metrics);
+            onDetailsPanelStateChange(state);
+            serialization.state = undefined;
+          }
+          flamegraph = new QueryFlamegraph(trace, metrics);
+        },
         render: () =>
           renderDetailsPanel(
             trace,
-            flamegraph,
+            flamegraph!,
             Time.fromRaw(row.ts),
-            serialization.state,
-            (state) => {
-              serialization.state = state;
-              onDetailsPanelStateChange(serialization.state);
+            state,
+            (newState) => {
+              state = newState;
+              onDetailsPanelStateChange(newState);
             },
           ),
         serialization,
