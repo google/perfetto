@@ -95,5 +95,6 @@ $box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
 // Mixin for using material icons inside a pseudo-element.
 @mixin material-icon($content) {
   @include icon;
+  @include hidden-while-fonts-loading;
   content: $content;
 }

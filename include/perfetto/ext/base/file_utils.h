@@ -28,6 +28,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/sys_types.h"
 
 namespace perfetto {
 namespace base {

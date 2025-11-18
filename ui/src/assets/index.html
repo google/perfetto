@@ -115,11 +115,28 @@ Technical Information:
       // sub-directory directory, hence ./frontend_bundle.js.
       const version = versionMap[channel] || versionMap['stable'] || '.';
 
+      // Preloading reduce latency of key assets requires for drawing the app.
+      // We need to strike a balance here to avoid kicking off too many
+      // concurrent requests and slowing down everything.
+      const assetsPreload = {
+        '/perfetto.css': {as: 'style'},
+        '/assets/MaterialSymbolsOutlined.woff2': {as: 'font', type: 'font/woff2'},
+        '/assets/RobotoCondensed-Regular.woff2': {as: 'font', type: 'font/woff2'},
+        '/assets/Roboto-400.woff2': {as: 'font', type: 'font/woff2'},
+      };
+      for (const [preloadPath, preloadAttrs] of Object.entries(assetsPreload)) {
+        const preloadLink = document.createElement('link');
+        preloadLink.rel = 'preload';
+        preloadLink.crossOrigin = 'crossorigin';
+        preloadLink.href = version + preloadPath;
+        Object.assign(preloadLink, preloadAttrs);
+        document.head.append(preloadLink);
+      }
+
       const script = document.createElement('script');
       script.async = true;
       script.src = version + '/frontend_bundle.js';
       script.onerror = () => errHandler(`Failed to load ${script.src}`);
-
       document.head.append(script);
     })();
   </script>
