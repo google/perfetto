@@ -20,10 +20,10 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
-#include "perfetto/tracing/core/tracing_service_state.h"
 #include "perfetto/tracing/default_socket.h"
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/common/tracing_service_state.gen.h"
 
 namespace perfetto {
 
@@ -119,7 +119,7 @@ void TestHelper::ReadTraceData(std::vector<TracePacket> packets) {
     if (packet.has_clock_snapshot() || packet.has_trace_uuid() ||
         packet.has_trace_config() || packet.has_trace_stats() ||
         !packet.synchronization_marker().empty() || packet.has_system_info() ||
-        packet.has_service_event()) {
+        packet.has_service_event() || packet.has_remote_clock_sync()) {
       continue;
     }
     PERFETTO_CHECK(packet.has_trusted_uid());
