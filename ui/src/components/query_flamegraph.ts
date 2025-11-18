@@ -16,7 +16,6 @@ import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/logging';
-import {Monitor} from '../base/monitor';
 import {uuidv4Sql} from '../base/uuid';
 import {Engine} from '../trace_processor/engine';
 import {
@@ -116,10 +115,6 @@ export interface QueryFlamegraphMetric {
   readonly optionalMarker?: FlamegraphOptionalMarker;
 }
 
-export interface QueryFlamegraphState {
-  state: FlamegraphState;
-}
-
 // Given a table and columns on those table (corresponding to metrics),
 // returns an array of `QueryFlamegraphMetric` structs which can be passed
 // in QueryFlamegraph's attrs.
@@ -157,16 +152,15 @@ export function metricsFromTableOrSubquery(
 // data for the widget by querying an `Engine`.
 export class QueryFlamegraph implements AsyncDisposable {
   private data?: FlamegraphQueryData;
-  private readonly selMonitor = new Monitor([() => this.state.state]);
   private readonly queryLimiter = new AsyncLimiter();
   private readonly dependencies: ReadonlyArray<
     SharedAsyncDisposable<AsyncDisposable>
   >;
+  private lastState?: FlamegraphState;
 
   constructor(
     private readonly trace: Trace,
     private readonly metrics: ReadonlyArray<QueryFlamegraphMetric>,
-    private state: QueryFlamegraphState,
     dependencies: ReadonlyArray<AsyncDisposable> = [],
   ) {
     this.dependencies = dependencies.map((d) => SharedAsyncDisposable.wrap(d));
@@ -178,15 +172,16 @@ export class QueryFlamegraph implements AsyncDisposable {
     }
   }
 
-  render() {
-    if (this.selMonitor.ifStateChanged()) {
+  render(
+    state: FlamegraphState,
+    onStateChange: (state: FlamegraphState) => void,
+  ) {
+    if (this.lastState !== state) {
+      this.lastState = state;
       const metric = assertExists(
-        this.metrics.find(
-          (x) => this.state.state.selectedMetricName === x.name,
-        ),
+        this.metrics.find((x) => state.selectedMetricName === x.name),
       );
       const engine = this.trace.engine;
-      const state = this.state;
       this.data = undefined;
       this.queryLimiter.schedule(async () => {
         this.data = undefined;
@@ -199,16 +194,14 @@ export class QueryFlamegraph implements AsyncDisposable {
         for (const dependency of this.dependencies ?? []) {
           trash.use(dependency.clone());
         }
-        this.data = await computeFlamegraphTree(engine, metric, state.state);
+        this.data = await computeFlamegraphTree(engine, metric, state);
       });
     }
     return m(Flamegraph, {
       metrics: this.metrics,
       data: this.data,
-      state: this.state.state,
-      onStateChange: (state) => {
-        this.state.state = state;
-      },
+      state,
+      onStateChange,
     });
   }
 }

@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  QueryFlamegraphMetric,
-  QueryFlamegraphState,
-} from '../../components/query_flamegraph';
+import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {z} from 'zod';
 
-export interface PprofPageState {
-  flamegraphState: QueryFlamegraphState | undefined;
-  selectedProfileId: string | undefined;
-}
+export const PPROF_PAGE_STATE_SCHEMA = z.object({
+  flamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  selectedProfileId: z.string().optional(),
+});
+
+export type PprofPageState = z.infer<typeof PPROF_PAGE_STATE_SCHEMA>;
 
 export interface PprofProfile {
   readonly id: string;
