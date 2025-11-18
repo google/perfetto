@@ -19,7 +19,7 @@ export const SIDEBAR_SECTIONS = {
   navigation: {
     title: 'Navigation',
     summary: 'Open or record a new trace',
-    icon: Icons.FolderOpen,
+    icon: 'source',
   },
   current_trace: {
     title: 'Current Trace',
