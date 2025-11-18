@@ -79,7 +79,7 @@ export class CpuProfileSampleFlamegraphDetailsPanel
     );
     Flamegraph.updateSerialization(serialization, metrics);
     this.serialization = serialization;
-    this.flamegraph = new QueryFlamegraph(trace, metrics, this.serialization);
+    this.flamegraph = new QueryFlamegraph(trace, metrics);
   }
 
   render() {
@@ -96,7 +96,9 @@ export class CpuProfileSampleFlamegraphDetailsPanel
             m(Timestamp, {trace: this.trace, ts: this.ts}),
           ),
         },
-        this.flamegraph.render(),
+        this.flamegraph.render(this.serialization.state, (state) => {
+          this.serialization.state = state;
+        }),
       ),
     );
   }

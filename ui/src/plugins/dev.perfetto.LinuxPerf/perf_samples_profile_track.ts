@@ -113,10 +113,15 @@ export function createPerfCallsitesTrack(
         ],
       );
       Flamegraph.updateSerialization(serialization, metrics);
-      const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
+      const flamegraph = new QueryFlamegraph(trace, metrics);
       return {
         render: () =>
-          renderDetailsPanel(trace, flamegraph, Time.fromRaw(row.ts)),
+          renderDetailsPanel(
+            trace,
+            flamegraph,
+            Time.fromRaw(row.ts),
+            serialization,
+          ),
         serialization,
       };
     },
@@ -127,6 +132,7 @@ function renderDetailsPanel(
   trace: Trace,
   flamegraph: QueryFlamegraph,
   ts: time,
+  serialization: FlamegraphSerialization,
 ) {
   return m(
     '.pf-flamegraph-profile',
@@ -145,7 +151,9 @@ function renderDetailsPanel(
           ]),
         ]),
       },
-      flamegraph.render(),
+      flamegraph.render(serialization.state, (state) => {
+        serialization.state = state;
+      }),
     ),
   );
 }

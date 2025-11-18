@@ -77,7 +77,11 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
         this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
           m(StackFixed, this.renderViewExplanation()),
         m(StackAuto, [
-          this.flamegraph && this.flamegraph.render(),
+          this.flamegraph &&
+            attrs.state.flamegraphState &&
+            this.flamegraph.render(attrs.state.flamegraphState, (state) => {
+              attrs.state.flamegraphState = state;
+            }),
           !this.flamegraph && this.renderEmptyState(),
         ]),
       ],
@@ -90,14 +94,10 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
       attrs.state.flamegraphState = undefined;
       return;
     }
-    attrs.state.flamegraphState = {
-      state: Flamegraph.createDefaultState(profile.metrics),
-    };
-    this.flamegraph = new QueryFlamegraph(
-      attrs.trace,
+    attrs.state.flamegraphState = Flamegraph.createDefaultState(
       profile.metrics,
-      attrs.state.flamegraphState,
     );
+    this.flamegraph = new QueryFlamegraph(attrs.trace, profile.metrics);
   }
 
   private shouldShowExplanation(key: string): boolean {

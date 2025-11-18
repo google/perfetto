@@ -477,7 +477,15 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         if (currentFlamegraph === undefined && !isLoading) {
           return undefined;
         }
-        return {isLoading: isLoading, content: currentFlamegraph?.render()};
+        return {
+          isLoading: isLoading,
+          content: currentFlamegraph?.render(
+            this.sliceFlamegraphSerialization.state,
+            (state) => {
+              this.sliceFlamegraphSerialization.state = state;
+            },
+          ),
+        };
       },
     };
   }
@@ -564,12 +572,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       ],
     );
     Flamegraph.updateSerialization(this.sliceFlamegraphSerialization, metrics);
-    return new QueryFlamegraph(
-      trace,
-      metrics,
-      this.sliceFlamegraphSerialization,
-      [iiTable],
-    );
+    return new QueryFlamegraph(trace, metrics, [iiTable]);
   }
 
   private addMinimapContentProvider(ctx: Trace) {

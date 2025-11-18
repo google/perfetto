@@ -243,7 +243,15 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         if (flamegraph === undefined) {
           return undefined;
         }
-        return {isLoading: false, content: flamegraph.render()};
+        return {
+          isLoading: false,
+          content: flamegraph.render(
+            this.areaSelectionSerialization.state,
+            (state) => {
+              this.areaSelectionSerialization.state = state;
+            },
+          ),
+        };
       },
     };
   }
@@ -328,7 +336,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       ],
     );
     Flamegraph.updateSerialization(this.areaSelectionSerialization, metrics);
-    return new QueryFlamegraph(trace, metrics, this.areaSelectionSerialization);
+    return new QueryFlamegraph(trace, metrics);
   }
 
   private findParentTrackNode(
