@@ -22,11 +22,16 @@ import {
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, time} from '../../base/time';
-import {Flamegraph, FlamegraphSerialization} from '../../widgets/flamegraph';
+import {
+  Flamegraph,
+  FlamegraphState,
+  FLAMEGRAPH_STATE_SCHEMA,
+} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Stack} from '../../widgets/stack';
+import {TrackEventDetailsPanelSerializeArgs} from '../../public/details_panel';
 
 // TODO(stevegolton): Dedupe this file with instruments_samples_profile_track.ts
 
@@ -36,7 +41,8 @@ export function createPerfCallsitesTrack(
   upid: number | undefined,
   utid: number | undefined,
   sessionId: number | undefined,
-  serialization: FlamegraphSerialization,
+  detailsPanelState: FlamegraphState,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   const constraints = [];
   if (upid !== undefined) {
@@ -112,7 +118,11 @@ export function createPerfCallsitesTrack(
           },
         ],
       );
-      Flamegraph.updateSerialization(serialization, metrics);
+      const serialization = {
+        schema: FLAMEGRAPH_STATE_SCHEMA,
+        state: Flamegraph.updateState(detailsPanelState, metrics),
+      };
+      onDetailsPanelStateChange(serialization.state);
       const flamegraph = new QueryFlamegraph(trace, metrics);
       return {
         render: () =>
@@ -121,6 +131,7 @@ export function createPerfCallsitesTrack(
             flamegraph,
             Time.fromRaw(row.ts),
             serialization,
+            onDetailsPanelStateChange,
           ),
         serialization,
       };
@@ -132,7 +143,8 @@ function renderDetailsPanel(
   trace: Trace,
   flamegraph: QueryFlamegraph,
   ts: time,
-  serialization: FlamegraphSerialization,
+  serialization: TrackEventDetailsPanelSerializeArgs<FlamegraphState>,
+  onStateChange: (state: FlamegraphState) => void,
 ) {
   return m(
     '.pf-flamegraph-profile',
@@ -153,6 +165,7 @@ function renderDetailsPanel(
       },
       flamegraph.render(serialization.state, (state) => {
         serialization.state = state;
+        onStateChange(state);
       }),
     ),
   );

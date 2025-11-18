@@ -22,7 +22,11 @@ import {
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, time} from '../../base/time';
-import {Flamegraph, FlamegraphSerialization} from '../../widgets/flamegraph';
+import {
+  Flamegraph,
+  FlamegraphState,
+  FLAMEGRAPH_STATE_SCHEMA,
+} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -34,7 +38,8 @@ export function createProcessInstrumentsSamplesProfileTrack(
   trace: Trace,
   uri: string,
   upid: number,
-  serialization: FlamegraphSerialization,
+  detailsPanelState: FlamegraphState,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   return SliceTrack.create({
     trace,
@@ -101,7 +106,11 @@ export function createProcessInstrumentsSamplesProfileTrack(
           },
         ],
       );
-      Flamegraph.updateSerialization(serialization, metrics);
+      const serialization = {
+        schema: FLAMEGRAPH_STATE_SCHEMA,
+        state: Flamegraph.updateState(detailsPanelState, metrics),
+      };
+      onDetailsPanelStateChange(serialization.state);
       const flamegraph = new QueryFlamegraph(trace, metrics);
       return {
         render: () =>
@@ -109,7 +118,11 @@ export function createProcessInstrumentsSamplesProfileTrack(
             trace,
             flamegraph,
             Time.fromRaw(row.ts),
-            serialization,
+            serialization.state,
+            (state) => {
+              serialization.state = state;
+              onDetailsPanelStateChange(serialization.state);
+            },
           ),
         serialization,
       };
@@ -121,7 +134,8 @@ export function createThreadInstrumentsSamplesProfileTrack(
   trace: Trace,
   uri: string,
   utid: number,
-  serialization: FlamegraphSerialization,
+  detailsPanelState: FlamegraphState,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   return SliceTrack.create({
     trace,
@@ -186,7 +200,11 @@ export function createThreadInstrumentsSamplesProfileTrack(
           },
         ],
       );
-      Flamegraph.updateSerialization(serialization, metrics);
+      const serialization = {
+        schema: FLAMEGRAPH_STATE_SCHEMA,
+        state: Flamegraph.updateState(detailsPanelState, metrics),
+      };
+      onDetailsPanelStateChange(serialization.state);
       const flamegraph = new QueryFlamegraph(trace, metrics);
       return {
         render: () =>
@@ -194,7 +212,11 @@ export function createThreadInstrumentsSamplesProfileTrack(
             trace,
             flamegraph,
             Time.fromRaw(row.ts),
-            serialization,
+            serialization.state,
+            (state) => {
+              serialization.state = state;
+              onDetailsPanelStateChange(serialization.state);
+            },
           ),
         serialization,
       };
@@ -206,7 +228,8 @@ function renderDetailsPanel(
   trace: Trace,
   flamegraph: QueryFlamegraph,
   ts: time,
-  serialization: FlamegraphSerialization,
+  state: FlamegraphState,
+  onStateChange: (state: FlamegraphState) => void,
 ) {
   return m(
     '.pf-flamegraph-profile',
@@ -232,9 +255,7 @@ function renderDetailsPanel(
           ]),
         ]),
       },
-      flamegraph.render(serialization.state, (state) => {
-        serialization.state = state;
-      }),
+      flamegraph.render(state, onStateChange),
     ),
   );
 }

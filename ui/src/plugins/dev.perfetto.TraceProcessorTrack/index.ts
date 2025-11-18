@@ -41,7 +41,7 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
-import {Flamegraph} from '../../widgets/flamegraph';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
@@ -52,6 +52,16 @@ import {SLICE_TRACK_SCHEMAS} from './slice_tracks';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
+import {Store} from '../../base/store';
+import {z} from 'zod';
+
+const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+});
+
+type TraceProcessorTrackPluginState = z.infer<
+  typeof TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA
+>;
 
 export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
@@ -61,9 +71,24 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   ];
 
   private groups = new Map<string, TrackNode>();
-  private sliceFlamegraphSerialization = Flamegraph.createEmptySerialization();
+  private store?: Store<TraceProcessorTrackPluginState>;
+
+  private migrateTraceProcessorTrackPluginState(
+    init: unknown,
+  ): TraceProcessorTrackPluginState {
+    const result = TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA.safeParse(init);
+    if (result.success) {
+      return result.data;
+    }
+    return {
+      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
+    };
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    this.store = ctx.mountStore(TraceProcessorTrackPlugin.id, (init) =>
+      this.migrateTraceProcessorTrackPluginState(init),
+    );
     await this.addCounters(ctx);
     await this.addSlices(ctx);
     this.addAggregations(ctx);
@@ -480,9 +505,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         return {
           isLoading: isLoading,
           content: currentFlamegraph?.render(
-            this.sliceFlamegraphSerialization.state,
+            assertExists(this.store).state.areaSelectionFlamegraphState,
             (state) => {
-              this.sliceFlamegraphSerialization.state = state;
+              assertExists(this.store).edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
             },
           ),
         };
@@ -571,7 +598,13 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         },
       ],
     );
-    Flamegraph.updateSerialization(this.sliceFlamegraphSerialization, metrics);
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
     return new QueryFlamegraph(trace, metrics, [iiTable]);
   }
 

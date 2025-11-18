@@ -30,13 +30,22 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {Flamegraph} from '../../widgets/flamegraph';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {createPerfCallsitesTrack} from './perf_samples_profile_track';
+import {Store} from '../../base/store';
+import {z} from 'zod';
 
 const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
+
+const LINUX_PERF_PLUGIN_STATE_SCHEMA = z.object({
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+});
+
+type LinuxPerfPluginState = z.infer<typeof LINUX_PERF_PLUGIN_STATE_SCHEMA>;
 
 function makeUriForProc(upid: number, sessionId: number) {
   return `/process_${upid}/perf_samples_profile_${sessionId}`;
@@ -49,12 +58,26 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     TraceProcessorTrackPlugin,
   ];
 
-  private areaSelectionSerialization = Flamegraph.createEmptySerialization();
-  private detailsPanelSerialization = Flamegraph.createEmptySerialization();
+  private store?: Store<LinuxPerfPluginState>;
+
+  private migrateLinuxPerfPluginState(init: unknown): LinuxPerfPluginState {
+    const result = LINUX_PERF_PLUGIN_STATE_SCHEMA.safeParse(init);
+    if (result.success) {
+      return result.data;
+    }
+    return {
+      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
+      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
+    };
+  }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    await this.addProcessPerfSamplesTracks(trace);
-    await this.addThreadPerfSamplesTracks(trace);
+    this.store = trace.mountStore(LinuxPerfPlugin.id, (init) =>
+      this.migrateLinuxPerfPluginState(init),
+    );
+    const store = assertExists(this.store);
+    await this.addProcessPerfSamplesTracks(trace, store);
+    await this.addThreadPerfSamplesTracks(trace, store);
     await this.addPerfCounterTracks(trace);
 
     trace.onTraceReady.addListener(async () => {
@@ -62,7 +85,10 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     });
   }
 
-  private async addProcessPerfSamplesTracks(trace: Trace) {
+  private async addProcessPerfSamplesTracks(
+    trace: Trace,
+    store: Store<LinuxPerfPluginState>,
+  ) {
     const pResult = await trace.engine.query(`
       SELECT DISTINCT upid, pct.name AS cntrName, perf_session_id AS sessionId
       FROM perf_sample
@@ -110,7 +136,12 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           upid,
           undefined,
           undefined,
-          this.detailsPanelSerialization,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
         ),
       });
       const group = trace.plugins
@@ -142,7 +173,12 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
             upid,
             undefined,
             sessionId,
-            this.detailsPanelSerialization,
+            store.state.detailsPanelFlamegraphState,
+            (state) => {
+              store.edit((draft) => {
+                draft.detailsPanelFlamegraphState = state;
+              });
+            },
           ),
         });
         const track = new TrackNode({
@@ -169,7 +205,10 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     });
   }
 
-  private async addThreadPerfSamplesTracks(trace: Trace) {
+  private async addThreadPerfSamplesTracks(
+    trace: Trace,
+    store: Store<LinuxPerfPluginState>,
+  ) {
     const tResult = await trace.engine.query(`
       SELECT DISTINCT
         upid, utid, tid, thread.name AS threadName,
@@ -234,7 +273,12 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           upid ?? undefined,
           utid,
           undefined,
-          this.detailsPanelSerialization,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
         ),
       });
       const group = trace.plugins
@@ -266,7 +310,12 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
             upid ?? undefined,
             utid,
             sessionId,
-            this.detailsPanelSerialization,
+            store.state.detailsPanelFlamegraphState,
+            (state) => {
+              store.edit((draft) => {
+                draft.detailsPanelFlamegraphState = state;
+              });
+            },
           ),
         });
         const track = new TrackNode({
@@ -365,9 +414,11 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         return {
           isLoading: false,
           content: flamegraph.render(
-            this.areaSelectionSerialization.state,
+            assertExists(this.store).state.areaSelectionFlamegraphState,
             (state) => {
-              this.areaSelectionSerialization.state = state;
+              assertExists(this.store).edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
             },
           ),
         };
@@ -433,7 +484,13 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         },
       ],
     );
-    Flamegraph.updateSerialization(this.areaSelectionSerialization, metrics);
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
     return new QueryFlamegraph(trace, metrics);
   }
 }

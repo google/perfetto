@@ -40,7 +40,7 @@ import {Modal, showModal} from '../../widgets/modal';
 import {
   Flamegraph,
   FlamegraphState,
-  FlamegraphSerialization,
+  FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphOptionalAction,
 } from '../../widgets/flamegraph';
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
@@ -92,11 +92,15 @@ export class HeapProfileFlamegraphDetailsPanel
     private upid: number,
     profileType: ProfileType,
     ts: time,
-    serialization: FlamegraphSerialization,
+    initialState: FlamegraphState,
+    private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
     const metrics = flamegraphMetrics(trace, profileType, ts, upid);
-    Flamegraph.updateSerialization(serialization, metrics);
-    this.serialization = serialization;
+    this.serialization = {
+      schema: FLAMEGRAPH_STATE_SCHEMA,
+      state: Flamegraph.updateState(initialState, metrics),
+    };
+    this.onStateChange(this.serialization.state);
     this.flamegraph = new QueryFlamegraph(trace, metrics);
     this.props = {ts, type: profileType};
   }
@@ -145,6 +149,7 @@ export class HeapProfileFlamegraphDetailsPanel
           this.serialization.state,
           (state) => {
             this.serialization.state = state;
+            this.onStateChange(state);
           },
         ),
       ),
