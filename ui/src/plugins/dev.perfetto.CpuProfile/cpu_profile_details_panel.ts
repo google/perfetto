@@ -28,21 +28,34 @@ import {Trace} from '../../public/trace';
 import {
   Flamegraph,
   FlamegraphState,
-  FlamegraphSerialization,
+  FLAMEGRAPH_STATE_SCHEMA,
 } from '../../widgets/flamegraph';
+import {assertExists} from '../../base/logging';
 
 export class CpuProfileSampleFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private readonly flamegraph: QueryFlamegraph;
-  readonly serialization: TrackEventDetailsPanelSerializeArgs<FlamegraphState>;
+  private flamegraph?: QueryFlamegraph;
+
+  // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+  // We moved serialization from being attached to selections to instead being
+  // attached to the plugin that loaded the panel.
+  readonly serialization: TrackEventDetailsPanelSerializeArgs<
+    FlamegraphState | undefined
+  > = {
+    schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    state: undefined,
+  };
 
   constructor(
     private readonly trace: Trace,
-    private ts: time,
-    utid: number,
-    serialization: FlamegraphSerialization,
-  ) {
+    private readonly ts: time,
+    private readonly utid: number,
+    private state: FlamegraphState,
+    private readonly onStateChange: (state: FlamegraphState) => void,
+  ) {}
+
+  async load() {
     const metrics = metricsFromTableOrSubquery(
       `
         (
@@ -56,7 +69,7 @@ export class CpuProfileSampleFlamegraphDetailsPanel
           from _callstacks_for_callsites!((
             select p.callsite_id
             from cpu_profile_stack_sample p
-            where p.ts = ${ts} and p.utid = ${utid}
+            where p.ts = ${this.ts} and p.utid = ${this.utid}
           ))
         )
       `,
@@ -77,9 +90,15 @@ export class CpuProfileSampleFlamegraphDetailsPanel
         },
       ],
     );
-    Flamegraph.updateSerialization(serialization, metrics);
-    this.serialization = serialization;
-    this.flamegraph = new QueryFlamegraph(trace, metrics);
+    // If the state in the serialization is not undefined, we should read from
+    // it.
+    // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+    if (this.serialization.state !== undefined) {
+      this.state = Flamegraph.updateState(this.serialization.state, metrics);
+      this.onStateChange(this.state);
+      this.serialization.state = undefined;
+    }
+    this.flamegraph = new QueryFlamegraph(this.trace, metrics);
   }
 
   render() {
@@ -96,8 +115,9 @@ export class CpuProfileSampleFlamegraphDetailsPanel
             m(Timestamp, {trace: this.trace, ts: this.ts}),
           ),
         },
-        this.flamegraph.render(this.serialization.state, (state) => {
-          this.serialization.state = state;
+        assertExists(this.flamegraph).render(this.state, (state) => {
+          this.state = state;
+          this.onStateChange(state);
         }),
       ),
     );
