@@ -123,6 +123,7 @@ const RULES = [
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
   {r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+[.]scss/, f: compileScss},
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
+  {r: /.*\/dist\/.+\/.*_bundle\.js\.map$/, f: stripFrontendSourceMap},
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
 ];
@@ -731,6 +732,46 @@ function copyExtensionAssets() {
     pjoin(ROOT_DIR, 'ui/src/chrome_extension/manifest.json'),
     pjoin(cfg.outExtDir, 'manifest.json'),
   ]);
+}
+
+/**
+ * For each path, creates a minimal source map file with stripped sourcesContent
+ * and names, used for lightweight stack translating in the UI.
+ * Each *.js.map file produces a *_min.js.map file.
+ */
+function stripFrontendSourceMap(srcMapPath) {
+  function stripSourcesContent() {
+    if (!fs.existsSync(srcMapPath)) {
+      return;
+    }
+    try {
+      const sourceMapContent = fs.readFileSync(srcMapPath, 'utf8');
+      const sourceMap = JSON.parse(sourceMapContent);
+      // Remove sourcesContent to reduce file size for custom error logging
+      delete sourceMap.sourcesContent; // No need for raw source 
+      delete sourceMap.names; // No need for names - we don't minify names in our build
+      // Remove ../../../out/ui/src prefix from all sources
+      if (sourceMap.sources && Array.isArray(sourceMap.sources)) {
+        sourceMap.sources = sourceMap.sources.map((source) => {
+          const prefix = '../../../out/ui/src/';
+          if (source.startsWith(prefix)) {
+            return source.substring(prefix.length);
+          }
+          return source;
+        });
+      }
+      const minMapPath = srcMapPath.replace('.js.map', '_min.js.map');
+      // Write with proper JSON formatting to ensure valid output
+      fs.writeFileSync(minMapPath, JSON.stringify(sourceMap, null, 2), 'utf8');
+      if (cfg.verbose) {
+        console.log('Created stripped source map:', path.relative(ROOT_DIR, minMapPath));
+      }
+    } catch (err) {
+      console.error('Error stripping source map:', err.message);
+      // Don't fail the build, just skip creating the minified map
+    }
+  }
+  addTask(stripSourcesContent, []);
 }
 
 // -----------------------

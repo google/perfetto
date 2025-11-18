@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {VERSION} from '../gen/perfetto_version';
+import {mapStackTraceWithMinifiedSourceMap} from './source_map_utils';
 import {exists} from './utils';
 
 export type ErrorType = 'ERROR' | 'PROMISE_REJ' | 'OTHER';
@@ -86,7 +87,9 @@ export function addErrorHandler(handler: ErrorHandler) {
   }
 }
 
-export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
+export async function reportError(
+  err: ErrorEvent | PromiseRejectionEvent | {},
+) {
   let errorObj = undefined;
   let errMsg = '';
   let errType: ErrorType;
@@ -117,6 +120,10 @@ export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
   } else {
     errType = 'OTHER';
     errMsg = `${err}`;
+  }
+
+  if ('stack' in errorObj && typeof errorObj.stack === 'string') {
+    errorObj.stack = await mapStackTraceWithMinifiedSourceMap(errorObj.stack);
   }
 
   // Remove useless "Uncaught Error:" or "Error:" prefixes which just create
