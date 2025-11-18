@@ -3185,7 +3185,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   } else {
     // Default matching behaviour starting from perfetto v54: match only host,
     // unless the config sets a top level flag.
-    if (!tracing_session->config.machine_filter_default() && !is_host_machine) {
+    if (!tracing_session->config.trace_all_machines() && !is_host_machine) {
       PERFETTO_DLOG("Data source: %s is filtered out for remote machine: %s",
                     cfg_data_source.config().name().c_str(),
                     producer->machine_name_.c_str());

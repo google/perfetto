@@ -300,7 +300,7 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   VARINT,
                   bool,
-                  machine_filter_default,
+                  trace_all_machines,
                   43);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_SessionSemaphore);

@@ -87,7 +87,7 @@ TEST(TracedRelayIntegrationTest, BasicCase) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.set_machine_filter_default(true);
+  trace_config.set_trace_all_machines(true);
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(200);
 
@@ -187,7 +187,7 @@ TEST(TracedRelayIntegrationTest, MachineID_MultiRelayService) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.set_machine_filter_default(true);
+  trace_config.set_trace_all_machines(true);
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(200);
 
@@ -292,7 +292,7 @@ TEST(TracedRelayIntegrationTest, RelayClient) {
     task_runner.RunUntilIdle();
 
   TraceConfig trace_config;
-  trace_config.set_machine_filter_default(true);
+  trace_config.set_trace_all_machines(true);
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(200);
 

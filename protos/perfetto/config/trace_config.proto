@@ -791,5 +791,5 @@ message TraceConfig {
   // sources.
   //
   // Introduced in: perfetto v54.
-  optional bool machine_filter_default = 43;
+  optional bool trace_all_machines = 43;
 }

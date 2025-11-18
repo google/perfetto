@@ -1778,10 +1778,10 @@ TEST_F(TracingServiceImplTest, MachineFilterDefaultOverride) {
   trace_config.add_buffers()->set_size_kb(128);
   auto* data_source = trace_config.add_data_sources();
   data_source->mutable_config()->set_name("data_source");
-  trace_config.set_machine_filter_default(true);
+  trace_config.set_trace_all_machines(true);
 
   //
-  // Expect all producers to match due to |machine_filter_default: true|.
+  // Expect all producers to match due to |trace_all_machines: true|.
   //
 
   consumer->EnableTracing(trace_config);

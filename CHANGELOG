@@ -2,7 +2,7 @@ Unreleased:
   Tracing service and probes:
     * Breaking change for traced_relay users: data sources no longer match
       remote machine producers by default. To restore the previous behaviour,
-      set TraceConfig.machine_filter_default to true.
+      set TraceConfig.trace_all_machines to true.
   SQL Standard library:
     *
   Trace Processor:
