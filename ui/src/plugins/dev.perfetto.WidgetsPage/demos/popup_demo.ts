@@ -14,7 +14,11 @@
 
 import m from 'mithril';
 import {Button, ButtonBar} from '../../../widgets/button';
-import {OutsideClickHandling, Popup, PopupPosition} from '../../../widgets/popup';
+import {
+  OutsideClickHandling,
+  Popup,
+  PopupPosition,
+} from '../../../widgets/popup';
 import {PopupMenu} from '../../../widgets/menu';
 import {MenuItem} from '../../../widgets/menu';
 import {
