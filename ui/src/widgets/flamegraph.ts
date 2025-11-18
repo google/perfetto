@@ -233,6 +233,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private canvasWidth = 0;
   private labelCharWidth = 0;
+  private canvasRect?: Rect2D;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -281,10 +282,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           overflowY: 'auto',
           onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
             this.drawCanvas(ctx, virtualCanvasSize, canvasRect);
-          },
-          onscroll: () => {
-            // Trigger a redraw to re-evaluate popup visibility
-            m.redraw();
           },
         },
         m(
@@ -453,6 +450,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     size: Size2D,
     rect: Rect2D,
   ) {
+    this.canvasRect = rect;
     this.canvasWidth = size.width;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
@@ -569,26 +567,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   private isPopupAnchorVisible(): boolean {
-    if (!this.tooltipPos) {
+    if (!this.tooltipPos || !this.canvasRect) {
       return false;
     }
-    // The anchor is positioned absolutely within the scrollable div
-    // We need to check if it's within the visible viewport of the scroll container
-    const scrollContainer = document.querySelector('.pf-virtual-canvas');
-    if (!scrollContainer) {
-      return false;
-    }
-
-    const containerRect = scrollContainer.getBoundingClientRect();
     const {y} = this.tooltipPos;
-    const scrollTop = scrollContainer.scrollTop;
-
-    // Calculate the actual viewport position of the anchor
-    // y is relative to the content div, so we need to account for scroll
-    const viewportY = y - scrollTop;
-
-    // Check if the anchor is within the visible viewport
-    return viewportY >= 0 && viewportY <= containerRect.height;
+    return y >= this.canvasRect.top && y <= this.canvasRect.bottom;
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
