@@ -35,6 +35,8 @@ class DocParseOptions:
   # TODO(lalitm): set this to true and/or remove this check once Google3 modules
   # adhere to this check.
   enforce_every_column_set_is_documented: bool = False
+  # Include internal artifacts (those starting with _) in the output
+  include_internal: bool = False
 
 
 def _is_internal(name: str) -> bool:
@@ -289,8 +291,8 @@ class FunctionDocParser(AbstractDocParser):
           f'as standard library modules can only included once. Please just '
           f'use CREATE instead.')
 
-    # Ignore internal functions.
-    if _is_internal(self.name):
+    # Ignore internal functions unless explicitly requested.
+    if _is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
@@ -341,8 +343,8 @@ class TableFunctionDocParser(AbstractDocParser):
           f'use CREATE instead.')
       return
 
-    # Ignore internal functions.
-    if _is_internal(self.name):
+    # Ignore internal functions unless explicitly requested.
+    if _is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
@@ -390,8 +392,8 @@ class MacroDocParser(AbstractDocParser):
           f'as standard library modules can only included once. Please just '
           f'use CREATE instead.')
 
-    # Ignore internal macros.
-    if _is_internal(self.name):
+    # Ignore internal macros unless explicitly requested.
+    if _is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
