@@ -46,7 +46,7 @@ StatusOr<void> Parser::ParseInstructions(
               ? static_cast<AbortLevel>(instruction.abort_level())
               : AbortLevel::SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER;
       if (abort_level == AbortLevel::SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER) {
-        break;
+        return StatusOr<void>::Error();
       }
       if (abort_level == AbortLevel::ABORT) {
         PROTOVM_ABORT(
