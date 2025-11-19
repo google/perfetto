@@ -40,8 +40,16 @@ import {
   DataGridFilter,
   RowDef,
   Sorting,
+  ValueFormatter,
 } from './common';
 import {InMemoryDataSource} from './in_memory_data_source';
+import {
+  defaultValueFormatter,
+  formatAsTSV,
+  formatAsJSON,
+  formatAsMarkdown,
+} from './export_utils';
+import {CopyButton, DownloadButton} from './export_buttons';
 
 export class GridFilterBar implements m.ClassComponent {
   view({children}: m.Vnode) {
@@ -264,6 +272,39 @@ export interface DataGridAttrs {
    * Optional class name added to the root element of the data grid.
    */
   readonly className?: string;
+
+  /**
+   * Enable export buttons in toolbar. When enabled, adds Copy and Download
+   * buttons that export the current filtered/sorted data.
+   * Default = false.
+   */
+  readonly showExportButtons?: boolean;
+
+  /**
+   * Optional value formatter for export. If not provided, uses the
+   * cellRenderer to get displayed values. This is useful when you want
+   * different formatting for export vs display (e.g., raw values vs formatted).
+   */
+  readonly valueFormatter?: ValueFormatter;
+
+  /**
+   * Callback that receives the DataGrid API when the grid is ready.
+   * Allows parent components to programmatically export data.
+   */
+  readonly onReady?: (api: DataGridApi) => void;
+}
+
+export interface DataGridApi {
+  /**
+   * Export all filtered and sorted data from the grid.
+   * @param format The format to export in
+   * @param valueFormatter Optional custom formatter for values
+   * @returns Promise<string> The formatted data as a string
+   */
+  exportData(
+    format: 'tsv' | 'json' | 'markdown',
+    valueFormatter?: ValueFormatter,
+  ): Promise<string>;
 }
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
@@ -277,6 +318,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
   private gridApi?: GridApi;
+  private dataGridApi?: DataGridApi;
+  private currentDataSource?: DataGridDataSource;
+  private currentColumns?: ReadonlyArray<ColumnDefinition>;
+  private currentValueFormatter?: ValueFormatter;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -330,6 +375,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsLeft,
       toolbarItemsRight,
       className,
+      showExportButtons = false,
+      valueFormatter,
+      onReady,
     } = attrs;
 
     // In uncontrolled mode, sync columnOrder with truly new columns
@@ -373,6 +421,29 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         .filter((c) => c.aggregation)
         .map((c) => ({col: c.name, func: c.aggregation!})),
     });
+
+    // Store current state for API access
+    this.currentDataSource = dataSource;
+    this.currentColumns = orderedColumns;
+    this.currentValueFormatter = valueFormatter;
+
+    // Create and expose DataGrid API if needed
+    if (onReady && !this.dataGridApi) {
+      this.dataGridApi = {
+        exportData: async (format, customFormatter) => {
+          if (!this.currentDataSource || !this.currentColumns) {
+            throw new Error('DataGrid not ready for export');
+          }
+          return await this.formatData(
+            this.currentDataSource,
+            this.currentColumns,
+            customFormatter ?? this.currentValueFormatter,
+            format,
+          );
+        },
+      };
+      onReady(this.dataGridApi);
+    }
 
     const sortControls = onSort !== noOp;
     const filtersUncontrolled = filters === this.filters;
@@ -787,6 +858,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showResetButton,
         toolbarItemsLeft,
         toolbarItemsRight,
+        showExportButtons,
       ),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
@@ -837,11 +909,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     showResetButton: boolean,
     toolbarItemsLeft: m.Children,
     toolbarItemsRight: m.Children,
+    showExportButtons: boolean,
   ) {
     if (
       filters.length === 0 &&
       !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
-      showResetButton === false
+      showResetButton === false &&
+      showExportButtons === false
     ) {
       return undefined;
     }
@@ -873,9 +947,100 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               }),
             ]),
         ]),
+        showExportButtons &&
+          this.dataGridApi &&
+          m(CopyButton, {api: this.dataGridApi}),
+        showExportButtons &&
+          this.dataGridApi &&
+          m(DownloadButton, {api: this.dataGridApi}),
         toolbarItemsRight,
       ]),
     ]);
+  }
+
+  private async formatData(
+    dataSource: DataGridDataSource,
+    columns: ReadonlyArray<ColumnDefinition>,
+    valueFormatter?: ValueFormatter,
+    format: 'tsv' | 'json' | 'markdown' = 'tsv',
+  ): Promise<string> {
+    // Get all rows from the data source
+    const rows = await dataSource.exportData();
+
+    // Use provided formatter or default
+    const formatter = valueFormatter ?? defaultValueFormatter;
+
+    // Format the data based on the requested format
+    switch (format) {
+      case 'tsv':
+        return this.formatAsTSV(rows, columns, formatter);
+      case 'json':
+        return this.formatAsJSON(rows, columns, formatter);
+      case 'markdown':
+        return this.formatAsMarkdown(rows, columns, formatter);
+    }
+  }
+
+  private formatAsTSV(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+    formatter: ValueFormatter,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns, formatter);
+    const columnNames = this.buildColumnNames(columns);
+    return formatAsTSV(
+      columns.map((c) => c.name),
+      columnNames,
+      formattedRows,
+    );
+  }
+
+  private formatAsJSON(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+    formatter: ValueFormatter,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns, formatter);
+    return formatAsJSON(formattedRows);
+  }
+
+  private formatAsMarkdown(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+    formatter: ValueFormatter,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns, formatter);
+    const columnNames = this.buildColumnNames(columns);
+    return formatAsMarkdown(
+      columns.map((c) => c.name),
+      columnNames,
+      formattedRows,
+    );
+  }
+
+  private formatRows(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+    formatter: ValueFormatter,
+  ): Array<Record<string, string>> {
+    return rows.map((row) => {
+      const formattedRow: Record<string, string> = {};
+      for (const col of columns) {
+        const value = row[col.name];
+        formattedRow[col.name] = formatter(value, col.name);
+      }
+      return formattedRow;
+    });
+  }
+
+  private buildColumnNames(
+    columns: ReadonlyArray<ColumnDefinition>,
+  ): Record<string, string> {
+    const columnNames: Record<string, string> = {};
+    for (const col of columns) {
+      columnNames[col.name] = String(col.title ?? col.name);
+    }
+    return columnNames;
   }
 
   private formatFilter(filter: DataGridFilter) {

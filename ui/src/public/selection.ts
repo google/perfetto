@@ -18,8 +18,20 @@ import {duration, time, TimeSpan} from '../base/time';
 import {Track} from './track';
 
 export interface ContentWithLoadingFlag {
+  /**
+   * Indicates whether the content is still loading. If true, a loading spinner
+   * is shown instead of the tab content.
+   */
   readonly isLoading: boolean;
+
+  /**
+   * Content to render inside the selection tab.
+   */
   readonly content: m.Children;
+
+  /**
+   * Optional buttons displayed on the RHS of the aggregation panel.
+   */
   readonly buttons?: m.Children;
 }
 

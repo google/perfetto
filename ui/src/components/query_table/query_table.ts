@@ -20,12 +20,16 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {Router} from '../../core/router';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
-import {DataGrid, renderCell} from '../widgets/data_grid/data_grid';
+import {
+  DataGrid,
+  renderCell,
+  DataGridApi,
+} from '../widgets/data_grid/data_grid';
 import {DataGridDataSource} from '../widgets/data_grid/common';
 import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
-import {QueryTableButtons} from './query_menu_utils';
+import {CopyButton, DownloadButton} from '../widgets/data_grid/export_buttons';
 
 type Numeric = bigint | number;
 
@@ -83,6 +87,7 @@ interface QueryTableAttrs {
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   private readonly trace: Trace;
   private dataSource?: DataGridDataSource;
+  private dataGridApi?: DataGridApi;
 
   constructor({attrs}: m.CVnode<QueryTableAttrs>) {
     this.trace = attrs.trace;
@@ -113,7 +118,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         className: 'pf-query-table',
         title: this.renderTitle(resp),
         description: query,
-        buttons: this.renderButtons(query, contextButtons, resp),
+        buttons: this.renderButtons(contextButtons),
         fillHeight,
       },
       resp && this.dataSource && this.renderTableContent(resp, this.dataSource),
@@ -128,12 +133,12 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 
-  private renderButtons(
-    query: string,
-    contextButtons: m.Child[],
-    resp?: QueryResponse,
-  ) {
-    return [contextButtons, m(QueryTableButtons, {query, resp})];
+  private renderButtons(contextButtons: m.Child[]) {
+    return [
+      contextButtons,
+      this.dataGridApi && m(CopyButton, {api: this.dataGridApi}),
+      this.dataGridApi && m(DownloadButton, {api: this.dataGridApi}),
+    ];
   }
 
   private renderTableContent(
@@ -169,6 +174,9 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       filters: [],
       columns: resp.columns.map((c) => ({name: c})),
       data: dataSource,
+      onReady: (api) => {
+        this.dataGridApi = api;
+      },
       cellRenderer: (value, name, row) => {
         const sliceId = getSliceId(row);
         const cell = renderCell(value, name);

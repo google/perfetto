@@ -32,7 +32,6 @@ import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
-import {QueryTableButtons} from '../../components/query_table/query_menu_utils';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -216,14 +215,11 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           className: 'pf-query-page__results',
           data: dataSource,
           columns: queryResult.columns.map((c) => ({name: c})),
+          showExportButtons: true,
           toolbarItemsLeft: m(
             'span.pf-query-page__results-summary',
             `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
           ),
-          toolbarItemsRight: m(QueryTableButtons, {
-            query: queryResult.query,
-            resp: queryResult,
-          }),
         }),
       ];
     }
