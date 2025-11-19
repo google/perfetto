@@ -16,6 +16,7 @@
 
 #include "src/traceconv/trace_to_profile.h"
 
+#include <cerrno>
 #include <random>
 #include <string>
 #include <vector>
@@ -129,7 +130,9 @@ int TraceToProfile(
 
               base::GetTimeFmt("%y%m%d%H%M%S") + GetRandomString(5);
   }
-  PERFETTO_CHECK(base::Mkdir(dst_dir));
+  if (!base::Mkdir(dst_dir) && errno != EEXIST) {
+    PERFETTO_FATAL("Failed to create output directory %s", dst_dir.c_str());
+  }
   for (const auto& profile : profiles) {
     std::string filename = dst_dir + "/" + filename_fn(profile);
     base::ScopedFile fd(base::OpenFile(filename, O_CREAT | O_WRONLY, 0700));
