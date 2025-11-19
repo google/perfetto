@@ -156,12 +156,11 @@ def main():
       description="""Generates C API header files (.pzc.h) from proto definitions.
 
 This script generates ProtoZero C headers for both standard Perfetto protos
-and custom proto files. Generated headers are placed in include/perfetto/public/protos/.
+and custom proto files.
 
 OUTPUT:
   Generated .pzc.h files are placed in include/perfetto/public/protos/
   mirroring the structure from protos/perfetto/:
-
     protos/perfetto/trace/trace.proto
       -> include/perfetto/public/protos/trace/trace.pzc.h""",
       epilog="""Example workflow:
