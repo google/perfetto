@@ -300,7 +300,7 @@ std::string AddrinfoToIpStr(const struct addrinfo* addrinfo_ptr) {
 // peer has disconnected. Since the server cannot know this, we check if
 // getpeername() also fails to detect the disconnection and swallow the error.
 // This keeps the behaviour aligned to Linux.
-bool ShouldIgnoreSocketTimeoutError(int fd) {
+bool ShouldIgnoreSocketTimeoutError(SocketHandle fd) {
   if (errno != EINVAL)
     return false;
 
