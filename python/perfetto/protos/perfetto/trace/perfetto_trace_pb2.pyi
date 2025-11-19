@@ -17373,7 +17373,7 @@ class WorkqueueQueueWorkFtraceEvent(_message.Message):
     req_cpu: int
     work: int
     workqueue: str
-    def __init__(self, work: _Optional[int] = ..., function: _Optional[int] = ..., workqueue: _Optional[str] = ..., req_cpu: _Optional[int] = ..., cpu: _Optional[int] = ...) -> None: ...
+    def __init__(self, work: _Optional[int] = ..., function: _Optional[int] = ..., req_cpu: _Optional[int] = ..., cpu: _Optional[int] = ..., workqueue: _Optional[str] = ...) -> None: ...
 
 class ZeroFtraceEvent(_message.Message):
     __slots__ = ["flag", "name", "pid", "value"]
