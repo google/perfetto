@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
-
 INCLUDE PERFETTO MODULE graphs.dominator_tree;
 
 -- The assigned id of the "super root".
