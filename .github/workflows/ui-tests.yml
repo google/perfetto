@@ -23,6 +23,9 @@ env:
   PERFETTO_CACHE_DIR: /tmp/cache
   PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
+permissions:
+  contents: read
+  statuses: write # Required for creating commit statuses
 jobs:
   ui:
     runs-on: self-hosted
@@ -126,6 +129,30 @@ jobs:
           echo ""
           echo "Perfetto UI build for this CL"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
+
+          # Store the URL for the next step
+          echo "UI_BUILD_URL=https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html" >> $GITHUB_ENV
+
+      - name: Create status check with UI build link
+        if: ${{ always() }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = context.sha;
+            const uiBuildUrl = process.env.UI_BUILD_URL;
+
+            if (uiBuildUrl) {
+              await github.rest.repos.createCommitStatus({
+                owner,
+                repo,
+                sha,
+                state: 'success',
+                target_url: uiBuildUrl,
+                description: 'Click to view UI build',
+                context: 'Perfetto UI Build'
+              });
+            }
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
