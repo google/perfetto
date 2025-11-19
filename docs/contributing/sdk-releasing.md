@@ -101,7 +101,8 @@ git push origin vX.Y
    - [docs/instrumentation/tracing-sdk.md](/docs/instrumentation/tracing-sdk.md)
    - [examples/sdk/README.md](/examples/sdk/README.md)
 
-6. Send an email with the CHANGELOG to perfetto-dev@ (internal) and to the
+6. Send an email with the CHANGELOG to perfetto-dev@ with perfetto-announce@
+   bcc'ed (internal - make sure you have permissions before doing so) and to the
    [public perfetto-dev](https://groups.google.com/forum/#!forum/perfetto-dev).
 
 ## Creating a GitHub release with prebuilts and SDK sources
