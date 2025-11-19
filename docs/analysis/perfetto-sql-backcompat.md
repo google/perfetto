@@ -8,6 +8,92 @@ documents:
  - **Context**: why we are making the change i.e. why does it have to backwards incompatible?
  - **Migrations**: suggested changes you can make to your PerfettoSQL to not be broken by the changes
 
+## Removal of `stack_id` and `parent_stack_id` columns from slice table
+
+**Date/Version**
+
+2025-11-21/v54.0
+
+**Symptoms**
+
+- An error message of the form `no such column: stack_id` or `no such column: parent_stack_id`
+- The `stack_id` and `parent_stack_id` columns disappearing from output of queries with `SELECT *` on the slice table
+- Error `no such function: ancestor_slice_by_stack` or `no such function: descendant_slice_by_stack` (these now require `INCLUDE PERFETTO MODULE slices.stack`)
+- Queries using hardcoded stack_id values (e.g., `WHERE stack_id = 123456`) return no results or wrong results
+- JOINs between old and new traces on stack_id fail to match expected slices
+
+**Context**
+
+The `stack_id` and `parent_stack_id` columns were legacy features that computed hash values based on slice names. These columns were rarely useful in practice and were documented as "kept around only for legacy reasons". The implementation had several issues:
+
+- They consumed non-trivial memory on large traces to store pre-computed hash values
+- The hash-based approach was fragile and not semantically meaningful
+- They polluted the column list and added complexity to the slice table
+- The `ancestor_slice_by_stack` and `descendant_slice_by_stack` table functions based on these columns were redundant with the existing `ancestor_slice` and `descendant_slice` functions
+
+These columns have been removed from the slice table, and the stack-based table functions have been moved to the `slices.stack` stdlib module where they compute stack hashes on-demand rather than storing them.
+
+**Migrations**
+
+**⚠️ IMPORTANT:** The migration helpers use a different hash algorithm (SQLite `hash()` vs `MurmurHash`) and will produce **different stack_id values** than the previous implementation. This means:
+- Stack_id values from traces processed before v54.0 are **incompatible** with the new implementation
+- Hardcoded stack_id values in queries or dashboards will **not work**
+- You cannot compare or JOIN stack_id values between old and new traces
+
+**Migration helpers:** For API compatibility with existing queries, you can use the migration helpers in the `slices.stack` module:
+
+```sql
+INCLUDE PERFETTO MODULE slices.stack;
+
+-- Access stack_id and parent_stack_id columns (computed on-demand with new hash algorithm)
+SELECT * FROM slice_with_stack_id WHERE id = 123;
+
+-- Use stack-based ancestor/descendant functions
+SELECT * FROM ancestor_slice_by_stack((SELECT stack_id FROM slice_with_stack_id WHERE id = 123));
+SELECT * FROM descendant_slice_by_stack((SELECT stack_id FROM slice_with_stack_id WHERE id = 123));
+```
+
+**Note:** These helpers compute stack hashes on-demand and may be slower than the previous C++ implementation. They will be maintained for backward compatibility but may be removed in a future release.
+
+**Recommended long-term approach:**
+
+Use the parent-child relationship columns and functions instead:
+
+- Use `parent_id` to traverse the slice hierarchy instead of `parent_stack_id`
+- Use `ancestor_slice(id)` table function instead of `ancestor_slice_by_stack(stack_id)`
+- Use `descendant_slice(id)` table function instead of `descendant_slice_by_stack(stack_id)`
+
+For example, instead of:
+
+```sql
+select * from ancestor_slice_by_stack((select stack_id from slice where id = 123))
+```
+
+you can do:
+
+```sql
+select * from ancestor_slice(123)
+```
+
+If you need to find slices with the same name pattern, use explicit name matching:
+
+```sql
+-- Find slices with the same category and name
+select s2.* from slice s1
+join slice s2 on s1.category = s2.category and s1.name = s2.name
+where s1.id = 123
+```
+
+**For users with stored stack_id values:**
+
+If you have dashboards, scripts, or databases that reference specific stack_id values from traces processed before v54.0:
+
+- **Cannot directly migrate:** The hash algorithm has changed, so old stack_id values are incompatible
+- **Options:**
+  - Re-process old traces with trace processor v54.0+ to compute new stack_id values
+  - Switch to the recommended approach using `ancestor_slice(id)` and `parent_id`
+  - Store and match on slice names/categories instead of stack_id values
+
 ## Change in semantic of `type` column on track tables
 
 **Date/Version**

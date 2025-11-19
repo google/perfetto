@@ -75,18 +75,6 @@ SLICE_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
-            'stack_id',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'parent_stack_id',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
             'parent_id',
             CppOptional(CppSelfTableId()),
             sql_access=SqlAccess.HIGH_PERF,
@@ -151,14 +139,6 @@ SLICE_TABLE = Table(
                 ''',
             'depth':
                 'The depth of the slice in the current stack of slices.',
-            'stack_id':
-                '''
-                  A unique identifier obtained from the names of all slices
-                  in this stack. This is rarely useful and kept around only
-                  for legacy reasons.
-                ''',
-            'parent_stack_id':
-                'The stack_id for the parent of this slice. Rarely useful.',
             'parent_id':
                 '''
                   The id of the parent (i.e. immediate ancestor) slice for this

@@ -124,8 +124,8 @@ class SlicesStack(TestSuite):
           s2.name AS name2,
           s2.ts AS ts2,
           s1.stack_id = s2.stack_id AS same_stack_id
-        FROM _slice_with_stack_id s1
-        JOIN _slice_with_stack_id s2
+        FROM slice_with_stack_id s1
+        JOIN slice_with_stack_id s2
         WHERE s1.name = 'C' AND s2.name = 'C' AND s1.ts < s2.ts;
         """,
         out=Csv("""
@@ -207,8 +207,8 @@ class SlicesStack(TestSuite):
           s1.name AS leaf1,
           s2.name AS leaf2,
           s1.stack_id != s2.stack_id AS different_stack_ids
-        FROM _slice_with_stack_id s1
-        JOIN _slice_with_stack_id s2
+        FROM slice_with_stack_id s1
+        JOIN slice_with_stack_id s2
         WHERE s1.name = 'B' AND s2.name = 'C' AND s1.depth = 1 AND s2.depth = 1;
         """,
         out=Csv("""
@@ -261,8 +261,8 @@ class SlicesStack(TestSuite):
           child.name AS child_name,
           parent.name AS parent_name,
           child.parent_stack_id = parent.stack_id AS correct_parent_stack_id
-        FROM _slice_with_stack_id child
-        JOIN _slice_with_stack_id parent ON child.parent_id = parent.id
+        FROM slice_with_stack_id child
+        JOIN slice_with_stack_id parent ON child.parent_id = parent.id
         WHERE child.name = 'Child';
         """,
         out=Csv("""
@@ -301,7 +301,7 @@ class SlicesStack(TestSuite):
           name,
           depth,
           parent_stack_id
-        FROM _slice_with_stack_id
+        FROM slice_with_stack_id
         WHERE depth = 0;
         """,
         out=Csv("""
@@ -355,7 +355,7 @@ class SlicesStack(TestSuite):
           depth,
           stack_id,
           stack_id != 0 AS stack_id_nonzero
-        FROM _slice_with_stack_id
+        FROM slice_with_stack_id
         ORDER BY depth;
         """,
         out=Csv("""
@@ -365,7 +365,7 @@ class SlicesStack(TestSuite):
         """))
 
   def test_ancestor_slice_by_stack(self):
-    # Tests _ancestor_slice_by_stack function
+    # Tests ancestor_slice_by_stack function
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
@@ -463,8 +463,8 @@ class SlicesStack(TestSuite):
         INCLUDE PERFETTO MODULE slices.stack;
 
         SELECT name, depth
-        FROM _ancestor_slice_by_stack((
-          SELECT stack_id FROM _slice_with_stack_id
+        FROM ancestor_slice_by_stack((
+          SELECT stack_id FROM slice_with_stack_id
           WHERE name = 'Leaf' AND ts = 1200
           LIMIT 1
         ))
@@ -481,7 +481,7 @@ class SlicesStack(TestSuite):
         """))
 
   def test_descendant_slice_by_stack(self):
-    # Tests _descendant_slice_by_stack function
+    # Tests descendant_slice_by_stack function
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
@@ -565,8 +565,8 @@ class SlicesStack(TestSuite):
         INCLUDE PERFETTO MODULE slices.stack;
 
         SELECT name, ts
-        FROM _descendant_slice_by_stack((
-          SELECT stack_id FROM _slice_with_stack_id
+        FROM descendant_slice_by_stack((
+          SELECT stack_id FROM slice_with_stack_id
           WHERE name = 'Root' AND ts = 1000
           LIMIT 1
         ))
@@ -662,8 +662,8 @@ class SlicesStack(TestSuite):
           s1.name AS name1,
           s2.name AS name2,
           s1.stack_id != s2.stack_id AS different_stacks
-        FROM _slice_with_stack_id s1
-        JOIN _slice_with_stack_id s2
+        FROM slice_with_stack_id s1
+        JOIN slice_with_stack_id s2
         WHERE s1.name = 'A' AND s2.name = 'A'
           AND s1.category IS NULL AND s2.category = 'cat1';
         """,
@@ -747,8 +747,8 @@ class SlicesStack(TestSuite):
           parent.name AS parent,
           parent.depth AS parent_depth,
           child.parent_stack_id = parent.stack_id AS valid_relationship
-        FROM _slice_with_stack_id child
-        LEFT JOIN _slice_with_stack_id parent ON child.parent_id = parent.id
+        FROM slice_with_stack_id child
+        LEFT JOIN slice_with_stack_id parent ON child.parent_id = parent.id
         ORDER BY child.depth;
         """,
         out=Csv("""
@@ -787,7 +787,7 @@ class SlicesStack(TestSuite):
         INCLUDE PERFETTO MODULE slices.stack;
 
         SELECT COUNT(*) AS count
-        FROM _ancestor_slice_by_stack(999999999);
+        FROM ancestor_slice_by_stack(999999999);
         """,
         out=Csv("""
         "count"
