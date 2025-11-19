@@ -188,7 +188,7 @@ OUTPUT:
   out = args.OUT
 
   if args.proto:
-    SOURCE_FILES[CATEGORY_PROD]['files'].extend(args.proto)
+    SOURCE_FILES[CATEGORY_PROD]['files'] = args.proto
 
   call('ninja', '-C', out, 'protoc', 'protozero_c_plugin')
 
