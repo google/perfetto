@@ -31,12 +31,12 @@ const VERSION = 1;
 const DEFAULT_STATE: AndroidLogPluginState = {
   version: VERSION,
   filter: {
-    // The first two log priorities are ignored.
-    minimumLevel: 2,
+    minimumLevel: undefined,
     tags: [],
     textEntry: '',
     hideNonMatching: true,
     machineExcludeList: [],
+    pids: [],
   },
 };
 

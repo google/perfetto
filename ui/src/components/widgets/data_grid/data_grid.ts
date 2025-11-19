@@ -22,6 +22,7 @@ import {Anchor} from '../../../widgets/anchor';
 import {Box} from '../../../widgets/box';
 import {Button} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
+import {EmptyState} from '../../../widgets/empty_state';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem, MenuTitle} from '../../../widgets/menu';
 import {Stack, StackAuto} from '../../../widgets/stack';
@@ -824,6 +825,34 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         onReady: (api) => {
           this.gridApi = api;
         },
+        emptyState:
+          rows?.totalRows === 0
+            ? m(
+                EmptyState,
+                {
+                  icon: filters.length > 0 ? 'filter_list_off' : 'database',
+                  title:
+                    filters.length > 0
+                      ? 'No results match your filters'
+                      : 'No data available',
+                  fillHeight: true,
+                },
+                filters.length > 0 &&
+                  m(Button, {
+                    label: 'Clear all filters',
+                    onclick: () => {
+                      // Clear all filters
+                      filters.forEach((_, index) => {
+                        onFilterRemove(index);
+                      });
+                      // Reset sorting if we have control
+                      if (onSort !== noOp) {
+                        onSort({direction: 'UNSORTED'});
+                      }
+                    },
+                  }),
+              )
+            : undefined,
       }),
     );
   }

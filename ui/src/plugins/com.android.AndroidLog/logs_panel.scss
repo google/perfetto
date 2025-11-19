@@ -20,6 +20,10 @@
   font-size: 11px;
   font-family: var(--pf-font-monospace);
 
+  &__filter {
+    flex: 1;
+  }
+
   &__row {
     &--debug {
       color: log-level-color(hsl(155, 79%, 51%), 30%);

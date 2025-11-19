@@ -29,6 +29,7 @@ import {cursorTooltip} from './demos/cursor_tooltip_demo';
 import {renderDataGrid} from './demos/datagrid_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
+import {filterInputDemo} from './demos/filter_input_demo';
 import {renderForm} from './demos/form_demo';
 import {renderGrid} from './demos/grid_demo';
 import {renderHotkey} from './demos/hotkey_demo';
@@ -79,6 +80,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'datagrid', label: 'DataGrid', view: renderDataGrid},
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
+  {id: 'filterinput', label: 'FilterInput', view: filterInputDemo},
   {id: 'form', label: 'Form', view: renderForm},
   {id: 'grid', label: 'Grid', view: renderGrid},
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},
