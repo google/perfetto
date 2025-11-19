@@ -22,8 +22,11 @@ import subprocess
 import sys
 import tempfile
 
-SOURCE_FILES = [
-    {
+CATEGORY_PROD = 'prod'
+CATEGORY_TEST = 'test'
+
+SOURCE_FILES = {
+    CATEGORY_PROD: {
         'files': [
             'protos/perfetto/common/builtin_clock.proto',
             'protos/perfetto/common/data_source_descriptor.proto',
@@ -46,9 +49,8 @@ SOURCE_FILES = [
         'path_strip_prefix': 'protos/perfetto',
         'path_add_prefix': 'perfetto/public/protos',
         'include_prefix': 'include/',
-        'verbose_output': True,
     },
-    {
+    CATEGORY_TEST: {
         'files': [
             'src/protozero/test/example_proto/extensions.proto',
             'src/protozero/test/example_proto/library.proto',
@@ -62,9 +64,8 @@ SOURCE_FILES = [
         'guard_add_prefix': 'SRC_SHARED_LIB_TEST_PROTOS_',
         'path_strip_prefix': 'src/protozero/test/example_proto',
         'path_add_prefix': 'src/shared_lib/test/protos',
-        'verbose_output': False,
     },
-]
+}
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 IS_WIN = sys.platform.startswith('win')
@@ -187,13 +188,13 @@ OUTPUT:
   out = args.OUT
 
   if args.proto:
-    SOURCE_FILES[0]['files'].extend(args.proto)
+    SOURCE_FILES[CATEGORY_PROD]['files'].extend(args.proto)
 
   call('ninja', '-C', out, 'protoc', 'protozero_c_plugin')
 
   try:
     with tempfile.TemporaryDirectory() as tmpdirname:
-      for sources in SOURCE_FILES:
+      for category, sources in SOURCE_FILES.items():
         for source in sources['files']:
           generate(
               source,
@@ -223,12 +224,12 @@ OUTPUT:
           if args.check_only:
             if not filecmp.cmp(tmpfilename, targetfilename):
               raise AssertionError('Target {} does not match', targetfilename)
-            if sources.get('verbose_output', False):
+            if category == CATEGORY_PROD:
               print('Verified {}'.format(targetfilename))
           else:
             os.makedirs(os.path.dirname(targetfilename), exist_ok=True)
             shutil.copyfile(tmpfilename, targetfilename)
-            if sources.get('verbose_output', False):
+            if category == CATEGORY_PROD:
               print('Generated {}'.format(targetfilename))
 
   except AssertionError as e:
