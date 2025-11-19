@@ -13,46 +13,66 @@
 # limitations under the License.
 
 import("perfetto.gni")
+import("test.gni")
 
-perfetto_unittests_targets = [
-  "gn:default_deps",
-  "gn:gtest_main",
+# To have a faster feedback loop, we want to be able to build and run only the
+# relevant subset of perfetto unittests. We define the following lists of
+# tests, each of them produces the separate test binary:
+
+perfetto_base_unittests_targets = []
+perfetto_profiling_unittests_targets = []
+perfetto_tracing_unittests_targets = []
+perfetto_trace_processor_unittests_targets = []
+perfetto_platform_services_unittests_targets = []
+perfetto_misc_unittests_targets = []
+
+# We also have a 'perfetto_unittests_targets' list (defined at the end of this
+# file), that is a concatenation of the above lists. It produces a
+# "perfetto_unittests" binary, that includes all the perfetto unittests.
+# That binary is running on the CI.
+
+perfetto_base_unittests_targets += [
   "src/base:unittests",
   "src/base/threading:unittests",
   "src/protozero:unittests",
-  "src/shared_lib/track_event:unittests",
-  "src/tracing/core:unittests",
-  "src/tracing/service:unittests",
-  "src/tracing:unittests",
-  "src/profiling:unittests",
-  "src/profiling/symbolizer:unittests",
   "src/protovm:unittests",
 ]
 
+perfetto_profiling_unittests_targets += [
+  "src/profiling:unittests",
+  "src/profiling/symbolizer:unittests",
+]
+
+perfetto_tracing_unittests_targets += [
+  "src/tracing/core:unittests",
+  "src/tracing/service:unittests",
+  "src/tracing:unittests",
+]
+
+perfetto_misc_unittests_targets += [ "src/shared_lib/track_event:unittests" ]
+
 if ((is_linux || is_android) && !perfetto_build_with_embedder) {
   # This test depends on pthread and can't run on non-Linux-based OS.
-  perfetto_unittests_targets += [ "test/sanitizers:unittests" ]
+  perfetto_base_unittests_targets += [ "test/sanitizers:unittests" ]
 }
 
 if (enable_perfetto_tools) {
-  perfetto_unittests_targets += [ "src/tools:unittests" ]
+  perfetto_misc_unittests_targets += [ "src/tools:unittests" ]
 }
 
 if (enable_perfetto_ipc) {
-  perfetto_unittests_targets += [
-    "src/tracing/ipc:unittests",
-    "src/ipc:unittests",
-  ]
+  perfetto_base_unittests_targets += [ "src/ipc:unittests" ]
+  perfetto_tracing_unittests_targets += [ "src/tracing/ipc:unittests" ]
 }
 
 if (enable_perfetto_platform_services) {
-  perfetto_unittests_targets += [
+  perfetto_platform_services_unittests_targets += [
     "src/perfetto_cmd:unittests",
     "src/traced/service:unittests",
     "src/kernel_utils:unittests",
   ]
   if (enable_perfetto_traced_probes) {
-    perfetto_unittests_targets += [
+    perfetto_platform_services_unittests_targets += [
       "src/traced/probes:unittests",
       "src/kallsyms:unittests",
     ]
@@ -60,36 +80,89 @@ if (enable_perfetto_platform_services) {
 }
 
 if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
-  perfetto_unittests_targets += [ "src/profiling/common:unittests" ]
+  perfetto_profiling_unittests_targets += [ "src/profiling/common:unittests" ]
 }
 
 if (enable_perfetto_heapprofd) {
-  perfetto_unittests_targets += [
+  perfetto_profiling_unittests_targets += [
     "src/profiling/memory:unittests",
     "src/profiling/memory:ring_buffer_unittests",
   ]
 }
 
 if (enable_perfetto_traced_perf) {
-  perfetto_unittests_targets += [ "src/profiling/perf:producer_unittests" ]
+  perfetto_profiling_unittests_targets +=
+      [ "src/profiling/perf:producer_unittests" ]
 }
 
 if (enable_perfetto_trace_processor) {
-  perfetto_unittests_targets += [ "src/trace_processor:unittests" ]
-  perfetto_unittests_targets += [ "src/trace_config_utils:unittests" ]
+  perfetto_trace_processor_unittests_targets += [
+    "src/trace_processor:unittests",
+    "src/trace_config_utils:unittests",
+  ]
 
   if (enable_perfetto_trace_processor_sqlite) {
-    perfetto_unittests_targets += [ "src/trace_processor/metrics:unittests" ]
+    perfetto_trace_processor_unittests_targets +=
+        [ "src/trace_processor/metrics:unittests" ]
   }
 }
 
 if (enable_perfetto_traced_relay) {
-  perfetto_unittests_targets += [ "src/traced_relay:unittests" ]
+  perfetto_platform_services_unittests_targets +=
+      [ "src/traced_relay:unittests" ]
 }
 
 if (enable_perfetto_android_java_sdk) {
-  perfetto_unittests_targets +=
+  perfetto_misc_unittests_targets +=
       [ "src/android_sdk/perfetto_sdk_for_jni:unittests" ]
 }
 
-perfetto_unittests_targets += [ "src/trace_redaction:unittests" ]
+perfetto_trace_processor_unittests_targets +=
+    [ "src/trace_redaction:unittests" ]
+
+# This list MUST be defined in the end of the file, to concat all the updated sub-lists.
+perfetto_unittests_subset_binaries = [
+  {
+    name = "perfetto_base_unittests"
+    targets = perfetto_base_unittests_targets
+  },
+  {
+    name = "perfetto_profiling_unittests"
+    targets = perfetto_profiling_unittests_targets
+  },
+  {
+    name = "perfetto_tracing_unittests"
+    targets = perfetto_tracing_unittests_targets
+  },
+  {
+    name = "perfetto_trace_processor_unittests"
+    targets = perfetto_trace_processor_unittests_targets
+  },
+  {
+    name = "perfetto_platform_services_unittests"
+    targets = perfetto_platform_services_unittests_targets
+  },
+  {
+    name = "perfetto_misc_unittests"
+    targets = perfetto_misc_unittests_targets
+  },
+]
+perfetto_unittests_targets = []
+foreach(subset, perfetto_unittests_subset_binaries) {
+  perfetto_unittests_targets += subset.targets
+}
+assert(perfetto_unittests_targets != [])
+
+template("perfetto_unittest") {
+  test(target_name) {
+    forward_variables_from(invoker, "*")
+    deps += [
+      "gn:default_deps",
+      "gn:gtest_main",
+    ]
+    if (is_fuchsia) {
+      additional_manifest_fragments =
+          [ "//build/config/fuchsia/test/network.shard.test-cml" ]  # nogncheck
+    }
+  }
+}
