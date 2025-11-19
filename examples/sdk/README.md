@@ -12,24 +12,30 @@ Dependencies:
 
 ## Building
 
-First, check out the latest Perfetto release:
+First, download the SDK source files from the latest Perfetto release:
 
 ```bash
+# Download the C++ SDK source zip from GitHub releases
+# Visit https://github.com/google/perfetto/releases/latest
+# Download perfetto-cpp-sdk-src.zip and extract it to sdk/ directory
+
+# Alternatively, if building from a release tag:
 git clone https://github.com/google/perfetto -b v50.1
+cd perfetto
+tools/gen_amalgamated --output sdk/perfetto
 ```
 
 Then, build using CMake:
 
 ```bash
-cd perfetto/examples/sdk
+cd examples/sdk
 cmake -B build
 cmake --build build
 ```
 
-Note: If amalgamated source files are not present, generate them using
-`cd perfetto ; tools/gen_amalgamated --output sdk/perfetto`.
-[Learn more](https://perfetto.dev/docs/contributing/sdk-releasing#building-and-tagging-the-release)
-at the release section.
+Note: SDK amalgamated source files (perfetto.cc and perfetto.h) are distributed
+as release artifacts on GitHub releases. For development purposes, you can
+generate them using `tools/gen_amalgamated --output sdk/perfetto`.
 
 ## Track event example
 
