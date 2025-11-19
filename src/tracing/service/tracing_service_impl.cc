@@ -3174,6 +3174,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     const auto& cfg_names = cfg_data_source.machine_name_filter();
     bool filter_match =
         NameMatchesFilter(producer->machine_name_, cfg_names, {});
+    // Special case: "host" also always matches the host machine.
     bool host_match =
         is_host_machine && NameMatchesFilter("host", cfg_names, {});
     if (!filter_match && !host_match) {
@@ -3182,15 +3183,14 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
                     producer->machine_name_.c_str());
       return nullptr;
     }
-  } else {
+  } else if (!tracing_session->config.trace_all_machines() &&
+             !is_host_machine) {
     // Default matching behaviour starting from perfetto v54: match only host,
     // unless the config sets a top level flag.
-    if (!tracing_session->config.trace_all_machines() && !is_host_machine) {
-      PERFETTO_DLOG("Data source: %s is filtered out for remote machine: %s",
-                    cfg_data_source.config().name().c_str(),
-                    producer->machine_name_.c_str());
-      return nullptr;
-    }
+    PERFETTO_DLOG("Data source: %s is filtered out for remote machine: %s",
+                  cfg_data_source.config().name().c_str(),
+                  producer->machine_name_.c_str());
+    return nullptr;
   }
 
   // Check producer name filter.
