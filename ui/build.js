@@ -742,21 +742,19 @@ function copyExtensionAssets() {
 function stripFrontendSourceMap(srcMapPath) {
   function stripSourcesContent() {
     if (!fs.existsSync(srcMapPath)) {
-      return;
+      return;r
     }
     try {
       const sourceMapContent = fs.readFileSync(srcMapPath, 'utf8');
       const sourceMap = JSON.parse(sourceMapContent);
       // Remove sourcesContent to reduce file size for custom error logging
       delete sourceMap.sourcesContent; // No need for raw source 
-      delete sourceMap.names; // No need for names - we don't minify names in our build
+      delete sourceMap.names; // No need fo names - we don't minify names in our build
       // Remove ../../../out/ui/src prefix from all sources
       if (sourceMap.sources && Array.isArray(sourceMap.sources)) {
         sourceMap.sources = sourceMap.sources.map((source) => {
-          const prefix = '../../../out/ui/src/';
-          if (source.startsWith(prefix)) {
-            return source.substring(prefix.length);
-          }
+          source = source.replace('../../../out/ui/', '');
+          source = source.replace('../../node_modules/', 'node_modules/');
           return source;
         });
       }
