@@ -262,6 +262,15 @@ int Main(int argc, char** argv) {
         "and java_heap_profile formats.");
     return 1;
   }
+
+  if ((format != "profile" && format != "java_heap_profile") &&
+      !output_dir.empty()) {
+    PERFETTO_ELOG(
+        "--output-dir is supported only for profile and java_heap_profile "
+        "formats.");
+    return 1;
+  }
+
   if (perf_profile && format != "profile") {
     PERFETTO_ELOG("--perf requires profile format.");
     return 1;

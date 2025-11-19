@@ -154,9 +154,9 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
   base::ListFilesRecursive(output_dir, filenames);
   EXPECT_EQ(filenames.size(), 1U);
 
-  for (const auto& file : filenames) {
+  for (const auto& file : filenames)
     remove((output_dir + "/" + file).c_str());
-  }
+
   base::Rmdir(output_dir);
 }
 
