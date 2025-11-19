@@ -31,6 +31,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/utils.h"
 #include "src/perfetto_cmd/bugreport_path.h"
+#include "src/perfetto_cmd/perfetto_cmd.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"

@@ -41,6 +41,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../src/base:test_support",
       "../src/perfetto_cmd:bugreport_path",
       "../src/protozero/filtering:bytecode_generator",
+      "../src/tracing/test:test_support",
     ]
     if (enable_perfetto_traced_probes) {
       deps += [

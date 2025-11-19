@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -145,12 +146,24 @@ class PerfettoCmd : public Consumer {
                                       const SnapshotTriggerInfo& trigger);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static base::ScopedFile CreateUnlinkedTmpFile();
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
       base::ScopedMmap mmapped_trace);
+  static base::ScopedFile CreateUnlinkedTmpFile();
+  struct PersistentTraceFile {
+    base::ScopedFile fd;
+    std::string path;
+  };
+  static base::StatusOr<PersistentTraceFile> CreatePersistentTraceFile(
+      const std::string& unique_session_name);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   void ReportTraceToAndroidFrameworkOrCrash();
+
+ public:
+  static std::vector<base::ScopedFile> UnlinkAndGetAllTracesToUpload();
+  static void ReportAllPersistentTracesToAndroidFrameworkOrCrash();
+
+ private:
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);
@@ -188,6 +201,7 @@ class PerfettoCmd : public Consumer {
   bool background_wait_ = false;
   bool ignore_guardrails_ = false;
   bool upload_flag_ = false;
+  bool upload_after_reboot_flag_ = false;
   bool connected_ = false;
   std::string uuid_;
   std::optional<TracingSessionID> clone_tsid_{};
