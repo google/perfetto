@@ -149,11 +149,44 @@ def include_path_for(filename):
 
 
 def main():
-  parser = argparse.ArgumentParser()
-  parser.add_argument('--check-only', action='store_true')
-  parser.add_argument('OUT')
+  parser = argparse.ArgumentParser(
+      formatter_class=argparse.RawDescriptionHelpFormatter,
+      description="""Generates C API header files (.pzc.h) from proto definitions.
+
+This script generates ProtoZero C headers for both standard Perfetto protos
+and custom proto files. Generated headers are placed in include/perfetto/public/protos/.
+
+OUTPUT:
+  Generated .pzc.h files are placed in include/perfetto/public/protos/
+  mirroring the structure from protos/perfetto/:
+
+    protos/perfetto/trace/trace.proto
+      -> include/perfetto/public/protos/trace/trace.pzc.h""",
+      epilog="""Example workflow:
+  # Generate custom protos
+  tools/gen_c_protos out/linux_clang_release \\
+      --proto protos/perfetto/trace/android/your_custom.proto \\
+      --proto protos/perfetto/common/your_common.proto
+""")
+
+  parser.add_argument(
+      'OUT', help='Build output directory (e.g., out/linux_clang_release)')
+  parser.add_argument(
+      '--proto',
+      action='append',
+      help='Additional .proto files to generate. Path must be relative to the repository root (e.g., protos/perfetto/common/builtin_clock.proto)',
+      default=[])
+  parser.add_argument(
+      '--check-only',
+      action='store_true',
+      help='Verify generated files match existing without writing')
+
   args = parser.parse_args()
+
   out = args.OUT
+
+  if args.proto:
+    SOURCE_FILES[0]['files'].extend(args.proto)
 
   call('ninja', '-C', out, 'protoc', 'protozero_c_plugin')
 
@@ -189,9 +222,11 @@ def main():
           if args.check_only:
             if not filecmp.cmp(tmpfilename, targetfilename):
               raise AssertionError('Target {} does not match', targetfilename)
+            print('Verified {}'.format(targetfilename))
           else:
             os.makedirs(os.path.dirname(targetfilename), exist_ok=True)
             shutil.copyfile(tmpfilename, targetfilename)
+            print('Generated {}'.format(targetfilename))
 
   except AssertionError as e:
     if not str(e):
