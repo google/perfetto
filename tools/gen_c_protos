@@ -46,6 +46,7 @@ SOURCE_FILES = [
         'path_strip_prefix': 'protos/perfetto',
         'path_add_prefix': 'perfetto/public/protos',
         'include_prefix': 'include/',
+        'verbose_output': True,
     },
     {
         'files': [
@@ -61,6 +62,7 @@ SOURCE_FILES = [
         'guard_add_prefix': 'SRC_SHARED_LIB_TEST_PROTOS_',
         'path_strip_prefix': 'src/protozero/test/example_proto',
         'path_add_prefix': 'src/shared_lib/test/protos',
+        'verbose_output': False,
     },
 ]
 
@@ -222,11 +224,13 @@ OUTPUT:
           if args.check_only:
             if not filecmp.cmp(tmpfilename, targetfilename):
               raise AssertionError('Target {} does not match', targetfilename)
-            print('Verified {}'.format(targetfilename))
+            if sources.get('verbose_output', False):
+              print('Verified {}'.format(targetfilename))
           else:
             os.makedirs(os.path.dirname(targetfilename), exist_ok=True)
             shutil.copyfile(tmpfilename, targetfilename)
-            print('Generated {}'.format(targetfilename))
+            if sources.get('verbose_output', False):
+              print('Generated {}'.format(targetfilename))
 
   except AssertionError as e:
     if not str(e):
