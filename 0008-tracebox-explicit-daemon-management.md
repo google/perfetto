@@ -1,7 +1,3 @@
-📄 **RFC Doc:** [0008-tracebox-explicit-daemon-management.md](https://github.com/google/perfetto/blob/rfcs/0008-tracebox-explicit-daemon-management.md)
-
----
-
 # Tracebox Explicit Daemon Management
 
 **Authors:** @sashwinbalaji, @primiano
@@ -218,25 +214,6 @@ Provides explicit daemon lifecycle management for user-session daemons:
 
 6.  **Stale PID Cleanup:** `ctl status` automatically removes stale PID files
     when processes are no longer running.
-
-### Code Quality
-
-Following Primiano's review standards:
-- **Simple and direct:** No over-engineering, every function serves a purpose
-- **Early returns:** Reduced nesting for better readability
-- **Clear naming:** Descriptive parameter names (`daemon_name`, `log_file_path`)
-- **Lambda usage:** Lambdas only for single-function scope
-- **No kernel shadowing:** Let system calls return their own errors
-
-### Resolved Questions
-
-✅ **Naming:** `ctl` (not `systemd`) - supports non-systemd systems
-✅ **Systemd detection:** Checks file existence, not running state
-✅ **Daemonization:** Double-fork matching `base::Daemonize()` style
-✅ **PID management:** PID files as `<binary>.pid` in runtime directory
-✅ **Windows support:** Not implemented for `ctl` (clear error message)
-✅ **SDK compatibility:** Explicit warnings when using `/tmp/` sockets
-✅ **Logging:** Optional `--log` flag for debugging
 
 ## Alternatives Considered
 
