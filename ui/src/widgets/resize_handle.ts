@@ -16,8 +16,6 @@ import m from 'mithril';
 import {HTMLAttrs} from './common';
 import {MithrilEvent} from '../base/mithril_utils';
 
-export type ResizeHandleDirection = 'vertical' | 'horizontal';
-
 export interface ResizeHandleAttrs extends HTMLAttrs {
   onResize(deltaPx: number): void;
   onResizeStart?(): void;
@@ -25,7 +23,7 @@ export interface ResizeHandleAttrs extends HTMLAttrs {
   // Direction of the resize handle:
   // - 'vertical' (default): horizontal bar that can be dragged up/down
   // - 'horizontal': vertical bar that can be dragged left/right
-  direction?: ResizeHandleDirection;
+  direction?: 'vertical' | 'horizontal';
 }
 
 export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
@@ -84,6 +82,10 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
         // We typically just resize some element when dragging the handle, so we
         // tell Mithril not to redraw after this event.
         e.redraw = false;
+
+        // Note: We don't check hasPointerCapture() here because pointer capture
+        // already ensures we only receive move events during an active drag.
+        // The previousX/previousY check is sufficient to determine drag state.
 
         if (isHorizontal) {
           const offsetLeft = offsetParent?.getBoundingClientRect().left ?? 0;
