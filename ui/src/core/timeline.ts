@@ -34,7 +34,7 @@ export class TimelineImpl implements Timeline {
   private _hoveredNoteTimestamp?: time;
 
   // TODO(stevegolton): These are currently only referenced by the cpu slice
-  // tracks and the process summary tracks. We shosuld just make this a local
+  // tracks and the process summary tracks. We should just make this a local
   // property of the cpu slice tracks and ignore them in the process tracks.
   private _hoveredUtid?: number;
   private _hoveredPid?: bigint;
