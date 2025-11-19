@@ -5,4 +5,4 @@
 #
 # Syntax is the same as .github/CODEOWNERS but paths are relative to this directory.
 
-/ @dreveman @jon-rv @zytyz
+./ @dreveman @jon-rv @zytyz
