@@ -23,9 +23,6 @@ env:
   PERFETTO_CACHE_DIR: /tmp/cache
   PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
-permissions:
-  contents: read
-  statuses: write # Required for creating commit statuses
 jobs:
   ui:
     runs-on: self-hosted
