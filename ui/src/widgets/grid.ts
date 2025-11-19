@@ -63,6 +63,7 @@ export interface GridHeaderCellAttrs extends m.Attributes {
   readonly onSort?: (direction: SortDirection) => void;
   readonly menuItems?: m.Children;
   readonly subContent?: m.Children;
+  readonly hintSortDirection?: SortDirection;
 }
 
 export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
@@ -73,10 +74,15 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       if (!onSort) return undefined;
 
       const nextDirection: SortDirection = (() => {
-        if (!sort) return 'ASC';
+        if (!sort) return attrs.hintSortDirection || 'ASC';
         if (sort === 'ASC') return 'DESC';
         if (sort === 'DESC') return 'ASC';
         return 'ASC';
+      })();
+
+      const sortIconDirection: SortDirection | undefined = (() => {
+        if (!sort) return attrs.hintSortDirection;
+        return sort;
       })();
 
       return m(Button, {
@@ -87,7 +93,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         ),
         ariaLabel: 'Sort column',
         rounded: true,
-        icon: sort === 'DESC' ? Icons.SortDesc : Icons.SortAsc,
+        icon: sortIconDirection === 'DESC' ? Icons.SortDesc : Icons.SortAsc,
         onclick: (e: MouseEvent) => {
           onSort(nextDirection);
           e.stopPropagation();
