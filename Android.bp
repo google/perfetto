@@ -3512,7 +3512,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3605,7 +3604,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3700,7 +3698,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3794,7 +3791,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3886,7 +3882,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3980,7 +3975,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4082,7 +4076,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4207,7 +4200,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4252,7 +4244,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4299,7 +4290,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4349,7 +4339,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4397,7 +4386,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4447,7 +4435,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4491,7 +4478,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4533,7 +4519,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4577,7 +4562,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4623,7 +4607,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4667,7 +4650,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4713,7 +4695,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4813,7 +4794,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4857,7 +4837,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4899,7 +4878,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4943,7 +4921,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4987,7 +4964,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5029,7 +5005,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5073,7 +5048,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5117,7 +5091,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5159,7 +5132,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5203,7 +5175,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5255,7 +5226,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5305,7 +5275,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5357,7 +5326,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5404,7 +5372,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5449,7 +5416,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5496,7 +5462,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5542,7 +5507,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5586,7 +5550,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5632,7 +5595,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5676,7 +5638,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5718,7 +5679,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5762,7 +5722,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5806,7 +5765,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5848,7 +5806,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5892,7 +5849,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5994,7 +5950,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6074,7 +6029,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6158,7 +6112,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6202,7 +6155,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6509,7 +6461,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6568,7 +6519,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6610,7 +6560,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6654,7 +6603,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6791,7 +6739,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6884,7 +6831,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6937,7 +6883,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6988,7 +6933,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7041,7 +6985,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7289,7 +7232,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7349,7 +7291,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7407,7 +7348,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7467,7 +7407,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7562,7 +7501,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7618,7 +7556,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7672,7 +7609,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7728,7 +7664,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8038,7 +7973,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8086,7 +8020,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8136,7 +8069,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8180,7 +8112,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8222,7 +8153,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8266,7 +8196,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8556,7 +8485,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8844,7 +8772,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9134,7 +9061,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9181,7 +9107,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9226,7 +9151,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9273,7 +9197,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9331,7 +9254,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9387,7 +9309,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9445,7 +9366,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9505,7 +9425,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9563,7 +9482,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9623,7 +9541,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9703,7 +9620,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9781,7 +9697,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9861,7 +9776,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10002,7 +9916,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10141,7 +10054,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10282,7 +10194,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10329,7 +10240,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10374,7 +10284,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10421,7 +10330,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10476,7 +10384,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10529,7 +10436,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10584,7 +10490,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10628,7 +10533,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10687,7 +10591,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10745,7 +10648,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10801,7 +10703,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10859,7 +10760,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10906,7 +10806,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10951,7 +10850,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10998,7 +10896,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11044,7 +10941,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11088,7 +10984,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11134,7 +11029,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11200,7 +11094,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11246,7 +11139,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11290,7 +11182,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11336,7 +11227,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11380,7 +11270,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11422,7 +11311,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11466,7 +11354,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11588,7 +11475,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11749,7 +11635,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11871,7 +11756,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11915,7 +11799,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11957,7 +11840,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12001,7 +11883,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12110,7 +11991,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12154,7 +12034,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12201,7 +12080,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12248,7 +12126,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12598,7 +12475,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12652,7 +12528,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12790,7 +12665,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13179,7 +13053,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13405,7 +13278,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13484,7 +13356,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13528,7 +13399,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13570,7 +13440,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13614,7 +13483,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13658,7 +13526,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13700,7 +13567,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13744,7 +13610,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13804,7 +13669,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -16256,7 +16120,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -16298,7 +16161,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -16342,7 +16204,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
