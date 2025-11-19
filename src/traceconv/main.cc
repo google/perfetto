@@ -80,12 +80,14 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
    --no-annotations                   Don't add derived annotations to frames
    --timestamps T1,T2,...             Generate profiles for specific timestamps
    --pid PID                          Generate profiles for specific process
+   --output-dir DIR                   Output directory for profiles (default: random tmp)
 
  java_heap_profile                    Converts Java heap profiles to pprof format
                                       (profile.proto)
    --no-annotations                   Don't add derived annotations to frames
    --timestamps T1,T2,...             Generate profiles for specific timestamps
    --pid PID                          Generate profiles for specific process
+   --output-dir DIR                   Output directory for profiles (default: random tmp)
 
  hprof                                Converts heap profile to hprof format
    --timestamps T1,T2,...             Generate profiles for specific timestamps
@@ -159,6 +161,7 @@ int Main(int argc, char** argv) {
   bool profile_no_annotations = false;
   std::vector<std::string> symbol_paths;
   bool no_auto_symbol_paths = false;
+  std::string output_dir;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
       printf("%s\n", base::GetVersionString());
@@ -196,6 +199,13 @@ int Main(int argc, char** argv) {
       symbol_paths = base::SplitString(argv[i], ",");
     } else if (strcmp(argv[i], "--no-auto-symbol-paths") == 0) {
       no_auto_symbol_paths = true;
+    } else if (i < argc && strcmp(argv[i], "--output-dir") == 0) {
+      i++;
+      if (i >= argc) {
+        PERFETTO_ELOG("--output-dir requires an argument.");
+        return Usage(argv[0]);
+      }
+      output_dir = argv[i];
     } else {
       positional_args.push_back(argv[i]);
     }
@@ -294,14 +304,16 @@ int Main(int argc, char** argv) {
   if (format == "profile") {
     return perf_profile
                ? TraceToPerfProfile(input_stream, output_stream, pid,
-                                    timestamps, !profile_no_annotations)
+                                    timestamps, !profile_no_annotations,
+                                    output_dir)
                : TraceToHeapProfile(input_stream, output_stream, pid,
-                                    timestamps, !profile_no_annotations);
+                                    timestamps, !profile_no_annotations,
+                                    output_dir);
   }
 
   if (format == "java_heap_profile") {
     return TraceToJavaHeapProfile(input_stream, output_stream, pid, timestamps,
-                                  !profile_no_annotations);
+                                  !profile_no_annotations, output_dir);
   }
 
   if (format == "hprof")

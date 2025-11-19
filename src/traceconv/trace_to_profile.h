@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <string>
 #include <vector>
 
 namespace perfetto {
@@ -29,21 +30,24 @@ int TraceToHeapProfile(std::istream* input,
                        std::ostream* output,
                        uint64_t pid,
                        const std::vector<uint64_t>& timestamps,
-                       bool annotate_frames);
+                       bool annotate_frames,
+                       const std::string& output_dir = "");
 
 // 0: success
 int TraceToPerfProfile(std::istream* input,
                        std::ostream* output,
                        uint64_t pid,
                        const std::vector<uint64_t>& timestamps,
-                       bool annotate_frames);
+                       bool annotate_frames,
+                       const std::string& output_dir = "");
 
 // 0: success
 int TraceToJavaHeapProfile(std::istream* input,
                            std::ostream* output,
                            uint64_t pid,
                            const std::vector<uint64_t>& timestamps,
-                           bool annotate_frames);
+                           bool annotate_frames,
+                           const std::string& output_dir = "");
 
 }  // namespace trace_to_text
 }  // namespace perfetto

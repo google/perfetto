@@ -25,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "src/base/test/utils.h"
 #include "src/traceconv/pprof_reader.h"
 #include "src/traceconv/trace_to_profile.h"
@@ -125,6 +126,38 @@ TEST_F(TraceToPprofTest, HugeSizes) {
   EXPECT_EQ(pprof.get_samples_value_sum("dev.perfetto.BigStuff",
                                         "Total allocation size"),
             3000000000);
+}
+
+TEST_F(TraceToPprofTest, OutputDirectory) {
+  const std::string trace_file =
+      base::GetTestDataPath("test/data/heap_graph/heap_graph.pb");
+  std::ifstream file_istream;
+  file_istream.open(trace_file, std::ios_base::in | std::ios_base::binary);
+  PERFETTO_CHECK(file_istream.is_open());
+
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string output_dir = temp_dir.path() + "/my_profiles";
+
+  std::stringstream ss;
+  std::ostream os(ss.rdbuf());
+  trace_to_text::TraceToJavaHeapProfile(&file_istream, &os, /*pid=*/0,
+                                        /*timestamps=*/{},
+                                        /*annotate_frames=*/false, output_dir);
+
+  // Check output message
+  std::string output_str = ss.str();
+  EXPECT_THAT(output_str,
+              testing::HasSubstr("Wrote profiles to " + output_dir));
+
+  // Check files exist
+  std::vector<std::string> filenames;
+  base::ListFilesRecursive(output_dir, filenames);
+  EXPECT_EQ(filenames.size(), 1U);
+
+  for (const auto& file : filenames) {
+    remove((output_dir + "/" + file).c_str());
+  }
+  base::Rmdir(output_dir);
 }
 
 class TraceToPprofRealTraceTest : public ::testing::Test {
