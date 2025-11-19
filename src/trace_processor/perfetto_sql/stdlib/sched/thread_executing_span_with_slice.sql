@@ -18,6 +18,12 @@ INCLUDE PERFETTO MODULE slices.flat_slices;
 
 INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
+INCLUDE PERFETTO MODULE graphs.critical_path;
+
+INCLUDE PERFETTO MODULE intervals.intersect;
+
+INCLUDE PERFETTO MODULE intervals.overlap;
+
 CREATE PERFETTO TABLE _critical_path_userspace AS
 SELECT
   *

@@ -1,0 +1,546 @@
+#!/usr/bin/env python3
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+Analyze Perfetto stdlib dependency graph.
+
+Usage:
+    tools/check_stdlib_includes [--quiet]
+
+Example:
+    tools/check_stdlib_includes
+    tools/check_stdlib_includes --quiet
+"""
+
+import argparse
+import os
+import re
+from collections import defaultdict
+from dataclasses import dataclass, field
+from pathlib import Path
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+@dataclass
+class ModuleInfo:
+  """Information about a module."""
+  name: str
+  includes: list = field(default_factory=list)
+  tables: list = field(default_factory=list)
+  views: list = field(default_factory=list)
+  functions: list = field(default_factory=list)
+  macros: list = field(default_factory=list)
+  indexes: list = field(default_factory=list)
+  virtual_tables: list = field(default_factory=list)
+  prelude_imports: list = field(default_factory=list)
+  silent_imports: list = field(default_factory=list)
+  unused_imports: list = field(default_factory=list)
+  used_entities_by_include: dict = field(default_factory=dict)
+
+
+def find_stdlib_path():
+  """Find the stdlib directory in the current repository."""
+  stdlib_path = os.path.join(ROOT_DIR, "src", "trace_processor", "perfetto_sql",
+                             "stdlib")
+
+  if not os.path.exists(stdlib_path):
+    raise ValueError(f"stdlib path not found: {stdlib_path}")
+
+  return Path(stdlib_path)
+
+
+def get_module_name(sql_file, stdlib_path):
+  """Convert a SQL file path to its module name."""
+  # Get relative path from stdlib
+  rel_path = sql_file.relative_to(stdlib_path)
+
+  # Remove .sql extension
+  path_without_ext = str(rel_path.with_suffix(''))
+
+  # Convert path separators to dots for module name
+  module_name = path_without_ext.replace(os.sep, '.')
+
+  return module_name
+
+
+def remove_comments(content):
+  """Remove SQL comments from content, handling multi-line strings carefully."""
+  lines = []
+  for line in content.split('\n'):
+    # Find -- comment marker, but be careful about strings
+    comment_pos = -1
+    in_string = False
+    string_char = None
+
+    for i, char in enumerate(line):
+      if char in ('"', "'") and (i == 0 or line[i - 1] != '\\'):
+        if not in_string:
+          in_string = True
+          string_char = char
+        elif char == string_char:
+          in_string = False
+          string_char = None
+      elif char == '-' and i < len(line) - 1 and line[
+          i + 1] == '-' and not in_string:
+        comment_pos = i
+        break
+
+    if comment_pos >= 0:
+      line = line[:comment_pos]
+
+    lines.append(line)
+
+  return '\n'.join(lines)
+
+
+def categorize_entity(name):
+  """Categorize entity as public or private based on naming convention."""
+  if name.startswith('_'):
+    return 'private'
+  else:
+    return 'public'
+
+
+def extract_creates(sql_file):
+  """Extract all CREATE statements from a SQL file."""
+  tables = []
+  views = []
+  functions = []
+  macros = []
+  indexes = []
+  virtual_tables = []
+
+  try:
+    with open(sql_file, 'r', encoding='utf-8') as f:
+      content = f.read()
+
+    # Remove comments first
+    content = remove_comments(content)
+
+    # Patterns for different CREATE statements
+    patterns = {
+        'table': r'CREATE\s+PERFETTO\s+TABLE\s+([a-zA-Z0-9_]+)',
+        'view': r'CREATE\s+PERFETTO\s+VIEW\s+([a-zA-Z0-9_]+)',
+        'function': r'CREATE\s+PERFETTO\s+FUNCTION\s+([a-zA-Z0-9_!]+)\s*\(',
+        'macro': r'CREATE\s+PERFETTO\s+MACRO\s+([a-zA-Z0-9_!]+)\s*\(',
+        'index': r'CREATE\s+PERFETTO\s+INDEX\s+([a-zA-Z0-9_]+)\s+ON',
+        'virtual_table': r'CREATE\s+VIRTUAL\s+TABLE\s+([a-zA-Z0-9_]+)\s+USING',
+    }
+
+    for entity_type, pattern in patterns.items():
+      matches = re.finditer(pattern, content, re.IGNORECASE)
+
+      for match in matches:
+        name = match.group(1)
+        visibility = categorize_entity(name)
+        entity_info = f"{name} ({visibility})"
+
+        if entity_type == 'table':
+          tables.append(entity_info)
+        elif entity_type == 'view':
+          views.append(entity_info)
+        elif entity_type == 'function':
+          functions.append(entity_info)
+        elif entity_type == 'macro':
+          macros.append(entity_info)
+        elif entity_type == 'index':
+          indexes.append(entity_info)
+        elif entity_type == 'virtual_table':
+          virtual_tables.append(entity_info)
+
+  except Exception as e:
+    print(f"Warning: Error reading {sql_file}: {e}")
+
+  return tables, views, functions, macros, indexes, virtual_tables
+
+
+def extract_includes(sql_file):
+  """Extract INCLUDE PERFETTO MODULE statements from a SQL file."""
+  includes = []
+
+  try:
+    with open(sql_file, 'r', encoding='utf-8') as f:
+      content = f.read()
+
+    # Remove comments first
+    content = remove_comments(content)
+
+    # Match INCLUDE PERFETTO MODULE statements
+    # Pattern: INCLUDE PERFETTO MODULE <module.name>;
+    pattern = r'INCLUDE\s+PERFETTO\s+MODULE\s+([a-zA-Z0-9_.]+)\s*;'
+    matches = re.finditer(pattern, content, re.IGNORECASE)
+
+    for match in matches:
+      module_name = match.group(1)
+      includes.append(module_name)
+
+  except Exception as e:
+    print(f"Warning: Error reading {sql_file}: {e}")
+
+  return includes
+
+
+def extract_referenced_entities(sql_file):
+  """Extract all entity references from a SQL file."""
+  references = set()
+
+  try:
+    with open(sql_file, 'r', encoding='utf-8') as f:
+      content = f.read()
+
+    # Remove comments first
+    content = remove_comments(content)
+
+    # Extract references from FROM and JOIN clauses
+    # Pattern: FROM <entity> or JOIN <entity>
+    from_join_pattern = r'(?:FROM|JOIN)\s+([a-zA-Z0-9_!]+)'
+    matches = re.finditer(from_join_pattern, content, re.IGNORECASE)
+    for match in matches:
+      entity = match.group(1)
+      # Skip SQL keywords and CTEs
+      if entity.upper() not in [
+          'SELECT', 'WITH', 'AS', 'ON', 'WHERE', 'GROUP', 'ORDER', 'HAVING',
+          'LIMIT'
+      ]:
+        references.add(entity)
+
+    # Extract table references from USING clauses (e.g., SPAN_JOIN, SPAN_OUTER_JOIN)
+    # Pattern: USING <module_or_function> ( <table1> PARTITIONED ..., <table2> PARTITIONED ... )
+    using_pattern = r'USING\s+[a-zA-Z0-9_]+\s*\(\s*([^)]+)\)'
+    matches = re.finditer(using_pattern, content, re.IGNORECASE | re.DOTALL)
+    for match in matches:
+      tables_section = match.group(1)
+      # Extract all table names (words before PARTITIONED or between commas)
+      # Split by comma first, then extract table name from each part
+      parts = tables_section.split(',')
+      for part in parts:
+        # Extract the first word (table name) from each part
+        table_match = re.search(r'([a-zA-Z0-9_]+)', part.strip())
+        if table_match:
+          table_name = table_match.group(1)
+          # Skip SQL keywords
+          if table_name.upper() not in [
+              'PARTITIONED', 'ORDER', 'BY', 'ASC', 'DESC'
+          ]:
+            references.add(table_name)
+
+    # Extract function/macro calls (entities followed by parentheses)
+    # Pattern: <entity>(
+    function_pattern = r'([a-zA-Z0-9_!]+)\s*\('
+    matches = re.finditer(function_pattern, content, re.IGNORECASE)
+    for match in matches:
+      entity = match.group(1)
+      # Skip common SQL keywords and operators
+      if entity.upper() not in [
+          'SELECT', 'FROM', 'WHERE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
+          'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'CAST', 'SUBSTR', 'COALESCE',
+          'NULLIF', 'IFNULL', 'IIF', 'INSTR', 'LENGTH', 'GLOB', 'LIKE', 'COUNT',
+          'SUM', 'AVG', 'MIN', 'MAX', 'GROUP_CONCAT', 'LEAD', 'LAG',
+          'ROW_NUMBER', 'RANK', 'DENSE_RANK', 'FIRST_VALUE', 'LAST_VALUE',
+          'NTH_VALUE', 'OVER', 'PARTITION', 'ORDER', 'ROWS', 'RANGE', 'BETWEEN',
+          'UNBOUNDED', 'PRECEDING', 'FOLLOWING', 'CURRENT'
+      ]:
+        references.add(entity)
+
+    # Extract macro invocations with ! syntax
+    # Pattern: <entity>!(...) - macros are invoked with !
+    macro_pattern = r'([a-zA-Z0-9_]+)!\s*\('
+    matches = re.finditer(macro_pattern, content, re.IGNORECASE)
+    for match in matches:
+      entity = match.group(1)
+      references.add(entity)
+
+  except Exception as e:
+    print(f"Warning: Error reading {sql_file}: {e}")
+
+  return references
+
+
+def get_all_entities_from_module(module_info):
+  """Get all entity names from a module."""
+  entities = set()
+
+  # Extract just the name without visibility annotation
+  for entity_list in [
+      module_info.tables, module_info.views, module_info.functions,
+      module_info.macros, module_info.indexes, module_info.virtual_tables
+  ]:
+    for entity in entity_list:
+      # Extract name before " (public)" or " (private)"
+      name = entity.split(' (')[0]
+      entities.add(name)
+
+  return entities
+
+
+def find_module_for_entity(entity, modules):
+  """Find which module defines an entity."""
+  for module_name, module_info in modules.items():
+    if entity in get_all_entities_from_module(module_info):
+      return module_name
+  return None
+
+
+def analyze_dependencies(quiet=False):
+  """Analyze and print the stdlib dependency graph.
+
+    Returns:
+        Number of modules with dependency errors (unused or silent imports).
+    """
+  stdlib_path = find_stdlib_path()
+
+  # Find all .sql files
+  sql_files = list(stdlib_path.rglob("*.sql"))
+
+  if not sql_files:
+    print(f"No SQL files found in {stdlib_path}")
+    return
+
+  # FIRST PASS: Extract includes and all created entities from each module
+  modules_by_file = {}
+  modules_by_name = {}
+
+  for sql_file in sorted(sql_files):
+    module_name = get_module_name(sql_file, stdlib_path)
+    includes = extract_includes(sql_file)
+    tables, views, functions, macros, indexes, virtual_tables = extract_creates(
+        sql_file)
+
+    module_info = ModuleInfo(
+        name=module_name,
+        includes=includes,
+        tables=tables,
+        views=views,
+        functions=functions,
+        macros=macros,
+        indexes=indexes,
+        virtual_tables=virtual_tables)
+
+    modules_by_file[sql_file] = module_info
+    modules_by_name[module_name] = module_info
+
+  # Build reverse index: entity name -> defining module name
+  entity_to_module = {}
+  for module_name, module_info in modules_by_name.items():
+    for entity in get_all_entities_from_module(module_info):
+      entity_to_module[entity] = module_name
+
+  # SECOND PASS: Analyze usages and compute dependencies
+  for sql_file, module_info in modules_by_file.items():
+    # Extract all entity references in this module
+    references = extract_referenced_entities(sql_file)
+
+    # Get entities defined in this module (skip self-references)
+    own_entities = get_all_entities_from_module(module_info)
+
+    # Build map of included module -> entities it provides
+    included_entities_by_module = {}
+    for included_module_name in module_info.includes:
+      if included_module_name in modules_by_name:
+        included_entities_by_module[
+            included_module_name] = get_all_entities_from_module(
+                modules_by_name[included_module_name])
+      else:
+        # Warn about non-existent included modules
+        print(
+            f"Warning: Module '{module_info.name}' includes non-existent module '{included_module_name}'"
+        )
+
+    # Track which entities from each include are actually used
+    used_entities_by_include = defaultdict(set)
+
+    # Track imports that are used but not declared
+    prelude_imports = []
+    silent_imports = []
+
+    # Analyze each reference
+    for ref in references:
+      # Skip self-references (entities defined in this module)
+      if ref in own_entities:
+        continue
+
+      # Check if this entity comes from an explicitly included module FIRST
+      # (before applying heuristics that might filter it out)
+      is_from_included_module = False
+      for included_module_name, entities in included_entities_by_module.items():
+        if ref in entities:
+          used_entities_by_include[included_module_name].add(ref)
+          is_from_included_module = True
+          break
+
+      # If found in an included module, we're done with this reference
+      if is_from_included_module:
+        continue
+
+      # Find which module defines this entity
+      defining_module = entity_to_module.get(ref)
+      if not defining_module:
+        # Entity not found in any module - it's a SQL built-in or not a stdlib entity
+        continue
+
+      # It's an implicit import (silent import or prelude import)
+      if defining_module.startswith('prelude.'):
+        prelude_imports.append(f"{ref} (from {defining_module})")
+      else:
+        silent_imports.append(f"{ref} (from {defining_module})")
+
+    # Find unused imports (included but never referenced)
+    unused_imports = [
+        inc for inc in module_info.includes
+        if inc not in used_entities_by_include
+    ]
+
+    # Store results in module_info
+    module_info.prelude_imports = sorted(list(set(prelude_imports)))
+    module_info.silent_imports = sorted(list(set(silent_imports)))
+    module_info.unused_imports = sorted(unused_imports)
+    module_info.used_entities_by_include = {
+        inc: sorted(list(entities))
+        for inc, entities in used_entities_by_include.items()
+    }
+
+  # Print results
+  if not quiet:
+    print(f"Stdlib Dependency Graph")
+    print(f"{'=' * 80}\n")
+    print(f"Total modules: {len(modules_by_name)}\n")
+
+  # Count modules with errors (excluding prelude modules)
+  modules_with_errors = []
+  for module_name in sorted(modules_by_name.keys()):
+    module = modules_by_name[module_name]
+    # Skip prelude modules
+    if module_name.startswith('prelude.'):
+      continue
+    if module.unused_imports or module.silent_imports:
+      modules_with_errors.append(module_name)
+
+  if quiet:
+    if modules_with_errors:
+      print(f"Found {len(modules_with_errors)} module(s) with errors:\n")
+    else:
+      print(f"No errors found in any modules!")
+      return 0
+
+  for module_name in sorted(modules_by_name.keys()):
+    module = modules_by_name[module_name]
+
+    # Skip prelude modules - they're organizational and don't need error checking
+    if module_name.startswith('prelude.'):
+      continue
+
+    # In quiet mode, only show modules with errors
+    if quiet and not (module.unused_imports or module.silent_imports):
+      continue
+
+    print(f"Module: {module.name}")
+
+    # Includes
+    if module.includes:
+      print(f"  Includes ({len(module.includes)}):")
+      for inc in sorted(module.includes):
+        # Show which entities from this include are actually used
+        if inc in module.used_entities_by_include:
+          entities = module.used_entities_by_include[inc]
+          entities_str = ", ".join(entities)
+          print(f"    - {inc} (uses: {entities_str})")
+        else:
+          # This is an unused import, will be shown in unused section
+          print(f"    - {inc}")
+    else:
+      print("  Includes: (none)")
+
+    # Unused imports
+    if module.unused_imports:
+      print(f"  Unused imports ({len(module.unused_imports)}):")
+      for imp in sorted(module.unused_imports):
+        print(f"    - {imp}")
+
+    # Prelude imports
+    if module.prelude_imports:
+      print(f"  Prelude imports ({len(module.prelude_imports)}):")
+      for imp in sorted(module.prelude_imports):
+        print(f"    - {imp}")
+
+    # Silent imports
+    if module.silent_imports:
+      print(f"  Silent imports ({len(module.silent_imports)}):")
+      for imp in sorted(module.silent_imports):
+        print(f"    - {imp}")
+
+    # In quiet mode, don't show created entities
+    if not quiet:
+      # Tables
+      if module.tables:
+        print(f"  Tables ({len(module.tables)}):")
+        for table in module.tables:
+          print(f"    - {table}")
+
+      # Views
+      if module.views:
+        print(f"  Views ({len(module.views)}):")
+        for view in module.views:
+          print(f"    - {view}")
+
+      # Functions
+      if module.functions:
+        print(f"  Functions ({len(module.functions)}):")
+        for func in module.functions:
+          print(f"    - {func}")
+
+      # Macros
+      if module.macros:
+        print(f"  Macros ({len(module.macros)}):")
+        for macro in module.macros:
+          print(f"    - {macro}")
+
+      # Indexes
+      if module.indexes:
+        print(f"  Indexes ({len(module.indexes)}):")
+        for index in module.indexes:
+          print(f"    - {index}")
+
+      # Virtual Tables
+      if module.virtual_tables:
+        print(f"  Virtual Tables ({len(module.virtual_tables)}):")
+        for vtable in module.virtual_tables:
+          print(f"    - {vtable}")
+
+    print()
+
+  return len(modules_with_errors)
+
+
+def main():
+  parser = argparse.ArgumentParser(
+      description="Analyze Perfetto stdlib dependency graph",
+      epilog="Example: tools/check_stdlib_includes --quiet")
+  parser.add_argument(
+      "--quiet",
+      action="store_true",
+      help="Only show modules with errors (unused or silent imports)")
+
+  args = parser.parse_args()
+
+  try:
+    error_count = analyze_dependencies(quiet=args.quiet)
+    return 1 if error_count > 0 else 0
+  except Exception as e:
+    print(f"Error: {e}")
+    return 1
+
+
+if __name__ == "__main__":
+  exit(main())

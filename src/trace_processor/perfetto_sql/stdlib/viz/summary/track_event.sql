@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE viz.summary.slices;
-
 CREATE PERFETTO TABLE _track_event_tracks_unordered AS
 WITH
   extracted AS (
