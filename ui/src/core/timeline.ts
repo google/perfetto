@@ -21,7 +21,7 @@ import {DurationPrecision, Timeline, TimestampFormat} from '../public/timeline';
 import {TraceInfo} from '../public/trace_info';
 import {Setting} from '../public/settings';
 
-const MIN_DURATION = 10;
+export const MIN_DURATION = 10;
 
 /**
  * State that is shared between several frontend components, but not the
@@ -34,7 +34,7 @@ export class TimelineImpl implements Timeline {
   private _hoveredNoteTimestamp?: time;
 
   // TODO(stevegolton): These are currently only referenced by the cpu slice
-  // tracks and the process summary tracks. We should just make this a local
+  // tracks and the process summary tracks. We shosuld just make this a local
   // property of the cpu slice tracks and ignore them in the process tracks.
   private _hoveredUtid?: number;
   private _hoveredPid?: bigint;
@@ -120,6 +120,10 @@ export class TimelineImpl implements Timeline {
   panToTimestamp(ts: time) {
     if (this._visibleWindow.contains(ts)) return;
     // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
+    this.centerOnTimestamp(ts);
+  }
+
+  centerOnTimestamp(ts: time) {
     const halfDuration = this.visibleWindow.duration / 2;
     const newStart = new HighPrecisionTime(ts).subNumber(halfDuration);
     const newWindow = new HighPrecisionTimeSpan(

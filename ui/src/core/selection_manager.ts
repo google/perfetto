@@ -36,8 +36,9 @@ import {showModal} from '../widgets/modal';
 import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
 import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
 import {Track} from '../public/track';
-import {TimelineImpl} from './timeline';
+import {MIN_DURATION, TimelineImpl} from './timeline';
 import {HighPrecisionTime} from '../base/high_precision_time';
+// import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;
@@ -404,6 +405,35 @@ export class SelectionManagerImpl implements SelectionManager {
       time: range ? {...range} : undefined,
       track: uri ? {uri, expandGroup: true} : undefined,
     });
+  }
+
+  zoomFillOnSelection() {
+    const uri = (() => {
+      switch (this.selection.kind) {
+        case 'track_event':
+        case 'track':
+          return this.selection.trackUri;
+        // TODO(stevegolton): Handle scrolling to area and note selections.
+        default:
+          return undefined;
+      }
+    })();
+    const range = this.getTimeSpanOfSelection();
+    if (!range) {
+      return;
+    }
+    this.scrollHelper.scrollTo({
+      time: {
+        start: Time.fromRaw(range.start),
+        end: Time.fromRaw(range.end),
+        viewPercentage: 1.0,
+      },
+      track: uri ? {uri, expandGroup: true} : undefined,
+    });
+    // Ensures small selections are not left aligned on the viewport.
+    if (range.duration < MIN_DURATION) {
+      this.timeline.centerOnTimestamp(Time.fromRaw(range.midpoint));
+    }
   }
 
   zoomOnSelection() {

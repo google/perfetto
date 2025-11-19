@@ -577,6 +577,13 @@ export default class CoreCommands implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
+      id: 'dev.perfetto.ZoomFillOnSelection',
+      name: 'Zoom in on current selection to fill the viewport',
+      callback: () => ctx.selection.zoomFillOnSelection(),
+      defaultHotkey: 'Shift+F',
+    });
+
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.Deselect',
       name: 'Deselect',
       callback: () => {
