@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/**
+ * Provides non-modal user prompts integrated into the UI.
+ *
+ * The omnibox can prompt users for free-form text input or selection from a
+ * list of choices. Think of it as window.prompt() but non-blocking and
+ * better integrated with the UI. Returns a promise that resolves to the
+ * user's input or undefined if dismissed.
+ */
 export interface OmniboxManager {
   /**
    * Turns the omnibox into an interactive prompt for the user. Think of
@@ -70,7 +78,23 @@ export interface OmniboxManager {
   prompt<T>(text: string, choices: PromptChoices<T>): Promise<T | undefined>;
 }
 
+/**
+ * Represents a set of choices for the omnibox prompt.
+ *
+ * This interface allows for providing complex objects as choices, with a
+ * custom function to extract the display name for each choice.
+ * @template T The type of the values in the choices list.
+ */
 export interface PromptChoices<T> {
-  values: ReadonlyArray<T>;
-  getName: (x: T) => string;
+  /**
+   * An array of values that the user can choose from.
+   */
+  readonly values: ReadonlyArray<T>;
+
+  /**
+   * A function that returns the display name for a given choice value.
+   * @param x The choice value.
+   * @returns The string representation of the choice.
+   */
+  getName(x: T): string;
 }

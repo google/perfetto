@@ -24,7 +24,7 @@ import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
-import {MinimapRow} from '../../public/minimap';
+import {MinimapCell, MinimapRow} from '../../public/minimap';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
@@ -637,7 +637,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
                 upid;
             `);
 
-        const slicesData = new Map<number, MinimapRow>();
+        const slicesData = new Map<number, MinimapCell[]>();
         const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
         for (; it.valid(); it.next()) {
           const bucket = it.bucket;
