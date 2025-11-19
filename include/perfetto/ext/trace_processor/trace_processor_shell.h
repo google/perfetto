@@ -22,11 +22,15 @@
 #include <memory>
 #include <string>
 #include <string_view>
+
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
 namespace perfetto::trace_processor {
+
+// Forward declaration.
+class TraceProcessorShell_PlatformInterface;
 
 // Class for implementing a trace processor shell.
 //
@@ -36,30 +40,8 @@ namespace perfetto::trace_processor {
 // with internal packages etc.
 class TraceProcessorShell {
  public:
-  // Abstract class for platform specific operations.
-  class PlatformInterface {
-   public:
-    virtual ~PlatformInterface();
-
-    // Returns the default config struct for creating a new instance of
-    // TraceProcessor.
-    virtual Config DefaultConfig() const = 0;
-
-    // Callback invoked when a new TraceProcessor instance is created.
-    // Allows configuring the TraceProcessor before use (adding PerfettoSQL
-    // modules etc).
-    virtual base::Status OnTraceProcessorCreated(
-        TraceProcessor* trace_processor) = 0;
-
-    // Loads the trace located at |path| into the provided |trace_processor|.
-    //
-    // The implementation may optionally provide progress updates by invoking
-    // |progress_callback| with the number of bytes parsed so far.
-    virtual base::Status LoadTrace(
-        TraceProcessor* trace_processor,
-        const std::string& path,
-        std::function<void(size_t)> progress_callback) = 0;
-  };
+  // Type alias for platform interface.
+  using PlatformInterface = TraceProcessorShell_PlatformInterface;
 
   // Creates a new instance of TraceProcessorShell with the provided
   // |platform_interface|.
@@ -80,6 +62,31 @@ class TraceProcessorShell {
       std::unique_ptr<PlatformInterface> platform_interface);
 
   std::unique_ptr<PlatformInterface> platform_interface_;
+};
+
+// Abstract class for platform specific operations.
+class TraceProcessorShell_PlatformInterface {
+ public:
+  virtual ~TraceProcessorShell_PlatformInterface();
+
+  // Returns the default config struct for creating a new instance of
+  // TraceProcessor.
+  virtual Config DefaultConfig() const = 0;
+
+  // Callback invoked when a new TraceProcessor instance is created.
+  // Allows configuring the TraceProcessor before use (adding PerfettoSQL
+  // modules etc).
+  virtual base::Status OnTraceProcessorCreated(
+      TraceProcessor* trace_processor) = 0;
+
+  // Loads the trace located at |path| into the provided |trace_processor|.
+  //
+  // The implementation may optionally provide progress updates by invoking
+  // |progress_callback| with the number of bytes parsed so far.
+  virtual base::Status LoadTrace(
+      TraceProcessor* trace_processor,
+      const std::string& path,
+      std::function<void(size_t)> progress_callback) = 0;
 };
 
 }  // namespace perfetto::trace_processor
