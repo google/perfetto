@@ -2180,7 +2180,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   return base::OkStatus();
 }
 
-TraceProcessorShell_PlatformInterface::~TraceProcessorShell_PlatformInterface() =
-    default;
+TraceProcessorShell_PlatformInterface::
+    ~TraceProcessorShell_PlatformInterface() = default;
 
 }  // namespace perfetto::trace_processor
