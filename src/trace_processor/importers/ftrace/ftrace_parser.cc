@@ -152,10 +152,10 @@ constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 9>{
         protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
         protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
-        protos::pbzero::FtraceEvent::kWorkqueueExecuteStartFieldNumber,
+        protos::pbzero::FtraceEvent::kWorkqueueActivateWorkFieldNumber,
         protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
-        protos::pbzero::FtraceEvent::kWorkqueueActivateWorkFieldNumber,
+        protos::pbzero::FtraceEvent::kWorkqueueExecuteStartFieldNumber,
         protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kWorkqueueExecuteEndFieldNumber,
