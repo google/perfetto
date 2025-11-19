@@ -122,10 +122,21 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     // the EnergyData level.
     for (auto it = evt.energy_data(); it; ++it) {
       protos::pbzero::PowerRails::EnergyData::Decoder data(*it);
-      int64_t actual_ts =
-          data.has_timestamp_ms()
-              ? static_cast<int64_t>(data.timestamp_ms()) * 1000000
-              : packet_timestamp;
+      int64_t actual_ts;
+      if (data.has_timestamp_ms()) {
+        // timestamp_ms is always in boottime per protobuf spec.
+        int64_t ts_ns = static_cast<int64_t>(data.timestamp_ms()) * 1000000;
+        auto trace_ts = context_->clock_tracker->ToTraceTime(
+            protos::pbzero::BUILTIN_CLOCK_BOOTTIME, ts_ns);
+        if (!trace_ts.has_value()) {
+          // Rely on implicitly incremented error stat in ToTraceTime instead
+          // of fatally erroring.
+          continue;
+        }
+        actual_ts = *trace_ts;
+      } else {
+        actual_ts = packet_timestamp;
+      }
 
       protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
       // Keep the original timestamp to later extract as an arg; the sorter does

@@ -35,8 +35,10 @@ import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
-import {Flamegraph} from '../../widgets/flamegraph';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {CallstackDetailsSection} from './callstack_details_section';
+import {Store} from '../../base/store';
+import {z} from 'zod';
 
 function createTrackEventDetailsPanel(trace: Trace) {
   return () =>
@@ -45,117 +47,13 @@ function createTrackEventDetailsPanel(trace: Trace) {
     });
 }
 
-function createTrackEventCallstackFlamegraphTab(trace: Trace) {
-  let previousSelection: undefined | AreaSelection;
-  let flamegraph: undefined | QueryFlamegraph;
-  return {
-    id: 'track_event_callstack_flamegraph',
-    name: 'Track Event Callstacks',
-    render(selection: AreaSelection) {
-      const changed =
-        previousSelection === undefined ||
-        !areaSelectionsEqual(previousSelection, selection);
-      if (changed) {
-        flamegraph = computeTrackEventCallstackFlamegraph(trace, selection);
-        previousSelection = selection;
-      }
-      if (flamegraph === undefined) {
-        return undefined;
-      }
-      return {isLoading: false, content: flamegraph.render()};
-    },
-  };
-}
+const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+});
 
-function computeTrackEventCallstackFlamegraph(
-  trace: Trace,
-  selection: AreaSelection,
-) {
-  const trackIds = [];
-  for (const trackInfo of selection.tracks) {
-    if (trackInfo?.tags?.trackEvent === true) {
-      const tids = trackInfo.tags.trackIds;
-      if (tids) {
-        trackIds.push(...tids);
-      }
-    }
-  }
-  if (trackIds.length === 0) {
-    return undefined;
-  }
-  const metrics = metricsFromTableOrSubquery(
-    `
-      (
-        with relevant_slices as (
-          select id
-          from _interval_intersect_single!(
-            ${selection.start},
-            ${selection.end},
-            (
-              select
-                id,
-                ts,
-                -- We do this instead of filtering out negative durations
-                -- because we still want to include begin callsites for
-                -- incomplete slices. The code below will take care of
-                -- only looking at begin callsites for such slices.
-                max(dur, 0) as dur
-              from slice
-              where track_id in (${trackIds.join()})
-            )
-          )
-        )
-        select
-          id,
-          parent_id as parentId,
-          name,
-          mapping_name,
-          source_file || ':' || line_number as source_location,
-          self_count
-        from _callstacks_for_callsites!((
-          select extract_arg(arg_set_id, 'callsite_id') as callsite_id
-          from relevant_slices
-          join slice using (id)
-          where ts >= ${selection.start}
-            and ts <= ${selection.end}
-            and track_id in (${trackIds.join(',')})
-          union all
-          select extract_arg(arg_set_id, 'end_callsite_id') as callsite_id
-          from relevant_slices
-          join slice using (id)
-          where ts + dur >= ${selection.start}
-            and ts + dur <= ${selection.end}
-            and dur > 0
-            and extract_arg(arg_set_id, 'end_callsite_id') is not null
-        ))
-      )
-    `,
-    [
-      {
-        name: 'Samples',
-        unit: '',
-        columnName: 'self_count',
-      },
-    ],
-    `
-     include perfetto module callstacks.stack_profile;
-     include perfetto module intervals.intersect;
-    `,
-    [{name: 'mapping_name', displayName: 'Mapping'}],
-    [
-      {
-        name: 'source_location',
-        displayName: 'Source Location',
-        mergeAggregation: 'ONE_OR_SUMMARY',
-      },
-    ],
-  );
-  return new QueryFlamegraph(trace, metrics, {
-    state: Flamegraph.createDefaultState(metrics),
-  });
-}
+type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
 
-export default class implements PerfettoPlugin {
+export default class TrackEventPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackEvent';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
@@ -163,8 +61,22 @@ export default class implements PerfettoPlugin {
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
+  private store?: Store<TrackEventPluginState>;
+
+  private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
+    const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
+    if (result.success) {
+      return result.data;
+    }
+    return {
+      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
+    };
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    this.store = ctx.mountStore(TrackEventPlugin.id, (init) =>
+      this.migrateTrackEventPluginState(init),
+    );
     const res = await ctx.engine.query(`
       include perfetto module viz.summary.track_event;
       select
@@ -327,8 +239,132 @@ export default class implements PerfettoPlugin {
 
     // Register area selection tab for callstack flamegraph
     ctx.selection.registerAreaSelectionTab(
-      createTrackEventCallstackFlamegraphTab(ctx),
+      this.createTrackEventCallstackFlamegraphTab(ctx),
     );
+  }
+
+  private createTrackEventCallstackFlamegraphTab(trace: Trace) {
+    let previousSelection: undefined | AreaSelection;
+    let flamegraph: undefined | QueryFlamegraph;
+    return {
+      id: 'track_event_callstack_flamegraph',
+      name: 'Track Event Callstacks',
+      render: (selection: AreaSelection) => {
+        const changed =
+          previousSelection === undefined ||
+          !areaSelectionsEqual(previousSelection, selection);
+        if (changed) {
+          flamegraph = this.computeTrackEventCallstackFlamegraph(
+            trace,
+            selection,
+          );
+          previousSelection = selection;
+        }
+        if (flamegraph === undefined) {
+          return undefined;
+        }
+        return {
+          isLoading: false,
+          content: flamegraph.render(
+            assertExists(this.store).state.areaSelectionFlamegraphState,
+            (state) => {
+              assertExists(this.store).edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
+            },
+          ),
+        };
+      },
+    };
+  }
+
+  private computeTrackEventCallstackFlamegraph(
+    trace: Trace,
+    selection: AreaSelection,
+  ) {
+    const trackIds = [];
+    for (const trackInfo of selection.tracks) {
+      if (trackInfo?.tags?.trackEvent === true) {
+        const tids = trackInfo.tags.trackIds;
+        if (tids) {
+          trackIds.push(...tids);
+        }
+      }
+    }
+    if (trackIds.length === 0) {
+      return undefined;
+    }
+    const metrics = metricsFromTableOrSubquery(
+      `
+      (
+        with relevant_slices as (
+          select id
+          from _interval_intersect_single!(
+            ${selection.start},
+            ${selection.end},
+            (
+              select
+                id,
+                ts,
+                max(dur, 0) as dur
+              from slice
+              where track_id in (${trackIds.join()})
+            )
+          )
+        )
+        select
+          id,
+          parent_id as parentId,
+          name,
+          mapping_name,
+          source_file || ':' || line_number as source_location,
+          self_count
+        from _callstacks_for_callsites!((
+          select extract_arg(arg_set_id, 'callsite_id') as callsite_id
+          from relevant_slices
+          join slice using (id)
+          where ts >= ${selection.start}
+            and ts <= ${selection.end}
+            and track_id in (${trackIds.join(',')})
+          union all
+          select extract_arg(arg_set_id, 'end_callsite_id') as callsite_id
+          from relevant_slices
+          join slice using (id)
+          where ts + dur >= ${selection.start}
+            and ts + dur <= ${selection.end}
+            and dur > 0
+            and extract_arg(arg_set_id, 'end_callsite_id') is not null
+        ))
+      )
+    `,
+      [
+        {
+          name: 'Samples',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      `
+     include perfetto module callstacks.stack_profile;
+     include perfetto module intervals.intersect;
+    `,
+      [{name: 'mapping_name', displayName: 'Mapping'}],
+      [
+        {
+          name: 'source_location',
+          displayName: 'Source Location',
+          mergeAggregation: 'ONE_OR_SUMMARY',
+        },
+      ],
+    );
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
+    return new QueryFlamegraph(trace, metrics);
   }
 
   private findParentTrackNode(

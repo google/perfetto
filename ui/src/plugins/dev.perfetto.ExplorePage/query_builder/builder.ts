@@ -133,9 +133,8 @@ export interface BuilderAttrs {
 enum SelectedView {
   kInfo = 0,
   kModify = 1,
-  kSql = 2,
-  kProto = 3,
-  kComment = 4,
+  kResult = 2,
+  kComment = 3,
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -419,40 +418,20 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }),
           m(Button, {
             icon: 'code',
-            title: 'SQL',
+            title: 'Result',
             className:
-              this.selectedView === SelectedView.kSql &&
+              this.selectedView === SelectedView.kResult &&
               !this.isExplorerCollapsed
                 ? 'pf-active'
                 : '',
             onclick: () => {
               if (
-                this.selectedView === SelectedView.kSql &&
+                this.selectedView === SelectedView.kResult &&
                 !this.isExplorerCollapsed
               ) {
                 this.isExplorerCollapsed = true;
               } else {
-                this.selectedView = SelectedView.kSql;
-                this.isExplorerCollapsed = false;
-              }
-            },
-          }),
-          m(Button, {
-            icon: 'data_object',
-            title: 'Proto',
-            className:
-              this.selectedView === SelectedView.kProto &&
-              !this.isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
-                this.selectedView === SelectedView.kProto &&
-                !this.isExplorerCollapsed
-              ) {
-                this.isExplorerCollapsed = true;
-              } else {
-                this.selectedView = SelectedView.kProto;
+                this.selectedView = SelectedView.kResult;
                 this.isExplorerCollapsed = false;
               }
             },

@@ -3408,7 +3408,6 @@ python_library_host {
         "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto",
         "protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto",
         "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto",
-        "protos/perfetto/metrics/android/task_names.proto",
         "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
         "protos/perfetto/metrics/android/trace_quality.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
@@ -3513,7 +3512,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3606,7 +3604,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3701,7 +3698,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3795,7 +3791,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3887,7 +3882,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -3981,7 +3975,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4083,7 +4076,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4208,7 +4200,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4253,7 +4244,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4300,7 +4290,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4350,7 +4339,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4398,7 +4386,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4448,7 +4435,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4492,7 +4478,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4534,7 +4519,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4578,7 +4562,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4624,7 +4607,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4668,7 +4650,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4714,7 +4695,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4814,7 +4794,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4858,7 +4837,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4900,7 +4878,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4944,7 +4921,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -4988,7 +4964,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5030,7 +5005,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5074,7 +5048,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5118,7 +5091,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5160,7 +5132,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5204,7 +5175,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5256,7 +5226,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5306,7 +5275,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5358,7 +5326,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5405,7 +5372,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5450,7 +5416,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5497,7 +5462,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5543,7 +5507,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5587,7 +5550,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5633,7 +5595,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5677,7 +5638,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5719,7 +5679,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5763,7 +5722,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5807,7 +5765,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5849,7 +5806,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5893,7 +5849,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -5995,7 +5950,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6075,7 +6029,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6159,7 +6112,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6203,7 +6155,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6271,7 +6222,6 @@ genrule {
         "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto",
         "protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto",
         "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto",
-        "protos/perfetto/metrics/android/task_names.proto",
         "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
         "protos/perfetto/metrics/android/trace_quality.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
@@ -6371,7 +6321,6 @@ genrule {
         "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto",
         "protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto",
         "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto",
-        "protos/perfetto/metrics/android/task_names.proto",
         "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
         "protos/perfetto/metrics/android/trace_quality.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
@@ -6453,7 +6402,6 @@ genrule {
         "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto",
         "protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto",
         "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto",
-        "protos/perfetto/metrics/android/task_names.proto",
         "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
         "protos/perfetto/metrics/android/trace_quality.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
@@ -6513,7 +6461,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6572,7 +6519,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6614,7 +6560,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6658,7 +6603,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6795,7 +6739,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6888,7 +6831,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6941,7 +6883,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -6992,7 +6933,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7045,7 +6985,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7293,7 +7232,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7353,7 +7291,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7411,7 +7348,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7471,7 +7407,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7566,7 +7501,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7622,7 +7556,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7676,7 +7609,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -7732,7 +7664,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8042,7 +7973,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8090,7 +8020,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8140,7 +8069,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8184,7 +8112,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8226,7 +8153,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8270,7 +8196,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8560,7 +8485,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -8848,7 +8772,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9138,7 +9061,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9185,7 +9107,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9230,7 +9151,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9277,7 +9197,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9335,7 +9254,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9391,7 +9309,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9449,7 +9366,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9509,7 +9425,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9567,7 +9482,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9627,7 +9541,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9707,7 +9620,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9785,7 +9697,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -9865,7 +9776,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10006,7 +9916,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10145,7 +10054,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10286,7 +10194,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10333,7 +10240,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10378,7 +10284,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10425,7 +10330,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10480,7 +10384,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10533,7 +10436,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10588,7 +10490,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10632,7 +10533,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10691,7 +10591,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10749,7 +10648,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10805,7 +10703,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10863,7 +10760,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10910,7 +10806,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -10955,7 +10850,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11002,7 +10896,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11048,7 +10941,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11092,7 +10984,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11138,7 +11029,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11204,7 +11094,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11250,7 +11139,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11294,7 +11182,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11340,7 +11227,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11384,7 +11270,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11426,7 +11311,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11470,7 +11354,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11592,7 +11475,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11753,7 +11635,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11875,7 +11756,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11919,7 +11799,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -11961,7 +11840,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12005,7 +11883,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12114,7 +11991,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12158,7 +12034,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12205,7 +12080,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12252,7 +12126,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12452,6 +12325,7 @@ filegroup {
         "src/base/bits_unittest.cc",
         "src/base/circular_queue_unittest.cc",
         "src/base/dynamic_string_writer_unittest.cc",
+        "src/base/file_utils_unittest.cc",
         "src/base/fixed_string_writer_unittest.cc",
         "src/base/flags_unittest.cc",
         "src/base/flat_hash_map_unittest.cc",
@@ -12601,7 +12475,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12655,7 +12528,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -12793,7 +12665,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13182,7 +13053,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13408,7 +13278,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13487,7 +13356,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13531,7 +13399,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13573,7 +13440,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13617,7 +13483,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13661,7 +13526,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13703,7 +13567,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13747,7 +13610,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -13807,7 +13669,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -14839,7 +14700,6 @@ genrule {
         "src/trace_processor/metrics/sql/android/android_startup.sql",
         "src/trace_processor/metrics/sql/android/android_surfaceflinger.sql",
         "src/trace_processor/metrics/sql/android/android_sysui_notifications_blocking_calls_metric.sql",
-        "src/trace_processor/metrics/sql/android/android_task_names.sql",
         "src/trace_processor/metrics/sql/android/android_trace_quality.sql",
         "src/trace_processor/metrics/sql/android/codec_metrics.sql",
         "src/trace_processor/metrics/sql/android/composer_execution.sql",
@@ -16261,7 +16121,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -16303,7 +16162,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
@@ -16347,7 +16205,6 @@ genrule {
     ],
     export_include_dirs: [
         ".",
-        "protos",
     ],
 }
 
