@@ -234,22 +234,14 @@ int TraceboxMain(int argc, char** argv) {
   for (int i = 1; i < argc;) {
     if (strcmp(argv[i], "--autodaemonize") == 0) {
       autodaemonize = true;
-      // Remove from argv.
-      for (int j = i; j < argc - 1; ++j) {
-        argv[j] = argv[j + 1];
-      }
+      memmove(&argv[i], &argv[i + 1], sizeof(char*) * static_cast<size_t>(argc - i - 1));
       argc--;
-      // Don't increment i, check the same position again.
     } else if (strcmp(argv[i], "--system-sockets") == 0) {
       PERFETTO_ELOG(
           "Warning: --system-sockets is deprecated. System sockets are now the "
           "default.");
-      // Remove from argv.
-      for (int j = i; j < argc - 1; ++j) {
-        argv[j] = argv[j + 1];
-      }
+      memmove(&argv[i], &argv[i + 1], sizeof(char*) * static_cast<size_t>(argc - i - 1));
       argc--;
-      // Don't increment i, check the same position again.
     } else {
       ++i;
     }

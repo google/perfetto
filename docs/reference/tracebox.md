@@ -7,157 +7,77 @@ tracebox - all-in-one binary for Perfetto tracing services
 ## SYNOPSIS
 
 ```bash
-# Recommended: Persistent daemon workflow
-tracebox ctl start [--log]
-tracebox [PERFETTO_OPTIONS]
+# Start daemons, capture trace, stop daemons
+tracebox ctl start
+tracebox -t 10s -o trace.pftrace sched freq
 tracebox ctl stop
 
-# Legacy: Self-contained mode
-tracebox --autodaemonize [PERFETTO_OPTIONS]
+# Self-contained mode (legacy)
+tracebox --autodaemonize -t 10s -o trace.pftrace sched
 
-# Applet mode
+# Invoke bundled applets
 tracebox [applet_name] [args ...]
 ```
 
 ## DESCRIPTION
 
-`tracebox` bundles all Perfetto tracing services (`traced`, `traced_probes`, 
-`traced_perf`) and the `perfetto` command-line client into a single binary.
+`tracebox` bundles the Perfetto tracing service (`traced`), system probes
+(`traced_probes`), and the `perfetto` command-line client into a single binary.
 
-**Key behavior change:** As of 2025, `tracebox` requires daemons to be already 
-running by default (on Linux/macOS). Use `tracebox ctl` to manage daemons or 
-`--autodaemonize` for the legacy self-contained mode.
+**Behavior change (2025):** `tracebox` now requires daemons to be running before
+capturing traces. Use `tracebox ctl` to manage daemons, or `--autodaemonize` for
+the legacy self-contained mode.
 
-## DAEMON MANAGEMENT (tracebox ctl)
+## DAEMON MANAGEMENT
 
-The `ctl` applet manages persistent Perfetto daemons for the current user.
+### tracebox ctl start [--log]
 
-**Platform support:** Linux, macOS, Android. Not available on Windows.
+Starts `traced` and `traced_probes` as persistent background daemons.
 
-### Commands
+- Detects and yields to systemd if installed (Linux only)
+- `--log`: Enables logging to `traced.log` and `traced_probes.log`
 
-`tracebox ctl start [--log]`
-:    Starts `traced` and `traced_probes` as persistent background daemons.
-     
-     - Checks if daemons are already running
-     - Yields to systemd if service files are installed (Linux only)
-     - On Android: Uses `/tmp/` for user-session daemons
-     - On Linux: Tries `/run/perfetto/` for sockets (SDK compatibility)
-     - On Linux: Falls back to `/tmp/` if `/run/perfetto/` not writable
-     - Stores PID files for management
-     - `--log`: Redirects daemon output to `traced.log` and `traced_probes.log`
+### tracebox ctl stop
 
-`tracebox ctl stop`
-:    Stops user-session daemons started via `ctl start`.
-     
-     - On Android: Searches `/tmp/` for PID files
-     - On Linux: Searches `/run/perfetto/` and `/tmp/` for PID files
-     - Sends SIGTERM to daemon processes
-     - Cleans up PID files
+Stops daemons started via `ctl start`.
 
-`tracebox ctl status`
-:    Shows status of user-session daemons.
-     
-     - Reports running daemons with PIDs
-     - Tests socket connectivity
-     - Cleans up stale PID files
+### tracebox ctl status
 
-### Socket Paths
-
-| Management Method | Producer Socket | Consumer Socket |
-|-------------------|-----------------|-----------------|
-| Android system | `/dev/socket/traced_producer` | `/dev/socket/traced_consumer` |
-| Android `ctl start` | `/tmp/perfetto-producer` | `/tmp/perfetto-consumer` |
-| Linux `ctl` (as root) | `/run/perfetto/traced-producer.sock` | `/run/perfetto/traced-consumer.sock` |
-| Linux `ctl` (as user) | `/tmp/perfetto-producer` | `/tmp/perfetto-consumer` |
-| Systemd package | `/run/perfetto/traced-producer.sock` | `/run/perfetto/traced-consumer.sock` |
+Shows daemon status and socket paths.
 
 ### Examples
 
-Start daemons and capture a trace:
-
 ```bash
+# Basic workflow
 tracebox ctl start
 tracebox -t 10s -o trace.pftrace sched freq
-tracebox ctl stop  # Optional: daemons can stay running
-```
+tracebox ctl stop
 
-Start daemons with logging enabled:
-
-```bash
+# With logging
 tracebox ctl start --log
-tracebox -t 10s -o trace.pftrace sched freq
-# Logs available at /run/perfetto/traced.log (or /tmp/traced.log)
-```
+tracebox -t 10s -o trace.pftrace sched
+# Check logs at /run/perfetto/traced.log or /tmp/traced.log
 
-Check daemon status:
-
-```bash
+# Check status
 tracebox ctl status
 ```
 
 ### Systemd Integration
 
-If systemd service files are detected, `tracebox ctl start` will:
-- As root: Attempt to start via `systemctl`
-- As user: Instruct to use `sudo systemctl start traced traced-probes`
+If systemd service files are detected:
+- As root: `ctl start` uses `systemctl start traced traced-probes`
+- As user: Instructs to use `sudo systemctl start traced traced-probes`
 
-This prevents conflicts with package-managed installations.
-
-### SDK Compatibility
-
-For applications using the Perfetto SDK (e.g., `track_event`):
-
-**Linux - Recommended:** Run `tracebox ctl start` as root to use `/run/perfetto/` sockets.
-
-**Android:** SDK apps require system daemons at `/dev/socket/traced_{producer,consumer}`.
-User-session daemons started via `tracebox ctl start` use `/tmp/` and are not accessible to SDK apps.
-
-**Alternative (Linux only):** Start daemons before your application:
-```bash
-tracebox ctl start
-./my_instrumented_app &
-tracebox -t 10s -o trace.pftrace
-```
-
-**Won't work:** Using `--autodaemonize` (uses private sockets).
-
-### Ftrace State
-
-`tracebox ctl start` does NOT automatically reset ftrace state. If you encounter 
-ftrace issues, manually run:
-
-```bash
-traced_probes --reset-ftrace  # Requires root on most systems
-```
-
-## SELF-CONTAINED MODE (--autodaemonize)
-
-**NOT RECOMMENDED for regular use.** Use `tracebox ctl` instead.
+## SELF-CONTAINED MODE
 
 The `--autodaemonize` flag spawns temporary daemons for a single trace session.
 
-### Limitations
+**Limitations:**
+- SDK-instrumented apps won't connect (uses private sockets)
+- Inefficient for multiple traces
+- Not recommended for regular use
 
-- SDK-instrumented apps won't connect (uses private, PID-based sockets)
-- No persistent service for multiple traces
-- Less efficient for repeated tracing
-- Daemons terminate when tracing completes
-
-### When to Use
-
-- Quick one-off traces without daemon setup
-- Environments where persistent daemons aren't feasible
-- Testing or development scenarios
-
-### Platform Support
-
-- **Linux/Android:** Abstract domain sockets (`@traced-c-PID`, `@traced-p-PID`)
-- **macOS:** Filesystem sockets (`/tmp/traced-c-PID`, `/tmp/traced-p-PID`)
-- **Windows:** Not supported
-
-### Example
-
+**Example:**
 ```bash
 tracebox --autodaemonize -t 10s -o trace.pftrace sched freq
 ```
@@ -167,67 +87,13 @@ tracebox --autodaemonize -t 10s -o trace.pftrace sched freq
 Invoke bundled applets directly:
 
 ```bash
-tracebox [applet_name] [args ...]
-```
-
-Available applets:
-
-`traced`
-:    The Perfetto tracing service daemon. See [traced(1)](traced.md).
-
-`traced_probes`
-:    System-wide tracing probes (ftrace, /proc pollers). See [traced_probes(1)](traced_probes.md).
-
-`traced_perf`
-:    Perf-based CPU profiling data source (Linux only).
-
-`perfetto`
-:    Command-line client for tracing sessions. See [perfetto(1)](perfetto-cli.md).
-
-`trigger_perfetto`
-:    Utility to activate triggers for tracing sessions.
-
-`websocket_bridge`
-:    Bridge for connecting to tracing service via WebSockets.
-
-`ctl`
-:    Daemon lifecycle management (start/stop/status).
-
-### Examples
-
-```bash
 tracebox traced --help
 tracebox traced_probes --reset-ftrace
 tracebox perfetto -t 10s -o trace.pftrace sched
 ```
 
-## PLATFORM-SPECIFIC BEHAVIOR
-
-### Android
-
-**Default:** Requires daemons to be running.
-- System daemons typically use `/dev/socket/traced_{producer,consumer}`
-- `tracebox ctl start` creates user-session daemons in `/tmp/`
-- Or use `--autodaemonize` for self-contained mode
-
-**Important:** On Android devices with system-wide Perfetto installed, daemons are
-usually already running at `/dev/socket/`. Use `tracebox ctl status` to check.
-
-**Note:** SDK-instrumented apps require system daemons and cannot connect to
-user-session daemons started via `tracebox ctl start`.
-
-### Linux/macOS
-
-**Default:** Requires daemons to be running.
-- Use `tracebox ctl start` to start persistent daemons
-- Or use `--autodaemonize` for self-contained mode
-
-### Windows
-
-**Default:** Always spawns daemons with system sockets.
-- No daemon-running check
-- No `tracebox ctl` support (use manual daemon startup)
-- `--autodaemonize` not supported
+Available applets: `traced`, `traced_probes`, `traced_perf`, `perfetto`,
+`trigger_perfetto`, `websocket_bridge`, `ctl`
 
 ## ENVIRONMENT VARIABLES
 
@@ -237,159 +103,64 @@ user-session daemons started via `tracebox ctl start`.
 `PERFETTO_CONSUMER_SOCK_NAME`
 :    Override consumer socket path.
 
-### Example
-
-```bash
-export PERFETTO_PRODUCER_SOCK_NAME=/custom/producer.sock
-export PERFETTO_CONSUMER_SOCK_NAME=/custom/consumer.sock
-tracebox -t 10s -o trace.pftrace sched
-```
-
-## DEPRECATED FLAGS
-
-`--system-sockets`
-:    **Deprecated.** System sockets are now the default behavior.
-     This flag is ignored with a warning.
-
-## MIGRATION FROM OLD BEHAVIOR
-
-**Old behavior (before 2025):**
-- Default: Auto-spawned temporary daemons with private sockets
-- `--system-sockets`: Auto-spawned daemons with system sockets
-
-**New behavior:**
-- Default: Requires daemons running (use `tracebox ctl start`)
-- `--autodaemonize`: Auto-spawns temporary daemons (old default behavior)
-
-**Migration:**
-
-```bash
-# Old:
-tracebox -t 10s -o trace.pftrace sched
-
-# New (recommended):
-tracebox ctl start
-tracebox -t 10s -o trace.pftrace sched
-
-# New (backward compatible):
-tracebox --autodaemonize -t 10s -o trace.pftrace sched
-```
-
 ## TROUBLESHOOTING
 
-### Daemons not detected
+### Daemons not running
 
 ```bash
 tracebox ctl status  # Check daemon status
-ls -la /run/perfetto/  # Check socket files
 ```
+
+If daemons aren't running:
+- Use `tracebox ctl start` to start them
+- Or use `--autodaemonize` for self-contained mode
 
 ### Permission denied
 
+Run as root or add your user to the `perfetto` group:
 ```bash
-# Run as root for /run/perfetto/:
-sudo tracebox ctl start
-
-# Or use user-space sockets (SDK apps won't connect):
-tracebox ctl start  # Falls back to /tmp
-```
-
-### Systemd conflicts
-
-```bash
-# If systemd service is installed:
-sudo systemctl start traced traced-probes
-
-# Or stop systemd service first:
-sudo systemctl stop traced traced-probes
-tracebox ctl start
+sudo usermod -a -G perfetto $USER
 ```
 
 ### SDK apps not connecting
 
-**Linux:**
-- Ensure daemons use `/run/perfetto/` sockets (run `ctl start` as root)
-- Don't use `--autodaemonize` for SDK tracing
-- Start daemons before launching SDK-instrumented apps
+**Linux:** Run `tracebox ctl start` as root to use `/run/perfetto/` sockets
+(required for SDK compatibility).
 
-**Android:**
-- SDK apps require system daemons at `/dev/socket/traced_{producer,consumer}`
-- User-session daemons (via `tracebox ctl start`) are not accessible to SDK apps
-- Use system-wide Perfetto daemons for SDK tracing on Android
+**Android:** SDK apps require system daemons at `/dev/socket/`. User-session
+daemons use `/tmp/` and are not accessible to SDK apps.
 
-### Ftrace issues
+### Systemd conflicts
 
 ```bash
-# Reset ftrace state manually:
-sudo traced_probes --reset-ftrace
+# Use systemd if installed
+sudo systemctl start traced traced-probes
+
+# Or stop systemd first
+sudo systemctl stop traced traced-probes
+tracebox ctl start
 ```
 
-## FILES
+## MIGRATION
 
-### Android
+**Old (before 2025):**
+```bash
+tracebox -t 10s -o trace.pftrace sched
+```
 
-`/dev/socket/traced_producer`
-:    Producer socket (Android system installations).
+**New (recommended):**
+```bash
+tracebox ctl start
+tracebox -t 10s -o trace.pftrace sched
+```
 
-`/dev/socket/traced_consumer`
-:    Consumer socket (Android system installations).
-
-`/tmp/perfetto-producer`
-:    Producer socket (when started via `tracebox ctl start`).
-
-`/tmp/perfetto-consumer`
-:    Consumer socket (when started via `tracebox ctl start`).
-
-`/tmp/traced.pid`
-:    PID file for traced daemon (if started via `ctl`).
-
-`/tmp/traced_probes.pid`
-:    PID file for traced_probes daemon (if started via `ctl`).
-
-### Linux
-
-#### When started as root (uses `/run/perfetto/`)
-
-`/run/perfetto/traced-producer.sock`
-:    Producer socket for the tracing service.
-
-`/run/perfetto/traced-consumer.sock`
-:    Consumer socket for the tracing service.
-
-`/run/perfetto/traced.pid`
-:    PID file for traced service.
-
-`/run/perfetto/traced_probes.pid`
-:    PID file for traced_probes producer.
-
-`/run/perfetto/traced.log`
-:    Log file for traced service (when started with `--log`).
-
-`/run/perfetto/traced_probes.log`
-:    Log file for traced_probes producer (when started with `--log`).
-
-#### When started as user (uses `/tmp/`)
-
-`/tmp/perfetto-producer`
-:    Producer socket for the tracing service.
-
-`/tmp/perfetto-consumer`
-:    Consumer socket for the tracing service.
-
-`/tmp/traced.pid`
-:    PID file for traced service.
-
-`/tmp/traced_probes.pid`
-:    PID file for traced_probes producer.
-
-`/tmp/traced.log`
-:    Log file for traced service (when started with `--log`).
-
-`/tmp/traced_probes.log`
-:    Log file for traced_probes producer (when started with `--log`).
+**New (backward compatible):**
+```bash
+tracebox --autodaemonize -t 10s -o trace.pftrace sched
+```
 
 ## SEE ALSO
 
 [perfetto(1)](perfetto-cli.md), [traced(1)](traced.md), [traced_probes(1)](traced_probes.md)
 
-[SDK Integration Guide](/docs/instrumentation/tracing-sdk.md)
+[Perfetto Documentation](https://perfetto.dev/docs/)
