@@ -118,9 +118,9 @@ export class CurrentSelectionTab
 
     // Find the active tab or just pick the first one if that selected tab is
     // not available.
-    const activeTab =
-      renderedTabs.find(([tab]) => tab.id === this.currentAreaSubTabId)?.[0] ??
-      renderedTabs[0][0];
+    const [activeTab, activeTabContent] =
+      renderedTabs.find(([tab]) => tab.id === this.currentAreaSubTabId) ??
+      renderedTabs[0];
 
     // Determine if any tab content is loading
     const isLoading = renderedTabs.some(([_, content]) => content?.isLoading);
@@ -133,15 +133,16 @@ export class CurrentSelectionTab
           title: 'Area Selection',
           description: m(
             ButtonBar,
-            renderedTabs.map(([tab]) =>
-              m(Button, {
+            renderedTabs.map(([tab]) => {
+              return m(Button, {
                 label: tab.name,
                 key: tab.id,
                 active: activeTab === tab,
                 onclick: () => (this.currentAreaSubTabId = tab.id),
-              }),
-            ),
+              });
+            }),
           ),
+          buttons: activeTabContent?.buttons,
         },
         // Render all tabs but control visibility with Gate
         renderedTabs.map(([tab, content]) =>
