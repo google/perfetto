@@ -198,9 +198,7 @@ if (perfetto_build_standalone) {
     # Checks that the "fake" backend implementations build.
     "src/tracing:client_api_no_backends_compile_test",
   ]
-  if (is_linux || is_android || is_mac) {
-    all_targets += [ "src/tracebox" ]
-  }
+  all_targets += [ "src/tracebox" ]
 
   # This is needed by `tools/gen_c_protos`.
   all_targets += [ "src/protozero/protoc_plugin:protozero_c_plugin" ]
