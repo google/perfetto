@@ -1186,6 +1186,42 @@ TEST_F(UnixSocketTest, ShmemSupported) {
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// Regression test for macOS behavior where SetTxTimeout/SetRxTimeout fail with
+// EINVAL when called on a server socket immediately after the client has
+// disconnected. On Linux this should just work.
+TEST_F(UnixSocketTest, SetTimeoutAfterClientDisconnect) {
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
+  ASSERT_TRUE(srv->is_listening());
+
+  auto conn_received = task_runner_.CreateCheckpoint("conn_received");
+  EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
+      .WillOnce([conn_received](UnixSocket*, UnixSocket* new_conn) {
+        // Client will disconnect right away. Release the socket and try to set
+        // timeouts. On macOS, this used to crash because setsockopt() fails
+        // with EINVAL when the peer has disconnected.
+        auto raw = new_conn->ReleaseSocket();
+        ASSERT_TRUE(raw.SetTxTimeout(1000));
+        ASSERT_TRUE(raw.SetRxTimeout(1000));
+        conn_received();
+      });
+
+  // Client connects and immediately disconnects.
+  std::thread client([&] {
+    auto cli =
+        UnixSocketRaw::CreateMayFail(kTestSocket.family(), SockType::kStream);
+    ASSERT_TRUE(cli);
+    ASSERT_TRUE(cli.Connect(kTestSocket.name()));
+    // Socket closes when cli goes out of scope.
+  });
+
+  task_runner_.RunUntilCheckpoint("conn_received");
+  client.join();
+}
+#endif  // !OS_WIN
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
