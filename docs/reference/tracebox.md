@@ -13,7 +13,7 @@ tracebox -t 10s -o trace.pftrace sched freq
 tracebox ctl stop
 
 # Self-contained mode (legacy)
-tracebox --autodaemonize -t 10s -o trace.pftrace sched
+tracebox --legacy -t 10s -o trace.pftrace sched
 
 # Invoke bundled applets
 tracebox [applet_name] [args ...]
@@ -25,8 +25,14 @@ tracebox [applet_name] [args ...]
 (`traced_probes`), and the `perfetto` command-line client into a single binary.
 
 **Behavior change (2025):** `tracebox` now requires daemons to be running before
-capturing traces. Use `tracebox ctl` to manage daemons, or `--autodaemonize` for
+capturing traces. Use `tracebox ctl` to manage daemons, or `--legacy` for
 the legacy self-contained mode.
+
+If you are a user of `tracebox` in its default mode (i.e., you don't use
+`--legacy`), you should read the migration guide below. The new default
+behavior provides a more robust and predictable experience, especially for
+processes instrumented with the Perfetto SDK, but it requires a small change to
+your workflow.
 
 ## DAEMON MANAGEMENT
 
@@ -68,18 +74,29 @@ If systemd service files are detected:
 - As root: `ctl start` uses `systemctl start traced traced-probes`
 - As user: Instructs to use `sudo systemctl start traced traced-probes`
 
-## SELF-CONTAINED MODE
+## LEGACY SELF-CONTAINED MODE
 
-The `--autodaemonize` flag spawns temporary daemons for a single trace session.
+The `--legacy` flag preserves the legacy behavior of `tracebox` where it
+spawns temporary daemons for the duration of a single trace session. This mode
+uses private, temporary sockets and is fully self-contained.
+
+**When to use:**
+- For quick one-off traces where you don't want to manage daemons.
+- If you cannot or do not want to run persistent background daemons.
+- For scripts that rely on the old behavior and haven't been migrated yet.
 
 **Limitations:**
-- SDK-instrumented apps won't connect (uses private sockets)
-- Inefficient for multiple traces
-- Not recommended for regular use
+- **SDK Incompatibility:** Processes instrumented with the Perfetto SDK (e.g.
+  using `track_event`) will generally fail to connect to these temporary daemons
+  because they listen on private, unpredictable socket addresses.
+- **Inefficiency:** Spawns and kills daemons for every trace, which is slower
+  for repeated tracing.
+- **Concurrency:** Running multiple instances of `tracebox --legacy`
+  concurrently can lead to resource conflicts (e.g. with ftrace).
 
 **Example:**
 ```bash
-tracebox --autodaemonize -t 10s -o trace.pftrace sched freq
+tracebox --legacy -t 10s -o trace.pftrace sched freq
 ```
 
 ## APPLET MODE
@@ -113,7 +130,7 @@ tracebox ctl status  # Check daemon status
 
 If daemons aren't running:
 - Use `tracebox ctl start` to start them
-- Or use `--autodaemonize` for self-contained mode
+- Or use `--legacy` for self-contained mode
 
 ### Permission denied
 
@@ -141,23 +158,56 @@ sudo systemctl stop traced traced-probes
 tracebox ctl start
 ```
 
-## MIGRATION
+## MIGRATION GUIDE (2025)
 
-**Old (before 2025):**
-```bash
-tracebox -t 10s -o trace.pftrace sched
-```
+The default behavior of `tracebox` has changed to require explicit daemon
+management. This change resolves long-standing issues with SDK connectivity and
+provides a more consistent experience.
 
-**New (recommended):**
-```bash
-tracebox ctl start
-tracebox -t 10s -o trace.pftrace sched
-```
+### Why the change?
+In the old model, `tracebox` would silently spawn "ephemeral" daemons on private
+sockets. This often confused users because apps instrumented with the Perfetto
+SDK (e.g., Chrome, or your own apps) would fail to connect to these hidden
+daemons, resulting in traces missing all userspace data. The new model ensures
+daemons run on standard system sockets where SDK apps can find them.
 
-**New (backward compatible):**
-```bash
-tracebox --autodaemonize -t 10s -o trace.pftrace sched
-```
+### Migration Steps
+
+**Scenario 1: You run interactive traces manually**
+
+*   **Old way:**
+    ```bash
+    tracebox -t 10s -o trace.pftrace sched
+    ```
+*   **New way (Recommended):**
+    Run this once per boot (or when needed):
+    ```bash
+    tracebox ctl start
+    ```
+    Then run your traces as usual:
+    ```bash
+    tracebox -t 10s -o trace.pftrace sched
+    ```
+    When done (optional):
+    ```bash
+    tracebox ctl stop
+    ```
+
+**Scenario 2: You have scripts that wrap tracebox**
+
+*   **Option A (Better):** Update your scripts to ensure daemons are running
+    using `tracebox ctl start` before tracing.
+*   **Option B (Faster fix):** Update your scripts to use the `--legacy`
+    flag to restore the old behavior.
+    ```bash
+    tracebox --legacy -t 10s -o trace.pftrace sched
+    ```
+
+**Scenario 3: You are tracing SDK-instrumented apps**
+
+You **must** use the new explicit daemon mode. The legacy `--legacy` mode
+will likely not work because your app won't be able to discover the temporary
+sockets.
 
 ## SEE ALSO
 

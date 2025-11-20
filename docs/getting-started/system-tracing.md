@@ -153,7 +153,13 @@ chmod +x tracebox
 
 ## Capturing a trace
 
-To capture a trace you need to pass the config file to the downloaded `tracebox`
+First, start the tracing daemons in background:
+
+```bash
+./tracebox ctl start
+```
+
+Then, to capture a trace you need to pass the config file to the downloaded `tracebox`
 binary. We have some sample config files in the [/test/configs/](/test/configs/)
 directory.
 Lets say you want to capture a trace with the scheduling information. You can
@@ -166,7 +172,12 @@ and running the following command:
 ./tracebox -o trace_file.perfetto-trace --txt -c scheduling.cfg
 ```
 The scheduling information is captured using ftrace, so you may need to start
-the `tracebox` with root privileges.
+the `tracebox` daemons with root privileges (e.g. `sudo ./tracebox ctl start`).
+
+If you prefer the old behavior where tracebox starts temporary daemons for the duration of the trace, you can use the `--legacy` flag:
+```bash
+./tracebox --legacy -o trace_file.perfetto-trace --txt -c scheduling.cfg
+```
 
 </tabs?>
 

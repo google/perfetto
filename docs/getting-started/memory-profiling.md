@@ -174,7 +174,7 @@ chmod +x tracebox heap_profile
 
 Start the tracing service
 ```bash
-./tracebox traced &
+./tracebox ctl start
 ```
 
 Generate the heapprofd config and start the tracing session.
@@ -182,7 +182,12 @@ Generate the heapprofd config and start the tracing session.
 # Replace trace_processor_shell with with the name of the process you want to
 # profile.
 ./heap_profile -n trace_processor_shell --print-config | \
-  ./tracebox perfetto --txt -c - -o ~/trace_processor_memory.pftrace
+  ./tracebox -c - --txt -o ~/trace_processor_memory.pftrace
+```
+Alternatively, use the legacy self-contained mode (no `ctl start` required):
+```bash
+./heap_profile -n trace_processor_shell --print-config | \
+  ./tracebox --legacy -c - --txt -o ~/trace_processor_memory.pftrace
 ```
 
 Open another terminal (or tab), start the process you want to profile,
@@ -213,10 +218,9 @@ In either case: press Ctrl-C on the `tracebox perfetto` command of the previous
 step. That will write the trace file (e.g. `~/trace_processor_memory.pftrace`)
 which you can then open with the Perfetto UI.
 
-Remember also to kill the `tracebox traced` service once you are done.
+Remember also to kill the `tracebox` services once you are done.
 ```bash
-fg
-# Ctrl-C
+./tracebox ctl stop
 ```
 </tabs?>
 

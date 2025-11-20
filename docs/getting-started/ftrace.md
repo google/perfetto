@@ -285,7 +285,13 @@ See the [system tracing page](/docs/getting-started/system-tracing.md) in order
 to get set up with tracebox. For this example we are going to record a trace
 from the command line using the config file we just created:
 ```bash
+./tracebox ctl start
 ./tracebox -c ticker.cfg --txt -o ticker.pftrace
+```
+
+Alternatively using legacy mode:
+```bash
+./tracebox --legacy -c ticker.cfg --txt -o ticker.pftrace
 ```
 
 Note: tracebox will take care of enabling tracing and our ticker events (as we

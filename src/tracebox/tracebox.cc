@@ -56,7 +56,7 @@ const Applet g_applets[]{
     {"ctl", TraceboxCtlMain},
 };
 
-void PrintUsage() {
+void PrintTraceboxUsage() {
   printf(R"(Welcome to Perfetto tracing!
 
 Tracebox is a bundle containing all the tracing services and the perfetto
@@ -75,8 +75,8 @@ QUICK START (end-to-end workflow):
     applets += " " + std::string(applet.name);
 
   printf(R"(
-ADVANCED: --autodaemonize (NOT RECOMMENDED)
-  Example: tracebox --autodaemonize -t 10s -o trace.pftrace sched
+ADVANCED: --legacy (NOT RECOMMENDED)
+  Example: tracebox --legacy -t 10s -o trace.pftrace sched
 
   Spawns temporary daemons for one trace only.
   Limitations: SDK apps won't connect, inefficient for multiple traces.
@@ -91,50 +91,41 @@ See also:
          applets.c_str());
 }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-// Synchronizes with child process startup via a pipe.
-// The child writes "1" to the pipe when its IPC socket is ready.
-base::Pipe CreateSyncPipe(base::Subprocess* proc, const char* env_name) {
-  base::Pipe pipe = base::Pipe::Create();
-  int fd = *pipe.wr;
-  base::SetEnv(env_name, std::to_string(fd));
-  proc->args.preserve_fds.emplace_back(fd);
-  return pipe;
-}
-
-void WaitForNotify(base::Pipe* pipe, const char* name) {
-  pipe->wr.reset();
-  std::string msg;
-  base::ReadPlatformHandle(*pipe->rd, &msg);
-  if (msg != "1")
-    PERFETTO_FATAL("The %s service failed unexpectedly. Check the logs", name);
-}
-#endif
-
 // Legacy mode: spawns temporary daemons with private sockets for one trace.
-int RunWithAutodaemonize(int argc, char** argv) {
-  auto pid_str = std::to_string(static_cast<uint64_t>(base::GetProcessId()));
+int RunLegacy(int argc, char** argv) {
+  auto* end = std::remove_if(argv, argv + argc, [](char* arg) {
+    return !strcmp(arg, "--system-sockets");
+  });
+  if (end < (argv + argc - 1)) {
+    PERFETTO_ELOG("Cannot specify --system-sockets multiple times");
+    return 1;
+  }
+  if (bool system_sockets = end == (argv + argc - 1); system_sockets) {
+    argc--;
+  } else {
+    auto pid_str = std::to_string(static_cast<uint64_t>(base::GetProcessId()));
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // Use an unlinked abstract domain socket on Linux/Android.
-  std::string consumer_socket = "@traced-c-" + pid_str;
-  std::string producer_socket = "@traced-p-" + pid_str;
+    // Use an unlinked abstract domain socket on Linux/Android.
+    std::string consumer_socket = "@traced-c-" + pid_str;
+    std::string producer_socket = "@traced-p-" + pid_str;
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-  std::string consumer_socket = "/tmp/traced-c-" + pid_str;
-  std::string producer_socket = "/tmp/traced-p-" + pid_str;
+    std::string consumer_socket = "/tmp/traced-c-" + pid_str;
+    std::string producer_socket = "/tmp/traced-p-" + pid_str;
 #else
-  PERFETTO_FATAL("The autodaemonize mode is not supported on this platform");
+    PERFETTO_FATAL("The autostart mode is not supported on this platform");
 #endif
 
-  // If the caller has set the PERFETTO_*_SOCK_NAME, respect those.
-  if (const char* env = getenv(kPerfettoConsumerSockEnv); env) {
-    consumer_socket = env;
+    // If the caller has set the PERFETTO_*_SOCK_NAME, respect those.
+    if (const char* env = getenv("PERFETTO_CONSUMER_SOCK_NAME"); env) {
+      consumer_socket = env;
+    }
+    if (const char* env = getenv("PERFETTO_PRODUCER_SOCK_NAME"); env) {
+      producer_socket = env;
+    }
+    base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket);
+    base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket);
   }
-  if (const char* env = getenv(kPerfettoProducerSockEnv); env) {
-    producer_socket = env;
-  }
-  base::SetEnv(kPerfettoConsumerSockEnv, consumer_socket);
-  base::SetEnv(kPerfettoProducerSockEnv, producer_socket);
 
   PerfettoCmd perfetto_cmd;
 
@@ -146,7 +137,7 @@ int RunWithAutodaemonize(int argc, char** argv) {
   auto opt_res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
   if (opt_res.has_value()) {
     if (*opt_res != 0) {
-      PrintUsage();
+      PrintTraceboxUsage();
     }
     return *opt_res;
   }
@@ -157,7 +148,10 @@ int RunWithAutodaemonize(int argc, char** argv) {
   // |traced_sync_pipe| is used to synchronize with traced socket creation.
   // traced will write "1" and close the FD when the IPC socket is listening
   // (or traced crashed).
-  base::Pipe traced_sync_pipe = CreateSyncPipe(&traced, "TRACED_NOTIFY_FD");
+  base::Pipe traced_sync_pipe = base::Pipe::Create();
+  int traced_fd = *traced_sync_pipe.wr;
+  base::SetEnv("TRACED_NOTIFY_FD", std::to_string(traced_fd));
+  traced.args.preserve_fds.emplace_back(traced_fd);
   // Create a new process group so CTRL-C is delivered only to the cmdline
   // process (the tracebox one) and not to traced. traced will still exit once
   // the main process exits, but this allows graceful stopping of the trace
@@ -167,7 +161,12 @@ int RunWithAutodaemonize(int argc, char** argv) {
   traced.Start();
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  WaitForNotify(&traced_sync_pipe, "traced");
+  traced_sync_pipe.wr.reset();
+
+  std::string traced_notify_msg;
+  base::ReadPlatformHandle(*traced_sync_pipe.rd, &traced_notify_msg);
+  if (traced_notify_msg != "1")
+    PERFETTO_FATAL("The tracing service failed unexpectedly. Check the logs");
 #endif
 
   base::Subprocess traced_probes(
@@ -179,13 +178,22 @@ int RunWithAutodaemonize(int argc, char** argv) {
   // |traced_probes_sync_pipe| is used to synchronize with traced socket
   // creation. traced will write "1" and close the FD when the IPC socket is
   // listening (or traced crashed).
-  base::Pipe traced_probes_sync_pipe =
-      CreateSyncPipe(&traced_probes, "TRACED_PROBES_NOTIFY_FD");
+  base::Pipe traced_probes_sync_pipe = base::Pipe::Create();
+  int traced_probes_fd = *traced_probes_sync_pipe.wr;
+  base::SetEnv("TRACED_PROBES_NOTIFY_FD", std::to_string(traced_probes_fd));
+  traced_probes.args.preserve_fds.emplace_back(traced_probes_fd);
 #endif
   traced_probes.Start();
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  WaitForNotify(&traced_probes_sync_pipe, "traced_probes");
+  traced_probes_sync_pipe.wr.reset();
+
+  std::string traced_probes_notify_msg;
+  base::ReadPlatformHandle(*traced_probes_sync_pipe.rd,
+                           &traced_probes_notify_msg);
+  if (traced_probes_notify_msg != "1")
+    PERFETTO_FATAL(
+        "The traced_probes service failed unexpectedly. Check the logs");
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TRACED_PERF)
@@ -194,17 +202,27 @@ int RunWithAutodaemonize(int argc, char** argv) {
   // but it's not worth creating a new group.
   traced_perf.args.posix_proc_group_id = traced.pid();
 
-  base::Pipe traced_perf_sync_pipe =
-      CreateSyncPipe(&traced_perf, "TRACED_PERF_NOTIFY_FD");
+  base::Pipe traced_perf_sync_pipe = base::Pipe::Create();
+  int traced_perf_fd = *traced_perf_sync_pipe.wr;
+  base::SetEnv("TRACED_PERF_NOTIFY_FD", std::to_string(traced_perf_fd));
+  traced_perf.args.preserve_fds.emplace_back(traced_perf_fd);
   traced_perf.Start();
-  WaitForNotify(&traced_perf_sync_pipe, "traced_perf");
+  traced_perf_sync_pipe.wr.reset();
+
+  std::string traced_perf_notify_msg;
+  base::ReadPlatformHandle(*traced_perf_sync_pipe.rd, &traced_perf_notify_msg);
+  if (traced_perf_notify_msg != "1") {
+    PERFETTO_FATAL(
+        "The traced_perf service failed unexpectedly. Check the logs");
+  }
 #else
   PERFETTO_ELOG(
       "Unsupported: linux.perf data source support (traced_perf) "
       "compiled-out.");
 #endif
 
-  return perfetto_cmd.ConnectToServiceRunAndMaybeNotify();
+  perfetto_cmd.ConnectToServiceRunAndMaybeNotify();
+  return 0;
 }
 
 int TraceboxMain(int argc, char** argv) {
@@ -220,55 +238,68 @@ int TraceboxMain(int argc, char** argv) {
   }
 
   if (argc <= 1) {
-    PrintUsage();
+    PrintTraceboxUsage();
     return 1;
   }
 
-  // Handle --autodaemonize and --system-sockets flags by removing them from
-  // argv.
-  bool autodaemonize = false;
-
+  bool legacy_mode = false;
+  bool use_system_sockets = false;
   for (int i = 1; i < argc;) {
-    if (strcmp(argv[i], "--autodaemonize") == 0) {
-      autodaemonize = true;
-      memmove(&argv[i], &argv[i + 1],
-              sizeof(char*) * static_cast<size_t>(argc - i - 1));
-      argc--;
-    } else if (strcmp(argv[i], "--system-sockets") == 0) {
-      PERFETTO_ELOG(
-          "Warning: --system-sockets is deprecated. System sockets are now the "
-          "default.");
-      memmove(&argv[i], &argv[i + 1],
+    if (strcmp(argv[i], "--legacy") == 0) {
+      legacy_mode = true;
+      memmove(static_cast<void*>(&argv[i]), static_cast<void*>(&argv[i + 1]),
               sizeof(char*) * static_cast<size_t>(argc - i - 1));
       argc--;
     } else {
+      if (strcmp(argv[i], "--system-sockets") == 0) {
+        use_system_sockets = true;
+      }
       ++i;
     }
   }
 
-  if (autodaemonize)
-    return RunWithAutodaemonize(argc, argv);
+  if (legacy_mode) {
+    if (use_system_sockets) {
+      PERFETTO_ELOG(
+          "Legacy mode using system sockets is deprecated. Please prefer to "
+          "start daemons separately with `tracebox ctl start` for better "
+          "stability and compatibility. See "
+          "https://perfetto.dev/docs/reference/tracebox for details.");
+    } else {
+      PERFETTO_ELOG(
+          "Using legacy autodaemonize mode. This is fine for quick "
+          "one-off traces, but for production use or SDK compatibility, please "
+          "use `tracebox ctl start` followed by `tracebox`. See "
+          "https://perfetto.dev/docs/reference/tracebox for details.");
+    }
+    return RunLegacy(argc, argv);
+  }
 
-  // Require daemons to be running (started via 'tracebox ctl start').
+  if (use_system_sockets) {
+    PERFETTO_FATAL(
+        "System sockets is not a valid option for the new mode. By default "
+        "tracebox uses system sockets. If you want the old self-contained "
+        "behavior (autostarting daemons), append --legacy.");
+  }
+
   ServiceSockets sockets = perfetto::GetRunningSockets();
   if (!sockets.IsValid()) {
     fprintf(stderr,
             "Error: Perfetto tracing daemons (traced, traced_probes) are not "
             "running.\n"
             "- To run daemons as the current user: `tracebox ctl start`\n"
-            "- For a self-contained run: `tracebox --autodaemonize ...` (Not "
+            "- For a self-contained run: `tracebox --legacy ...` (Not "
             "Recommended)\n"
             "More info at: https://perfetto.dev/docs/reference/tracebox\n");
     return 1;
   }
-  // Propagate discovered socket paths to perfetto_cmd via environment.
   perfetto::SetServiceSocketEnv(sockets);
 
   PerfettoCmd perfetto_cmd;
   auto opt_res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
   if (opt_res.has_value()) {
     if (*opt_res != 0)
-      PrintUsage();
+      PrintTraceboxUsage();
     return *opt_res;
   }
   return perfetto_cmd.ConnectToServiceRunAndMaybeNotify();

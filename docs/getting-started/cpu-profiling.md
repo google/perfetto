@@ -163,6 +163,7 @@ echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 Assuming the example config above is saved as `/tmp/config.txtpb`, start the
 recording.
 ```bash
+./tracebox ctl start
 ./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
 ```
 
@@ -333,6 +334,7 @@ Assuming the example config above is saved as `/tmp/config.txtpb` (with the
 target\_cmdline option changed to a process on your machine), start the
 recording.
 ```bash
+./tracebox ctl start
 ./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
 ```
 
