@@ -33,6 +33,10 @@ function defBundle(tsRoot, bundle, distDir) {
       file: `${OUT_SYMLINK}/${distDir}/${bundle}_bundle.js`,
       sourcemap: true,
     },
+    watch: {
+      exclude: ['out/**'],
+      buildDelay: 250,
+    },
     plugins: [
       replace({
         patterns:

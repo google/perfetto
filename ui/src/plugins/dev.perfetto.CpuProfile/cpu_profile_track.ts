@@ -25,7 +25,7 @@ export function createCpuProfileTrack(
   trace: Trace,
   uri: string,
   utid: number,
-  detailsPanelState: FlamegraphState,
+  detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   return SliceTrack.create({

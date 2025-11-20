@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
+INCLUDE PERFETTO MODULE android.monitor_contention;
+
 -- Compute the distribution of the overlap of the given intervals over time.
 --
 -- Each interval is a (ts, dur) pair and the overlap represented as a (ts, value)

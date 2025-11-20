@@ -78,6 +78,14 @@ export class InMemoryDataSource implements DataGridDataSource {
     }
   }
 
+  /**
+   * Export all data with current filters/sorting applied.
+   */
+  async exportData(): Promise<readonly RowDef[]> {
+    // Return all the filtered and sorted data
+    return this.filteredSortedData;
+  }
+
   private calcAggregates(
     results: ReadonlyArray<RowDef>,
     aggregates: ReadonlyArray<AggregateSpec>,

@@ -405,20 +405,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   /**
-   * Creates an empty FlamegraphState with no metric selected.
-   *
-   * This is useful for initializing plugin stores before metrics are known.
-   * The state should be updated with proper metrics before rendering.
-   */
-  static createEmptyState(): FlamegraphState {
-    return {
-      view: {kind: 'TOP_DOWN'},
-      selectedMetricName: '',
-      filters: [],
-    };
-  }
-
-  /**
    * Updates a FlamegraphState with new metrics, preserving filters where possible.
    *
    * If the current state has no metric selected (empty string), this will
@@ -427,10 +413,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
    * first metric if it doesn't.
    */
   static updateState(
-    state: FlamegraphState,
+    state: FlamegraphState | undefined,
     metrics: ReadonlyArray<FlamegraphMetric>,
   ): FlamegraphState {
-    if (state.selectedMetricName === '') {
+    if (state === undefined) {
       return Flamegraph.createDefaultState(metrics);
     }
     const metricStillExists = metrics.some(

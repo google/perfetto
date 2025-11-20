@@ -29,7 +29,7 @@ export function createHeapProfileTrack(
   tableName: string,
   upid: number,
   heapProfileIsIncomplete: boolean,
-  detailsPanelState: FlamegraphState,
+  detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   return SliceTrack.create({

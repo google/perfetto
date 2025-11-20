@@ -697,6 +697,35 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
   return []
 
 
+def CheckStdlibIncludes(changed_files: List[str]) -> List[str]:
+  if sys.platform == 'win32':
+    return []
+  tool_rel_path = 'tools/check_stdlib_includes'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  # Use fnmatch patterns
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          'src/trace_processor/perfetto_sql/stdlib/*.sql', tool_rel_path
+      ])
+  if not files_to_check_list:
+    return []
+
+  tool_changed = tool_rel_path in [os.path.normpath(f) for f in changed_files]
+  source_files_changed = any(f != tool_rel_path for f in files_to_check_list)
+
+  if not tool_changed and not source_files_changed:
+    return []
+
+  try:
+    run_command([sys.executable, tool, '--quiet'], cwd=REPO_ROOT)
+  except FileNotFoundError:
+    return [f"Tool not found: {tool}"]
+  except subprocess.CalledProcessError:
+    return [f'{tool} failed']
+  return []
+
+
 def CheckSqlMetrics(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
@@ -937,6 +966,7 @@ def main():
       (CheckProtoEventList, [changed_files, merge_base]),  # Needs merge_base
       (CheckBannedCpp, [changed_files]),
       (CheckSqlModules, [changed_files]),
+      (CheckStdlibIncludes, [changed_files]),
       (CheckSqlMetrics, [changed_files]),
       (CheckTestData, [changed_files
                       ]),  # Doesn't need specific files list but pass anyway
