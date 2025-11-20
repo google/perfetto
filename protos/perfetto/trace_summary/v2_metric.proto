@@ -468,7 +468,6 @@ message TraceMetricV2TemplateSpec {
     // The polarity for this specific value column. This will be copied into
     // the `polarity` field of the generated `TraceMetricV2Spec`.
     optional TraceMetricV2Spec.MetricPolarity polarity = 4;
-
     // A human-readable name for the value column, used in user interfaces.
     // Optional.
     optional string display_name = 5;
