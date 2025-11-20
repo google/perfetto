@@ -387,7 +387,7 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
     if (fully_bound_ &&
         (last_patch_req || bytes_pending_commit_ >= shmem_abi_.size() / 2)) {
       bool should_post_immediate_flush = true;
-      if (base::flags::sma_prevent_duplicate_immediate_flushes) {
+      if (PERFETTO_FLAGS(SMA_PREVENT_DUPLICATE_IMMEDIATE_FLUSHES)) {
         // Only post an immediate flush task if we haven't already posted one.
         // This prevents spamming the task runner with immediate flushes when
         // the buffer remains over 50% full while chunks continue to be
@@ -421,7 +421,7 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
         FlushPendingCommitDataRequests();
       } else {
         bool should_post_immediate_flush = true;
-        if (base::flags::sma_prevent_duplicate_immediate_flushes) {
+        if (PERFETTO_FLAGS(SMA_PREVENT_DUPLICATE_IMMEDIATE_FLUSHES)) {
           // Only post an immediate flush task if we haven't already posted one.
           // This prevents spamming the task runner with immediate flushes when
           // the buffer remains over 50% full while chunks continue to be

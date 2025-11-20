@@ -121,7 +121,7 @@ struct FlatHashMapBase {
 template <typename Key,
           typename Value,
           typename Hasher =
-              std::conditional_t<base::flags::use_murmur_hash_for_flat_hash_map,
+              std::conditional_t<PERFETTO_FLAGS(USE_MURMUR_HASH_FOR_FLAT_HASH_MAP),
                                  base::MurmurHash<Key>,
                                  base::FnvHash<Key>>,
           typename Probe = QuadraticProbe,
