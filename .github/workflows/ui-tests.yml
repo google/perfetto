@@ -69,6 +69,30 @@ jobs:
           ui/build --out out/ui
           cp -a out/ui/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
 
+      - name: Upload UI build to GCS
+        env:
+          GCS_PATH: gs://perfetto-ci-artifacts
+        shell: bash
+        run: |
+          gcloud storage cp --no-user-output-enabled --recursive "$PERFETTO_ARTIFACTS_DIR/ui" "$GCS_PATH/$PERFETTO_CI_JOB_ID/ui"
+          echo "UI_BUILD_URL=https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html" >> $GITHUB_ENV
+
+      - name: Comment PR with UI build link
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const uiBuildUrl = process.env.UI_BUILD_URL;
+
+            if (uiBuildUrl && context.issue.number) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `### 🎨 Perfetto UI Build\n\n✅ UI build is ready: ${uiBuildUrl}`
+              });
+            }
+
       - name: Print ccache stats
         shell: bash
         run: ccache --show-stats
@@ -128,25 +152,6 @@ jobs:
           echo ""
           echo "Perfetto UI build for this CL"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
-
-          # Store the URL for the next step
-          echo "UI_BUILD_URL=https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html" >> $GITHUB_ENV
-
-      - name: Comment PR with UI build link
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const uiBuildUrl = process.env.UI_BUILD_URL;
-
-            if (uiBuildUrl && context.issue.number) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: `### 🎨 Perfetto UI Build\n\n✅ UI build is ready: ${uiBuildUrl}`
-              });
-            }
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
