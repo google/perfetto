@@ -223,39 +223,6 @@ if (is_android && (perfetto_build_standalone || perfetto_build_with_android)) {
   all_targets += [ "test/vts:perfetto_vts_deps" ]
 }
 
-group("all") {
-  testonly = true  # allow to build also test targets
-  deps = all_targets
-}
-
-# This target is used when running ninja without any argument (by default would
-# build all reachable targets). This is mainly used to prevent the UI being
-# built when running ninja -C out/xxx.
-# This has effect only in standalone builds, no effect on chromium builds.
-# Chromium's "all" target depends on our "all" target above. However chromium's
-# "default" target depends on any target that we cause to be discovered by
-# depending on other GN files.
-group("default") {
-  testonly = true
-  deps = [ ":all" ]
-}
-
-# +----------------------------------------------------------------------------+
-# | Other definitions: root targets that don't belong to any other subdirectory|
-# +----------------------------------------------------------------------------+
-
-if (enable_perfetto_ui) {
-  group("ui") {
-    deps = [ "ui" ]
-  }
-}
-
-if (enable_perfetto_site) {
-  group("site") {
-    deps = [ "infra/perfetto.dev:site" ]
-  }
-}
-
 # In Android builds, we build the code of traced and traced_probes in one shared
 # library that exposes one xxx_main() for each. The executables themselves are
 # tiny shells that just invoke their own entry point into the library.
@@ -300,17 +267,6 @@ if (!build_with_chromium) {
       "src/tracing:client_api",
     ]
     sources = [ "include/perfetto/tracing.h" ]
-    assert_no_deps = [ "gn:protobuf_lite" ]
-  }
-
-  # Static library for the C SDK, used for amalgamation.
-  static_library("libperfetto_c_sdk") {
-    complete_static_lib = true
-    public_deps = [
-      "gn:default_deps",
-      "include/perfetto/public",
-      "src/shared_lib:shared_lib",
-    ]
     assert_no_deps = [ "gn:protobuf_lite" ]
   }
 
@@ -389,5 +345,38 @@ if (build_with_chromium) {
     configs += [ "//build/config/compiler:no_chromium_code" ]  # nogncheck
     public_deps = [ "include/perfetto/test:test_support" ]
     deps = [ "src/tracing/test:test_support" ]
+  }
+}
+
+# +----------------------------------------------------------------------------+
+# | Top-level groups. Keep this last!                                          |
+# +----------------------------------------------------------------------------+
+
+group("all") {
+  testonly = true  # allow to build also test targets
+  deps = all_targets
+}
+
+# This target is used when running ninja without any argument (by default would
+# build all reachable targets). This is mainly used to prevent the UI being
+# built when running ninja -C out/xxx.
+# This has effect only in standalone builds, no effect on chromium builds.
+# Chromium's "all" target depends on our "all" target above. However chromium's
+# "default" target depends on any target that we cause to be discovered by
+# depending on other GN files.
+group("default") {
+  testonly = true
+  deps = [ ":all" ]
+}
+
+if (enable_perfetto_ui) {
+  group("ui") {
+    deps = [ "ui" ]
+  }
+}
+
+if (enable_perfetto_site) {
+  group("site") {
+    deps = [ "infra/perfetto.dev:site" ]
   }
 }

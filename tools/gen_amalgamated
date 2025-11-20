@@ -41,7 +41,7 @@ default_targets = [
 ]
 
 c_sdk_targets = [
-    '//:libperfetto_c_sdk',
+    '//src/shared_lib:shared_lib',
 ]
 
 # Preamble to add to the C SDK header file to disable shared library exports.
