@@ -143,7 +143,7 @@ _unittests_subset_binaries = [
   },
 ]
 
-# This template produces subset tests binary targets and the
+# This template generates subset tests binary targets and the
 # "perfetto_unittests" binary target, that includes all the unit tests.
 template("perfetto_generate_unittests") {
   _default_unittests_deps = [
@@ -153,20 +153,21 @@ template("perfetto_generate_unittests") {
   _all_test_targets = []
 
   foreach(subset, _unittests_subset_binaries) {
-    # In some build configurations "subset.targets" may be empty, so we skip it.
-    if (subset.targets != []) {
-      test(subset.name) {
-        deps = subset.targets + _default_unittests_deps
+    # Generate subset test binaries only in standalone build
+    if (perfetto_build_standalone) {
+      # In some build configurations "subset.targets" may be empty, so we skip it.
+      if (subset.targets != []) {
+        test(subset.name) {
+          deps = subset.targets + _default_unittests_deps
+        }
+
+        # Adding this subset binary as a dependency to "perfetto_unittests" automatically
+        # add it to the "all_targets" list as a transitive dependency.
+        _all_test_targets += [ ":${subset.name}" ]
       }
-
-      _all_test_targets += subset.targets
-
-      # Adding this subset binary as a dependency to "perfetto_unittests" automatically
-      # add it to the "all_targets" list as a transitive dependency.
-      _all_test_targets += [ ":${subset.name}" ]
     }
+    _all_test_targets += subset.targets
   }
-
   test(target_name) {
     forward_variables_from(invoker, "*")
     deps = _all_test_targets + _default_unittests_deps
