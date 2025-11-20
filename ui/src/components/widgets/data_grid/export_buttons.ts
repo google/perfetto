@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
 import {download} from '../../../base/download_utils';
 import {DataGridApi} from './data_grid';
 import {CopyButtonHelper} from '../../../widgets/copy_to_clipboard_button';
@@ -29,30 +29,30 @@ export interface DataGridCopyButtonAttrs {
  * in different formats (TSV, Markdown, JSON).
  * Maintains its own CopyButtonHelper state to show "Copied" feedback.
  */
-export class DataGridCopyButton
+export class DataGridExportButton
   implements m.ClassComponent<DataGridCopyButtonAttrs>
 {
   private helper = new CopyButtonHelper();
 
   view({attrs}: m.CVnode<DataGridCopyButtonAttrs>) {
     const {api} = attrs;
-    const label = this.helper.state === 'copied' ? 'Copied' : 'Copy';
+    const label = this.helper.state === 'copied' ? 'Copied' : 'Export';
     const loading = this.helper.state === 'working';
-    const icon = this.helper.state === 'copied' ? Icons.Check : Icons.Copy;
+    const icon = this.helper.state === 'copied' ? Icons.Check : Icons.Download;
 
     return m(
       PopupMenu,
       {
         trigger: m(Button, {
           icon,
-          label,
           loading,
-          title: 'Copy filtered and sorted data to clipboard',
+          label,
+          title: 'Export table data',
         }),
       },
       [
         m(MenuItem, {
-          label: 'TSV',
+          label: 'Copy TSV',
           icon: 'tsv',
           title: 'Tab-separated values - paste into spreadsheets',
           onclick: async () => {
@@ -61,7 +61,7 @@ export class DataGridCopyButton
           },
         }),
         m(MenuItem, {
-          label: 'Markdown',
+          label: 'Copy Markdown',
           icon: 'table',
           title: 'Markdown table format',
           onclick: async () => {
@@ -70,7 +70,7 @@ export class DataGridCopyButton
           },
         }),
         m(MenuItem, {
-          label: 'JSON',
+          label: 'Copy JSON',
           icon: 'data_object',
           title: 'JSON array of objects',
           onclick: async () => {
@@ -78,37 +78,9 @@ export class DataGridCopyButton
             await this.helper.copy(content);
           },
         }),
-      ],
-    );
-  }
-}
-
-export interface DataGridDownloadButtonAttrs {
-  readonly api: DataGridApi;
-}
-
-/**
- * DataGrid download button component with dropdown menu for downloading data
- * in different formats (TSV, Markdown, JSON).
- */
-export class DataGridDownloadButton
-  implements m.ClassComponent<DataGridDownloadButtonAttrs>
-{
-  view({attrs}: m.CVnode<DataGridDownloadButtonAttrs>) {
-    const {api} = attrs;
-
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Button, {
-          icon: Icons.Download,
-          label: 'Download',
-          title: 'Download filtered and sorted data',
-        }),
-      },
-      [
+        m(MenuDivider),
         m(MenuItem, {
-          label: 'TSV',
+          label: 'Download TSV',
           icon: 'tsv',
           title: 'Tab-separated values - opens in Excel/Sheets',
           onclick: async () => {
@@ -121,7 +93,7 @@ export class DataGridDownloadButton
           },
         }),
         m(MenuItem, {
-          label: 'Markdown',
+          label: 'Download Markdown',
           icon: 'table',
           title: 'Markdown table format - paste into docs',
           onclick: async () => {
@@ -134,7 +106,7 @@ export class DataGridDownloadButton
           },
         }),
         m(MenuItem, {
-          label: 'JSON',
+          label: 'Download JSON',
           icon: 'data_object',
           title: 'JSON array - use in scripts/tools',
           onclick: async () => {

@@ -29,10 +29,8 @@ import {DataGridDataSource} from '../widgets/data_grid/common';
 import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
-import {
-  DataGridCopyButton,
-  DataGridDownloadButton,
-} from '../widgets/data_grid/export_buttons';
+import {DataGridExportButton} from '../widgets/data_grid/export_buttons';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 
 type Numeric = bigint | number;
 
@@ -121,7 +119,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         className: 'pf-query-table',
         title: this.renderTitle(resp),
         description: query,
-        buttons: this.renderButtons(contextButtons),
+        buttons: this.renderButtons(query, contextButtons),
         fillHeight,
       },
       resp && this.dataSource && this.renderTableContent(resp, this.dataSource),
@@ -136,11 +134,15 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 
-  private renderButtons(contextButtons: m.Child[]) {
+  private renderButtons(query: string, contextButtons: m.Child[]) {
     return [
       contextButtons,
-      this.dataGridApi && m(DataGridCopyButton, {api: this.dataGridApi}),
-      this.dataGridApi && m(DataGridDownloadButton, {api: this.dataGridApi}),
+      m(CopyToClipboardButton, {
+        textToCopy: query,
+        title: 'Copy executed query to clipboard',
+        label: 'Copy Query',
+      }),
+      this.dataGridApi && m(DataGridExportButton, {api: this.dataGridApi}),
     ];
   }
 

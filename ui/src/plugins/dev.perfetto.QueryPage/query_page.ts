@@ -220,6 +220,11 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             'span.pf-query-page__results-summary',
             `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
           ),
+          toolbarItemsRight: m(CopyToClipboardButton, {
+            textToCopy: queryResult.query,
+            title: 'Copy executed query to clipboard',
+            label: 'Copy Query',
+          }),
         }),
       ];
     }

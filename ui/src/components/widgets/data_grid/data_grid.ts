@@ -49,7 +49,7 @@ import {
   formatAsJSON,
   formatAsMarkdown,
 } from './export_utils';
-import {DataGridCopyButton, DataGridDownloadButton} from './export_buttons';
+import {DataGridExportButton} from './export_buttons';
 
 export class GridFilterBar implements m.ClassComponent {
   view({children}: m.Vnode) {
@@ -318,7 +318,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
   private gridApi?: GridApi;
-  private dataGridApi?: DataGridApi;
+  private dataGridApi: DataGridApi = {
+    exportData: async (format, customFormatter) => {
+      if (!this.currentDataSource || !this.currentColumns) {
+        throw new Error('DataGrid not ready for export');
+      }
+      return await this.formatData(
+        this.currentDataSource,
+        this.currentColumns,
+        customFormatter ?? this.currentValueFormatter,
+        format,
+      );
+    },
+  };
   private currentDataSource?: DataGridDataSource;
   private currentColumns?: ReadonlyArray<ColumnDefinition>;
   private currentValueFormatter?: ValueFormatter;
@@ -428,22 +440,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     this.currentValueFormatter = valueFormatter;
 
     // Create and expose DataGrid API if needed
-    if (onReady && !this.dataGridApi) {
-      this.dataGridApi = {
-        exportData: async (format, customFormatter) => {
-          if (!this.currentDataSource || !this.currentColumns) {
-            throw new Error('DataGrid not ready for export');
-          }
-          return await this.formatData(
-            this.currentDataSource,
-            this.currentColumns,
-            customFormatter ?? this.currentValueFormatter,
-            format,
-          );
-        },
-      };
-      onReady(this.dataGridApi);
-    }
+    onReady?.(this.dataGridApi);
 
     const sortControls = onSort !== noOp;
     const filtersUncontrolled = filters === this.filters;
@@ -947,13 +944,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               }),
             ]),
         ]),
-        showExportButtons &&
-          this.dataGridApi &&
-          m(DataGridCopyButton, {api: this.dataGridApi}),
-        showExportButtons &&
-          this.dataGridApi &&
-          m(DataGridDownloadButton, {api: this.dataGridApi}),
         toolbarItemsRight,
+        showExportButtons && m(DataGridExportButton, {api: this.dataGridApi}),
       ]),
     ]);
   }
