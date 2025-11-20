@@ -109,18 +109,7 @@ if (enable_perfetto_tools) {
 
 if (enable_perfetto_unittests) {
   import("gn/perfetto_unittests.gni")
-
-  foreach(subset, perfetto_unittests_subset_binaries) {
-    if (subset.targets != []) {
-      perfetto_unittest(subset.name) {
-        deps = subset.targets
-      }
-      all_targets += [ ":${subset.name}" ]
-    }
-  }
-
-  perfetto_unittest("perfetto_unittests") {
-    deps = perfetto_unittests_targets
+  perfetto_generate_unittests("perfetto_unittests") {
   }
   all_targets += [ ":perfetto_unittests" ]
 }
