@@ -62,7 +62,10 @@ class Rpc {
   // The unique_ptr argument is optional. If non-null it will adopt the passed
   // instance and allow to directly query that. If null, a new instanace will be
   // created internally by calling Parse().
-  explicit Rpc(std::unique_ptr<TraceProcessor>, bool has_preloaded_eof);
+  explicit Rpc(std::unique_ptr<TraceProcessor>,
+               bool has_preloaded_eof,
+               Config default_config,
+               std::function<void(TraceProcessor*)> on_trace_processor_created);
   Rpc();
   ~Rpc();
 
@@ -148,7 +151,10 @@ class Rpc {
   void DisableAndReadMetatraceInternal(
       protos::pbzero::DisableAndReadMetatraceResult*);
 
-  Config trace_processor_config_;
+  Config default_config_;
+  std::function<void(TraceProcessor*)> on_trace_processor_created_;
+
+  Config current_config_;
   std::unique_ptr<TraceProcessor> trace_processor_;
   RpcResponseFunction rpc_response_fn_;
   protozero::ProtoRingBuffer rxbuf_;

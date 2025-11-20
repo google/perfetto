@@ -216,6 +216,19 @@ def extract_referenced_entities(sql_file):
       ]:
         references.add(entity)
 
+    # Extract references from IN clauses
+    # Pattern: IN <entity> (for subquery references to tables)
+    in_pattern = r'IN\s+([a-zA-Z0-9_]+)(?:\s|$|;|\))'
+    matches = re.finditer(in_pattern, content, re.IGNORECASE)
+    for match in matches:
+      entity = match.group(1)
+      # Skip SQL keywords
+      if entity.upper() not in [
+          'SELECT', 'WITH', 'AS', 'ON', 'WHERE', 'GROUP', 'ORDER', 'HAVING',
+          'LIMIT'
+      ]:
+        references.add(entity)
+
     # Extract table references from USING clauses (e.g., SPAN_JOIN, SPAN_OUTER_JOIN)
     # Pattern: USING <module_or_function> ( <table1> PARTITIONED ..., <table2> PARTITIONED ... )
     using_pattern = r'USING\s+[a-zA-Z0-9_]+\s*\(\s*([^)]+)\)'

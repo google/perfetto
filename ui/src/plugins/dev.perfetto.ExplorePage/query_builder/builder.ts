@@ -512,6 +512,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           };
           ds.notifyUpdate(newModel);
         },
+        exportData() {
+          return ds.exportData();
+        },
       };
 
       const error = findErrors(this.query, this.response);
