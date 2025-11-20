@@ -62,15 +62,18 @@ void PrintUsage() {
 Tracebox is a bundle containing all the tracing services and the perfetto
 cmdline client in one binary.
 
-QUICK START (end-to-end workflow):)");
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  printf(R"(
+QUICK START (end-to-end workflow):
   tracebox ctl start                      # Start daemons
   tracebox -t 10s -o trace.pftrace sched  # Capture trace
   tracebox ctl stop                       # Stop daemons (optional)
 )");
+
   PrintTraceboxCtlUsage();
+
+  std::string applets;
+  for (const Applet& applet : g_applets)
+    applets += " " + std::string(applet.name);
+
   printf(R"(
 ADVANCED: --autodaemonize (NOT RECOMMENDED)
   Example: tracebox --autodaemonize -t 10s -o trace.pftrace sched
@@ -78,20 +81,14 @@ ADVANCED: --autodaemonize (NOT RECOMMENDED)
   Spawns temporary daemons for one trace only.
   Limitations: SDK apps won't connect, inefficient for multiple traces.
   Use only for quick one-offs or when persistent daemons aren't feasible.
-)");
-  printf("\nAvailable applets:");
-  for (const Applet& applet : g_applets)
-    printf(" %s", applet.name);
-  printf("\n");
-#else
-  printf(
-      "\nStart the daemons manually before tracing and then run tracebox.\n");
-#endif
-  printf(R"(
+
+Available applets:%s
+
 See also:
   * https://perfetto.dev/docs/
   * The config editor in the record page of https://ui.perfetto.dev/
-)");
+)",
+         applets.c_str());
 }
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -234,13 +231,15 @@ int TraceboxMain(int argc, char** argv) {
   for (int i = 1; i < argc;) {
     if (strcmp(argv[i], "--autodaemonize") == 0) {
       autodaemonize = true;
-      memmove(&argv[i], &argv[i + 1], sizeof(char*) * static_cast<size_t>(argc - i - 1));
+      memmove(&argv[i], &argv[i + 1],
+              sizeof(char*) * static_cast<size_t>(argc - i - 1));
       argc--;
     } else if (strcmp(argv[i], "--system-sockets") == 0) {
       PERFETTO_ELOG(
           "Warning: --system-sockets is deprecated. System sockets are now the "
           "default.");
-      memmove(&argv[i], &argv[i + 1], sizeof(char*) * static_cast<size_t>(argc - i - 1));
+      memmove(&argv[i], &argv[i + 1],
+              sizeof(char*) * static_cast<size_t>(argc - i - 1));
       argc--;
     } else {
       ++i;
@@ -250,9 +249,8 @@ int TraceboxMain(int argc, char** argv) {
   if (autodaemonize)
     return RunWithAutodaemonize(argc, argv);
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // Require daemons to be running (started via 'tracebox ctl start').
-  ServiceSockets sockets = perfetto::GetServiceSockets();
+  ServiceSockets sockets = perfetto::GetRunningSockets();
   if (!sockets.IsValid()) {
     fprintf(stderr,
             "Error: Perfetto tracing daemons (traced, traced_probes) are not "
@@ -265,7 +263,6 @@ int TraceboxMain(int argc, char** argv) {
   }
   // Propagate discovered socket paths to perfetto_cmd via environment.
   perfetto::SetServiceSocketEnv(sockets);
-#endif
 
   PerfettoCmd perfetto_cmd;
   auto opt_res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
@@ -274,19 +271,6 @@ int TraceboxMain(int argc, char** argv) {
       PrintUsage();
     return *opt_res;
   }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  // Windows: Spawn daemons with system sockets (no daemon-running check).
-  // Maintains backward compatibility with old --system-sockets behavior.
-  std::string self_path = base::GetCurExecutablePath();
-  base::Subprocess traced({self_path, "traced"});
-  traced.Start();
-
-  base::Subprocess traced_probes(
-      {self_path, "traced_probes", "--reset-ftrace"});
-  traced_probes.Start();
-#endif
-
   return perfetto_cmd.ConnectToServiceRunAndMaybeNotify();
 }
 

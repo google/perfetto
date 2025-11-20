@@ -34,6 +34,11 @@ struct ServiceSockets {
   bool IsValid() const {
     return !producer_socket.empty() && !consumer_socket.empty();
   }
+
+  std::string ToString() const {
+    return "Producer Socket: " + producer_socket +
+           ", Consumer Socket: " + consumer_socket;
+  }
 };
 
 // Prints usage information for the `tracebox ctl` applet.
@@ -47,10 +52,9 @@ int TraceboxCtlMain(int argc, char** argv);
 // Search order: env var, Android system sockets, /run/perfetto, /tmp.
 // Returns a ServiceSockets struct with empty strings if traced is not
 // accessible.
-ServiceSockets GetServiceSockets();
+ServiceSockets GetRunningSockets();
 
 // Sets the environment variables for the tracing service socket paths.
-// This should be called after GetServiceSockets() to configure the environment.
 void SetServiceSocketEnv(const ServiceSockets& sockets);
 
 }  // namespace perfetto
