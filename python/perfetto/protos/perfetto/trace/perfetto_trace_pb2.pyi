@@ -17340,10 +17340,12 @@ class WinscopeExtensions(_message.Message):
     def __init__(self) -> None: ...
 
 class WorkqueueActivateWorkFtraceEvent(_message.Message):
-    __slots__ = ["work"]
+    __slots__ = ["function", "work"]
+    FUNCTION_FIELD_NUMBER: _ClassVar[int]
     WORK_FIELD_NUMBER: _ClassVar[int]
+    function: int
     work: int
-    def __init__(self, work: _Optional[int] = ...) -> None: ...
+    def __init__(self, work: _Optional[int] = ..., function: _Optional[int] = ...) -> None: ...
 
 class WorkqueueExecuteEndFtraceEvent(_message.Message):
     __slots__ = ["function", "work"]
@@ -17372,8 +17374,8 @@ class WorkqueueQueueWorkFtraceEvent(_message.Message):
     function: int
     req_cpu: int
     work: int
-    workqueue: int
-    def __init__(self, work: _Optional[int] = ..., function: _Optional[int] = ..., workqueue: _Optional[int] = ..., req_cpu: _Optional[int] = ..., cpu: _Optional[int] = ...) -> None: ...
+    workqueue: str
+    def __init__(self, work: _Optional[int] = ..., function: _Optional[int] = ..., req_cpu: _Optional[int] = ..., cpu: _Optional[int] = ..., workqueue: _Optional[str] = ...) -> None: ...
 
 class ZeroFtraceEvent(_message.Message):
     __slots__ = ["flag", "name", "pid", "value"]
