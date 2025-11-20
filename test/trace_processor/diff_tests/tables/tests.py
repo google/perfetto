@@ -542,8 +542,8 @@ class Tables(TestSuite):
         1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33
         """))
 
-  # Ftrace user list table
-  def test_ftrace_user_list(self):
+  # user list table
+  def test_android_user_list(self):
     return DiffTestBlueprint(
         trace=DataPath('trace_user_list.pftrace'),
         query="""
@@ -551,13 +551,13 @@ class Tables(TestSuite):
 
 
         SELECT
-          user_id,
+          android_user_id,
           type
         FROM android_user_list
-        ORDER BY user_id;
+        ORDER BY android_user_id;
         """,
         out=Csv("""
-        "user_id","type" 
+        "android_user_id","type"
         0,"android.os.usertype.system.HEADLESS" 
         10,"android.os.usertype.full.SECONDARY" 
         11,"android.os.usertype.full.GUEST"

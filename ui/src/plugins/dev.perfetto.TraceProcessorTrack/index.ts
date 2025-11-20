@@ -23,6 +23,7 @@ import {
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {MinimapRow} from '../../public/minimap';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -57,7 +58,7 @@ import {z} from 'zod';
 import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 
 const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type TraceProcessorTrackPluginState = z.infer<
@@ -78,12 +79,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     init: unknown,
   ): TraceProcessorTrackPluginState {
     const result = TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -462,7 +458,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private createSliceFlameGraphPanel(trace: Trace) {
     let previousSelection: AreaSelection | undefined;
-    let currentFlamegraph: QueryFlamegraph | undefined;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
     let isLoading = false;
     const limiter = new AsyncLimiter();
 
@@ -478,41 +474,38 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           limiter.schedule(async () => {
             // If we had a previous flamegraph, dispose of it now that the new
             // one is ready.
-            const previousFlamegraph = currentFlamegraph;
-            if (previousFlamegraph) {
-              await previousFlamegraph[Symbol.asyncDispose]();
+            if (flamegraphWithMetrics) {
+              await flamegraphWithMetrics.flamegraph[Symbol.asyncDispose]();
             }
 
             // Unset the flamegraph but set the isLoading flag so we render the
             // right thing.
-            currentFlamegraph = undefined;
+            flamegraphWithMetrics = undefined;
             isLoading = true;
 
             // Compute the new flamegraph
-            const flamegraph = await this.computeSliceFlamegraph(
+            flamegraphWithMetrics = await this.computeSliceFlamegraph(
               trace,
               selection,
             );
-
-            // Swap the current flamegraph with the newly computed one, keeping
-            // track of the previous one so we can dispose of it.
-            currentFlamegraph = flamegraph;
             isLoading = false;
           });
         }
-        if (currentFlamegraph === undefined && !isLoading) {
+        if (flamegraphWithMetrics === undefined && !isLoading) {
           return undefined;
         }
+        const store = assertExists(this.store);
         return {
           isLoading: isLoading,
-          content: currentFlamegraph?.render(
-            assertExists(this.store).state.areaSelectionFlamegraphState,
-            (state) => {
-              assertExists(this.store).edit((draft) => {
+          content: flamegraphWithMetrics?.flamegraph?.render({
+            metrics: flamegraphWithMetrics.metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
                 draft.areaSelectionFlamegraphState = state;
               });
             },
-          ),
+          }),
         };
       },
     };
@@ -521,7 +514,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   private async computeSliceFlamegraph(
     trace: Trace,
     currentSelection: AreaSelection,
-  ): Promise<QueryFlamegraph | undefined> {
+  ): Promise<QueryFlamegraphWithMetrics | undefined> {
     const trackIds = [];
     for (const trackInfo of currentSelection.tracks) {
       if (!trackInfo?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
@@ -611,7 +604,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return new QueryFlamegraph(trace, metrics, [iiTable]);
+    return {flamegraph: new QueryFlamegraph(trace, [iiTable]), metrics};
   }
 
   private addMinimapContentProvider(ctx: Trace) {

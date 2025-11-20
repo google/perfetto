@@ -15,7 +15,10 @@
 import m from 'mithril';
 
 import {Monitor} from '../../base/monitor';
-import {QueryFlamegraph} from '../../components/query_flamegraph';
+import {
+  QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
+} from '../../components/query_flamegraph';
 import {Trace} from '../../public/trace';
 import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
@@ -40,7 +43,7 @@ export interface PprofPageAttrs {
 export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
   private profiles?: ReadonlyArray<PprofProfile>;
   private readonly monitor = new Monitor([() => this.profiles]);
-  private flamegraph?: QueryFlamegraph;
+  private flamegraphWithMetrics?: QueryFlamegraphWithMetrics;
   private currentTab = 'flamegraph';
 
   view({attrs}: m.CVnode<PprofPageAttrs>): m.Children {
@@ -80,15 +83,19 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
         this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
           m(StackFixed, this.renderViewExplanation()),
         m(StackAuto, [
-          this.flamegraph &&
+          this.flamegraphWithMetrics &&
             attrs.state.flamegraphState &&
-            this.flamegraph.render(attrs.state.flamegraphState, (state) => {
-              attrs.onStateChange({
-                ...attrs.state,
-                flamegraphState: state,
-              });
+            this.flamegraphWithMetrics.flamegraph.render({
+              metrics: this.flamegraphWithMetrics.metrics,
+              state: attrs.state.flamegraphState,
+              onStateChange: (state) => {
+                attrs.onStateChange({
+                  ...attrs.state,
+                  flamegraphState: state,
+                });
+              },
             }),
-          !this.flamegraph && this.renderEmptyState(),
+          !this.flamegraphWithMetrics && this.renderEmptyState(),
         ]),
       ],
     );
@@ -96,7 +103,7 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
 
   private createFlamegraph(attrs: PprofPageAttrs, profile: PprofProfile): void {
     if (profile.metrics.length === 0) {
-      this.flamegraph = undefined;
+      this.flamegraphWithMetrics = undefined;
       attrs.onStateChange({
         ...attrs.state,
         flamegraphState: undefined,
@@ -109,7 +116,10 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
         ? Flamegraph.updateState(attrs.state.flamegraphState, profile.metrics)
         : Flamegraph.createDefaultState(profile.metrics),
     });
-    this.flamegraph = new QueryFlamegraph(attrs.trace, profile.metrics);
+    this.flamegraphWithMetrics = {
+      flamegraph: new QueryFlamegraph(attrs.trace),
+      metrics: profile.metrics,
+    };
   }
 
   private shouldShowExplanation(key: string): boolean {
