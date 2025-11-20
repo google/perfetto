@@ -72,6 +72,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const pjoin = path.join;
+const {SourceMapConsumer, SourceMapGenerator} = require('source-map');
 
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
@@ -740,27 +741,82 @@ function copyExtensionAssets() {
  * Each *.js.map file produces a *_min.js.map file.
  */
 function stripFrontendSourceMap(srcMapPath) {
-  function stripSourcesContent() {
+  async function stripSourcesContent() {
     if (!fs.existsSync(srcMapPath)) {
-      return;r
+      return;
     }
     try {
       const sourceMapContent = fs.readFileSync(srcMapPath, 'utf8');
-      const sourceMap = JSON.parse(sourceMapContent);
-      // Remove sourcesContent to reduce file size for custom error logging
-      delete sourceMap.sourcesContent; // No need for raw source 
-      delete sourceMap.names; // No need fo names - we don't minify names in our build
-      // Remove ../../../out/ui/src prefix from all sources
-      if (sourceMap.sources && Array.isArray(sourceMap.sources)) {
-        sourceMap.sources = sourceMap.sources.map((source) => {
-          source = source.replace('../../../out/ui/', '');
-          source = source.replace('../../node_modules/', 'node_modules/');
-          return source;
-        });
+      
+      // Validate the content is not empty
+      if (!sourceMapContent || sourceMapContent.trim().length === 0) {
+        if (cfg.verbose) {
+          console.log('Source map file is empty, skipping:', srcMapPath);
+        }
+        return;
       }
+      
+      const sourceMap = JSON.parse(sourceMapContent);
+      
+      // Validate required fields exist
+      if (!sourceMap.mappings || !sourceMap.sources) {
+        if (cfg.verbose) {
+          console.log('Source map missing required fields, skipping:', srcMapPath);
+        }
+        return;
+      }
+      
+      // Use source-map to parse and regenerate without names
+      const consumer = await new SourceMapConsumer(sourceMap);
+      const generator = new SourceMapGenerator({
+        file: sourceMap.file,
+        sourceRoot: sourceMap.sourceRoot,
+      });
+      
+      // Optimize: keep only one mapping per generated line (first mapping on each line)
+      // This dramatically reduces source map size while preserving line-level accuracy
+      let lastGeneratedLine = -1;
+      
+      consumer.eachMapping((mapping) => {
+        if (!mapping.source) {
+          return; // Skip mappings without a source
+        }
+        
+        // Skip if we already have a mapping for this generated line
+        if (mapping.generatedLine === lastGeneratedLine) {
+          return;
+        }
+        lastGeneratedLine = mapping.generatedLine;
+        
+        // Clean up the source path
+        let cleanedSource = mapping.source;
+        cleanedSource = cleanedSource.replace('../../../out/ui/', '');
+        cleanedSource = cleanedSource.replace('../../node_modules/', 'node_modules/');
+        
+        // Only include line, column, source, and original position
+        // Exclude name to strip name references from the mappings
+        generator.addMapping({
+          generated: {
+            line: mapping.generatedLine,
+            column: mapping.generatedColumn,
+          },
+          original: mapping.originalLine != null ? {
+            line: mapping.originalLine,
+            column: mapping.originalColumn,
+          } : null,
+          source: cleanedSource,
+          // name is intentionally omitted
+        });
+      });
+      
+      const strippedSourceMap = generator.toJSON();
+      
+      // Clean up the consumer
+      consumer.destroy();
+      
       const minMapPath = srcMapPath.replace('.js.map', '_min.js.map');
       // Write with proper JSON formatting to ensure valid output
-      fs.writeFileSync(minMapPath, JSON.stringify(sourceMap, null, 2), 'utf8');
+      fs.writeFileSync(minMapPath, JSON.stringify(strippedSourceMap, null, 2), 'utf8');
       if (cfg.verbose) {
         console.log('Created stripped source map:', path.relative(ROOT_DIR, minMapPath));
       }
