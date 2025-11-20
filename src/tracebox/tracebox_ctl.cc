@@ -37,7 +37,9 @@
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include "perfetto/base/time.h"
+#else
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -57,10 +59,6 @@ constexpr const char* kDaemons[] = {
 #endif
 };
 
-std::string GetPidFilePath(const char* daemon_name) {
-  return base::GetSysTempDir() + "/" + daemon_name + ".pid";
-}
-
 bool CanConnectToSocket(const std::string& path) {
   base::SockFamily family = base::GetSockFamily(path.c_str());
   auto sock =
@@ -69,6 +67,10 @@ bool CanConnectToSocket(const std::string& path) {
 }
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+std::string GetPidFilePath(const char* daemon_name) {
+  return base::GetSysTempDir() + "/" + daemon_name + ".pid";
+}
 
 bool IsSystemdServiceInstalled() {
 #if PERFETTO_BUILDFLAG(PERFETTO_SYSTEMD)
@@ -240,7 +242,6 @@ int CtlStart() {
 
   while (true)
     base::SleepMicroseconds(1000000);
-  return 0;
 #else  // Unix
   if (IsSystemdServiceInstalled()) {
     if (base::GetCurrentUserId() == 0) {
