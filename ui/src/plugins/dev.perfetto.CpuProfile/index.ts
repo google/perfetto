@@ -24,6 +24,7 @@ import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {assertExists} from '../../base/logging';
@@ -34,8 +35,8 @@ const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 
 const CPU_PROFILE_PLUGIN_STATE_SCHEMA = z
   .object({
-    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
-    detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
   })
   .readonly();
 
@@ -49,14 +50,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
 
   private migrateCpuProfilePluginState(init: unknown): CpuProfilePluginState {
     const result = CPU_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    // Return default state with empty state
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -127,8 +121,8 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
   }
 
   private createAreaSelectionTab(trace: Trace) {
-    let previousSelection: undefined | AreaSelection;
-    let flamegraph: undefined | QueryFlamegraph;
+    let previousSelection: AreaSelection | undefined;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
 
     return {
       id: 'cpu_profile_flamegraph',
@@ -137,32 +131,38 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         const changed =
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
-
         if (changed) {
-          flamegraph = this.computeCpuProfileFlamegraph(trace, selection);
+          flamegraphWithMetrics = this.computeCpuProfileFlamegraph(
+            trace,
+            selection,
+          );
           previousSelection = selection;
         }
-
-        if (flamegraph === undefined) {
+        if (flamegraphWithMetrics === undefined) {
           return undefined;
         }
-
+        const {flamegraph, metrics} = flamegraphWithMetrics;
+        const store = assertExists(this.store);
         return {
           isLoading: false,
-          content: flamegraph.render(
-            assertExists(this.store).state.areaSelectionFlamegraphState,
-            (state) => {
-              assertExists(this.store).edit((draft) => {
+          content: flamegraph.render({
+            metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
                 draft.areaSelectionFlamegraphState = state;
               });
             },
-          ),
+          }),
         };
       },
     };
   }
 
-  private computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
+  private computeCpuProfileFlamegraph(
+    trace: Trace,
+    selection: AreaSelection,
+  ): QueryFlamegraphWithMetrics | undefined {
     const utids = [];
     for (const trackInfo of selection.tracks) {
       if (trackInfo?.tags?.kinds?.includes(CPU_PROFILE_TRACK_KIND)) {
@@ -215,7 +215,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return new QueryFlamegraph(trace, metrics);
+    return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 }
 

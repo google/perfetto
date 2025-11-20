@@ -16,6 +16,7 @@ import {assertExists} from '../../base/logging';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
@@ -41,8 +42,8 @@ import {z} from 'zod';
 const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
 const LINUX_PERF_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
-  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type LinuxPerfPluginState = z.infer<typeof LINUX_PERF_PLUGIN_STATE_SCHEMA>;
@@ -62,13 +63,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
 
   private migrateLinuxPerfPluginState(init: unknown): LinuxPerfPluginState {
     const result = LINUX_PERF_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-      detailsPanelFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
@@ -391,8 +386,8 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   }
 
   private createAreaSelectionTab(trace: Trace) {
-    let previousSelection: undefined | AreaSelection;
-    let flamegraph: undefined | QueryFlamegraph;
+    let previousSelection: AreaSelection | undefined;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
 
     return {
       id: 'perf_sample_flamegraph',
@@ -401,26 +396,29 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         const changed =
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
-
         if (changed) {
-          flamegraph = this.computePerfSampleFlamegraph(trace, selection);
+          flamegraphWithMetrics = this.computePerfSampleFlamegraph(
+            trace,
+            selection,
+          );
           previousSelection = selection;
         }
-
-        if (flamegraph === undefined) {
+        if (flamegraphWithMetrics === undefined) {
           return undefined;
         }
-
+        const {flamegraph, metrics} = flamegraphWithMetrics;
+        const store = assertExists(this.store);
         return {
           isLoading: false,
-          content: flamegraph.render(
-            assertExists(this.store).state.areaSelectionFlamegraphState,
-            (state) => {
-              assertExists(this.store).edit((draft) => {
+          content: flamegraph.render({
+            metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
                 draft.areaSelectionFlamegraphState = state;
               });
             },
-          ),
+          }),
         };
       },
     };
@@ -429,7 +427,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   private computePerfSampleFlamegraph(
     trace: Trace,
     currentSelection: AreaSelection,
-  ) {
+  ): QueryFlamegraphWithMetrics | undefined {
     const processTrackTags = getSelectedProcessTrackTags(currentSelection);
     const threadTrackTags = getSelectedThreadTrackTags(currentSelection);
     if (processTrackTags.length === 0 && threadTrackTags.length === 0) {
@@ -491,7 +489,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return new QueryFlamegraph(trace, metrics);
+    return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 }
 

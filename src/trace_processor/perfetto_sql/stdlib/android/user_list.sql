@@ -14,15 +14,25 @@
 -- limitations under the License.
 --
 
--- Android user list.
+-- Contains information about Android users in the trace.
 --
+-- This is populated by the `android.user_list` data-source which lives in
+-- traced_probes and is available on default from 26Q2+ devices.
+--
+-- Note: `users` here corresponds to Android users *not* Linux users. So
+-- this is not about Linux uids (which in Android correspons to different
+-- apps).
 CREATE PERFETTO VIEW android_user_list (
-  -- Android user id
-  user_id LONG,
-  -- User type
+  -- The Android user id.
+  --
+  -- Often useful to join with `android_process_metadata.user_id`
+  android_user_id LONG,
+  -- A string "enum" indicating the type of the user according to the system.
+  --
+  -- Will be one for a few constant values e.g. HEADLESS, SECONDARY, GUEST.
   type STRING
 ) AS
 SELECT
-  user_id,
+  android_user_id,
   type
-FROM __intrinsic_user_list;
+FROM __intrinsic_android_user_list;
