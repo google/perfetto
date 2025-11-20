@@ -16,6 +16,8 @@
 name: Perfetto CI [ui]
 on:
   workflow_call:
+permissions:
+  pull-requests: write
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
@@ -130,24 +132,19 @@ jobs:
           # Store the URL for the next step
           echo "UI_BUILD_URL=https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html" >> $GITHUB_ENV
 
-      - name: Create status check with UI build link
-        if: ${{ always() }}
+      - name: Comment PR with UI build link
+        if: ${{ always() && github.event_name == 'pull_request' }}
         uses: actions/github-script@v6
         with:
           script: |
-            const { owner, repo } = context.repo;
-            const sha = context.sha;
             const uiBuildUrl = process.env.UI_BUILD_URL;
 
-            if (uiBuildUrl) {
-              await github.rest.repos.createCommitStatus({
-                owner,
-                repo,
-                sha,
-                state: 'success',
-                target_url: uiBuildUrl,
-                description: 'Click to view UI build',
-                context: 'Perfetto UI Build'
+            if (uiBuildUrl && context.issue.number) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `### 🎨 Perfetto UI Build\n\n✅ UI build is ready: ${uiBuildUrl}`
               });
             }
 
