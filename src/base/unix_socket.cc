@@ -295,6 +295,22 @@ std::string AddrinfoToIpStr(const struct addrinfo* addrinfo_ptr) {
   return std::string(ip_str_buffer);
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+// On macOS, setsockopt(SO_SNDTIMEO/SO_RCVTIMEO) can fail with EINVAL if the
+// peer has disconnected. Since the server cannot know this, we check if
+// getpeername() also fails to detect the disconnection and swallow the error.
+// This keeps the behaviour aligned to Linux.
+bool ShouldIgnoreSocketTimeoutError(SocketHandle fd) {
+  if (errno != EINVAL)
+    return false;
+
+  struct sockaddr_storage addr;
+  socklen_t addr_len = sizeof(addr);
+  return getpeername(fd, reinterpret_cast<struct sockaddr*>(&addr),
+                     &addr_len) != 0;
+}
+#endif
+
 }  // namespace
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -781,9 +797,18 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
   }
 #endif
 
-  return setsockopt(*fd_, SOL_SOCKET, SO_SNDTIMEO,
-                    reinterpret_cast<const char*>(&timeout),
-                    sizeof(timeout)) == 0;
+  if (setsockopt(*fd_, SOL_SOCKET, SO_SNDTIMEO,
+                 reinterpret_cast<const char*>(&timeout),
+                 sizeof(timeout)) == 0) {
+    return true;
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  if (ShouldIgnoreSocketTimeoutError(*fd_))
+    return true;
+#endif
+
+  return false;
 }
 
 bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
@@ -797,9 +822,18 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
       (timeout_ms - (timeout_sec * 1000)) * 1000);
 #endif
-  return setsockopt(*fd_, SOL_SOCKET, SO_RCVTIMEO,
-                    reinterpret_cast<const char*>(&timeout),
-                    sizeof(timeout)) == 0;
+  if (setsockopt(*fd_, SOL_SOCKET, SO_RCVTIMEO,
+                 reinterpret_cast<const char*>(&timeout),
+                 sizeof(timeout)) == 0) {
+    return true;
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  if (ShouldIgnoreSocketTimeoutError(*fd_))
+    return true;
+#endif
+
+  return false;
 }
 
 std::string UnixSocketRaw::GetSockAddr() const {

@@ -12199,6 +12199,7 @@ message MmShrinkSlabEndFtraceEvent {
 
 message WorkqueueActivateWorkFtraceEvent {
   optional uint64 work = 1;
+  optional uint64 function = 2;
 }
 message WorkqueueExecuteEndFtraceEvent {
   optional uint64 work = 1;
@@ -12211,9 +12212,9 @@ message WorkqueueExecuteStartFtraceEvent {
 message WorkqueueQueueWorkFtraceEvent {
   optional uint64 work = 1;
   optional uint64 function = 2;
-  optional uint64 workqueue = 3;
-  optional uint32 req_cpu = 4;
-  optional uint32 cpu = 5;
+  optional int32 req_cpu = 4;
+  optional int32 cpu = 5;
+  optional string workqueue = 6;
 }
 
 // End of protos/perfetto/trace/ftrace/workqueue.proto

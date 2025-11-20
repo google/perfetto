@@ -616,6 +616,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           GridHeaderCell,
           {
             sort,
+            hintSortDirection:
+              sorting.direction === 'UNSORTED' ? undefined : sorting.direction,
             onSort: sortControls
               ? (direction) => {
                   onSort({

@@ -4214,7 +4214,8 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   // Therefore, if the 'buffer_clone_preserve_read_iter' flag is false, we
   // ignore the file to make the new logic behave like the old logic.
   bool clone_session_write_into_file =
-      base::flags::buffer_clone_preserve_read_iter && session->write_into_file;
+      PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER) &&
+      session->write_into_file;
 
   if (clone_session_write_into_file) {
     if (!args.output_file_fd) {
