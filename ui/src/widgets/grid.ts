@@ -358,7 +358,53 @@ export class Grid implements m.ClassComponent<GridAttrs> {
   > = new Map();
   private fieldToId: Map<string, number> = new Map();
   private nextId = 0;
+  private boundHandleCopy = this.handleCopy.bind(this);
+  private handleCopy(e: ClipboardEvent): void {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
 
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer;
+
+    // Find the grid element
+    const gridElement =
+      container.nodeType === Node.ELEMENT_NODE
+        ? (container as Element).closest('.pf-grid')
+        : (container.parentElement?.closest('.pf-grid') as Element | null);
+
+    if (!gridElement) return;
+
+    // Clone the selection's content
+    const fragment = range.cloneContents();
+    const tempDiv = document.createElement('div');
+    tempDiv.appendChild(fragment);
+
+    // Find all rows in the cloned content
+    const rows = Array.from(
+      tempDiv.querySelectorAll('.pf-grid__row'),
+    ) as HTMLElement[];
+
+    if (rows.length === 0) return;
+
+    // Extract text from cells in TSV format
+    const tsvRows = rows
+      .map((row) => {
+        const cells = Array.from(
+          row.querySelectorAll('.pf-grid__cell-container'),
+        ) as HTMLElement[];
+        const cellTexts = cells
+          .map((cell) => cell.textContent?.trim() || '')
+          .filter((text) => text.length > 0);
+        return cellTexts.join('\t');
+      })
+      .filter((row) => row.length > 0);
+
+    if (tsvRows.length > 0) {
+      const tsvData = tsvRows.join('\n');
+      e.clipboardData?.setData('text/plain', tsvData);
+      e.preventDefault();
+    }
+  }
   private getColumnId(field: string): number {
     if (!this.fieldToId.has(field)) {
       this.fieldToId.set(field, this.nextId++);
@@ -482,6 +528,10 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     // Extract rows from rowData
     const rows = isPartialRowData(rowData) ? rowData.data : rowData;
 
+    // Add copy event handler for spreadsheet-friendly formatting
+    const gridDom = vnode.dom as HTMLElement;
+    gridDom.addEventListener('copy', this.boundHandleCopy);
+
     if (rows.length > 0) {
       // Check if there are new columns that need sizing
       const newColumns = columns.filter(
@@ -580,6 +630,11 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         );
       }
     }
+  }
+
+  onremove(vnode: m.VnodeDOM<GridAttrs, this>) {
+    const gridDom = vnode.dom as HTMLElement;
+    gridDom.removeEventListener('copy', this.boundHandleCopy);
   }
 
   private measureAndApplyWidths(
