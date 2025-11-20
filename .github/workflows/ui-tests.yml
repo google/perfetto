@@ -16,6 +16,8 @@
 name: Perfetto CI [ui]
 on:
   workflow_call:
+permissions:
+  pull-requests: write
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
@@ -66,6 +68,54 @@ jobs:
         run: |
           ui/build --out out/ui
           cp -a out/ui/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
+
+      - name: Upload UI build to GCS
+        env:
+          GCS_PATH: gs://perfetto-ci-artifacts
+        shell: bash
+        run: |
+          gcloud storage cp --no-user-output-enabled --recursive "$PERFETTO_ARTIFACTS_DIR/ui" "$GCS_PATH/$PERFETTO_CI_JOB_ID/ui"
+          echo "UI_BUILD_URL=https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html" >> $GITHUB_ENV
+
+      - name: Comment PR with UI build link
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const uiBuildUrl = process.env.UI_BUILD_URL;
+
+            if (uiBuildUrl && context.issue.number) {
+              // Unique marker to identify our comment
+              const marker = "<!-- perfetto-ui-build-comment -->";
+              const body = `${marker}\n### 🎨 Perfetto UI Build\n\n✅ UI build is ready: ${uiBuildUrl}`;
+
+              // Get existing comments
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+
+              // Find the bot's previous comment
+              const botComment = comments.find(c => c.body.includes(marker));
+
+              // Update existing or create new
+              if (botComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: body
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: body
+                });
+              }
+            }
 
       - name: Print ccache stats
         shell: bash
@@ -126,30 +176,6 @@ jobs:
           echo ""
           echo "Perfetto UI build for this CL"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
-
-          # Store the URL for the next step
-          echo "UI_BUILD_URL=https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html" >> $GITHUB_ENV
-
-      - name: Create status check with UI build link
-        if: ${{ always() }}
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const sha = context.sha;
-            const uiBuildUrl = process.env.UI_BUILD_URL;
-
-            if (uiBuildUrl) {
-              await github.rest.repos.createCommitStatus({
-                owner,
-                repo,
-                sha,
-                state: 'success',
-                target_url: uiBuildUrl,
-                description: 'Click to view UI build',
-                context: 'Perfetto UI Build'
-              });
-            }
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
