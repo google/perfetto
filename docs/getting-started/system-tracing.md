@@ -174,9 +174,9 @@ and running the following command:
 The scheduling information is captured using ftrace, so you may need to start
 the `tracebox` daemons with root privileges (e.g. `sudo ./tracebox ctl start`).
 
-If you prefer the old behavior where tracebox starts temporary daemons for the duration of the trace, you can use the `--legacy` flag:
+If you prefer the old behavior where tracebox starts temporary daemons for the duration of the trace, you can use the `--autodaemonize` flag:
 ```bash
-./tracebox --legacy -o trace_file.perfetto-trace --txt -c scheduling.cfg
+./tracebox --autodaemonize -o trace_file.perfetto-trace --txt -c scheduling.cfg
 ```
 
 </tabs?>

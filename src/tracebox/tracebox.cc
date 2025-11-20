@@ -60,12 +60,22 @@ void PrintTraceboxUsage() {
   printf(R"(Welcome to Perfetto tracing!
 
 Tracebox is a bundle containing all the tracing services and the perfetto
-cmdline client in one binary.
+cmdline client in one binary. It can be used in two modes:
 
-QUICK START (end-to-end workflow):
-  tracebox ctl start                      # Start daemons
-  tracebox -t 10s -o trace.pftrace sched  # Capture trace
-  tracebox ctl stop                       # Stop daemons (optional)
+MODE 1: Daemon mode (Recommended)
+  Background daemons are started once and shared across multiple tracing sessions.
+  This supports SDKs (track_event), reduces latency and is generally more robust.
+
+  > tracebox ctl start
+  > tracebox -t 10s -o trace.pftrace sched
+  > tracebox ctl stop
+
+MODE 2: Autodaemonize mode
+  Spawns temporary daemons only for the duration of the trace.
+  Useful for quick ftrace debugging or self-contained scripts.
+  Note: SDK apps (track_event) might not connect due to private sockets.
+
+  > tracebox --autodaemonize -t 10s -o trace.pftrace sched
 )");
 
   PrintTraceboxCtlUsage();
@@ -75,13 +85,6 @@ QUICK START (end-to-end workflow):
     applets += " " + std::string(applet.name);
 
   printf(R"(
-ADVANCED: --legacy (NOT RECOMMENDED)
-  Example: tracebox --legacy -t 10s -o trace.pftrace sched
-
-  Spawns temporary daemons for one trace only.
-  Limitations: SDK apps won't connect, inefficient for multiple traces.
-  Use only for quick one-offs or when persistent daemons aren't feasible.
-
 Available applets:%s
 
 See also:
@@ -91,8 +94,9 @@ See also:
          applets.c_str());
 }
 
-// Legacy mode: spawns temporary daemons with private sockets for one trace.
-int RunLegacy(int argc, char** argv) {
+// Autodaemonize mode: spawns temporary daemons with private sockets for one
+// trace.
+int RunAutodaemonize(int argc, char** argv) {
   auto* end = std::remove_if(argv, argv + argc, [](char* arg) {
     return !strcmp(arg, "--system-sockets");
   });
@@ -242,11 +246,11 @@ int TraceboxMain(int argc, char** argv) {
     return 1;
   }
 
-  bool legacy_mode = false;
+  bool autodaemonize = false;
   bool use_system_sockets = false;
   for (int i = 1; i < argc;) {
-    if (strcmp(argv[i], "--legacy") == 0) {
-      legacy_mode = true;
+    if (strcmp(argv[i], "--autodaemonize") == 0) {
+      autodaemonize = true;
       memmove(static_cast<void*>(&argv[i]), static_cast<void*>(&argv[i + 1]),
               sizeof(char*) * static_cast<size_t>(argc - i - 1));
       argc--;
@@ -258,39 +262,41 @@ int TraceboxMain(int argc, char** argv) {
     }
   }
 
-  if (legacy_mode) {
+  if (autodaemonize) {
+    // If --system-sockets is passed with --autodaemonize, it's a valid (though
+    // slightly contradictory in name) way to say "spawn daemons but use public
+    // sockets". We warn if they try to mix them in a way that suggests they
+    // expect the old default behavior without the flag.
     if (use_system_sockets) {
       PERFETTO_ELOG(
-          "Legacy mode using system sockets is deprecated. Please prefer to "
-          "start daemons separately with `tracebox ctl start` for better "
-          "stability and compatibility. See "
-          "https://perfetto.dev/docs/reference/tracebox for details.");
-    } else {
-      PERFETTO_ELOG(
-          "Using legacy autodaemonize mode. This is fine for quick "
-          "one-off traces, but for production use or SDK compatibility, please "
-          "use `tracebox ctl start` followed by `tracebox`. See "
-          "https://perfetto.dev/docs/reference/tracebox for details.");
+          "Warning: --system-sockets with --autodaemonize is supported but "
+          "deprecated. Prefer `tracebox ctl start` for persistent daemons.");
     }
-    return RunLegacy(argc, argv);
+    // We don't warn for plain --autodaemonize as it's a valid mode.
+    return RunAutodaemonize(argc, argv);
   }
 
   if (use_system_sockets) {
     PERFETTO_FATAL(
-        "System sockets is not a valid option for the new mode. By default "
-        "tracebox uses system sockets. If you want the old self-contained "
-        "behavior (autostarting daemons), append --legacy.");
+        "System sockets is the default. If you want the old self-contained "
+        "behavior (spawning temporary daemons), use --autodaemonize.");
   }
 
   ServiceSockets sockets = perfetto::GetRunningSockets();
   if (!sockets.IsValid()) {
-    fprintf(stderr,
-            "Error: Perfetto tracing daemons (traced, traced_probes) are not "
-            "running.\n"
-            "- To run daemons as the current user: `tracebox ctl start`\n"
-            "- For a self-contained run: `tracebox --legacy ...` (Not "
-            "Recommended)\n"
-            "More info at: https://perfetto.dev/docs/reference/tracebox\n");
+    fprintf(
+        stderr,
+        "Error: Perfetto tracing daemons (traced, traced_probes) are not "
+        "running.\n\n"
+        "Tracebox behavior has changed. It no longer spawns temporary daemons "
+        "by default.\n"
+        "You have two options:\n"
+        "1. Start the daemons manually (Recommended):\n"
+        "     tracebox ctl start\n"
+        "     tracebox ...\n\n"
+        "2. Use the --autodaemonize flag for the old behavior:\n"
+        "     tracebox --autodaemonize ...\n"
+        "\nMore info at: https://perfetto.dev/docs/reference/tracebox\n");
     return 1;
   }
   perfetto::SetServiceSocketEnv(sockets);

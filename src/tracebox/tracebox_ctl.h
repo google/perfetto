@@ -21,10 +21,6 @@
 
 namespace perfetto {
 
-// Environment variables for socket paths.
-constexpr char kPerfettoProducerSockEnv[] = "PERFETTO_PRODUCER_SOCK_NAME";
-constexpr char kPerfettoConsumerSockEnv[] = "PERFETTO_CONSUMER_SOCK_NAME";
-
 // Holds the socket paths for the tracing service IPC endpoints.
 struct ServiceSockets {
   std::string producer_socket;

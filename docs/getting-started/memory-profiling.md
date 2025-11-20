@@ -184,10 +184,10 @@ Generate the heapprofd config and start the tracing session.
 ./heap_profile -n trace_processor_shell --print-config | \
   ./tracebox -c - --txt -o ~/trace_processor_memory.pftrace
 ```
-Alternatively, use the legacy self-contained mode (no `ctl start` required):
+Alternatively, use the autodaemonize mode (no `ctl start` required):
 ```bash
 ./heap_profile -n trace_processor_shell --print-config | \
-  ./tracebox --legacy -c - --txt -o ~/trace_processor_memory.pftrace
+  ./tracebox --autodaemonize -c - --txt -o ~/trace_processor_memory.pftrace
 ```
 
 Open another terminal (or tab), start the process you want to profile,

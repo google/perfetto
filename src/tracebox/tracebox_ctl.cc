@@ -45,6 +45,10 @@
 namespace perfetto {
 namespace {
 
+// Environment variables for socket paths.
+constexpr char kPerfettoProducerSockEnv[] = "PERFETTO_PRODUCER_SOCK_NAME";
+constexpr char kPerfettoConsumerSockEnv[] = "PERFETTO_CONSUMER_SOCK_NAME";
+
 constexpr const char* kDaemons[] = {
     "traced",
     "traced_probes",
@@ -145,7 +149,7 @@ int CtlStop() {
       "to stop them.\n");
   return 1;
 #else
-  printf("Stopping daemons...\n");
+  PERFETTO_LOG("Stopping daemons...");
   bool found_any = false;
   bool all_stopped = true;
   for (const char* daemon : kDaemons) {
@@ -163,7 +167,7 @@ int CtlStop() {
     }
   }
   if (!found_any) {
-    printf("No daemon PID files found.\n");
+    PERFETTO_LOG("No daemon PID files found.");
     ServiceSockets sockets = GetRunningSockets();
     if (!sockets.IsValid()) {
       printf("No daemons detected.\n");
@@ -180,7 +184,7 @@ int CtlStop() {
             "traced-probes\n");
         return 0;
       }
-      printf("Systemd service found. Trying to stop via systemctl...\n");
+      PERFETTO_LOG("Systemd service found. Trying to stop via systemctl...");
       if (system("systemctl stop traced traced-probes") == 0) {
         printf("Daemons stopped.\n");
         return 0;
@@ -209,7 +213,7 @@ int CtlStart() {
   }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  printf("Starting daemons...\n");
+  PERFETTO_LOG("Starting daemons...");
   std::string tracebox_path = base::GetCurExecutablePath();
   std::vector<base::Subprocess> processes;
   for (const char* daemon : kDaemons) {
@@ -240,7 +244,7 @@ int CtlStart() {
 #else  // Unix
   if (IsSystemdServiceInstalled()) {
     if (base::GetCurrentUserId() == 0) {
-      printf("Starting daemons via systemd...\n");
+      PERFETTO_LOG("Starting daemons via systemd...");
       if (system("systemctl start traced traced-probes") == 0) {
         ServiceSockets sys_sockets = GetRunningSockets();
         SetServiceSocketEnv(sys_sockets);
@@ -254,7 +258,7 @@ int CtlStart() {
         "systemctl start traced traced-probes");
     return 1;
   }
-  printf("Starting daemons...\n");
+  PERFETTO_LOG("Starting daemons...");
   std::string tracebox_path = base::GetCurExecutablePath();
   for (const char* daemon : kDaemons) {
     pid_t pid = StartDaemon(tracebox_path, daemon);
@@ -297,9 +301,9 @@ int CtlStatus() {
     pid_t pid = ReadPidFromFile(pid_path);
     if (pid > 0) {
       if (kill(pid, 0) == 0) {
-        printf("  %-15s : Running (PID %d)\n", daemon, static_cast<int>(pid));
+        printf("  %s : Running (PID %d)\n", daemon, static_cast<int>(pid));
       } else {
-        printf("  %-15s : Not running (Stale PID file %d)\n", daemon,
+        printf("  %s : Not running (Stale PID file %d)\n", daemon,
                static_cast<int>(pid));
         stale_found = true;
       }

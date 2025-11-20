@@ -289,9 +289,9 @@ from the command line using the config file we just created:
 ./tracebox -c ticker.cfg --txt -o ticker.pftrace
 ```
 
-Alternatively using legacy mode:
+Alternatively using autodaemonize mode:
 ```bash
-./tracebox --legacy -c ticker.cfg --txt -o ticker.pftrace
+./tracebox --autodaemonize -c ticker.cfg --txt -o ticker.pftrace
 ```
 
 Note: tracebox will take care of enabling tracing and our ticker events (as we
