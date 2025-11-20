@@ -232,7 +232,7 @@ message TraceMetricV2Spec {
   // interpreting and displaying metric values across different tools and
   // surfaces.
   enum MetricUnit {
-    // Next value: 28
+    // Next value: 31
     METRIC_UNIT_UNSPECIFIED = 0;
     // A unitless count of items or events.
     COUNT = 1;
@@ -288,6 +288,12 @@ message TraceMetricV2Spec {
     CORRELATION_COEFFICIENT = 26;
     // Electric potential measured in millivolts.
     MILLI_VOLTS = 27;
+    // Temperature measured in Celsius.
+    CELSIUS = 28;
+    // Electric charge measured in microamp-hours.
+    MICRO_AMP_HOURS = 29;
+    // Time measured in minutes.
+    TIME_MINS = 30;
   }
   oneof unit_oneof {
     // A standard, predefined unit for the metric's value.
