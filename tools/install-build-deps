@@ -766,7 +766,8 @@ def CheckPythonVenv():
     return False
   # The venv can be invalidated if the version of python in the system is
   # upgraded. Detect that by trying to find its own pip.
-  venv_python = os.path.join(PYTHON_VENV_BIN_DIR, 'python3')
+  venv_python_exe = 'python3' if sys.platform != 'win32' else 'python'
+  venv_python = os.path.join(PYTHON_VENV_BIN_DIR, venv_python_exe)
   cmd = [venv_python, '-c', 'import pip']
   if subprocess.call(cmd, stderr=subprocess.DEVNULL) != 0:
     logging.warning('The python venv is stale due an upgrade of the system ' +
