@@ -554,7 +554,7 @@ class Tables(TestSuite):
           android_user_id,
           type
         FROM android_user_list
-        ORDER BY user_id;
+        ORDER BY android_user_id;
         """,
         out=Csv("""
         "android_user_id","type"
