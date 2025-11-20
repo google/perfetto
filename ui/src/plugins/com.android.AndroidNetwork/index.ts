@@ -43,11 +43,11 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.android.AddBatteryEventsTrack',
       name: 'Add track: battery events',
-      callback: async (rawTrackName) => {
-        const trackName = await (async function () {
-          if (typeof rawTrackName === 'string') return rawTrackName;
-          return await ctx.omnibox.prompt('Battery Track');
-        })();
+      callback: async (trackNameArg) => {
+        const trackName =
+          typeof trackNameArg === 'string'
+            ? trackNameArg
+            : await ctx.omnibox.prompt('Battery Track');
 
         if (!trackName) return;
 
@@ -66,23 +66,23 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.android.AddNetworkActivityTrack',
       name: 'Add track: network activity',
-      callback: async (rawGroupby, rawFilter, rawTrackName) => {
-        const groupby = await (async function () {
-          if (typeof rawGroupby === 'string') return rawGroupby;
-          return await ctx.omnibox.prompt('Group by', 'package_name');
-        })();
+      callback: async (groupByArg, filterArg, trackNameArg) => {
+        const groupby =
+          typeof groupByArg === 'string'
+            ? groupByArg
+            : await ctx.omnibox.prompt('Group by', 'package_name');
 
-        const filter = await (async function () {
-          if (typeof rawFilter === 'string') return rawFilter;
-          return await ctx.omnibox.prompt('Group by', 'package_name');
-        })();
+        if (groupby === undefined) return;
 
-        if (!groupby || !filter) return;
+        const filter =
+          typeof filterArg === 'string'
+            ? filterArg
+            : await ctx.omnibox.prompt('Filter', 'TRUE');
 
-        const trackName = await (async function () {
-          if (typeof rawTrackName === 'string') return rawTrackName;
-          return 'Network Activity';
-        })();
+        if (filter === undefined) return;
+
+        const trackName =
+          typeof trackNameArg === 'string' ? trackNameArg : 'Network Activity';
 
         const suffix = new Date().getTime();
         await ctx.engine.query(`
