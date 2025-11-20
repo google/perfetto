@@ -54,12 +54,12 @@ jobs:
             --skip-formatters "eslint,prettier,rustfmt" \
             --merge-base origin/${{ github.base_ref }}
 
-      - name: Check merged protos (tools/gen_all)
+      - name: Check generated files (tools/gen_all)
         shell: bash
         run: |
-          tools/gn gen out/tmp.protoc --args="is_debug=false cc_wrapper=\"ccache\""
-          tools/gen_all --check-only out/tmp.protoc
-          rm -rf out/tmp.protoc
+          tools/gn gen out/tmp.gen_all --args="is_debug=false cc_wrapper=\"ccache\""
+          tools/gen_all --check-only out/tmp.gen_all
+          rm -rf out/tmp.gen_all
 
       - name: Check amalgamated SDK
         shell: bash
