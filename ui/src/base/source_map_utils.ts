@@ -51,39 +51,53 @@ const VLQ_BASE = 1 << VLQ_BASE_SHIFT; // 32
 const VLQ_BASE_MASK = VLQ_BASE - 1; // 31
 const VLQ_CONTINUATION_BIT = VLQ_BASE; // 32
 
-const sourceMapCache = new Map<string, Promise<ProcessedSourceMap>>();
+const sourceMapCache = new Map<string, ProcessedSourceMap>();
 
-// Try to find the source map in the cache
-async function loadMinifiedSourceMapForFile(file: string) {
-  const mapUrl = `${file.replace(/\.js(\?.*)?$/, '')}_min.js.map`;
-  const response = await fetch(mapUrl);
-  if (!response.ok) {
-    throw new Error(
-      'Unable to load sourceMap for file' + file + response.status,
-    );
-  }
-  const rawSourceMap = (await response.json()) as SourceMap;
-  return preprocessSourceMap(rawSourceMap);
+// Extend the global interface to include our custom property
+interface PerfettoGlobal {
+  __SOURCEMAPS?: Record<string, SourceMap>;
 }
 
-async function ensureSourceMap(file: string) {
-  console.log(`Ensuring source map for file: ${file}`);
-  const cache = sourceMapCache.get(file);
-  if (cache) {
-    return await cache;
-  } else {
-    const deferred = new Promise<ProcessedSourceMap>((res, rej) => {
-      loadMinifiedSourceMapForFile(file).then(res).catch(rej);
-    });
-    sourceMapCache.set(file, deferred);
-    return await deferred;
+// Get embedded source map for a specific bundle file (synchronous)
+function getEmbeddedSourceMap(bundleFileName: string): SourceMap | null {
+  // Use 'self' for both window and worker compatibility
+  const global = self as unknown as PerfettoGlobal;
+  const registry = global.__SOURCEMAPS;
+  if (!registry) return null;
+
+  // Try exact match first
+  if (bundleFileName in registry) {
+    return registry[bundleFileName];
   }
+
+  // Try to find by partial match (handles different path prefixes)
+  for (const [key, map] of Object.entries(registry)) {
+    if (key.endsWith(bundleFileName) || bundleFileName.endsWith(key)) {
+      return map;
+    }
+  }
+
+  return null;
 }
 
-export function preloadSourceMap(file: string) {
-  ensureSourceMap(file).catch((e) => {
-    console.warn(`Unable to preload source map for file "${file}"`, e);
-  });
+// Get or load source map for a specific bundle (synchronous if embedded)
+function ensureSourceMap(bundleFileName: string): ProcessedSourceMap | null {
+  // Check cache first
+  const cached = sourceMapCache.get(bundleFileName);
+  if (cached) {
+    return cached;
+  }
+
+  // Try to get embedded source map
+  const embedded = getEmbeddedSourceMap(bundleFileName);
+  if (embedded) {
+    const processed = preprocessSourceMap(embedded);
+    sourceMapCache.set(bundleFileName, processed);
+    return processed;
+  }
+
+  // No embedded source map available
+  return null;
 }
 
 // Exported for testing
@@ -169,26 +183,6 @@ export function preprocessSourceMap(sourceMap: SourceMap): ProcessedSourceMap {
   return {sourceMap, lineSegments};
 }
 
-// Find original position from a raw source map (preprocesses on each call)
-// For repeated lookups, use preprocessSourceMap() once and then findOriginalPositionFast()
-export function findOriginalPosition(
-  sourceMap: SourceMap,
-  line: number,
-  column: number,
-): MappedPosition {
-  const processed = preprocessSourceMap(sourceMap);
-  return findOriginalPositionFast(processed, line, column);
-}
-
-// Fast lookup using preprocessed source map. Use this for repeated lookups.
-export function findOriginalPositionFast(
-  processed: ProcessedSourceMap,
-  line: number,
-  column: number,
-): MappedPosition {
-  return findOriginalPositionWithPreprocessed(processed, line, column);
-}
-
 // Binary search to find the best mapping segment for a given column
 function binarySearchSegment(
   segments: MappingSegment[],
@@ -217,12 +211,17 @@ function binarySearchSegment(
   return bestMatch;
 }
 
-// Optimized version using preprocessed source map with binary search
-function findOriginalPositionWithPreprocessed(
-  processed: ProcessedSourceMap,
+// Find original position from a raw or processed source map
+export function findOriginalPosition(
+  sourceMapOrProcessed: SourceMap | ProcessedSourceMap,
   line: number,
   column: number,
 ): MappedPosition {
+  // Check if it's already processed
+  const processed =
+    'lineSegments' in sourceMapOrProcessed
+      ? sourceMapOrProcessed
+      : preprocessSourceMap(sourceMapOrProcessed);
   const targetLine = line - 1; // Convert to 0-indexed
 
   if (targetLine < 0 || targetLine >= processed.lineSegments.length) {
@@ -237,15 +236,18 @@ function findOriginalPositionWithPreprocessed(
     bestMatch.sourceIndex >= 0 &&
     bestMatch.sourceIndex < processed.sourceMap.sources.length
   ) {
+    const sourceMap = processed.sourceMap;
+    const hasNames =
+      sourceMap.names !== undefined && sourceMap.names.length > 0;
     const name =
       bestMatch.hasName &&
-      processed.sourceMap.names.length > 0 &&
+      hasNames &&
       bestMatch.nameIndex >= 0 &&
-      bestMatch.nameIndex < processed.sourceMap.names.length
-        ? processed.sourceMap.names[bestMatch.nameIndex]
+      bestMatch.nameIndex < sourceMap.names.length
+        ? sourceMap.names[bestMatch.nameIndex]
         : null;
     return {
-      source: processed.sourceMap.sources[bestMatch.sourceIndex],
+      source: sourceMap.sources[bestMatch.sourceIndex],
       line: bestMatch.sourceLine + 1,
       column: bestMatch.sourceCol,
       name,
@@ -255,15 +257,14 @@ function findOriginalPositionWithPreprocessed(
   return {source: null, line: null, column: null, name: null};
 }
 
-export async function mapStackTraceWithMinifiedSourceMap(
-  stack: string,
-): Promise<string> {
+// Map stack trace using embedded source map (synchronous)
+export function mapStackTraceWithMinifiedSourceMap(stack: string): string {
   const lines = stack.split('\n');
   const mappedLines: string[] = [];
 
   for (const line of lines) {
     // Parse stack trace line - supports multiple formats:
-    // "functionName (frontend_bundle.js:123:45)" or
+    // "functionName (http://localhost:10000/v1.2.3/frontend_bundle.js:123:45)" or
     // "functionName@frontend_bundle.js:123:45" or
     // "frontend_bundle.js:123:45"
     const match = line.match(
@@ -305,11 +306,21 @@ export async function mapStackTraceWithMinifiedSourceMap(
     }
 
     try {
-      // Look up the source map for the file in question
-      const sourceMapCache = await ensureSourceMap(file);
+      // Extract just the filename from the full URL/path
+      // e.g., "http://localhost:10000/v1.2.3/frontend_bundle.js" -> "frontend_bundle.js"
+      const bundleFileName = file.split('/').pop() || file;
+
+      // Get the source map for this specific bundle
+      const processed = ensureSourceMap(bundleFileName);
+
+      if (!processed) {
+        // No source map for this bundle, keep original
+        mappedLines.push(line);
+        continue;
+      }
 
       // Map the position using preprocessed source map
-      const pos = findOriginalPositionFast(sourceMapCache, lineNum, colNum);
+      const pos = findOriginalPosition(processed, lineNum, colNum);
 
       if (pos.source !== null && pos.line !== null) {
         // Clean up the source path

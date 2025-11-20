@@ -71,7 +71,6 @@ import {
 } from '../core/command_manager';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
-import {preloadSourceMap} from '../base/source_map_utils';
 
 // =============================================================================
 // UI INITIALIZATION STAGES
@@ -366,14 +365,6 @@ function main() {
   } else {
     window.addEventListener('load', () => onWindowLoaded());
   }
-
-  // Preload the source maps for the various bundles. This is a pure
-  // optimization so that this doesn't have to be done on demand at crash time.
-  // If we omit these, the source maps are lazily loaded as required when we
-  // encounter a crash.
-  preloadSourceMap(assetSrc('frontend_bundle.js'));
-  preloadSourceMap(assetSrc('engine_bundle.js'));
-  preloadSourceMap(assetSrc('traceconv_bundle.js'));
 }
 
 function onCssLoaded() {

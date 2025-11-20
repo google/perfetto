@@ -87,9 +87,7 @@ export function addErrorHandler(handler: ErrorHandler) {
   }
 }
 
-export async function reportError(
-  err: ErrorEvent | PromiseRejectionEvent | {},
-) {
+export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
   let errorObj = undefined;
   let errMsg = '';
   let errType: ErrorType;
@@ -123,7 +121,7 @@ export async function reportError(
   }
 
   if ('stack' in errorObj && typeof errorObj.stack === 'string') {
-    errorObj.stack = await mapStackTraceWithMinifiedSourceMap(errorObj.stack);
+    errorObj.stack = mapStackTraceWithMinifiedSourceMap(errorObj.stack);
   }
 
   // Remove useless "Uncaught Error:" or "Error:" prefixes which just create

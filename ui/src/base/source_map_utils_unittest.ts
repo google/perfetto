@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {decodeVLQ, findOriginalPosition} from './source_map_utils';
-import {SourceMap} from './source_map_utils';
+import {decodeVLQ, findOriginalPosition, SourceMap} from './source_map_utils';
 
 // This is a new test file that should be created.
 describe('source_map_utils', () => {
