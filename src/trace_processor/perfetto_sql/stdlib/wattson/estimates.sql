@@ -13,11 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE wattson.cpu.estimates;
 
 INCLUDE PERFETTO MODULE wattson.gpu.estimates;
-
-INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Need to use SPAN_OUTER_JOIN because depending on the trace points enabled,
 -- it's possible one of the tables is empty

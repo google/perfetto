@@ -40,14 +40,19 @@ export function androidRecordSection(): RecordSubpage {
 }
 
 function atrace(): RecordProbe {
+  const options = new Map<string, string>();
+  const defaultSelected: string[] = [];
+  for (const [id, {title, isDefault}] of ATRACE_CATEGORIES) {
+    const key = `${id}: ${title}`;
+    options.set(key, id);
+    if (isDefault) {
+      defaultSelected.push(key);
+    }
+  }
   const settings = {
     categories: new TypedMultiselect<string>({
-      options: new Map(
-        Object.entries(ATRACE_CATEGORIES).map(([id, name]) => [
-          `${id}: ${name}`,
-          id,
-        ]),
-      ),
+      options,
+      defaultSelected,
     }),
     apps: new Textarea({
       title: 'Process / package names to trace',
@@ -241,32 +246,43 @@ function statsdAtoms(): RecordProbe {
   };
 }
 
-const ATRACE_CATEGORIES = {
-  adb: 'ADB',
-  aidl: 'AIDL calls',
-  am: 'Activity Manager',
-  audio: 'Audio',
-  binder_driver: 'Binder Kernel driver',
-  binder_lock: 'Binder global lock trace',
-  bionic: 'Bionic C library',
-  camera: 'Camera',
-  dalvik: 'ART & Dalvik',
-  database: 'Database',
-  gfx: 'Graphics',
-  hal: 'Hardware Modules',
-  input: 'Input',
-  network: 'Network',
-  nnapi: 'Neural Network API',
-  pm: 'Package Manager',
-  power: 'Power Management',
-  res: 'Resource Loading',
-  rro: 'Resource Overlay',
-  rs: 'RenderScript',
-  sm: 'Sync Manager',
-  ss: 'System Server',
-  vibrator: 'Vibrator',
-  video: 'Video',
-  view: 'View System',
-  webview: 'WebView',
-  wm: 'Window Manager',
-};
+// Defaults are from
+// https://android.googlesource.com/platform/packages/apps/Traceur/+/refs/heads/main/src_common/com/android/traceur/PresetTraceConfigs.java
+const ATRACE_CATEGORIES = new Map<string, {title: string; isDefault: boolean}>([
+  ['adb', {title: 'ADB', isDefault: false}],
+  ['aidl', {title: 'AIDL calls', isDefault: true}],
+  ['am', {title: 'Activity Manager', isDefault: true}],
+  ['audio', {title: 'Audio', isDefault: false}],
+  ['binder_driver', {title: 'Binder Kernel driver', isDefault: true}],
+  ['binder_lock', {title: 'Binder global lock trace', isDefault: false}],
+  ['bionic', {title: 'Bionic C Library', isDefault: false}],
+  ['camera', {title: 'Camera', isDefault: true}],
+  ['dalvik', {title: 'Dalvik VM', isDefault: true}],
+  ['database', {title: 'Database', isDefault: false}],
+  ['disk', {title: 'Disk I/O', isDefault: true}],
+  ['freq', {title: 'CPU Frequency', isDefault: true}],
+  ['gfx', {title: 'Graphics', isDefault: true}],
+  ['hal', {title: 'Hardware Modules', isDefault: true}],
+  ['idle', {title: 'CPU Idle', isDefault: true}],
+  ['input', {title: 'Input', isDefault: true}],
+  ['memory', {title: 'Memory', isDefault: true}],
+  ['memreclaim', {title: 'Kernel Memory Reclaim', isDefault: true}],
+  ['network', {title: 'Network', isDefault: true}],
+  ['nnapi', {title: 'NNAPI', isDefault: false}],
+  ['pm', {title: 'Package Manager', isDefault: false}],
+  ['power', {title: 'Power Management', isDefault: true}],
+  ['res', {title: 'Resource Loading', isDefault: true}],
+  ['rro', {title: 'Runtime Resource Overlay', isDefault: false}],
+  ['rs', {title: 'RenderScript', isDefault: false}],
+  ['sched', {title: 'CPU Scheduling', isDefault: true}],
+  ['sm', {title: 'Sync Manager', isDefault: false}],
+  ['ss', {title: 'System Server', isDefault: true}],
+  ['sync', {title: 'Synchronization', isDefault: true}],
+  ['thermal', {title: 'Thermal event', isDefault: true}],
+  ['vibrator', {title: 'Vibrator', isDefault: false}],
+  ['video', {title: 'Video', isDefault: false}],
+  ['view', {title: 'View System', isDefault: true}],
+  ['webview', {title: 'WebView', isDefault: true}],
+  ['wm', {title: 'Window Manager', isDefault: true}],
+  ['workq', {title: 'Kernel Workqueues', isDefault: true}],
+]);
