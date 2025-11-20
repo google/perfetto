@@ -241,13 +241,11 @@ OUTPUT:
           if args.check_only:
             if not filecmp.cmp(tmpfilename, targetfilename):
               raise AssertionError('Target {} does not match', targetfilename)
-            if category == CATEGORY_PROD:
-              print('Verified {}'.format(targetfilename))
+            print('Verified {}'.format(targetfilename))
           else:
             os.makedirs(os.path.dirname(targetfilename), exist_ok=True)
             shutil.copyfile(tmpfilename, targetfilename)
-            if category == CATEGORY_PROD:
-              print('Generated {}'.format(targetfilename))
+            print('Generated {}'.format(targetfilename))
 
   except AssertionError as e:
     if not str(e):
