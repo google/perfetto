@@ -25,7 +25,9 @@ import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {Point2D} from '../../base/geom';
-import {TrackRenderer} from '../../public/track';
+import {HighPrecisionTime} from '../../base/high_precision_time';
+import {TimeScale} from '../../base/time_scale';
+import {TrackRenderer, SnapPoint} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
@@ -482,6 +484,65 @@ export class CpuSliceTrack implements TrackRenderer {
     } else {
       return undefined;
     }
+  }
+
+  getSnapPoint(
+    targetTime: time,
+    thresholdPx: number,
+    timescale: TimeScale,
+  ): SnapPoint | undefined {
+    const data = this.fetcher.data;
+    if (data === undefined) {
+      return undefined;
+    }
+
+    // Convert pixel threshold to time duration (in nanoseconds as number)
+    const thresholdNs = timescale.pxToDuration(thresholdPx);
+
+    // Use HighPrecisionTime to handle time arithmetic with fractional nanoseconds
+    const hpTargetTime = new HighPrecisionTime(targetTime);
+    const hpSearchStart = hpTargetTime.addNumber(-thresholdNs);
+    const hpSearchEnd = hpTargetTime.addNumber(thresholdNs);
+
+    // Convert back to time for comparisons
+    const searchStart = hpSearchStart.toTime();
+    const searchEnd = hpSearchEnd.toTime();
+
+    let closestSnap: SnapPoint | undefined = undefined;
+    let closestDistNs = thresholdNs;
+
+    // Helper function to check a boundary
+    const checkBoundary = (boundaryTime: time) => {
+      // Skip if outside search window
+      if (boundaryTime < searchStart || boundaryTime > searchEnd) {
+        return;
+      }
+
+      // Calculate distance using HighPrecisionTime for accuracy
+      const hpBoundary = new HighPrecisionTime(boundaryTime);
+      const distNs = Math.abs(hpTargetTime.sub(hpBoundary).toNumber());
+
+      if (distNs < closestDistNs) {
+        closestSnap = {
+          time: boundaryTime,
+        };
+        closestDistNs = distNs;
+      }
+    };
+
+    // Iterate through all slices in the cached data
+    for (let i = 0; i < data.startQs.length; i++) {
+      const startTime = Time.fromRaw(data.startQs[i]);
+      const endTime = Time.fromRaw(data.endQs[i]);
+
+      // Check start boundary
+      checkBoundary(startTime);
+
+      // Check end boundary
+      checkBoundary(endTime);
+    }
+
+    return closestSnap;
   }
 
   detailsPanel() {
