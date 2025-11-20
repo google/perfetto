@@ -54,6 +54,7 @@ import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 import {Store} from '../../base/store';
 import {z} from 'zod';
+import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 
 const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
   areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
@@ -561,6 +562,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       currentSelection.start,
       currentSelection.end,
     );
+    // Will be automatically cleaned up when `iiTable` is dropped.
+    await createPerfettoIndex({
+      engine: trace.engine,
+      on: `${iiTable.name}(parent_id)`,
+    });
 
     const metrics = metricsFromTableOrSubquery(
       `(
