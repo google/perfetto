@@ -133,6 +133,10 @@ let tasksRan = 0;
 const httpWatches = [];
 const tStart = performance.now();
 const subprocesses = [];
+const LIVE_SERVER_DEBOUNCE_MS = 250;
+let liveServerDebounceTimerId = 0;
+const notifyLiveServerPendingFiles = new Set();
+
 
 async function main() {
   const parser = new argparse.ArgumentParser();
@@ -694,14 +698,28 @@ function isDistComplete() {
   return true;
 }
 
-// Called whenever a change in the out/dist directory is detected. It sends a
-// Server-Side-Event to the live_reload.ts script.
 function notifyLiveServer(changedFile) {
-  for (const cli of httpWatches) {
-    if (cli === undefined) continue;
-    cli.write(
-        'data: ' + path.relative(cfg.outDistRootDir, changedFile) + '\n\n');
+  // Add file to pending set
+  notifyLiveServerPendingFiles.add(changedFile);
+
+  // Clear existing timeout if any
+  if (liveServerDebounceTimerId > 0) {
+    clearTimeout(liveServerDebounceTimerId);
   }
+
+  // Set new timeout to batch notifications
+  liveServerDebounceTimerId = setTimeout(() => {
+    // Send all pending files in one batch
+    for (const cli of httpWatches) {
+      if (cli === undefined) continue;
+      for (const file of notifyLiveServerPendingFiles) {
+        cli.write(
+            'data: ' + path.relative(cfg.outDistRootDir, file) + '\n\n');
+      }
+    }
+    notifyLiveServerPendingFiles.clear();
+    liveServerDebounceTimerId = 0;
+  }, LIVE_SERVER_DEBOUNCE_MS);
 }
 
 function copyExtensionAssets() {

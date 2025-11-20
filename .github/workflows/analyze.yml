@@ -28,6 +28,7 @@ on:
 
 permissions:
   pull-requests: read
+  statuses: write # Required for UI build status check
 
 # If a new commit is pushed, cancel previous jobs for the same PR / branch.
 concurrency:

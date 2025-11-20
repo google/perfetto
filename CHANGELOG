@@ -1,12 +1,17 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Breaking change for traced_relay users: data sources no longer match
+      remote machine producers by default. To restore the previous behaviour,
+      set TraceConfig.trace_all_machines to true.
   SQL Standard library:
     *
   Trace Processor:
     *
   UI:
-    *
+    * Added snap-to-boundaries feature for precise time selection. When
+      dragging selection handles or creating area selections, the cursor
+      automatically snaps to nearby slice boundaries to enable exact
+      measurement of slice durations. Hold Alt to temporarily disable snapping.
   SDK:
     *
 

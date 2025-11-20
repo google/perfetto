@@ -62,6 +62,10 @@ following instead:
 Note for `--perf` the output is one pprof file per process sampled in the trace.
 You can use pprof to merge them together if desired.
 
+You can also specify an output directory for the profiles using `--output-dir`:
+
+`~/traceconv profile [input proto file] --output-dir /path/to/output`
+
 ## Opening in the legacy systrace UI
 
 If you just want to open a Perfetto trace with the legacy (Catapult) trace

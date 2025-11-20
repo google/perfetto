@@ -29,13 +29,7 @@ export default class implements PerfettoPlugin {
 
   private migratePprofPageState(init: unknown): PprofPageState {
     const result = PPROF_PAGE_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      selectedProfileId: undefined,
-      flamegraphState: undefined,
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {

@@ -62,6 +62,7 @@ perfetto_sql_source_set("android") {
     "surfaceflinger.sql",
     "suspend.sql",
     "thread.sql",
+    "user_list.sql",
     "version.sql",
     "wakeups.sql",
   ]

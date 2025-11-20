@@ -187,7 +187,6 @@ function setupContentSecurityPolicy() {
       'https://*.googleapis.com',
     ],
     'style-src': [`'self'`, `'unsafe-inline'`],
-    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
