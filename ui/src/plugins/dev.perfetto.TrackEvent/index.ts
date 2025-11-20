@@ -34,6 +34,7 @@ import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {CallstackDetailsSection} from './callstack_details_section';
@@ -48,7 +49,7 @@ function createTrackEventDetailsPanel(trace: Trace) {
 }
 
 const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA,
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
@@ -65,12 +66,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
   private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
     const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
-    if (result.success) {
-      return result.data;
-    }
-    return {
-      areaSelectionFlamegraphState: Flamegraph.createEmptyState(),
-    };
+    return result.data ?? {};
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -244,8 +240,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   }
 
   private createTrackEventCallstackFlamegraphTab(trace: Trace) {
-    let previousSelection: undefined | AreaSelection;
-    let flamegraph: undefined | QueryFlamegraph;
+    let previousSelection: AreaSelection | undefined;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
     return {
       id: 'track_event_callstack_flamegraph',
       name: 'Track Event Callstacks',
@@ -254,25 +250,28 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
         if (changed) {
-          flamegraph = this.computeTrackEventCallstackFlamegraph(
+          flamegraphWithMetrics = this.computeTrackEventCallstackFlamegraph(
             trace,
             selection,
           );
           previousSelection = selection;
         }
-        if (flamegraph === undefined) {
+        if (flamegraphWithMetrics === undefined) {
           return undefined;
         }
+        const {flamegraph, metrics} = flamegraphWithMetrics;
+        const store = assertExists(this.store);
         return {
           isLoading: false,
-          content: flamegraph.render(
-            assertExists(this.store).state.areaSelectionFlamegraphState,
-            (state) => {
-              assertExists(this.store).edit((draft) => {
+          content: flamegraph.render({
+            metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
                 draft.areaSelectionFlamegraphState = state;
               });
             },
-          ),
+          }),
         };
       },
     };
@@ -281,7 +280,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   private computeTrackEventCallstackFlamegraph(
     trace: Trace,
     selection: AreaSelection,
-  ) {
+  ): QueryFlamegraphWithMetrics | undefined {
     const trackIds = [];
     for (const trackInfo of selection.tracks) {
       if (trackInfo?.tags?.trackEvent === true) {
@@ -364,7 +363,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return new QueryFlamegraph(trace, metrics);
+    return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 
   private findParentTrackNode(
