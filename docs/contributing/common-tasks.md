@@ -168,7 +168,35 @@ was built with we prompt the user to update.
 6. If special handling in `trace_processor` is desired update [src/trace_processor/importers/ftrace/ftrace_parser.cc](/src/trace_processor/importers/ftrace/ftrace_parser.cc) to parse the event.
 7. Upload and land your change as normal.
 
-Here is an [example change](https://android-review.googlesource.com/c/platform/external/perfetto/+/1290645) which added the `ion/ion_stat` event.
+Here is an [example change](https://android-review.googlesource.com/c/platform/external/perfetto/+/3343525) which added a new event.
+
+To test your changes, you can sideload your locally built `tracebox` binary on an Android device. See [Sideloading on Android](#sideloading) for more details.
+
+## {#sideloading} Sideloading on Android
+
+To test changes on an Android device (e.g. when adding a new ftrace event),
+you can use the `record_android_trace` script to sideload a locally built
+`tracebox` binary.
+
+1. Build `tracebox` for Android.
+   See [Getting Started](getting-started.md#building) for instructions
+   on how to configure the build for Android.
+   ```bash
+   # This assumes you have configured out/android per the instructions linked above.
+   tools/ninja -C out/android_release_arm64 tracebox
+   ```
+
+2. Use `record_android_trace` to sideload and record a trace:
+   ```bash
+   tools/record_android_trace \
+     --sideload-path out/android_release_arm64/tracebox \
+     -o trace.pftrace \
+     -t 10s \
+     -b 32mb \
+     sched/sched_switch
+   ```
+   The `--sideload-path` argument tells the script to push the locally built
+   `tracebox` binary to the device and use it for recording.
 
 ## Statsd
 

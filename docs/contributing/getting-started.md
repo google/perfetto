@@ -14,9 +14,11 @@ git clone https://github.com/google/perfetto.git
 cd perfetto
 
 # Install dependencies
+# Add --android to pull the Android NDK and emulator
 tools/install-build-deps
 
 # Setup all build configs
+# Add --android to generate Android build configs
 tools/setup_all_configs.py
 ```
 
@@ -40,6 +42,16 @@ tools/ninja -C out/mac_release
 
 # Debug build
 tools/ninja -C out/mac_debug
+```
+
+_Android_
+
+```sh
+# Production build (arm64)
+tools/ninja -C out/android_release_arm64
+
+# Debug build (arm64)
+tools/ninja -C out/android_debug_arm64
 ```
 
 _UI_
