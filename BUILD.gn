@@ -198,7 +198,12 @@ if (perfetto_build_standalone) {
     # Checks that the "fake" backend implementations build.
     "src/tracing:client_api_no_backends_compile_test",
   ]
-  all_targets += [ "src/tracebox" ]
+
+  # TODO: Fix build for Windows
+  # https://github.com/google/perfetto/issues/3772
+  if (is_linux || is_android || is_mac) {
+    all_targets += [ "src/tracebox" ]
+  }
 
   # This is needed by `tools/gen_c_protos`.
   all_targets += [ "src/protozero/protoc_plugin:protozero_c_plugin" ]
