@@ -25,47 +25,48 @@ import tempfile
 CATEGORY_PROD = 'prod'
 CATEGORY_TEST = 'test'
 
-SOURCE_FILES = {
-    CATEGORY_PROD: {
-        'files': [
-            'protos/perfetto/common/builtin_clock.proto',
-            'protos/perfetto/common/data_source_descriptor.proto',
-            'protos/perfetto/config/data_source_config.proto',
-            'protos/perfetto/config/trace_config.proto',
-            'protos/perfetto/config/track_event/track_event_config.proto',
-            'protos/perfetto/trace/android/android_track_event.proto',
-            'protos/perfetto/trace/clock_snapshot.proto',
-            'protos/perfetto/trace/interned_data/interned_data.proto',
-            'protos/perfetto/trace/test_event.proto',
-            'protos/perfetto/trace/trace.proto',
-            'protos/perfetto/trace/trace_packet.proto',
-            'protos/perfetto/trace/track_event/counter_descriptor.proto',
-            'protos/perfetto/trace/track_event/debug_annotation.proto',
-            'protos/perfetto/trace/track_event/track_descriptor.proto',
-            'protos/perfetto/trace/track_event/track_event.proto',
-        ],
-        'guard_strip_prefix': 'PROTOS_PERFETTO_',
-        'guard_add_prefix': 'INCLUDE_PERFETTO_PUBLIC_PROTOS_',
-        'path_strip_prefix': 'protos/perfetto',
-        'path_add_prefix': 'perfetto/public/protos',
-        'include_prefix': 'include/',
-    },
-    CATEGORY_TEST: {
-        'files': [
-            'src/protozero/test/example_proto/extensions.proto',
-            'src/protozero/test/example_proto/library.proto',
-            'src/protozero/test/example_proto/library_internals/galaxies.proto',
-            'src/protozero/test/example_proto/other_package/test_messages.proto',
-            'src/protozero/test/example_proto/subpackage/test_messages.proto',
-            'src/protozero/test/example_proto/test_messages.proto',
-            'src/protozero/test/example_proto/upper_import.proto',
-        ],
-        'guard_strip_prefix': 'SRC_PROTOZERO_TEST_EXAMPLE_PROTO_',
-        'guard_add_prefix': 'SRC_SHARED_LIB_TEST_PROTOS_',
-        'path_strip_prefix': 'src/protozero/test/example_proto',
-        'path_add_prefix': 'src/shared_lib/test/protos',
-    },
+PROD_DEFAULTS = {
+    'guard_strip_prefix': 'PROTOS_PERFETTO_',
+    'guard_add_prefix': 'INCLUDE_PERFETTO_PUBLIC_PROTOS_',
+    'path_strip_prefix': 'protos/perfetto',
+    'path_add_prefix': 'perfetto/public/protos',
+    'include_prefix': 'include/',
 }
+
+TEST_DEFAULTS = {
+    'guard_strip_prefix': 'SRC_PROTOZERO_TEST_EXAMPLE_PROTO_',
+    'guard_add_prefix': 'SRC_SHARED_LIB_TEST_PROTOS_',
+    'path_strip_prefix': 'src/protozero/test/example_proto',
+    'path_add_prefix': 'src/shared_lib/test/protos',
+}
+
+PROD_FILES = [
+    'protos/perfetto/common/builtin_clock.proto',
+    'protos/perfetto/common/data_source_descriptor.proto',
+    'protos/perfetto/config/data_source_config.proto',
+    'protos/perfetto/config/trace_config.proto',
+    'protos/perfetto/config/track_event/track_event_config.proto',
+    'protos/perfetto/trace/android/android_track_event.proto',
+    'protos/perfetto/trace/clock_snapshot.proto',
+    'protos/perfetto/trace/interned_data/interned_data.proto',
+    'protos/perfetto/trace/test_event.proto',
+    'protos/perfetto/trace/trace.proto',
+    'protos/perfetto/trace/trace_packet.proto',
+    'protos/perfetto/trace/track_event/counter_descriptor.proto',
+    'protos/perfetto/trace/track_event/debug_annotation.proto',
+    'protos/perfetto/trace/track_event/track_descriptor.proto',
+    'protos/perfetto/trace/track_event/track_event.proto',
+]
+
+TEST_FILES = [
+    'src/protozero/test/example_proto/extensions.proto',
+    'src/protozero/test/example_proto/library.proto',
+    'src/protozero/test/example_proto/library_internals/galaxies.proto',
+    'src/protozero/test/example_proto/other_package/test_messages.proto',
+    'src/protozero/test/example_proto/subpackage/test_messages.proto',
+    'src/protozero/test/example_proto/test_messages.proto',
+    'src/protozero/test/example_proto/upper_import.proto',
+]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 IS_WIN = sys.platform.startswith('win')
@@ -188,13 +189,29 @@ OUTPUT:
   out = args.OUT
 
   if args.proto:
-    SOURCE_FILES[CATEGORY_PROD]['files'] = args.proto
+    source_files = {
+        CATEGORY_PROD: {
+            'files': args.proto,
+            **PROD_DEFAULTS,
+        }
+    }
+  else:
+    source_files = {
+        CATEGORY_PROD: {
+            'files': PROD_FILES,
+            **PROD_DEFAULTS,
+        },
+        CATEGORY_TEST: {
+            'files': TEST_FILES,
+            **TEST_DEFAULTS,
+        },
+    }
 
   call('ninja', '-C', out, 'protoc', 'protozero_c_plugin')
 
   try:
     with tempfile.TemporaryDirectory() as tmpdirname:
-      for category, sources in SOURCE_FILES.items():
+      for category, sources in source_files.items():
         for source in sources['files']:
           generate(
               source,
