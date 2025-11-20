@@ -67,7 +67,10 @@ export class AggregationPanel
         const formatHint = columnsById.get(columnName)?.formatHint;
         return this.renderCell(value, columnName, formatHint);
       },
-      valueFormatter,
+      valueFormatter: (value: SqlValue, columnName: string) => {
+        const formatHint = columnsById.get(columnName)?.formatHint;
+        return valueFormatter(value, formatHint);
+      },
     });
   }
 
