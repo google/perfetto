@@ -44,6 +44,8 @@ export interface Data extends TrackData {
   ids: Float64Array;
   startQs: BigInt64Array;
   endQs: BigInt64Array;
+  tses: BigInt64Array;
+  durs: BigInt64Array;
   utids: Uint32Array;
   flags: Uint8Array;
   lastRowId: number;
@@ -138,6 +140,8 @@ export class CpuSliceTrack implements TrackRenderer {
         (z.ts / ${resolution}) * ${resolution} as tsQ,
         (((z.ts + z.dur) / ${resolution}) + 1) * ${resolution} as tsEndQ,
         z.count,
+        s.ts,
+        s.dur,
         s.utid,
         s.id,
         s.dur = -1 as isIncomplete,
@@ -157,6 +161,8 @@ export class CpuSliceTrack implements TrackRenderer {
       ids: new Float64Array(numRows),
       startQs: new BigInt64Array(numRows),
       endQs: new BigInt64Array(numRows),
+      tses: new BigInt64Array(numRows),
+      durs: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
       flags: new Uint8Array(numRows),
     };
@@ -165,6 +171,8 @@ export class CpuSliceTrack implements TrackRenderer {
       count: NUM,
       tsQ: LONG,
       tsEndQ: LONG,
+      ts: LONG,
+      dur: LONG,
       utid: NUM,
       id: NUM,
       isIncomplete: NUM,
@@ -174,6 +182,8 @@ export class CpuSliceTrack implements TrackRenderer {
       slices.counts[row] = it.count;
       slices.startQs[row] = it.tsQ;
       slices.endQs[row] = it.tsEndQ;
+      slices.tses[row] = it.ts;
+      slices.durs[row] = it.dur;
       slices.utids[row] = it.utid;
       slices.ids[row] = it.id;
 
@@ -532,14 +542,11 @@ export class CpuSliceTrack implements TrackRenderer {
 
     // Iterate through all slices in the cached data
     for (let i = 0; i < data.startQs.length; i++) {
-      const startTime = Time.fromRaw(data.startQs[i]);
-      const endTime = Time.fromRaw(data.endQs[i]);
-
       // Check start boundary
-      checkBoundary(startTime);
+      checkBoundary(Time.fromRaw(data.tses[i]));
 
       // Check end boundary
-      checkBoundary(endTime);
+      checkBoundary(Time.fromRaw(data.tses[i] + data.durs[i]));
     }
 
     return closestSnap;
