@@ -49,7 +49,7 @@ import {
   formatAsJSON,
   formatAsMarkdown,
 } from './export_utils';
-import {CopyButton, DownloadButton} from './export_buttons';
+import {DataGridCopyButton, DataGridDownloadButton} from './export_buttons';
 
 export class GridFilterBar implements m.ClassComponent {
   view({children}: m.Vnode) {
@@ -949,10 +949,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ]),
         showExportButtons &&
           this.dataGridApi &&
-          m(CopyButton, {api: this.dataGridApi}),
+          m(DataGridCopyButton, {api: this.dataGridApi}),
         showExportButtons &&
           this.dataGridApi &&
-          m(DownloadButton, {api: this.dataGridApi}),
+          m(DataGridDownloadButton, {api: this.dataGridApi}),
         toolbarItemsRight,
       ]),
     ]);

@@ -36,7 +36,10 @@ import {
   DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
 import {DataGridApi} from './widgets/data_grid/data_grid';
-import {CopyButton, DownloadButton} from './widgets/data_grid/export_buttons';
+import {
+  DataGridCopyButton,
+  DataGridDownloadButton,
+} from './widgets/data_grid/export_buttons';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -296,8 +299,8 @@ export function createAggregationTab(
         }),
         buttons: dataGridApi
           ? [
-              m(CopyButton, {api: dataGridApi}),
-              m(DownloadButton, {api: dataGridApi}),
+              m(DataGridCopyButton, {api: dataGridApi}),
+              m(DataGridDownloadButton, {api: dataGridApi}),
             ]
           : undefined,
       };

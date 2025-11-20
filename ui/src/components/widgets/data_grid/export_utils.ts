@@ -81,7 +81,8 @@ export async function exportDataSource(
 }
 
 /**
- * Format data as TSV (tab-separated values)
+ * Format data as TSV (tab-separated values).
+ * Replaces tabs and newlines in cell values with spaces to maintain format integrity.
  */
 export function formatAsTSV(
   columns: ReadonlyArray<string>,
@@ -90,13 +91,20 @@ export function formatAsTSV(
 ): string {
   const lines: string[] = [];
 
+  // Helper to escape TSV special characters
+  const escapeTSV = (value: string): string => {
+    // Replace tabs and newlines with spaces to prevent breaking the format
+    // Handle Windows line endings (\r\n) as a single unit first
+    return value.replace(/\r\n/g, ' ').replace(/[\t\n\r]/g, ' ');
+  };
+
   // Header row
-  const headerCells = columns.map((col) => columnNames[col] ?? col);
+  const headerCells = columns.map((col) => escapeTSV(columnNames[col] ?? col));
   lines.push(headerCells.join('\t'));
 
   // Data rows
   for (const row of rows) {
-    const cells = columns.map((col) => row[col] ?? '');
+    const cells = columns.map((col) => escapeTSV(row[col] ?? ''));
     lines.push(cells.join('\t'));
   }
 
@@ -111,7 +119,8 @@ export function formatAsJSON(rows: Array<Record<string, string>>): string {
 }
 
 /**
- * Format data as Markdown table
+ * Format data as Markdown table.
+ * Escapes special characters to prevent breaking the table format.
  */
 export function formatAsMarkdown(
   columns: ReadonlyArray<string>,
@@ -122,13 +131,25 @@ export function formatAsMarkdown(
 
   const lines: string[] = [];
 
-  // Helper to escape markdown pipes
-  const escapePipe = (value: string): string => {
-    return value.replace(/\|/g, '\\|');
+  // Helper to escape markdown special characters
+  const escapeMarkdown = (value: string): string => {
+    return (
+      value
+        // Backslashes must be escaped first to avoid double-escaping
+        .replace(/\\/g, '\\\\')
+        // Escape pipes (table delimiters)
+        .replace(/\|/g, '\\|')
+        // Replace newlines with spaces (can't have newlines in table cells)
+        // Handle Windows line endings (\r\n) as a single unit first
+        .replace(/\r\n/g, ' ')
+        .replace(/[\n\r]/g, ' ')
+    );
   };
 
   // Header row
-  const headerCells = columns.map((col) => escapePipe(columnNames[col] ?? col));
+  const headerCells = columns.map((col) =>
+    escapeMarkdown(columnNames[col] ?? col),
+  );
   lines.push(`| ${headerCells.join(' | ')} |`);
 
   // Separator row
@@ -137,7 +158,7 @@ export function formatAsMarkdown(
 
   // Data rows
   for (const row of rows) {
-    const cells = columns.map((col) => escapePipe(row[col] ?? ''));
+    const cells = columns.map((col) => escapeMarkdown(row[col] ?? ''));
     lines.push(`| ${cells.join(' | ')} |`);
   }
 

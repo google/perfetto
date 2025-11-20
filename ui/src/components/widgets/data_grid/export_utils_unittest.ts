@@ -54,7 +54,8 @@ describe('export_utils', () => {
         {colA: '3', colB: 'baz', colC: '1'},
       ];
 
-      const expected = 'colA\tcolB\tcolC\n1\tfoo\tnull\n2\tbar\t123.4\n3\tbaz\t1';
+      const expected =
+        'colA\tcolB\tcolC\n1\tfoo\tnull\n2\tbar\t123.4\n3\tbaz\t1';
       expect(formatAsTSV(columns, columnNames, rows)).toEqual(expected);
     });
 
@@ -83,6 +84,25 @@ describe('export_utils', () => {
 
       const expected = '';
       expect(formatAsTSV(columns, columnNames, rows)).toEqual(expected);
+    });
+
+    it('escapes tabs and newlines in cell values', () => {
+      const columns = ['col'];
+      const columnNames = {col: 'col'};
+      const rows = [
+        {col: 'has\ttab'},
+        {col: 'has\nnewline'},
+        {col: 'has\r\nwindows newline'},
+        {col: 'normal'},
+      ];
+
+      const result = formatAsTSV(columns, columnNames, rows);
+      // Tabs and newlines should be replaced with spaces
+      expect(result).not.toContain('\t\t'); // No double tabs (one is separator)
+      expect(result).toContain('has tab');
+      expect(result).toContain('has newline');
+      expect(result).toContain('has windows newline');
+      expect(result).toContain('normal');
     });
   });
 
@@ -138,6 +158,26 @@ describe('export_utils', () => {
       expect(result).toContain('a\\|b');
     });
 
+    it('escapes backslashes', () => {
+      const columns = ['col'];
+      const columnNames = {col: 'col'};
+      const rows = [{col: 'a\\b'}];
+
+      const result = formatAsMarkdown(columns, columnNames, rows);
+      expect(result).toContain('a\\\\b');
+    });
+
+    it('replaces newlines with spaces', () => {
+      const columns = ['col'];
+      const columnNames = {col: 'col'};
+      const rows = [{col: 'has\nnewline'}, {col: 'has\r\nwindows'}];
+
+      const result = formatAsMarkdown(columns, columnNames, rows);
+      expect(result).not.toContain('\n\n'); // No double newlines
+      expect(result).toContain('has newline');
+      expect(result).toContain('has windows');
+    });
+
     it('handles empty rows', () => {
       const columns = ['a', 'b'];
       const columnNames = {a: 'a', b: 'b'};
@@ -158,4 +198,3 @@ describe('export_utils', () => {
     });
   });
 });
-

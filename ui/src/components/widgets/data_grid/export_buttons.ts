@@ -20,19 +20,21 @@ import {download} from '../../../base/download_utils';
 import {DataGridApi} from './data_grid';
 import {CopyButtonHelper} from '../../../widgets/copy_to_clipboard_button';
 
-export interface CopyButtonAttrs {
+export interface DataGridCopyButtonAttrs {
   readonly api: DataGridApi;
 }
 
 /**
- * Copy button component with dropdown menu for copying data to clipboard
+ * DataGrid copy button component with dropdown menu for copying data to clipboard
  * in different formats (TSV, Markdown, JSON).
  * Maintains its own CopyButtonHelper state to show "Copied" feedback.
  */
-export class CopyButton implements m.ClassComponent<CopyButtonAttrs> {
+export class DataGridCopyButton
+  implements m.ClassComponent<DataGridCopyButtonAttrs>
+{
   private helper = new CopyButtonHelper();
 
-  view({attrs}: m.CVnode<CopyButtonAttrs>) {
+  view({attrs}: m.CVnode<DataGridCopyButtonAttrs>) {
     const {api} = attrs;
     const label = this.helper.state === 'copied' ? 'Copied' : 'Copy';
     const loading = this.helper.state === 'working';
@@ -45,13 +47,14 @@ export class CopyButton implements m.ClassComponent<CopyButtonAttrs> {
           icon,
           label,
           loading,
-          title: 'Copy filtered data to clipboard',
+          title: 'Copy filtered and sorted data to clipboard',
         }),
       },
       [
         m(MenuItem, {
           label: 'TSV',
           icon: 'tsv',
+          title: 'Tab-separated values - paste into spreadsheets',
           onclick: async () => {
             const content = await api.exportData('tsv');
             await this.helper.copy(content);
@@ -60,6 +63,7 @@ export class CopyButton implements m.ClassComponent<CopyButtonAttrs> {
         m(MenuItem, {
           label: 'Markdown',
           icon: 'table',
+          title: 'Markdown table format',
           onclick: async () => {
             const content = await api.exportData('markdown');
             await this.helper.copy(content);
@@ -68,6 +72,7 @@ export class CopyButton implements m.ClassComponent<CopyButtonAttrs> {
         m(MenuItem, {
           label: 'JSON',
           icon: 'data_object',
+          title: 'JSON array of objects',
           onclick: async () => {
             const content = await api.exportData('json');
             await this.helper.copy(content);
@@ -78,16 +83,18 @@ export class CopyButton implements m.ClassComponent<CopyButtonAttrs> {
   }
 }
 
-export interface DownloadButtonAttrs {
+export interface DataGridDownloadButtonAttrs {
   readonly api: DataGridApi;
 }
 
 /**
- * Download button component with dropdown menu for downloading data
+ * DataGrid download button component with dropdown menu for downloading data
  * in different formats (TSV, Markdown, JSON).
  */
-export class DownloadButton implements m.ClassComponent<DownloadButtonAttrs> {
-  view({attrs}: m.CVnode<DownloadButtonAttrs>) {
+export class DataGridDownloadButton
+  implements m.ClassComponent<DataGridDownloadButtonAttrs>
+{
+  view({attrs}: m.CVnode<DataGridDownloadButtonAttrs>) {
     const {api} = attrs;
 
     return m(
@@ -96,13 +103,14 @@ export class DownloadButton implements m.ClassComponent<DownloadButtonAttrs> {
         trigger: m(Button, {
           icon: Icons.Download,
           label: 'Download',
-          title: 'Download filtered data',
+          title: 'Download filtered and sorted data',
         }),
       },
       [
         m(MenuItem, {
           label: 'TSV',
           icon: 'tsv',
+          title: 'Tab-separated values - opens in Excel/Sheets',
           onclick: async () => {
             const content = await api.exportData('tsv');
             download({
@@ -115,6 +123,7 @@ export class DownloadButton implements m.ClassComponent<DownloadButtonAttrs> {
         m(MenuItem, {
           label: 'Markdown',
           icon: 'table',
+          title: 'Markdown table format - paste into docs',
           onclick: async () => {
             const content = await api.exportData('markdown');
             download({
@@ -127,6 +136,7 @@ export class DownloadButton implements m.ClassComponent<DownloadButtonAttrs> {
         m(MenuItem, {
           label: 'JSON',
           icon: 'data_object',
+          title: 'JSON array - use in scripts/tools',
           onclick: async () => {
             const content = await api.exportData('json');
             download({

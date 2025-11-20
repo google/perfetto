@@ -29,7 +29,10 @@ import {DataGridDataSource} from '../widgets/data_grid/common';
 import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
-import {CopyButton, DownloadButton} from '../widgets/data_grid/export_buttons';
+import {
+  DataGridCopyButton,
+  DataGridDownloadButton,
+} from '../widgets/data_grid/export_buttons';
 
 type Numeric = bigint | number;
 
@@ -136,8 +139,8 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   private renderButtons(contextButtons: m.Child[]) {
     return [
       contextButtons,
-      this.dataGridApi && m(CopyButton, {api: this.dataGridApi}),
-      this.dataGridApi && m(DownloadButton, {api: this.dataGridApi}),
+      this.dataGridApi && m(DataGridCopyButton, {api: this.dataGridApi}),
+      this.dataGridApi && m(DataGridDownloadButton, {api: this.dataGridApi}),
     ];
   }
 
