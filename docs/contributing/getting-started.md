@@ -44,7 +44,7 @@ tools/ninja -C out/mac_release
 tools/ninja -C out/mac_debug
 ```
 
-_Android_
+_For Android (cross-compiled on desktop OS)_
 
 ```sh
 # Production build (arm64)
