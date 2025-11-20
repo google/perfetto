@@ -40,7 +40,6 @@
 #include <google/protobuf/dynamic_message.h>
 #include <google/protobuf/io/tokenizer.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
-#include <google/protobuf/stubs/common.h>
 #include <google/protobuf/text_format.h>
 
 #include "perfetto/base/build_config.h"
