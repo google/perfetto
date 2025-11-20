@@ -22,10 +22,7 @@ import subprocess
 import sys
 import tempfile
 
-CATEGORY_PROD = 'prod'
-CATEGORY_TEST = 'test'
-
-PROD_DEFAULTS = {
+PERFETTO_DEFAULTS = {
     'guard_strip_prefix': 'PROTOS_PERFETTO_',
     'guard_add_prefix': 'INCLUDE_PERFETTO_PUBLIC_PROTOS_',
     'path_strip_prefix': 'protos/perfetto',
@@ -189,29 +186,24 @@ OUTPUT:
   out = args.OUT
 
   if args.proto:
-    source_files = {
-        CATEGORY_PROD: {
-            'files': args.proto,
-            **PROD_DEFAULTS,
-        }
-    }
+    source_files = [{
+        'files': args.proto,
+        **PERFETTO_DEFAULTS,
+    }]
   else:
-    source_files = {
-        CATEGORY_PROD: {
-            'files': PROD_FILES,
-            **PROD_DEFAULTS,
-        },
-        CATEGORY_TEST: {
-            'files': TEST_FILES,
-            **TEST_DEFAULTS,
-        },
-    }
+    source_files = [{
+        'files': PROD_FILES,
+        **PERFETTO_DEFAULTS,
+    }, {
+        'files': TEST_FILES,
+        **TEST_DEFAULTS,
+    }]
 
   call('ninja', '-C', out, 'protoc', 'protozero_c_plugin')
 
   try:
     with tempfile.TemporaryDirectory() as tmpdirname:
-      for category, sources in source_files.items():
+      for sources in source_files:
         for source in sources['files']:
           generate(
               source,
