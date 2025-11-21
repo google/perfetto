@@ -48,7 +48,7 @@ SELECT * FROM ancestor_slice_by_stack((SELECT stack_id FROM slice_with_stack_id 
 SELECT * FROM descendant_slice_by_stack((SELECT stack_id FROM slice_with_stack_id WHERE id = 123));
 ```
 
-**Note:** These helpers compute stack hashes on-demand and may be slower than the previous C++ implementation. They will be maintained for backward compatibility.
+**Note:** These helpers compute stack hashes on-demand and may be slower than the previous C++ implementation.
 
 **Do you really need this?**
 
