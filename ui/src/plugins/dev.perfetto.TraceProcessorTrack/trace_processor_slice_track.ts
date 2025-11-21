@@ -145,7 +145,8 @@ async function getDataset(
         as: `
           select
             id,
-            layout_depth as depth
+            layout_depth as depth,
+            ${Math.min(...trackIds)}
           from experimental_slice_layout('${trackIds.join(',')}')
         `,
       });
