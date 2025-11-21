@@ -345,11 +345,6 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
                 },
               }),
             ]),
-            isSelected &&
-              m(Icon, {
-                icon: 'check_circle',
-                className: 'pf-preset-card__check-icon',
-              }),
           );
         }),
         // Save card - only show when highlighted (custom config)
@@ -407,11 +402,6 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
       m(Icon, {icon}),
       m('.pf-preset-card__title', title),
       m('.pf-preset-card__subtitle', subtitle),
-      isSelected &&
-        m(Icon, {
-          icon: 'check_circle',
-          className: 'pf-preset-card__check-icon',
-        }),
     );
   }
 }

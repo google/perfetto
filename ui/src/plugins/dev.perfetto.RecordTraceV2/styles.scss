@@ -1028,39 +1028,23 @@
       }
     }
 
-    &__check-icon {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      font-size: 16px;
-      color: var(--pf-color-primary);
-    }
-
-    &:hover,
-    &:focus-visible {
-      border-color: var(--pf-color-primary);
+    &:hover:not(&--selected) {
       background-color: color_hover(transparent);
-
-      .pf-icon {
-        color: var(--pf-color-primary);
-      }
-    }
-
-    &:hover {
       box-shadow: 0 2px 8px var(--pf-color-box-shadow);
     }
 
-    &:focus-visible {
+    &:focus-visible:not(&--selected) {
       box-shadow: 0 0 0 2px rgba(var(--pf-color-primary-rgb), 0.3);
     }
 
     &--selected {
       border-color: var(--pf-color-primary);
-      background-color: rgba(var(--pf-color-primary-rgb), 0.05);
+      background-color: var(--pf-color-primary);
 
       .pf-icon,
-      .pf-preset-card__title {
-        color: var(--pf-color-primary);
+      .pf-preset-card__title,
+      .pf-preset-card__subtitle {
+        color: var(--pf-color-text-on-primary);
       }
     }
 
