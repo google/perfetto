@@ -42,21 +42,14 @@ export class RecordingManager {
   private provider?: RecordingTargetProvider;
   private target?: RecordingTarget;
   private _tracingSession?: CurrentTracingSession;
-  readonly recordConfig: ConfigManager;
+  recordConfig = new ConfigManager();
   savedConfigs: SavedSessionSchema[] = [];
   selectedConfigId?: string; // ID of currently selected preset or saved config
   selectedConfigName?: string; // Human-readable name of selected config
-  isConfigModified = false; // True if config was modified after loading
+  private loadedConfigGeneration = 0;
   autoOpenTraceWhenTracingEnds = true;
 
-  constructor(readonly app: App) {
-    // Mark config as modified when any probe setting changes
-    this.recordConfig = new ConfigManager(() => {
-      if (this.selectedConfigId) {
-        this.isConfigModified = true;
-      }
-    });
-  }
+  constructor(readonly app: App) {}
 
   registerPage(...pages: RecordSubpage[]) {
     for (const page of pages) {
@@ -149,6 +142,10 @@ export class RecordingManager {
     return wrappedSession;
   }
 
+  get isConfigModified() {
+    return this.recordConfig.generation !== this.loadedConfigGeneration;
+  }
+
   saveConfig(name: string, config: RecordSessionSchema) {
     const existing = this.savedConfigs.find((c) => c.name === name);
     if (existing) {
@@ -172,14 +169,20 @@ export class RecordingManager {
     this.loadSession(config);
     this.selectedConfigId = configId;
     this.selectedConfigName = configName;
-    this.isConfigModified = false;
+    this.loadedConfigGeneration = this.recordConfig.generation;
     this.app.raf.scheduleFullRedraw();
+  }
+
+  // Called when we loaded the last session from local storage and we want to
+  // mark it as unmodified (e.g. because it matched a preset).
+  setClean() {
+    this.loadedConfigGeneration = this.recordConfig.generation;
   }
 
   clearSelectedConfig() {
     this.selectedConfigId = undefined;
     this.selectedConfigName = undefined;
-    this.isConfigModified = false;
+    this.loadedConfigGeneration = this.recordConfig.generation;
   }
 
   serializeSession(): RecordSessionSchema {

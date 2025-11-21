@@ -68,6 +68,8 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
         targetId: recMgr.currentTarget?.id,
       };
       state.autoOpenTrace = recMgr.autoOpenTraceWhenTracingEnds;
+      state.selectedConfigId = recMgr.selectedConfigId;
+      state.configModified = recMgr.isConfigModified;
     },
     async deserialize(state: RecordPluginSchema) {
       recMgr.autoOpenTraceWhenTracingEnds = state.autoOpenTrace;
@@ -92,57 +94,44 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
         }
       }
 
-      const hasSavedProbes =
-        state.lastSession !== undefined &&
-        Object.keys(state.lastSession.probes).length > 0;
-
-      if (!hasSavedProbes) {
-        // Load first preset if available
-        const presets = getPresetsForPlatform(recMgr.currentPlatform);
-        if (presets.length > 0) {
-          recMgr.loadConfig(
-            presets[0].session,
-            `preset:${presets[0].id}`,
-            presets[0].title,
-          );
-        }
-        return;
-      }
-
-      // Load and serialize the session to compare
+      // Restore config
       recMgr.loadSession(state.lastSession);
-      const savedJson = JSON.stringify(recMgr.serializeSession());
-      let matched = false;
 
-      // Try saved configs first
-      for (const config of recMgr.savedConfigs) {
-        recMgr.loadSession(config.config);
-        if (JSON.stringify(recMgr.serializeSession()) === savedJson) {
-          recMgr.selectedConfigId = `saved:${config.name}`;
-          recMgr.selectedConfigName = config.name;
-          recMgr.isConfigModified = false;
-          matched = true;
-          break;
+      if (state.selectedConfigId) {
+        recMgr.selectedConfigId = state.selectedConfigId;
+        // Restore selectedConfigName
+        if (state.selectedConfigId.startsWith('preset:')) {
+          const presetId = state.selectedConfigId.substring(7);
+          const presets = getPresetsForPlatform(recMgr.currentPlatform);
+          const preset = presets.find((p) => p.id === presetId);
+          if (preset) recMgr.selectedConfigName = preset.title;
+        } else if (state.selectedConfigId.startsWith('saved:')) {
+          const savedName = state.selectedConfigId.substring(6);
+          const saved = recMgr.savedConfigs.find((c) => c.name === savedName);
+          if (saved) recMgr.selectedConfigName = saved.name;
         }
-      }
 
-      // Try presets if no saved config matched
-      if (!matched) {
-        for (const preset of getPresetsForPlatform(recMgr.currentPlatform)) {
-          recMgr.loadSession(preset.session);
-          if (JSON.stringify(recMgr.serializeSession()) === savedJson) {
-            recMgr.selectedConfigId = `preset:${preset.id}`;
-            recMgr.selectedConfigName = preset.title;
-            recMgr.isConfigModified = false;
-            matched = true;
-            break;
+        if (!state.configModified) {
+          recMgr.setClean();
+        }
+      } else {
+        // No selected config ID. This means "Custom" or "Empty".
+        // If it was empty, hasActiveProbes is false.
+        const hasSavedProbes =
+          state.lastSession !== undefined &&
+          Object.keys(state.lastSession.probes).length > 0;
+
+        if (!hasSavedProbes) {
+          // Load first preset if available
+          const presets = getPresetsForPlatform(recMgr.currentPlatform);
+          if (presets.length > 0) {
+            recMgr.loadConfig(
+              presets[0].session,
+              `preset:${presets[0].id}`,
+              presets[0].title,
+            );
           }
         }
-      }
-
-      // Only reload the session if no match was found
-      if (!matched) {
-        recMgr.loadSession(state.lastSession);
       }
     },
   };
