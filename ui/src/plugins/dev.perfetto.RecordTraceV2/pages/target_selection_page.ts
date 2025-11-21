@@ -65,6 +65,27 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
         recMgr.setPlatform(state.target.platformId);
       }
 
+      // Restore config
+      const hasSavedProbes =
+        state.lastSession !== undefined &&
+        state.lastSession.probes !== undefined &&
+        Object.keys(state.lastSession.probes).length > 0;
+
+      if (state.selectedConfigId || hasSavedProbes) {
+        recMgr.loadSession(state.lastSession);
+        if (state.selectedConfigId) {
+          recMgr.selectedConfigId = state.selectedConfigId;
+          recMgr.selectedConfigName = recMgr.resolveConfigName(
+            state.selectedConfigId,
+          );
+          if (!state.configModified) {
+            recMgr.setClean();
+          }
+        }
+      } else {
+        recMgr.loadDefaultConfig();
+      }
+
       // Restore provider selection
       const prov = recMgr.getProvider(state.target.transportId ?? '');
       if (prov !== undefined) {
@@ -77,30 +98,6 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
         const target = targets.find((t) => t.id === state.target.targetId);
         if (target) {
           recMgr.setTarget(target);
-        }
-      }
-
-      // Restore config
-      recMgr.loadSession(state.lastSession);
-
-      if (state.selectedConfigId) {
-        recMgr.selectedConfigId = state.selectedConfigId;
-        recMgr.selectedConfigName = recMgr.resolveConfigName(
-          state.selectedConfigId,
-        );
-
-        if (!state.configModified) {
-          recMgr.setClean();
-        }
-      } else {
-        // No selected config ID. This means "Custom" or "Empty".
-        // If it was empty, hasActiveProbes is false.
-        const hasSavedProbes =
-          state.lastSession !== undefined &&
-          Object.keys(state.lastSession.probes).length > 0;
-
-        if (!hasSavedProbes) {
-          recMgr.loadDefaultConfig();
         }
       }
     },
