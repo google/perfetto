@@ -130,6 +130,7 @@ export class StdlibPackageImpl implements SqlPackage {
 
 export class StdlibModuleImpl implements SqlModule {
   readonly includeKey: string;
+  readonly tags: string[];
   readonly tables: SqlTable[];
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
@@ -137,6 +138,7 @@ export class StdlibModuleImpl implements SqlModule {
 
   constructor(trace: Trace, docs: DocsModuleSchemaType) {
     this.includeKey = docs.module_name;
+    this.tags = docs.tags;
 
     const neededInclude = this.includeKey.startsWith('prelude')
       ? undefined
@@ -339,6 +341,7 @@ type DocsMacroSchemaType = z.infer<typeof MACRO_SCHEMA>;
 
 const MODULE_SCHEMA = z.object({
   module_name: z.string(),
+  tags: z.array(z.string()),
   data_objects: z.array(DATA_OBJECT_SCHEMA),
   functions: z.array(FUNCTION_SCHEMA),
   table_functions: z.array(TABLE_FUNCTION_SCHEMA),
