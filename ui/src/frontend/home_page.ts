@@ -20,6 +20,8 @@ import {assetSrc} from '../base/assets';
 import {Stack} from '../widgets/stack';
 import {Switch} from '../widgets/switch';
 import {AppImpl} from '../core/app_impl';
+import {Icon} from '../widgets/icon';
+import {Button} from '../widgets/button';
 
 export class Hints implements m.ClassComponent {
   view() {
@@ -31,6 +33,17 @@ export class Hints implements m.ClassComponent {
       m('.pf-home-page__tagline', 'New!'),
       m(
         'ul',
+        m('li', [
+          m(Icon, {
+            icon: 'history',
+          }),
+          m(Button, {
+            icon: 'history',
+          }),
+          m(Switch, {
+            label: 'Test',
+          }),
+        ]),
         m('li', [
           m(Switch, {
             label: ['Try the new dark mode.', isDarkMode && ' \u{1F60E}'],
