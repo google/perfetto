@@ -671,7 +671,7 @@ def CheckBannedCpp(changed_files: List[str]) -> List[str]:
 def CheckSqlModules(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
-  tool_rel_path = 'tools/check_sql_modules.py'
+  tool_rel_path = 'tools/check_sql_modules'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
   # Use fnmatch patterns
   files_to_check_list = filter_files(
@@ -689,7 +689,7 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
     return []
 
   try:
-    run_command([sys.executable, tool], cwd=REPO_ROOT)
+    run_command([sys.executable, tool, '--check-includes'], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
   except subprocess.CalledProcessError:
@@ -936,7 +936,7 @@ def main():
       (CheckMergedTraceConfigProto, [changed_files]),
       (CheckProtoEventList, [changed_files, merge_base]),  # Needs merge_base
       (CheckBannedCpp, [changed_files]),
-      (CheckSqlModules, [changed_files]),
+      (CheckSqlModules, [changed_files]),  # Includes --check-includes
       (CheckSqlMetrics, [changed_files]),
       (CheckTestData, [changed_files
                       ]),  # Doesn't need specific files list but pass anyway

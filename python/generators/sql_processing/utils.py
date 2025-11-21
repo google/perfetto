@@ -14,8 +14,13 @@
 
 from enum import Enum
 import re
-import os
 from typing import Dict, List
+
+
+def is_internal(name: str) -> bool:
+  """Check if a name represents an internal artifact (starts with _)."""
+  return re.match(r'^_.*', name, re.IGNORECASE) is not None
+
 
 ALLOWED_PREFIXES = {
     'android': ['heap_graph', 'memory'],
@@ -35,6 +40,9 @@ OBJECT_NAME_ALLOWLIST = {
     'graphs/partition.sql': ['tree_structural_partition_by_group'],
 }
 
+# Tables that are allowed to use CREATE TABLE instead of CREATE PERFETTO TABLE
+CREATE_TABLE_ALLOWLIST = {'_trace_bounds', '_trace_metrics'}
+
 COLUMN_TYPES = [
     # Standard types
     'LONG',
@@ -51,7 +59,15 @@ COLUMN_TYPES = [
     'ARGSETID'
 ]
 
-MACRO_ARG_TYPES = ['TABLEORSUBQUERY', 'EXPR', 'COLUMNNAME', 'COLUMNNAMELIST']
+MACRO_ARG_TYPES = [
+    'TABLEORSUBQUERY',
+    'EXPR',
+    'COLUMNNAME',
+    'COLUMNNAMELIST',
+    # Internal macro arg types for advanced use cases
+    '_PROJECTIONFRAGMENT',  # Fragment of a SELECT projection list
+    '_TABLENAMELIST'  # List of table names
+]
 
 NAME = r'[a-zA-Z_\d\{\}]+'
 ANY_WORDS = r'[^\s].*'
@@ -117,7 +133,8 @@ CREATE_MACRO_PATTERN = update_pattern(
     fr"({COMMENTS})"
     fr" RETURNS ({TYPE})")
 
-INCLUDE_PATTERN = update_pattern(fr'^INCLUDE PERFETTO MODULE ([A-Za-z_.*]*);$')
+INCLUDE_PATTERN = update_pattern(
+    fr'^INCLUDE PERFETTO MODULE ([A-Za-z0-9_.*]*);$')
 
 NAME_AND_TYPE_PATTERN = update_pattern(fr' ({NAME})\s+({TYPE}) ')
 
@@ -211,7 +228,7 @@ def check_banned_create_table_as(sql: str) -> List[str]:
   errors = []
   for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
     name = matches[0]
-    if name != "_trace_bounds":
+    if name not in CREATE_TABLE_ALLOWLIST:
       errors.append(
           f"Table '{name}' uses CREATE TABLE which is deprecated "
           "and this table is not allowlisted. Use CREATE PERFETTO TABLE.")
@@ -241,7 +258,7 @@ def check_banned_drop(sql: str) -> List[str]:
 # Given SQL string check whether there is usage of CREATE VIEW {name} AS.
 def check_banned_include_all(sql: str) -> List[str]:
   errors = []
-  for _, matches in match_pattern(INCLUDE_ALL_PATTERN, sql).items():
+  for _ in match_pattern(INCLUDE_ALL_PATTERN, sql).items():
     errors.append(
         "INCLUDE PERFETTO MODULE with wildcards is not allowed in stdlib. "
         "Import specific modules instead.")

@@ -19,8 +19,6 @@ INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
-INCLUDE PERFETTO MODULE wattson.utils;
-
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
 CREATE PERFETTO TABLE _cpu_estimates_mw AS

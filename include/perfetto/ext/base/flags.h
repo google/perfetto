@@ -21,53 +21,23 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// Android: aconfig generates PERFETTO_FLAGS_* macros in perfetto_flags.h
 #include <perfetto_flags.h>
-#endif
-
-namespace perfetto::base::flags {
-
-// The list of all the read-only flags accessible to the Perfetto codebase.
-//
-// The first argument is the name of the flag. Should match 1:1 with the name
-// in `perfetto_flags.aconfig`.
-// The second argument is the default value of the flag in non-Android platform
-// contexts.
-//
-// Note: For rt_mutex and rt_futex, the source of truth for non-Android platform
-// is in rt_mutex.h
-#define PERFETTO_READ_ONLY_FLAGS(X)                                    \
-  X(test_read_only_flag, NonAndroidPlatformDefault_FALSE)              \
-  X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault_TRUE) \
-  X(ftrace_clear_offline_cpus_only, NonAndroidPlatformDefault_TRUE)    \
-  X(use_lockfree_taskrunner,                                           \
-    PERFETTO_BUILDFLAG(PERFETTO_ENABLE_LOCKFREE_TASKRUNNER)            \
-        ? NonAndroidPlatformDefault_TRUE                               \
-        : NonAndroidPlatformDefault_FALSE)                             \
-  X(use_rt_mutex, NonAndroidPlatformDefault_FALSE)                     \
-  X(use_rt_futex, NonAndroidPlatformDefault_FALSE)                     \
-  X(buffer_clone_preserve_read_iter, NonAndroidPlatformDefault_TRUE)   \
-  X(sma_prevent_duplicate_immediate_flushes, NonAndroidPlatformDefault_TRUE)
-
-////////////////////////////////////////////////////////////////////////////////
-//                                                                            //
-//                 implementation details start here                          //
-//                                                                            //
-////////////////////////////////////////////////////////////////////////////////
-
-[[maybe_unused]] constexpr bool NonAndroidPlatformDefault_TRUE = true;
-[[maybe_unused]] constexpr bool NonAndroidPlatformDefault_FALSE = false;
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define PERFETTO_FLAGS_DEF_GETTER(name, default_non_android_value) \
-  [[maybe_unused]] constexpr bool name = ::perfetto::flags::name();
 #else
-#define PERFETTO_FLAGS_DEF_GETTER(name, default_non_android_value) \
-  [[maybe_unused]] constexpr bool name = default_non_android_value;
-#endif
+// Non-Android: Define fallback PERFETTO_FLAGS_* macros
+// These match the pattern from Android's aconfig codegen
+#define PERFETTO_FLAGS(FLAG) PERFETTO_FLAGS_##FLAG
 
-PERFETTO_READ_ONLY_FLAGS(PERFETTO_FLAGS_DEF_GETTER)
+#define PERFETTO_FLAGS_TEST_READ_ONLY_FLAG false
+#define PERFETTO_FLAGS_USE_MURMUR_HASH_FOR_FLAT_HASH_MAP true
+#define PERFETTO_FLAGS_FTRACE_CLEAR_OFFLINE_CPUS_ONLY true
+#define PERFETTO_FLAGS_USE_LOCKFREE_TASKRUNNER \
+  PERFETTO_BUILDFLAG(PERFETTO_ENABLE_LOCKFREE_TASKRUNNER)
+#define PERFETTO_FLAGS_USE_RT_MUTEX false
+#define PERFETTO_FLAGS_USE_RT_FUTEX false
+#define PERFETTO_FLAGS_BUFFER_CLONE_PRESERVE_READ_ITER true
+#define PERFETTO_FLAGS_SMA_PREVENT_DUPLICATE_IMMEDIATE_FLUSHES true
 
-}  // namespace perfetto::base::flags
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && ...
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_FLAGS_H_
