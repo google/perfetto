@@ -100,7 +100,7 @@ jobs:
 
       - name: perfetto_unittests
         shell: bash
-        run: out/dist/perfetto_unittests
+        run: out/dist/perfetto_unittests --gtest_shuffle
 
       - name: perfetto_integrationtests
         shell: bash
