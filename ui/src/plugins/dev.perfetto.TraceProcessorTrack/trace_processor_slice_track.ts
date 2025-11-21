@@ -166,13 +166,14 @@ async function getDataset(
           category,
           extract_arg(arg_set_id, 'correlation_id') as correlation_id,
           arg_set_id,
-          parent_id
+          parent_id,
+          d.minTrackId
         from slice
         join ${tableName} d using (id)
       `,
       filter: {
-        col: 'track_id',
-        in: trackIds,
+        col: 'minTrackId',
+        eq: Math.min(...trackIds),
       },
     });
   }

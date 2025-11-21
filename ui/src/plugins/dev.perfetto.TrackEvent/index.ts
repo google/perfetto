@@ -94,6 +94,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           g.builtin_counter_type as builtinCounterType,
           g.has_data AS hasData,
           g.has_children AS hasChildren,
+          g.min_track_id as minTrackId,
           g.track_ids as trackIds,
           g.order_id as orderId,
           t.name as threadName,
@@ -113,10 +114,11 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       name: '__trackevent_track_layout_depth',
       engine: ctx.engine,
       as: `
-        select id, layout_depth as depth
+        select id, t.minTrackId, layout_depth as depth
         from __track_event_tracks t,
-             experimental_slice_layout(t.trackIds)
+             experimental_slice_layout(t.trackIds) s
         where isCounter = 0 and trackCount > 1
+        order by s.id
       `,
     });
 

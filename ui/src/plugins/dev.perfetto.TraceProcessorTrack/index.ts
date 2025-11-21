@@ -245,6 +245,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             extract_arg(t.dimension_arg_set_id, 'utid') as utid,
             extract_arg(t.dimension_arg_set_id, 'upid') as upid,
             extract_arg(t.source_arg_set_id, 'description') as description,
+            min(t.id) minTrackId,
             group_concat(t.id) as trackIds,
             count() as trackCount,
             CASE t.type
@@ -261,6 +262,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           s.name,
           s.utid,
           ifnull(s.upid, tp.upid) as upid,
+          min(t.id) as minTrackId,
           s.trackIds as trackIds,
           s.trackCount,
           __max_layout_depth(s.trackCount, s.trackIds) as maxDepth,
@@ -287,10 +289,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       name: '__tp_track_layout_depth',
       engine: ctx.engine,
       as: `
-        select id, layout_depth as depth
+        select id, minTrackId, layout_depth as depth
         from __tracks_to_create t,
-             experimental_slice_layout(t.trackIds)
+             experimental_slice_layout(t.trackIds) s
         where trackCount > 1
+        order by s.id
       `,
     });
 
