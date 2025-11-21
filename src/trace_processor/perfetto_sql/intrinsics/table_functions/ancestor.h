@@ -39,14 +39,12 @@ class TraceProcessorContext;
 // Implements the following dynamic tables:
 // * ancestor_slice
 // * experimental_ancestor_stack_profile_callsite
-// * ancestor_slice_by_stack
 //
 // See docs/analysis/trace-processor for usage.
 class Ancestor : public StaticTableFunction {
  public:
   enum class Type : uint8_t {
     kSlice = 1,
-    kSliceByStack = 2,
     kStackProfileCallsite = 3,
   };
   class SliceCursor : public StaticTableFunction::Cursor {
@@ -59,7 +57,6 @@ class Ancestor : public StaticTableFunction {
     TraceStorage* storage_ = nullptr;
     tables::SliceSubsetTable table_;
     std::vector<tables::SliceTable::RowNumber> ancestors_;
-    tables::SliceTable::ConstCursor stack_cursor_;
   };
   class StackProfileCursor : public StaticTableFunction::Cursor {
    public:

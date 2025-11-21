@@ -43,13 +43,13 @@ class DynamicTables(TestSuite):
         out=Path('descendant_slice.out'))
 
   # Ancestor slice by stack table.
-  def test_ancestor_slice_by_stack(self):
+  def testancestor_slice_by_stack(self):
     return DiffTestBlueprint(
         trace=Path('slice_stacks.textproto'),
         query="""
         INCLUDE PERFETTO MODULE slices.stack;
-        SELECT ts, name FROM _ancestor_slice_by_stack((
-          SELECT stack_id FROM _slice_with_stack_id
+        SELECT ts, name FROM ancestor_slice_by_stack((
+          SELECT stack_id FROM slice_with_stack_id
           WHERE name = 'event_depth_2'
           LIMIT 1
           ));
@@ -65,13 +65,13 @@ class DynamicTables(TestSuite):
         """))
 
   # Descendant slice by stack table.
-  def test_descendant_slice_by_stack(self):
+  def testdescendant_slice_by_stack(self):
     return DiffTestBlueprint(
         trace=Path('slice_stacks.textproto'),
         query="""
         INCLUDE PERFETTO MODULE slices.stack;
-        SELECT ts, name FROM _descendant_slice_by_stack((
-          SELECT stack_id FROM _slice_with_stack_id
+        SELECT ts, name FROM descendant_slice_by_stack((
+          SELECT stack_id FROM slice_with_stack_id
           WHERE name = 'event_depth_0'
           LIMIT 1
           ));
