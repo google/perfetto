@@ -44,6 +44,13 @@ interface LoadConfigOptions {
 }
 
 export class RecordingManager {
+  readonly pages = new Map<string, RecordSubpage>();
+
+  private providers = new Array<RecordingTargetProvider>();
+  private platform: TargetPlatformId = 'ANDROID';
+  private provider?: RecordingTargetProvider;
+  private target?: RecordingTarget;
+  private _tracingSession?: CurrentTracingSession;
   recordConfig = new ConfigManager();
   savedConfigs: SavedSessionSchema[] = [];
   selectedConfigId?: string; // ID of currently selected preset or saved config
