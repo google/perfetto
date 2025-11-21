@@ -401,6 +401,13 @@ class ClockSynchronizer : public ClockSynchronizerBase {
     return base::OkStatus();
   }
 
+  bool HasPathToTraceTime(ClockId clock_id) {
+    if (clock_id == trace_time_clock_id_) {
+      return true;
+    }
+    return FindPath(clock_id, trace_time_clock_id_).valid();
+  }
+
   // Returns the timezone offset in seconds from UTC, if one has been set.
   std::optional<int64_t> timezone_offset() const { return timezone_offset_; }
 
