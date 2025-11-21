@@ -44,18 +44,12 @@ interface LoadConfigOptions {
 }
 
 export class RecordingManager {
-  readonly pages = new Map<string, RecordSubpage>();
-
-  private providers = new Array<RecordingTargetProvider>();
-  private platform: TargetPlatformId = 'ANDROID';
-  private provider?: RecordingTargetProvider;
-  private target?: RecordingTarget;
-  private _tracingSession?: CurrentTracingSession;
   recordConfig = new ConfigManager();
   savedConfigs: SavedSessionSchema[] = [];
   selectedConfigId?: string; // ID of currently selected preset or saved config
   selectedConfigName?: string; // Human-readable name of selected config
   private loadedConfigGeneration = 0;
+  private initiallyConfigModified = false;
   autoOpenTraceWhenTracingEnds = true;
 
   constructor(readonly app: App) {}
@@ -152,14 +146,18 @@ export class RecordingManager {
   }
 
   get isConfigModified() {
-    return this.recordConfig.generation !== this.loadedConfigGeneration;
+    return (
+      this.initiallyConfigModified ||
+      this.recordConfig.generation !== this.loadedConfigGeneration
+    );
   }
 
   saveConfig(name: string, config: RecordSessionSchema) {
     const existing = this.savedConfigs.find((c) => c.name === name);
     if (existing) {
       existing.config = config;
-    } else {
+    }
+    else {
       this.savedConfigs.push({name, config});
     }
     this.persistIntoLocalStorage();
@@ -179,11 +177,8 @@ export class RecordingManager {
     this.loadSession(config);
     this.selectedConfigId = configId;
     this.selectedConfigName = configName;
-    if (configModified) {
-      this.loadedConfigGeneration = this.recordConfig.generation - 1;
-    } else {
-      this.loadedConfigGeneration = this.recordConfig.generation;
-    }
+    this.loadedConfigGeneration = this.recordConfig.generation;
+    this.initiallyConfigModified = configModified;
     this.app.raf.scheduleFullRedraw();
   }
 
@@ -193,7 +188,8 @@ export class RecordingManager {
       const presets = getPresetsForPlatform(this.currentPlatform);
       const preset = presets.find((p) => p.id === presetId);
       return preset?.title;
-    } else if (configId.startsWith('saved:')) {
+    }
+    else if (configId.startsWith('saved:')) {
       const savedName = configId.substring(6);
       const saved = this.savedConfigs.find((c) => c.name === savedName);
       return saved?.name;
@@ -204,7 +200,8 @@ export class RecordingManager {
   clearSelectedConfig() {
     this.selectedConfigId = undefined;
     this.selectedConfigName = undefined;
-    this.isConfigModified = false;
+    this.loadedConfigGeneration = this.recordConfig.generation;
+    this.initiallyConfigModified = false;
   }
 
   loadDefaultConfig() {
