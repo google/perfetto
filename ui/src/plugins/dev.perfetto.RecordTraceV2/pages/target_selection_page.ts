@@ -197,7 +197,11 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
               p.subtitle,
               recMgr.selectedConfigId === `preset:${p.id}` &&
                 recMgr.isConfigModified === false,
-              () => recMgr.loadConfig(p.session, `preset:${p.id}`, p.title),
+              () => recMgr.loadConfig({
+                config: p.session,
+                configId: `preset:${p.id}`,
+                configName: p.title,
+              }),
             ),
           ),
           this.renderCard(
@@ -241,11 +245,11 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
                 'pf-preset-card' +
                 (isSelected ? ' pf-preset-card--selected' : ''),
               onclick: () =>
-                recMgr.loadConfig(
-                  config.config,
-                  `saved:${config.name}`,
-                  config.name,
-                ),
+                recMgr.loadConfig({
+                  config: config.config,
+                  configId: `saved:${config.name}`,
+                  configName: config.name,
+                }),
               tabindex: 0,
             },
             m(Icon, {icon: 'bookmark'}),
@@ -310,11 +314,11 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
                   }
                   const savedConfig = recMgr.serializeSession();
                   recMgr.saveConfig(trimmedName, savedConfig);
-                  recMgr.loadConfig(
-                    savedConfig,
-                    `saved:${trimmedName}`,
-                    trimmedName,
-                  );
+                  recMgr.loadConfig({
+                    config: savedConfig,
+                    configId: `saved:${trimmedName}`,
+                    configName: trimmedName,
+                  });
                   recMgr.app.raf.scheduleFullRedraw();
                 }
               },
