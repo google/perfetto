@@ -156,8 +156,7 @@ export class RecordingManager {
     const existing = this.savedConfigs.find((c) => c.name === name);
     if (existing) {
       existing.config = config;
-    }
-    else {
+    } else {
       this.savedConfigs.push({name, config});
     }
     this.persistIntoLocalStorage();
@@ -188,8 +187,7 @@ export class RecordingManager {
       const presets = getPresetsForPlatform(this.currentPlatform);
       const preset = presets.find((p) => p.id === presetId);
       return preset?.title;
-    }
-    else if (configId.startsWith('saved:')) {
+    } else if (configId.startsWith('saved:')) {
       const savedName = configId.substring(6);
       const saved = this.savedConfigs.find((c) => c.name === savedName);
       return saved?.name;
