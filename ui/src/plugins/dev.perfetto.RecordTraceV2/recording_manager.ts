@@ -36,6 +36,13 @@ import {getPresetsForPlatform} from './presets';
 
 const LOCALSTORAGE_KEY = 'recordPlugin';
 
+interface LoadConfigOptions {
+  config: RecordSessionSchema;
+  configId?: string;
+  configName?: string;
+  configModified?: boolean;
+}
+
 export class RecordingManager {
   readonly pages = new Map<string, RecordSubpage>();
 
@@ -163,12 +170,12 @@ export class RecordingManager {
     this.persistIntoLocalStorage();
   }
 
-  loadConfig(
-    config: RecordSessionSchema,
-    configId?: string,
-    configName?: string,
+  loadConfig({
+    config,
+    configId,
+    configName,
     configModified = false,
-  ) {
+  }: LoadConfigOptions) {
     this.loadSession(config);
     this.selectedConfigId = configId;
     this.selectedConfigName = configName;
@@ -204,11 +211,11 @@ export class RecordingManager {
     // Load first preset if available
     const presets = getPresetsForPlatform(this.currentPlatform);
     if (presets.length > 0) {
-      this.loadConfig(
-        presets[0].session,
-        `preset:${presets[0].id}`,
-        presets[0].title,
-      );
+      this.loadConfig({
+        config: presets[0].session,
+        configId: `preset:${presets[0].id}`,
+        configName: presets[0].title,
+      });
     } else {
       this.clearSession();
       this.clearSelectedConfig();

@@ -73,12 +73,12 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
 
       if (state.selectedConfigId || hasSavedProbes) {
         if (state.selectedConfigId) {
-          recMgr.loadConfig(
-            state.lastSession,
-            state.selectedConfigId,
-            recMgr.resolveConfigName(state.selectedConfigId),
-            state.configModified,
-          );
+          recMgr.loadConfig({
+            config: state.lastSession,
+            configId: state.selectedConfigId,
+            configName: recMgr.resolveConfigName(state.selectedConfigId),
+            configModified: state.configModified,
+          });
         } else {
           recMgr.loadSession(state.lastSession);
         }
