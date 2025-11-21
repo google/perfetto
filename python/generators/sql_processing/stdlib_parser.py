@@ -331,7 +331,7 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
 
 
 def format_full(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
-  """Format parsed modules with full information (for check_sql_modules).
+  """Format parsed modules with full information (for check_sql_modules.py).
 
   Includes raw SQL and parsed module data for validation.
   """

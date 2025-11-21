@@ -545,6 +545,10 @@
 
     .spinner {
       @include transition();
+      // Undo default number input styles.
+      background: none;
+      color: inherit;
+
       grid-area: label;
       border: 1px solid var(--pf-color-background);
       border-bottom: 2px solid var(--pf-color-border);
