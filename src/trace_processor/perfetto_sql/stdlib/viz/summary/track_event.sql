@@ -120,6 +120,7 @@ SELECT
   min(extract_arg(track.source_arg_set_id, 'y_axis_share_key')) AS y_axis_share_key,
   max(m.id IS NOT NULL) AS has_data,
   max(c.id IS NOT NULL) AS has_children,
+  min(unioned.id) AS min_track_id,
   GROUP_CONCAT(unioned.id) AS track_ids,
   min(unioned.order_id) AS order_id
 FROM unioned

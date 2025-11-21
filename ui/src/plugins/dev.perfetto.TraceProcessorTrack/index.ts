@@ -55,7 +55,10 @@ import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 import {Store} from '../../base/store';
 import {z} from 'zod';
-import {createPerfettoIndex} from '../../trace_processor/sql_utils';
+import {
+  createPerfettoIndex,
+  createPerfettoTable,
+} from '../../trace_processor/sql_utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {CallstackDetailsSection} from './callstack_details_section';
 
@@ -242,49 +245,78 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   }
 
   private async addSlices(ctx: Trace) {
-    const result = await ctx.engine.query(`
-      include perfetto module viz.threads;
+    await ctx.engine.query('include perfetto module viz.threads;');
 
-      with grouped as materialized (
+    // Step 1: Materialize track metadata
+    // Can be cleaned up at the end of this function as only tables and
+    // immediate queries depend on this.
+    await using _ = await createPerfettoTable({
+      name: '__tracks_to_create',
+      engine: ctx.engine,
+      as: `
+        with grouped as materialized (
+          select
+            t.type,
+            min(t.name) as name,
+            lower(min(t.name)) as lower_name,
+            extract_arg(t.dimension_arg_set_id, 'utid') as utid,
+            extract_arg(t.dimension_arg_set_id, 'upid') as upid,
+            extract_arg(t.source_arg_set_id, 'description') as description,
+            min(t.id) minTrackId,
+            group_concat(t.id) as trackIds,
+            count() as trackCount,
+            CASE t.type
+              WHEN 'thread_execution' THEN 0
+              WHEN 'art_method_tracing' THEN 1
+              ELSE 99
+            END as track_rank
+          from _slice_track_summary s
+          join track t using (id)
+          group by type, upid, utid, t.track_group_id, ifnull(t.track_group_id, t.id)
+        )
         select
-          t.type,
-          min(t.name) as name,
-          lower(min(t.name)) as lower_name,
-          extract_arg(t.dimension_arg_set_id, 'utid') as utid,
-          extract_arg(t.dimension_arg_set_id, 'upid') as upid,
-          extract_arg(t.source_arg_set_id, 'description') as description,
-          group_concat(t.id) as trackIds,
-          count() as trackCount,
-          CASE t.type
-            WHEN 'thread_execution' THEN 0
-            WHEN 'art_method_tracing' THEN 1
-            ELSE 99
-          END as track_rank
-        from _slice_track_summary s
-        join track t using (id)
-        group by type, upid, utid, t.track_group_id, ifnull(t.track_group_id, t.id)
-      )
-      select
-        s.type,
-        s.name,
-        s.utid,
-        ifnull(s.upid, tp.upid) as upid,
-        s.trackIds as trackIds,
-        __max_layout_depth(s.trackCount, s.trackIds) as maxDepth,
-        thread.tid,
-        thread.name as threadName,
-        ifnull(p.pid, tp.pid) as pid,
-        ifnull(p.name, tp.name) as processName,
-        ifnull(thread.is_main_thread, 0) as isMainThread,
-        ifnull(k.is_kernel_thread, 0) AS isKernelThread,
-        s.description AS description
-      from grouped s
-      left join process p on s.upid = p.upid
-      left join thread using (utid)
-      left join _threads_with_kernel_flag k using (utid)
-      left join process tp on thread.upid = tp.upid
-      order by s.track_rank, lower_name
-    `);
+          s.type,
+          s.name,
+          s.utid,
+          ifnull(s.upid, tp.upid) as upid,
+          s.minTrackId as minTrackId,
+          s.trackIds as trackIds,
+          s.trackCount,
+          __max_layout_depth(s.trackCount, s.trackIds) as maxDepth,
+          thread.tid,
+          thread.name as threadName,
+          ifnull(p.pid, tp.pid) as pid,
+          ifnull(p.name, tp.name) as processName,
+          ifnull(thread.is_main_thread, 0) as isMainThread,
+          ifnull(k.is_kernel_thread, 0) AS isKernelThread,
+          s.description AS description,
+          s.track_rank,
+          s.lower_name
+        from grouped s
+        left join process p on s.upid = p.upid
+        left join thread using (utid)
+        left join _threads_with_kernel_flag k using (utid)
+        left join process tp on thread.upid = tp.upid
+        order by s.track_rank, lower_name
+      `,
+    });
+
+    // Step 2: Create shared depth table by joining with
+    // experimental_slice_layout
+    await createPerfettoTable({
+      name: '__tp_track_layout_depth',
+      engine: ctx.engine,
+      as: `
+        select id, minTrackId, layout_depth as depth
+        from __tracks_to_create t
+        join experimental_slice_layout(t.trackIds) s
+        where trackCount > 1
+        order by s.id
+      `,
+    });
+
+    // Step 3: Query materialized table and create tracks
+    const result = await ctx.engine.query('select * from __tracks_to_create');
 
     const schemas = new Map(SLICE_TRACK_SCHEMAS.map((x) => [x.type, x]));
     const it = result.iter({
@@ -301,6 +333,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       isMainThread: NUM,
       isKernelThread: NUM,
       description: STR_NULL,
+      track_rank: NUM,
+      lower_name: STR_NULL,
     });
     for (; it.valid(); it.next()) {
       const {
@@ -367,6 +401,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           maxDepth,
           trackIds,
           detailsPanel: createDetailsPanel(ctx, utid),
+          depthTableName:
+            trackIds.length > 1 ? '__tp_track_layout_depth' : undefined,
         }),
       });
       this.addTrack(
