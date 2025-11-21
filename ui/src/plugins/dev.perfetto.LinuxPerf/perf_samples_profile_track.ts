@@ -154,6 +154,8 @@ export function createSkippedPerfCallsitesTrack(
     }),
     sliceName: () => 'Unclassified Perf sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
+});
+
 }
 
 function renderDetailsPanel(
