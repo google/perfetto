@@ -21,6 +21,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -311,18 +312,18 @@ int Main(int argc, char** argv) {
   }
 
   if (format == "profile") {
-    return perf_profile
-               ? TraceToPerfProfile(input_stream, output_stream, pid,
-                                    timestamps, !profile_no_annotations,
-                                    output_dir)
-               : TraceToHeapProfile(input_stream, output_stream, pid,
-                                    timestamps, !profile_no_annotations,
-                                    output_dir);
+    // ConversionMode mode = perf_profile ? ConversionMode::kPerfProfile
+    //                                    : ConversionMode::kHeapProfile;
+    // return TraceToProfile(input_stream, output_stream, pid, timestamps,
+    //                      !profile_no_annotations, output_dir, mode);
+    return TraceToProfile(input_stream, output_stream, pid, timestamps,
+                            !profile_no_annotations, output_dir, std::nullopt);
   }
 
   if (format == "java_heap_profile") {
-    return TraceToJavaHeapProfile(input_stream, output_stream, pid, timestamps,
-                                  !profile_no_annotations, output_dir);
+    return TraceToProfile(input_stream, output_stream, pid, timestamps,
+                         !profile_no_annotations, output_dir,
+                         ConversionMode::kJavaHeapProfile);
   }
 
   if (format == "hprof")

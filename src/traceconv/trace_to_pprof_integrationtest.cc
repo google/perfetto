@@ -44,9 +44,10 @@ pprof::PprofProfileReader ConvertTraceToPprof(
 
   std::stringstream ss;
   std::ostream os(ss.rdbuf());
-  trace_to_text::TraceToJavaHeapProfile(&file_istream, &os, /*pid=*/0,
-                                        /*timestamps=*/{},
-                                        /*annotate_frames=*/false);
+  trace_to_text::TraceToProfile(&file_istream, &os, /*pid=*/0,
+                                /*timestamps=*/{},
+                                /*annotate_frames=*/false, /*output_dir=*/"",
+                                ConversionMode::kJavaHeapProfile);
 
   auto conv_stdout = base::SplitString(ss.str(), " ");
   PERFETTO_CHECK(!conv_stdout.empty());
@@ -140,9 +141,10 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
 
   std::stringstream ss;
   std::ostream os(ss.rdbuf());
-  trace_to_text::TraceToJavaHeapProfile(&file_istream, &os, /*pid=*/0,
-                                        /*timestamps=*/{},
-                                        /*annotate_frames=*/false, output_dir);
+  trace_to_text::TraceToProfile(&file_istream, &os, /*pid=*/0,
+                                /*timestamps=*/{},
+                                /*annotate_frames=*/false, output_dir,
+                                ConversionMode::kJavaHeapProfile);
 
   // Check output message
   std::string output_str = ss.str();
