@@ -23,10 +23,10 @@ documents:
 
 **Context**
 
-The `stack_id` and `parent_stack_id` columns were poorly named and designed features that computed hash values based on slice names. There are two reasons for their removal:
+The `stack_id` and `parent_stack_id` columns that computed hash values based on slice names. There are two reasons for their removal:
 
-1. They used a lot of memory for a feature which was rarely useful
-2. Even when they were used, folks should have been using `parent_id` because they misunderstood what these columns represented
+1. They used a lot of memory for a feature which was rarely useful.
+2. Even when they were used, usually `parent_id` would have been a better choice.
 
 These columns have been removed from the slice table, and the stack-based table functions have been moved to the `slices.stack` stdlib module where they compute stack hashes on-demand rather than storing them.
 
