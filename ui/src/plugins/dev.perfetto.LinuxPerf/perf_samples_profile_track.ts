@@ -130,7 +130,6 @@ export function createSkippedPerfCallsitesTrack(
   uri: string,
   upidArg: number,
 ) {
-
   return SliceTrack.create({
     trace,
     uri,
@@ -149,13 +148,13 @@ export function createSkippedPerfCallsitesTrack(
         FROM perf_sample AS p
         JOIN thread USING (utid)
         WHERE callsite_id IS NULL
+          and upid = ${upidArg}
         ORDER BY ts
       `,
     }),
     sliceName: () => 'Unclassified Perf sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
-});
-
+  });
 }
 
 function renderDetailsPanel(
