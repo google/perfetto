@@ -30,6 +30,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
@@ -38,18 +39,13 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/tracing/default_socket.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include "perfetto/base/time.h"
-#else
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
 
 namespace perfetto {
 namespace {
-
-constexpr char kPerfettoProducerSockEnv[] = "PERFETTO_PRODUCER_SOCK_NAME";
-constexpr char kPerfettoConsumerSockEnv[] = "PERFETTO_CONSUMER_SOCK_NAME";
 
 constexpr const char* kDaemons[] = {
     "traced",
@@ -68,10 +64,6 @@ bool CanConnectToSocket(const std::string& path) {
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
-std::string GetPidFilePath(const char* daemon_name) {
-  return base::GetSysTempDir() + "/" + daemon_name + ".pid";
-}
-
 bool IsSystemdServiceInstalled() {
 #if PERFETTO_BUILDFLAG(PERFETTO_SYSTEMD)
   constexpr const char* kSystemdServices[] = {
@@ -85,6 +77,10 @@ bool IsSystemdServiceInstalled() {
   }
 #endif
   return false;
+}
+
+std::string GetPidFilePath(const char* daemon_name) {
+  return base::GetSysTempDir() + "/" + daemon_name + ".pid";
 }
 
 bool WritePidToFile(const std::string& path, pid_t pid) {
@@ -119,21 +115,22 @@ pid_t StartDaemon(const std::string& tracebox_path,
 
   constexpr uint32_t kDaemonStartTimeoutMs = 1000;
   if (!daemon.Wait(kDaemonStartTimeoutMs)) {
-    PERFETTO_ELOG("Daemon %s failed to start after %u ms", daemon_name.c_str(),
-                  kDaemonStartTimeoutMs);
+    printf("Error: Daemon %s failed to start after %u ms\n",
+           daemon_name.c_str(), kDaemonStartTimeoutMs);
     return 0;
   }
   if (daemon.status() != base::Subprocess::kTerminated ||
       daemon.returncode() != 0) {
-    PERFETTO_ELOG("Daemon %s failed to start, status:%d exit code:%d",
-                  daemon_name.c_str(), daemon.status(), daemon.returncode());
+    printf("Error: Daemon %s failed to start, status:%d exit code:%d\n",
+           daemon_name.c_str(), daemon.status(), daemon.returncode());
     return 0;
   }
 
   std::string output = daemon.output();
   auto pid = base::StringToInt64(base::TrimWhitespace(output));
   if (!pid.has_value()) {
-    PERFETTO_ELOG("Failed to parse daemon PID from output: %s", output.c_str());
+    printf("Error: Failed to parse daemon PID from output: %s\n",
+           output.c_str());
     return 0;
   }
   return static_cast<pid_t>(*pid);
@@ -143,10 +140,7 @@ pid_t StartDaemon(const std::string& tracebox_path,
 
 int CtlStop() {
   printf("Stopping daemons...\n");
-  auto env_cleaner = base::OnScopeExit([] {
-    base::UnsetEnv(kPerfettoProducerSockEnv);
-    base::UnsetEnv(kPerfettoConsumerSockEnv);
-  });
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   ServiceSockets sockets = GetRunningSockets();
   if (!sockets.IsValid()) {
@@ -156,70 +150,61 @@ int CtlStop() {
   printf("Daemons are running. Use Task Manager to stop them.\n");
   return 1;
 #else
-  int daemons_stored = 0, daemons_stopped = 0;
+  if (IsSystemdServiceInstalled()) {
+    if (base::GetCurrentUserId() != 0) {
+      printf(
+          "Managed by systemd. Use: sudo systemctl stop traced "
+          "traced-probes\n");
+      return 0;
+    }
+    printf("Systemd service found. Stopping via systemctl...\n");
+    if (system("systemctl stop traced traced-probes") == 0) {
+      printf("All daemons stopped.\n");
+      return 0;
+    }
+    printf("Error: Failed to stop systemd services.\n");
+    return 1;
+  }
+
+  int daemons_stopped = 0, daemons_stored = 0;
   for (const char* daemon : kDaemons) {
     std::string pid_path = GetPidFilePath(daemon);
-    pid_t pid = ReadPidFromFile(pid_path);
-    if (!pid)
+    if (!base::FileExists(pid_path)) {
+      PERFETTO_LOG("Not found pid file for %s at %s", daemon, pid_path.c_str());
       continue;
+    }
     daemons_stored++;
-    if (kill(pid, SIGTERM) == 0) {
+    pid_t pid = ReadPidFromFile(pid_path);
+    if (pid && kill(pid, SIGTERM) == 0) {
       daemons_stopped++;
-      if (!remove(pid_path.c_str())) {
-        PERFETTO_ELOG("Failed to delete file: %s with error %s",
-                      pid_path.c_str(), strerror(errno));
+      printf("%s terminated (PID: %d)\n", daemon, pid);
+      if (remove(pid_path.c_str()) != 0) {
+        printf("Error: Failed to delete file: %s with error %s\n",
+               pid_path.c_str(), strerror(errno));
       }
     } else {
-      PERFETTO_ELOG("Failed to stop daemon (pid=%d): %s", static_cast<int>(pid),
-                    strerror(errno));
+      printf("Error: Failed to stop daemon %s (pid=%d): %s\n", daemon,
+             static_cast<int>(pid), strerror(errno));
     }
   }
 
-  if (daemons_stored) {
-    if (daemons_stopped < daemons_stored) {
-      printf("Error: Some daemons could not be stopped.\n");
-      return 1;
-    }
+  if (daemons_stopped == sizeof(kDaemons)) {
     printf("All daemons stopped.\n");
     return 0;
   }
-
-  PERFETTO_LOG("No daemon PID files found.");
-  ServiceSockets sockets = GetRunningSockets();
-  if (!sockets.IsValid())
-    return 0;
-
-  printf(
-      "However, daemons are running (detected via socket connectivity) with "
-      "%s\n",
-      sockets.ToString().c_str());
-  if (!IsSystemdServiceInstalled()) {
-    printf("Started manually or by other means. Please stop them directly.\n");
-    return 0;
-  }
-  if (base::GetCurrentUserId() != 0) {
-    printf(
-        "Managed by systemd. Use: sudo systemctl stop traced "
-        "traced-probes\n");
-    return 0;
-  }
-  printf("Systemd service found. Stopping via systemctl...\n");
-  if (system("systemctl stop traced traced-probes") == 0) {
-    printf("All daemons stopped.\n");
-    return 0;
-  }
-  printf("Error: Failed to stop systemd services.\n");
-  return 1;
+  return daemons_stored == 0;
 #endif
 }
 
 int CtlStart() {
+  constexpr uint32_t kDaemonStartWaitUs = 1000 * 1000;  // 1s
   ServiceSockets sockets = GetRunningSockets();
   if (sockets.IsValid()) {
     printf("Status: Daemons are already running with %s\n",
            sockets.ToString().c_str());
     return 0;
   }
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   printf("Starting daemons...\n");
   std::string tracebox_path = base::GetCurExecutablePath();
@@ -229,29 +214,27 @@ int CtlStart() {
     proc.Start();
     processes.push_back(std::move(proc));
   }
-  // Wait for daemons to start
-  base::SleepMicroseconds(100 * 1000);
+  base::SleepMicroseconds(kDaemonStartWaitUs);
+
   ServiceSockets started_sockets = GetRunningSockets();
   if (!started_sockets.IsValid()) {
-    printf(
-        "Error: Failed to start daemons. Possible causes:\n"
-        "  - Ports 32278/32279 may already be in use\n"
-        "  - Firewall may be blocking the connections\n"
-        "  - Insufficient permissions\n");
+    printf(R"(Error: Failed to start daemons. Possible causes:
+  - Ports 32278/32279 may already be in use
+  - Firewall may be blocking the connections
+  - Insufficient permissions
+)");
     return 1;
   }
-  base::SetEnv(kPerfettoProducerSockEnv, started_sockets.producer_socket);
-  base::SetEnv(kPerfettoConsumerSockEnv, started_sockets.consumer_socket);
-  printf("Success: Daemons started with %s\nPress Ctrl+C to stop.\n",
+  printf("Success: Daemons started with %s. Press Ctrl+C to stop.\n",
          started_sockets.ToString().c_str());
   while (true)
     base::SleepMicroseconds(1000000);
 #else
   if (IsSystemdServiceInstalled()) {
     if (base::GetCurrentUserId() != 0) {
-      printf(
-          "Error: Systemd service installed but requires root.\nUse: sudo "
-          "systemctl start traced traced-probes\n");
+      printf(R"(Error: Systemd service installed but requires root.
+Use: sudo systemctl start traced traced-probes
+)");
       return 1;
     }
     printf("Starting daemons via systemd...\n");
@@ -262,31 +245,33 @@ int CtlStart() {
     printf("Failure: Not able to start Daemons via systemd.\n");
     return 1;
   }
+
   printf("Starting daemons...\n");
   std::string tracebox_path = base::GetCurExecutablePath();
   for (const char* daemon : kDaemons) {
     pid_t pid = StartDaemon(tracebox_path, daemon);
     if (pid <= 0) {
-      PERFETTO_ELOG("Failed to start %s daemon", daemon);
+      printf("Error: Failed to start %s daemon\n", daemon);
       CtlStop();
       return 1;
     }
     std::string pid_path = GetPidFilePath(daemon);
     if (!WritePidToFile(pid_path, pid)) {
-      PERFETTO_ELOG("Failed to write PID file for %s", daemon);
+      printf("Error: Failed to write PID file for %s\n", daemon);
       CtlStop();
       return 1;
     }
     printf("%s started (PID: %d)\n", daemon, pid);
   }
+
+  base::SleepMicroseconds(kDaemonStartWaitUs);
   ServiceSockets started_sockets = GetRunningSockets();
   if (!started_sockets.IsValid()) {
-    printf("Failed to start as invalid sockets: %s\n",
+    printf("Failed to connect to socket: %s\n",
            started_sockets.ToString().c_str());
+    CtlStop();
     return 1;
   }
-  base::SetEnv(kPerfettoProducerSockEnv, started_sockets.producer_socket);
-  base::SetEnv(kPerfettoConsumerSockEnv, started_sockets.consumer_socket);
   return 0;
 #endif
 }
@@ -294,32 +279,42 @@ int CtlStart() {
 int CtlStatus() {
   ServiceSockets sockets = GetRunningSockets();
   if (sockets.IsValid()) {
-    printf("Success: Daemons are running and accessible with %s",
+    printf("Success: Daemons are running and accessible with %s\n",
            sockets.ToString().c_str());
   } else {
     printf("Status: No daemons detected via sockets\n");
   }
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  bool stale_found = false;
+  if (IsSystemdServiceInstalled()) {
+    printf("Systemd detected. Querying systemctl status:\n");
+    system("systemctl status traced traced-probes --no-pager -l");
+    return 0;
+  }
+
+  bool stale_file_found = false;
   for (const char* daemon : kDaemons) {
     std::string pid_path = GetPidFilePath(daemon);
+    if (!base::FileExists(pid_path)) {
+      PERFETTO_LOG("PID file for %s not present at %s", daemon,
+                   pid_path.c_str());
+      continue;
+    }
     pid_t pid = ReadPidFromFile(pid_path);
-    if (pid > 0) {
-      if (kill(pid, 0) == 0) {
-        printf("%s: Running (PID %d)\n", daemon, static_cast<int>(pid));
-      } else {
-        printf("%s: Not running (Stale PID file %d)\n", daemon,
-               static_cast<int>(pid));
-        stale_found = true;
-      }
+    if (pid && kill(pid, 0) == 0) {
+      printf("%s: Running (PID %d)\n", daemon, static_cast<int>(pid));
+    } else {
+      printf("%s: Not running (Stale PID file %d)\n", daemon,
+             static_cast<int>(pid));
+      stale_file_found = true;
     }
   }
-  if (stale_found) {
+  if (stale_file_found) {
     printf(
         "Stale PID files found. Run 'tracebox ctl stop' to clean them up.\n");
   }
 #endif
-  return sockets.IsValid();
+  return 0;
 }
 
 }  // namespace
@@ -340,14 +335,8 @@ ServiceSockets GetRunningSockets() {
   ServiceSockets sockets;
   sockets.producer_socket = perfetto::GetProducerSocket();
   sockets.consumer_socket = perfetto::GetConsumerSocket();
-  if (CanConnectToSocket(sockets.consumer_socket)) {
-    return sockets;
-  }
-  PERFETTO_ELOG("Failed to connect to %s%s", sockets.consumer_socket.c_str(),
-                getenv(kPerfettoConsumerSockEnv)
-                    ? " (configured via PERFETTO_CONSUMER_SOCK_NAME)"
-                    : "");
-  return ServiceSockets{};
+  return CanConnectToSocket(sockets.consumer_socket) ? sockets
+                                                     : ServiceSockets{};
 }
 
 int TraceboxCtlMain(int argc, char** argv) {

@@ -156,7 +156,7 @@ chmod +x tracebox
 First, start the tracing daemons in background:
 
 ```bash
-sudo ./tracebox ctl start # This will start persistent background tracing services
+./tracebox ctl start # This will start persistent background tracing services
 ```
 
 Then, to capture a trace you need to pass the config file to the downloaded `tracebox`
@@ -169,14 +169,14 @@ curl -LO https://raw.githubusercontent.com/google/perfetto/refs/heads/main/test/
 ```
 and running the following command:
 ```bash
-sudo ./tracebox -o trace_file.perfetto-trace --txt -c scheduling.cfg
+./tracebox -o trace_file.perfetto-trace --txt -c scheduling.cfg
 ```
 The scheduling information is captured using ftrace, so you may need to start
-the `tracebox` daemons with root privileges (e.g. `sudo ./tracebox ctl start`).
+the `tracebox` daemons with root privileges (e.g. `./tracebox ctl start`).
 
 If you prefer the old behavior where tracebox starts temporary daemons for the duration of the trace, you can use the `--autodaemonize` flag:
 ```bash
-sudo ./tracebox --autodaemonize -o trace_file.perfetto-trace --txt -c scheduling.cfg
+./tracebox --autodaemonize -o trace_file.perfetto-trace --txt -c scheduling.cfg
 ```
 
 </tabs?>

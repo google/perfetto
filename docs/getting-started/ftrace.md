@@ -285,13 +285,13 @@ See the [system tracing page](/docs/getting-started/system-tracing.md) in order
 to get set up with tracebox. For this example we are going to record a trace
 from the command line using the config file we just created:
 ```bash
-sudo ./tracebox ctl start # This will start persistent background tracing services
-sudo ./tracebox -c ticker.cfg --txt -o ticker.pftrace
+./tracebox ctl start # This will start persistent background tracing services
+./tracebox -c ticker.cfg --txt -o ticker.pftrace
 ```
 
 Alternatively using autodaemonize mode:
 ```bash
-sudo ./tracebox --autodaemonize -c ticker.cfg --txt -o ticker.pftrace
+./tracebox --autodaemonize -c ticker.cfg --txt -o ticker.pftrace
 ```
 
 Note: tracebox will take care of enabling tracing and our ticker events (as we

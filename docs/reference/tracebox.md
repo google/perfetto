@@ -29,12 +29,10 @@ multiple tracing sessions.
 **Commands:**
 
 `tracebox ctl start`
-:   Starts `traced` and `traced_probes` in the background. On Linux, running
-    as root (via `sudo`) is highly recommended to place sockets in the standard
-    `/run/perfetto/` directory.
+:   Starts `traced` and `traced_probes` in the background.
 
 `tracebox ctl stop`
-:   Stops daemons started via `ctl start` and cleans up PID files.
+:   Stops daemons started via `ctl start`.
 
 `tracebox ctl status`
 :   Checks if daemons are running, accessible, and which sockets they are using.
@@ -43,14 +41,14 @@ multiple tracing sessions.
 
 ```bash
 # Start services once (as root for full system/SDK support)
-sudo ./tracebox ctl start
+./tracebox ctl start
 
 # Record multiple traces
-sudo ./tracebox -t 10s -o trace1.pftrace sched
-sudo ./tracebox -t 10s -o trace2.pftrace sched
+./tracebox -t 10s -o trace1.pftrace sched
+./tracebox -t 10s -o trace2.pftrace sched
 
 # Stop services when finished
-sudo ./tracebox ctl stop
+./tracebox ctl stop
 ```
 
 ### 2. Autodaemonize Mode
@@ -65,7 +63,7 @@ Pass the `--autodaemonize` flag before other arguments.
 
 ```bash
 # Start daemons, record trace, stop daemons
-sudo ./tracebox --autodaemonize -t 10s -o trace.pftrace sched
+./tracebox --autodaemonize -t 10s -o trace.pftrace sched
 ```
 
 ### 3. Applet Mode
@@ -94,7 +92,7 @@ This is the preferred mode for most workflows.
 
 *   **SDK/App Tracing:** If you are tracing applications instrumented with the
     Perfetto SDK (using `track_event`), you **must** use Managed Mode (usually
-    as root). SDK applications only connect to the standard system socket paths
+    as root). SDK applications connect to the standard system socket paths
     (e.g., `/run/perfetto/` on Linux).
 *   **Repeated Tracing:** If you are recording multiple traces in succession,
     Managed Mode avoids the overhead of restarting the services for every trace.
@@ -107,6 +105,3 @@ This is the preferred mode for most workflows.
     you want to ensure no leftover processes remain after execution.
 *   **Debugging:** Quick verification of ftrace events where setting up a full
     service is unnecessary.
-*   **Limitations:** This mode uses private, randomized socket paths (e.g., in
-    `/tmp/`). Applications using the Perfetto SDK **cannot** connect to these
-    daemons, so you will not capture userspace instrumentation.
