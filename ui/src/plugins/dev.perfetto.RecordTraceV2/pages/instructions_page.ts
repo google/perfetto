@@ -43,17 +43,8 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
   private docsLink?: string;
 
   constructor({attrs}: m.CVnode<RecMgrAttrs>) {
-    this.updateConfig(attrs.recMgr);
-  }
-
-  onupdate({attrs}: m.CVnode<RecMgrAttrs>) {
-    // Regenerate config when the component updates
-    this.updateConfig(attrs.recMgr);
-  }
-
-  private updateConfig(recMgr: RecordingManager) {
     // Generate the config PBTX (text proto format).
-    const cfg = recMgr.genTraceConfig();
+    const cfg = attrs.recMgr.genTraceConfig();
     const cfgBytes = protos.TraceConfig.encode(cfg).finish().slice();
     traceConfigToTxt(cfgBytes).then((txt) => {
       this.configTxt = txt;
@@ -61,7 +52,7 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
     });
 
     // Generate platform-specific commands.
-    switch (recMgr.currentPlatform) {
+    switch (attrs.recMgr.currentPlatform) {
       case 'ANDROID':
         this.cmdline =
           'cat config.pbtx | adb shell perfetto' +
