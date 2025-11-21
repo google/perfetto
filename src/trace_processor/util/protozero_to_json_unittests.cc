@@ -28,7 +28,7 @@
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
-#include "protos/perfetto/metrics/chrome/all_chrome_metrics.pb.h"  // nogncheck
+#include "protos/perfetto/metrics/chrome/test_chrome_metric.pbzero.h"  // nogncheck
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"  // nogncheck
 #endif
 
@@ -126,9 +126,8 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolNestedMsg) {
 // is very tricky to point to on the non-standalone build.
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 TEST(ProtozeroToJsonTest, CustomDescriptorPoolAnnotations) {
-  using perfetto::protos::TestChromeMetric;
-  TestChromeMetric msg;
-  msg.set_test_value(1);
+  protozero::HeapBuffered<perfetto::protos::pbzero::TestChromeMetric> msg;
+  msg->set_test_value(1);
   auto binary_proto = msg.SerializeAsString();
   protozero::ConstBytes binary_proto_bytes{
       reinterpret_cast<const uint8_t*>(binary_proto.data()),
