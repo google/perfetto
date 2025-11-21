@@ -242,7 +242,8 @@ base::Status InsertRows(
     const std::string* group_id_col_name,
     DescriptorPool& descriptor_pool,
     StringPool* string_pool,
-    const ProtoToInternedData& proto_to_interned_data) {
+    const ProtoToInternedData& proto_to_interned_data,
+    const std::string& table_name) {
   util::ProtoToArgsParser args_parser{descriptor_pool};
 
   auto it = static_table.IndexOfColumnLegacy("base64_proto_id");
@@ -268,6 +269,11 @@ base::Status InsertRows(
     }
     inflated_protos.insert(*base64_proto_id);
 
+    if (util::winscope_proto_mapping::ShouldSkipRow(table_name, static_table, i,
+                                                    string_pool)) {
+      continue;
+    }
+
     const auto raw_proto =
         string_pool->Get(StringPool::Id::Raw(*base64_proto_id));
     const auto blob = *base::Base64Decode(raw_proto);
@@ -290,8 +296,20 @@ base::Status InsertRows(
     InternedData* interned_data = proto_to_interned_data.Find(*base64_proto_id);
     Delegate delegate(string_pool, *base64_proto_id, inflated_args_table,
                       key_to_row, interned_data);
-    RETURN_IF_ERROR(args_parser.ParseMessage(cb, proto_name, allowed_fields,
-                                             delegate, nullptr, true));
+
+    const std::vector<uint32_t>* allowed_fields_per_row = nullptr;
+    std::optional<std::vector<uint32_t>> fields_per_row;
+    if (!allowed_fields) {
+      fields_per_row = util::winscope_proto_mapping::GetAllowedFieldsPerRow(
+          table_name, static_table, i, string_pool);
+      allowed_fields_per_row =
+          fields_per_row ? &fields_per_row.value() : nullptr;
+    }
+
+    RETURN_IF_ERROR(args_parser.ParseMessage(
+        cb, proto_name,
+        allowed_fields ? allowed_fields : allowed_fields_per_row, delegate,
+        nullptr, true));
   }
   return base::OkStatus();
 }
@@ -330,15 +348,18 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
 
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name_str);
+
   auto group_id_col_name =
       util::winscope_proto_mapping::GetGroupIdColName(table_name_str);
   auto proto_to_interned_data =
       GetProtoToInternedData(table_name_str, context_->storage.get());
-  base::Status insert_status = InsertRows(
-      *static_table_from_engine, &table_, *proto_name,
-      allowed_fields ? &allowed_fields.value() : nullptr,
-      group_id_col_name ? &group_id_col_name.value() : nullptr,
-      *context_->descriptor_pool_, string_pool_, proto_to_interned_data);
+
+  base::Status insert_status =
+      InsertRows(*static_table_from_engine, &table_, *proto_name,
+                 allowed_fields ? &allowed_fields.value() : nullptr,
+                 group_id_col_name ? &group_id_col_name.value() : nullptr,
+                 *context_->descriptor_pool_, string_pool_,
+                 proto_to_interned_data, table_name_str);
   if (!insert_status.ok()) {
     return OnFailure(insert_status);
   }

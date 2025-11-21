@@ -131,52 +131,6 @@ class Tables(TestSuite):
         query=Metric('trace_metadata'),
         out=Path('trace_metadata.json.out'))
 
-  # Processes as a metric
-  def test_android_task_names(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          process_tree {
-            processes {
-              pid: 1
-              ppid: 0
-              cmdline: "init"
-              uid: 0
-            }
-            processes {
-              pid: 2
-              ppid: 1
-              cmdline: "com.google.android.gm:process"
-              uid: 10001
-            }
-          }
-        }
-        packet {
-          packages_list {
-            packages {
-              name: "com.google.android.gm"
-              uid: 10001
-            }
-          }
-        }
-        """),
-        query=Metric('android_task_names'),
-        out=TextProto(r"""
-        android_task_names {
-          process {
-            pid: 1
-            process_name: "init"
-            uid: 0
-          }
-          process {
-            pid: 2
-            process_name: "com.google.android.gm:process"
-            uid: 10001
-            uid_package_name: "com.google.android.gm"
-          }
-        }
-        """))
-
   # Ftrace stats imports in metadata and stats tables
   def test_ftrace_setup_errors(self):
     return DiffTestBlueprint(
@@ -586,4 +540,25 @@ class Tables(TestSuite):
         "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version"
         0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]"
         1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33
+        """))
+
+  # user list table
+  def test_android_user_list(self):
+    return DiffTestBlueprint(
+        trace=DataPath('trace_user_list.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.user_list;
+
+
+        SELECT
+          android_user_id,
+          type
+        FROM android_user_list
+        ORDER BY android_user_id;
+        """,
+        out=Csv("""
+        "android_user_id","type"
+        0,"android.os.usertype.system.HEADLESS" 
+        10,"android.os.usertype.full.SECONDARY" 
+        11,"android.os.usertype.full.GUEST"
         """))

@@ -25,3 +25,7 @@ source_set("export_json") {
 source_set("demangle") {
   sources = [ "demangle.h" ]
 }
+
+source_set("trace_processor_shell") {
+  sources = [ "trace_processor_shell.h" ]
+}

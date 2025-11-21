@@ -323,7 +323,30 @@ function ensureNodeLayouts(
 
       // Use NodeGraph API to find optimal non-overlapping placement
       if (nodeGraphApi) {
-        const nodeTemplate = createNodeConfig(qnode, attrs);
+        // Create a simple node config without 'next' to get accurate placement
+        // The 'next' property would include docked children and affect size calculation
+        const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+        const nodeTemplate: Omit<Node, 'x' | 'y'> = {
+          id: qnode.nodeId,
+          inputs: getInputLabels(qnode),
+          outputs: [
+            {
+              content: 'Output',
+              direction: 'bottom',
+            },
+          ],
+          canDockBottom: true,
+          canDockTop: !noTopPort,
+          hue: getNodeHue(qnode),
+          accentBar: true,
+          content: m(NodeBox, {
+            node: qnode,
+            onDuplicateNode: attrs.onDuplicateNode,
+            onDeleteNode: attrs.onDeleteNode,
+            onAddOperationNode: attrs.onAddOperationNode,
+          }),
+          // Don't include 'next' here - we want placement for just this node
+        };
         placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
       } else {
         // Fallback to default position if API not ready yet
@@ -583,9 +606,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     return m(EmptyGraph, {
       onAddSourceNode: attrs.onAddSourceNode,
       onImport: attrs.onImport,
-      onImportWithStatement: attrs.onImportWithStatement,
-      devMode: attrs.devMode,
-      onDevModeChange: attrs.onDevModeChange,
     });
   }
 
@@ -694,14 +714,8 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       setTimeout(() => {
         if (this.nodeGraphApi) {
           // Call autoLayout to arrange nodes hierarchically
+          // autoLayout will call onNodeMove for each node it repositions
           this.nodeGraphApi.autoLayout();
-          // After autoLayout, the nodes array will have updated x,y coordinates
-          // Update the nodeLayouts map with these new positions
-          for (const node of nodes) {
-            attrs.onNodeLayoutChange(node.id, {x: node.x, y: node.y});
-          }
-          // Trigger a redraw to reflect the new positions
-          m.redraw();
         }
       }, 0);
     }
@@ -751,9 +765,14 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
               attrs.onDeleteNode(qnode);
             }
           },
-          onUndock: () => {
-            // When undocking, NodeGraph widget assigns x,y via onNodeDrag callback
-            // The node relationships (nextNodes/prevNode) remain unchanged
+          onUndock: (
+            _parentId: string,
+            nodeId: string,
+            x: number,
+            y: number,
+          ) => {
+            // Store the new position in the layout map so node becomes independent
+            attrs.onNodeLayoutChange(nodeId, {x, y});
             m.redraw();
           },
           onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {

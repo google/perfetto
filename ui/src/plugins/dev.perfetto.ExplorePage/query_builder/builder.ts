@@ -133,9 +133,8 @@ export interface BuilderAttrs {
 enum SelectedView {
   kInfo = 0,
   kModify = 1,
-  kSql = 2,
-  kProto = 3,
-  kComment = 4,
+  kResult = 2,
+  kComment = 3,
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -176,8 +175,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.queryExecuted = false;
       this.isQueryRunning = false;
       this.isAnalyzing = false;
-      // Keep the current selected view when switching nodes
       const hasModifyPanel = selectedNode.nodeSpecificModify() != null;
+      // If current view is Info, switch to Modify (if available) when selecting a new node
+      if (this.selectedView === SelectedView.kInfo && hasModifyPanel) {
+        this.selectedView = SelectedView.kModify;
+      }
       // If current view is Modify but modify panel is not available, switch to Info
       if (this.selectedView === SelectedView.kModify && !hasModifyPanel) {
         this.selectedView = SelectedView.kInfo;
@@ -190,6 +192,30 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         'pf-query-builder-layout',
         this.isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
+
+    // When no nodes exist, show only the graph (which renders EmptyGraph)
+    // without any panels or split layout
+    if (rootNodes.length === 0) {
+      return m(Graph, {
+        rootNodes,
+        selectedNode,
+        onNodeSelected,
+        nodeLayouts: attrs.nodeLayouts,
+        onNodeLayoutChange: attrs.onNodeLayoutChange,
+        onDeselect: attrs.onDeselect,
+        onAddSourceNode: attrs.onAddSourceNode,
+        onClearAllNodes,
+        onDuplicateNode: attrs.onDuplicateNode,
+        onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
+        devMode: attrs.devMode,
+        onDevModeChange: attrs.onDevModeChange,
+        onDeleteNode: attrs.onDeleteNode,
+        onConnectionRemove: attrs.onConnectionRemove,
+        onImport: attrs.onImport,
+        onImportWithStatement: attrs.onImportWithStatement,
+        onExport: attrs.onExport,
+      });
+    }
 
     const explorer = selectedNode
       ? m(NodeExplorer, {
@@ -392,40 +418,20 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }),
           m(Button, {
             icon: 'code',
-            title: 'SQL',
+            title: 'Result',
             className:
-              this.selectedView === SelectedView.kSql &&
+              this.selectedView === SelectedView.kResult &&
               !this.isExplorerCollapsed
                 ? 'pf-active'
                 : '',
             onclick: () => {
               if (
-                this.selectedView === SelectedView.kSql &&
+                this.selectedView === SelectedView.kResult &&
                 !this.isExplorerCollapsed
               ) {
                 this.isExplorerCollapsed = true;
               } else {
-                this.selectedView = SelectedView.kSql;
-                this.isExplorerCollapsed = false;
-              }
-            },
-          }),
-          m(Button, {
-            icon: 'data_object',
-            title: 'Proto',
-            className:
-              this.selectedView === SelectedView.kProto &&
-              !this.isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
-                this.selectedView === SelectedView.kProto &&
-                !this.isExplorerCollapsed
-              ) {
-                this.isExplorerCollapsed = true;
-              } else {
-                this.selectedView = SelectedView.kProto;
+                this.selectedView = SelectedView.kResult;
                 this.isExplorerCollapsed = false;
               }
             },
@@ -505,6 +511,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             filters: [], // Always pass an empty array of filters.
           };
           ds.notifyUpdate(newModel);
+        },
+        exportData() {
+          return ds.exportData();
         },
       };
 

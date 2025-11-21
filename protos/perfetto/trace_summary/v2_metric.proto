@@ -168,11 +168,20 @@ message TraceMetricV2Spec {
     BOOLEAN = 4;
   }
   message DimensionSpec {
-    // The name of the dimension.
+    // The name of the dimension. Required.
     optional string name = 1;
     // The type of the dimension. If specified, this must match the SQL type
-    // of the column.
+    // of the column. Required.
     optional DimensionType type = 2;
+    // A human-readable name for the dimension, used in user interfaces.
+    // Optional.
+    optional string display_name = 3;
+    // Additional help text or a description for the dimension, providing more
+    // context. Optional.
+    optional string display_help = 4;
+    // A URL linking to more detailed documentation about this dimension.
+    // Optional.
+    optional string doc_link = 5;
   }
   repeated DimensionSpec dimensions_specs = 5;
   repeated string dimensions = 2;
@@ -223,7 +232,7 @@ message TraceMetricV2Spec {
   // interpreting and displaying metric values across different tools and
   // surfaces.
   enum MetricUnit {
-    // Next value: 28
+    // Next value: 31
     METRIC_UNIT_UNSPECIFIED = 0;
     // A unitless count of items or events.
     COUNT = 1;
@@ -279,6 +288,12 @@ message TraceMetricV2Spec {
     CORRELATION_COEFFICIENT = 26;
     // Electric potential measured in millivolts.
     MILLI_VOLTS = 27;
+    // Temperature measured in Celsius.
+    CELSIUS = 28;
+    // Electric charge measured in microamp-hours.
+    MICRO_AMP_HOURS = 29;
+    // Time measured in minutes.
+    TIME_MINS = 30;
   }
   oneof unit_oneof {
     // A standard, predefined unit for the metric's value.
@@ -446,6 +461,7 @@ message TraceMetricV2TemplateSpec {
   // properties for each value column.
   message ValueColumnSpec {
     // The name of the column from the query result to be used as the value.
+    // Required.
     optional string name = 1;
 
     // The unit for this specific value column. This will be copied into the
@@ -458,6 +474,15 @@ message TraceMetricV2TemplateSpec {
     // The polarity for this specific value column. This will be copied into
     // the `polarity` field of the generated `TraceMetricV2Spec`.
     optional TraceMetricV2Spec.MetricPolarity polarity = 4;
+    // A human-readable name for the value column, used in user interfaces.
+    // Optional.
+    optional string display_name = 5;
+    // Additional help text or a description for the value column, providing
+    // more context. Optional.
+    optional string display_help = 6;
+    // A URL linking to more detailed documentation about this value column.
+    // Optional.
+    optional string doc_link = 7;
   }
   repeated ValueColumnSpec value_column_specs = 8;
 

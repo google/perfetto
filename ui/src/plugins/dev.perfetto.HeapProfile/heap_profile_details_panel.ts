@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {assertExists, assertFalse} from '../../base/logging';
+import {assertFalse} from '../../base/logging';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {extensions} from '../../components/extensions';
 import {time} from '../../base/time';
@@ -39,8 +39,8 @@ import {Icon} from '../../widgets/icon';
 import {Modal, showModal} from '../../widgets/modal';
 import {
   Flamegraph,
-  FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphState,
+  FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphOptionalAction,
 } from '../../widgets/flamegraph';
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
@@ -80,26 +80,53 @@ interface Props {
 export class HeapProfileFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private readonly flamegraph: QueryFlamegraph;
+  private flamegraph: QueryFlamegraph;
   private readonly props: Props;
   private flamegraphModalDismissed = false;
 
-  readonly serialization: TrackEventDetailsPanelSerializeArgs<FlamegraphState>;
+  // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+  // We moved serialization from being attached to selections to instead being
+  // attached to the plugin that loaded the panel.
+  readonly serialization: TrackEventDetailsPanelSerializeArgs<
+    FlamegraphState | undefined
+  > = {
+    schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    state: undefined,
+  };
+
+  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
 
   constructor(
-    private trace: Trace,
-    private heapGraphIncomplete: boolean,
-    private upid: number,
-    profileType: ProfileType,
-    ts: time,
+    private readonly trace: Trace,
+    private readonly heapGraphIncomplete: boolean,
+    private readonly upid: number,
+    private readonly profileType: ProfileType,
+    private readonly ts: time,
+    private state: FlamegraphState | undefined,
+    private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
-    const metrics = flamegraphMetrics(trace, profileType, ts, upid);
-    this.serialization = {
-      schema: FLAMEGRAPH_STATE_SCHEMA,
-      state: Flamegraph.createDefaultState(metrics),
-    };
-    this.flamegraph = new QueryFlamegraph(trace, metrics, this.serialization);
     this.props = {ts, type: profileType};
+    this.flamegraph = new QueryFlamegraph(trace);
+    this.metrics = flamegraphMetrics(
+      this.trace,
+      this.profileType,
+      this.ts,
+      this.upid,
+    );
+  }
+
+  async load() {
+    // If the state in the serialization is not undefined, we should read from
+    // it.
+    // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+    if (this.serialization.state !== undefined) {
+      this.state = Flamegraph.updateState(
+        this.serialization.state,
+        this.metrics,
+      );
+      this.onStateChange(this.state);
+      this.serialization.state = undefined;
+    }
   }
 
   render() {
@@ -142,7 +169,14 @@ export class HeapProfileFlamegraphDetailsPanel
               }),
           ]),
         },
-        assertExists(this.flamegraph).render(),
+        this.flamegraph.render({
+          metrics: this.metrics,
+          state: this.state,
+          onStateChange: (state) => {
+            this.state = state;
+            this.onStateChange(state);
+          },
+        }),
       ),
     );
   }

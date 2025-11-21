@@ -46,6 +46,8 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "protos/perfetto/trace/android/user_list.pbzero.h"
+
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
@@ -68,6 +70,7 @@ AndroidProbesModule::AndroidProbesModule(
   RegisterForField(TracePacket::kEntityStateResidencyFieldNumber);
   RegisterForField(TracePacket::kAndroidLogFieldNumber);
   RegisterForField(TracePacket::kPackagesListFieldNumber);
+  RegisterForField(TracePacket::kUserListFieldNumber);
   RegisterForField(TracePacket::kAndroidGameInterventionListFieldNumber);
   RegisterForField(TracePacket::kInitialDisplayStateFieldNumber);
   RegisterForField(TracePacket::kAndroidSystemPropertyFieldNumber);
@@ -90,6 +93,9 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   }
   if (field_id == TracePacket::kPackagesListFieldNumber) {
     return ParseAndroidPackagesList(decoder.packages_list());
+  }
+  if (field_id == TracePacket::kUserListFieldNumber) {
+    return ParseAndroidUserList(decoder.user_list());
   }
   if (field_id == TracePacket::kEntityStateResidencyFieldNumber) {
     ParseEntityStateDescriptor(decoder.entity_state_residency());
@@ -116,10 +122,21 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     // the EnergyData level.
     for (auto it = evt.energy_data(); it; ++it) {
       protos::pbzero::PowerRails::EnergyData::Decoder data(*it);
-      int64_t actual_ts =
-          data.has_timestamp_ms()
-              ? static_cast<int64_t>(data.timestamp_ms()) * 1000000
-              : packet_timestamp;
+      int64_t actual_ts;
+      if (data.has_timestamp_ms()) {
+        // timestamp_ms is always in boottime per protobuf spec.
+        int64_t ts_ns = static_cast<int64_t>(data.timestamp_ms()) * 1000000;
+        auto trace_ts = context_->clock_tracker->ToTraceTime(
+            protos::pbzero::BUILTIN_CLOCK_BOOTTIME, ts_ns);
+        if (!trace_ts.has_value()) {
+          // Rely on implicitly incremented error stat in ToTraceTime instead
+          // of fatally erroring.
+          continue;
+        }
+        actual_ts = *trace_ts;
+      } else {
+        actual_ts = packet_timestamp;
+      }
 
       protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
       // Keep the original timestamp to later extract as an arg; the sorter does
@@ -290,6 +307,23 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
          static_cast<int64_t>(pkg.uid()), pkg.debuggable(),
          pkg.profileable_from_shell(), pkg.version_code()});
     tracker_->InsertedPackage(std::move(pkg_name));
+  }
+  return ModuleResult::Handled();
+}
+
+ModuleResult AndroidProbesModule::ParseAndroidUserList(
+    protozero::ConstBytes blob) {
+  protos::pbzero::AndroidUserList::Decoder user_list(blob.data, blob.size);
+  auto* table = context_->storage->mutable_user_list_table();
+
+  if (user_list.error() < 0) {
+    context_->storage->IncrementStats(stats::user_list_errors);
+  }
+
+  for (auto it = user_list.users(); it; ++it) {
+    protos::pbzero::AndroidUserList_UserInfo::Decoder user(*it);
+    table->Insert({context_->storage->InternString(user.type()),
+                   static_cast<int64_t>(user.uid())});
   }
   return ModuleResult::Handled();
 }

@@ -15,7 +15,6 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {ExplorePageHelp} from './help';
 import {
   analyzeNode,
   isAQuery,
@@ -29,6 +28,7 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
+import {TabStrip} from '../../../widgets/tabs';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
@@ -45,9 +45,8 @@ export interface NodeExplorerAttrs {
 enum SelectedView {
   kInfo = 0,
   kModify = 1,
-  kSql = 2,
-  kProto = 3,
-  kComment = 4,
+  kResult = 2,
+  kComment = 3,
 }
 
 export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
@@ -57,6 +56,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
   private currentQuery?: Query | Error;
   private sqlForDisplay?: string;
+  private resultTabMode: 'sql' | 'proto' = 'sql';
 
   private renderTitleRow(node: QueryNode): m.Child {
     return m(
@@ -164,14 +164,32 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       'article',
       selectedView === SelectedView.kInfo && node.nodeInfo(),
       selectedView === SelectedView.kModify && node.nodeSpecificModify(),
-      selectedView === SelectedView.kSql &&
-        (isAQuery(this.currentQuery)
-          ? m(CodeSnippet, {language: 'SQL', text: sql})
-          : m('div', sql)),
-      selectedView === SelectedView.kProto &&
-        (isAQuery(this.currentQuery)
-          ? m(CodeSnippet, {text: textproto, language: 'textproto'})
-          : m('div', textproto)),
+      selectedView === SelectedView.kResult &&
+        m('.', [
+          m(TabStrip, {
+            tabs: [
+              {key: 'sql', title: 'SQL'},
+              {key: 'proto', title: 'Proto'},
+            ],
+            currentTabKey: this.resultTabMode,
+            onTabChange: (key: string) => {
+              this.resultTabMode = key as 'sql' | 'proto';
+            },
+          }),
+          m('hr', {
+            style: {
+              margin: '0',
+              borderTop: '1px solid var(--separator-color)',
+            },
+          }),
+          this.resultTabMode === 'sql'
+            ? isAQuery(this.currentQuery)
+              ? m(CodeSnippet, {language: 'SQL', text: sql})
+              : m('div', sql)
+            : isAQuery(this.currentQuery)
+              ? m(CodeSnippet, {text: textproto, language: 'textproto'})
+              : m('div', textproto),
+        ]),
       selectedView === SelectedView.kComment &&
         m('textarea.pf-exp-node-explorer__comment', {
           'aria-label': 'Comment',
@@ -188,7 +206,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   view({attrs}: m.CVnode<NodeExplorerAttrs>) {
     const {node, isCollapsed, selectedView = SelectedView.kInfo} = attrs;
     if (!node) {
-      return m(ExplorePageHelp);
+      return null;
     }
 
     // Update the node's onchange callback to point to our attrs.onchange

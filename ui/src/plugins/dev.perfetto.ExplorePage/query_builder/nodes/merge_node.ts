@@ -66,35 +66,59 @@ export class MergeNode implements MultiSourceNode {
   get finalCols(): ColumnInfo[] {
     if (this.prevNodes.length !== 2) return [];
 
-    // Combine columns from both sources, prefixed with their aliases
     const leftCols = this.prevNodes[0]?.finalCols ?? [];
     const rightCols = this.prevNodes[1]?.finalCols ?? [];
 
-    const leftAlias = this.state.leftQueryAlias || 'left';
-    const rightAlias = this.state.rightQueryAlias || 'right';
-
     const result: ColumnInfo[] = [];
+    const seenColumns = new Set<string>();
 
-    // Add left columns with prefix
-    for (const col of leftCols) {
-      result.push({
-        ...col,
-        column: {
-          ...col.column,
-          name: `${leftAlias}.${col.column.name}`,
-        },
-      });
+    // Handle equality condition: if joining on same column name (e.g., id = id),
+    // include it once. Otherwise, handle equality columns separately.
+    if (this.state.conditionType === 'equality') {
+      if (this.state.leftColumn && this.state.rightColumn) {
+        if (this.state.leftColumn === this.state.rightColumn) {
+          // Same column name on both sides (e.g., id = id)
+          // Include it once in the output
+          const equalityCol = leftCols.find(
+            (c) => c.name === this.state.leftColumn,
+          );
+          if (equalityCol) {
+            result.push({...equalityCol, checked: true});
+            seenColumns.add(this.state.leftColumn);
+          }
+        }
+        // If different column names (e.g., id = parent_id), don't add to seenColumns yet
+        // They'll be handled in the deduplication logic below
+      }
     }
 
-    // Add right columns with prefix (only for INNER join, or nullable for LEFT join)
+    // Identify which columns are duplicated across inputs
+    const columnCounts = new Map<string, number>();
+    for (const col of leftCols) {
+      if (!seenColumns.has(col.name)) {
+        columnCounts.set(col.name, (columnCounts.get(col.name) ?? 0) + 1);
+      }
+    }
     for (const col of rightCols) {
-      result.push({
-        ...col,
-        column: {
-          ...col.column,
-          name: `${rightAlias}.${col.column.name}`,
-        },
-      });
+      if (!seenColumns.has(col.name)) {
+        columnCounts.set(col.name, (columnCounts.get(col.name) ?? 0) + 1);
+      }
+    }
+
+    // Add only non-duplicated columns from left
+    for (const col of leftCols) {
+      if (!seenColumns.has(col.name) && columnCounts.get(col.name) === 1) {
+        result.push({...col, checked: true});
+        seenColumns.add(col.name);
+      }
+    }
+
+    // Add only non-duplicated columns from right
+    for (const col of rightCols) {
+      if (!seenColumns.has(col.name) && columnCounts.get(col.name) === 1) {
+        result.push({...col, checked: true});
+        seenColumns.add(col.name);
+      }
     }
 
     return result;
@@ -160,6 +184,14 @@ export class MergeNode implements MultiSourceNode {
         );
         return false;
       }
+    }
+
+    // Check if there are any columns to expose after deduplication
+    if (this.finalCols.length === 0) {
+      this.setValidationError(
+        'No columns to expose. All columns are duplicated across both inputs. Use a Modify Columns node to alias columns in one of the sources.',
+      );
+      return false;
     }
 
     return true;
@@ -396,13 +428,25 @@ export class MergeNode implements MultiSourceNode {
             sqlExpression: this.state.sqlExpression,
           };
 
-    return StructuredQueryBuilder.withJoin(
+    const sq = StructuredQueryBuilder.withJoin(
       this.prevNodes[0],
       this.prevNodes[1],
       'INNER',
       condition,
       this.nodeId,
     );
+
+    if (!sq) return undefined;
+
+    // Add select_columns to explicitly specify which columns to return
+    // This ensures we only expose the clean, well-defined columns from finalCols
+    sq.selectColumns = this.finalCols.map((col) => {
+      const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+      selectCol.columnNameOrExpression = col.name;
+      return selectCol;
+    });
+
+    return sq;
   }
 
   serializeState(): MergeSerializedState {

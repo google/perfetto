@@ -206,6 +206,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
         },
       },
     },
+    {
+      name: 'category',
+      type: {
+        kind: 'string',
+      },
+    },
   ];
   return cols.map((c) => columnInfoFromSqlColumn(c, checked));
 }

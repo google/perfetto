@@ -17,6 +17,7 @@ import {time} from '../../base/time';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
@@ -27,22 +28,36 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {Trace} from '../../public/trace';
 import {
   Flamegraph,
-  FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphState,
+  FLAMEGRAPH_STATE_SCHEMA,
 } from '../../widgets/flamegraph';
 
 export class CpuProfileSampleFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private readonly flamegraph: QueryFlamegraph;
-  readonly serialization: TrackEventDetailsPanelSerializeArgs<FlamegraphState>;
+  private flamegraph: QueryFlamegraph;
+
+  // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+  // We moved serialization from being attached to selections to instead being
+  // attached to the plugin that loaded the panel.
+  readonly serialization: TrackEventDetailsPanelSerializeArgs<
+    FlamegraphState | undefined
+  > = {
+    schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    state: undefined,
+  };
+
+  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
 
   constructor(
     private readonly trace: Trace,
-    private ts: time,
-    utid: number,
+    private readonly ts: time,
+    private readonly utid: number,
+    private state: FlamegraphState | undefined,
+    private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
-    const metrics = metricsFromTableOrSubquery(
+    this.flamegraph = new QueryFlamegraph(trace);
+    this.metrics = metricsFromTableOrSubquery(
       `
         (
           select
@@ -55,7 +70,7 @@ export class CpuProfileSampleFlamegraphDetailsPanel
           from _callstacks_for_callsites!((
             select p.callsite_id
             from cpu_profile_stack_sample p
-            where p.ts = ${ts} and p.utid = ${utid}
+            where p.ts = ${this.ts} and p.utid = ${this.utid}
           ))
         )
       `,
@@ -76,11 +91,20 @@ export class CpuProfileSampleFlamegraphDetailsPanel
         },
       ],
     );
-    this.serialization = {
-      schema: FLAMEGRAPH_STATE_SCHEMA,
-      state: Flamegraph.createDefaultState(metrics),
-    };
-    this.flamegraph = new QueryFlamegraph(trace, metrics, this.serialization);
+  }
+
+  async load() {
+    // If the state in the serialization is not undefined, we should read from
+    // it.
+    // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+    if (this.serialization.state !== undefined) {
+      this.state = Flamegraph.updateState(
+        this.serialization.state,
+        this.metrics,
+      );
+      this.onStateChange(this.state);
+      this.serialization.state = undefined;
+    }
   }
 
   render() {
@@ -97,7 +121,14 @@ export class CpuProfileSampleFlamegraphDetailsPanel
             m(Timestamp, {trace: this.trace, ts: this.ts}),
           ),
         },
-        this.flamegraph.render(),
+        this.flamegraph.render({
+          metrics: this.metrics,
+          state: this.state,
+          onStateChange: (state) => {
+            this.state = state;
+            this.onStateChange(state);
+          },
+        }),
       ),
     );
   }

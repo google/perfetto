@@ -1663,3 +1663,46 @@ class AndroidStdlib(TestSuite):
 110000000000,5000000000,5000000000,"kernel_wakelock_3","kernel",300000000,0.060000
 110000000000,5000000000,5000000000,"native_wakelock_2","native",200000000,0.040000
         """))
+
+  def test_android_device_name_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "5.10.0-android12"
+              version: "#1 SMP PREEMPT"
+              machine: "aarch64"
+            }
+            android_build_fingerprint: "google/oriole/oriole:14/AP1A.240405.002/11487190:user/release-keys"
+            num_cpus: 8
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "5.10.0-android12"
+              version: "#1 SMP PREEMPT"
+              machine: "aarch64"
+            }
+            android_build_fingerprint: "google/raven/raven:14/AP1A.240405.002/11487190:user/release-keys"
+            num_cpus: 8
+          }
+          machine_id: 1001
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.device;
+        SELECT name, machine_id FROM android_device_name ORDER BY name;
+        """,
+        out=Csv("""
+        "name","machine_id"
+        "oriole","[NULL]"
+        "raven",1
+        """))

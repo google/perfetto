@@ -18,11 +18,16 @@ import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, time} from '../../base/time';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {
+  Flamegraph,
+  FlamegraphState,
+  FLAMEGRAPH_STATE_SCHEMA,
+} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -34,6 +39,8 @@ export function createProcessInstrumentsSamplesProfileTrack(
   trace: Trace,
   uri: string,
   upid: number,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   return SliceTrack.create({
     trace,
@@ -63,51 +70,77 @@ export function createProcessInstrumentsSamplesProfileTrack(
     sliceName: () => 'Instruments Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
-      const metrics = metricsFromTableOrSubquery(
-        `
-          (
-            select
-              id,
-              parent_id as parentId,
-              name,
-              mapping_name,
-              source_file || ':' || line_number as source_location,
-              self_count
-            from _callstacks_for_callsites!((
-              select p.callsite_id
-              from instruments_sample p
-              join thread t using (utid)
-              where p.ts >= ${row.ts}
-                and p.ts <= ${row.ts}
-                and t.upid = ${upid}
-            ))
-          )
-        `,
-        [
-          {
-            name: 'Instruments Samples',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module appleos.instruments.samples',
-        [{name: 'mapping_name', displayName: 'Mapping'}],
-        [
-          {
-            name: 'source_location',
-            displayName: 'Source Location',
-            mergeAggregation: 'ONE_OR_SUMMARY',
-          },
-        ],
-      );
+      // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+      // We moved serialization from being attached to selections to instead being
+      // attached to the plugin that loaded the panel.
       const serialization = {
-        schema: FLAMEGRAPH_STATE_SCHEMA,
-        state: Flamegraph.createDefaultState(metrics),
+        schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+        state: undefined as FlamegraphState | undefined,
       };
-      const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
+      let state = detailsPanelState;
+      const flamegraph = new QueryFlamegraph(trace);
+      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
+        metricsFromTableOrSubquery(
+          `
+            (
+              select
+                id,
+                parent_id as parentId,
+                name,
+                mapping_name,
+                source_file || ':' || line_number as source_location,
+                self_count
+              from _callstacks_for_callsites!((
+                select p.callsite_id
+                from instruments_sample p
+                join thread t using (utid)
+                where p.ts >= ${row.ts}
+                  and p.ts <= ${row.ts}
+                  and t.upid = ${upid}
+              ))
+            )
+          `,
+          [
+            {
+              name: 'Instruments Samples',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'include perfetto module appleos.instruments.samples',
+          [{name: 'mapping_name', displayName: 'Mapping'}],
+          [
+            {
+              name: 'source_location',
+              displayName: 'Source Location',
+              mergeAggregation: 'ONE_OR_SUMMARY',
+            },
+          ],
+        );
+
       return {
+        load: async () => {
+          // If the state in the serialization is not undefined, we should read from
+          // it.
+          // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+          if (serialization.state !== undefined) {
+            state = Flamegraph.updateState(serialization.state, metrics);
+            onDetailsPanelStateChange(state);
+            serialization.state = undefined;
+          }
+        },
         render: () =>
-          renderDetailsPanel(trace, flamegraph, Time.fromRaw(row.ts)),
+          renderDetailsPanel(
+            trace,
+            flamegraph,
+            metrics,
+            Time.fromRaw(row.ts),
+            state,
+            (newState) => {
+              state = newState;
+              onDetailsPanelStateChange(newState);
+            },
+          ),
         serialization,
       };
     },
@@ -118,6 +151,8 @@ export function createThreadInstrumentsSamplesProfileTrack(
   trace: Trace,
   uri: string,
   utid: number,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   return SliceTrack.create({
     trace,
@@ -146,50 +181,76 @@ export function createThreadInstrumentsSamplesProfileTrack(
     sliceName: () => 'Instruments Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
-      const metrics = metricsFromTableOrSubquery(
-        `
-          (
-            select
-              id,
-              parent_id as parentId,
-              name,
-              mapping_name,
-              source_file || ':' || line_number as source_location,
-              self_count
-            from _callstacks_for_callsites!((
-              select p.callsite_id
-              from instruments_sample p
-              where p.ts >= ${row.ts}
-                and p.ts <= ${row.ts}
-                and p.utid = ${utid}
-            ))
-          )
-        `,
-        [
-          {
-            name: 'Instruments Samples',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module appleos.instruments.samples',
-        [{name: 'mapping_name', displayName: 'Mapping'}],
-        [
-          {
-            name: 'source_location',
-            displayName: 'Source Location',
-            mergeAggregation: 'ONE_OR_SUMMARY',
-          },
-        ],
-      );
+      // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+      // We moved serialization from being attached to selections to instead being
+      // attached to the plugin that loaded the panel.
       const serialization = {
-        schema: FLAMEGRAPH_STATE_SCHEMA,
-        state: Flamegraph.createDefaultState(metrics),
+        schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+        state: undefined as FlamegraphState | undefined,
       };
-      const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
+      let state = detailsPanelState;
+      const flamegraph = new QueryFlamegraph(trace);
+      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
+        metricsFromTableOrSubquery(
+          `
+            (
+              select
+                id,
+                parent_id as parentId,
+                name,
+                mapping_name,
+                source_file || ':' || line_number as source_location,
+                self_count
+              from _callstacks_for_callsites!((
+                select p.callsite_id
+                from instruments_sample p
+                where p.ts >= ${row.ts}
+                  and p.ts <= ${row.ts}
+                  and p.utid = ${utid}
+              ))
+            )
+          `,
+          [
+            {
+              name: 'Instruments Samples',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'include perfetto module appleos.instruments.samples',
+          [{name: 'mapping_name', displayName: 'Mapping'}],
+          [
+            {
+              name: 'source_location',
+              displayName: 'Source Location',
+              mergeAggregation: 'ONE_OR_SUMMARY',
+            },
+          ],
+        );
+
       return {
+        load: async () => {
+          // If the state in the serialization is not undefined, we should read from
+          // it.
+          // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+          if (serialization.state !== undefined) {
+            state = Flamegraph.updateState(serialization.state, metrics);
+            onDetailsPanelStateChange(state);
+            serialization.state = undefined;
+          }
+        },
         render: () =>
-          renderDetailsPanel(trace, flamegraph, Time.fromRaw(row.ts)),
+          renderDetailsPanel(
+            trace,
+            flamegraph,
+            metrics,
+            Time.fromRaw(row.ts),
+            state,
+            (newState) => {
+              state = newState;
+              onDetailsPanelStateChange(newState);
+            },
+          ),
         serialization,
       };
     },
@@ -199,7 +260,10 @@ export function createThreadInstrumentsSamplesProfileTrack(
 function renderDetailsPanel(
   trace: Trace,
   flamegraph: QueryFlamegraph,
+  metrics: ReadonlyArray<QueryFlamegraphMetric>,
   ts: time,
+  state: FlamegraphState | undefined,
+  onStateChange: (state: FlamegraphState) => void,
 ) {
   return m(
     '.pf-flamegraph-profile',
@@ -225,7 +289,7 @@ function renderDetailsPanel(
           ]),
         ]),
       },
-      flamegraph.render(),
+      flamegraph.render({metrics, state, onStateChange}),
     ),
   );
 }
