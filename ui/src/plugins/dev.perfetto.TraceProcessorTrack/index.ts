@@ -59,6 +59,8 @@ import {
   createPerfettoIndex,
   createPerfettoTable,
 } from '../../trace_processor/sql_utils';
+import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {CallstackDetailsSection} from './callstack_details_section';
 
 const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
   areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
@@ -67,6 +69,19 @@ const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
 type TraceProcessorTrackPluginState = z.infer<
   typeof TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA
 >;
+
+function createDetailsPanel(trace: Trace, utid: number | null) {
+  if (utid === null) {
+    return undefined;
+  }
+  // TrackEvent can end up in this path if it's a "merged" thread track
+  // with events from many different sources. In that case, show the callstack
+  // panel.
+  return () =>
+    new ThreadSliceDetailsPanel(trace, {
+      rightSections: [new CallstackDetailsSection(trace)],
+    });
+}
 
 export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
@@ -384,6 +399,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           uri,
           maxDepth,
           trackIds,
+          detailsPanel: createDetailsPanel(ctx, utid),
           depthTableName:
             trackIds.length > 1 ? '__tp_track_layout_depth' : undefined,
         }),
