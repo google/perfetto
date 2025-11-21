@@ -41,7 +41,6 @@ export interface ExplorePageState {
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
   devMode?: boolean;
-  z?: boolean;
 }
 
 interface ExplorePageAttrs {

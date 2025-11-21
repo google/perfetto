@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {assertExists, assertFalse} from '../../base/logging';
+import {assertFalse} from '../../base/logging';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {extensions} from '../../components/extensions';
 import {time} from '../../base/time';
@@ -80,7 +80,7 @@ interface Props {
 export class HeapProfileFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private flamegraph?: QueryFlamegraph;
+  private flamegraph: QueryFlamegraph;
   private readonly props: Props;
   private flamegraphModalDismissed = false;
 
@@ -94,34 +94,39 @@ export class HeapProfileFlamegraphDetailsPanel
     state: undefined,
   };
 
+  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+
   constructor(
     private readonly trace: Trace,
     private readonly heapGraphIncomplete: boolean,
     private readonly upid: number,
     private readonly profileType: ProfileType,
     private readonly ts: time,
-    private state: FlamegraphState,
+    private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
     this.props = {ts, type: profileType};
-  }
-
-  async load() {
-    const metrics = flamegraphMetrics(
+    this.flamegraph = new QueryFlamegraph(trace);
+    this.metrics = flamegraphMetrics(
       this.trace,
       this.profileType,
       this.ts,
       this.upid,
     );
+  }
+
+  async load() {
     // If the state in the serialization is not undefined, we should read from
     // it.
     // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
     if (this.serialization.state !== undefined) {
-      this.state = Flamegraph.updateState(this.serialization.state, metrics);
+      this.state = Flamegraph.updateState(
+        this.serialization.state,
+        this.metrics,
+      );
       this.onStateChange(this.state);
       this.serialization.state = undefined;
     }
-    this.flamegraph = new QueryFlamegraph(this.trace, metrics);
   }
 
   render() {
@@ -164,9 +169,13 @@ export class HeapProfileFlamegraphDetailsPanel
               }),
           ]),
         },
-        assertExists(this.flamegraph).render(this.state, (state) => {
-          this.state = state;
-          this.onStateChange(state);
+        this.flamegraph.render({
+          metrics: this.metrics,
+          state: this.state,
+          onStateChange: (state) => {
+            this.state = state;
+            this.onStateChange(state);
+          },
         }),
       ),
     );
