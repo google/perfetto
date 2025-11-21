@@ -56,14 +56,14 @@ const VLQ_CONTINUATION_BIT = VLQ_BASE; // 32
 const sourceMapCache = new Map<string, ProcessedSourceMap>();
 
 // Extend the global interface to include our custom property
-interface PerfettoGlobal {
+interface WithSourcemaps {
   __SOURCEMAPS?: Record<string, SourceMap>;
 }
 
 // Get embedded source map for a specific bundle file (synchronous)
 function getEmbeddedSourceMap(bundleFileName: string): SourceMap | null {
   // Use 'self' for both window and worker compatibility
-  const global = self as unknown as PerfettoGlobal;
+  const global = self as unknown as WithSourcemaps;
   const registry = global.__SOURCEMAPS;
   if (!registry) return null;
 
