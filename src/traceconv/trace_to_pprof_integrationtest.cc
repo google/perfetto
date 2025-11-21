@@ -34,6 +34,7 @@ namespace perfetto {
 namespace {
 
 using testing::Contains;
+using trace_to_text::ConversionMode;
 
 pprof::PprofProfileReader ConvertTraceToPprof(
     const std::string& input_file_name) {
@@ -42,16 +43,13 @@ pprof::PprofProfileReader ConvertTraceToPprof(
   file_istream.open(trace_file, std::ios_base::in | std::ios_base::binary);
   PERFETTO_CHECK(file_istream.is_open());
 
-  std::stringstream ss;
-  std::ostream os(ss.rdbuf());
-  trace_to_text::TraceToProfile(&file_istream, &os, /*pid=*/0,
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string out_dirname = temp_dir.path();
+  
+  trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
                                 /*timestamps=*/{},
-                                /*annotate_frames=*/false, /*output_dir=*/"",
+                                /*annotate_frames=*/false, out_dirname,
                                 ConversionMode::kJavaHeapProfile);
-
-  auto conv_stdout = base::SplitString(ss.str(), " ");
-  PERFETTO_CHECK(!conv_stdout.empty());
-  std::string out_dirname = base::TrimWhitespace(conv_stdout.back());
   std::vector<std::string> filenames;
   base::ListFilesRecursive(out_dirname, filenames);
   // assumption: all test inputs contain exactly one profile
@@ -61,7 +59,6 @@ pprof::PprofProfileReader ConvertTraceToPprof(
   // read in the profile contents and then clean up the temp files
   pprof::PprofProfileReader pprof_reader(profile_path);
   unlink(profile_path.c_str());
-  PERFETTO_CHECK(base::Rmdir(out_dirname));
   return pprof_reader;
 }
 
@@ -139,17 +136,10 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
   base::TempDir temp_dir = base::TempDir::Create();
   std::string output_dir = temp_dir.path() + "/my_profiles";
 
-  std::stringstream ss;
-  std::ostream os(ss.rdbuf());
-  trace_to_text::TraceToProfile(&file_istream, &os, /*pid=*/0,
+  trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
                                 /*timestamps=*/{},
                                 /*annotate_frames=*/false, output_dir,
                                 ConversionMode::kJavaHeapProfile);
-
-  // Check output message
-  std::string output_str = ss.str();
-  EXPECT_THAT(output_str,
-              testing::HasSubstr("Wrote profiles to " + output_dir));
 
   // Check files exist
   std::vector<std::string> filenames;

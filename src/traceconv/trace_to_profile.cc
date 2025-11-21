@@ -55,16 +55,6 @@ uint64_t ToConversionFlags(bool annotate_frames) {
                                    : ConversionFlags::kNone);
 }
 
-std::string GetRandomString(size_t n) {
-  std::random_device r;
-  auto rng = std::default_random_engine(r());
-  std::string result(n, ' ');
-  for (size_t i = 0; i < n; ++i) {
-    result[i] = 'a' + (rng() % ('z' - 'a'));
-  }
-  return result;
-}
-
 void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
   std::unique_ptr<profiling::Symbolizer> symbolizer =
       profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(), {},
@@ -88,6 +78,16 @@ void MaybeDeobfuscate(trace_processor::TraceProcessor* tp) {
         IngestTraceOrDie(tp, trace_proto);
       });
   tp->Flush();
+}
+
+std::string GetRandomString(size_t n) {
+  std::random_device r;
+  auto rng = std::default_random_engine(r());
+  std::string result(n, ' ');
+  for (size_t i = 0; i < n; ++i) {
+    result[i] = 'a' + (rng() % ('z' - 'a'));
+  }
+  return result;
 }
 
 // Creates the destination directory.
@@ -123,7 +123,7 @@ std::optional<ConversionMode> DetectConversionMode(
   int64_t alloc_present = it.Get(0).AsLong();
   int64_t perf_present = it.Get(1).AsLong();
   int64_t graph_present = it.Get(2).AsLong();
-  
+
   int64_t count = alloc_present + perf_present + graph_present;
   if (count == 0) {
     PERFETTO_LOG("No profiles found.");
@@ -164,11 +164,9 @@ int TraceToProfile(std::istream* input,
     return -1;
   }
 
-  // Set up filename function and directory prefix based on conversion mode
   int file_idx = 0;
   std::function<std::string(const SerializedProfile&)> filename_fn;
   std::string dir_prefix;
-  
   switch (*mode) {
     case ConversionMode::kHeapProfile:
       filename_fn = [&file_idx](const SerializedProfile& profile) {
@@ -193,24 +191,23 @@ int TraceToProfile(std::istream* input,
       break;
   }
 
-  std::string dst_dir = GetDestinationDirectory(output_dir, dir_prefix);
-  
   // Add symbolisation and deobfuscation packets.
   MaybeSymbolize(tp.get());
   MaybeDeobfuscate(tp.get());
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return -1;
   }
-  
+
   // Generate profiles.
   std::vector<SerializedProfile> profiles;
-  TraceToPprof(tp.get(), &profiles, *mode,
-               ToConversionFlags(annotate_frames), pid, timestamps);
+  TraceToPprof(tp.get(), &profiles, *mode, ToConversionFlags(annotate_frames),
+               pid, timestamps);
   if (profiles.empty()) {
     return 0;
   }
 
   // Write profiles to files.
+  std::string dst_dir = GetDestinationDirectory(output_dir, dir_prefix);
   for (const auto& profile : profiles) {
     std::string filename = dst_dir + "/" + filename_fn(profile);
     base::ScopedFile fd(base::OpenFile(filename, O_CREAT | O_WRONLY, 0700));
