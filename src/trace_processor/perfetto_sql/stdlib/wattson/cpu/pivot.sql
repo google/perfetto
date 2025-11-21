@@ -256,25 +256,46 @@ WITH
     SELECT
       i.ts,
       d.cpu,
-      d.dep_cpu,
-      CASE d.dep_cpu
-        WHEN 0
-        THEN i.cpu0_curve
+      -- Determine the scoring value (Frequency or Curve) based on device
+      CASE v.vote_by_freq
         WHEN 1
-        THEN i.cpu1_curve
-        WHEN 2
-        THEN i.cpu2_curve
-        WHEN 3
-        THEN i.cpu3_curve
-        WHEN 4
-        THEN i.cpu4_curve
-        WHEN 5
-        THEN i.cpu5_curve
-        WHEN 6
-        THEN i.cpu6_curve
-        WHEN 7
-        THEN i.cpu7_curve
-      END AS curve,
+        THEN CASE d.dep_cpu
+          WHEN 0
+          THEN i.freq_0
+          WHEN 1
+          THEN i.freq_1
+          WHEN 2
+          THEN i.freq_2
+          WHEN 3
+          THEN i.freq_3
+          WHEN 4
+          THEN i.freq_4
+          WHEN 5
+          THEN i.freq_5
+          WHEN 6
+          THEN i.freq_6
+          WHEN 7
+          THEN i.freq_7
+        END
+        ELSE CASE d.dep_cpu
+          WHEN 0
+          THEN i.cpu0_curve
+          WHEN 1
+          THEN i.cpu1_curve
+          WHEN 2
+          THEN i.cpu2_curve
+          WHEN 3
+          THEN i.cpu3_curve
+          WHEN 4
+          THEN i.cpu4_curve
+          WHEN 5
+          THEN i.cpu5_curve
+          WHEN 6
+          THEN i.cpu6_curve
+          WHEN 7
+          THEN i.cpu7_curve
+        END
+      END AS vote_score,
       CASE d.dep_cpu
         WHEN 0
         THEN i.freq_0
@@ -293,6 +314,13 @@ WITH
         WHEN 7
         THEN i.freq_7
       END AS freq,
+      p.policy
+    FROM _w_independent_cpus_calc AS i, _cpu_lut_dependencies AS d
+    JOIN _dev_vote_by_freq AS v
+      ON d.cpu = v.cpu
+    JOIN _dev_cpu_policy_map AS p
+      ON d.dep_cpu = p.cpu
+    WHERE
       CASE d.dep_cpu
         WHEN 0
         THEN i.idle_0
@@ -310,61 +338,49 @@ WITH
         THEN i.idle_6
         WHEN 7
         THEN i.idle_7
-      END AS idle
-    FROM _w_independent_cpus_calc AS i
-    CROSS JOIN _cpu_lut_dependencies AS d
-  ),
-  -- For each CPU, find the dependent CPU with the highest "vote"
-  ranked_voters AS (
-    SELECT
-      u.ts,
-      u.cpu,
-      u.dep_cpu,
-      u.freq,
-      -- Rank dependencies by curve value or frequency
-      row_number() OVER (PARTITION BY u.ts, u.cpu ORDER BY CASE WHEN vote.vote_by_freq = 1 THEN u.freq ELSE NULL END DESC, CASE WHEN vote.vote_by_freq = 0 THEN u.curve ELSE NULL END DESC) AS rn
-    FROM unpivoted_deps AS u
-    JOIN _dev_vote_by_freq AS vote
-      ON u.cpu = vote.cpu
-    WHERE
-      u.idle = -1
+      END = -1
   ),
   max_voters AS (
     SELECT
       ts,
       cpu,
-      dep_cpu,
-      freq
-    FROM ranked_voters
-    -- Keep only the top-ranked dependency.
+      freq,
+      policy
+    FROM (
+      SELECT
+        ts,
+        cpu,
+        freq,
+        policy,
+        row_number() OVER (PARTITION BY ts, cpu ORDER BY vote_score DESC) AS rn
+      FROM unpivoted_deps
+    )
     WHERE
       rn = 1
   ),
   -- Pivot the results back into new columns.
   pivoted_results AS (
     SELECT
-      m.ts,
-      max(CASE WHEN m.cpu = 0 THEN m.freq END) AS dep_freq_0,
-      max(CASE WHEN m.cpu = 0 THEN p.policy END) AS dep_policy_0,
-      max(CASE WHEN m.cpu = 1 THEN m.freq END) AS dep_freq_1,
-      max(CASE WHEN m.cpu = 1 THEN p.policy END) AS dep_policy_1,
-      max(CASE WHEN m.cpu = 2 THEN m.freq END) AS dep_freq_2,
-      max(CASE WHEN m.cpu = 2 THEN p.policy END) AS dep_policy_2,
-      max(CASE WHEN m.cpu = 3 THEN m.freq END) AS dep_freq_3,
-      max(CASE WHEN m.cpu = 3 THEN p.policy END) AS dep_policy_3,
-      max(CASE WHEN m.cpu = 4 THEN m.freq END) AS dep_freq_4,
-      max(CASE WHEN m.cpu = 4 THEN p.policy END) AS dep_policy_4,
-      max(CASE WHEN m.cpu = 5 THEN m.freq END) AS dep_freq_5,
-      max(CASE WHEN m.cpu = 5 THEN p.policy END) AS dep_policy_5,
-      max(CASE WHEN m.cpu = 6 THEN m.freq END) AS dep_freq_6,
-      max(CASE WHEN m.cpu = 6 THEN p.policy END) AS dep_policy_6,
-      max(CASE WHEN m.cpu = 7 THEN m.freq END) AS dep_freq_7,
-      max(CASE WHEN m.cpu = 7 THEN p.policy END) AS dep_policy_7
-    FROM max_voters AS m
-    JOIN _dev_cpu_policy_map AS p
-      ON m.dep_cpu = p.cpu
+      ts,
+      max(CASE WHEN cpu = 0 THEN freq END) AS dep_freq_0,
+      max(CASE WHEN cpu = 0 THEN policy END) AS dep_policy_0,
+      max(CASE WHEN cpu = 1 THEN freq END) AS dep_freq_1,
+      max(CASE WHEN cpu = 1 THEN policy END) AS dep_policy_1,
+      max(CASE WHEN cpu = 2 THEN freq END) AS dep_freq_2,
+      max(CASE WHEN cpu = 2 THEN policy END) AS dep_policy_2,
+      max(CASE WHEN cpu = 3 THEN freq END) AS dep_freq_3,
+      max(CASE WHEN cpu = 3 THEN policy END) AS dep_policy_3,
+      max(CASE WHEN cpu = 4 THEN freq END) AS dep_freq_4,
+      max(CASE WHEN cpu = 4 THEN policy END) AS dep_policy_4,
+      max(CASE WHEN cpu = 5 THEN freq END) AS dep_freq_5,
+      max(CASE WHEN cpu = 5 THEN policy END) AS dep_policy_5,
+      max(CASE WHEN cpu = 6 THEN freq END) AS dep_freq_6,
+      max(CASE WHEN cpu = 6 THEN policy END) AS dep_policy_6,
+      max(CASE WHEN cpu = 7 THEN freq END) AS dep_freq_7,
+      max(CASE WHEN cpu = 7 THEN policy END) AS dep_policy_7
+    FROM max_voters
     GROUP BY
-      m.ts
+      ts
   )
 -- Join the calculated dependencies back to the original data.
 SELECT
