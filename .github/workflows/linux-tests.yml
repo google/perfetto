@@ -104,7 +104,7 @@ jobs:
 
       - name: perfetto_integrationtests
         shell: bash
-        run: out/dist/perfetto_integrationtests --gtest_shuffle
+        run: out/dist/perfetto_integrationtests
 
       - name: trace_processor_minimal_smoke_tests
         shell: bash

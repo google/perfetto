@@ -68,7 +68,7 @@ jobs:
 
       - name: perfetto_integrationtests
         shell: bash
-        run: tools/run_android_test -n -x out/dist perfetto_integrationtests --gtest_shuffle
+        run: tools/run_android_test -n -x out/dist perfetto_integrationtests
 
       - name: Stop emulator
         if: ${{ always() }}
