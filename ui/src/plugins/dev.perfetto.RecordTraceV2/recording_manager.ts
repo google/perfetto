@@ -148,15 +148,6 @@ export class RecordingManager {
     return this.recordConfig.generation !== this.loadedConfigGeneration;
   }
 
-  set isConfigModified(modified: boolean) {
-    if (modified) {
-      if (this.isConfigModified) return; // Already modified
-      this.loadedConfigGeneration = this.recordConfig.generation - 1;
-    } else {
-      this.loadedConfigGeneration = this.recordConfig.generation;
-    }
-  }
-
   saveConfig(name: string, config: RecordSessionSchema) {
     const existing = this.savedConfigs.find((c) => c.name === name);
     if (existing) {
@@ -176,11 +167,16 @@ export class RecordingManager {
     config: RecordSessionSchema,
     configId?: string,
     configName?: string,
+    configModified = false,
   ) {
     this.loadSession(config);
     this.selectedConfigId = configId;
     this.selectedConfigName = configName;
-    this.isConfigModified = false;
+    if (configModified) {
+      this.loadedConfigGeneration = this.recordConfig.generation - 1;
+    } else {
+      this.loadedConfigGeneration = this.recordConfig.generation;
+    }
     this.app.raf.scheduleFullRedraw();
   }
 
