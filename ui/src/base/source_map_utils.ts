@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ErrorStackEntry} from './logging';
+
 export interface SourceMap {
   version: number;
   sources: string[];
@@ -258,56 +260,26 @@ export function findOriginalPosition(
 }
 
 // Map stack trace using embedded source map (synchronous)
-export function mapStackTraceWithMinifiedSourceMap(stack: string): string {
-  const lines = stack.split('\n');
-  const mappedLines: string[] = [];
+export function mapStackTraceWithMinifiedSourceMap(
+  stack: readonly ErrorStackEntry[],
+): ErrorStackEntry[] {
+  const mappedEntries: ErrorStackEntry[] = [];
 
-  for (const line of lines) {
-    // Parse stack trace line - supports multiple formats:
-    // "functionName (http://localhost:10000/v1.2.3/frontend_bundle.js:123:45)" or
-    // "functionName@frontend_bundle.js:123:45" or
-    // "frontend_bundle.js:123:45"
-    const match = line.match(
-      /(.+?)\s*\((.+?):(\d+):(\d+)\)|(.+?)@(.+?):(\d+):(\d+)|(.+?):(\d+):(\d+)/,
-    );
+  for (const entry of stack) {
+    // Parse location field - format: "file.js:line:col" or "/path/file.js:line:col"
+    const match = entry.location.match(/^(.+):(\d+):(\d+)$/);
     if (!match) {
-      mappedLines.push(line);
+      mappedEntries.push(entry);
       continue;
     }
 
-    let funcName = '';
-    let file = '';
-    let lineNum = 0;
-    let colNum = 0;
-
-    // Format: "functionName (file:line:col)"
-    if (match[2]) {
-      funcName = match[1].trim();
-      file = match[2];
-      lineNum = parseInt(match[3], 10);
-      colNum = parseInt(match[4], 10);
-    }
-    // Format: "functionName@file:line:col"
-    else if (match[6]) {
-      funcName = match[5];
-      file = match[6];
-      lineNum = parseInt(match[7], 10);
-      colNum = parseInt(match[8], 10);
-    }
-    // Format: "file:line:col"
-    else if (match[9]) {
-      funcName = '';
-      file = match[9];
-      lineNum = parseInt(match[10], 10);
-      colNum = parseInt(match[11], 10);
-    } else {
-      mappedLines.push(line);
-      continue;
-    }
+    const file = match[1];
+    const lineNum = parseInt(match[2], 10);
+    const colNum = parseInt(match[3], 10);
 
     try {
-      // Extract just the filename from the full URL/path
-      // e.g., "http://localhost:10000/v1.2.3/frontend_bundle.js" -> "frontend_bundle.js"
+      // Extract just the filename from the path
+      // e.g., "/v1.2.3/frontend_bundle.js" -> "frontend_bundle.js"
       const bundleFileName = file.split('/').pop() || file;
 
       // Get the source map for this specific bundle
@@ -315,7 +287,7 @@ export function mapStackTraceWithMinifiedSourceMap(stack: string): string {
 
       if (!processed) {
         // No source map for this bundle, keep original
-        mappedLines.push(line);
+        mappedEntries.push(entry);
         continue;
       }
 
@@ -327,18 +299,19 @@ export function mapStackTraceWithMinifiedSourceMap(stack: string): string {
         const source = pos.source
           .replace(/^webpack:\/\/\//, '')
           .replace(/^\.\//, '');
-        const mappedLine = funcName
-          ? `${funcName} (${source}:${pos.line}:${pos.column ?? 0})`
-          : `${source}:${pos.line}:${pos.column ?? 0}`;
-        mappedLines.push(mappedLine);
+        const mappedLocation = `${source}:${pos.line}:${pos.column ?? 0}`;
+        mappedEntries.push({
+          name: entry.name,
+          location: mappedLocation,
+        });
       } else {
-        mappedLines.push(line);
+        mappedEntries.push(entry);
       }
     } catch (err) {
-      console.error('[SourceMap] Error mapping stack trace line:', err);
-      mappedLines.push(line);
+      console.error('[SourceMap] Error mapping stack trace entry:', err);
+      mappedEntries.push(entry);
     }
   }
 
-  return mappedLines.join('\n');
+  return mappedEntries;
 }
