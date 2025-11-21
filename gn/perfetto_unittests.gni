@@ -23,7 +23,6 @@ _base_unittests_targets = []
 _profiling_unittests_targets = []
 _tracing_unittests_targets = []
 _trace_processor_unittests_targets = []
-_platform_services_unittests_targets = []
 _misc_unittests_targets = []
 
 # We also generate a "perfetto_unittests" binary, that includes all the
@@ -64,13 +63,13 @@ if (enable_perfetto_ipc) {
 }
 
 if (enable_perfetto_platform_services) {
-  _platform_services_unittests_targets += [
+  _tracing_unittests_targets += [
     "src/perfetto_cmd:unittests",
     "src/traced/service:unittests",
     "src/kernel_utils:unittests",
   ]
   if (enable_perfetto_traced_probes) {
-    _platform_services_unittests_targets += [
+    _tracing_unittests_targets += [
       "src/traced/probes:unittests",
       "src/kallsyms:unittests",
     ]
@@ -105,7 +104,7 @@ if (enable_perfetto_trace_processor) {
 }
 
 if (enable_perfetto_traced_relay) {
-  _platform_services_unittests_targets += [ "src/traced_relay:unittests" ]
+  _tracing_unittests_targets += [ "src/traced_relay:unittests" ]
 }
 
 if (enable_perfetto_android_java_sdk) {
@@ -132,10 +131,6 @@ _unittests_subset_binaries = [
   {
     name = "perfetto_trace_processor_unittests"
     targets = _trace_processor_unittests_targets
-  },
-  {
-    name = "perfetto_platform_services_unittests"
-    targets = _platform_services_unittests_targets
   },
   {
     name = "perfetto_misc_unittests"
