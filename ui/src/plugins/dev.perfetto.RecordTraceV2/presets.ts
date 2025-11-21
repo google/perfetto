@@ -206,3 +206,17 @@ export const LINUX_PRESETS: Preset[] = [
 
 // Legacy export for backward compatibility
 export const PRESETS = ANDROID_PRESETS;
+
+export function getPresetsForPlatform(platform: string): Preset[] {
+  switch (platform) {
+    case 'ANDROID':
+      return ANDROID_PRESETS;
+    case 'LINUX':
+      return LINUX_PRESETS;
+    case 'CHROME':
+    case 'CHROME_OS':
+      return [];
+    default:
+      return [];
+  }
+}

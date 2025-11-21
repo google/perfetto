@@ -30,26 +30,12 @@ import {RecordSubpage} from '../config/config_interfaces';
 import {RecordPluginSchema} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
 import {linkify} from '../../../widgets/anchor';
-import {ANDROID_PRESETS, LINUX_PRESETS, Preset} from '../presets';
+import {getPresetsForPlatform} from '../presets';
 import {Icons} from '../../../base/semantic_icons';
 import {shareRecordConfig} from '../config/config_sharing';
 import {Card} from '../../../widgets/card';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
-
-function getPresetsForPlatform(platform: string): Preset[] {
-  switch (platform) {
-    case 'ANDROID':
-      return ANDROID_PRESETS;
-    case 'LINUX':
-      return LINUX_PRESETS;
-    case 'CHROME':
-    case 'CHROME_OS':
-      return [];
-    default:
-      return [];
-  }
-}
 
 export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
   return {
@@ -99,17 +85,9 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
 
       if (state.selectedConfigId) {
         recMgr.selectedConfigId = state.selectedConfigId;
-        // Restore selectedConfigName
-        if (state.selectedConfigId.startsWith('preset:')) {
-          const presetId = state.selectedConfigId.substring(7);
-          const presets = getPresetsForPlatform(recMgr.currentPlatform);
-          const preset = presets.find((p) => p.id === presetId);
-          if (preset) recMgr.selectedConfigName = preset.title;
-        } else if (state.selectedConfigId.startsWith('saved:')) {
-          const savedName = state.selectedConfigId.substring(6);
-          const saved = recMgr.savedConfigs.find((c) => c.name === savedName);
-          if (saved) recMgr.selectedConfigName = saved.name;
-        }
+        recMgr.selectedConfigName = recMgr.resolveConfigName(
+          state.selectedConfigId,
+        );
 
         if (!state.configModified) {
           recMgr.setClean();
@@ -122,15 +100,7 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
           Object.keys(state.lastSession.probes).length > 0;
 
         if (!hasSavedProbes) {
-          // Load first preset if available
-          const presets = getPresetsForPlatform(recMgr.currentPlatform);
-          if (presets.length > 0) {
-            recMgr.loadConfig(
-              presets[0].session,
-              `preset:${presets[0].id}`,
-              presets[0].title,
-            );
-          }
+          recMgr.loadDefaultConfig();
         }
       }
     },
@@ -152,19 +122,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
         onOptionSelected: (num) => {
           const platformId = TARGET_PLATFORMS[num].id;
           recMgr.setPlatform(platformId);
-
-          // Auto-load first preset or clear if none available
-          const presets = getPresetsForPlatform(platformId);
-          if (presets.length > 0) {
-            recMgr.loadConfig(
-              presets[0].session,
-              `preset:${presets[0].id}`,
-              presets[0].title,
-            );
-          } else {
-            recMgr.clearSession();
-            recMgr.clearSelectedConfig();
-          }
+          recMgr.loadDefaultConfig();
         },
       }),
 

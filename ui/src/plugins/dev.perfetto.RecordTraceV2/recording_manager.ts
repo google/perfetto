@@ -32,6 +32,8 @@ import {TracingSession} from './interfaces/tracing_session';
 import {uuidv4} from '../../base/uuid';
 import {Time, Timecode} from '../../base/time';
 
+import {getPresetsForPlatform} from './presets';
+
 const LOCALSTORAGE_KEY = 'recordPlugin';
 
 export class RecordingManager {
@@ -173,6 +175,20 @@ export class RecordingManager {
     this.app.raf.scheduleFullRedraw();
   }
 
+  resolveConfigName(configId: string): string | undefined {
+    if (configId.startsWith('preset:')) {
+      const presetId = configId.substring(7);
+      const presets = getPresetsForPlatform(this.currentPlatform);
+      const preset = presets.find((p) => p.id === presetId);
+      return preset?.title;
+    } else if (configId.startsWith('saved:')) {
+      const savedName = configId.substring(6);
+      const saved = this.savedConfigs.find((c) => c.name === savedName);
+      return saved?.name;
+    }
+    return undefined;
+  }
+
   // Called when we loaded the last session from local storage and we want to
   // mark it as unmodified (e.g. because it matched a preset).
   setClean() {
@@ -183,6 +199,21 @@ export class RecordingManager {
     this.selectedConfigId = undefined;
     this.selectedConfigName = undefined;
     this.loadedConfigGeneration = this.recordConfig.generation;
+  }
+
+  loadDefaultConfig() {
+    // Load first preset if available
+    const presets = getPresetsForPlatform(this.currentPlatform);
+    if (presets.length > 0) {
+      this.loadConfig(
+        presets[0].session,
+        `preset:${presets[0].id}`,
+        presets[0].title,
+      );
+    } else {
+      this.clearSession();
+      this.clearSelectedConfig();
+    }
   }
 
   serializeSession(): RecordSessionSchema {

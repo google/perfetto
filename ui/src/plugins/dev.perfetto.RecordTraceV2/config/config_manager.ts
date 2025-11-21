@@ -39,9 +39,13 @@ export class ConfigManager {
   private _traceConfig = new TraceConfigBuilder();
   private enabledProbes = new Map<string, boolean>();
   private indirectlyEnabledProbes = new Map<string, Set<string>>();
-  generation = 0;
+  private _generation = 0;
 
   constructor() {}
+
+  get generation() {
+    return this._generation;
+  }
 
   get traceConfig() {
     return this._traceConfig;
@@ -71,7 +75,7 @@ export class ConfigManager {
       }
     }
     // Notify that probe settings changed
-    this.generation++;
+    this._generation++;
   }
 
   isProbeEnabled(probeId: string): boolean {
