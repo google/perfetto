@@ -115,8 +115,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       engine: ctx.engine,
       as: `
         select id, t.minTrackId, layout_depth as depth
-        from __track_event_tracks t,
-             experimental_slice_layout(t.trackIds) s
+        from __track_event_tracks t
+        join experimental_slice_layout(t.trackIds) s
         where isCounter = 0 and trackCount > 1
         order by s.id
       `,

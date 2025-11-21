@@ -290,8 +290,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       engine: ctx.engine,
       as: `
         select id, minTrackId, layout_depth as depth
-        from __tracks_to_create t,
-             experimental_slice_layout(t.trackIds) s
+        from __tracks_to_create t
+        join experimental_slice_layout(t.trackIds) s
         where trackCount > 1
         order by s.id
       `,
