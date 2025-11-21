@@ -78,9 +78,7 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
           recMgr.selectedConfigName = recMgr.resolveConfigName(
             state.selectedConfigId,
           );
-          if (!state.configModified) {
-            recMgr.setClean();
-          }
+          recMgr.isConfigModified = state.configModified;
         }
       } else {
         recMgr.loadDefaultConfig();

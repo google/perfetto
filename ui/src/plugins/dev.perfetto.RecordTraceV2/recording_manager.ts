@@ -148,6 +148,15 @@ export class RecordingManager {
     return this.recordConfig.generation !== this.loadedConfigGeneration;
   }
 
+  set isConfigModified(modified: boolean) {
+    if (modified) {
+      if (this.isConfigModified) return; // Already modified
+      this.loadedConfigGeneration = this.recordConfig.generation - 1;
+    } else {
+      this.loadedConfigGeneration = this.recordConfig.generation;
+    }
+  }
+
   saveConfig(name: string, config: RecordSessionSchema) {
     const existing = this.savedConfigs.find((c) => c.name === name);
     if (existing) {
@@ -171,7 +180,7 @@ export class RecordingManager {
     this.loadSession(config);
     this.selectedConfigId = configId;
     this.selectedConfigName = configName;
-    this.loadedConfigGeneration = this.recordConfig.generation;
+    this.isConfigModified = false;
     this.app.raf.scheduleFullRedraw();
   }
 
@@ -189,16 +198,10 @@ export class RecordingManager {
     return undefined;
   }
 
-  // Called when we loaded the last session from local storage and we want to
-  // mark it as unmodified (e.g. because it matched a preset).
-  setClean() {
-    this.loadedConfigGeneration = this.recordConfig.generation;
-  }
-
   clearSelectedConfig() {
     this.selectedConfigId = undefined;
     this.selectedConfigName = undefined;
-    this.loadedConfigGeneration = this.recordConfig.generation;
+    this.isConfigModified = false;
   }
 
   loadDefaultConfig() {
