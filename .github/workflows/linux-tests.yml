@@ -125,6 +125,7 @@ jobs:
           echo "HOST_OUT_PATH=$HOST_OUT_PATH" >> $GITHUB_ENV
 
       - name: TraceProcessor diff tests
+        # These are essentially a TraceProcessor C++ tests, we run them in all configs.
         shell: bash
         run: |
           mkdir -p "$PERFETTO_ARTIFACTS_DIR/perf"
@@ -133,6 +134,8 @@ jobs:
             $HOST_OUT_PATH/trace_processor_shell
 
       - name: TraceProcessor python tests
+        # These are a Python API tests, not C++ tests, so we run them only in a single config.
+        if: ${{ matrix.config.name == 'clang-x86_64-debug' }}
         shell: bash
         run: python/run_tests.py $HOST_OUT_PATH
 
