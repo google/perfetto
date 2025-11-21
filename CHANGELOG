@@ -6,16 +6,12 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
-    * Breaking change: Removed unused `stack_id` and `parent_stack_id` columns
-      from the slice table. The `ancestor_slice_by_stack` and
+    * Breaking change: Removed `stack_id` and `parent_stack_id`
+      columns from the slice table. The `ancestor_slice_by_stack` and
       `descendant_slice_by_stack` table functions have been moved to the
-      `slices.stack` stdlib module. These legacy features were rarely useful in
-      practice. For migration, use `parent_id` to traverse the hierarchy, or
-      use the `slices.stack` module which provides `slice_with_stack_id`,
-      `ancestor_slice_by_stack`, and `descendant_slice_by_stack`. Note: the
-      helpers use a different hash algorithm, so stack_id values will differ
-      from previous versions and hardcoded stack_id values from old traces will
-      not work. See docs/analysis/perfetto-sql-backcompat.md for details.
+      `slices.stack` stdlib module. These features were poorly named and often
+      misused. See https://perfetto.dev/docs/analysis/perfetto-sql-backcompat
+      for migration guidance.
   UI:
     * Added snap-to-boundaries feature for precise time selection. When
       dragging selection handles or creating area selections, the cursor
