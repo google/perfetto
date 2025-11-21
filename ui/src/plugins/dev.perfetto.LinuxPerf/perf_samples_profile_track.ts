@@ -125,11 +125,7 @@ export function createPerfCallsitesTrack(
   });
 }
 
-export function createSkippedCallsitesTrack(
-  trace: Trace,
-  uri: string,
-) {
-
+export function createSkippedCallsitesTrack(trace: Trace, uri: string) {
   return SliceTrack.create({
     trace,
     uri,
