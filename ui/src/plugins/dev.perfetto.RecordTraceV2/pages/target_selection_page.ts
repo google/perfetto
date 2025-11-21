@@ -75,19 +75,28 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
     },
     async deserialize(state: RecordPluginSchema) {
       recMgr.autoOpenTraceWhenTracingEnds = state.autoOpenTrace;
-      if (state.target.platformId === undefined) return;
-      recMgr.setPlatform(state.target.platformId);
+
+      // Restore platform selection
+      if (state.target.platformId !== undefined) {
+        recMgr.setPlatform(state.target.platformId);
+      }
+
+      // Restore provider selection
       const prov = recMgr.getProvider(state.target.transportId ?? '');
-      if (prov === undefined) return;
-      await recMgr.setProvider(prov);
-      if (state.target.targetId === undefined) return;
-      for (const target of await recMgr.listTargets()) {
-        if (target.id === state.target.targetId) {
+      if (prov !== undefined) {
+        await recMgr.setProvider(prov);
+      }
+
+      // Restore target selection
+      if (state.target.targetId !== undefined) {
+        const targets = await recMgr.listTargets();
+        const target = targets.find((t) => t.id === state.target.targetId);
+        if (target) {
           await recMgr.setTarget(target);
         }
       }
 
-      // After deserializing, if no config is selected, load the first preset
+      // If no config is selected, load the first preset for current platform
       if (
         recMgr.selectedConfigId === undefined &&
         recMgr.isConfigModified === false
