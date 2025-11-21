@@ -205,6 +205,7 @@ base::Status TarTraceReader::NotifyEndOfFile() {
     for (auto& data : file.second.data) {
       RETURN_IF_ERROR(parser.Parse(std::move(data)));
     }
+    RETURN_IF_ERROR(parser.ProcessEndOfFileDeferredPackets());
     RETURN_IF_ERROR(parser.NotifyEndOfFile());
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.

@@ -111,6 +111,16 @@ void TraceProcessorStorageImpl::Flush() {
   }
 }
 
+base::Status TraceProcessorStorageImpl::ProcessEndOfFileDeferredPackets() {
+  if (!parser_) {
+    return base::OkStatus();
+  }
+  if (unrecoverable_parse_error_) {
+    return base::ErrStatus("Unrecoverable parsing error already occurred");
+  }
+  return parser_->ProcessEndOfFileDeferredPackets();
+}
+
 base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   if (!parser_) {
     return base::OkStatus();

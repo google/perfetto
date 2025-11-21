@@ -146,6 +146,13 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
   return reader_->Parse(std::move(blob));
 }
 
+base::Status ForwardingTraceParser::ProcessEndOfFileDeferredPackets() {
+  if (reader_) {
+    RETURN_IF_ERROR(reader_->ProcessEndOfFileDeferredPackets());
+  }
+  return base::OkStatus();
+}
+
 base::Status ForwardingTraceParser::NotifyEndOfFile() {
   if (reader_) {
     RETURN_IF_ERROR(reader_->NotifyEndOfFile());

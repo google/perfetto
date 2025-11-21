@@ -45,6 +45,9 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessorStorage {
   // See comment on TraceProcessor::Flush.
   virtual void Flush() = 0;
 
+  // See comment on TraceProcessor::ProcessEndOfFileDeferredPackets.
+  virtual base::Status ProcessEndOfFileDeferredPackets() = 0;
+
   // See comment on TraceProcessor::NotifyEndOfFile.
   virtual base::Status NotifyEndOfFile() = 0;
 };

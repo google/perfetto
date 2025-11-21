@@ -1282,6 +1282,8 @@ base::Status LoadTrace(TraceProcessor* trace_processor,
                            trace_file_path.c_str(), load_status.c_message());
   }
 
+  RETURN_IF_ERROR(trace_processor->ProcessEndOfFileDeferredPackets());
+
   bool is_proto_trace = false;
   {
     auto it = trace_processor->ExecuteQuery(

@@ -300,7 +300,10 @@ class ProtoTraceParserTest : public ::testing::Test {
     auto status = reader_->Parse(TraceBlobView(
         TraceBlob::TakeOwnership(std::move(raw_trace), trace_bytes.size())));
     if (status.ok()) {
-      status = reader_->NotifyEndOfFile();
+      status = reader_->ProcessEndOfFileDeferredPackets();
+      if (status.ok()) {
+        status = reader_->NotifyEndOfFile();
+      }
     }
 
     ResetTraceBuffers();

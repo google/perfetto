@@ -66,6 +66,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status Parse(TraceBlobView) override;
   void Flush() override;
+  base::Status ProcessEndOfFileDeferredPackets() override;
   base::Status NotifyEndOfFile() override;
 
   // =================================================================
