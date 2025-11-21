@@ -197,11 +197,12 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
               p.subtitle,
               recMgr.selectedConfigId === `preset:${p.id}` &&
                 recMgr.isConfigModified === false,
-              () => recMgr.loadConfig({
-                config: p.session,
-                configId: `preset:${p.id}`,
-                configName: p.title,
-              }),
+              () =>
+                recMgr.loadConfig({
+                  config: p.session,
+                  configId: `preset:${p.id}`,
+                  configName: p.title,
+                }),
             ),
           ),
           this.renderCard(
