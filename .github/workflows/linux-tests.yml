@@ -100,11 +100,11 @@ jobs:
 
       - name: perfetto_unittests
         shell: bash
-        run: out/dist/perfetto_unittests
+        run: out/dist/perfetto_unittests --gtest_shuffle
 
       - name: perfetto_integrationtests
         shell: bash
-        run: out/dist/perfetto_integrationtests
+        run: out/dist/perfetto_integrationtests --gtest_shuffle
 
       - name: trace_processor_minimal_smoke_tests
         shell: bash
