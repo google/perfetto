@@ -671,7 +671,7 @@ def CheckBannedCpp(changed_files: List[str]) -> List[str]:
 def CheckSqlModules(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
-  tool_rel_path = 'tools/check_sql_modules'
+  tool_rel_path = 'tools/check_sql_modules.py'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
   # Use fnmatch patterns
   files_to_check_list = filter_files(
