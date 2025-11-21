@@ -279,7 +279,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           s.name,
           s.utid,
           ifnull(s.upid, tp.upid) as upid,
-          min(t.id) as minTrackId,
+          s.minTrackId as minTrackId,
           s.trackIds as trackIds,
           s.trackCount,
           __max_layout_depth(s.trackCount, s.trackIds) as maxDepth,
