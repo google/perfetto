@@ -37,7 +37,7 @@ import {
   QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {CallstackDetailsSection} from './callstack_details_section';
+import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 
