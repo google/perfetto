@@ -64,11 +64,11 @@ jobs:
 
       - name: perfetto_unittests
         shell: bash
-        run: tools/run_android_test -n out/dist perfetto_unittests
+        run: tools/run_android_test -n out/dist perfetto_unittests --gtest_shuffle
 
       - name: perfetto_integrationtests
         shell: bash
-        run: tools/run_android_test -n -x out/dist perfetto_integrationtests
+        run: tools/run_android_test -n -x out/dist perfetto_integrationtests --gtest_shuffle
 
       - name: Stop emulator
         if: ${{ always() }}
