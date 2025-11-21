@@ -281,7 +281,7 @@
       box-sizing: content-box;
       cursor: pointer;
       opacity: 0.5;
-      filter: saturate(0.15);
+      filter: saturate(0.15) var(--pf-img-filter);
     }
 
     &:hover {
@@ -343,7 +343,7 @@
         color: var(--pf-color-primary);
       }
       > img {
-        filter: saturate(1);
+        filter: saturate(1) var(--pf-img-filter);
         opacity: 1;
       }
     }
