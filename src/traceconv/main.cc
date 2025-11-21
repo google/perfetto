@@ -86,7 +86,7 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
    --pid PID                          Generate profiles for specific process
    --output-dir DIR                   Output directory for profiles (default: random tmp)
 
- java_heap_profile                    Legacy alias for "profile --java_heap"
+ java_heap_profile                    Legacy alias for "profile --java-heap"
 
  hprof                                Converts heap profile to hprof format
    --timestamps T1,T2,...             Generate profiles for specific timestamps
@@ -323,7 +323,7 @@ int Main(int argc, char** argv) {
   }
 
   if (format == "java_heap_profile") {
-    // legacy alias for "profile --java_heap"
+    // legacy alias for "profile --java-heap"
     return TraceToProfile(input_stream, pid, timestamps,
                           !profile_no_annotations, output_dir,
                           ConversionMode::kJavaHeapProfile);

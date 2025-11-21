@@ -131,7 +131,7 @@ std::optional<ConversionMode> DetectConversionMode(
   } else if (count > 1) {
     PERFETTO_ELOG(
         "More than one type of profile found in the trace, pass an explicit "
-        "disambiguation flag (--alloc / --perf / --java_heap).");
+        "disambiguation flag (--alloc / --perf / --java-heap).");
     return std::nullopt;
   }
   return alloc_present  ? ConversionMode::kHeapProfile
