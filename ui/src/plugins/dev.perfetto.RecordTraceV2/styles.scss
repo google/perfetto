@@ -953,4 +953,148 @@
       font-size: 12px;
     }
   }
+
+  .pf-config-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 10px;
+
+    h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--pf-color-text);
+      margin: 0 0 8px 0;
+    }
+
+    &__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+    }
+  }
+
+  .pf-preset-card {
+    @include transition(0.2s);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-height: 80px;
+    padding: 12px 8px;
+    text-align: center;
+    cursor: pointer;
+    outline: none;
+
+    .pf-icon {
+      font-size: 24px;
+      color: var(--pf-color-text);
+    }
+
+    &__title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--pf-color-text);
+    }
+
+    &__subtitle {
+      font-size: 13px;
+      color: var(--pf-color-text-muted);
+      line-height: 1.3;
+    }
+
+    &__actions {
+      display: flex;
+      gap: 2px;
+      margin-top: 4px;
+
+      .pf-button {
+        padding: 2px;
+        min-width: unset;
+
+        .pf-icon {
+          font-size: 16px;
+        }
+      }
+    }
+
+    &__check-icon {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      font-size: 16px;
+      color: var(--pf-color-primary);
+    }
+
+    &:hover,
+    &:focus-visible {
+      border-color: var(--pf-color-primary);
+      background-color: color_hover(transparent);
+
+      .pf-icon {
+        color: var(--pf-color-primary);
+      }
+    }
+
+    &:hover {
+      box-shadow: 0 2px 8px var(--pf-color-box-shadow);
+    }
+
+    &:focus-visible {
+      box-shadow: 0 0 0 2px rgba(var(--pf-color-primary-rgb), 0.3);
+    }
+
+    &--selected {
+      border-color: var(--pf-color-primary);
+      background-color: rgba(var(--pf-color-primary-rgb), 0.05);
+
+      .pf-icon,
+      .pf-preset-card__title {
+        color: var(--pf-color-primary);
+      }
+    }
+
+    &--dashed {
+      border-style: dashed;
+    }
+  }
+
+  // Command-line instructions
+  .record-cmdline {
+    padding: 20px;
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--pf-color-text);
+      margin-top: 24px;
+      margin-bottom: 8px;
+
+      &:first-child {
+        margin-top: 0;
+      }
+    }
+
+    p {
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: var(--pf-color-text);
+    }
+
+    .note {
+      border: 1px dashed var(--pf-color-border);
+      background: #f9eeba;
+      padding: 16px;
+      border-radius: $border-radius-large;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #000;
+    }
+
+    .pf-code-snippet {
+      margin-top: 10px;
+      margin-bottom: 16px;
+    }
+  }
 }

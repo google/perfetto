@@ -25,6 +25,7 @@ import {
   RECORD_SESSION_SCHEMA,
   RecordPluginSchema,
   RecordSessionSchema,
+  SavedSessionSchema,
 } from './serialization_schema';
 import {TargetPlatformId} from './interfaces/target_platform';
 import {TracingSession} from './interfaces/tracing_session';
@@ -41,10 +42,21 @@ export class RecordingManager {
   private provider?: RecordingTargetProvider;
   private target?: RecordingTarget;
   private _tracingSession?: CurrentTracingSession;
-  readonly recordConfig = new ConfigManager();
+  readonly recordConfig: ConfigManager;
+  savedConfigs: SavedSessionSchema[] = [];
+  selectedConfigId?: string; // ID of currently selected preset or saved config
+  selectedConfigName?: string; // Human-readable name of selected config
+  isConfigModified = false; // True if config was modified after loading
   autoOpenTraceWhenTracingEnds = true;
 
-  constructor(readonly app: App) {}
+  constructor(readonly app: App) {
+    // Mark config as modified when any probe setting changes
+    this.recordConfig = new ConfigManager(() => {
+      if (this.selectedConfigId) {
+        this.isConfigModified = true;
+      }
+    });
+  }
 
   registerPage(...pages: RecordSubpage[]) {
     for (const page of pages) {
@@ -137,6 +149,39 @@ export class RecordingManager {
     return wrappedSession;
   }
 
+  saveConfig(name: string, config: RecordSessionSchema) {
+    const existing = this.savedConfigs.find((c) => c.name === name);
+    if (existing) {
+      existing.config = config;
+    } else {
+      this.savedConfigs.push({name, config});
+    }
+    this.persistIntoLocalStorage();
+  }
+
+  deleteConfig(name: string) {
+    this.savedConfigs = this.savedConfigs.filter((c) => c.name !== name);
+    this.persistIntoLocalStorage();
+  }
+
+  loadConfig(
+    config: RecordSessionSchema,
+    configId?: string,
+    configName?: string,
+  ) {
+    this.loadSession(config);
+    this.selectedConfigId = configId;
+    this.selectedConfigName = configName;
+    this.isConfigModified = false;
+    this.app.raf.scheduleFullRedraw();
+  }
+
+  clearSelectedConfig() {
+    this.selectedConfigId = undefined;
+    this.selectedConfigName = undefined;
+    this.isConfigModified = false;
+  }
+
   serializeSession(): RecordSessionSchema {
     // Initialize with default values.
     const state: RecordSessionSchema = RECORD_SESSION_SCHEMA.parse({});
@@ -162,6 +207,7 @@ export class RecordingManager {
   persistIntoLocalStorage(): void {
     const state: RecordPluginSchema = RECORD_PLUGIN_SCHEMA.parse({});
     state.lastSession = this.serializeSession();
+    state.savedSessions = this.savedConfigs;
     for (const page of this.pages.values()) {
       if (page.kind === 'GLOBAL_PAGE') {
         page.serialize(state);
@@ -185,6 +231,7 @@ export class RecordingManager {
       throw new Error('Record plugin: deserialization failed', res.error);
     }
     const state = res.data;
+    this.savedConfigs = state.savedSessions ?? [];
     for (const page of this.pages.values()) {
       if (page.kind === 'GLOBAL_PAGE') {
         page.deserialize(state);

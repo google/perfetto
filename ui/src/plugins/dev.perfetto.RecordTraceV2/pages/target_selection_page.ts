@@ -29,19 +29,41 @@ import {download} from '../../../base/download_utils';
 import {RecordSubpage} from '../config/config_interfaces';
 import {RecordPluginSchema} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
-import {linkify} from '../../../widgets/anchor';
+import {Anchor, linkify} from '../../../widgets/anchor';
+import {ANDROID_PRESETS, LINUX_PRESETS, Preset} from '../presets';
+import {base64Encode} from '../../../base/string_utils';
+import {CodeSnippet} from '../../../widgets/code_snippet';
+import protos from '../../../protos';
+import {traceConfigToTxt} from '../config/trace_config_utils_wasm';
+import {Icons} from '../../../base/semantic_icons';
+import {shareRecordConfig} from '../config/config_sharing';
+import {Card} from '../../../widgets/card';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
+
+function getPresetsForPlatform(platform: string): Preset[] {
+  switch (platform) {
+    case 'ANDROID':
+      return ANDROID_PRESETS;
+    case 'LINUX':
+      return LINUX_PRESETS;
+    case 'CHROME':
+    case 'CHROME_OS':
+      return [];
+    default:
+      return [];
+  }
+}
 
 export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
   return {
     kind: 'GLOBAL_PAGE',
     id: 'target',
-    icon: 'cable',
-    title: 'Target device',
-    subtitle: 'Live recording via USB/WebSocket',
+    icon: 'dashboard',
+    title: 'Overview',
+    subtitle: 'Start a new trace',
     render() {
-      return m(TargetSelectionPage, {recMgr});
+      return m(OverviewPage, {recMgr});
     },
     serialize(state: RecordPluginSchema) {
       state.target = {
@@ -64,49 +86,128 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
           await recMgr.setTarget(target);
         }
       }
+
+      // After deserializing, if no config is selected, load the first preset
+      if (
+        recMgr.selectedConfigId === undefined &&
+        recMgr.isConfigModified === false
+      ) {
+        const presets = getPresetsForPlatform(recMgr.currentPlatform);
+        if (presets.length > 0) {
+          const firstPreset = presets[0];
+          recMgr.loadConfig(
+            firstPreset.session,
+            `preset:${firstPreset.id}`,
+            firstPreset.title,
+          );
+        }
+      }
     },
   };
 }
 
-class TargetSelectionPage implements m.ClassComponent<RecMgrAttrs> {
+class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
+  private showCmdline = false;
+
   view({attrs}: m.CVnode<RecMgrAttrs>) {
+    const recMgr = attrs.recMgr;
+    // If the current provider is undefined, and we are not in cmdline mode,
+    // we might want to auto-select the first provider?
+    // But `setPlatform` does that.
+    // We use a synthetic "cmdline" transport for the UI.
+    const activeTransport = this.showCmdline
+      ? 'cmdline'
+      : recMgr.currentProvider?.id;
+
     return [
       m('header', 'Select platform'),
       m(SegmentedButtons, {
         className: 'platform-selector',
         options: TARGET_PLATFORMS.map((p) => ({label: p.name, icon: p.icon})),
         selectedOption: TARGET_PLATFORMS.findIndex(
-          (p) => p.id === attrs.recMgr.currentPlatform,
+          (p) => p.id === recMgr.currentPlatform,
         ),
         onOptionSelected: (num) => {
-          attrs.recMgr.setPlatform(TARGET_PLATFORMS[num].id);
-          // m.redraw();
+          const platformId = TARGET_PLATFORMS[num].id;
+          recMgr.setPlatform(platformId);
+          this.showCmdline = false;
+
+          // Auto-load first preset for the new platform
+          const presets = getPresetsForPlatform(platformId);
+          if (presets.length > 0) {
+            const firstPreset = presets[0];
+            recMgr.loadConfig(
+              firstPreset.session,
+              `preset:${firstPreset.id}`,
+              firstPreset.title,
+            );
+          } else {
+            // No presets (Chrome/ChromeOS), clear to empty
+            recMgr.clearSession();
+            recMgr.clearSelectedConfig();
+          }
         },
       }),
-      [
-        m(TransportSelector, {
-          recMgr: attrs.recMgr,
-          key: attrs.recMgr.currentPlatform,
-        }),
-      ],
+
+      m(RecordConfigSelector, {recMgr}),
+
+      m(TransportSelector, {
+        recMgr,
+        activeTransport,
+        onTransportSelect: (id) => {
+          if (id === 'cmdline') {
+            this.showCmdline = true;
+            // We don't unset the provider in the manager, just hide it in UI?
+            // Or we should unset it to avoid confusion?
+            // recMgr.setProvider(undefined); // This type errors currently
+          } else {
+            this.showCmdline = false;
+            const prov = recMgr.getProvider(id);
+            if (prov) recMgr.setProvider(prov);
+          }
+        },
+      }),
+
+      this.showCmdline
+        ? m(CmdlineInstructions, {recMgr})
+        : recMgr.currentProvider && [
+            m(TargetSelector, {
+              recMgr,
+              provider: recMgr.currentProvider,
+              key: new ObjToId().getKey(recMgr.currentProvider),
+            }),
+          ],
+
+      !this.showCmdline &&
+        recMgr.currentTarget && [
+          m(TargetDetails, {
+            recMgr,
+            target: recMgr.currentTarget,
+            key: new ObjToId().getKey(recMgr.currentTarget),
+          }),
+        ],
     ];
   }
 }
 
-class TransportSelector implements m.ClassComponent<RecMgrAttrs> {
-  private transportKeys = new ObjToId();
+interface TransportSelectorAttrs {
+  recMgr: RecordingManager;
+  activeTransport?: string;
+  onTransportSelect: (id: string) => void;
+}
 
-  view({attrs}: m.CVnode<RecMgrAttrs>) {
+class TransportSelector implements m.ClassComponent<TransportSelectorAttrs> {
+  view({attrs}: m.CVnode<TransportSelectorAttrs>) {
     const options = [];
-    for (const provider of attrs.recMgr.listProvidersForCurrentPlatform()) {
-      const id = this.transportKeys.getKey(provider);
+    const recMgr = attrs.recMgr;
+
+    // Live providers
+    for (const provider of recMgr.listProvidersForCurrentPlatform()) {
+      const id = provider.id;
       options.push([
         m(`input[type=radio][name=recordingProvider][id=${id}]`, {
-          onchange: async () => {
-            await attrs.recMgr.setProvider(provider);
-            m.redraw();
-          },
-          checked: attrs.recMgr.currentProvider === provider,
+          onchange: () => attrs.onTransportSelect(id),
+          checked: attrs.activeTransport === id,
         }),
         m(
           `label[for=${id}]`,
@@ -116,17 +217,320 @@ class TransportSelector implements m.ClassComponent<RecMgrAttrs> {
         ),
       ]);
     }
+
+    // Cmdline option
+    const cmdlineId = 'cmdline';
+    options.push([
+      m(`input[type=radio][name=recordingProvider][id=${cmdlineId}]`, {
+        onchange: () => attrs.onTransportSelect(cmdlineId),
+        checked: attrs.activeTransport === cmdlineId,
+      }),
+      m(
+        `label[for=${cmdlineId}]`,
+        m(Icon, {icon: 'terminal'}),
+        m('.title', 'Command line'),
+        m('.description', 'Generate a command to run on the device'),
+      ),
+    ]);
+
     return [
       m('header', 'Select transport'),
       m('fieldset.record-transports', ...options),
-      attrs.recMgr.currentProvider && [
-        m(TargetSelector, {
-          recMgr: attrs.recMgr,
-          provider: attrs.recMgr.currentProvider,
-          key: this.transportKeys.getKey(attrs.recMgr.currentProvider),
+    ];
+  }
+}
+
+class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
+  view({attrs}: m.CVnode<RecMgrAttrs>) {
+    const recMgr = attrs.recMgr;
+    const presets = getPresetsForPlatform(recMgr.currentPlatform);
+
+    return [
+      m('header', 'Trace config'),
+      m('.pf-config-selector', [
+        // Quick starts
+        m('h3', 'Quick starts'),
+        m('.pf-config-selector__grid', [
+          ...presets.map((p) => {
+            const isSelected =
+              recMgr.selectedConfigId === `preset:${p.id}` &&
+              recMgr.isConfigModified === false;
+            return m(
+              Card,
+              {
+                className:
+                  'pf-preset-card' +
+                  (isSelected ? ' pf-preset-card--selected' : ''),
+                onclick: () =>
+                  recMgr.loadConfig(p.session, `preset:${p.id}`, p.title),
+                tabindex: 0,
+              },
+              m(Icon, {icon: p.icon}),
+              m('.pf-preset-card__title', p.title),
+              m('.pf-preset-card__subtitle', p.subtitle),
+              isSelected &&
+                m(Icon, {
+                  icon: 'check_circle',
+                  className: 'pf-preset-card__check-icon',
+                }),
+            );
+          }),
+          // Empty card
+          m(
+            Card,
+            {
+              className:
+                'pf-preset-card' +
+                (recMgr.selectedConfigId === undefined &&
+                recMgr.isConfigModified === false
+                  ? ' pf-preset-card--selected'
+                  : ''),
+              onclick: () => {
+                recMgr.clearSession();
+                recMgr.clearSelectedConfig();
+              },
+              tabindex: 0,
+            },
+            m(Icon, {icon: 'clear_all'}),
+            m('.pf-preset-card__title', 'Empty'),
+            m('.pf-preset-card__subtitle', 'Start fresh'),
+            recMgr.selectedConfigId === undefined &&
+              recMgr.isConfigModified === false &&
+              m(Icon, {
+                icon: 'check_circle',
+                className: 'pf-preset-card__check-icon',
+              }),
+          ),
+        ]),
+
+        // Saved configs
+        this.renderSavedConfigsSection(recMgr),
+      ]),
+    ];
+  }
+
+  private renderSavedConfigsSection(recMgr: RecordingManager) {
+    const hasActiveProbes = recMgr.recordConfig.hasActiveProbes();
+
+    return [
+      m('h3', 'Saved'),
+      m('.pf-config-selector__grid', [
+        // Saved configs
+        ...recMgr.savedConfigs.map((config) => {
+          const isSelected =
+            recMgr.selectedConfigId === `saved:${config.name}` &&
+            recMgr.isConfigModified === false;
+          return m(
+            Card,
+            {
+              className:
+                'pf-preset-card' +
+                (isSelected ? ' pf-preset-card--selected' : ''),
+              onclick: () =>
+                recMgr.loadConfig(
+                  config.config,
+                  `saved:${config.name}`,
+                  config.name,
+                ),
+              tabindex: 0,
+            },
+            m(Icon, {icon: 'bookmark'}),
+            m('.pf-preset-card__title', config.name),
+            m('.pf-preset-card__actions', [
+              m(Button, {
+                icon: 'save',
+                compact: true,
+                title: 'Overwrite with current settings',
+                onclick: (e: Event) => {
+                  e.stopPropagation();
+                  if (
+                    confirm(
+                      `Overwrite config "${config.name}" with current settings?`,
+                    )
+                  ) {
+                    recMgr.saveConfig(config.name, recMgr.serializeSession());
+                    recMgr.app.raf.scheduleFullRedraw();
+                  }
+                },
+              }),
+              m(Button, {
+                icon: 'share',
+                compact: true,
+                title: 'Share configuration',
+                onclick: (e: Event) => {
+                  e.stopPropagation();
+                  shareRecordConfig(config.config);
+                },
+              }),
+              m(Button, {
+                icon: Icons.Delete,
+                compact: true,
+                title: 'Delete configuration',
+                onclick: (e: Event) => {
+                  e.stopPropagation();
+                  if (confirm(`Delete "${config.name}"?`)) {
+                    recMgr.deleteConfig(config.name);
+                    recMgr.app.raf.scheduleFullRedraw();
+                  }
+                },
+              }),
+            ]),
+            isSelected &&
+              m(Icon, {
+                icon: 'check_circle',
+                className: 'pf-preset-card__check-icon',
+              }),
+          );
+        }),
+        // Save new config
+        m(
+          Card,
+          {
+            className: 'pf-preset-card pf-preset-card--dashed',
+            onclick: () => {
+              if (!hasActiveProbes) return;
+              const name = prompt('Enter a name for this configuration:');
+              if (name?.trim()) {
+                const trimmedName = name.trim();
+                if (recMgr.savedConfigs.some((s) => s.name === trimmedName)) {
+                  alert(
+                    `A configuration named "${trimmedName}" already exists.`,
+                  );
+                  return;
+                }
+                const savedConfig = recMgr.serializeSession();
+                recMgr.saveConfig(trimmedName, savedConfig);
+                recMgr.loadConfig(
+                  savedConfig,
+                  `saved:${trimmedName}`,
+                  trimmedName,
+                );
+                recMgr.app.raf.scheduleFullRedraw();
+              }
+            },
+            tabindex: 0,
+          },
+          m(Icon, {icon: 'save'}),
+          m(
+            '.pf-preset-card__title',
+            recMgr.isConfigModified === true
+              ? 'Save current *'
+              : 'Save current',
+          ),
+          m(
+            '.pf-preset-card__subtitle',
+            recMgr.isConfigModified === true
+              ? 'Unsaved changes'
+              : 'Click to save',
+          ),
+        ),
+      ]),
+    ];
+  }
+}
+
+class CmdlineInstructions implements m.ClassComponent<RecMgrAttrs> {
+  private configTxt = '';
+  private cmdline = '';
+  private inlineCmd = '';
+  private docsLink = '';
+
+  constructor({attrs}: m.CVnode<RecMgrAttrs>) {
+    const recMgr = attrs.recMgr;
+
+    // Generate the config PBTX (text proto format).
+    const cfg = recMgr.genTraceConfig();
+    const cfgBytes = protos.TraceConfig.encode(cfg).finish().slice();
+    traceConfigToTxt(cfgBytes).then((txt) => {
+      this.configTxt = txt;
+      m.redraw();
+    });
+
+    // Generate platform-specific commands.
+    switch (recMgr.currentPlatform) {
+      case 'ANDROID':
+        this.cmdline =
+          'cat config.pbtx | adb shell perfetto' +
+          ' -c - --txt -o /data/misc/perfetto-traces/trace.pftrace';
+        this.docsLink = 'https://perfetto.dev/docs/quickstart/android-tracing';
+        // Also generate inline base64 command for convenience
+        const pbBase64 = base64Encode(cfgBytes);
+        this.inlineCmd = [
+          `echo '${pbBase64}' |`,
+          `base64 --decode |`,
+          `adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace" &&`,
+          `adb pull /data/misc/perfetto-traces/trace /tmp/trace.perfetto-trace`,
+        ].join(' \\\n  ');
+        break;
+      case 'LINUX':
+        this.cmdline = 'perfetto -c config.pbtx --txt -o /tmp/trace.pftrace';
+        this.docsLink = 'https://perfetto.dev/docs/quickstart/linux-tracing';
+        break;
+      case 'CHROME':
+      case 'CHROME_OS':
+        this.docsLink = 'https://perfetto.dev/docs/quickstart/chrome-tracing';
+        this.cmdline =
+          'There is no cmdline support for Chrome/CrOS.\n' +
+          'You must use the recording UI via the extension to record traces.';
+        break;
+    }
+  }
+
+  view({attrs}: m.CVnode<RecMgrAttrs>) {
+    const recMgr = attrs.recMgr;
+
+    if (!recMgr.recordConfig.hasActiveProbes()) {
+      return m(
+        '.record-cmdline',
+        m(
+          '.note',
+          "It looks like you didn't select any data source.",
+          'Please select some from the "Probes" menu on the left.',
+        ),
+      );
+    }
+
+    return m('.record-cmdline', [
+      // Documentation link
+      this.docsLink &&
+        m(
+          'p',
+          'See the documentation on ',
+          m(
+            Anchor,
+            {href: this.docsLink, target: '_blank'},
+            this.docsLink.replace('https://', ''),
+          ),
+        ),
+
+      // Inline command (for Android)
+      this.inlineCmd && [
+        m('h3', 'Quick command (inline config)'),
+        m('p', 'Run this command on your host:'),
+        m(CodeSnippet, {
+          language: 'Shell',
+          text: this.inlineCmd,
         }),
       ],
-    ];
+
+      // Standard command with config file
+      this.cmdline && [
+        m('h3', this.inlineCmd ? 'Or use config file' : 'Command'),
+        m(CodeSnippet, {
+          language: 'Shell',
+          text: this.cmdline,
+        }),
+      ],
+
+      // Config file content
+      this.configTxt && [
+        m('p', 'Save the file below as: config.pbtx'),
+        m(CodeSnippet, {
+          language: 'textproto',
+          text: this.configTxt,
+        }),
+      ],
+    ]);
   }
 }
 
@@ -218,13 +622,6 @@ class TargetSelector implements m.ClassComponent<TargetSelectorAttrs> {
             },
           }),
       ),
-      recMgr.currentTarget && [
-        m(TargetDetails, {
-          recMgr: attrs.recMgr,
-          target: recMgr.currentTarget,
-          key: this.targetIdMap.getKey(recMgr.currentTarget),
-        }),
-      ],
     ];
   }
 

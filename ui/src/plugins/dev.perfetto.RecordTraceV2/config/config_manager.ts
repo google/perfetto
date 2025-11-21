@@ -40,6 +40,8 @@ export class ConfigManager {
   private enabledProbes = new Map<string, boolean>();
   private indirectlyEnabledProbes = new Map<string, Set<string>>();
 
+  constructor(private readonly onProbeChange?: () => void) {}
+
   get traceConfig() {
     return this._traceConfig;
   }
@@ -67,6 +69,8 @@ export class ConfigManager {
         depSet.delete(probeId);
       }
     }
+    // Notify that probe settings changed
+    this.onProbeChange?.();
   }
 
   isProbeEnabled(probeId: string): boolean {
@@ -75,6 +79,15 @@ export class ConfigManager {
       this.indirectlyEnabledProbes.get(probeId)?.size,
     );
     return directlyEnabled || enabledDueToDeps;
+  }
+
+  hasActiveProbes(): boolean {
+    for (const probeId of this.probesById.keys()) {
+      if (this.isProbeEnabled(probeId)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

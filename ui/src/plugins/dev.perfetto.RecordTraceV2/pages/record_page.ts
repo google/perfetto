@@ -23,7 +23,7 @@ import {showModal} from '../../../widgets/modal';
 import {BUCKET_NAME} from '../../../base/gcs_uploader';
 import {RecordingTarget} from '../interfaces/recording_target';
 import {exists} from '../../../base/utils';
-import {SHARE_SUBPAGE, shareRecordConfig} from '../config/config_sharing';
+import {SHARE_SUBPAGE} from '../config/config_sharing';
 import {App} from '../../../public/app';
 import {Callout} from '../../../widgets/callout';
 import {Intent} from '../../../widgets/common';
@@ -136,26 +136,64 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
     }
   }
 
+  private getSortedProbes(pages: RecordSubpage[]): RecordSubpage[] {
+    const probes = pages.filter((p) => p.kind === 'PROBES_PAGE');
+
+    // Calculate disabled status and custom order for each probe
+    const probesWithMeta = probes.map((probe) => {
+      let availProbes = 0;
+      if (probe.kind === 'PROBES_PAGE') {
+        for (const p of probe.probes) {
+          if (supportsPlatform(p, this.recMgr.currentPlatform)) {
+            availProbes++;
+          }
+        }
+      }
+      const disabled = availProbes === 0;
+
+      // Define custom sort order for all platforms
+      const orderMap: {[key: string]: number} = {
+        cpu: 10,
+        gpu: 20,
+        power: 30,
+        memory: 40,
+        android: 50,
+        network: 60,
+        chrome: 70, // Chrome after Network
+        stack_sampling: 80,
+        perfetto_sdk: 90,
+        advanced: 200, // Advanced settings at the end (before disabled)
+      };
+      const order = orderMap[probe.id] ?? 100;
+
+      return {probe, disabled, order};
+    });
+
+    // Sort: enabled first, then by custom order
+    probesWithMeta.sort((a, b) => {
+      // Disabled items always at the bottom
+      if (a.disabled !== b.disabled) {
+        return a.disabled ? 1 : -1;
+      }
+      // Within enabled/disabled groups, sort by custom order
+      return a.order - b.order;
+    });
+
+    return probesWithMeta.map(({probe}) => probe);
+  }
+
   private renderMenu() {
-    const pages = Array.from(this.recMgr.pages.values());
+    const pages = this.recMgr.pages;
     return m(
       '.pf-record-page__menu',
       m(RecordingCtl, {recMgr: this.recMgr}),
-      m(
-        'header',
-        'Record settings',
-        m(Button, {
-          icon: 'share',
-          title: 'Share current config',
-          onclick: () => shareRecordConfig(this.recMgr.serializeSession()),
-        }),
-      ),
+      m('header', 'Record'),
       m(
         'ul',
-        pages
-          .filter((p) => ['SESSION_PAGE', 'GLOBAL_PAGE'].includes(p.kind))
-          .map((rc) => this.renderMenuEntry(rc)),
+        this.renderMenuEntry(pages.get('target')), // Overview
       ),
+      m('header', 'Recording settings'),
+      m('ul', this.renderMenuEntry(pages.get('config'))),
       m(
         'header',
         'Probes',
@@ -171,14 +209,15 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
       ),
       m(
         'ul',
-        pages
-          .filter((p) => p.kind === 'PROBES_PAGE')
-          .map((rc) => this.renderMenuEntry(rc)),
+        this.getSortedProbes(Array.from(pages.values())).map((rc) =>
+          this.renderMenuEntry(rc),
+        ),
       ),
     );
   }
 
-  private renderMenuEntry(rc: MenuEntry) {
+  private renderMenuEntry(rc: MenuEntry | undefined) {
+    if (!rc) return null;
     let enabledProbes = 0;
     let availProbes = 0;
     let probeCountTxt = '';
