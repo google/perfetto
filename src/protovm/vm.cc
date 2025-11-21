@@ -23,9 +23,9 @@
 namespace perfetto {
 namespace protovm {
 
-Vm::Vm(protozero::ConstBytes program, size_t memory_limit_bytes)
+Vm::Vm(std::string program, size_t memory_limit_bytes)
     : state_(std::in_place_type_t<ReadWriteState>{},
-             program,
+             std::move(program),
              memory_limit_bytes) {}
 
 Vm::Vm(std::string incremental_state)

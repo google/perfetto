@@ -34,14 +34,14 @@ class VmTest : public ::testing::Test {
 TEST_F(VmTest, NoPatch) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  Vm vm{std::move(program), MEMORY_LIMIT_BYTES};
   ASSERT_TRUE(vm.SerializeIncrementalState().empty());
 }
 
 TEST_F(VmTest, ApplyPatch_DelOperation) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  Vm vm{std::move(program), MEMORY_LIMIT_BYTES};
 
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
   vm.ApplyPatch(AsConstBytes(patch));
@@ -59,7 +59,7 @@ TEST_F(VmTest, ApplyPatch_DelOperation) {
 TEST_F(VmTest, ApplyPatch_MergeOperation) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  Vm vm{std::move(program), MEMORY_LIMIT_BYTES};
 
   // patch #1
   {
@@ -91,7 +91,7 @@ TEST_F(VmTest, ApplyPatch_MergeOperation) {
 TEST_F(VmTest, ApplyPatch_SetOperation) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  Vm vm{std::move(program), MEMORY_LIMIT_BYTES};
 
   // empty
   {
@@ -132,7 +132,7 @@ TEST_F(VmTest, ApplyPatch_SetOperation) {
 TEST_F(VmTest, ApplyPatch_ErrorHandling) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  Vm vm{std::move(program), MEMORY_LIMIT_BYTES};
 
   auto patch = SamplePackets::PatchInconsistentWithIncrementalTraceProgram();
   auto status = vm.ApplyPatch(AsConstBytes(patch));
@@ -148,7 +148,7 @@ TEST_F(VmTest, ApplyPatch_ErrorHandling) {
 TEST_F(VmTest, CloneReadOnly) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  Vm vm{std::move(program), MEMORY_LIMIT_BYTES};
 
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
   vm.ApplyPatch(AsConstBytes(patch));

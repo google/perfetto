@@ -101,19 +101,24 @@ namespace protovm {
 //                  fields.
 class Vm {
  public:
-  Vm(protozero::ConstBytes instructions, size_t memory_limit_bytes);
+  Vm(std::string program, size_t memory_limit_bytes);
   StatusOr<void> ApplyPatch(protozero::ConstBytes packet);
   std::string SerializeIncrementalState() const;
   std::unique_ptr<Vm> CloneReadOnly() const;
 
  private:
   struct ReadWriteState {
-    ReadWriteState(protozero::ConstBytes program, size_t memory_limit_bytes)
-        : executor{},
-          parser{program, &executor},
+    ReadWriteState(std::string program, size_t memory_limit_bytes)
+        : owned_program(std::move(program)),
+          executor{},
+          parser{protozero::ConstBytes{
+                     reinterpret_cast<const uint8_t*>(owned_program.data()),
+                     owned_program.size()},
+                 &executor},
           allocator{memory_limit_bytes},
           incremental_state{&allocator} {}
 
+    std::string owned_program;
     Executor executor;
     Parser parser;
     Allocator allocator;
