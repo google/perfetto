@@ -137,7 +137,7 @@ jobs:
         run: python/run_tests.py $HOST_OUT_PATH
 
       - name: perfetto_benchmarks (functional-only)
-        if: ${{ !(contains(matrix.name, 'msan') || contains(matrix.name, 'asan') || contains(matrix.name, 'tsan')) }}
+        if: ${{ !(contains(matrix.config.name, 'msan') || contains(matrix.config.name, 'asan') || contains(matrix.config.name, 'tsan')) }}
         shell: bash
         run: |
           # Don't run benchmarks under x86 (running out of address space because
