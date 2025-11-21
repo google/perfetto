@@ -15,10 +15,7 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [
-    "lite",
-    "zero",
-  ]
+  proto_generators = [ "zero" ]
   sources = [
     "ad_services_metric.proto",
     "android_anomaly_metric.proto",
