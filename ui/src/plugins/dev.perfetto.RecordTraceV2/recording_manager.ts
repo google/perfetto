@@ -237,9 +237,8 @@ export class RecordingManager {
         page.deserialize(state);
       }
     }
-    if (state.lastSession !== undefined) {
-      this.loadSession(state.lastSession);
-    }
+    // Note: target_selection_page.deserialize() handles loading the session,
+    // so we don't need to call loadSession here
   }
 
   restoreSessionFromJson(json: string): Result<void> {

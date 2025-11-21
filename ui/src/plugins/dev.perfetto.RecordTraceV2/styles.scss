@@ -802,12 +802,21 @@
 // For RecordingV2
 
 .pf-record-page__section[id="target"] {
+  padding: 20px;
+
+  > * {
+    padding: 0;
+  }
+
   header {
     font-size: 1rem;
     font-weight: 600;
     text-align: left;
-    padding-top: 20px;
     padding-bottom: 5px;
+
+    &:not(:first-child) {
+      padding-top: 20px;
+    }
   }
   .platform-selector button {
     min-height: 60px;
@@ -1057,44 +1066,47 @@
 
     &--dashed {
       border-style: dashed;
+      border-width: 1.5px;
     }
-  }
 
-  // Command-line instructions
-  .record-cmdline {
-    padding: 20px;
+    &--highlight {
+      border-color: var(--pf-color-primary);
+      background-color: rgba(var(--pf-color-primary-rgb), 0.1);
 
-    h3 {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--pf-color-text);
-      margin-top: 24px;
-      margin-bottom: 8px;
-
-      &:first-child {
-        margin-top: 0;
+      .pf-icon,
+      .pf-preset-card__title {
+        color: var(--pf-color-primary);
       }
     }
+  }
+}
 
-    p {
-      margin-bottom: 12px;
-      font-size: 14px;
-      color: var(--pf-color-text);
-    }
+// Cmdline instructions page
+.pf-record-page__section[id="cmdline"] {
+  padding: 20px;
 
-    .note {
-      border: 1px dashed var(--pf-color-border);
-      background: #f9eeba;
-      padding: 16px;
-      border-radius: $border-radius-large;
-      font-size: 14px;
-      line-height: 1.5;
-      color: #000;
-    }
+  > * {
+    padding: 0;
+  }
 
-    .pf-code-snippet {
-      margin-top: 10px;
-      margin-bottom: 16px;
-    }
+  p {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--pf-color-text);
+    margin: 0 0 16px 0;
+  }
+
+  .pf-code-snippet {
+    margin-bottom: 24px;
+  }
+
+  .note {
+    border: 1px dashed var(--pf-color-border);
+    background-color: rgba(var(--pf-color-warning-rgb), 0.1);
+    padding: 16px;
+    border-radius: $border-radius-large;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--pf-color-text);
   }
 }

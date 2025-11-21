@@ -24,6 +24,7 @@ import {bufferConfigPage} from './pages/buffer_config_page';
 import {chromeRecordSection} from './pages/chrome';
 import {cpuRecordSection} from './pages/cpu';
 import {gpuRecordSection} from './pages/gpu';
+import {instructionsPage} from './pages/instructions_page';
 import {memoryRecordSection} from './pages/memory';
 import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
@@ -85,6 +86,7 @@ export default class implements PerfettoPlugin {
       recMgr.registerPage(
         targetSelectionPage(recMgr),
         bufferConfigPage(recMgr),
+        instructionsPage(recMgr),
 
         chromeRecordSection(() => chromeProvider.getChromeCategories()),
         cpuRecordSection(),

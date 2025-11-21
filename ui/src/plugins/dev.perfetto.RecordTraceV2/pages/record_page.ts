@@ -136,50 +136,42 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
     }
   }
 
+  private static readonly PROBE_ORDER: {[key: string]: number} = {
+    cpu: 10,
+    gpu: 20,
+    power: 30,
+    memory: 40,
+    android: 50,
+    network: 60,
+    chrome: 70,
+    stack_sampling: 80,
+    perfetto_sdk: 90,
+    advanced: 200,
+  };
+
   private getSortedProbes(pages: RecordSubpage[]): RecordSubpage[] {
     const probes = pages.filter((p) => p.kind === 'PROBES_PAGE');
 
-    // Calculate disabled status and custom order for each probe
     const probesWithMeta = probes.map((probe) => {
-      let availProbes = 0;
-      if (probe.kind === 'PROBES_PAGE') {
-        for (const p of probe.probes) {
-          if (supportsPlatform(p, this.recMgr.currentPlatform)) {
-            availProbes++;
-          }
-        }
-      }
-      const disabled = availProbes === 0;
+      const availProbes =
+        probe.kind === 'PROBES_PAGE'
+          ? probe.probes.filter((p) =>
+              supportsPlatform(p, this.recMgr.currentPlatform),
+            ).length
+          : 0;
 
-      // Define custom sort order for all platforms
-      const orderMap: {[key: string]: number} = {
-        cpu: 10,
-        gpu: 20,
-        power: 30,
-        memory: 40,
-        android: 50,
-        network: 60,
-        chrome: 70, // Chrome after Network
-        stack_sampling: 80,
-        perfetto_sdk: 90,
-        advanced: 200, // Advanced settings at the end (before disabled)
+      return {
+        probe,
+        disabled: availProbes === 0,
+        order: RecordPageV2.PROBE_ORDER[probe.id] ?? 100,
       };
-      const order = orderMap[probe.id] ?? 100;
-
-      return {probe, disabled, order};
     });
 
-    // Sort: enabled first, then by custom order
-    probesWithMeta.sort((a, b) => {
-      // Disabled items always at the bottom
-      if (a.disabled !== b.disabled) {
-        return a.disabled ? 1 : -1;
-      }
-      // Within enabled/disabled groups, sort by custom order
-      return a.order - b.order;
-    });
-
-    return probesWithMeta.map(({probe}) => probe);
+    return probesWithMeta
+      .sort((a, b) =>
+        a.disabled !== b.disabled ? (a.disabled ? 1 : -1) : a.order - b.order,
+      )
+      .map(({probe}) => probe);
   }
 
   private renderMenu() {
@@ -191,6 +183,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
       m(
         'ul',
         this.renderMenuEntry(pages.get('target')), // Overview
+        this.renderMenuEntry(pages.get('cmdline')),
       ),
       m('header', 'Recording settings'),
       m('ul', this.renderMenuEntry(pages.get('config'))),
