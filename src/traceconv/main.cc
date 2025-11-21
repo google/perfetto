@@ -310,8 +310,6 @@ int Main(int argc, char** argv) {
     return TraceToText(input_stream, output_stream) ? 0 : 1;
   }
 
-  // TODO:
-  // https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/ui/src/traceconv/index.ts;l=196
   if (format == "profile") {
     std::optional<ConversionMode> mode =
         profile_force_alloc  ? std::make_optional(ConversionMode::kHeapProfile)

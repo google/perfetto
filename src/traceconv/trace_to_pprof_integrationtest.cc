@@ -45,7 +45,7 @@ pprof::PprofProfileReader ConvertTraceToPprof(
 
   base::TempDir temp_dir = base::TempDir::Create();
   std::string out_dirname = temp_dir.path();
-  
+
   trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
                                 /*timestamps=*/{},
                                 /*annotate_frames=*/false, out_dirname,
