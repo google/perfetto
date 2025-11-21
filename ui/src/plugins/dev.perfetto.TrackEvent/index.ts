@@ -78,7 +78,9 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     await ctx.engine.query(`include perfetto module viz.summary.track_event;`);
 
     // Step 1: Materialize track metadata
-    await createPerfettoTable({
+    // Can be cleaned up at the end of this function as only tables and
+    // immediate queries depend on this.
+    await using _ = await createPerfettoTable({
       name: '__track_event_tracks',
       engine: ctx.engine,
       as: `
