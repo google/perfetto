@@ -35,7 +35,10 @@ import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {createPerfCallsitesTrack, createSkippedPerfCallsitesTrack} from './perf_samples_profile_track';
+import {
+  createPerfCallsitesTrack,
+  createSkippedPerfCallsitesTrack,
+} from './perf_samples_profile_track';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 
@@ -200,7 +203,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       },
     });
   }
-  
+
   private async addSkippedProcessPerfSamplesTracks(trace: Trace) {
     const pResult = await trace.engine.query(`
       SELECT DISTINCT upid
@@ -213,16 +216,9 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         pct.is_timebase
     `);
 
-    const upids = new Array<
-      number
-    >();
-    for (
-      const it = pResult.iter({upid: NUM});
-      it.valid();
-      it.next()
-    ) {
-
- upids.push(it.upid);
+    const upids = new Array<number>();
+    for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
+      upids.push(it.upid);
     }
 
     for (const upid of upids) {
@@ -234,11 +230,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
           upid,
         },
-        renderer: createSkippedPerfCallsitesTrack(
-          trace,
-          uri,
-          upid,
-        ),
+        renderer: createSkippedPerfCallsitesTrack(trace, uri, upid),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
