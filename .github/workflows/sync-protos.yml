@@ -49,10 +49,10 @@ jobs:
         id: check_changes
         run: |
           # Check if there are any changes in generated proto files
-          if git diff --quiet; then
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-          else
+          if [ -n "$(git status --porcelain)" ]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Close existing proto sync PRs
