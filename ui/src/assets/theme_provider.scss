@@ -61,8 +61,6 @@
     --pf-sidebar-on-surface-muted: #b4b7ba;
     --pf-sidebar-border: #4d5765;
     --pf-sidebar-border-secondary: #404854;
-
-    --pf-img-filter: invert(0);
   }
 
   &--dark {
@@ -103,6 +101,7 @@
     --pf-sidebar-border: var(--pf-color-border);
     --pf-sidebar-border-secondary: var(--pf-color-border-secondary);
 
-    --pf-img-filter: invert(1) hue-rotate(180deg);
+    // Some images are designed for light mode, so invert them for dark mode.
+    --pf-img-filter: invert(1) hue-rotate(180deg) saturate(70%);
   }
 }
