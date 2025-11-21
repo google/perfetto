@@ -156,13 +156,13 @@ jobs:
           gcloud storage cp --no-user-output-enabled --recursive "$UI_TEST_ARTIFACTS" "gs://$PERFETTO_GCS_DST/ui-test-artifacts"
 
           echo "UI integration test report with screnshots:"
-          echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/ui-test-artifacts/index.html"
+          echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/index.html"
           echo ""
           echo "To download locally the changed screenshots run:"
           echo "tools/download_changed_screenshots.py $PERFETTO_CI_JOB_ID"
           echo ""
           echo "Perfetto UI build for this CL"
-          echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/ui/index.html"
+          echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html"
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
