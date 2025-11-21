@@ -30,12 +30,11 @@ namespace trace_to_text {
 
 // 0: success
 int TraceToProfile(std::istream* input,
-                          std::ostream* output,
-                          uint64_t pid,
-                          const std::vector<uint64_t>& timestamps,
-                          bool annotate_frames,
-                          const std::string& output_dir = "",
-                          std::optional<ConversionMode> conversion_mode = std::nullopt);
+                   uint64_t pid,
+                   const std::vector<uint64_t>& timestamps,
+                   bool annotate_frames,
+                   const std::string& output_dir,
+                   std::optional<ConversionMode> conversion_mode);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

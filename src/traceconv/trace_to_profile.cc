@@ -110,7 +110,6 @@ std::string GetDestinationDirectory(
   return dst_dir;
 }
 
-// Helper function to detect ConversionMode from trace content
 std::optional<ConversionMode> DetectConversionMode(
     trace_processor::TraceProcessor* tp) {
   auto it = tp->ExecuteQuery(R"(
@@ -125,44 +124,30 @@ std::optional<ConversionMode> DetectConversionMode(
   int64_t perf_present = it.Get(1).AsLong();
   int64_t graph_present = it.Get(2).AsLong();
   
-  PERFETTO_LOG("DetectConversionMode: alloc_present=%" PRId64 ", perf_present=%" PRId64 ", graph_present=%" PRId64,
-               alloc_present, perf_present, graph_present);
-  
-  // Count how many booleans are set
   int64_t count = alloc_present + perf_present + graph_present;
-
-  if (count != 1) {
-    PERFETTO_LOG("DetectConversionMode: Expected exactly one profile type, but found %" PRId64,
-                 count);
+  if (count == 0) {
+    PERFETTO_LOG("No profiles found.");
+    return std::nullopt;
+  } else if (count > 1) {
+    PERFETTO_ELOG(
+        "More than one type of profile found in the trace, pass an explicit "
+        "disambiguation flag (--alloc / --perf / --java_heap).");
     return std::nullopt;
   }
-  
-  // Derive ConversionMode based on which boolean is set
-  ConversionMode mode;
-  if (alloc_present) {
-    mode = ConversionMode::kHeapProfile;
-  } else if (perf_present) {
-    mode = ConversionMode::kPerfProfile;
-  } else {  // graph_present
-    mode = ConversionMode::kJavaHeapProfile;
-  }
-  
-  PERFETTO_LOG("DetectConversionMode: Derived conversion_mode=%d",
-               static_cast<int>(mode));
-
-  return mode;
+  return alloc_present  ? ConversionMode::kHeapProfile
+         : perf_present ? ConversionMode::kPerfProfile
+                        : ConversionMode::kJavaHeapProfile;
 }
 
 }  // namespace
 
 int TraceToProfile(std::istream* input,
-                   std::ostream* output,
                    uint64_t pid,
                    const std::vector<uint64_t>& timestamps,
                    bool annotate_frames,
                    const std::string& output_dir,
-                   std::optional<ConversionMode> explicit_conversion_mode) {
-  // Parse the trace (always needed regardless of mode)
+                   std::optional<ConversionMode> explicit_mode) {
+  // Pre-parse trace.
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
@@ -170,18 +155,13 @@ int TraceToProfile(std::istream* input,
     return -1;
   tp->Flush();
 
-  // Detect conversion mode if not explicitly provided
-  ConversionMode conversion_mode;
-  if (explicit_conversion_mode.has_value()) {
-    conversion_mode = explicit_conversion_mode.value();
-    PERFETTO_LOG("TraceToProfile: Using explicit conversion_mode=%d",
-                 static_cast<int>(conversion_mode));
-  } else {
-    auto detected_mode = DetectConversionMode(tp.get());
-    if (!detected_mode.has_value()) {
-      return -1;
-    }
-    conversion_mode = detected_mode.value();
+  // Detect type of profile.
+  std::optional<ConversionMode> mode = explicit_mode.has_value()
+                                           ? explicit_mode
+                                           : DetectConversionMode(tp.get());
+
+  if (!mode.has_value()) {
+    return -1;
   }
 
   // Set up filename function and directory prefix based on conversion mode
@@ -189,7 +169,7 @@ int TraceToProfile(std::istream* input,
   std::function<std::string(const SerializedProfile&)> filename_fn;
   std::string dir_prefix;
   
-  switch (conversion_mode) {
+  switch (*mode) {
     case ConversionMode::kHeapProfile:
       filename_fn = [&file_idx](const SerializedProfile& profile) {
         return "heap_dump." + std::to_string(++file_idx) + "." +
@@ -215,22 +195,22 @@ int TraceToProfile(std::istream* input,
 
   std::string dst_dir = GetDestinationDirectory(output_dir, dir_prefix);
   
-  // Symbolize and deobfuscate
+  // Add symbolisation and deobfuscation packets.
   MaybeSymbolize(tp.get());
   MaybeDeobfuscate(tp.get());
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return -1;
   }
   
-  // Generate profiles
+  // Generate profiles.
   std::vector<SerializedProfile> profiles;
-  TraceToPprof(tp.get(), &profiles, conversion_mode,
+  TraceToPprof(tp.get(), &profiles, *mode,
                ToConversionFlags(annotate_frames), pid, timestamps);
   if (profiles.empty()) {
     return 0;
   }
 
-  // Write profiles to files
+  // Write profiles to files.
   for (const auto& profile : profiles) {
     std::string filename = dst_dir + "/" + filename_fn(profile);
     base::ScopedFile fd(base::OpenFile(filename, O_CREAT | O_WRONLY, 0700));
@@ -240,7 +220,7 @@ int TraceToProfile(std::istream* input,
                                   profile.serialized.size()) ==
                    static_cast<ssize_t>(profile.serialized.size()));
   }
-  *output << "Wrote profiles to " << dst_dir << '\n';
+  PERFETTO_LOG("Wrote profiles to %s", dst_dir.c_str());
   return 0;
 }
 
