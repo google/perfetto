@@ -27,7 +27,7 @@ class PathUriResolver(TraceUriResolver):
   def resolve(self) -> TraceUriResolver.Result:
     return [
         TraceUriResolver.Result(
-            trace=util.file_generator(self.path), metadata={'trace': self.path})
+            trace=util.file_generator(self.path), metadata={'_path': self.path})
     ]
 
   @classmethod
