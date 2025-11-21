@@ -163,8 +163,8 @@ echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 Assuming the example config above is saved as `/tmp/config.txtpb`, start the
 recording.
 ```bash
-./tracebox ctl start # This will start persistent background tracing services
-./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
+sudo ./tracebox ctl start # This will start persistent background tracing services
+sudo ./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
 ```
 
 Open the `/tmp/trace.pb` file in the [Perfetto UI](https://ui.perfetto.dev).
@@ -334,8 +334,8 @@ Assuming the example config above is saved as `/tmp/config.txtpb` (with the
 target\_cmdline option changed to a process on your machine), start the
 recording.
 ```bash
-./tracebox ctl start
-./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
+sudo ./tracebox ctl start
+sudo ./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
 ```
 
 Once the recording stops, open the `/tmp/trace.pb` file in the [Perfetto

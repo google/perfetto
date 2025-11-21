@@ -25,33 +25,20 @@ namespace perfetto {
 struct ServiceSockets {
   std::string producer_socket;
   std::string consumer_socket;
-
-  // Returns true if both sockets are non-empty.
   bool IsValid() const {
     return !producer_socket.empty() && !consumer_socket.empty();
   }
-
   std::string ToString() const {
     return "Producer Socket: " + producer_socket +
            ", Consumer Socket: " + consumer_socket;
   }
 };
 
-// Prints usage information for the `tracebox ctl` applet.
 void PrintTraceboxCtlUsage();
-
+ServiceSockets GetRunningSockets();
 // Main entry point for the `tracebox ctl` applet.
 // Manages the lifecycle of Perfetto daemons (start/stop/status).
 int TraceboxCtlMain(int argc, char** argv);
-
-// Checks if the traced service is accessible and returns its socket paths.
-// Search order: env var, Android system sockets, /run/perfetto, /tmp.
-// Returns a ServiceSockets struct with empty strings if traced is not
-// accessible.
-ServiceSockets GetRunningSockets();
-
-// Sets the environment variables for the tracing service socket paths.
-void SetServiceSocketEnv(const ServiceSockets& sockets);
 
 }  // namespace perfetto
 

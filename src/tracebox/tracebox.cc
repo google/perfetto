@@ -263,16 +263,12 @@ int TraceboxMain(int argc, char** argv) {
   }
 
   if (autodaemonize) {
-    // If --system-sockets is passed with --autodaemonize, it's a valid (though
-    // slightly contradictory in name) way to say "spawn daemons but use public
-    // sockets". We warn if they try to mix them in a way that suggests they
-    // expect the old default behavior without the flag.
     if (use_system_sockets) {
       PERFETTO_ELOG(
           "Warning: --system-sockets with --autodaemonize is supported but "
-          "deprecated. Prefer `tracebox ctl start` for persistent daemons.");
+          "not recommended. Prefer `tracebox ctl start` for persistent system "
+          "sockets.");
     }
-    // We don't warn for plain --autodaemonize as it's a valid mode.
     return RunAutodaemonize(argc, argv);
   }
 
@@ -286,20 +282,21 @@ int TraceboxMain(int argc, char** argv) {
   if (!sockets.IsValid()) {
     fprintf(
         stderr,
-        "Error: Perfetto tracing daemons (traced, traced_probes) are not "
-        "running.\n\n"
-        "Tracebox behavior has changed. It no longer spawns temporary daemons "
-        "by default.\n"
-        "You have two options:\n"
-        "1. Start the daemons manually (Recommended):\n"
-        "     tracebox ctl start\n"
-        "     tracebox ...\n\n"
-        "2. Use the --autodaemonize flag for the old behavior:\n"
-        "     tracebox --autodaemonize ...\n"
-        "\nMore info at: https://perfetto.dev/docs/reference/tracebox\n");
+        R"(Error: Perfetto tracing daemons (traced, traced_probes) are not running.
+
+Tracebox behavior has changed. It no longer spawns temporary daemons by default.
+You have two options:
+1. Start the daemons manually (Recommended):
+     tracebox ctl start
+     tracebox ...
+
+2. Use the --autodaemonize flag for the old behavior:
+     tracebox --autodaemonize ...
+
+More info at: https://perfetto.dev/docs/reference/tracebox
+)");
     return 1;
   }
-  perfetto::SetServiceSocketEnv(sockets);
 
   PerfettoCmd perfetto_cmd;
   auto opt_res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
