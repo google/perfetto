@@ -35,7 +35,7 @@ import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {createPerfCallsitesTrack} from './perf_samples_profile_track';
+import {createPerfCallsitesTrack, createSkippedPerfCallsitesTrack} from './perf_samples_profile_track';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 
@@ -72,6 +72,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     );
     const store = assertExists(this.store);
     await this.addProcessPerfSamplesTracks(trace, store);
+    await this.addSkippedProcessPerfSamplesTracks(trace);
     await this.addThreadPerfSamplesTracks(trace, store);
     await this.addPerfCounterTracks(trace);
 
@@ -198,6 +199,59 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         });
       },
     });
+  }
+  
+  private async addSkippedProcessPerfSamplesTracks(trace: Trace) {
+    const pResult = await trace.engine.query(`
+      SELECT DISTINCT upid
+      FROM perf_sample
+      JOIN thread USING (utid)
+      JOIN perf_counter_track AS pct USING (perf_session_id)
+      WHERE
+        callsite_id IS NULL AND
+        upid IS NOT NULL AND
+        pct.is_timebase
+    `);
+
+    const upids = new Array<
+      number
+    >();
+    for (
+      const it = pResult.iter({upid: NUM});
+      it.valid();
+      it.next()
+    ) {
+
+ upids.push(it.upid);
+    }
+
+    for (const upid of upids) {
+      // Summary track containing all callstacks, hidden if there's only one counter.
+      const uri = `/process_${upid}/perf_samples_profile`;
+      trace.tracks.registerTrack({
+        uri,
+        tags: {
+          kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
+          upid,
+        },
+        renderer: createSkippedPerfCallsitesTrack(
+          trace,
+          uri,
+          upid,
+        ),
+      });
+      const group = trace.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForProcess(upid);
+      const summaryTrack = new TrackNode({
+        uri,
+        name: `Unclassified Process callstacks`,
+        isSummary: false,
+        headless: false,
+        sortOrder: -40,
+      });
+      group?.addChildInOrder(summaryTrack);
+    }
   }
 
   private async addThreadPerfSamplesTracks(

@@ -125,7 +125,12 @@ export function createPerfCallsitesTrack(
   });
 }
 
-export function createSkippedCallsitesTrack(trace: Trace, uri: string) {
+export function createSkippedPerfCallsitesTrack(
+  trace: Trace,
+  uri: string,
+  upidArg: number,
+) {
+
   return SliceTrack.create({
     trace,
     uri,
@@ -147,9 +152,8 @@ export function createSkippedCallsitesTrack(trace: Trace, uri: string) {
         ORDER BY ts
       `,
     }),
-    sliceName: () => 'Perf sample (skipped)',
+    sliceName: () => 'Unclassified Perf sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
-  });
 }
 
 function renderDetailsPanel(
