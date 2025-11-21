@@ -31,6 +31,7 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import m from 'mithril';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
 export interface TraceProcessorSliceTrackAttrs {
   readonly trace: Trace;
@@ -38,6 +39,7 @@ export interface TraceProcessorSliceTrackAttrs {
   readonly maxDepth?: number;
   readonly trackIds: ReadonlyArray<number>;
   readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
+  readonly depthTableName?: string;
 }
 
 const schema = {
@@ -59,11 +61,12 @@ export async function createTraceProcessorSliceTrack({
   maxDepth,
   trackIds,
   detailsPanel,
+  depthTableName,
 }: TraceProcessorSliceTrackAttrs) {
   return SliceTrack.create({
     trace,
     uri,
-    dataset: await getDataset(trace.engine, trackIds),
+    dataset: await getDataset(trace.engine, trackIds, depthTableName),
     sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
@@ -98,10 +101,15 @@ export async function createTraceProcessorSliceTrack({
   });
 }
 
-async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
+async function getDataset(
+  engine: Engine,
+  trackIds: ReadonlyArray<number>,
+  depthTableName?: string,
+) {
   assertTrue(trackIds.length > 0);
 
   if (trackIds.length === 1) {
+    // Single track case - use depth directly from slice table
     return new SourceDataset({
       schema,
       src: `
@@ -125,21 +133,25 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
       },
     });
   } else {
-    // If we have more than one trackId, we must use experimental_slice_layout
-    // to work out the depths. However, just using this as the dataset can be
-    // extremely slow. So we cache the depths up front in a new table for this
-    // track.
-    const tableName = `__async_slice_depth_${trackIds[0]}`;
+    // Multiple tracks case - need to compute layout depths.
+    // If no depth table name provided, create one with a constant name.
+    const tableName = depthTableName ?? `__async_slice_depth_${trackIds[0]}`;
 
-    await engine.query(`
-      create perfetto table ${tableName} as
-      select
-        id,
-        layout_depth as depth
-      from experimental_slice_layout('${trackIds.join(',')}')
-    `);
+    if (depthTableName === undefined) {
+      // Create the depth table if not provided by caller
+      await createPerfettoTable({
+        name: tableName,
+        engine,
+        as: `
+          select
+            id,
+            layout_depth as depth
+          from experimental_slice_layout('${trackIds.join(',')}')
+        `,
+      });
+    }
 
-    // The (inner) join acts as a filter as well as providing the depth.
+    // Join slice with the depth table (caller-provided or self-created).
     return new SourceDataset({
       schema,
       src: `
@@ -158,6 +170,10 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
         from slice
         join ${tableName} d using (id)
       `,
+      filter: {
+        col: 'track_id',
+        in: trackIds,
+      },
     });
   }
 }
