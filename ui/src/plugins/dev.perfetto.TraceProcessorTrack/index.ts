@@ -290,7 +290,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ifnull(thread.is_main_thread, 0) as isMainThread,
           ifnull(k.is_kernel_thread, 0) AS isKernelThread,
           s.description AS description,
-          s.track_rank
+          s.track_rank,
+          s.lower_name
         from grouped s
         left join process p on s.upid = p.upid
         left join thread using (utid)
