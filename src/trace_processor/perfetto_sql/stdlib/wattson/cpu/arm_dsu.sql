@@ -114,5 +114,5 @@ SELECT
   0 AS id,
   trace_start() AS ts,
   trace_end() - trace_start() AS dur,
-  NULL AS dsu_freq
+  0 AS dsu_freq
 FROM _skip_devfreq_for_calc;
