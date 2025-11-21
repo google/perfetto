@@ -36,6 +36,7 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/tracing/default_socket.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "perfetto/base/time.h"
@@ -152,6 +153,12 @@ int CtlStop() {
   return 1;
 #else
   PERFETTO_LOG("Stopping daemons...");
+
+  auto env_cleaner = base::OnScopeExit([] {
+    base::UnsetEnv(kPerfettoProducerSockEnv);
+    base::UnsetEnv(kPerfettoConsumerSockEnv);
+  });
+
   bool found_any = false;
   bool all_stopped = true;
   for (const char* daemon : kDaemons) {
@@ -279,6 +286,8 @@ int CtlStart() {
   ServiceSockets started_sockets = GetRunningSockets();
   if (started_sockets.IsValid()) {
     SetServiceSocketEnv(started_sockets);
+    printf("Success: Daemons started with %s\n",
+           started_sockets.ToString().c_str());
     return 0;
   }
   printf("Failed to start daemons. Invalid sockets: %s",
@@ -333,50 +342,25 @@ Commands:
 }
 
 ServiceSockets GetRunningSockets() {
-  if (const char* consumer_env = getenv(kPerfettoConsumerSockEnv);
-      consumer_env) {
-    if (CanConnectToSocket(consumer_env)) {
-      const char* producer_env = getenv(kPerfettoProducerSockEnv);
-      return ServiceSockets{producer_env ? producer_env : "", consumer_env};
-    }
-    PERFETTO_ELOG("Environment variable: %s present but not able to connect.",
-                  consumer_env);
-    return ServiceSockets{};
+  ServiceSockets sockets;
+  sockets.producer_socket = perfetto::GetProducerSocket();
+  sockets.consumer_socket = perfetto::GetConsumerSocket();
+
+  if (CanConnectToSocket(sockets.consumer_socket)) {
+    return sockets;
   }
 
-  std::string producer_socket = "/tmp/perfetto-producer";
-  std::string consumer_socket = "/tmp/perfetto-consumer";
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  producer_socket = "127.0.0.1:32278";
-  consumer_socket = "127.0.0.1:32279";
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  producer_socket = "/dev/socket/traced_producer";
-  consumer_socket = "/dev/socket/traced_consumer";
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
-  // Check /run/perfetto, then /tmp
-  bool use_run = false;
-  if (access("/run/perfetto", W_OK) == 0) {
-    use_run = true;
-  } else if (errno == ENOENT && base::Mkdir("/run/perfetto")) {
-    use_run = true;
-  }
+  PERFETTO_ELOG("Failed to connect to %s%s", sockets.consumer_socket.c_str(),
+                getenv(kPerfettoConsumerSockEnv)
+                    ? " (configured via PERFETTO_CONSUMER_SOCK_NAME)"
+                    : "");
 
-  if (use_run) {
-    producer_socket = "/run/perfetto/traced-producer.sock";
-    consumer_socket = "/run/perfetto/traced-consumer.sock";
-  }
-#endif
-
-  return CanConnectToSocket(consumer_socket)
-             ? ServiceSockets{producer_socket, consumer_socket}
-             : ServiceSockets{};
+  return ServiceSockets{};
 }
 
 void SetServiceSocketEnv(const ServiceSockets& sockets) {
-  if (sockets.IsValid()) {
-    base::SetEnv(kPerfettoProducerSockEnv, sockets.producer_socket);
-    base::SetEnv(kPerfettoConsumerSockEnv, sockets.consumer_socket);
-  }
+  base::SetEnv(kPerfettoProducerSockEnv, sockets.producer_socket);
+  base::SetEnv(kPerfettoConsumerSockEnv, sockets.consumer_socket);
 }
 
 int TraceboxCtlMain(int argc, char** argv) {

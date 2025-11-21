@@ -163,7 +163,7 @@ echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 Assuming the example config above is saved as `/tmp/config.txtpb`, start the
 recording.
 ```bash
-./tracebox ctl start
+./tracebox ctl start # This will start persistent background tracing services
 ./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
 ```
 

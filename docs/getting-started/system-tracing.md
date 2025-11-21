@@ -156,7 +156,7 @@ chmod +x tracebox
 First, start the tracing daemons in background:
 
 ```bash
-./tracebox ctl start
+./tracebox ctl start # This will start persistent background tracing services
 ```
 
 Then, to capture a trace you need to pass the config file to the downloaded `tracebox`

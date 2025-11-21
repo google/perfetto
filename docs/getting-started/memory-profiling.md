@@ -174,7 +174,7 @@ chmod +x tracebox heap_profile
 
 Start the tracing service
 ```bash
-./tracebox ctl start
+./tracebox ctl start # This will start persistent background tracing services
 ```
 
 Generate the heapprofd config and start the tracing session.
