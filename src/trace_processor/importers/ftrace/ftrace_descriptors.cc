@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 597> descriptors{{
+std::array<FtraceMessageDescriptor, 600> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6618,6 +6618,57 @@ std::array<FtraceMessageDescriptor, 597> descriptors{{
             {"category", ProtoSchemaType::kString},
             {"name", ProtoSchemaType::kString},
             {"value", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "scsi_dispatch_cmd_error",
+        13,
+        {
+            {},
+            {"host_no", ProtoSchemaType::kUint32},
+            {"channel", ProtoSchemaType::kUint32},
+            {"id", ProtoSchemaType::kUint32},
+            {"lun", ProtoSchemaType::kUint32},
+            {"rtn", ProtoSchemaType::kInt32},
+            {"opcode", ProtoSchemaType::kUint32},
+            {"cmd_len", ProtoSchemaType::kUint32},
+            {"data_sglen", ProtoSchemaType::kUint32},
+            {"prot_sglen", ProtoSchemaType::kUint32},
+            {"prot_op", ProtoSchemaType::kUint32},
+            {"cmnd", ProtoSchemaType::kString},
+            {"driver_tag", ProtoSchemaType::kInt32},
+            {"scheduler_tag", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "scsi_dispatch_cmd_timeout",
+        16,
+        {
+            {},
+            {"host_no", ProtoSchemaType::kUint32},
+            {"channel", ProtoSchemaType::kUint32},
+            {"id", ProtoSchemaType::kUint32},
+            {"lun", ProtoSchemaType::kUint32},
+            {"result", ProtoSchemaType::kInt32},
+            {"opcode", ProtoSchemaType::kUint32},
+            {"cmd_len", ProtoSchemaType::kUint32},
+            {"data_sglen", ProtoSchemaType::kUint32},
+            {"prot_sglen", ProtoSchemaType::kUint32},
+            {"prot_op", ProtoSchemaType::kUint32},
+            {"cmnd", ProtoSchemaType::kString},
+            {"driver_tag", ProtoSchemaType::kInt32},
+            {"scheduler_tag", ProtoSchemaType::kInt32},
+            {"sense_key", ProtoSchemaType::kUint32},
+            {"asc", ProtoSchemaType::kUint32},
+            {"ascq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "scsi_eh_wakeup",
+        1,
+        {
+            {},
+            {"host_no", ProtoSchemaType::kUint32},
         },
     },
 }};

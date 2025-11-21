@@ -11605,6 +11605,47 @@ message ScmCallEndFtraceEvent {}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
 
+// Begin of protos/perfetto/trace/ftrace/scsi.proto
+
+message ScsiDispatchCmdErrorFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 rtn = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+}
+message ScsiDispatchCmdTimeoutFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 result = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+  optional uint32 sense_key = 14;
+  optional uint32 asc = 15;
+  optional uint32 ascq = 16;
+}
+message ScsiEhWakeupFtraceEvent {
+  optional uint32 host_no = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/scsi.proto
+
 // Begin of protos/perfetto/trace/ftrace/sde.proto
 
 message SdeTracingMarkWriteFtraceEvent {
@@ -12866,6 +12907,9 @@ message FtraceEvent {
     DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
     DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
     FwtpPerfettoCounterFtraceEvent fwtp_perfetto_counter = 596;
+    ScsiDispatchCmdErrorFtraceEvent scsi_dispatch_cmd_error = 597;
+    ScsiDispatchCmdTimeoutFtraceEvent scsi_dispatch_cmd_timeout = 598;
+    ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
   }
 }
 

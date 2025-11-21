@@ -120,6 +120,7 @@ target_host_supported = [
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor',
     '//src/trace_processor:trace_processor_shell',
+    '//src/trace_processor:trace_processor_shell_lib',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
 ]
@@ -180,7 +181,7 @@ proto_groups = {
 
 needs_libfts = [
     '//:perfetto_unittests',
-    '//src/trace_processor:trace_processor_shell',
+    '//src/trace_processor:trace_processor_shell_lib',
     '//src/traceconv:traceconv',
 ]
 

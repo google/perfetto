@@ -23,6 +23,7 @@ import {AsyncLimiter} from '../../base/async_limiter';
 import {
   escapeQuery,
   escapeSearchQuery,
+  escapeRegexQuery,
 } from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
 import {
@@ -50,6 +51,7 @@ const ROW_H = 24;
 export interface LogFilteringCriteria {
   readonly minimumLevel: number;
   readonly tags: string[];
+  readonly isTagRegex?: boolean;
   readonly textEntry: string;
   readonly hideNonMatching: boolean;
   readonly machineExcludeList: number[];
@@ -381,6 +383,16 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
           });
         },
       }),
+      m(Button, {
+        icon: 'regular_expression',
+        title: 'Use regular expression',
+        active: !!attrs.store.state.isTagRegex,
+        onclick: () => {
+          attrs.store.edit((draft) => {
+            draft.isTagRegex = !draft.isTagRegex;
+          });
+        },
+      }),
       m(LogTextWidget, {
         trace: attrs.trace,
         onChange: (text) => {
@@ -533,7 +545,14 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
       left join process using(upid)
       where prio >= ${filter.minimumLevel}`;
   if (filter.tags.length) {
-    selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+    if (filter.isTagRegex) {
+      const tagGlobClauses = filter.tags.map(
+        (pattern) => `tag glob ${escapeRegexQuery(pattern)}`,
+      );
+      selectedRows += ` and (${tagGlobClauses.join(' OR ')})`;
+    } else {
+      selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+    }
   }
   if (filter.machineExcludeList.length) {
     selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join(',')})`;
