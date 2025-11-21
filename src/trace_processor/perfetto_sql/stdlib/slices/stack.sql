@@ -18,9 +18,9 @@ INCLUDE PERFETTO MODULE slices.hierarchy;
 -- View that provides stack_id and parent_stack_id for all slices by computing
 -- them on-demand.
 --
--- Note: This is currently for internal use only and computes stack hashes
--- on-demand, which may be slower than the C++ implementation.
-CREATE PERFETTO VIEW _slice_with_stack_id (
+-- Note: This view computes stack hashes on-demand, which may be slower than
+-- the previous C++ implementation.
+CREATE PERFETTO VIEW slice_with_stack_id (
   -- Slice id.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -93,8 +93,8 @@ LEFT JOIN slice_stack_hashes AS parent_sh
 
 -- Returns all slices that have the given stack_id, along with their ancestors.
 --
--- The stack_id can be obtained from the _slice_with_stack_id view.
-CREATE PERFETTO FUNCTION _ancestor_slice_by_stack(
+-- The stack_id can be obtained from the slice_with_stack_id view.
+CREATE PERFETTO FUNCTION ancestor_slice_by_stack(
     -- The stack hash to search for.
     stack_hash LONG
 )
@@ -127,7 +127,7 @@ WITH
   matching_slices AS (
     SELECT
       id
-    FROM _slice_with_stack_id
+    FROM slice_with_stack_id
     WHERE
       stack_id = $stack_hash
   )
@@ -152,8 +152,8 @@ ORDER BY
 
 -- Returns all slices that have the given stack_id, along with their descendants.
 --
--- The stack_id can be obtained from the _slice_with_stack_id view.
-CREATE PERFETTO FUNCTION _descendant_slice_by_stack(
+-- The stack_id can be obtained from the slice_with_stack_id view.
+CREATE PERFETTO FUNCTION descendant_slice_by_stack(
     -- The stack hash to search for.
     stack_hash LONG
 )
@@ -186,7 +186,7 @@ WITH
   matching_slices AS (
     SELECT
       id
-    FROM _slice_with_stack_id
+    FROM slice_with_stack_id
     WHERE
       stack_id = $stack_hash
   )

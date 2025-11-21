@@ -380,8 +380,8 @@ function onCssLoaded() {
 
   const themeSetting = AppImpl.instance.settings.register({
     id: 'theme',
-    name: '[Experimental] UI Theme',
-    description: 'Warning: Dark mode is not fully supported yet.',
+    name: 'UI Theme',
+    description: 'Changes the color palette used throughout the UI.',
     schema: z.enum(['dark', 'light']),
     defaultValue: 'light',
   } as const);
@@ -398,7 +398,7 @@ function onCssLoaded() {
   // Add command to toggle the theme.
   AppImpl.instance.commands.registerCommand({
     id: 'dev.perfetto.ToggleTheme',
-    name: '[Experimental] Toggle UI Theme',
+    name: 'Toggle UI Theme (Dark/Light)',
     callback: () => {
       const currentTheme = themeSetting.get();
       themeSetting.set(currentTheme === 'dark' ? 'light' : 'dark');

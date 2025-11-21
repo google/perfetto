@@ -1191,11 +1191,7 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   fns.emplace_back(std::make_unique<Ancestor>(
       Ancestor::Type::kStackProfileCallsite, storage));
   fns.emplace_back(
-      std::make_unique<Ancestor>(Ancestor::Type::kSliceByStack, storage));
-  fns.emplace_back(
       std::make_unique<Descendant>(Descendant::Type::kSlice, storage));
-  fns.emplace_back(
-      std::make_unique<Descendant>(Descendant::Type::kSliceByStack, storage));
   fns.emplace_back(std::make_unique<ConnectedFlow>(
       ConnectedFlow::Mode::kDirectlyConnectedFlow, storage));
   fns.emplace_back(std::make_unique<ConnectedFlow>(

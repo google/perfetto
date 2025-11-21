@@ -8,6 +8,78 @@ documents:
  - **Context**: why we are making the change i.e. why does it have to backwards incompatible?
  - **Migrations**: suggested changes you can make to your PerfettoSQL to not be broken by the changes
 
+## Removal of `stack_id` and `parent_stack_id` columns from slice table
+
+**Date/Version**
+
+2025-11-21/v54.0
+
+**Symptoms**
+
+- An error message of the form `no such column: stack_id` or `no such column: parent_stack_id`
+- The `stack_id` and `parent_stack_id` columns disappearing from output of queries with `SELECT *` on the slice table
+- Error `no such function: ancestor_slice_by_stack` or `no such function: descendant_slice_by_stack` (these now require `INCLUDE PERFETTO MODULE slices.stack`)
+- Queries using hardcoded stack_id values (e.g., `WHERE stack_id = 123456`) return no results or wrong results
+
+**Context**
+
+The `stack_id` and `parent_stack_id` columns that computed hash values based on slice names. There are two reasons for their removal:
+
+1. They used a lot of memory for a feature which was rarely useful.
+2. Even when they were used, usually `parent_id` would have been a better choice.
+
+These columns have been removed from the slice table, and the stack-based table functions have been moved to the `slices.stack` stdlib module where they compute stack hashes on-demand rather than storing them.
+
+**Migrations**
+
+**⚠️ IMPORTANT:** The migration helpers use a different hash algorithm (SQLite `hash()` vs `MurmurHash`) and will produce **different stack_id values** than the previous implementation. This means:
+- Hardcoded stack_id values in queries or dashboards will **not work**
+
+**Migration helpers:** For API compatibility with existing queries, you can use the migration helpers in the `slices.stack` module:
+
+```sql
+INCLUDE PERFETTO MODULE slices.stack;
+
+-- Access stack_id and parent_stack_id columns (computed on-demand with new hash algorithm)
+SELECT * FROM slice_with_stack_id WHERE id = 123;
+
+-- Use stack-based ancestor/descendant functions
+SELECT * FROM ancestor_slice_by_stack((SELECT stack_id FROM slice_with_stack_id WHERE id = 123));
+SELECT * FROM descendant_slice_by_stack((SELECT stack_id FROM slice_with_stack_id WHERE id = 123));
+```
+
+**Note:** These helpers compute stack hashes on-demand and may be slower than the previous C++ implementation.
+
+**Do you really need this?**
+
+Consider whether you actually need the stack-based functionality, or if you intended to use the parent-child relationship instead:
+
+- Use `parent_id` to traverse the slice hierarchy
+- Use `ancestor_slice(id)` table function for finding all ancestors
+- Use `descendant_slice(id)` table function for finding all descendants
+
+For example, instead of:
+
+```sql
+select * from ancestor_slice_by_stack((select stack_id from slice where id = 123))
+```
+
+you can do:
+
+```sql
+select * from ancestor_slice(123)
+```
+
+If you need to find slices with the same name pattern, use explicit name matching:
+
+```sql
+-- Find slices with the same category and name
+select s2.* from slice s1
+join slice s2 on s1.category = s2.category and s1.name = s2.name
+where s1.id = 123
+```
+
+
 ## Change in semantic of `type` column on track tables
 
 **Date/Version**
