@@ -22,12 +22,12 @@ from typing import Dict, List, Optional, NamedTuple
 from python.generators.sql_processing.docs_extractor import DocsExtractor
 from python.generators.sql_processing.utils import ObjKind
 from python.generators.sql_processing.utils import COLUMN_TYPES, MACRO_ARG_TYPES
-
 from python.generators.sql_processing.utils import ALLOWED_PREFIXES
 from python.generators.sql_processing.utils import OBJECT_NAME_ALLOWLIST
-
 from python.generators.sql_processing.utils import ANY_PATTERN
 from python.generators.sql_processing.utils import ARG_DEFINITION_PATTERN
+from python.generators.sql_processing.utils import CREATE_TABLE_ALLOWLIST
+from python.generators.sql_processing.utils import is_internal
 
 
 @dataclass
@@ -37,10 +37,6 @@ class DocParseOptions:
   enforce_every_column_set_is_documented: bool = False
   # Include internal artifacts (those starting with _) in the output
   include_internal: bool = False
-
-
-def _is_internal(name: str) -> bool:
-  return re.match(r'^_.*', name, re.IGNORECASE) is not None
 
 
 def _is_snake_case(s: str) -> bool:
@@ -57,6 +53,9 @@ def parse_comment(comment: str) -> str:
 
 def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
   """Returns error message if the name is not correct, None otherwise."""
+  # Internal artifacts (starting with _) don't need to follow naming conventions
+  if is_internal(name):
+    return None
   if module in ["common", "prelude", "deprecated"]:
     if name.startswith(module):
       return (f'Names of tables/views/functions in the "{module}" module '
@@ -113,9 +112,10 @@ class AbstractDocParser(ABC):
     return self.name.strip()
 
   def _parse_desc_not_empty(self, desc: str):
-    if not desc:
+    # Internal artifacts don't need descriptions
+    if not desc and not is_internal(self.name):
       self._error('Description of the table/view/function/macro is missing')
-    return desc.strip()
+    return desc.strip() if desc else ""
 
   def _parse_columns(
       self,
@@ -123,13 +123,17 @@ class AbstractDocParser(ABC):
       kind: ObjKind,
   ) -> Dict[str, Arg]:
     columns = self._parse_args_definition(schema) if schema else {}
-    if not schema and self.options.enforce_every_column_set_is_documented:
+
+    # Internal artifacts don't need column documentation
+    is_internal_artifact = is_internal(self.name)
+
+    if not schema and self.options.enforce_every_column_set_is_documented and not is_internal_artifact:
       self._error(
           'Description of the columns of table/view/function is missing')
       return columns
 
     for column_name, properties in columns.items():
-      if not properties.description:
+      if not properties.description and not is_internal_artifact:
         self._error(
             f'Column "{column_name}" is missing a description. Please add a '
             'comment in front of the column definition')
@@ -154,8 +158,11 @@ class AbstractDocParser(ABC):
   def _parse_args(self, sql_args_str: str, kind: ObjKind) -> Dict[str, Arg]:
     args = self._parse_args_definition(sql_args_str)
 
+    # Internal artifacts don't need arg documentation
+    is_internal_artifact = is_internal(self.name)
+
     for arg in args:
-      if not args[arg].description:
+      if not args[arg].description and not is_internal_artifact:
         self._error(f'Arg "{arg}" is missing a description. '
                     'Please add a comment in front of the arg definition.')
 
@@ -238,6 +245,10 @@ class TableViewDocParser(AbstractDocParser):
 
     or_replace, perfetto_or_virtual, type, self.name, schema = doc.obj_match
 
+    # Skip internal artifacts early if not including them
+    if is_internal(self.name) and not self.options.include_internal:
+      return None
+
     if or_replace is not None:
       self._error(
           f'{type} "{self.name}": CREATE OR REPLACE is not allowed in stdlib '
@@ -245,10 +256,8 @@ class TableViewDocParser(AbstractDocParser):
           f'use CREATE instead.')
       return
 
-    if _is_internal(self.name):
-      return None
-
-    if type.lower() == "table" and not perfetto_or_virtual:
+    if (type.lower() == "table" and not perfetto_or_virtual and
+        self.name not in CREATE_TABLE_ALLOWLIST):
       self._error(
           f'{type} "{self.name}": Can only expose CREATE PERFETTO tables')
       return
@@ -292,7 +301,7 @@ class FunctionDocParser(AbstractDocParser):
           f'use CREATE instead.')
 
     # Ignore internal functions unless explicitly requested.
-    if _is_internal(self.name) and not self.options.include_internal:
+    if is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
@@ -302,7 +311,8 @@ class FunctionDocParser(AbstractDocParser):
                   f' (should be {name.casefold()})')
 
     ret_desc = None if ret_comment is None else parse_comment(ret_comment)
-    if not ret_desc:
+    # Internal artifacts don't need return descriptions
+    if not ret_desc and not is_internal(name):
       self._error(f'Function "{name}": return description is missing')
 
     return Function(
@@ -310,7 +320,7 @@ class FunctionDocParser(AbstractDocParser):
         desc=self._parse_desc_not_empty(doc.description),
         args=self._parse_args(args, ObjKind.function),
         return_type=ret_type,
-        return_desc=ret_desc,
+        return_desc=ret_desc if ret_desc else "",
     )
 
 
@@ -344,7 +354,7 @@ class TableFunctionDocParser(AbstractDocParser):
       return
 
     # Ignore internal functions unless explicitly requested.
-    if _is_internal(self.name) and not self.options.include_internal:
+    if is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
@@ -393,7 +403,7 @@ class MacroDocParser(AbstractDocParser):
           f'use CREATE instead.')
 
     # Ignore internal macros unless explicitly requested.
-    if _is_internal(self.name) and not self.options.include_internal:
+    if is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
@@ -555,6 +565,8 @@ def parse_file(
                         [], [], [], module_doc)
 
   # Parse the extracted docs.
+  # Note: We collect errors from all parsers even if the result is None (filtered out),
+  # to ensure validation errors are reported for internal artifacts.
   errors: List[str] = []
   table_views: List[TableOrView] = []
   functions: List[Function] = []
