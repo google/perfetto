@@ -15293,6 +15293,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/trace.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/track_event.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/threads.sql",
+        "src/trace_processor/perfetto_sql/stdlib/viz/track_event_callstacks.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/arm_dsu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/freq.sql",
