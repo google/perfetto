@@ -60,6 +60,8 @@ export class CallstackDetailsSection implements TrackEventDetailsPanelSection {
     sliceId: number,
     argKey: string,
   ): Promise<CallstackFrame[] | undefined> {
+    const callsiteColumn =
+      argKey === 'callsite_id' ? 'callsite_id' : 'end_callsite_id';
     const result = await this.trace.engine.query(`
       INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
@@ -71,10 +73,10 @@ export class CallstackDetailsSection implements TrackEventDetailsPanelSection {
           source_file,
           line_number
         FROM _callstacks_for_stack_profile_samples!((
-          SELECT extract_arg(arg_set_id, '${argKey}') as callsite_id
-          FROM slice
-          WHERE id = ${sliceId}
-            AND extract_arg(arg_set_id, '${argKey}') IS NOT NULL
+          SELECT ${callsiteColumn} as callsite_id
+          FROM __intrinsic_track_event_callstacks
+          WHERE slice_id = ${sliceId}
+            AND ${callsiteColumn} IS NOT NULL
         ))
         ORDER BY id
       )
@@ -92,9 +94,6 @@ export class CallstackDetailsSection implements TrackEventDetailsPanelSection {
       JOIN callstack c USING (id)
       ORDER BY s.depth
     `);
-    if (result.numRows() === 0) {
-      return undefined;
-    }
     const frames: CallstackFrame[] = [];
     const it = result.iter({
       name: STR_NULL,
@@ -108,7 +107,7 @@ export class CallstackDetailsSection implements TrackEventDetailsPanelSection {
         lineNumber: it.lineNumber ?? undefined,
       });
     }
-    return frames;
+    return frames.length === 0 ? undefined : frames;
   }
 
   private renderFrames(frames: CallstackFrame[], title: string): m.Children {

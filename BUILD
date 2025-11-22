@@ -3714,6 +3714,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/threads.sql",
+        "src/trace_processor/perfetto_sql/stdlib/viz/track_event_callstacks.sql",
     ],
 )
 

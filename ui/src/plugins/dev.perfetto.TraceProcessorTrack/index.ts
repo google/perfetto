@@ -245,7 +245,10 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   }
 
   private async addSlices(ctx: Trace) {
-    await ctx.engine.query('include perfetto module viz.threads;');
+    await ctx.engine.query(`
+      include perfetto module viz.threads;
+      include perfetto module viz.track_event_callstacks;
+    `);
 
     // Step 1: Materialize track metadata
     // Can be cleaned up at the end of this function as only tables and
@@ -265,6 +268,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             min(t.id) minTrackId,
             group_concat(t.id) as trackIds,
             count() as trackCount,
+            max(cs.track_id IS NOT NULL) as hasCallstacks,
             CASE t.type
               WHEN 'thread_execution' THEN 0
               WHEN 'art_method_tracing' THEN 1
@@ -272,6 +276,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             END as track_rank
           from _slice_track_summary s
           join track t using (id)
+          left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
           group by type, upid, utid, t.track_group_id, ifnull(t.track_group_id, t.id)
         )
         select
@@ -290,6 +295,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ifnull(thread.is_main_thread, 0) as isMainThread,
           ifnull(k.is_kernel_thread, 0) AS isKernelThread,
           s.description AS description,
+          s.hasCallstacks,
           s.track_rank,
           s.lower_name
         from grouped s
@@ -332,6 +338,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       processName: STR_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
+      hasCallstacks: NUM,
       description: STR_NULL,
       track_rank: NUM,
       lower_name: STR_NULL,
@@ -350,6 +357,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         pid,
         isMainThread,
         isKernelThread,
+        hasCallstacks,
         description,
       } = it;
       const schema = schemas.get(type);
@@ -391,6 +399,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           upid: upid ?? undefined,
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
+          hasCallstacks: hasCallstacks === 1,
         },
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',

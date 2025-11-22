@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE viz.track_event_callstacks;
+
 CREATE PERFETTO TABLE _track_event_tracks_unordered AS
 WITH
   extracted AS (
@@ -120,6 +122,7 @@ SELECT
   min(extract_arg(track.source_arg_set_id, 'y_axis_share_key')) AS y_axis_share_key,
   max(m.id IS NOT NULL) AS has_data,
   max(c.id IS NOT NULL) AS has_children,
+  max(cs.track_id IS NOT NULL) AS has_callstacks,
   min(unioned.id) AS min_track_id,
   GROUP_CONCAT(unioned.id) AS track_ids,
   min(unioned.order_id) AS order_id
@@ -132,6 +135,8 @@ LEFT JOIN _track_event_has_children AS c
   USING (id)
 LEFT JOIN _min_ts_per_track AS m
   USING (id)
+LEFT JOIN _track_event_tracks_with_callstacks AS cs
+  ON cs.track_id = unioned.id
 GROUP BY
   track.track_group_id,
   coalesce(track.track_group_id, track.id)
