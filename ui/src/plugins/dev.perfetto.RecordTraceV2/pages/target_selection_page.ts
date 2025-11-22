@@ -30,6 +30,10 @@ import {RecordSubpage} from '../config/config_interfaces';
 import {RecordPluginSchema} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
 import {linkify} from '../../../widgets/anchor';
+import {getPresetsForPlatform} from '../presets';
+import {Icons} from '../../../base/semantic_icons';
+import {shareRecordConfig} from '../config/config_sharing';
+import {Card} from '../../../widgets/card';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
 
@@ -37,11 +41,11 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
   return {
     kind: 'GLOBAL_PAGE',
     id: 'target',
-    icon: 'cable',
-    title: 'Target device',
-    subtitle: 'Live recording via USB/WebSocket',
+    icon: 'dashboard',
+    title: 'Overview',
+    subtitle: 'Start a new trace',
     render() {
-      return m(TargetSelectionPage, {recMgr});
+      return m(OverviewPage, {recMgr});
     },
     serialize(state: RecordPluginSchema) {
       state.target = {
@@ -50,43 +54,92 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
         targetId: recMgr.currentTarget?.id,
       };
       state.autoOpenTrace = recMgr.autoOpenTraceWhenTracingEnds;
+      state.selectedConfigId = recMgr.selectedConfigId;
+      state.configModified = recMgr.isConfigModified;
     },
     async deserialize(state: RecordPluginSchema) {
       recMgr.autoOpenTraceWhenTracingEnds = state.autoOpenTrace;
-      if (state.target.platformId === undefined) return;
-      recMgr.setPlatform(state.target.platformId);
+
+      // Restore platform selection
+      if (state.target.platformId !== undefined) {
+        recMgr.setPlatform(state.target.platformId);
+      }
+
+      // Restore config
+      const hasSavedProbes =
+        state.lastSession !== undefined &&
+        state.lastSession.probes !== undefined &&
+        Object.keys(state.lastSession.probes).length > 0;
+
+      if (state.selectedConfigId || hasSavedProbes) {
+        if (state.selectedConfigId) {
+          recMgr.loadConfig({
+            config: state.lastSession,
+            configId: state.selectedConfigId,
+            configName: recMgr.resolveConfigName(state.selectedConfigId),
+            configModified: state.configModified,
+          });
+        } else {
+          recMgr.loadSession(state.lastSession);
+        }
+      } else {
+        recMgr.loadDefaultConfig();
+      }
+
+      // Restore provider selection
       const prov = recMgr.getProvider(state.target.transportId ?? '');
-      if (prov === undefined) return;
-      await recMgr.setProvider(prov);
-      if (state.target.targetId === undefined) return;
-      for (const target of await recMgr.listTargets()) {
-        if (target.id === state.target.targetId) {
-          await recMgr.setTarget(target);
+      if (prov !== undefined) {
+        await recMgr.setProvider(prov);
+      }
+
+      // Restore target selection
+      if (state.target.targetId !== undefined) {
+        const targets = await recMgr.listTargets();
+        const target = targets.find((t) => t.id === state.target.targetId);
+        if (target) {
+          recMgr.setTarget(target);
         }
       }
     },
   };
 }
 
-class TargetSelectionPage implements m.ClassComponent<RecMgrAttrs> {
+class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
   view({attrs}: m.CVnode<RecMgrAttrs>) {
+    const recMgr = attrs.recMgr;
+
     return [
       m('header', 'Select platform'),
       m(SegmentedButtons, {
         className: 'platform-selector',
         options: TARGET_PLATFORMS.map((p) => ({label: p.name, icon: p.icon})),
         selectedOption: TARGET_PLATFORMS.findIndex(
-          (p) => p.id === attrs.recMgr.currentPlatform,
+          (p) => p.id === recMgr.currentPlatform,
         ),
         onOptionSelected: (num) => {
-          attrs.recMgr.setPlatform(TARGET_PLATFORMS[num].id);
-          // m.redraw();
+          const platformId = TARGET_PLATFORMS[num].id;
+          recMgr.setPlatform(platformId);
+          recMgr.loadDefaultConfig();
         },
       }),
-      [
-        m(TransportSelector, {
-          recMgr: attrs.recMgr,
-          key: attrs.recMgr.currentPlatform,
+
+      m(RecordConfigSelector, {recMgr}),
+
+      m(TransportSelector, {recMgr}),
+
+      recMgr.currentProvider && [
+        m(TargetSelector, {
+          recMgr,
+          provider: recMgr.currentProvider,
+          key: new ObjToId().getKey(recMgr.currentProvider),
+        }),
+      ],
+
+      recMgr.currentTarget && [
+        m(TargetDetails, {
+          recMgr,
+          target: recMgr.currentTarget,
+          key: new ObjToId().getKey(recMgr.currentTarget),
         }),
       ],
     ];
@@ -119,14 +172,186 @@ class TransportSelector implements m.ClassComponent<RecMgrAttrs> {
     return [
       m('header', 'Select transport'),
       m('fieldset.record-transports', ...options),
-      attrs.recMgr.currentProvider && [
-        m(TargetSelector, {
-          recMgr: attrs.recMgr,
-          provider: attrs.recMgr.currentProvider,
-          key: this.transportKeys.getKey(attrs.recMgr.currentProvider),
-        }),
-      ],
     ];
+  }
+}
+
+class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
+  view({attrs}: m.CVnode<RecMgrAttrs>) {
+    const recMgr = attrs.recMgr;
+    const presets = getPresetsForPlatform(recMgr.currentPlatform);
+    const isEmptySelected =
+      recMgr.selectedConfigId === undefined &&
+      recMgr.isConfigModified === false &&
+      !recMgr.recordConfig.hasActiveProbes();
+
+    return [
+      m('header', 'Trace config'),
+      m('.pf-config-selector', [
+        m('h3', 'Quick starts'),
+        m('.pf-config-selector__grid', [
+          ...presets.map((p) =>
+            this.renderCard(
+              p.icon,
+              p.title,
+              p.subtitle,
+              recMgr.selectedConfigId === `preset:${p.id}` &&
+                recMgr.isConfigModified === false,
+              () =>
+                recMgr.loadConfig({
+                  config: p.session,
+                  configId: `preset:${p.id}`,
+                  configName: p.title,
+                }),
+            ),
+          ),
+          this.renderCard(
+            'clear_all',
+            'Empty',
+            'Start fresh',
+            isEmptySelected,
+            () => {
+              recMgr.clearSession();
+              recMgr.clearSelectedConfig();
+            },
+          ),
+        ]),
+        this.renderSavedConfigsSection(recMgr),
+      ]),
+    ];
+  }
+
+  private renderSavedConfigsSection(recMgr: RecordingManager) {
+    const hasActiveProbes = recMgr.recordConfig.hasActiveProbes();
+    const shouldHighlightSave =
+      (hasActiveProbes && recMgr.selectedConfigId === undefined) ||
+      recMgr.isConfigModified === true;
+    const hasSavedConfigs = recMgr.savedConfigs.length > 0;
+    const showSection = hasSavedConfigs || shouldHighlightSave;
+    if (!showSection) {
+      return null;
+    }
+    return [
+      m('h3', 'User configs'),
+      m('.pf-config-selector__grid', [
+        // Saved configs
+        ...recMgr.savedConfigs.map((config) => {
+          const isSelected =
+            recMgr.selectedConfigId === `saved:${config.name}` &&
+            recMgr.isConfigModified === false;
+          return m(
+            Card,
+            {
+              className:
+                'pf-preset-card' +
+                (isSelected ? ' pf-preset-card--selected' : ''),
+              onclick: () =>
+                recMgr.loadConfig({
+                  config: config.config,
+                  configId: `saved:${config.name}`,
+                  configName: config.name,
+                }),
+              tabindex: 0,
+            },
+            m(Icon, {icon: 'bookmark'}),
+            m('.pf-preset-card__title', config.name),
+            m('.pf-preset-card__actions', [
+              m(Button, {
+                icon: 'save',
+                compact: true,
+                title: 'Overwrite with current settings',
+                onclick: (e: Event) => {
+                  e.stopPropagation();
+                  if (
+                    confirm(
+                      `Overwrite config "${config.name}" with current settings?`,
+                    )
+                  ) {
+                    recMgr.saveConfig(config.name, recMgr.serializeSession());
+                    recMgr.app.raf.scheduleFullRedraw();
+                  }
+                },
+              }),
+              m(Button, {
+                icon: 'share',
+                compact: true,
+                title: 'Share configuration',
+                onclick: (e: Event) => {
+                  e.stopPropagation();
+                  shareRecordConfig(config.config);
+                },
+              }),
+              m(Button, {
+                icon: Icons.Delete,
+                compact: true,
+                title: 'Delete configuration',
+                onclick: (e: Event) => {
+                  e.stopPropagation();
+                  if (confirm(`Delete "${config.name}"?`)) {
+                    recMgr.deleteConfig(config.name);
+                    recMgr.app.raf.scheduleFullRedraw();
+                  }
+                },
+              }),
+            ]),
+          );
+        }),
+        // Save card - only show when highlighted (custom config)
+        shouldHighlightSave &&
+          m(
+            Card,
+            {
+              className:
+                'pf-preset-card pf-preset-card--dashed pf-preset-card--highlight',
+              onclick: () => {
+                const name = prompt('Enter a name for this configuration:');
+                if (name?.trim()) {
+                  const trimmedName = name.trim();
+                  if (recMgr.savedConfigs.some((s) => s.name === trimmedName)) {
+                    alert(
+                      `A configuration named "${trimmedName}" already exists.`,
+                    );
+                    return;
+                  }
+                  const savedConfig = recMgr.serializeSession();
+                  recMgr.saveConfig(trimmedName, savedConfig);
+                  recMgr.loadConfig({
+                    config: savedConfig,
+                    configId: `saved:${trimmedName}`,
+                    configName: trimmedName,
+                  });
+                  recMgr.app.raf.scheduleFullRedraw();
+                }
+              },
+              tabindex: 0,
+            },
+            m(Icon, {icon: 'tune'}),
+            m('.pf-preset-card__title', 'Custom'),
+            m('.pf-preset-card__subtitle', 'Click to save'),
+          ),
+      ]),
+    ];
+  }
+
+  private renderCard(
+    icon: string,
+    title: string,
+    subtitle: string,
+    isSelected: boolean,
+    onclick: () => void,
+    extraClass = '',
+  ) {
+    return m(
+      Card,
+      {
+        className: `pf-preset-card${extraClass}${isSelected ? ' pf-preset-card--selected' : ''}`,
+        onclick,
+        tabindex: 0,
+      },
+      m(Icon, {icon}),
+      m('.pf-preset-card__title', title),
+      m('.pf-preset-card__subtitle', subtitle),
+    );
   }
 }
 
@@ -218,13 +443,6 @@ class TargetSelector implements m.ClassComponent<TargetSelectorAttrs> {
             },
           }),
       ),
-      recMgr.currentTarget && [
-        m(TargetDetails, {
-          recMgr: attrs.recMgr,
-          target: recMgr.currentTarget,
-          key: this.targetIdMap.getKey(recMgr.currentTarget),
-        }),
-      ],
     ];
   }
 
