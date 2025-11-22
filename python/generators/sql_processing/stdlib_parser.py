@@ -26,6 +26,7 @@ from typing import List, Tuple, Optional
 
 from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule, parse_file
 from python.generators.sql_processing.utils import is_internal
+from python.generators.sql_processing.stdlib_tags import get_tags
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(
@@ -250,6 +251,8 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
             'name': parsed.module_doc.name,
             'desc': parsed.module_doc.desc,
         } if parsed.module_doc else None,
+        'tags':
+            get_tags(module_name),
         'includes': [inc.module for inc in parsed.includes],
         'data_objects': [{
             'name':
