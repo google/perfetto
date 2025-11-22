@@ -1286,8 +1286,6 @@ class TrackEventEventImporter {
                        Variadic::Integer(*legacy_trace_source_id_));
     }
 
-    // Parse callstack if present
-    // For end events, use end_callsite_id key; otherwise use callsite_id key
     log_errors(ParseCallstack());
 
     ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
