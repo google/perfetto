@@ -63,7 +63,15 @@ const ATRACE_BATTERY = [
   'wm',
 ];
 
-const ATRACE_THERMAL = ['freq', 'idle', 'power', 'sched', 'thermal', 'workq'];
+const ATRACE_THERMAL = [
+  'freq',
+  'idle',
+  'power',
+  'sched',
+  'thermal',
+  'thermal_tj',
+  'workq',
+];
 
 const LOGCAT_DEFAULT = [
   protos.AndroidLogId.LID_DEFAULT,
@@ -144,6 +152,7 @@ export const ANDROID_PRESETS: Preset[] = [
       fileWritePeriodMs: 2500,
       compression: false,
       probes: {
+        cpu_sched: {settings: {}},
         atrace: {
           settings: {
             categories: ATRACE_THERMAL,
