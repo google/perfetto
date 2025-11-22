@@ -96,6 +96,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           g.builtin_counter_type as builtinCounterType,
           g.has_data AS hasData,
           g.has_children AS hasChildren,
+          g.has_callstacks AS hasCallstacks,
           g.min_track_id as minTrackId,
           g.track_ids as trackIds,
           g.order_id as orderId,
@@ -137,6 +138,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       builtinCounterType: STR_NULL,
       hasData: NUM,
       hasChildren: NUM,
+      hasCallstacks: NUM,
       trackIds: STR,
       orderId: NUM,
       threadName: STR_NULL,
@@ -161,6 +163,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         builtinCounterType,
         hasData,
         hasChildren,
+        hasCallstacks,
         trackIds: rawTrackIds,
         orderId,
         threadName,
@@ -232,6 +235,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             upid: upid ?? undefined,
             utid: utid ?? undefined,
             trackEvent: true,
+            hasCallstacks: hasCallstacks === 1,
           },
           renderer: await createTraceProcessorSliceTrack({
             trace: ctx,
@@ -314,11 +318,9 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   ): QueryFlamegraphWithMetrics | undefined {
     const trackIds = [];
     for (const trackInfo of selection.tracks) {
-      if (trackInfo?.tags?.trackEvent === true) {
-        const tids = trackInfo.tags.trackIds;
-        if (tids) {
-          trackIds.push(...tids);
-        }
+      const tids = trackInfo?.tags?.trackIds;
+      if (tids && trackInfo.tags.hasCallstacks === true) {
+        trackIds.push(...tids);
       }
     }
     if (trackIds.length === 0) {
@@ -350,20 +352,22 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           source_file || ':' || line_number as source_location,
           self_count
         from _callstacks_for_callsites!((
-          select extract_arg(arg_set_id, 'callsite_id') as callsite_id
+          select callsite_id
           from relevant_slices
           join slice using (id)
+          join __intrinsic_track_event_callstacks using (slice_id)
           where ts >= ${selection.start}
             and ts <= ${selection.end}
-            and track_id in (${trackIds.join(',')})
+            and callsite_id is not null
           union all
-          select extract_arg(arg_set_id, 'end_callsite_id') as callsite_id
+          select end_callsite_id as callsite_id
           from relevant_slices
           join slice using (id)
+          join __intrinsic_track_event_callstacks using (slice_id)
           where ts + dur >= ${selection.start}
             and ts + dur <= ${selection.end}
             and dur > 0
-            and extract_arg(arg_set_id, 'end_callsite_id') is not null
+            and end_callsite_id is not null
         ))
       )
     `,

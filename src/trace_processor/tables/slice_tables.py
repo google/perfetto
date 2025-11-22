@@ -30,6 +30,7 @@ from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.track_tables import TRACK_TABLE
+from src.trace_processor.tables.profiler_tables import STACK_PROFILE_CALLSITE_TABLE
 
 SLICE_TABLE = Table(
     python_module=__file__,
@@ -246,9 +247,30 @@ ANDROID_NETWORK_PACKETS_TABLE = Table(
     add_implicit_column=False,
 )
 
+TRACK_EVENT_CALLSTACKS = Table(
+    python_module=__file__,
+    class_name='TrackEventCallstacksTable',
+    sql_name='__intrinsic_track_event_callstacks',
+    columns=[
+        C('slice_id', CppTableId(SLICE_TABLE)),
+        C('track_id', CppTableId(TRACK_TABLE)),
+        C(
+            'callsite_id',
+            CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'end_callsite_id',
+            CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANDROID_NETWORK_PACKETS_TABLE,
     EXPERIMENTAL_FLAT_SLICE_TABLE,
     SLICE_TABLE,
+    TRACK_EVENT_CALLSTACKS,
 ]

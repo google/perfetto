@@ -1168,6 +1168,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_android_network_packets_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_metadata_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_slice_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_track_event_callstacks_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_flow_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_stack_profile_frame_table());
