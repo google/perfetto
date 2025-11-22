@@ -36,12 +36,14 @@ export interface TableColumnParams {
 }
 
 // Class which represents a column in a table, which can be displayed to the user.
-// It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
-export interface TableColumn<
-  SupportingColumns extends {[key: string]: SqlColumn} = {},
-> {
+export interface TableColumn {
   readonly column: SqlColumn;
   readonly type: PerfettoSqlType | undefined;
+  // In some cases, the UI needs additional information to be able to render a given cell (e.g. for display arg values,
+  // we need to know arg type as well as arg value to generate a correct filter). In these cases, the common solution is fetch a JSON value
+  // or a protobuf from the SQL and render it accordingly, so if set, `display` column overrides which value is going to be passed to `renderCell`.
+  // `column` is still always going to be used for sorting, aggregation and casting.
+  readonly display?: SqlColumn;
 
   // Column title to be displayed.
   // If not set, then `alias` will be used if it's unique.
@@ -56,23 +58,13 @@ export interface TableColumn<
     replaceColumn: (column: TableColumn) => void;
   }): m.Children;
 
-  // In some cases to render a value in a table, we need information from additional columns.
-  // For example, args have three related columns: int_value, string_value and real_value. From the user perspective, we want to coalesce them into a single "value" column,
-  // but to do this correctly we need to fetch the `type` column.
-  supportingColumns?(): SupportingColumns;
-
   /**
    * Render a table cell. tableManager can be undefined, in which case the cell should provide basic rendering (e.g. for pivot table).
    *
    * @param value The value to be rendered.
    * @param tableManager Optional table manager to allow interaction with the table (e.g. adding filters).
-   * @param supportingValues Optional additional values needed to render the cell.
    */
-  renderCell(
-    value: SqlValue,
-    tableManager?: TableManager,
-    supportingValues?: {[key in keyof SupportingColumns]: SqlValue},
-  ): RenderedCell;
+  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell;
 
   // A set of columns to be added when opening this table.
   // It has two primary purposes:

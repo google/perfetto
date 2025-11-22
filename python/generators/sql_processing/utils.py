@@ -38,6 +38,9 @@ ALLOWED_PREFIXES = {
 # Allows for nonstandard object names.
 OBJECT_NAME_ALLOWLIST = {
     'graphs/partition.sql': ['tree_structural_partition_by_group'],
+    'slices/stack.sql': [
+        'ancestor_slice_by_stack', 'descendant_slice_by_stack'
+    ],
 }
 
 # Tables that are allowed to use CREATE TABLE instead of CREATE PERFETTO TABLE

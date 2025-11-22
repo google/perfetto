@@ -61,6 +61,7 @@ export interface SqlPackage {
 // Handles the access to a specific Perfetto SQL module.
 export interface SqlModule {
   readonly includeKey: string;
+  readonly tags: string[];
   readonly tables: SqlTable[];
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
