@@ -368,7 +368,18 @@ export class SqlTableState {
     moveArrayItem(this.columns, fromIndex, toIndex);
   }
 
-  getSelectedColumns(): TableColumn[] {
+  getSelectedColumns(): readonly TableColumn[] {
     return this.columns;
   }
+}
+
+export function getSelectableColumns(state: SqlTableState): TableColumn[] {
+  const columns = [...state.getSelectedColumns()];
+  const existingColumnIds = new Set<string>(columns.map(tableColumnId));
+  columns.concat(
+    state.config.columns.filter(
+      (c) => !existingColumnIds.has(tableColumnId(c)),
+    ),
+  );
+  return columns;
 }
