@@ -27,7 +27,7 @@ import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Set, Dict, Tuple, Optional
+from typing import List, Set, Dict, Tuple
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
@@ -38,6 +38,8 @@ from python.generators.sql_processing.utils import check_banned_create_view_as
 from python.generators.sql_processing.utils import check_banned_words
 from python.generators.sql_processing.utils import check_banned_drop
 from python.generators.sql_processing.utils import check_banned_include_all
+from python.generators.sql_processing.utils import is_internal
+from python.generators.sql_processing.stdlib_tags import MODULE_TAGS, VALID_TAGS
 
 # Package name constants
 PKG_COMMON = "common"
@@ -311,6 +313,188 @@ def check_includes(modules: List[Tuple], quiet: bool = False) -> int:
   return len(modules_with_errors)
 
 
+def has_public_artifacts(parsed) -> bool:
+  """Check if a parsed module has any public artifacts.
+
+  Args:
+    parsed: Parsed module object
+
+  Returns:
+    True if the module has any public tables, views, functions, table functions,
+    or macros (artifacts not prefixed with '_').
+  """
+  # Check tables/views
+  for table in parsed.table_views:
+    if not is_internal(table.name):
+      return True
+
+  # Check functions
+  for func in parsed.functions:
+    if not is_internal(func.name):
+      return True
+
+  # Check table functions
+  for func in parsed.table_functions:
+    if not is_internal(func.name):
+      return True
+
+  # Check macros
+  for macro in parsed.macros:
+    if not is_internal(macro.name):
+      return True
+
+  return False
+
+
+def check_tags(modules: List[Tuple], quiet: bool = False) -> int:
+  """Check that all modules with public artifacts have tags defined.
+
+  Args:
+    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
+    quiet: If True, suppress detailed output
+
+  Returns:
+    Number of modules missing tags.
+  """
+  modules_missing_tags = []
+
+  for _, _, module_name, parsed in modules:
+    # If module has public artifacts, it must have tags
+    if has_public_artifacts(parsed):
+      tags = MODULE_TAGS.get(module_name, [])
+      if not tags:
+        modules_missing_tags.append(module_name)
+
+  if not quiet:
+    if modules_missing_tags:
+      print(
+          f"\nFound {len(modules_missing_tags)} module(s) with public artifacts but missing tags:\n"
+      )
+      for module_name in sorted(modules_missing_tags):
+        print(f"  - {module_name}")
+      print(
+          f"\nPlease add tags for these modules in python/generators/sql_processing/stdlib_tags.py"
+      )
+    else:
+      print(f"\nAll modules with public artifacts have tags defined!")
+
+  return len(modules_missing_tags)
+
+
+def check_orphaned_tags(modules: List[Tuple], quiet: bool = False) -> int:
+  """Check that all tags in MODULE_TAGS correspond to actual modules.
+
+  Args:
+    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
+    quiet: If True, suppress detailed output
+
+  Returns:
+    Number of orphaned tags (tags for non-existent modules).
+  """
+  # Build set of actual module names
+  actual_modules = set()
+  for _, _, module_name, _ in modules:
+    actual_modules.add(module_name)
+
+  # Find tags for modules that don't exist
+  orphaned_tags = []
+  for tagged_module in MODULE_TAGS.keys():
+    if tagged_module not in actual_modules:
+      orphaned_tags.append(tagged_module)
+
+  if not quiet:
+    if orphaned_tags:
+      print(f"\nFound {len(orphaned_tags)} tag(s) for non-existent modules:\n")
+      for module_name in sorted(orphaned_tags):
+        print(f"  - {module_name}")
+      print(
+          f"\nPlease remove these from python/generators/sql_processing/stdlib_tags.py"
+      )
+    else:
+      print(f"\nNo orphaned tags found!")
+
+  return len(orphaned_tags)
+
+
+def check_invalid_tags(quiet: bool = False) -> int:
+  """Check that all tags used in MODULE_TAGS are from VALID_TAGS.
+
+  Args:
+    quiet: If True, suppress detailed output
+
+  Returns:
+    Number of invalid tags found.
+  """
+  invalid_tags_by_module = {}
+
+  # Check each module's tags
+  for module_name, tags in MODULE_TAGS.items():
+    invalid = []
+    for tag in tags:
+      if tag not in VALID_TAGS:
+        invalid.append(tag)
+    if invalid:
+      invalid_tags_by_module[module_name] = invalid
+
+  if not quiet:
+    if invalid_tags_by_module:
+      total_invalid = sum(len(tags) for tags in invalid_tags_by_module.values())
+      print(
+          f"\nFound {total_invalid} invalid tag(s) in {len(invalid_tags_by_module)} module(s):\n"
+      )
+      for module_name in sorted(invalid_tags_by_module.keys()):
+        print(f"  {module_name}:")
+        for tag in sorted(invalid_tags_by_module[module_name]):
+          print(f"    - {tag}")
+      print(f"\nAll tags must be from VALID_TAGS in stdlib_tags.py")
+    else:
+      print(f"\nAll tags are valid!")
+
+  return len(invalid_tags_by_module)
+
+
+def check_nested_tag_parents(quiet: bool = False) -> int:
+  """Check that nested tags (with ':') have their parent tags present.
+
+  Args:
+    quiet: If True, suppress detailed output
+
+  Returns:
+    Number of modules with missing parent tags.
+  """
+  missing_parent_tags_by_module = {}
+
+  for module_name, tags in MODULE_TAGS.items():
+    tags_set = set(tags)
+    missing_parents = []
+    for tag in tags:
+      if ':' in tag:
+        parent = tag.split(':')[0]
+        if parent not in tags_set:
+          missing_parents.append(f"{tag} (missing parent: {parent})")
+    if missing_parents:
+      missing_parent_tags_by_module[module_name] = missing_parents
+
+  if not quiet:
+    if missing_parent_tags_by_module:
+      total_missing = sum(
+          len(tags) for tags in missing_parent_tags_by_module.values())
+      print(
+          f"\nFound {total_missing} nested tag(s) missing parent tags in {len(missing_parent_tags_by_module)} module(s):\n"
+      )
+      for module_name in sorted(missing_parent_tags_by_module.keys()):
+        print(f"  {module_name}:")
+        for tag_msg in sorted(missing_parent_tags_by_module[module_name]):
+          print(f"    - {tag_msg}")
+      print(
+          f"\nNested tags (e.g., 'power:battery') must include their parent tag (e.g., 'power')"
+      )
+    else:
+      print(f"\nAll nested tags have their parent tags!")
+
+  return len(missing_parent_tags_by_module)
+
+
 def main() -> int:
   parser = argparse.ArgumentParser(
       description="Check stdlib modules for banned patterns and documentation")
@@ -334,6 +518,16 @@ def main() -> int:
       default=False,
       help='Also check that modules properly declare their dependencies via INCLUDE statements'
   )
+  parser.add_argument(
+      '--check-tags',
+      action='store_true',
+      default=False,
+      help='Check that all modules with public artifacts have tags defined')
+  parser.add_argument(
+      '--check-orphaned-tags',
+      action='store_true',
+      default=False,
+      help='Check that all tags in MODULE_TAGS correspond to actual modules')
 
   args = parser.parse_args()
 
@@ -422,7 +616,22 @@ def main() -> int:
   if args.check_includes:
     include_errors = check_includes(modules, quiet=not args.verbose)
 
-  total_errors = all_errors + include_errors
+  # Check tags if requested
+  tag_errors = 0
+  invalid_tag_errors = 0
+  nested_tag_errors = 0
+  if args.check_tags:
+    # Always check for invalid tags and nested tag parents when checking tags
+    invalid_tag_errors = check_invalid_tags(quiet=not args.verbose)
+    nested_tag_errors = check_nested_tag_parents(quiet=not args.verbose)
+    tag_errors = check_tags(modules, quiet=not args.verbose)
+
+  # Check orphaned tags if requested
+  orphaned_tag_errors = 0
+  if args.check_orphaned_tags:
+    orphaned_tag_errors = check_orphaned_tags(modules, quiet=not args.verbose)
+
+  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + invalid_tag_errors + nested_tag_errors
   return 0 if not total_errors else 1
 
 
