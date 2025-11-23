@@ -118,9 +118,9 @@ export class Section implements m.ClassComponent<SectionAttrs> {
     const {title, headerContent, children} = attrs;
 
     return m(
-      '.pf-section',
-      m('.pf-section-header', m('h2', title), headerContent),
-      m('.pf-section-content', children),
+      '.pf-exp-section',
+      m('.pf-exp-section-header', m('h2', title), headerContent),
+      m('.pf-exp-section-content', children),
     );
   }
 }

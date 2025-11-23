@@ -38,7 +38,7 @@
 }
 
 // Section widget
-.pf-section {
+.pf-exp-section {
   padding: 1rem;
   border-bottom: 1px solid var(--separator-color);
 
@@ -47,7 +47,7 @@
   }
 }
 
-.pf-section-header {
+.pf-exp-section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -60,6 +60,6 @@
   }
 }
 
-.pf-section-content {
+.pf-exp-section-content {
   // Content fills available space
 }
