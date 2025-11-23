@@ -36,6 +36,7 @@ import {
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
+import {ColumnNameRow, ButtonGroup, Section} from '../widgets';
 
 class SwitchComponent
   implements
@@ -737,57 +738,31 @@ export class ModifyColumnsNode implements ModificationNode {
   nodeSpecificModify(): m.Child {
     return m(
       'div.pf-modify-columns-node',
-      m(
-        CardStack,
-        m(
-          Card,
-          m(
-            'div',
-            {
-              style:
-                'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px',
-            },
-            m(
-              'h2.pf-columns-box-title',
-              {style: 'margin: 0'},
-              'Selected Columns',
-            ),
-            m(Button, {
-              label: 'Deselect All',
-              variant: ButtonVariant.Outlined,
-              onclick: () => {
-                this.state.selectedColumns = this.state.selectedColumns.map(
-                  (col) => ({...col, checked: false}),
-                );
-                this.state.onchange?.();
-              },
-            }),
-          ),
-          m(
-            'div.pf-column-list',
-            this.state.selectedColumns.map((col, index) =>
-              this.renderSelectedColumn(col, index),
-            ),
-          ),
-        ),
-        this.state.newColumns.length > 0 &&
-          m(
-            Card,
-            this.state.newColumns.map((col, index) =>
-              this.renderNewColumn(col, index),
-            ),
-          ),
-        m(
-          Card,
-          m(
-            'div.pf-exp-modify-columns-node-buttons',
-            this.renderAddColumnButton(),
-            this.renderAddSwitchButton(),
-            this.renderAddIfButton(),
-          ),
+      this.renderSelectedColumnsSection(),
+      this.renderAddNewColumnsSection(),
+    );
+  }
+
+  private renderSelectedColumnsSection(): m.Child {
+    return m(Section, {
+      title: 'Selected Columns',
+      headerContent: m(Button, {
+        label: 'Deselect All',
+        variant: ButtonVariant.Outlined,
+        onclick: () => {
+          this.state.selectedColumns = this.state.selectedColumns.map(
+            (col) => ({...col, checked: false}),
+          );
+          this.state.onchange?.();
+        },
+      }),
+      children: m(
+        'div.pf-column-list',
+        this.state.selectedColumns.map((col, index) =>
+          this.renderSelectedColumn(col, index),
         ),
       ),
-    );
+    });
   }
 
   private renderSelectedColumn(col: ColumnInfo, index: number): m.Child {
@@ -848,106 +823,92 @@ export class ModifyColumnsNode implements ModificationNode {
     );
   }
 
-  private isNewColumnValid(col: NewColumn): boolean {
-    return col.expression.trim() !== '' && col.name.trim() !== '';
+  private renderAddNewColumnsSection(): m.Child {
+    return m(Section, {
+      title: 'Add New Columns',
+      headerContent: null,
+      children: [
+        m(ButtonGroup, {
+          buttons: [
+            {
+              label: 'Add column',
+              onclick: () => {
+                this.state.newColumns = [
+                  ...this.state.newColumns,
+                  {
+                    expression: '',
+                    name: '',
+                  },
+                ];
+                this.state.onchange?.();
+              },
+            },
+            {
+              label: 'Add SWITCH',
+              onclick: () => {
+                this.state.newColumns = [
+                  ...this.state.newColumns,
+                  {
+                    type: 'switch',
+                    expression: '',
+                    name: '',
+                  },
+                ];
+                this.state.onchange?.();
+              },
+            },
+            {
+              label: 'Add IF',
+              onclick: () => {
+                this.state.newColumns = [
+                  ...this.state.newColumns,
+                  {
+                    type: 'if',
+                    expression: '',
+                    name: '',
+                    clauses: [{if: '', then: ''}],
+                  },
+                ];
+                this.state.onchange?.();
+              },
+            },
+          ],
+        }),
+        this.state.newColumns.length > 0 &&
+          m(
+            '.pf-new-columns-list',
+            this.state.newColumns.map((col, index) =>
+              this.renderNewColumn(col, index),
+            ),
+          ),
+      ],
+    });
   }
 
   private renderNewColumn(col: NewColumn, index: number): m.Child {
-    const commonWrapper = (children: m.Child[]) => {
+    if (col.type === 'switch') {
       return m(
-        '.pf-column',
-        {
-          ondragover: (e: DragEvent) => {
-            e.preventDefault();
-          },
-          ondrop: (e: DragEvent) => {
-            e.preventDefault();
-            const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
-            const to = this.state.selectedColumns.length + index;
-
-            const newSelectedColumns = [...this.state.selectedColumns];
+        '.pf-exp-switch-wrapper',
+        m(ColumnNameRow, {
+          label: 'New switch column name',
+          name: col.name,
+          isValid: this.isNewColumnValid(col),
+          onNameChange: (name) => {
             const newNewColumns = [...this.state.newColumns];
-
-            if (from < this.state.selectedColumns.length) {
-              const [removed] = newSelectedColumns.splice(from, 1);
-              newNewColumns.splice(to - this.state.selectedColumns.length, 0, {
-                expression: removed.column.name,
-                name: removed.alias || '',
-              });
-            } else {
-              const [removed] = newNewColumns.splice(
-                from - this.state.selectedColumns.length,
-                1,
-              );
-              newNewColumns.splice(
-                to - this.state.selectedColumns.length,
-                0,
-                removed,
-              );
-            }
-            this.state.selectedColumns = newSelectedColumns;
+            newNewColumns[index] = {
+              ...newNewColumns[index],
+              name,
+            };
             this.state.newColumns = newNewColumns;
             this.state.onchange?.();
           },
-        },
-        m(
-          'span.pf-drag-handle',
-          {
-            draggable: true,
-            ondragstart: (e: DragEvent) => {
-              e.dataTransfer!.setData(
-                'text/plain',
-                (this.state.selectedColumns.length + index).toString(),
-              );
-            },
-          },
-          '☰',
-        ),
-        ...children,
-        m(Button, {
-          icon: 'close',
-          compact: true,
-          onclick: () => {
+          onRemove: () => {
             const newNewColumns = [...this.state.newColumns];
             newNewColumns.splice(index, 1);
             this.state.newColumns = newNewColumns;
             this.state.onchange?.();
           },
         }),
-      );
-    };
-
-    if (col.type === 'switch') {
-      return m(
-        '.pf-exp-switch-wrapper',
-        m(
-          '.pf-exp-switch-name-row',
-          m('label', 'New switch column name'),
-          m(TextInput, {
-            oninput: (e: Event) => {
-              const newNewColumns = [...this.state.newColumns];
-              newNewColumns[index] = {
-                ...newNewColumns[index],
-                name: (e.target as HTMLInputElement).value,
-              };
-              this.state.newColumns = newNewColumns;
-              this.state.onchange?.();
-            },
-            placeholder: 'name',
-            value: col.name,
-          }),
-          !this.isNewColumnValid(col) && m(Icon, {icon: 'warning'}),
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: () => {
-              const newNewColumns = [...this.state.newColumns];
-              newNewColumns.splice(index, 1);
-              this.state.newColumns = newNewColumns;
-              this.state.onchange?.();
-            },
-          }),
-        ),
         m(SwitchComponent, {
           column: col,
           columns: this.prevNode?.finalCols ?? [],
@@ -964,34 +925,26 @@ export class ModifyColumnsNode implements ModificationNode {
     if (col.type === 'if') {
       return m(
         '.pf-exp-if-wrapper',
-        m(
-          '.pf-exp-if-name-row',
-          m('label', 'New if column name'),
-          m(TextInput, {
-            oninput: (e: Event) => {
-              const newNewColumns = [...this.state.newColumns];
-              newNewColumns[index] = {
-                ...newNewColumns[index],
-                name: (e.target as HTMLInputElement).value,
-              };
-              this.state.newColumns = newNewColumns;
-              this.state.onchange?.();
-            },
-            placeholder: 'name',
-            value: col.name,
-          }),
-          !this.isNewColumnValid(col) && m(Icon, {icon: 'warning'}),
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: () => {
-              const newNewColumns = [...this.state.newColumns];
-              newNewColumns.splice(index, 1);
-              this.state.newColumns = newNewColumns;
-              this.state.onchange?.();
-            },
-          }),
-        ),
+        m(ColumnNameRow, {
+          label: 'New if column name',
+          name: col.name,
+          isValid: this.isNewColumnValid(col),
+          onNameChange: (name) => {
+            const newNewColumns = [...this.state.newColumns];
+            newNewColumns[index] = {
+              ...newNewColumns[index],
+              name,
+            };
+            this.state.newColumns = newNewColumns;
+            this.state.onchange?.();
+          },
+          onRemove: () => {
+            const newNewColumns = [...this.state.newColumns];
+            newNewColumns.splice(index, 1);
+            this.state.newColumns = newNewColumns;
+            this.state.onchange?.();
+          },
+        }),
         m(IfComponent, {
           column: col,
           onchange: () => {
@@ -1006,7 +959,55 @@ export class ModifyColumnsNode implements ModificationNode {
 
     const isValid = this.isNewColumnValid(col);
 
-    return commonWrapper([
+    return m(
+      '.pf-column',
+      {
+        ondragover: (e: DragEvent) => {
+          e.preventDefault();
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
+          const to = this.state.selectedColumns.length + index;
+
+          const newSelectedColumns = [...this.state.selectedColumns];
+          const newNewColumns = [...this.state.newColumns];
+
+          if (from < this.state.selectedColumns.length) {
+            const [removed] = newSelectedColumns.splice(from, 1);
+            newNewColumns.splice(to - this.state.selectedColumns.length, 0, {
+              expression: removed.column.name,
+              name: removed.alias || '',
+            });
+          } else {
+            const [removed] = newNewColumns.splice(
+              from - this.state.selectedColumns.length,
+              1,
+            );
+            newNewColumns.splice(
+              to - this.state.selectedColumns.length,
+              0,
+              removed,
+            );
+          }
+          this.state.selectedColumns = newSelectedColumns;
+          this.state.newColumns = newNewColumns;
+          this.state.onchange?.();
+        },
+      },
+      m(
+        'span.pf-drag-handle',
+        {
+          draggable: true,
+          ondragstart: (e: DragEvent) => {
+            e.dataTransfer!.setData(
+              'text/plain',
+              (this.state.selectedColumns.length + index).toString(),
+            );
+          },
+        },
+        '☰',
+      ),
       m(TextInput, {
         oninput: (e: Event) => {
           const newNewColumns = [...this.state.newColumns];
@@ -1034,61 +1035,21 @@ export class ModifyColumnsNode implements ModificationNode {
         value: col.name,
       }),
       !isValid && m(Icon, {icon: 'warning'}),
-    ]);
+      m(Button, {
+        icon: 'close',
+        compact: true,
+        onclick: () => {
+          const newNewColumns = [...this.state.newColumns];
+          newNewColumns.splice(index, 1);
+          this.state.newColumns = newNewColumns;
+          this.state.onchange?.();
+        },
+      }),
+    );
   }
 
-  private renderAddColumnButton(): m.Child {
-    return m(Button, {
-      label: 'Add column',
-      variant: ButtonVariant.Outlined,
-      onclick: () => {
-        this.state.newColumns = [
-          ...this.state.newColumns,
-          {
-            expression: '',
-            name: '',
-          },
-        ];
-        this.state.onchange?.();
-      },
-    });
-  }
-
-  private renderAddSwitchButton(): m.Child {
-    return m(Button, {
-      label: 'Add SWITCH',
-      variant: ButtonVariant.Outlined,
-      onclick: () => {
-        this.state.newColumns = [
-          ...this.state.newColumns,
-          {
-            type: 'switch',
-            expression: '',
-            name: '',
-          },
-        ];
-        this.state.onchange?.();
-      },
-    });
-  }
-
-  private renderAddIfButton(): m.Child {
-    return m(Button, {
-      label: 'Add IF',
-      variant: ButtonVariant.Outlined,
-      onclick: () => {
-        this.state.newColumns = [
-          ...this.state.newColumns,
-          {
-            type: 'if',
-            expression: '',
-            name: '',
-            clauses: [{if: '', then: ''}],
-          },
-        ];
-        this.state.onchange?.();
-      },
-    });
+  private isNewColumnValid(col: NewColumn): boolean {
+    return col.expression.trim() !== '' && col.name.trim() !== '';
   }
 
   nodeInfo(): m.Children {
