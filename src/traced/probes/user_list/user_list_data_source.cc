@@ -20,6 +20,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -45,10 +46,33 @@ UserListDataSource::UserListDataSource(const DataSourceConfig& ds_config,
                                        std::unique_ptr<TraceWriter> writer)
     : ProbesDataSource(session_id, &descriptor), writer_(std::move(writer)) {
   AndroidUserListConfig::Decoder cfg(ds_config.user_list_config_raw());
+
+  bool config_has_filters = false;
   for (auto type = cfg.user_type_filter(); type; ++type) {
     user_type_filter_.emplace((*type).ToStdString());
+    config_has_filters = true;
+  }
+
+  if (!config_has_filters) {
+    PERFETTO_ILOG("Applying default user type filters for 'user' build.");
+    const std::vector<std::string> default_filters = {
+        "android.os.usertype.full.SYSTEM",
+        "android.os.usertype.system.HEADLESS",
+        "android.os.usertype.full.SECONDARY",
+        "android.os.usertype.full.GUEST",
+        "android.os.usertype.full.RESTRICTED",
+        "android.os.usertype.profile.MANAGED",
+        "android.os.usertype.profile.CLONE",
+        "android.os.usertype.profile.COMMUNAL"};
+    for (const auto& filter : default_filters) {
+      user_type_filter_.emplace(filter);
+    }
+  } else {
+    PERFETTO_ILOG("Using user type filters from provided trace config.");
   }
 }
+
+// ... rest of the file remains the same ...
 
 void UserListDataSource::Start() {
   auto trace_packet = writer_->NewTracePacket();
@@ -129,17 +153,25 @@ int ParseUserListStream(protos::pbzero::AndroidUserList* user_list_packet,
                         const base::ScopedFstream& fs,
                         const std::set<std::string>& user_type_filter) {
   char line[2048];
+  const std::string unknown_type = "android.os.usertype.UNKNOWN";
+
   while (fgets(line, sizeof(line), *fs) != nullptr) {
     User usr_struct;
     if (ReadUserListLine(line, &usr_struct) < 0) {
       return -1;  // Return on first line parse error
     }
+
+    auto* user = user_list_packet->add_users();
+
+    // Check if the filter is active and if the type is NOT in the filter.
     if (!user_type_filter.empty() &&
         user_type_filter.count(usr_struct.type) == 0) {
-      continue;
+      // Type is not in the filter, set to android.os.usertype.UNKNOWN.
+      user->set_type(unknown_type.c_str(), unknown_type.size());
+    } else {
+      // Type is in the filter or the filter is empty, use the original type.
+      user->set_type(usr_struct.type.c_str(), usr_struct.type.size());
     }
-    auto* user = user_list_packet->add_users();
-    user->set_type(usr_struct.type.c_str(), usr_struct.type.size());
     user->set_uid(usr_struct.uid);
   }
   return 0;  // Success

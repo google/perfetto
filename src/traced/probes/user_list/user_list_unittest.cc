@@ -30,46 +30,60 @@
 namespace perfetto {
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::Property;
+
+// Helper function to create a ScopedFstream from a string buffer
+base::ScopedFstream CreateStreamFromString(const char* buf, size_t size) {
+  auto pipe = base::Pipe::Create();
+  PERFETTO_CHECK(write(pipe.wr.get(), buf, size) == static_cast<ssize_t>(size));
+  pipe.wr.reset();
+  auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
+  pipe.rd.release();  // now owned by |fs|
+  return fs;
+}
+
 TEST(UserListDataSourceTest, ParseLineSystem) {
-  char kLine[] = "SYSTEM 0\n";
+  char kLine[] = "android.os.usertype.full.SYSTEM 0\n";
   User usr;
   EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
-  EXPECT_EQ(usr.type, "SYSTEM");
+  EXPECT_EQ(usr.type, "android.os.usertype.full.SYSTEM");
   EXPECT_EQ(usr.uid, 0);
 }
 
 TEST(UserListDataSourceTest, ParseLineProfile) {
-  char kLine[] = "PROFILE 10\n";  // Test a single line
+  char kLine[] =
+      "android.os.usertype.profile.MANAGED 10\n";  // Test a single line
   User usr;
   EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
-  EXPECT_EQ(usr.type, "PROFILE");
+  EXPECT_EQ(usr.type, "android.os.usertype.profile.MANAGED");
   EXPECT_EQ(usr.uid, 10);
 }
 
 TEST(UserListDataSourceTest, ParseLineWithSpaces) {
-  char kLine[] = "GUEST 11  \n";
+  char kLine[] = "android.os.usertype.full.GUEST 11  \n";
   User usr;
   EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
-  EXPECT_EQ(usr.type, "GUEST");
+  EXPECT_EQ(usr.type, "android.os.usertype.full.GUEST");
   EXPECT_EQ(usr.uid, 11);
 }
 
 TEST(UserListDataSourceTest, ParseLineIncomplete) {
-  char kLine[] = "SYSTEM\n";
+  char kLine[] = "android.os.usertype.full.SYSTEM\n";
   User usr;
   EXPECT_EQ(ReadUserListLine(kLine, &usr), -1);
 }
 
 TEST(UserListDataSourceTest, ParseLineInvalidUid) {
-  char kLine[] = "SYSTEM ABC\n";
+  char kLine[] = "android.os.usertype.full.SYSTEM ABC\n";
   User usr;
   EXPECT_EQ(ReadUserListLine(kLine, &usr), -1);
 }
 
 TEST(UserListDataSourceTest, ParseUserListStream) {
   char buf[] =
-      "SYSTEM 0\n"
-      "PROFILE 10\n";
+      "android.os.usertype.full.SYSTEM 0\n"
+      "android.os.usertype.profile.MANAGED 10\n";
   // Create a stream from |buf|, up to the null byte. Avoid fmemopen as it
   // requires a higher target API (23) than we use for portability.
   auto pipe = base::Pipe::Create();
@@ -89,10 +103,89 @@ TEST(UserListDataSourceTest, ParseUserListStream) {
   EXPECT_EQ(parsed_list.error(), 0);
   // all entries
   ASSERT_EQ(parsed_list.users_size(), 2);
-  EXPECT_EQ(parsed_list.users()[0].type(), "SYSTEM");
+  EXPECT_EQ(parsed_list.users()[0].type(), "android.os.usertype.full.SYSTEM");
   EXPECT_EQ(parsed_list.users()[0].uid(), 0);
-  EXPECT_EQ(parsed_list.users()[1].type(), "PROFILE");
+  EXPECT_EQ(parsed_list.users()[1].type(),
+            "android.os.usertype.profile.MANAGED");
   EXPECT_EQ(parsed_list.users()[1].uid(), 10);
+}
+
+TEST(UserListDataSourceTest, ParseUserListStreamWithFilter) {
+  char buf[] =
+      "android.os.usertype.full.SYSTEM 0\n"
+      "android.os.usertype.full.SECONDARY 10\n"
+      "android.os.usertype.profile.MANAGED 11\n"
+      "android.os.usertype.full.GUEST 12\n";
+  auto fs = CreateStreamFromString(buf, sizeof(buf) - 1);
+
+  protozero::HeapBuffered<protos::pbzero::AndroidUserList> user_list;
+  std::set<std::string> filter{"android.os.usertype.full.SYSTEM",
+                               "android.os.usertype.profile.MANAGED"};
+
+  EXPECT_EQ(ParseUserListStream(user_list.get(), fs, filter), 0);
+
+  protos::gen::AndroidUserList parsed_list;
+  parsed_list.ParseFromString(user_list.SerializeAsString());
+
+  EXPECT_EQ(parsed_list.error(), 0);
+  ASSERT_EQ(parsed_list.users_size(), 4);
+  EXPECT_EQ(parsed_list.users()[0].type(), "android.os.usertype.full.SYSTEM");
+  EXPECT_EQ(parsed_list.users()[0].uid(), 0);
+  EXPECT_EQ(parsed_list.users()[1].type(),
+            "android.os.usertype.UNKNOWN");  // Was SECONDARY
+  EXPECT_EQ(parsed_list.users()[1].uid(), 10);
+  EXPECT_EQ(parsed_list.users()[2].type(),
+            "android.os.usertype.profile.MANAGED");
+  EXPECT_EQ(parsed_list.users()[2].uid(), 11);
+  EXPECT_EQ(parsed_list.users()[3].type(),
+            "android.os.usertype.UNKNOWN");  // Was GUEST
+  EXPECT_EQ(parsed_list.users()[3].uid(), 12);
+}
+
+TEST(UserListDataSourceTest, ParseUserListStreamWithFilterOnlyUnknown) {
+  char buf[] =
+      "android.os.usertype.full.SECONDARY 10\n"
+      "android.os.usertype.full.GUEST 11\n";
+  auto fs = CreateStreamFromString(buf, sizeof(buf) - 1);
+
+  protozero::HeapBuffered<protos::pbzero::AndroidUserList> user_list;
+  std::set<std::string> filter{"android.os.usertype.full.SYSTEM"};
+
+  EXPECT_EQ(ParseUserListStream(user_list.get(), fs, filter), 0);
+
+  protos::gen::AndroidUserList parsed_list;
+  parsed_list.ParseFromString(user_list.SerializeAsString());
+
+  EXPECT_EQ(parsed_list.error(), 0);
+  ASSERT_EQ(parsed_list.users_size(), 2);
+  EXPECT_EQ(parsed_list.users()[0].type(), "android.os.usertype.UNKNOWN");
+  EXPECT_EQ(parsed_list.users()[0].uid(), 10);
+  EXPECT_EQ(parsed_list.users()[1].type(), "android.os.usertype.UNKNOWN");
+  EXPECT_EQ(parsed_list.users()[1].uid(), 11);
+}
+
+TEST(UserListDataSourceTest, ParseUserListStreamWithFilterAllMatch) {
+  char buf[] =
+      "android.os.usertype.full.SYSTEM 0\n"
+      "android.os.usertype.system.HEADLESS 1\n";
+  auto fs = CreateStreamFromString(buf, sizeof(buf) - 1);
+
+  protozero::HeapBuffered<protos::pbzero::AndroidUserList> user_list;
+  std::set<std::string> filter{"android.os.usertype.full.SYSTEM",
+                               "android.os.usertype.system.HEADLESS"};
+
+  EXPECT_EQ(ParseUserListStream(user_list.get(), fs, filter), 0);
+
+  protos::gen::AndroidUserList parsed_list;
+  parsed_list.ParseFromString(user_list.SerializeAsString());
+
+  EXPECT_EQ(parsed_list.error(), 0);
+  ASSERT_EQ(parsed_list.users_size(), 2);
+  EXPECT_EQ(parsed_list.users()[0].type(), "android.os.usertype.full.SYSTEM");
+  EXPECT_EQ(parsed_list.users()[0].uid(), 0);
+  EXPECT_EQ(parsed_list.users()[1].type(),
+            "android.os.usertype.system.HEADLESS");
+  EXPECT_EQ(parsed_list.users()[1].uid(), 1);
 }
 
 }  // namespace
