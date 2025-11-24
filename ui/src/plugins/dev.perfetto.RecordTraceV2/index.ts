@@ -41,7 +41,7 @@ export default class implements PerfettoPlugin {
 
   static onActivate(app: App) {
     app.sidebar.addMenuItem({
-      section: 'navigation',
+      section: 'trace_files',
       text: 'Record new trace',
       href: '#!/record',
       icon: 'fiber_smart_record',
