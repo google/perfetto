@@ -311,7 +311,8 @@ int Main(int argc, char** argv) {
   if (format == "profile") {
     if (positional_args.size() > 2) {
       PERFETTO_ELOG(
-          "-o is not supported for profile, use --output-dir instead");
+          "output file is not supported for \"profile\", use --output-dir "
+          "instead");
       return Usage(argv[0]);
     }
     return TraceToProfile(input_stream, pid, timestamps,
