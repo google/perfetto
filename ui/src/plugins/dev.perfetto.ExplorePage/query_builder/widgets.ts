@@ -124,3 +124,151 @@ export class Section implements m.ClassComponent<SectionAttrs> {
     );
   }
 }
+
+// Widget for displaying an item with icon, name, description, and action button
+// Used in lists of added columns, filters, etc.
+export interface ListItemAttrs {
+  icon: string;
+  name: string;
+  description: string;
+  actionLabel: string;
+  actionIcon?: string;
+  onAction: () => void;
+  onRemove?: () => void;
+  className?: string;
+}
+
+export class ListItem implements m.ClassComponent<ListItemAttrs> {
+  view({attrs}: m.Vnode<ListItemAttrs>) {
+    const {
+      icon,
+      name,
+      description,
+      actionLabel,
+      actionIcon,
+      onAction,
+      onRemove,
+    } = attrs;
+
+    return m(
+      '.pf-exp-list-item',
+      {className: attrs.className},
+      m(Icon, {icon}),
+      m(
+        '.pf-exp-list-item-info',
+        m('.pf-exp-list-item-name', name),
+        m('.pf-exp-list-item-description', description),
+      ),
+      m(
+        '.pf-exp-list-item-actions',
+        m(Button, {
+          label: actionLabel,
+          icon: actionIcon,
+          variant: ButtonVariant.Outlined,
+          compact: true,
+          onclick: onAction,
+        }),
+        onRemove &&
+          m(Button, {
+            icon: 'close',
+            compact: true,
+            onclick: onRemove,
+          }),
+      ),
+    );
+  }
+}
+
+// Widget for a horizontal row of action buttons
+export interface ActionButtonsAttrs {
+  buttons: Array<{
+    label: string;
+    icon?: string;
+    onclick: () => void;
+    active?: boolean;
+  }>;
+}
+
+export class ActionButtons implements m.ClassComponent<ActionButtonsAttrs> {
+  view({attrs}: m.Vnode<ActionButtonsAttrs>) {
+    return m(
+      '.pf-exp-action-buttons',
+      attrs.buttons.map((btn) =>
+        m(Button, {
+          label: btn.active ? `${btn.label} ✓` : btn.label,
+          icon: btn.icon,
+          variant: ButtonVariant.Outlined,
+          onclick: btn.onclick,
+        }),
+      ),
+    );
+  }
+}
+
+// Widget for an empty state message
+export interface EmptyStateAttrs {
+  message: string;
+}
+
+export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
+  view({attrs}: m.Vnode<EmptyStateAttrs>) {
+    return m('.pf-exp-empty-state', attrs.message);
+  }
+}
+
+// Widget for a labeled form row with input
+export interface FormRowAttrs {
+  label: string;
+}
+
+export class FormRow implements m.ClassComponent<FormRowAttrs> {
+  view({attrs, children}: m.CVnode<FormRowAttrs>) {
+    return m('.pf-exp-form-row', m('label', attrs.label), children);
+  }
+}
+
+// Widget for inline label with any control (input, select, multiselect, etc.)
+export interface LabeledControlAttrs {
+  label: string;
+}
+
+export class LabeledControl implements m.ClassComponent<LabeledControlAttrs> {
+  view({attrs, children}: m.CVnode<LabeledControlAttrs>) {
+    return m('.pf-exp-labeled-control', m('label', attrs.label), children);
+  }
+}
+
+// Widget for a draggable list item with drag handle
+export interface DraggableItemAttrs {
+  index: number;
+  onReorder: (fromIndex: number, toIndex: number) => void;
+}
+
+export class DraggableItem implements m.ClassComponent<DraggableItemAttrs> {
+  view({attrs, children}: m.CVnode<DraggableItemAttrs>) {
+    const {index, onReorder} = attrs;
+
+    return m(
+      '.pf-exp-draggable-item',
+      {
+        draggable: true,
+        ondragstart: (e: DragEvent) => {
+          e.dataTransfer?.setData('text/plain', index.toString());
+        },
+        ondragover: (e: DragEvent) => {
+          e.preventDefault();
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          const from = parseInt(
+            e.dataTransfer?.getData('text/plain') ?? '0',
+            10,
+          );
+          onReorder(from, index);
+        },
+      },
+      m('span.pf-exp-drag-handle', '☰'),
+      children,
+    );
+  }
+}

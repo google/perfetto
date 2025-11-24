@@ -63,3 +63,120 @@
 .pf-exp-section-content {
   // Content fills available space
 }
+
+// List item widget - displays an item with icon, name, description, and action button
+.pf-exp-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-color);
+  border: 1px solid var(--separator-color);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+
+  &:hover {
+    background: var(--background-color);
+    border-color: var(--pf-primary-color);
+  }
+
+  &.pf-joined-source {
+    border-left: 4px solid var(--pf-primary-color);
+  }
+}
+
+.pf-exp-list-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; // Allow text truncation
+}
+
+.pf-exp-list-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pf-text-color-primary);
+  font-family: var(--pf-font-family-monospace);
+}
+
+.pf-exp-list-item-description {
+  font-size: 12px;
+  color: var(--pf-text-color-secondary);
+}
+
+.pf-exp-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+// Action buttons widget - horizontal row of action buttons
+.pf-exp-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+
+  button {
+    justify-content: flex-start;
+  }
+}
+
+// Empty state widget
+.pf-exp-empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--pf-text-color-secondary);
+  font-style: italic;
+  background: var(--background-color);
+  border: 1px dashed var(--separator-color);
+  border-radius: 4px;
+}
+
+// Form row widget - labeled form row with children
+.pf-exp-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  label {
+    font-weight: 500;
+    font-size: var(--pf-exp-font-size-sm);
+    color: var(--pf-text-color-secondary);
+    min-width: 100px;
+  }
+}
+
+// Labeled control widget - inline label with any control
+.pf-exp-labeled-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  label {
+    font-weight: 500;
+    color: var(--pf-text-color-primary);
+  }
+}
+
+// Draggable list item widget
+.pf-exp-draggable-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--surface-color);
+  border: 1px solid var(--separator-color);
+  border-radius: 4px;
+  cursor: grab;
+
+  &:hover {
+    background: var(--background-color);
+  }
+
+  .pf-exp-drag-handle {
+    cursor: grab;
+    color: var(--pf-text-color-secondary);
+    user-select: none;
+  }
+}
