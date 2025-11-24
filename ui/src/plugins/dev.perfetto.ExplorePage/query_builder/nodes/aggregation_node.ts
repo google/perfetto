@@ -18,8 +18,6 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  notifyNextNodes,
-  ModificationNode,
 } from '../../query_node';
 import protos from '../../../../protos';
 import {
@@ -60,7 +58,6 @@ export interface AggregationSerializedState {
 }
 
 export interface AggregationNodeState extends QueryNodeState {
-  prevNode: QueryNode;
   groupByColumns: ColumnInfo[];
   aggregations: Aggregation[];
 }
@@ -74,17 +71,17 @@ export interface Aggregation {
   isEditing?: boolean;
 }
 
-export class AggregationNode implements ModificationNode {
+export class AggregationNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kAggregation;
-  readonly prevNode: QueryNode;
+  primaryInput?: QueryNode;
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
 
   get finalCols(): ColumnInfo[] {
-    // When there's no prevNode, aggregation doesn't make sense
+    // When there's no primaryInput, aggregation doesn't make sense
     // Return empty array to indicate no output columns
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       return [];
     }
     const selected = this.state.groupByColumns.filter((c) => c.checked);
@@ -103,19 +100,7 @@ export class AggregationNode implements ModificationNode {
       groupByColumns: state.groupByColumns ?? [],
       aggregations: state.aggregations ?? [],
     };
-    this.prevNode = state.prevNode;
     this.nextNodes = [];
-    if (this.state.groupByColumns.length === 0 && this.prevNode !== undefined) {
-      this.state.groupByColumns = newColumnInfoList(
-        this.prevNode.finalCols ?? [],
-        false,
-      );
-    }
-    const userOnChange = this.state.onchange;
-    this.state.onchange = () => {
-      notifyNextNodes(this);
-      userOnChange?.();
-    };
   }
 
   onPrevNodesUpdated() {
@@ -123,11 +108,11 @@ export class AggregationNode implements ModificationNode {
   }
 
   updateGroupByColumns() {
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       return;
     }
     const newGroupByColumns = newColumnInfoList(
-      this.prevNode.finalCols ?? [],
+      this.primaryInput.finalCols ?? [],
       false,
     );
     for (const oldCol of this.state.groupByColumns) {
@@ -151,16 +136,16 @@ export class AggregationNode implements ModificationNode {
       this.state.issues.clear();
     }
 
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       this.setValidationError('No input node connected');
       return false;
     }
-    if (!this.prevNode.validate()) {
+    if (!this.primaryInput.validate()) {
       this.setValidationError('Previous node is invalid');
       return false;
     }
     const sourceColNames = new Set(
-      (this.prevNode.finalCols ?? []).map((c) => c.name),
+      (this.primaryInput.finalCols ?? []).map((c) => c.name),
     );
     const missingCols: string[] = [];
     for (const col of this.state.groupByColumns) {
@@ -329,7 +314,6 @@ export class AggregationNode implements ModificationNode {
 
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
-      prevNode: this.state.prevNode,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       onchange: this.state.onchange,
@@ -341,8 +325,8 @@ export class AggregationNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    // Defensive check: prevNode must exist for aggregation to work
-    if (this.prevNode === undefined) return undefined;
+    // Defensive check: primaryInput must exist for aggregation to work
+    if (this.primaryInput === undefined) return undefined;
 
     // Prepare groupByColumns
     const groupByColumns = this.state.groupByColumns
@@ -378,13 +362,13 @@ export class AggregationNode implements ModificationNode {
     const sq =
       groupByColumns.length > 0
         ? StructuredQueryBuilder.withGroupBy(
-            this.prevNode,
+            this.primaryInput,
             groupByColumns,
             aggregations,
             this.nodeId,
           )
         : StructuredQueryBuilder.withGroupBy(
-            this.prevNode,
+            this.primaryInput,
             [], // Empty group by columns means aggregate entire result set
             aggregations,
             this.nodeId,
@@ -413,10 +397,10 @@ export class AggregationNode implements ModificationNode {
   }
 
   resolveColumns() {
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       return;
     }
-    const sourceCols = this.prevNode.finalCols ?? [];
+    const sourceCols = this.primaryInput.finalCols ?? [];
     this.state.groupByColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
       if (sourceCol) {
@@ -433,8 +417,9 @@ export class AggregationNode implements ModificationNode {
     });
   }
 
-  serializeState(): AggregationSerializedState {
+  serializeState(): AggregationSerializedState & {primaryInputId?: string} {
     return {
+      primaryInputId: this.primaryInput?.nodeId,
       groupByColumns: this.state.groupByColumns.map((c) => ({
         name: c.name,
         checked: c.checked,
@@ -471,7 +456,6 @@ export class AggregationNode implements ModificationNode {
     });
     return {
       ...state,
-      prevNode: undefined as unknown as QueryNode,
       groupByColumns,
       aggregations,
     };

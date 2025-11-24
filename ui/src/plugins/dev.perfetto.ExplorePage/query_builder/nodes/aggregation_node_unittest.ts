@@ -44,6 +44,20 @@ describe('AggregationNode', () => {
     } as QueryNode;
   }
 
+  function createAggregationNodeWithInput(
+    state: AggregationNodeState,
+    inputNode?: QueryNode,
+  ): AggregationNode {
+    const node = new AggregationNode(state);
+    if (inputNode) {
+      // Directly set the connection without triggering onPrevNodesUpdated
+      // to preserve the test's explicitly provided columns
+      inputNode.nextNodes.push(node);
+      node.primaryInput = inputNode;
+    }
+    return node;
+  }
+
   function createColumnInfo(name: string, type: string): ColumnInfo {
     return {
       name,
@@ -121,12 +135,14 @@ describe('AggregationNode', () => {
     let node: AggregationNode;
 
     beforeEach(() => {
-      node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: createMockPrevNode(),
-        groupByColumns: [],
-        aggregations: [],
-      });
+      node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [],
+        },
+        createMockPrevNode(),
+      );
     });
 
     it('should validate COUNT_ALL without column', () => {
@@ -312,12 +328,14 @@ describe('AggregationNode', () => {
 
   describe('serialization', () => {
     it('should serialize PERCENTILE aggregation with percentile value', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: createMockPrevNode(),
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [],
+        },
+        createMockPrevNode(),
+      );
 
       node.state.aggregations = [
         {
@@ -339,12 +357,14 @@ describe('AggregationNode', () => {
     });
 
     it('should serialize COUNT_ALL aggregation without column', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: createMockPrevNode(),
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [],
+        },
+        createMockPrevNode(),
+      );
 
       node.state.aggregations = [
         {
@@ -364,12 +384,14 @@ describe('AggregationNode', () => {
     });
 
     it('should serialize MEDIAN aggregation', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: createMockPrevNode(),
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [],
+        },
+        createMockPrevNode(),
+      );
 
       node.state.aggregations = [
         {
@@ -390,12 +412,14 @@ describe('AggregationNode', () => {
     });
 
     it('should serialize multiple aggregations including new types', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: createMockPrevNode(),
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [],
+        },
+        createMockPrevNode(),
+      );
 
       node.state.aggregations = [
         {
@@ -430,22 +454,22 @@ describe('AggregationNode', () => {
 
   describe('deserialization', () => {
     it('should deserialize PERCENTILE aggregation with percentile value', () => {
-      const state: AggregationNodeState = {
-        trace: createMockTrace(),
-        prevNode: createMockPrevNode(),
-        groupByColumns: [],
-        aggregations: [
-          {
-            aggregationOp: 'PERCENTILE',
-            column: createColumnInfo('dur', 'INT'),
-            percentile: 95,
-            newColumnName: 'p95_dur',
-            isValid: true,
-          },
-        ],
-      };
-
-      const node = new AggregationNode(state);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'PERCENTILE',
+              column: createColumnInfo('dur', 'INT'),
+              percentile: 95,
+              newColumnName: 'p95_dur',
+              isValid: true,
+            },
+          ],
+        },
+        createMockPrevNode(),
+      );
 
       expect(node.state.aggregations.length).toBe(1);
       expect(node.state.aggregations[0].aggregationOp).toBe('PERCENTILE');
@@ -454,20 +478,20 @@ describe('AggregationNode', () => {
     });
 
     it('should deserialize COUNT_ALL aggregation without column', () => {
-      const state: AggregationNodeState = {
-        trace: createMockTrace(),
-        prevNode: createMockPrevNode(),
-        groupByColumns: [],
-        aggregations: [
-          {
-            aggregationOp: 'COUNT_ALL',
-            newColumnName: 'total_count',
-            isValid: true,
-          },
-        ],
-      };
-
-      const node = new AggregationNode(state);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'COUNT_ALL',
+              newColumnName: 'total_count',
+              isValid: true,
+            },
+          ],
+        },
+        createMockPrevNode(),
+      );
 
       expect(node.state.aggregations.length).toBe(1);
       expect(node.state.aggregations[0].aggregationOp).toBe('COUNT_ALL');
@@ -476,21 +500,21 @@ describe('AggregationNode', () => {
     });
 
     it('should deserialize MEDIAN aggregation', () => {
-      const state: AggregationNodeState = {
-        trace: createMockTrace(),
-        prevNode: createMockPrevNode(),
-        groupByColumns: [],
-        aggregations: [
-          {
-            aggregationOp: 'MEDIAN',
-            column: createColumnInfo('value', 'DOUBLE'),
-            newColumnName: 'median_value',
-            isValid: true,
-          },
-        ],
-      };
-
-      const node = new AggregationNode(state);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'MEDIAN',
+              column: createColumnInfo('value', 'DOUBLE'),
+              newColumnName: 'median_value',
+              isValid: true,
+            },
+          ],
+        },
+        createMockPrevNode(),
+      );
 
       expect(node.state.aggregations.length).toBe(1);
       expect(node.state.aggregations[0].aggregationOp).toBe('MEDIAN');
@@ -511,68 +535,76 @@ describe('AggregationNode', () => {
     });
 
     it('should validate node with only group by columns (no aggregations)', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: mockPrevNode,
-        groupByColumns: [
-          {...createColumnInfo('name', 'STRING'), checked: true},
-          {...createColumnInfo('dur', 'INT'), checked: false},
-        ],
-        aggregations: [],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [
+            {...createColumnInfo('name', 'STRING'), checked: true},
+            {...createColumnInfo('dur', 'INT'), checked: false},
+          ],
+          aggregations: [],
+        },
+        mockPrevNode,
+      );
 
       expect(node.validate()).toBe(true);
     });
 
     it('should validate node with only aggregations (no group by)', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: mockPrevNode,
-        groupByColumns: [
-          {...createColumnInfo('name', 'STRING'), checked: false},
-          {...createColumnInfo('dur', 'INT'), checked: false},
-        ],
-        aggregations: [
-          {
-            aggregationOp: 'COUNT_ALL',
-            isValid: true,
-          },
-        ],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [
+            {...createColumnInfo('name', 'STRING'), checked: false},
+            {...createColumnInfo('dur', 'INT'), checked: false},
+          ],
+          aggregations: [
+            {
+              aggregationOp: 'COUNT_ALL',
+              isValid: true,
+            },
+          ],
+        },
+        mockPrevNode,
+      );
 
       expect(node.validate()).toBe(true);
     });
 
     it('should validate node with both group by and aggregations', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: mockPrevNode,
-        groupByColumns: [
-          {...createColumnInfo('name', 'STRING'), checked: true},
-          {...createColumnInfo('dur', 'INT'), checked: false},
-        ],
-        aggregations: [
-          {
-            aggregationOp: 'SUM',
-            column: createColumnInfo('dur', 'INT'),
-            isValid: true,
-          },
-        ],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [
+            {...createColumnInfo('name', 'STRING'), checked: true},
+            {...createColumnInfo('dur', 'INT'), checked: false},
+          ],
+          aggregations: [
+            {
+              aggregationOp: 'SUM',
+              column: createColumnInfo('dur', 'INT'),
+              isValid: true,
+            },
+          ],
+        },
+        mockPrevNode,
+      );
 
       expect(node.validate()).toBe(true);
     });
 
     it('should invalidate node with neither group by nor aggregations', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: mockPrevNode,
-        groupByColumns: [
-          {...createColumnInfo('name', 'STRING'), checked: false},
-          {...createColumnInfo('dur', 'INT'), checked: false},
-        ],
-        aggregations: [],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [
+            {...createColumnInfo('name', 'STRING'), checked: false},
+            {...createColumnInfo('dur', 'INT'), checked: false},
+          ],
+          aggregations: [],
+        },
+        mockPrevNode,
+      );
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
@@ -581,62 +613,68 @@ describe('AggregationNode', () => {
     });
 
     it('should invalidate node with invalid aggregations and no group by', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: mockPrevNode,
-        groupByColumns: [
-          {...createColumnInfo('name', 'STRING'), checked: false},
-        ],
-        aggregations: [
-          {
-            aggregationOp: 'SUM',
-            // Missing column - invalid
-            isValid: false,
-          },
-        ],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [
+            {...createColumnInfo('name', 'STRING'), checked: false},
+          ],
+          aggregations: [
+            {
+              aggregationOp: 'SUM',
+              // Missing column - invalid
+              isValid: false,
+            },
+          ],
+        },
+        mockPrevNode,
+      );
 
       expect(node.validate()).toBe(false);
     });
 
     it('should validate multiple aggregations without group by', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: mockPrevNode,
-        groupByColumns: [
-          {...createColumnInfo('name', 'STRING'), checked: false},
-        ],
-        aggregations: [
-          {
-            aggregationOp: 'COUNT_ALL',
-            isValid: true,
-          },
-          {
-            aggregationOp: 'SUM',
-            column: createColumnInfo('dur', 'INT'),
-            isValid: true,
-          },
-          {
-            aggregationOp: 'MAX',
-            column: createColumnInfo('ts', 'INT'),
-            isValid: true,
-          },
-        ],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [
+            {...createColumnInfo('name', 'STRING'), checked: false},
+          ],
+          aggregations: [
+            {
+              aggregationOp: 'COUNT_ALL',
+              isValid: true,
+            },
+            {
+              aggregationOp: 'SUM',
+              column: createColumnInfo('dur', 'INT'),
+              isValid: true,
+            },
+            {
+              aggregationOp: 'MAX',
+              column: createColumnInfo('ts', 'INT'),
+              isValid: true,
+            },
+          ],
+        },
+        mockPrevNode,
+      );
 
       expect(node.validate()).toBe(true);
     });
 
     it('should invalidate node when group by columns are missing from input', () => {
-      const node = new AggregationNode({
-        trace: createMockTrace(),
-        prevNode: mockPrevNode,
-        groupByColumns: [
-          {...createColumnInfo('name', 'STRING'), checked: true},
-          {...createColumnInfo('missing_col', 'INT'), checked: true},
-        ],
-        aggregations: [],
-      });
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [
+            {...createColumnInfo('name', 'STRING'), checked: true},
+            {...createColumnInfo('missing_col', 'INT'), checked: true},
+          ],
+          aggregations: [],
+        },
+        mockPrevNode,
+      );
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
@@ -644,10 +682,9 @@ describe('AggregationNode', () => {
       );
     });
 
-    it('should invalidate node without prevNode', () => {
+    it('should invalidate node without primaryInput', () => {
       const node = new AggregationNode({
         trace: createMockTrace(),
-        prevNode: undefined as unknown as QueryNode,
         groupByColumns: [],
         aggregations: [
           {

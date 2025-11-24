@@ -46,28 +46,28 @@ describe('createGraphFromSql', () => {
     expect(nodeA!.type).toBe(NodeType.kSqlSource);
     expect((nodeA!.state as SqlSourceSerializedState).sql).toBe('SELECT 1');
     expect(nodeA!.nextNodes).toEqual(['b']);
-    expect(nodeA!.prevNodes).toEqual([]);
+    expect(nodeA!.inputNodeIds).toEqual([]);
 
     expect(nodeB!.type).toBe(NodeType.kSqlSource);
     expect((nodeB!.state as SqlSourceSerializedState).sql).toBe(
       'SELECT * FROM $a',
     );
     expect(nodeB!.nextNodes).toEqual(['c']);
-    expect(nodeB!.prevNodes).toEqual(['a']);
+    expect(nodeB!.inputNodeIds).toEqual(['a']);
 
     expect(nodeC!.type).toBe(NodeType.kSqlSource);
     expect((nodeC!.state as SqlSourceSerializedState).sql).toBe(
       'SELECT * FROM $b',
     );
     expect(nodeC!.nextNodes).toEqual(['output']);
-    expect(nodeC!.prevNodes).toEqual(['b']);
+    expect(nodeC!.inputNodeIds).toEqual(['b']);
 
     expect(nodeOutput!.type).toBe(NodeType.kSqlSource);
     expect((nodeOutput!.state as SqlSourceSerializedState).sql).toBe(
       'SELECT * FROM $c',
     );
     expect(nodeOutput!.nextNodes).toEqual([]);
-    expect(nodeOutput!.prevNodes).toEqual(['c']);
+    expect(nodeOutput!.inputNodeIds).toEqual(['c']);
   });
 
   it('should throw an error for malformed SQL without SELECT', () => {
@@ -201,12 +201,12 @@ describe('createGraphFromSql', () => {
     expect(nodeOutput).toBeDefined();
 
     expect(nodeA!.nextNodes).toEqual(['timeline_filtered']);
-    expect(nodeA!.prevNodes).toEqual([]);
+    expect(nodeA!.inputNodeIds).toEqual([]);
 
     expect(nodeB!.nextNodes).toEqual(['output']);
-    expect(nodeB!.prevNodes).toEqual(['actual_timeline_with_vsync']);
+    expect(nodeB!.inputNodeIds).toEqual(['actual_timeline_with_vsync']);
 
-    expect(nodeOutput!.prevNodes).toEqual(['timeline_filtered']);
+    expect(nodeOutput!.inputNodeIds).toEqual(['timeline_filtered']);
   });
 
   it('should handle real-world query with ROW_NUMBER and OVER', () => {
@@ -282,15 +282,15 @@ describe('createGraphFromSql', () => {
     expect(nodeOutput).toBeDefined();
 
     expect(nodeA!.nextNodes).toEqual(['frame_with_gpu']);
-    expect(nodeA!.prevNodes).toEqual([]);
+    expect(nodeA!.inputNodeIds).toEqual([]);
 
     expect(nodeB!.nextNodes).toEqual(['frame_with_numbers']);
-    expect(nodeB!.prevNodes).toEqual(['frame_base']);
+    expect(nodeB!.inputNodeIds).toEqual(['frame_base']);
 
     expect(nodeC!.nextNodes).toEqual(['output']);
-    expect(nodeC!.prevNodes).toEqual(['frame_with_gpu']);
+    expect(nodeC!.inputNodeIds).toEqual(['frame_with_gpu']);
 
-    expect(nodeOutput!.prevNodes).toEqual(['frame_with_numbers']);
+    expect(nodeOutput!.inputNodeIds).toEqual(['frame_with_numbers']);
   });
 
   it('should handle real-world query with multiple joins and COALESCE', () => {
@@ -388,15 +388,17 @@ describe('createGraphFromSql', () => {
     expect(nodeOutput).toBeDefined();
 
     expect(nodeA!.nextNodes).toEqual(['sf_frames_with_jank']);
-    expect(nodeA!.prevNodes).toEqual([]);
+    expect(nodeA!.inputNodeIds).toEqual([]);
 
     expect(nodeB!.nextNodes).toEqual(['android_jank_cuj_sf_frame_base']);
-    expect(nodeB!.prevNodes).toEqual(['android_jank_cuj_timeline_sf_frame']);
+    expect(nodeB!.inputNodeIds).toEqual(['android_jank_cuj_timeline_sf_frame']);
 
     expect(nodeC!.nextNodes).toEqual(['output']);
-    expect(nodeC!.prevNodes).toEqual(['sf_frames_with_jank']);
+    expect(nodeC!.inputNodeIds).toEqual(['sf_frames_with_jank']);
 
-    expect(nodeOutput!.prevNodes).toEqual(['android_jank_cuj_sf_frame_base']);
+    expect(nodeOutput!.inputNodeIds).toEqual([
+      'android_jank_cuj_sf_frame_base',
+    ]);
   });
 
   it('should handle comments with commas', () => {
@@ -437,15 +439,15 @@ describe('createGraphFromSql', () => {
     expect(nodeOutput).toBeDefined();
 
     expect(nodeA!.nextNodes).toEqual(['c']);
-    expect(nodeA!.prevNodes).toEqual([]);
+    expect(nodeA!.inputNodeIds).toEqual([]);
 
     expect(nodeB!.nextNodes).toEqual(['c']);
-    expect(nodeB!.prevNodes).toEqual([]);
+    expect(nodeB!.inputNodeIds).toEqual([]);
 
     expect(nodeC!.nextNodes).toEqual(['output']);
-    expect(nodeC!.prevNodes).toEqual(['a', 'b']);
+    expect(nodeC!.inputNodeIds).toEqual(['a', 'b']);
 
-    expect(nodeOutput!.prevNodes).toEqual(['c']);
+    expect(nodeOutput!.inputNodeIds).toEqual(['c']);
   });
 
   it('should handle a node referencing a previously referenced node', () => {
@@ -475,17 +477,17 @@ describe('createGraphFromSql', () => {
     expect(nodeOutput).toBeDefined();
 
     expect(nodeA!.nextNodes).toEqual(['b', 'c']);
-    expect(nodeA!.prevNodes).toEqual([]);
+    expect(nodeA!.inputNodeIds).toEqual([]);
 
     expect(nodeB!.nextNodes).toEqual(['d']);
-    expect(nodeB!.prevNodes).toEqual(['a']);
+    expect(nodeB!.inputNodeIds).toEqual(['a']);
 
     expect(nodeC!.nextNodes).toEqual(['d']);
-    expect(nodeC!.prevNodes).toEqual(['a']);
+    expect(nodeC!.inputNodeIds).toEqual(['a']);
 
     expect(nodeD!.nextNodes).toEqual(['output']);
-    expect(nodeD!.prevNodes).toEqual(['b', 'c']);
+    expect(nodeD!.inputNodeIds).toEqual(['b', 'c']);
 
-    expect(nodeOutput!.prevNodes).toEqual(['d']);
+    expect(nodeOutput!.inputNodeIds).toEqual(['d']);
   });
 });

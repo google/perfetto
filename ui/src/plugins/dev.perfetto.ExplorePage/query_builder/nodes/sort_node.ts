@@ -18,7 +18,6 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  ModificationNode,
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
@@ -41,15 +40,14 @@ export interface SortCriterion {
 }
 
 export interface SortNodeState extends QueryNodeState {
-  prevNode: QueryNode;
   sortColNames?: string[]; // For backwards compatibility
   sortCriteria?: SortCriterion[];
 }
 
-export class SortNode implements ModificationNode {
+export class SortNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kSort;
-  readonly prevNode: QueryNode;
+  primaryInput?: QueryNode;
   nextNodes: QueryNode[];
   readonly state: SortNodeState;
   sortCols: ColumnInfo[];
@@ -58,7 +56,6 @@ export class SortNode implements ModificationNode {
   constructor(state: SortNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNode = state.prevNode;
     this.nextNodes = [];
 
     this.state.sortCriteria = this.state.sortCriteria ?? [];
@@ -76,7 +73,7 @@ export class SortNode implements ModificationNode {
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNode?.finalCols ?? [];
+    return this.primaryInput?.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -224,12 +221,12 @@ export class SortNode implements ModificationNode {
       this.state.issues.clear();
     }
 
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       setValidationError(this.state, 'No input node connected');
       return false;
     }
 
-    if (!this.prevNode.validate()) {
+    if (!this.primaryInput.validate()) {
       setValidationError(this.state, 'Previous node is invalid');
       return false;
     }
@@ -247,10 +244,10 @@ export class SortNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (this.prevNode === undefined) return undefined;
+    if (this.primaryInput === undefined) return undefined;
 
     if (this.sortCols.length === 0) {
-      return this.prevNode.getStructuredQuery();
+      return this.primaryInput.getStructuredQuery();
     }
 
     const criteria: BuilderSortCriterion[] = [];
@@ -267,11 +264,11 @@ export class SortNode implements ModificationNode {
     }
 
     if (criteria.length === 0) {
-      return this.prevNode.getStructuredQuery();
+      return this.primaryInput.getStructuredQuery();
     }
 
     return StructuredQueryBuilder.withOrderBy(
-      this.prevNode,
+      this.primaryInput,
       criteria,
       this.nodeId,
     );
@@ -281,6 +278,7 @@ export class SortNode implements ModificationNode {
     // Only return serializable fields, excluding callbacks and objects
     // that might contain circular references
     return {
+      primaryInputId: this.primaryInput?.nodeId,
       sortColNames: this.state.sortColNames,
       sortCriteria: this.state.sortCriteria,
       comment: this.state.comment,
@@ -288,9 +286,6 @@ export class SortNode implements ModificationNode {
   }
 
   static deserializeState(state: SortNodeState): SortNodeState {
-    return {
-      ...state,
-      prevNode: undefined as unknown as QueryNode,
-    };
+    return {...state};
   }
 }

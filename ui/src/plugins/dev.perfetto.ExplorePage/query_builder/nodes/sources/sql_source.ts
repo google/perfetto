@@ -19,7 +19,6 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  MultiSourceNode,
   nextNodeId,
   notifyNextNodes,
 } from '../../../query_node';
@@ -47,10 +46,9 @@ export interface SqlSourceState extends QueryNodeState {
   trace: Trace;
 }
 
-export class SqlSourceNode implements MultiSourceNode {
+export class SqlSourceNode implements QueryNode {
   readonly nodeId: string;
   readonly state: SqlSourceState;
-  prevNodes: QueryNode[] = [];
   finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
 
@@ -63,7 +61,6 @@ export class SqlSourceNode implements MultiSourceNode {
     };
     this.finalCols = createFinalColumns([]);
     this.nextNodes = [];
-    this.prevNodes = attrs.prevNodes ?? [];
   }
 
   get type() {
@@ -120,10 +117,11 @@ export class SqlSourceNode implements MultiSourceNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    const dependencies = this.prevNodes.map((prevNode) => ({
-      alias: prevNode.nodeId,
-      query: prevNode.getStructuredQuery(),
-    }));
+    // Source nodes don't have dependencies
+    const dependencies: Array<{
+      alias: string;
+      query: protos.PerfettoSqlStructuredQuery | undefined;
+    }> = [];
 
     // Pass empty array for column names - the engine will discover them when analyzing the query
     // Using this.finalCols here would pass stale columns from the previous execution
