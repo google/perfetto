@@ -36,14 +36,8 @@ fn main() {
                 ❌ Missing amalgamated source file: {}.\n\n\
                 To fix this, run:\n\
                 \n\
-                $ tools/gen_amalgamated --gn_args \"is_debug=false \
-                is_clang=true use_custom_libcxx=false \
-                enable_perfetto_ipc=true \
-                perfetto_enable_git_rev_version_header=true \
-                is_perfetto_build_generator=true \
-                enable_perfetto_zlib=false\" \
-                --output contrib/rust-sdk/perfetto-sys/libperfetto_c/perfetto_c \
-                //src/shared_lib:libperfetto_c\n\
+                $ tools/gen_amalgamated --sdk c \
+                --output contrib/rust-sdk/perfetto-sys/libperfetto_c/perfetto\n\
                 \n\
                 💡 Tip: invoke cargo with --no-default-features to use an external library\n",
                 source_file.display()
