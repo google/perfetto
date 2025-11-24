@@ -21,6 +21,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
+#include "perfetto/profiling/pprof_builder.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/traceconv/deobfuscate_profile.h"
 #include "src/traceconv/symbolize_profile.h"
@@ -74,20 +76,17 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
  text                                 Converts to human-readable text format
    (no additional options)
 
- profile                              Converts heap profiles to pprof format
-                                      (profile.proto - default: heap profiles)
-   --perf                             Extract perf/CPU profiles instead
+ profile                              Converts profile data to pprof format
+                                      (default: auto-detect profile type)
+   --alloc                            Convert only the allocator profile
+   --perf                             Convert only the perf profile
+   --java-heap                        Convert only the heap graph profile
    --no-annotations                   Don't add derived annotations to frames
    --timestamps T1,T2,...             Generate profiles for specific timestamps
    --pid PID                          Generate profiles for specific process
    --output-dir DIR                   Output directory for profiles (default: random tmp)
 
- java_heap_profile                    Converts Java heap profiles to pprof format
-                                      (profile.proto)
-   --no-annotations                   Don't add derived annotations to frames
-   --timestamps T1,T2,...             Generate profiles for specific timestamps
-   --pid PID                          Generate profiles for specific process
-   --output-dir DIR                   Output directory for profiles (default: random tmp)
+ java_heap_profile                    Legacy alias for "profile --java-heap"
 
  hprof                                Converts heap profile to hprof format
    --timestamps T1,T2,...             Generate profiles for specific timestamps
@@ -157,7 +156,7 @@ int Main(int argc, char** argv) {
   uint64_t pid = 0;
   std::vector<uint64_t> timestamps;
   bool full_sort = false;
-  bool perf_profile = false;
+  std::optional<ConversionMode> profile_type;
   bool profile_no_annotations = false;
   std::vector<std::string> symbol_paths;
   bool no_auto_symbol_paths = false;
@@ -188,8 +187,12 @@ int Main(int argc, char** argv) {
       for (const std::string& ts : ts_strings) {
         timestamps.emplace_back(StringToUint64OrDie(ts.c_str()));
       }
+    } else if (strcmp(argv[i], "--alloc") == 0) {
+      profile_type = ConversionMode::kHeapProfile;
     } else if (strcmp(argv[i], "--perf") == 0) {
-      perf_profile = true;
+      profile_type = ConversionMode::kPerfProfile;
+    } else if (strcmp(argv[i], "--java-heap") == 0) {
+      profile_type = ConversionMode::kJavaHeapProfile;
     } else if (strcmp(argv[i], "--no-annotations") == 0) {
       profile_no_annotations = true;
     } else if (strcmp(argv[i], "--full-sort") == 0) {
@@ -271,11 +274,6 @@ int Main(int argc, char** argv) {
     return 1;
   }
 
-  if (perf_profile && format != "profile") {
-    PERFETTO_ELOG("--perf requires profile format.");
-    return 1;
-  }
-
   if (format == "binary") {
     return TextToTrace(input_stream, output_stream);
   }
@@ -311,18 +309,21 @@ int Main(int argc, char** argv) {
   }
 
   if (format == "profile") {
-    return perf_profile
-               ? TraceToPerfProfile(input_stream, output_stream, pid,
-                                    timestamps, !profile_no_annotations,
-                                    output_dir)
-               : TraceToHeapProfile(input_stream, output_stream, pid,
-                                    timestamps, !profile_no_annotations,
-                                    output_dir);
+    if (positional_args.size() > 2) {
+      PERFETTO_ELOG(
+          "output file is not supported for \"profile\", use --output-dir "
+          "instead");
+      return Usage(argv[0]);
+    }
+    return TraceToProfile(input_stream, pid, timestamps,
+                          !profile_no_annotations, output_dir, profile_type);
   }
 
   if (format == "java_heap_profile") {
-    return TraceToJavaHeapProfile(input_stream, output_stream, pid, timestamps,
-                                  !profile_no_annotations, output_dir);
+    // legacy alias for "profile --java-heap"
+    return TraceToProfile(input_stream, pid, timestamps,
+                          !profile_no_annotations, output_dir,
+                          ConversionMode::kJavaHeapProfile);
   }
 
   if (format == "hprof")
