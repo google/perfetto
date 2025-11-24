@@ -213,6 +213,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     // This ensures that changes in the node's UI components trigger the callback chain
     node.state.onchange = attrs.onchange;
 
+    // Always analyze to generate the query object (needed to enable Run button)
+    // The autoExecute flag only controls whether we automatically execute after analysis
     this.updateQuery(node, attrs);
 
     if (isCollapsed) {
