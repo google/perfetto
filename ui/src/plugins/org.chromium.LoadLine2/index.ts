@@ -132,30 +132,31 @@ export default class implements PerfettoPlugin {
     'Show breakdown of LoadLine 2 metrics on a separate track.';
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    if (await isLoadLineTrace(trace)) {
-      prepareTables(trace);
-      registerTrack(trace, METRIC_TRACK_URI, '_chrome_loadline2_plugin_metric');
-      registerTrack(
-        trace,
-        VISUAL_TRACK_URI,
-        '_chrome_loadline2_plugin_visual_breakdown',
-      );
-      registerTrack(
-        trace,
-        INTERACTIVE_TRACK_URI,
-        '_chrome_loadline2_plugin_interactive_breakdown',
-      );
-      addTracks(trace);
+    if (!(await isLoadLineTrace(trace))) {
+      return;
     }
+    prepareTables(trace);
+    registerTrack(trace, METRIC_TRACK_URI, '_chrome_loadline2_plugin_metric');
+    registerTrack(
+      trace,
+      VISUAL_TRACK_URI,
+      '_chrome_loadline2_plugin_visual_breakdown',
+    );
+    registerTrack(
+      trace,
+      INTERACTIVE_TRACK_URI,
+      '_chrome_loadline2_plugin_interactive_breakdown',
+    );
+    addTracks(trace);
   }
 }
 
 async function isLoadLineTrace(trace: Trace): Promise<boolean> {
   const queryRes = await trace.engine.query(`
-      SELECT COUNT(*) AS cnt FROM slice WHERE name GLOB 'LoadLine2/*';
+      SELECT EXISTS(SELECT * FROM slice WHERE name GLOB 'LoadLine2/*') AS res;
     `);
-  const it = queryRes.iter({cnt: NUM});
-  return it.cnt > 0;
+  const it = queryRes.iter({res: NUM});
+  return it.res > 0;
 }
 
 async function prepareTables(trace: Trace): Promise<void> {
@@ -164,11 +165,7 @@ async function prepareTables(trace: Trace): Promise<void> {
   await trace.engine.query(generateBreakdownQuery('interactive'));
 }
 
-async function registerTrack(
-  trace: Trace,
-  uri: string,
-  src: string,
-): Promise<void> {
+function registerTrack(trace: Trace, uri: string, src: string): void {
   trace.tracks.registerTrack({
     uri,
     renderer: SliceTrack.create({
@@ -186,7 +183,7 @@ async function registerTrack(
   });
 }
 
-async function addTracks(trace: Trace): Promise<void> {
+function addTracks(trace: Trace): void {
   const metricTrack = new TrackNode({
     uri: METRIC_TRACK_URI,
     name: 'LoadLine 2 metrics',
