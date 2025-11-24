@@ -74,4 +74,8 @@ export class Icons {
   static readonly Play = 'play_arrow';
   static readonly Edit = 'edit';
   static readonly DragHandle = 'drag_indicator';
+
+  // Platform icons
+  static readonly Android = 'android';
+  static readonly Web = 'language';
 }
