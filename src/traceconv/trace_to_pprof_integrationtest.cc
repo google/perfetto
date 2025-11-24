@@ -17,14 +17,11 @@
 #include "test/gtest_and_gmock.h"
 
 #include <fstream>
-#include <ostream>
-#include <sstream>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/base/test/utils.h"
 #include "src/traceconv/pprof_reader.h"
@@ -34,6 +31,7 @@ namespace perfetto {
 namespace {
 
 using testing::Contains;
+using trace_to_text::ConversionMode;
 
 pprof::PprofProfileReader ConvertTraceToPprof(
     const std::string& input_file_name) {
@@ -42,15 +40,13 @@ pprof::PprofProfileReader ConvertTraceToPprof(
   file_istream.open(trace_file, std::ios_base::in | std::ios_base::binary);
   PERFETTO_CHECK(file_istream.is_open());
 
-  std::stringstream ss;
-  std::ostream os(ss.rdbuf());
-  trace_to_text::TraceToJavaHeapProfile(&file_istream, &os, /*pid=*/0,
-                                        /*timestamps=*/{},
-                                        /*annotate_frames=*/false);
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string out_dirname = temp_dir.path();
 
-  auto conv_stdout = base::SplitString(ss.str(), " ");
-  PERFETTO_CHECK(!conv_stdout.empty());
-  std::string out_dirname = base::TrimWhitespace(conv_stdout.back());
+  trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
+                                /*timestamps=*/{},
+                                /*annotate_frames=*/false, out_dirname,
+                                /*conversion_mode=*/std::nullopt);
   std::vector<std::string> filenames;
   base::ListFilesRecursive(out_dirname, filenames);
   // assumption: all test inputs contain exactly one profile
@@ -60,7 +56,6 @@ pprof::PprofProfileReader ConvertTraceToPprof(
   // read in the profile contents and then clean up the temp files
   pprof::PprofProfileReader pprof_reader(profile_path);
   unlink(profile_path.c_str());
-  PERFETTO_CHECK(base::Rmdir(out_dirname));
   return pprof_reader;
 }
 
@@ -138,16 +133,10 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
   base::TempDir temp_dir = base::TempDir::Create();
   std::string output_dir = temp_dir.path() + "/my_profiles";
 
-  std::stringstream ss;
-  std::ostream os(ss.rdbuf());
-  trace_to_text::TraceToJavaHeapProfile(&file_istream, &os, /*pid=*/0,
-                                        /*timestamps=*/{},
-                                        /*annotate_frames=*/false, output_dir);
-
-  // Check output message
-  std::string output_str = ss.str();
-  EXPECT_THAT(output_str,
-              testing::HasSubstr("Wrote profiles to " + output_dir));
+  trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
+                                /*timestamps=*/{},
+                                /*annotate_frames=*/false, output_dir,
+                                ConversionMode::kJavaHeapProfile);
 
   // Check files exist
   std::vector<std::string> filenames;
@@ -158,6 +147,29 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
     remove((output_dir + "/" + file).c_str());
 
   base::Rmdir(output_dir);
+}
+
+TEST_F(TraceToPprofTest, DetectPerfSampleMode) {
+  const auto pprof = ConvertTraceToPprof("test/data/perf_sample_sc.pb");
+
+  // "traceconv profile" correctly identifies that this is a perf profile.
+  EXPECT_EQ(pprof.get_sample_count(), 6U);
+  EXPECT_EQ(pprof.get_samples_value_sum(
+                "android::RefBase::incStrong(void const*) const", "samples"),
+            1U);
+}
+
+TEST_F(TraceToPprofTest, DetectHeapprofdSampleMode) {
+  const auto pprof = ConvertTraceToPprof(
+      "test/data/heapprofd_standalone_client_example-trace");
+
+  // "traceconv profile" correctly identifies that this is a heap profile.
+  EXPECT_EQ(pprof.get_sample_count(), 1U);
+  EXPECT_EQ(pprof.get_samples_value_sum(
+                "perfetto::profiling::Client::RecordMalloc(unsigned int, "
+                "unsigned long, unsigned long, unsigned long)",
+                "Unreleased size"),
+            1416U);
 }
 
 class TraceToPprofRealTraceTest : public ::testing::Test {

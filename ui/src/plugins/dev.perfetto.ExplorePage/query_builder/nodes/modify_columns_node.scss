@@ -47,21 +47,93 @@
     gap: 0.5rem;
   }
 
+  .pf-modify-columns-header {
+    padding: 20px 16px;
+    background: var(--surface-color);
+    border-bottom: 1px solid var(--separator-color);
+  }
+
+  .pf-modify-columns-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--pf-text-color-primary);
+    margin-bottom: 16px;
+  }
+
+  .pf-modify-columns-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .pf-modify-columns-stats {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--pf-text-color-secondary);
+  }
+
+  .pf-modify-columns-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .pf-column-list-container {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pf-column-list-help {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--pf-text-color-secondary);
+    font-style: italic;
+    background: var(--background-color);
+    border-bottom: 1px solid var(--separator-color);
+  }
+
+  .pf-column-list {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px;
+  }
+
   .pf-column {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 1px 0;
+    gap: 12px;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    background: var(--surface-color);
+    border-radius: 4px;
+    border: 1px solid transparent;
+    transition: all 0.15s ease-in-out;
+
+    &:hover {
+      border-color: var(--separator-color);
+      background: var(--background-color);
+    }
   }
 
   .pf-drag-handle {
     opacity: 0;
     cursor: grab;
     transition: opacity 0.2s ease-in-out;
+    width: 20px; // Fixed width for alignment
+    text-align: center;
+    color: var(--pf-text-color-secondary);
+    font-size: 16px;
+
+    &:active {
+      cursor: grabbing;
+    }
   }
 
   .pf-column:hover .pf-drag-handle {
-    opacity: 1;
+    opacity: 0.6;
+  }
+
+  .pf-drag-handle:hover {
+    opacity: 1 !important;
   }
 
   .pf-exp-modify-columns-node-buttons {
@@ -186,4 +258,103 @@
   display: flex;
   gap: 8px;
   margin-top: 4px;
+}
+
+// Add Columns Actions Section (for AddColumnsNode)
+.pf-add-columns-actions-section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  padding: 20px;
+  background: var(--surface-color);
+  border: 1px solid var(--separator-color);
+  border-radius: 4px;
+}
+
+.pf-add-columns-actions-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--separator-color);
+}
+
+.pf-add-columns-actions-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pf-text-color-primary);
+}
+
+.pf-add-columns-actions-subtitle {
+  font-size: 13px;
+  color: var(--pf-text-color-secondary);
+  font-style: italic;
+}
+
+.pf-add-columns-actions-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+
+  button {
+    justify-content: flex-start;
+  }
+}
+
+// Added Columns List (for AddColumnsNode)
+.pf-added-columns-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--pf-text-color-secondary);
+  font-style: italic;
+  background: var(--background-color);
+  border: 1px dashed var(--separator-color);
+  border-radius: 4px;
+}
+
+.pf-added-columns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pf-added-column-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-color);
+  border: 1px solid var(--separator-color);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+
+  &:hover {
+    background: var(--background-color);
+    border-color: var(--pf-primary-color);
+  }
+
+  &.pf-joined-source {
+    border-left: 4px solid var(--pf-primary-color);
+  }
+}
+
+.pf-added-column-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; // Allow text truncation
+}
+
+.pf-added-column-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pf-text-color-primary);
+  font-family: var(--pf-font-family-monospace);
+}
+
+.pf-added-column-description {
+  font-size: 12px;
+  color: var(--pf-text-color-secondary);
 }

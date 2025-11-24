@@ -240,8 +240,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 currentQueryHash,
               );
 
-              if (shouldAutoExecute || hasMatchingMaterialization) {
-                // Either auto-execute is on, or we have matching materialized data
+              if (hasMatchingMaterialization || shouldAutoExecute) {
+                // Either we have materialized data to reuse, or auto-execute is on
                 this.queryExecuted = false;
                 this.runQuery(selectedNode);
               }
@@ -316,7 +316,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 }
               },
               onExecute: () => {
-                // Reset queryExecuted flag to allow re-execution after errors or config changes
+                // Reset queryExecuted flag to allow execution
+                // Analysis has already happened, this.query is already set
                 this.queryExecuted = false;
                 this.runQuery(selectedNode);
               },
@@ -592,8 +593,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       // Update columns for SQL source nodes
       if (node instanceof SqlSourceNode && this.response !== undefined) {
         node.onQueryExecuted(this.response.columns);
-        // Trigger re-analysis so downstream nodes see updated columns
-        this.resetQueryState();
+        // Note: onQueryExecuted() calls notifyNextNodes() which triggers
+        // re-analysis for downstream nodes without marking this node as changed.
+        // We don't need to resetQueryState() here as that would clear the results display.
       }
     } catch (e) {
       // If we created a new materialization and it failed, clean it up

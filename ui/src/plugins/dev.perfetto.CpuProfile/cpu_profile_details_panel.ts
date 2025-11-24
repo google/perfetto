@@ -91,6 +91,10 @@ export class CpuProfileSampleFlamegraphDetailsPanel
         },
       ],
     );
+    if (!this.state) {
+      this.state = Flamegraph.createDefaultState(this.metrics);
+      onStateChange(this.state);
+    }
   }
 
   async load() {
