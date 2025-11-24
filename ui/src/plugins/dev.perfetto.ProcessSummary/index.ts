@@ -43,7 +43,6 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
-    await this.addKernelThreadSummary(ctx);
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
@@ -205,59 +204,5 @@ export default class implements PerfettoPlugin {
         });
       }
     }
-  }
-
-  private async addKernelThreadSummary(ctx: Trace): Promise<void> {
-    const {engine} = ctx;
-
-    // Identify kernel threads if this is a linux system trace, and sufficient
-    // process information is available. Kernel threads are identified by being
-    // children of kthreadd (always pid 2).
-    // The query will return the kthreadd process row first, which must exist
-    // for any other kthreads to be returned by the query.
-    // TODO(rsavitski): figure out how to handle the idle process (swapper),
-    // which has pid 0 but appears as a distinct process (with its own comm) on
-    // each cpu. It'd make sense to exclude its thread state track, but still
-    // put process-scoped tracks in this group.
-    const result = await engine.query(`
-      select
-        t.utid, p.upid, (case p.pid when 2 then 1 else 0 end) isKthreadd
-      from
-        thread t
-        join process p using (upid)
-        left join process parent on (p.parent_upid = parent.upid)
-        join
-          (select true from metadata m
-             where (m.name = 'system_name' and m.str_value = 'Linux')
-           union
-           select 1 from (select true from sched limit 1))
-      where
-        p.pid = 2 or parent.pid = 2
-      order by isKthreadd desc
-    `);
-
-    const it = result.iter({
-      utid: NUM,
-      upid: NUM,
-    });
-
-    // Not applying kernel thread grouping.
-    if (!it.valid()) {
-      return;
-    }
-
-    const config: ProcessSummaryTrackConfig = {
-      pidForColor: 2,
-      upid: it.upid,
-      utid: it.utid,
-    };
-
-    ctx.tracks.registerTrack({
-      uri: '/kernel',
-      tags: {
-        kinds: [PROCESS_SUMMARY_TRACK_KIND],
-      },
-      renderer: new ProcessSummaryTrack(ctx.engine, config),
-    });
   }
 }
