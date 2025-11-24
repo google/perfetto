@@ -156,9 +156,7 @@ int Main(int argc, char** argv) {
   uint64_t pid = 0;
   std::vector<uint64_t> timestamps;
   bool full_sort = false;
-  bool profile_force_perf = false;
-  bool profile_force_alloc = false;
-  bool profile_force_java_heap = false;
+  std::optional<ConversionMode> profile_type;
   bool profile_no_annotations = false;
   std::vector<std::string> symbol_paths;
   bool no_auto_symbol_paths = false;
@@ -190,11 +188,11 @@ int Main(int argc, char** argv) {
         timestamps.emplace_back(StringToUint64OrDie(ts.c_str()));
       }
     } else if (strcmp(argv[i], "--alloc") == 0) {
-      profile_force_alloc = true;
+      profile_type = ConversionMode::kHeapProfile;
     } else if (strcmp(argv[i], "--perf") == 0) {
-      profile_force_perf = true;
+      profile_type = ConversionMode::kPerfProfile;
     } else if (strcmp(argv[i], "--java-heap") == 0) {
-      profile_force_java_heap = true;
+      profile_type = ConversionMode::kJavaHeapProfile;
     } else if (strcmp(argv[i], "--no-annotations") == 0) {
       profile_no_annotations = true;
     } else if (strcmp(argv[i], "--full-sort") == 0) {
@@ -311,15 +309,13 @@ int Main(int argc, char** argv) {
   }
 
   if (format == "profile") {
-    std::optional<ConversionMode> mode =
-        profile_force_alloc  ? std::make_optional(ConversionMode::kHeapProfile)
-        : profile_force_perf ? std::make_optional(ConversionMode::kPerfProfile)
-        : profile_force_java_heap
-            ? std::make_optional(ConversionMode::kJavaHeapProfile)
-            : std::nullopt;
-
+    if (positional_args.size() > 2) {
+      PERFETTO_ELOG(
+          "-o is not supported for profile, use --output-dir instead");
+      return Usage(argv[0]);
+    }
     return TraceToProfile(input_stream, pid, timestamps,
-                          !profile_no_annotations, output_dir, mode);
+                          !profile_no_annotations, output_dir, profile_type);
   }
 
   if (format == "java_heap_profile") {
