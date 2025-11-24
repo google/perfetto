@@ -900,7 +900,13 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
                          target.name)
   blueprint.add_module(header_module)
   header_module.srcs = set(source_module.srcs)
-  header_module.export_include_dirs = {'.'}
+
+  # TODO(primiano): at some point we should remove this. This was introduced
+  # by aosp/1108421 when adding "protos/" to .proto include paths, in order to
+  # avoid doing multi-repo changes and allow old clients in the android tree
+  # to still do the old #include "perfetto/..." rather than
+  # #include "protos/perfetto/...".
+  header_module.export_include_dirs = {'.', 'protos'}
 
   source_module.genrule_srcs.add(':' + source_module.name)
   source_module.genrule_headers.add(header_module.name)
