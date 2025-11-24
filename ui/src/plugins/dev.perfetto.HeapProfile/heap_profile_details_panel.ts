@@ -113,6 +113,10 @@ export class HeapProfileFlamegraphDetailsPanel
       this.ts,
       this.upid,
     );
+    if (this.state === undefined) {
+      this.state = Flamegraph.createDefaultState(this.metrics);
+      onStateChange(this.state);
+    }
   }
 
   async load() {
