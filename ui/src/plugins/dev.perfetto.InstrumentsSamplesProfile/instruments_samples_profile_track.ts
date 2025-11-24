@@ -77,7 +77,6 @@ export function createProcessInstrumentsSamplesProfileTrack(
         schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
         state: undefined as FlamegraphState | undefined,
       };
-      let state = detailsPanelState;
       const flamegraph = new QueryFlamegraph(trace);
       const metrics: ReadonlyArray<QueryFlamegraphMetric> =
         metricsFromTableOrSubquery(
@@ -117,6 +116,7 @@ export function createProcessInstrumentsSamplesProfileTrack(
             },
           ],
         );
+      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
 
       return {
         load: async () => {
@@ -188,7 +188,6 @@ export function createThreadInstrumentsSamplesProfileTrack(
         schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
         state: undefined as FlamegraphState | undefined,
       };
-      let state = detailsPanelState;
       const flamegraph = new QueryFlamegraph(trace);
       const metrics: ReadonlyArray<QueryFlamegraphMetric> =
         metricsFromTableOrSubquery(
@@ -227,6 +226,7 @@ export function createThreadInstrumentsSamplesProfileTrack(
             },
           ],
         );
+      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
 
       return {
         load: async () => {
