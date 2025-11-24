@@ -566,7 +566,7 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.FocusSelection',
       name: 'Focus current selection',
-      callback: () => ctx.selection.scrollToSelection(),
+      callback: () => ctx.selection.scrollToSelection('focus'),
       defaultHotkey: 'F',
     });
 
