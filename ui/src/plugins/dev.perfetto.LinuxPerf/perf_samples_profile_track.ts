@@ -18,24 +18,32 @@ import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, time} from '../../base/time';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {
+  Flamegraph,
+  FlamegraphState,
+  FLAMEGRAPH_STATE_SCHEMA,
+} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Stack} from '../../widgets/stack';
+import {TrackEventDetailsPanelSerializeArgs} from '../../public/details_panel';
 
 // TODO(stevegolton): Dedupe this file with instruments_samples_profile_track.ts
 
 export function createPerfCallsitesTrack(
   trace: Trace,
   uri: string,
-  upid?: number,
-  utid?: number,
-  sessionId?: number,
+  upid: number | undefined,
+  utid: number | undefined,
+  sessionId: number | undefined,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
   const constraints = [];
   if (upid !== undefined) {
@@ -74,51 +82,78 @@ export function createPerfCallsitesTrack(
     sliceName: () => 'Perf sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
-      // for callstack view when selecting a single sample
-      const metrics = metricsFromTableOrSubquery(
-        `
-          (
-            select
-              id,
-              parent_id as parentId,
-              name,
-              mapping_name,
-              source_file || ':' || line_number as source_location,
-              self_count
-            from _callstacks_for_callsites!((
-              select ps.callsite_id
-              from perf_sample ps
-              join thread t using (utid)
-              where ps.ts = ${row.ts}
-                and ${trackConstraints}
-            ))
-          )
-        `,
-        [
-          {
-            name: 'count',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module linux.perf.samples',
-        [{name: 'mapping_name', displayName: 'Mapping'}],
-        [
-          {
-            name: 'source_location',
-            displayName: 'Source location',
-            mergeAggregation: 'ONE_OR_SUMMARY',
-          },
-        ],
-      );
-      const serialization = {
-        schema: FLAMEGRAPH_STATE_SCHEMA,
-        state: Flamegraph.createDefaultState(metrics),
+      // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+      // We moved serialization from being attached to selections to instead being
+      // attached to the plugin that loaded the panel.
+      const serialization: TrackEventDetailsPanelSerializeArgs<
+        FlamegraphState | undefined
+      > = {
+        schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+        state: undefined,
       };
-      const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
+      let state = detailsPanelState;
+      const flamegraph = new QueryFlamegraph(trace);
+      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
+        metricsFromTableOrSubquery(
+          `
+            (
+              select
+                id,
+                parent_id as parentId,
+                name,
+                mapping_name,
+                source_file || ':' || line_number as source_location,
+                self_count
+              from _callstacks_for_callsites!((
+                select ps.callsite_id
+                from perf_sample ps
+                join thread t using (utid)
+                where ps.ts = ${row.ts}
+                  and ${trackConstraints}
+              ))
+            )
+          `,
+          [
+            {
+              name: 'count',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'include perfetto module linux.perf.samples',
+          [{name: 'mapping_name', displayName: 'Mapping'}],
+          [
+            {
+              name: 'source_location',
+              displayName: 'Source location',
+              mergeAggregation: 'ONE_OR_SUMMARY',
+            },
+          ],
+        );
+
       return {
+        load: async () => {
+          // If the state in the serialization is not undefined, we should read from
+          // it.
+          // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+          if (serialization.state !== undefined) {
+            state = Flamegraph.updateState(serialization.state, metrics);
+            onDetailsPanelStateChange(state);
+            serialization.state = undefined;
+          }
+        },
         render: () =>
-          renderDetailsPanel(trace, flamegraph, Time.fromRaw(row.ts)),
+          renderDetailsPanel(
+            trace,
+            flamegraph,
+            metrics,
+            Time.fromRaw(row.ts),
+            state,
+            (newState) => {
+              state = newState;
+              onDetailsPanelStateChange(newState);
+            },
+          ),
         serialization,
       };
     },
@@ -128,14 +163,17 @@ export function createPerfCallsitesTrack(
 function renderDetailsPanel(
   trace: Trace,
   flamegraph: QueryFlamegraph,
+  metrics: ReadonlyArray<QueryFlamegraphMetric>,
   ts: time,
+  state: FlamegraphState | undefined,
+  onStateChange: (state: FlamegraphState) => void,
 ) {
   return m(
     '.pf-flamegraph-profile',
     m(
       DetailsShell,
       {
-        fillParent: true,
+        fillHeight: true,
         title: 'Perf sample',
         buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
           m('span', [
@@ -147,7 +185,7 @@ function renderDetailsPanel(
           ]),
         ]),
       },
-      flamegraph.render(),
+      flamegraph.render({metrics, state, onStateChange}),
     ),
   );
 }

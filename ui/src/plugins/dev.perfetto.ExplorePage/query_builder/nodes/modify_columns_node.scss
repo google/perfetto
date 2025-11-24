@@ -12,33 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-modify-columns-node {
-  .pf-node-details-box {
-    border: 1px solid var(--pf-border-color);
-    border-radius: 4px;
-    padding: 8px;
-    margin-top: 8px;
-  }
+@import "../common";
 
-  .pf-node-details-box strong {
+.pf-exp-node-explorer:has(.pf-modify-columns-node) {
+  article {
+    padding: 0;
+  }
+}
+
+.pf-modify-columns-node {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  .pf-exp-node-details-box strong {
     display: block;
     margin-bottom: 4px;
   }
 
-  .pf-node-details-box div {
-    font-size: 0.8em;
+  .pf-exp-node-details-box div {
+    font-size: var(--pf-exp-font-size-sm);
     padding: 2px 0;
   }
 
-  .pf-node-details-message {
+  .pf-exp-node-details-message {
     font-style: italic;
     color: var(--pf-text-color-light);
   }
 
-  .pf-columns-box-title {
-    font-size: 1.2em;
-    font-weight: 500;
-    margin: 0 0 1rem 0;
+  .pf-new-columns-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .pf-column {
@@ -57,9 +63,127 @@
   .pf-column:hover .pf-drag-handle {
     opacity: 1;
   }
+
+  .pf-exp-modify-columns-node-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .pf-exp-switch-wrapper,
+  .pf-exp-if-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    margin: 4px 0;
+    background: var(--surface-color);
+    border: 1px solid var(--separator-color);
+    border-radius: 4px;
+  }
+
+  .pf-exp-switch-name-row,
+  .pf-exp-if-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--separator-color);
+
+    label {
+      font-weight: 600;
+      font-size: var(--pf-exp-font-size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--pf-text-color-secondary);
+    }
+  }
+
+  .pf-exp-switch-component {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0 4px 0;
+  }
+
+  .pf-exp-switch-header {
+    font-weight: 600;
+    font-size: var(--pf-exp-font-size-sm);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--pf-text-color-secondary);
+  }
+
+  .pf-exp-switch-case {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--pf-exp-font-size-sm);
+    color: var(--pf-text-color-secondary);
+  }
+
+  .pf-exp-switch-default-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--pf-exp-font-size-sm);
+    color: var(--pf-text-color-secondary);
+    margin-bottom: 4px;
+  }
 }
 
-.pf-node-details-card {
+.pf-exp-node-details-card {
   padding: 4px;
-  font-size: 0.8em;
+  font-size: var(--pf-exp-font-size-sm);
+}
+
+.pf-exp-switch-summary,
+.pf-exp-if-summary {
+  font-size: var(--pf-exp-font-size-sm);
+  padding: 2px 0;
+}
+
+.pf-exp-switch-keyword,
+.pf-exp-if-keyword {
+  font-weight: 600;
+  color: var(--pf-primary-color);
+}
+
+.pf-exp-column-name {
+  font-family: var(--pf-font-family-monospace);
+  font-weight: 500;
+}
+
+.pf-exp-as-keyword {
+  font-style: italic;
+  color: var(--pf-text-color-light);
+}
+
+.pf-exp-alias-name {
+  font-family: var(--pf-font-family-monospace);
+  font-weight: 500;
+  color: var(--pf-primary-color);
+}
+
+.pf-exp-if-component {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 4px 0;
+}
+
+.pf-exp-if-clause,
+.pf-exp-else-clause {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--pf-exp-font-size-sm);
+  color: var(--pf-text-color-secondary);
+}
+
+.pf-exp-if-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
 }

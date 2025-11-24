@@ -23,23 +23,22 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
+  SourceNode,
+  nextNodeId,
 } from '../../../query_node';
+import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {TextParagraph} from '../../../../../widgets/text_paragraph';
-import {Button} from '../../../../../widgets/button';
 import {Trace} from '../../../../../public/trace';
-import {createFiltersProto, FilterOperation} from '../../operations/filter';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
-import {SourceNode} from '../../source_node';
+import {perfettoSqlTypeToString} from '../../../../../trace_processor/perfetto_sql_type';
+import {setValidationError} from '../../node_issues';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
-  filters?: FilterDefinition[];
-  customTitle?: string;
   comment?: string;
 }
 
@@ -66,7 +65,7 @@ export function modalForTableSelection(
       title: 'Choose a table',
       content: () => {
         return m(
-          '.pf-node-explorer-help',
+          '.pf-exp-node-explorer-help',
           m(TableList, {
             sqlModules,
             onTableClick: (tableName: string) => {
@@ -95,16 +94,15 @@ export function modalForTableSelection(
   });
 }
 
-export class TableSourceNode extends SourceNode {
+export class TableSourceNode implements SourceNode {
+  readonly nodeId: string;
   readonly state: TableSourceState;
   readonly prevNodes: QueryNode[] = [];
-  showColumns: boolean = false;
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
-  meterialisedAs?: string;
 
   constructor(attrs: TableSourceState) {
-    super(attrs);
+    this.nodeId = nextNodeId();
     this.state = attrs;
     this.state.onchange = attrs.onchange;
     this.finalCols = createFinalColumns(
@@ -113,8 +111,6 @@ export class TableSourceNode extends SourceNode {
       ) ?? [],
     );
     this.nextNodes = [];
-
-    this.state.filters = attrs.filters ?? [];
   }
 
   get type() {
@@ -126,93 +122,47 @@ export class TableSourceNode extends SourceNode {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
-      filters: this.state.filters?.map((f) => ({...f})),
-      customTitle: this.state.customTitle,
       onchange: this.state.onchange,
     };
     return new TableSourceNode(stateCopy);
   }
 
   nodeSpecificModify(): m.Child {
-    if (this.state.sqlTable != null) {
-      const table = this.state.sqlTable;
-      return m(
-        '.pf-stdlib-table-node',
-        m(
-          '.pf-details-box',
-          m(TextParagraph, {text: table.description}),
-          m(Button, {
-            label: this.showColumns ? 'Hide Columns' : 'Show Columns',
-            onclick: () => {
-              this.showColumns = !this.showColumns;
-            },
-          }),
-          this.showColumns &&
-            m(
-              'table.pf-table.pf-table-striped',
-              m(
-                'thead',
-                m(
-                  'tr',
-                  m('th', 'Column'),
-                  m('th', 'Type'),
-                  m('th', 'Description'),
-                ),
-              ),
-              m(
-                'tbody',
-                table.columns.map((col) => {
-                  return m(
-                    'tr',
-                    m('td', col.name),
-                    m('td', col.type.name),
-                    m('td', col.description),
-                  );
-                }),
-              ),
-            ),
-        ),
-        m(FilterOperation, {
-          filters: this.state.filters,
-          sourceCols: this.finalCols,
-          onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-            this.state.filters = newFilters as FilterDefinition[];
-            this.state.onchange?.();
-          },
-        }),
-      );
-    }
-    return m(TextParagraph, 'No description available for this table.');
+    return undefined;
   }
 
   validate(): boolean {
-    return this.state.sqlTable !== undefined;
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.state.sqlTable === undefined) {
+      setValidationError(this.state, 'No table selected');
+      return false;
+    }
+
+    return true;
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? `${this.state.sqlTable?.name}`;
+    return `${this.state.sqlTable?.name}`;
   }
 
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
-  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
     if (!this.state.sqlTable) return;
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-    sq.table.tableName = this.state.sqlTable.name;
-    sq.table.moduleName = this.state.sqlTable.includeKey
-      ? this.state.sqlTable.includeKey
-      : undefined;
-    sq.table.columnNames = this.finalCols
+    const columnNames = this.finalCols
       .filter((c) => c.checked)
       .map((c) => c.column.name);
 
-    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
-    if (filtersProto) sq.filters = filtersProto;
+    const sq = StructuredQueryBuilder.fromTable(
+      this.state.sqlTable.name,
+      this.state.sqlTable.includeKey || undefined,
+      columnNames,
+      this.nodeId,
+    );
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
@@ -222,10 +172,55 @@ export class TableSourceNode extends SourceNode {
   serializeState(): TableSourceSerializedState {
     return {
       sqlTable: this.state.sqlTable?.name,
-      filters: this.state.filters,
-      customTitle: this.state.customTitle,
       comment: this.state.comment,
     };
+  }
+
+  nodeInfo(): m.Children {
+    if (this.state.sqlTable != null) {
+      const table = this.state.sqlTable;
+      return m(
+        '.pf-stdlib-table-node',
+        m(
+          '.pf-details-box',
+          m(TextParagraph, {text: table.description}),
+          m(
+            'table.pf-table.pf-table-striped',
+            m(
+              'thead',
+              m(
+                'tr',
+                m('th', 'Column'),
+                m('th', 'Type'),
+                m('th', 'Description'),
+              ),
+            ),
+            m(
+              'tbody',
+              table.columns.map((col) => {
+                return m(
+                  'tr',
+                  m('td', col.name),
+                  m('td', perfettoSqlTypeToString(col.type)),
+                  m('td', col.description),
+                );
+              }),
+            ),
+          ),
+        ),
+      );
+    }
+    return m(
+      'div',
+      m(
+        'p',
+        'Provides direct access to trace data tables like slices, processes, threads, counters, and more.',
+      ),
+      m(
+        'p',
+        'Select a table from the modal dialog to see its description and available columns.',
+      ),
+    );
   }
 
   static deserializeState(

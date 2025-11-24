@@ -15,10 +15,13 @@
 .pf-query-page {
   height: 100%;
   font-family: var(--pf-font-compact);
-  overflow: hidden auto;
+  position: relative;
 
-  &__elapsed-time {
-    font-size: 0.9em;
+  &__results {
+    max-height: 500px;
+  }
+
+  &__results-summary {
     margin-left: 0.2em;
   }
 

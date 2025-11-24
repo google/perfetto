@@ -48,6 +48,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_SET_FILE_PERMISSIONS
 #include <fcntl.h>
@@ -417,6 +418,77 @@ std::string GetFileExtension(const std::string& filename) {
   if (ext_idx == std::string::npos)
     return std::string();
   return filename.substr(ext_idx);
+}
+
+std::string Basename(const std::string& path) {
+  // Handle empty path
+  if (path.empty())
+    return ".";
+
+  // Make a copy to work with
+  std::string p = path;
+
+  // Strip trailing slashes (both / and \)
+  while (p.size() > 1 && (p.back() == '/' || p.back() == '\\')) {
+    p.pop_back();
+  }
+
+  // If the path is now empty or just a single slash, return it
+  if (p.empty() || p == "/" || p == "\\")
+    return p.empty() ? "/" : p;
+
+  // Find the last directory separator (either / or \)
+  size_t last_sep = p.find_last_of("/\\");
+
+  if (last_sep == std::string::npos) {
+    // No separator found, the whole path is the basename
+    return p;
+  }
+
+  // Return everything after the last separator
+  return p.substr(last_sep + 1);
+}
+
+std::string Dirname(const std::string& path) {
+  // Handle empty path
+  if (path.empty())
+    return ".";
+
+  // Make a copy to work with
+  std::string p = path;
+
+  // Strip trailing slashes (both / and \)
+  while (p.size() > 1 && (p.back() == '/' || p.back() == '\\')) {
+    p.pop_back();
+  }
+
+  // If the path is now just a single slash, return it
+  if (p == "/" || p == "\\")
+    return p;
+
+  // Find the last directory separator (either / or \)
+  size_t last_sep = p.find_last_of("/\\");
+
+  if (last_sep == std::string::npos) {
+    // No separator found, return "."
+    return ".";
+  }
+
+  // If the separator is at position 0, return the root
+  if (last_sep == 0)
+    return p.substr(0, 1);  // Return "/" or "\"
+
+  // Strip trailing slashes from the dirname part
+  while (last_sep > 0 && (p[last_sep - 1] == '/' || p[last_sep - 1] == '\\')) {
+    --last_sep;
+  }
+
+  // If we've consumed all characters, return the root
+  if (last_sep == 0)
+    return p.substr(0, 1);
+
+  // Return everything up to (but not including) the last separator
+  return p.substr(0, last_sep);
 }
 
 base::Status SetFilePermissions(const std::string& file_path,

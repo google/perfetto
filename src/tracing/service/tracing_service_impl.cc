@@ -42,6 +42,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_HAS_CHMOD
 #include <sys/stat.h>
@@ -233,9 +234,6 @@ std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
 bool NameMatchesFilter(const std::string& name,
                        const std::vector<std::string>& name_filter,
                        const std::vector<std::string>& name_regex_filter) {
-  bool filter_is_set = !name_filter.empty() || !name_regex_filter.empty();
-  if (!filter_is_set)
-    return true;
   bool filter_matches = std::find(name_filter.begin(), name_filter.end(),
                                   name) != name_filter.end();
   bool filter_regex_matches =
@@ -1297,7 +1295,9 @@ void TracingServiceImpl::ChangeTraceConfig(ConsumerEndpointImpl* consumer,
       // Check if the producer name of this data source is present
       // in the name filters. We currently only support new filters, not
       // removing old ones.
-      if (!NameMatchesFilter(producer->name_, new_producer_name_filter,
+      if ((!new_producer_name_filter.empty() ||
+           !new_producer_name_regex_filter.empty()) &&
+          !NameMatchesFilter(producer->name_, new_producer_name_filter,
                              new_producer_name_regex_filter)) {
         continue;
       }
@@ -1518,9 +1518,6 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
     return;
   }
 
-  MaybeLogUploadEvent(tracing_session->config, tracing_session->trace_uuid,
-                      PerfettoStatsdAtom::kTracedDisableTracing);
-
   switch (tracing_session->state) {
     // Spurious call to DisableTracing() while already disabled, nothing to do.
     case TracingSession::DISABLED:
@@ -1552,6 +1549,21 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
 
     // This is the nominal case, continues below.
     case TracingSession::STARTED:
+      // Log the disable tracing event only when the session was actually
+      // started. This avoids double-logging in scenarios where DisableTracing
+      // is called multiple times for the same session. A common case is with
+      // traces that have a timeout (e.g. using `trigger_timeout_ms`):
+      // 1. The service's timer expires and it calls `DisableTracing`
+      // internally.
+      // 2. The service notifies the consumer (e.g. `perfetto_cmd`) that the
+      //    trace has ended.
+      // 3. The consumer, as part of its cleanup, calls `FreeBuffers()`.
+      // 4. `FreeBuffers()` on the service-side calls `DisableTracing()` again
+      //    as a safeguard.
+      // By logging only when transitioning from the `STARTED` state, we ensure
+      // we only log the effective disable event.
+      MaybeLogUploadEvent(tracing_session->config, tracing_session->trace_uuid,
+                          PerfettoStatsdAtom::kTracedDisableTracing);
       break;
   }
 
@@ -2484,9 +2496,10 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
               WriteIntoFile(tracing_session, std::move(packets));
         } while (has_more && !stop_writing_into_file);
 
+        // Ensure all data was written to the file.
+        base::FlushFile(tracing_session->write_into_file.get());
+
         if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
-          // Ensure all data was written to the file before we close it.
-          base::FlushFile(tracing_session->write_into_file.get());
           tracing_session->write_into_file.reset();
           tracing_session->write_period_ms = 0;
           if (tracing_session->state == TracingSession::STARTED)
@@ -3152,27 +3165,45 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return nullptr;
   }
+
+  // Check machine name filter for multi-machine (traced_relay) tracing.
+  bool is_host_machine =
+      producer->client_identity().machine_id() == kDefaultMachineID;
   if (cfg_data_source.machine_name_filter_size()) {
-    auto machine_id = producer->client_identity().machine_id();
-    auto cfg_machine_names = cfg_data_source.machine_name_filter();
-    if (!NameMatchesFilter(producer->machine_name_, cfg_machine_names, {}) &&
-        !(machine_id == kDefaultMachineID &&
-          NameMatchesFilter("host", cfg_machine_names, {}))) {
+    // Explicit set of machines to match.
+    const auto& cfg_names = cfg_data_source.machine_name_filter();
+    bool filter_match =
+        NameMatchesFilter(producer->machine_name_, cfg_names, {});
+    // Special case: "host" also always matches the host machine.
+    bool host_match =
+        is_host_machine && NameMatchesFilter("host", cfg_names, {});
+    if (!filter_match && !host_match) {
       PERFETTO_DLOG("Data source: %s is filtered out for machine: %s",
                     cfg_data_source.config().name().c_str(),
                     producer->machine_name_.c_str());
       return nullptr;
     }
-  }
-  // TODO(primiano): Add tests for registration ordering (data sources vs
-  // consumers).
-  if (!NameMatchesFilter(producer->name_,
-                         cfg_data_source.producer_name_filter(),
-                         cfg_data_source.producer_name_regex_filter())) {
-    PERFETTO_DLOG("Data source: %s is filtered out for producer: %s",
+  } else if (!tracing_session->config.trace_all_machines() &&
+             !is_host_machine) {
+    // Default matching behaviour starting from perfetto v54: match only host,
+    // unless the config sets a top level flag.
+    PERFETTO_DLOG("Data source: %s is filtered out for remote machine: %s",
                   cfg_data_source.config().name().c_str(),
-                  producer->name_.c_str());
+                  producer->machine_name_.c_str());
     return nullptr;
+  }
+
+  // Check producer name filter.
+  if (cfg_data_source.producer_name_filter_size() ||
+      cfg_data_source.producer_name_regex_filter_size()) {
+    if (!NameMatchesFilter(producer->name_,
+                           cfg_data_source.producer_name_filter(),
+                           cfg_data_source.producer_name_regex_filter())) {
+      PERFETTO_DLOG("Data source: %s is filtered out for producer: %s",
+                    cfg_data_source.config().name().c_str(),
+                    producer->name_.c_str());
+      return nullptr;
+    }
   }
 
   auto relative_buffer_id = cfg_data_source.config().target_buffer();
@@ -4183,7 +4214,8 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   // Therefore, if the 'buffer_clone_preserve_read_iter' flag is false, we
   // ignore the file to make the new logic behave like the old logic.
   bool clone_session_write_into_file =
-      base::flags::buffer_clone_preserve_read_iter && session->write_into_file;
+      PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER) &&
+      session->write_into_file;
 
   if (clone_session_write_into_file) {
     if (!args.output_file_fd) {

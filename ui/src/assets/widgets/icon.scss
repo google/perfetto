@@ -18,6 +18,7 @@
 @layer pf-widgets {
   .pf-icon {
     @include icon;
+    @include hidden-while-fonts-loading;
 
     &.pf-filled {
       @include icon-filled;

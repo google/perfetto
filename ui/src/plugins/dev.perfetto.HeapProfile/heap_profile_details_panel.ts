@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {assertExists, assertFalse} from '../../base/logging';
+import {assertFalse} from '../../base/logging';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {extensions} from '../../components/extensions';
 import {time} from '../../base/time';
@@ -39,12 +39,13 @@ import {Icon} from '../../widgets/icon';
 import {Modal, showModal} from '../../widgets/modal';
 import {
   Flamegraph,
-  FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphState,
+  FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphOptionalAction,
 } from '../../widgets/flamegraph';
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {StandardColumn} from '../../components/widgets/sql/table/columns';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
 
@@ -79,26 +80,53 @@ interface Props {
 export class HeapProfileFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private readonly flamegraph: QueryFlamegraph;
+  private flamegraph: QueryFlamegraph;
   private readonly props: Props;
   private flamegraphModalDismissed = false;
 
-  readonly serialization: TrackEventDetailsPanelSerializeArgs<FlamegraphState>;
+  // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+  // We moved serialization from being attached to selections to instead being
+  // attached to the plugin that loaded the panel.
+  readonly serialization: TrackEventDetailsPanelSerializeArgs<
+    FlamegraphState | undefined
+  > = {
+    schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    state: undefined,
+  };
+
+  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
 
   constructor(
-    private trace: Trace,
-    private heapGraphIncomplete: boolean,
-    private upid: number,
-    profileType: ProfileType,
-    ts: time,
+    private readonly trace: Trace,
+    private readonly heapGraphIncomplete: boolean,
+    private readonly upid: number,
+    private readonly profileType: ProfileType,
+    private readonly ts: time,
+    private state: FlamegraphState | undefined,
+    private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
-    const metrics = flamegraphMetrics(trace, profileType, ts, upid);
-    this.serialization = {
-      schema: FLAMEGRAPH_STATE_SCHEMA,
-      state: Flamegraph.createDefaultState(metrics),
-    };
-    this.flamegraph = new QueryFlamegraph(trace, metrics, this.serialization);
     this.props = {ts, type: profileType};
+    this.flamegraph = new QueryFlamegraph(trace);
+    this.metrics = flamegraphMetrics(
+      this.trace,
+      this.profileType,
+      this.ts,
+      this.upid,
+    );
+  }
+
+  async load() {
+    // If the state in the serialization is not undefined, we should read from
+    // it.
+    // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
+    if (this.serialization.state !== undefined) {
+      this.state = Flamegraph.updateState(
+        this.serialization.state,
+        this.metrics,
+      );
+      this.onStateChange(this.state);
+      this.serialization.state = undefined;
+    }
   }
 
   render() {
@@ -109,7 +137,7 @@ export class HeapProfileFlamegraphDetailsPanel
       m(
         DetailsShell,
         {
-          fillParent: true,
+          fillHeight: true,
           title: m(
             'span',
             getFlamegraphTitle(type),
@@ -141,7 +169,14 @@ export class HeapProfileFlamegraphDetailsPanel
               }),
           ]),
         },
-        assertExists(this.flamegraph).render(),
+        this.flamegraph.render({
+          metrics: this.metrics,
+          state: this.state,
+          onStateChange: (state) => {
+            this.state = state;
+            this.onStateChange(state);
+          },
+        }),
       ),
     );
   }
@@ -497,14 +532,14 @@ function getHeapGraphObjectReferencesView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}object_references`,
     columns: [
-      new StandardColumn('path_hash'),
-      new StandardColumn('outgoing_reference_count'),
-      new StandardColumn('class_name'),
-      new StandardColumn('self_size'),
-      new StandardColumn('native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('path_hash', PerfettoSqlTypes.STRING),
+      new StandardColumn('outgoing_reference_count', PerfettoSqlTypes.INT),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('self_size', PerfettoSqlTypes.INT),
+      new StandardColumn('native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -515,15 +550,15 @@ function getHeapGraphIncomingReferencesView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}incoming_references`,
     columns: [
-      new StandardColumn('path_hash'),
-      new StandardColumn('class_name'),
-      new StandardColumn('field_name'),
-      new StandardColumn('field_type_name'),
-      new StandardColumn('self_size'),
-      new StandardColumn('native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('path_hash', PerfettoSqlTypes.STRING),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('field_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('field_type_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('self_size', PerfettoSqlTypes.INT),
+      new StandardColumn('native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -534,15 +569,15 @@ function getHeapGraphOutgoingReferencesView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}outgoing_references`,
     columns: [
-      new StandardColumn('path_hash'),
-      new StandardColumn('class_name'),
-      new StandardColumn('field_name'),
-      new StandardColumn('field_type_name'),
-      new StandardColumn('self_size'),
-      new StandardColumn('native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('path_hash', PerfettoSqlTypes.STRING),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('field_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('field_type_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('self_size', PerfettoSqlTypes.INT),
+      new StandardColumn('native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -553,13 +588,13 @@ function getHeapGraphRetainingObjectCountsView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}retaining_object_counts`,
     columns: [
-      new StandardColumn('class_name'),
-      new StandardColumn('count'),
-      new StandardColumn('total_size'),
-      new StandardColumn('total_native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('count', PerfettoSqlTypes.INT),
+      new StandardColumn('total_size', PerfettoSqlTypes.INT),
+      new StandardColumn('total_native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -570,13 +605,13 @@ function getHeapGraphRetainedObjectCountsView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}retained_object_counts`,
     columns: [
-      new StandardColumn('class_name'),
-      new StandardColumn('count'),
-      new StandardColumn('total_size'),
-      new StandardColumn('total_native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('count', PerfettoSqlTypes.INT),
+      new StandardColumn('total_size', PerfettoSqlTypes.INT),
+      new StandardColumn('total_native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -587,11 +622,11 @@ function getHeapGraphDuplicateObjectsView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}duplicate_objects`,
     columns: [
-      new StandardColumn('class_name'),
-      new StandardColumn('path_count'),
-      new StandardColumn('object_count'),
-      new StandardColumn('total_size'),
-      new StandardColumn('total_native_size'),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('path_count', PerfettoSqlTypes.INT),
+      new StandardColumn('object_count', PerfettoSqlTypes.INT),
+      new StandardColumn('total_size', PerfettoSqlTypes.INT),
+      new StandardColumn('total_native_size', PerfettoSqlTypes.INT),
     ],
   };
 }

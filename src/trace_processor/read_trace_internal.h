@@ -19,13 +19,11 @@
 
 #include <cstdint>
 #include <functional>
-#include <vector>
 
 #include "perfetto/base/export.h"
-#include "perfetto/trace_processor/status.h"
+#include "perfetto/base/status.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessor;
 
@@ -35,7 +33,6 @@ base::Status PERFETTO_EXPORT_COMPONENT ReadTraceUnfinalized(
     const char* filename,
     const std::function<void(uint64_t parsed_size)>& progress_callback = {});
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_READ_TRACE_INTERNAL_H_

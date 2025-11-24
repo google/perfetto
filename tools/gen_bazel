@@ -111,6 +111,7 @@ default_targets = [
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/tools/proto_filter:proto_filter',
     '//src/tools/proto_merger:proto_merger',
+    '//src/trace_processor:trace_processor_shell_lib',
     '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
 ] + public_targets + allowlist_public_targets
@@ -672,9 +673,7 @@ def gen_cc_proto_descriptor(target: GnParser.Target):
   label = BazelLabel(
       get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
   label.comment = target.name
-  label.deps += [
-      ':' + get_bazel_label_name(x.name) for x in target.proto_deps()
-  ]
+  label.deps += [':' + get_bazel_label_name(x.name) for x in target.deps]
   label.deps += [
       gn_utils.label_to_path(src)
       for src in target.inputs
@@ -779,6 +778,16 @@ def gen_perfetto_android_instrumentation_test(target: GnParser.Target):
   return [label]
 
 
+def gen_protozero_descriptor_diff(target: GnParser.Target):
+  label = BazelLabel(
+      get_bazel_label_name(target.name), 'perfetto_protozero_descriptor_diff')
+  label.comment = target.name
+  label.minuend = get_bazel_label_name(target.minuend_descriptor)
+  label.subtrahend = get_bazel_label_name(target.subtrahend_descriptor)
+  label.outs += target.outputs
+  return [label]
+
+
 def gen_target_helper(gn_target: GnParser.Target,
                       win_target: GnParser.Target = None):
   if gn_target.type == 'proto_library':
@@ -800,6 +809,8 @@ def gen_target_helper(gn_target: GnParser.Target,
       return gen_perfetto_android_binary(gn_target)
     if gn_target.custom_action_type == 'perfetto_android_instrumentation_test':
       return gen_perfetto_android_instrumentation_test(gn_target)
+    if gn_target.custom_action_type == 'protozero_descriptor_diff':
+      return gen_protozero_descriptor_diff(gn_target)
     return []
   elif gn_target.type == 'group':
     return []
@@ -1018,6 +1029,7 @@ load(
     "perfetto_android_jni_library",
     "perfetto_android_library",
     "perfetto_android_instrumentation_test",
+    "perfetto_protozero_descriptor_diff",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])

@@ -12,32 +12,212 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+@import "../common";
 
 .pf-exp-filters-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 1rem;
 
-  .pf-exp-filters-title {
-    font-size: 1.2em;
+  .pf-exp-filters-label {
+    font-size: 14px;
     font-weight: 500;
-    margin: 0;
-  }
-
-  .pf-text-input {
-    flex: 1;
+    white-space: nowrap;
   }
 }
 
-.pf-exp-filter-editor-box {
-  padding: 1rem;
-  margin-top: 1rem;
-  border-radius: 6px;
-  background-color: transparent;
-  border: 1px solid var(--pf-color-border);
+// Filter chip wrapper for enabled/disabled state
+.pf-filter-chip-wrapper {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+
+  // Override chip's min-width to allow shrinking
+  .pf-chip {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  &--disabled {
+    opacity: 0.5;
+    text-decoration: line-through;
+  }
+
+  &--compact {
+    font-size: 11px;
+  }
 }
 
-.pf-exp-filter-editor {
-  @extend .pf-exp-editor;
+// OR filter group container
+.pf-filter-or-group {
+  border: 2px solid #9e9e9e;
+  border-radius: 8px;
+  padding: 8px;
+  background-color: rgba(158, 158, 158, 0.1);
+  position: relative;
+  margin-top: 12px;
+  max-width: 250px;
+  box-sizing: border-box;
+}
+
+// OR badge at the top of the filter group
+.pf-filter-or-badge {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background-color: #9e9e9e;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+// Enabled count indicator
+.pf-filter-enabled-count {
+  font-size: 11px;
+  color: #9e9e9e;
+  margin-bottom: 4px;
+  margin-top: 4px;
+}
+
+// Filter chips container
+.pf-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 250px;
+
+  &--with-count {
+    margin-top: 4px;
+  }
+
+  &--no-count {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    &.pf-filter-chips--compact {
+      gap: 2px;
+    }
+  }
+
+  &--compact {
+    gap: 2px;
+  }
+}
+
+// Filter container base
+.pf-filter-container {
+  max-width: 250px;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+// AND filters header
+.pf-filter-and-header {
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #616161;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// AND/OR operator badge
+.pf-filter-operator-badge {
+  background-color: #616161;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+// OR group container for nodeDetails and nodeSpecificModify
+.pf-or-group-container {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border: 2px solid var(--primary-color, #4a90e2);
+  border-radius: 8px;
+  background-color: var(
+    --primary-background-transparent,
+    rgba(74, 144, 226, 0.05)
+  );
+  margin-top: 8px;
+  margin-bottom: 8px;
+
+  &--disabled {
+    opacity: 0.5;
+  }
+}
+
+.pf-or-group-label {
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--primary-color, #4a90e2);
+  min-width: 30px;
+  display: flex;
+  align-items: center;
+}
+
+.pf-or-group-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0; // Allow flexbox to shrink below content size
+  overflow: hidden;
+
+  &--compact {
+    gap: 2px;
+  }
+}
+
+.pf-or-group-controls {
+  display: flex;
+  align-items: center;
+}
+
+// Filters container with separator
+.pf-filters-container {
+  border-top: 1px solid var(--stroke-color, #e0e0e0);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+// Filter container with groups support
+.pf-filter-container--with-groups {
+  .pf-filter-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    &--compact {
+      gap: 2px;
+    }
+  }
+}
+
+// Query operations container spacing
+.pf-exp-query-operations {
+  margin-top: 16px;
+}
+
+// Filter mode help text
+.pf-exp-filter-mode-help {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background-color: rgba(74, 144, 226, 0.08);
+  border-left: 3px solid var(--primary-color, #4a90e2);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-primary, #333);
+  line-height: 1.4;
 }

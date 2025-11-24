@@ -29,18 +29,23 @@ import {EmptyState} from '../../widgets/empty_state';
 import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
-import {CORE_PLUGIN_ID} from '../../core/plugin_manager';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
+import {Anchor} from '../../widgets/anchor';
 
-export class SettingsPage implements m.ClassComponent {
+export interface SettingsPageAttrs {
+  readonly subpage?: string;
+}
+
+export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   private filterText = '';
 
-  view() {
+  view({attrs}: m.Vnode<SettingsPageAttrs>): m.Children {
     const app = AppImpl.instance;
     const settingsManager = app.settings as SettingsManagerImpl;
     const reloadRequired = settingsManager.isReloadRequired();
     const isFiltering = this.filterText.trim() !== '';
+    const subpage = decodeURIComponent(attrs.subpage ?? '');
 
     // Get settings (filtered or all) grouped by plugin
     const settings = isFiltering
@@ -50,8 +55,8 @@ export class SettingsPage implements m.ClassComponent {
 
     // Sort plugin IDs: CORE_PLUGIN_ID first, then alphabetically
     const sortedPluginIds = Array.from(groupedSettings.keys()).sort((a, b) => {
-      if (a === CORE_PLUGIN_ID) return -1;
-      if (b === CORE_PLUGIN_ID) return 1;
+      if (!a) return -1;
+      if (!b) return 1;
       return a.localeCompare(b);
     });
 
@@ -122,7 +127,7 @@ export class SettingsPage implements m.ClassComponent {
           ? this.renderEmptyState(isFiltering)
           : sortedPluginIds.map((pluginId) => {
               const settings = groupedSettings.get(pluginId)!;
-              return this.renderPluginSection(pluginId, settings);
+              return this.renderPluginSection(pluginId, settings, subpage);
             }),
       ),
     );
@@ -153,9 +158,9 @@ export class SettingsPage implements m.ClassComponent {
     for (const result of settings) {
       const setting = result.item;
       const isCore =
-        setting.pluginId === CORE_PLUGIN_ID ||
+        setting.pluginId === undefined ||
         app.plugins.isCorePlugin(setting.pluginId);
-      const targetGroup = isCore ? CORE_PLUGIN_ID : setting.pluginId;
+      const targetGroup = isCore ? 'Core' : setting.pluginId;
 
       const existing = grouped.get(targetGroup) ?? [];
       existing.push(result);
@@ -167,18 +172,16 @@ export class SettingsPage implements m.ClassComponent {
   private renderPluginSection(
     pluginId: string,
     settings: Array<{item: Setting<unknown>; segments: FuzzySegment[]}>,
+    subpage: string,
   ) {
-    // Display CORE_PLUGIN_ID as "Core" in the UI
-    const displayName = pluginId === CORE_PLUGIN_ID ? 'Core' : pluginId;
-
     return m(
       '.pf-settings-page__plugin-section',
       {key: pluginId},
-      m('h2.pf-settings-page__plugin-title', displayName),
+      m('h2.pf-settings-page__plugin-title', pluginId),
       m(
         CardStack,
         settings.map(({item}) => {
-          return this.renderSettingCard(item);
+          return this.renderSettingCard(item, subpage);
         }),
       ),
     );
@@ -210,19 +213,38 @@ export class SettingsPage implements m.ClassComponent {
     }
   }
 
-  private renderSettingCard(setting: Setting<unknown>) {
+  private renderSettingCard(setting: Setting<unknown>, subpage: string) {
     return m(
       Card,
       {
+        id: setting.id,
         className: classNames(
           'pf-settings-page__card',
           !setting.isDefault && 'pf-settings-page__card--changed',
+          subpage === `/${setting.id}` && 'pf-settings-page__card--focused',
         ),
         key: setting.id,
       },
       m(
         '.pf-settings-page__details',
-        m('h1', setting.name),
+        m(
+          Stack,
+          {
+            orientation: 'horizontal',
+            gap: 'small',
+            className: 'pf-settings-page__label-row',
+          },
+          m('h1', setting.name),
+          m(
+            '.pf-settings-page__link-button',
+            m(Anchor, {
+              href: `#!/settings/${encodeURIComponent(setting.id)}`,
+              icon: 'link',
+              title: 'Link to this setting',
+            }),
+          ),
+        ),
+        m('.pf-settings-page__setting-id', setting.id),
         setting.description &&
           m('.pf-settings-page__description', setting.description),
       ),
@@ -361,6 +383,17 @@ export class SettingsPage implements m.ClassComponent {
         m(Icon, {icon: 'error_outline'}),
         m('span', 'Cannot edit this setting directly'),
       ]);
+    }
+  }
+
+  oncreate(vnode: m.VnodeDOM<SettingsPageAttrs>) {
+    const subpage = decodeURIComponent(vnode.attrs.subpage ?? '');
+    const settingId = /[/](.+)/.exec(subpage)?.[1];
+    if (settingId) {
+      const setting = vnode.dom.querySelector(`#${CSS.escape(settingId)}`);
+      if (setting) {
+        setting.scrollIntoView({block: 'center'});
+      }
     }
   }
 }

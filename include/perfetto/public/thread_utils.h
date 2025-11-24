@@ -38,6 +38,14 @@ static inline PerfettoThreadId PerfettoGetThreadId(void) {
   return PERFETTO_STATIC_CAST(PerfettoThreadId, syscall(__NR_gettid));
 }
 
+#elif defined(__FreeBSD__)
+
+#include <pthread_np.h>
+
+static inline PerfettoThreadId PerfettoGetThreadId(void) {
+  return PERFETTO_STATIC_CAST(PerfettoThreadId, pthread_getthreadid_np());
+}
+
 #else
 
 static inline PerfettoThreadId PerfettoGetThreadId(void) {

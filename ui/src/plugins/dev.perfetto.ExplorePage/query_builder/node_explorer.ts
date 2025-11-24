@@ -14,89 +14,54 @@
 
 import m from 'mithril';
 
-import {classNames} from '../../../base/classnames';
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {ExplorePageHelp} from './help';
 import {
   analyzeNode,
   isAQuery,
-  NodeType,
   Query,
   QueryNode,
   queryToRun,
+  addConnection,
 } from '../query_node';
-import {Button} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
-import {Icons} from '../../../base/semantic_icons';
 import {Trace} from '../../../public/trace';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {TextInput} from '../../../widgets/text_input';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
+import {TabStrip} from '../../../widgets/tabs';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
-  readonly onQueryAnalyzed: (query: Query | Error, reexecute?: boolean) => void;
-  readonly onExecute: () => void;
+  readonly onQueryAnalyzed: (query: Query | Error) => void;
+  readonly onAnalysisStateChange?: (isAnalyzing: boolean) => void;
   readonly onchange?: () => void;
   readonly resolveNode: (nodeId: string) => QueryNode | undefined;
+  readonly isCollapsed?: boolean;
+  readonly selectedView?: number;
+  readonly onViewChange?: (view: number) => void;
 }
 
 enum SelectedView {
-  kModify = 0,
-  kSql = 1,
-  kProto = 2,
+  kInfo = 0,
+  kModify = 1,
+  kResult = 2,
+  kComment = 3,
 }
 
 export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private readonly tableAsyncLimiter = new AsyncLimiter();
 
-  private selectedView: number = 0;
-
   private prevSqString?: string;
 
   private currentQuery?: Query | Error;
   private sqlForDisplay?: string;
+  private resultTabMode: 'sql' | 'proto' = 'sql';
 
-  private renderTitleRow(
-    node: QueryNode,
-    attrs: NodeExplorerAttrs,
-    renderMenu: () => m.Child,
-  ): m.Child {
+  private renderTitleRow(node: QueryNode): m.Child {
     return m(
-      '.pf-node-explorer__title-row',
-      m(
-        '.title',
-        !node.validate() &&
-          m(Icon, {
-            icon: Icons.Warning,
-            filled: true,
-            className: classNames('pf-node-explorer__warning-icon--error'),
-            title: `Invalid node: \n${node.state.issues?.getTitle() ?? ''}`,
-          }),
-        m(TextInput, {
-          placeholder: node.getTitle(),
-          oninput: (e: InputEvent) => {
-            if (!e.target) return;
-            node.state.customTitle = (
-              e.target as HTMLInputElement
-            ).value.trim();
-            if (node.state.customTitle === '') {
-              node.state.customTitle = undefined;
-            }
-          },
-        }),
-        ` [${node.nodeId}]`,
-      ),
-      m('span.spacer'), // Added spacer to push menu to the right
-      m(Button, {
-        label: 'Run',
-        onclick: attrs.onExecute,
-      }),
-      renderMenu(),
+      '.pf-exp-node-explorer__title-row',
+      m('.title', m('h2', node.getTitle())),
     );
   }
 
@@ -124,38 +89,66 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         }
       }
       node.prevNodes = dependencies;
-      for (const prevNode of node.prevNodes) {
-        if (!prevNode.nextNodes.includes(node)) {
-          prevNode.nextNodes.push(node);
+      for (let i = 0; i < node.prevNodes.length; i++) {
+        const prevNode = node.prevNodes[i];
+        if (prevNode !== undefined) {
+          addConnection(prevNode, node, i);
         }
       }
     }
 
     const sq = node.getStructuredQuery();
-    if (sq === undefined) return;
+    if (sq === undefined) {
+      // Report error instead of silently returning
+      const error = new Error(
+        'Cannot generate structured query. This usually means:\n' +
+          '• Multi-source nodes (Union/Merge/Intersect) need at least 2 connected inputs\n' +
+          '• All input ports must be connected\n' +
+          '• Previous nodes must be valid',
+      );
+      this.currentQuery = error;
+      attrs.onQueryAnalyzed(error);
+      return;
+    }
 
     const curSqString = JSON.stringify(sq.toJSON(), null, 2);
 
-    if (curSqString !== this.prevSqString) {
+    if (curSqString !== this.prevSqString || node.state.hasOperationChanged) {
+      if (node.state.hasOperationChanged) {
+        node.state.hasOperationChanged = false;
+      }
+      attrs.onAnalysisStateChange?.(true);
       this.tableAsyncLimiter.schedule(async () => {
-        this.currentQuery = await analyzeNode(node, attrs.trace.engine);
-        if (!isAQuery(this.currentQuery)) {
-          return;
+        try {
+          this.currentQuery = await analyzeNode(node, attrs.trace.engine);
+          if (!isAQuery(this.currentQuery)) {
+            attrs.onAnalysisStateChange?.(false);
+            return;
+          }
+          if (node instanceof AggregationNode) {
+            node.updateGroupByColumns();
+          }
+          attrs.onQueryAnalyzed(this.currentQuery);
+          this.prevSqString = curSqString;
+          attrs.onAnalysisStateChange?.(false);
+        } catch (e) {
+          // Silently handle "Already analyzing" errors - the AsyncLimiter
+          // will retry when the current analysis completes
+          if (e instanceof Error && e.message.includes('Already analyzing')) {
+            // Keep isAnalyzing = true, will retry automatically
+            return;
+          }
+          // For other errors, set them as the current query and stop analyzing
+          const error = e instanceof Error ? e : new Error(String(e));
+          this.currentQuery = error;
+          attrs.onQueryAnalyzed(error);
+          attrs.onAnalysisStateChange?.(false);
         }
-        if (node instanceof AggregationNode) {
-          node.updateGroupByColumns();
-        }
-        attrs.onQueryAnalyzed(
-          this.currentQuery,
-          node.type !== NodeType.kSqlSource &&
-            node.type !== NodeType.kAggregation,
-        );
-        this.prevSqString = curSqString;
       });
     }
   }
 
-  private renderContent(node: QueryNode, attrs: NodeExplorerAttrs): m.Child {
+  private renderContent(node: QueryNode, selectedView: number): m.Child {
     const sql: string =
       this.sqlForDisplay ??
       (isAQuery(this.currentQuery)
@@ -169,9 +162,36 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
     return m(
       'article',
-      this.selectedView === SelectedView.kModify && [
-        node.nodeSpecificModify(attrs.onExecute),
-        m('textarea.pf-node-explorer__comment', {
+      selectedView === SelectedView.kInfo && node.nodeInfo(),
+      selectedView === SelectedView.kModify && node.nodeSpecificModify(),
+      selectedView === SelectedView.kResult &&
+        m('.', [
+          m(TabStrip, {
+            tabs: [
+              {key: 'sql', title: 'SQL'},
+              {key: 'proto', title: 'Proto'},
+            ],
+            currentTabKey: this.resultTabMode,
+            onTabChange: (key: string) => {
+              this.resultTabMode = key as 'sql' | 'proto';
+            },
+          }),
+          m('hr', {
+            style: {
+              margin: '0',
+              borderTop: '1px solid var(--separator-color)',
+            },
+          }),
+          this.resultTabMode === 'sql'
+            ? isAQuery(this.currentQuery)
+              ? m(CodeSnippet, {language: 'SQL', text: sql})
+              : m('div', sql)
+            : isAQuery(this.currentQuery)
+              ? m(CodeSnippet, {text: textproto, language: 'textproto'})
+              : m('div', textproto),
+        ]),
+      selectedView === SelectedView.kComment &&
+        m('textarea.pf-exp-node-explorer__comment', {
           'aria-label': 'Comment',
           'placeholder': 'Add a comment...',
           'oninput': (e: InputEvent) => {
@@ -180,63 +200,33 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           },
           'value': node.state.comment,
         }),
-      ],
-      this.selectedView === SelectedView.kSql &&
-        (isAQuery(this.currentQuery)
-          ? m(CodeSnippet, {language: 'SQL', text: sql})
-          : m('div', sql)),
-      this.selectedView === SelectedView.kProto &&
-        (isAQuery(this.currentQuery)
-          ? m(CodeSnippet, {text: textproto, language: 'textproto'})
-          : m('div', textproto)),
     );
   }
 
   view({attrs}: m.CVnode<NodeExplorerAttrs>) {
-    const {node} = attrs;
+    const {node, isCollapsed, selectedView = SelectedView.kInfo} = attrs;
     if (!node) {
-      return m(ExplorePageHelp);
+      return null;
     }
 
+    // Update the node's onchange callback to point to our attrs.onchange
+    // This ensures that changes in the node's UI components trigger the callback chain
+    node.state.onchange = attrs.onchange;
+
+    // Always analyze to generate the query object (needed to enable Run button)
+    // The autoExecute flag only controls whether we automatically execute after analysis
     this.updateQuery(node, attrs);
 
-    const renderModeMenu = (): m.Child => {
-      return m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            icon: Icons.ContextMenuAlt,
-          }),
-        },
-        [
-          m(MenuItem, {
-            label: 'Modify',
-            onclick: () => {
-              this.selectedView = SelectedView.kModify;
-            },
-          }),
-          m(MenuItem, {
-            label: 'Show SQL',
-            onclick: () => {
-              this.selectedView = SelectedView.kSql;
-            },
-          }),
-          m(MenuItem, {
-            label: 'Show proto',
-            onclick: () => {
-              this.selectedView = SelectedView.kProto;
-            },
-          }),
-        ],
-      );
-    };
+    if (isCollapsed) {
+      return m('.pf-exp-node-explorer.collapsed');
+    }
 
     return m(
-      `.pf-node-explorer${
-        node instanceof SqlSourceNode ? '.pf-node-explorer-sql-source' : ''
+      `.pf-exp-node-explorer${
+        node instanceof SqlSourceNode ? '.pf-exp-node-explorer-sql-source' : ''
       }`,
-      this.renderTitleRow(node, attrs, renderModeMenu),
-      this.renderContent(node, attrs),
+      m('.pf-exp-node-explorer__header', this.renderTitleRow(node)),
+      this.renderContent(node, selectedView),
     );
   }
 }

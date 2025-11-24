@@ -14,21 +14,24 @@
 
 @import "../../../../assets/theme";
 
-.pf-node-graph {
+.pf-exp-node-graph {
   position: relative;
   height: 100%;
-  overflow: auto;
-  padding: 0.625rem;
+  overflow: hidden;
   border: 1px solid var(--pf-color-border);
-  border-radius: 8px;
   background-color: var(--pf-color-background);
+
+  // Ensure NodeGraph takes full height
+  .pf-canvas {
+    height: 100%;
+  }
 }
 
-.pf-node-graph__controls {
+.pf-exp-node-graph__controls {
   display: flex;
   position: absolute;
-  top: 0.625rem;
-  right: 0.625rem;
+  top: 1rem;
+  left: 1rem;
   gap: 0.5rem;
-  z-index: 10;
+  pointer-events: auto;
 }

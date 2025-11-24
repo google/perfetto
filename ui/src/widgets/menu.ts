@@ -63,7 +63,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
     return m(
       PopupMenu,
       {
-        popupPosition: PopupPosition.RightStart,
+        position: PopupPosition.RightStart,
         trigger: m(MenuItem, {
           rightIcon: rightIcon,
           closePopupOnClick,
@@ -138,22 +138,6 @@ export class Menu implements m.ClassComponent<HTMLAttrs> {
 }
 
 interface PopupMenuAttrs extends PopupAttrs {
-  // The trigger is mithril component which is used to toggle the popup when
-  // clicked, and provides the anchor on the page which the popup shall hover
-  // next to, and to which the popup's arrow shall point. The popup shall move
-  // around the page with this component, as if attached to it.
-  // This trigger can be any mithril component, but it is typically a Button,
-  // an Icon, or some other interactive component.
-  // Beware this element will have its `onclick`, `ref`, and `active` attributes
-  // overwritten.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  trigger: m.Vnode<any, any>;
-  // Which side of the trigger to place to popup.
-  // Defaults to "bottom".
-  popupPosition?: PopupPosition;
-  // Whether we should show the little arrow pointing to the trigger.
-  // Defaults to true.
-  showArrow?: boolean;
   // Whether this popup should form a new popup group.
   // When nesting popups, grouping controls how popups are closed.
   // When closing popups via the Escape key, each group is closed one by one,
@@ -169,17 +153,13 @@ interface PopupMenuAttrs extends PopupAttrs {
 // MenuDividers, but really they can be any Mithril component.
 export class PopupMenu implements m.ClassComponent<PopupMenuAttrs> {
   view({attrs, children}: m.CVnode<PopupMenuAttrs>) {
-    const {
-      trigger,
-      popupPosition = PopupPosition.Bottom,
-      ...popupAttrs
-    } = attrs;
+    const {trigger, position = PopupPosition.Bottom, ...popupAttrs} = attrs;
 
     return m(
       Popup,
       {
         trigger,
-        position: popupPosition,
+        position,
         className: 'pf-popup-menu',
         ...popupAttrs,
       },

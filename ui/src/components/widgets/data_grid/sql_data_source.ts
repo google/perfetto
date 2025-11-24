@@ -19,7 +19,7 @@ import {runQueryForQueryTable} from '../../query_table/queries';
 import {
   DataGridDataSource,
   DataSourceResult,
-  FilterDefinition,
+  DataGridFilter,
   Sorting,
   SortByColumn,
   DataGridModel,
@@ -120,12 +120,28 @@ export class SQLDataSource implements DataGridDataSource {
   }
 
   /**
+   * Export all data with current filters/sorting applied.
+   */
+  async exportData(): Promise<Row[]> {
+    if (!this.workingQuery) {
+      // If no working query exists yet, we can't export anything
+      return [];
+    }
+
+    const query = `SELECT * FROM (${this.workingQuery})`;
+    const result = await runQueryForQueryTable(query, this.engine);
+
+    // Return all rows
+    return result.rows;
+  }
+
+  /**
    * Builds a complete SQL query that defines the working dataset (ignores
    * pagination).
    */
   private buildWorkingQuery(
     columns: ReadonlyArray<string> | undefined,
-    filters: ReadonlyArray<FilterDefinition>,
+    filters: ReadonlyArray<DataGridFilter>,
     sorting: Sorting,
   ): string {
     const colDefs = columns ?? ['*'];
@@ -195,7 +211,7 @@ export class SQLDataSource implements DataGridDataSource {
   }
 }
 
-function filter2Sql(filter: FilterDefinition): string {
+function filter2Sql(filter: DataGridFilter): string {
   switch (filter.op) {
     case '=':
     case '!=':
@@ -210,6 +226,10 @@ function filter2Sql(filter: FilterDefinition): string {
       return `${filter.column} IS NULL`;
     case 'is not null':
       return `${filter.column} IS NOT NULL`;
+    case 'in':
+      return `${filter.column} IN (${filter.value.map(sqlValue).join(', ')})`;
+    case 'not in':
+      return `${filter.column} NOT IN (${filter.value.map(sqlValue).join(', ')})`;
     default:
       return '1=1'; // Default to true if unknown operator
   }

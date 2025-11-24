@@ -52,7 +52,7 @@ const char* kDefaultAllowedCORSOrigins[] = {
 
 class Httpd : public base::HttpRequestHandler {
  public:
-  explicit Httpd(std::unique_ptr<TraceProcessor>, bool is_preloaded_eof);
+  explicit Httpd(Rpc& rpc);
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
@@ -65,7 +65,7 @@ class Httpd : public base::HttpRequestHandler {
 
   static void ServeHelpPage(const base::HttpRequest&);
 
-  Rpc global_trace_processor_rpc_;
+  Rpc& global_trace_processor_rpc_;
   base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
 };
@@ -95,11 +95,8 @@ void SendRpcChunk(base::HttpServerConnection* conn,
   }
 }
 
-Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
-             bool is_preloaded_eof)
-    : global_trace_processor_rpc_(std::move(preloaded_instance),
-                                  is_preloaded_eof),
-      http_srv_(&task_runner_, this) {}
+Httpd::Httpd(Rpc& rpc)
+    : global_trace_processor_rpc_(rpc), http_srv_(&task_runner_, this) {}
 Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
@@ -273,12 +270,11 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 
 }  // namespace
 
-void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
-                      bool is_preloaded_eof,
+void RunHttpRPCServer(Rpc& rpc,
                       const std::string& listen_ip,
                       const std::string& port_number,
                       const std::vector<std::string>& additional_cors_origins) {
-  Httpd srv(std::move(preloaded_instance), is_preloaded_eof);
+  Httpd srv(rpc);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;

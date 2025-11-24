@@ -152,39 +152,41 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
       return utid;
     }
     case TaskStateEnum::TASK_STATE_DESTROYED: {
-      return context_->process_tracker->GetThreadOrNull(tid);
-    }
-    case TaskStateEnum::TASK_STATE_DEAD: {
       auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
       if (!utid_opt) {
         utid_opt = context_->process_tracker->GetOrCreateThread(tid);
         context_->process_tracker->UpdateThreadName(
             *utid_opt, comm_id, ThreadNamePriority::kGenericKernelTask);
-      } else if (ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
-                     *utid_opt) == destroyed_string_id_) {
-        context_->storage->IncrementStats(
-            stats::generic_task_state_invalid_order);
-        utid_opt = std::nullopt;
       }
       context_->process_tracker->EndThread(ts, tid);
       return utid_opt;
     }
-    case TaskStateEnum::TASK_STATE_RUNNING: {
-      auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
-      if (utid_opt &&
-          ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
-              *utid_opt) == running_string_id_) {
-        context_->storage->IncrementStats(
-            stats::generic_task_state_invalid_order);
-        return std::nullopt;
-      }
-      PERFETTO_FALLTHROUGH;
-    }
+    case TaskStateEnum::TASK_STATE_DEAD:
+    case TaskStateEnum::TASK_STATE_RUNNING:
     case TaskStateEnum::TASK_STATE_RUNNABLE:
     case TaskStateEnum::TASK_STATE_INTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_STOPPED: {
-      UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+      UniqueTid utid;
+      if (auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
+          utid_opt) {
+        StringId prev_state_id =
+            ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
+                *utid_opt);
+        // The only accepted state after DEAD is DESTROYED
+        bool is_invalid_order = prev_state_id == dead_string_id_;
+        // Consecutive RUNNING states are invalid
+        is_invalid_order |= state == TaskStateEnum::TASK_STATE_RUNNING &&
+                            prev_state_id == running_string_id_;
+        if (is_invalid_order) {
+          context_->storage->IncrementStats(
+              stats::generic_task_state_invalid_order);
+          return std::nullopt;
+        }
+        utid = *utid_opt;
+      } else {
+        utid = context_->process_tracker->GetOrCreateThread(tid);
+      }
       context_->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;

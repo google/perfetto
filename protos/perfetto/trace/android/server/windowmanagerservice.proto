@@ -232,6 +232,7 @@ message DisplayContentProto {
   optional IdentifierProto input_method_control_target_identifier = 42;
   optional IdentifierProto current_focus_identifier = 43;
   optional RemoteInsetsControlTargetProto remote_insets_control_target = 44;
+  optional int32 engagement_mode = 45;
 }
 
 // represents DisplayArea object
@@ -468,6 +469,7 @@ message WindowStateProto {
   optional RectProto dim_bounds = 49;
   optional int32 buffer_seq_id = 50;
   optional int32 sync_seq_id = 51;
+  optional int32 animating_types = 52;
 }
 
 // represents RemoteInsetsControlTarget

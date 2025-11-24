@@ -28,6 +28,7 @@ import {
 import {assertUnreachable} from '../../base/logging';
 import {Button, ButtonBar} from '../../widgets/button';
 import {NoteEditor} from '../note_editor';
+import {Gate} from '../../base/mithril_utils';
 
 export interface CurrentSelectionTabAttrs {
   readonly trace: TraceImpl;
@@ -117,29 +118,36 @@ export class CurrentSelectionTab
 
     // Find the active tab or just pick the first one if that selected tab is
     // not available.
-    const [activeTab, tabContent] =
+    const [activeTab, activeTabContent] =
       renderedTabs.find(([tab]) => tab.id === this.currentAreaSubTabId) ??
       renderedTabs[0];
 
+    // Determine if any tab content is loading
+    const isLoading = renderedTabs.some(([_, content]) => content?.isLoading);
+
     return {
-      isLoading: tabContent?.isLoading ?? false,
+      isLoading,
       content: m(
         DetailsShell,
         {
           title: 'Area Selection',
           description: m(
             ButtonBar,
-            renderedTabs.map(([tab]) =>
-              m(Button, {
+            renderedTabs.map(([tab]) => {
+              return m(Button, {
                 label: tab.name,
                 key: tab.id,
                 active: activeTab === tab,
                 onclick: () => (this.currentAreaSubTabId = tab.id),
-              }),
-            ),
+              });
+            }),
           ),
+          buttons: activeTabContent?.buttons,
         },
-        tabContent?.content,
+        // Render all tabs but control visibility with Gate
+        renderedTabs.map(([tab, content]) =>
+          m(Gate, {open: activeTab === tab}, content?.content),
+        ),
       ),
     };
   }

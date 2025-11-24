@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {maybeMachineLabel} from '../../public/utils';
 
 function stripPathFromExecutable(path: string) {
@@ -26,7 +26,10 @@ function stripPathFromExecutable(path: string) {
   }
 }
 
-function getThreadDisplayName(threadName: string | undefined, tid: number) {
+function getThreadDisplayName(
+  threadName: string | undefined,
+  tid: bigint | number,
+) {
   if (threadName) {
     return `${stripPathFromExecutable(threadName)} ${tid}`;
   } else {
@@ -111,7 +114,7 @@ export default class implements PerfettoPlugin {
       sortOrder: 50,
       isSummary: true,
     });
-    this.ctx.workspace.addChildInOrder(kernelThreadsGroup);
+    this.ctx.defaultWorkspace.addChildInOrder(kernelThreadsGroup);
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
@@ -259,7 +262,7 @@ export default class implements PerfettoPlugin {
         });
 
         // Re-insert the child node to sort it
-        this.ctx.workspace.addChildInOrder(group);
+        this.ctx.defaultWorkspace.addChildInOrder(group);
         this.processGroups.set(uid, group);
       } else {
         // Skip pre-grouped kthread tracks.
@@ -276,7 +279,7 @@ export default class implements PerfettoPlugin {
         });
 
         // Re-insert the child node to sort it
-        this.ctx.workspace.addChildInOrder(group);
+        this.ctx.defaultWorkspace.addChildInOrder(group);
         this.threadGroups.set(uid, group);
       }
     }
@@ -325,7 +328,7 @@ export default class implements PerfettoPlugin {
 
     const it = result.iter({
       utid: NUM,
-      tid: NUM,
+      tid: LONG,
       upid: NUM,
       threadName: STR_NULL,
     });

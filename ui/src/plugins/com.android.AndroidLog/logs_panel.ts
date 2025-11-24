@@ -23,6 +23,7 @@ import {AsyncLimiter} from '../../base/async_limiter';
 import {
   escapeQuery,
   escapeSearchQuery,
+  escapeRegexQuery,
 } from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
 import {
@@ -33,55 +34,61 @@ import {
 import {PopupPosition} from '../../widgets/popup';
 import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
-import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
+import {
+  Grid,
+  GridColumn,
+  GridRow,
+  GridHeaderCell,
+  GridCell,
+} from '../../widgets/grid';
 import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
 import {Store} from '../../base/store';
 import {Trace} from '../../public/trace';
 
-const ROW_H = 20;
+const ROW_H = 24;
 
 export interface LogFilteringCriteria {
-  minimumLevel: number;
-  tags: string[];
-  textEntry: string;
-  hideNonMatching: boolean;
-  machineExcludeList: number[];
+  readonly minimumLevel: number;
+  readonly tags: string[];
+  readonly isTagRegex?: boolean;
+  readonly textEntry: string;
+  readonly hideNonMatching: boolean;
+  readonly machineExcludeList: number[];
 }
 
 export interface LogPanelCache {
-  uniqueMachineIds: number[];
+  readonly uniqueMachineIds: number[];
 }
 
 export interface LogPanelAttrs {
-  cache: LogPanelCache;
-  filterStore: Store<LogFilteringCriteria>;
-  trace: Trace;
+  readonly cache: LogPanelCache;
+  readonly filterStore: Store<LogFilteringCriteria>;
+  readonly trace: Trace;
 }
 
 interface Pagination {
-  offset: number;
-  count: number;
+  readonly offset: number;
+  readonly count: number;
 }
 
 interface LogEntries {
-  offset: number;
-  machineIds: number[];
-  timestamps: time[];
-  pids: number[];
-  tids: number[];
-  priorities: number[];
-  tags: string[];
-  messages: string[];
-  isHighlighted: boolean[];
-  processName: string[];
-  totalEvents: number; // Count of the total number of events within this window
+  readonly offset: number;
+  readonly machineIds: number[];
+  readonly timestamps: time[];
+  readonly pids: bigint[];
+  readonly tids: bigint[];
+  readonly priorities: number[];
+  readonly tags: string[];
+  readonly messages: string[];
+  readonly isHighlighted: boolean[];
+  readonly processName: string[];
+  readonly totalEvents: number; // Count of the total number of events within this window
 }
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
   private entries?: LogEntries;
-
   private pagination: Pagination = {
     offset: 0,
     count: 0,
@@ -103,7 +110,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
     if (this.rowsMonitor.ifStateChanged()) {
-      this.reloadData(attrs);
+      this.scheduleDataReload(attrs);
     }
 
     const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
@@ -111,6 +118,26 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       this.entries &&
       this.entries.processName.filter((name) => name).length > 0;
     const totalEvents = this.entries?.totalEvents ?? 0;
+
+    const columns: GridColumn[] = [
+      ...(hasMachineIds
+        ? [{key: 'machine', header: m(GridHeaderCell, 'Machine')}]
+        : []),
+      {key: 'timestamp', header: m(GridHeaderCell, 'Timestamp')},
+      {key: 'pid', header: m(GridHeaderCell, 'PID')},
+      {key: 'tid', header: m(GridHeaderCell, 'TID')},
+      {key: 'level', header: m(GridHeaderCell, 'Level')},
+      ...(hasProcessNames
+        ? [{key: 'process', header: m(GridHeaderCell, 'Process')}]
+        : []),
+      {key: 'tag', header: m(GridHeaderCell, 'Tag')},
+      {
+        key: 'message',
+        // Allow the initial width of the message column to expand as needed.
+        maxInitialWidthPx: Infinity,
+        header: m(GridHeaderCell, 'Message'),
+      },
+    ];
 
     return m(
       DetailsShell,
@@ -123,31 +150,26 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           store: attrs.filterStore,
         }),
       },
-      m(VirtualTable, {
+      m(Grid, {
         className: 'pf-logs-panel',
-        columns: [
-          ...(hasMachineIds ? [{header: 'Machine', width: '6em'}] : []),
-          {header: 'Timestamp', width: '13em'},
-          {header: 'PID', width: '3em'},
-          {header: 'TID', width: '3em'},
-          {header: 'Level', width: '4em'},
-          {header: 'Tag', width: '13em'},
-          ...(hasProcessNames ? [{header: 'Process', width: '18em'}] : []),
-          // '' means column width can vary depending on the content.
-          // This works as this is the last column, but using this for other
-          // columns will pull the columns to the right out of line.
-          {header: 'Message', width: ''},
-        ],
-        rows: this.renderRows(hasMachineIds, hasProcessNames),
-        firstRowOffset: this.entries?.offset ?? 0,
-        numRows: this.entries?.totalEvents ?? 0,
-        rowHeight: ROW_H,
-        onReload: (offset, count) => {
-          this.pagination = {offset, count};
-          this.reloadData(attrs);
+        columns,
+        rowData: {
+          data: this.renderRows(hasMachineIds, hasProcessNames),
+          total: this.entries?.totalEvents ?? 0,
+          offset: this.entries?.offset ?? 0,
+          onLoadData: (offset, count) => {
+            this.pagination = {offset, count};
+            this.scheduleDataReload(attrs);
+          },
         },
-        onRowHover: (id) => {
-          const timestamp = this.entries?.timestamps[id];
+        virtualization: {
+          rowHeightPx: ROW_H,
+        },
+        fillHeight: true,
+        onRowHover: (rowIndex) => {
+          // Calculate the actual row index from virtualization offset
+          const actualIndex = rowIndex - (this.entries?.offset ?? 0);
+          const timestamp = this.entries?.timestamps[actualIndex];
           if (timestamp !== undefined) {
             attrs.trace.timeline.hoverCursorTimestamp = timestamp;
           }
@@ -159,26 +181,26 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     );
   }
 
-  private reloadData(attrs: LogPanelAttrs) {
-    this.queryLimiter.schedule(async () => {
-      const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
+  private scheduleDataReload(attrs: LogPanelAttrs) {
+    const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
+    const filterStateChanged = this.filterMonitor.ifStateChanged();
+    const filterStoreState = attrs.filterStore.state;
+    const engine = attrs.trace.engine;
+    const pagination = this.pagination;
 
-      if (this.filterMonitor.ifStateChanged()) {
-        await updateLogView(attrs.trace.engine, attrs.filterStore.state);
+    this.queryLimiter.schedule(async () => {
+      if (filterStateChanged) {
+        await updateLogView(engine, filterStoreState);
       }
 
-      this.entries = await updateLogEntries(
-        attrs.trace.engine,
-        visibleSpan,
-        this.pagination,
-      );
+      this.entries = await updateLogEntries(engine, visibleSpan, pagination);
     });
   }
 
   private renderRows(
     hasMachineIds: boolean | undefined,
     hasProcessNames: boolean | undefined,
-  ): VirtualTableRow[] {
+  ): ReadonlyArray<GridRow> {
     if (!this.entries) {
       return [];
     }
@@ -193,30 +215,31 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     const messages = this.entries.messages;
     const processNames = this.entries.processName;
 
-    const rows: VirtualTableRow[] = [];
+    const rows: GridRow[] = [];
     for (let i = 0; i < this.entries.timestamps.length; i++) {
       const priority = priorities[i];
       const priorityLetter = LOG_PRIORITIES[priority][0];
       const ts = timestamps[i];
       const priorityClass = `pf-logs-panel__row--${classForPriority(priority)}`;
+      const isHighlighted = this.entries.isHighlighted[i];
+      const className = classNames(
+        priorityClass,
+        isHighlighted && 'pf-logs-panel__row--highlighted',
+      );
 
-      rows.push({
-        id: i,
-        className: classNames(
-          priorityClass,
-          this.entries.isHighlighted[i] && 'pf-logs-panel__row--highlighted',
-        ),
-        cells: [
-          ...(hasMachineIds ? [machineIds[i]] : []),
-          m(Timestamp, {trace, ts}),
-          pids[i],
-          tids[i],
-          priorityLetter || '?',
-          tags[i],
-          ...(hasProcessNames ? [processNames[i]] : []),
-          messages[i],
-        ],
-      });
+      const row = [
+        hasMachineIds &&
+          m(GridCell, {className, align: 'right'}, machineIds[i]),
+        m(GridCell, {className}, m(Timestamp, {trace, ts})),
+        m(GridCell, {className, align: 'right'}, String(pids[i])),
+        m(GridCell, {className, align: 'right'}, String(tids[i])),
+        m(GridCell, {className}, priorityLetter || '?'),
+        hasProcessNames && m(GridCell, {className}, processNames[i]),
+        m(GridCell, {className}, tags[i]),
+        m(GridCell, {className}, messages[i]),
+      ].filter(Boolean);
+
+      rows.push(row);
     }
 
     return rows;
@@ -311,10 +334,10 @@ interface FilterByTextWidgetAttrs {
 
 class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
   view({attrs}: m.Vnode<FilterByTextWidgetAttrs>) {
-    const icon = attrs.hideNonMatching ? 'unfold_less' : 'unfold_more';
+    const icon = attrs.hideNonMatching ? 'filter_alt' : 'filter_alt_off';
     const tooltip = attrs.hideNonMatching
-      ? 'Expand all and view highlighted'
-      : 'Collapse all';
+      ? 'Show all logs and highlight matches'
+      : 'Show only matching logs';
     return m(Button, {
       icon,
       title: tooltip,
@@ -360,6 +383,16 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
           });
         },
       }),
+      m(Button, {
+        icon: 'regular_expression',
+        title: 'Use regular expression',
+        active: !!attrs.store.state.isTagRegex,
+        onclick: () => {
+          attrs.store.edit((draft) => {
+            draft.isTagRegex = !draft.isTagRegex;
+          });
+        },
+      }),
       m(LogTextWidget, {
         trace: attrs.trace,
         onChange: (text) => {
@@ -398,7 +431,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
     return m(PopupMultiSelect, {
       label: 'Filter by machine',
       icon: 'filter_list_alt',
-      popupPosition: PopupPosition.Top,
+      position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {
         const newList = new Set<number>(machineExcludeList);
@@ -453,8 +486,8 @@ async function updateLogEntries(
 
   const it = rowsResult.iter({
     ts: LONG,
-    pid: NUM,
-    tid: NUM,
+    pid: LONG,
+    tid: LONG,
     prio: NUM,
     tag: STR,
     msg: STR,
@@ -512,7 +545,14 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
       left join process using(upid)
       where prio >= ${filter.minimumLevel}`;
   if (filter.tags.length) {
-    selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+    if (filter.isTagRegex) {
+      const tagGlobClauses = filter.tags.map(
+        (pattern) => `tag glob ${escapeRegexQuery(pattern)}`,
+      );
+      selectedRows += ` and (${tagGlobClauses.join(' OR ')})`;
+    } else {
+      selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+    }
   }
   if (filter.machineExcludeList.length) {
     selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join(',')})`;

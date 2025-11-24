@@ -39,6 +39,7 @@
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
+#include "src/trace_redaction/prune_perf_events.h"
 #include "src/trace_redaction/redact_ftrace_events.h"
 #include "src/trace_redaction/redact_process_events.h"
 #include "src/trace_redaction/reduce_threads_in_process_trees.h"
@@ -61,8 +62,7 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
                                    std::string_view dest_filename,
                                    Context* context) const {
   const std::string source_filename_str(source_filename);
-  base::ScopedMmap mapped =
-      base::ReadMmapWholeFile(source_filename_str.c_str());
+  base::ScopedMmap mapped = base::ReadMmapWholeFile(source_filename_str);
   if (!mapped.IsValid()) {
     return base::ErrStatus("TraceRedactor: failed to map pages for trace (%s)",
                            source_filename_str.c_str());
@@ -200,6 +200,23 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   }
 
   redactor->emplace_transform<PrunePackageList>();
+
+  {
+    // This primitive has a dependencies on other primitives.
+    // The overall flow to make this transform work is as follows:
+    //
+    // First: CollectClocks retrieves the clock ids to be used for perf samples
+    // and sets up the RedactorClockConverter that will handle all the timestamp
+    // transformations into trace time which is used by the Timeline.
+    //
+    // Second: PopulateAllowlists adds the perf samples to be included in the
+    // redacted and BroadphasePacketFilter keeps those samples.
+    //
+    // Third: We emplace the PrunePerfEvents which actually
+    // removes the perf samples that don't belong to the target package.
+    auto* primitive = redactor->emplace_transform<PrunePerfEvents>();
+    primitive->emplace_filter<ConnectedToPackage>();
+  }
 
   // Process stats includes per-process information, such as:
   //

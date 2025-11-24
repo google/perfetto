@@ -295,6 +295,7 @@ TEST_F(TraceSummaryTest, GroupedBasic) {
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value_a"
@@ -346,6 +347,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateGroupingOrder) {
   ASSERT_TRUE(status_or_output.ok());
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "my_metric"
       specs {
         id: "my_metric_value_a"
         value: "value_a"
@@ -434,6 +436,7 @@ TEST_F(TraceSummaryTest, GroupedMultipleGroups) {
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group_a"
       specs {
         id: "metric_a"
         value: "value"
@@ -445,6 +448,7 @@ TEST_F(TraceSummaryTest, GroupedMultipleGroups) {
   )"));
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group_b"
       specs {
         id: "metric_b"
         value: "value"
@@ -476,6 +480,7 @@ TEST_F(TraceSummaryTest, GroupedNullValues) {
   ASSERT_TRUE(status_or_output.ok());
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "my_metric"
         value: "value"
@@ -511,6 +516,7 @@ TEST_F(TraceSummaryTest, GroupedMixedGrouping) {
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value"
@@ -522,6 +528,7 @@ TEST_F(TraceSummaryTest, GroupedMixedGrouping) {
   )"));
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "metric_b"
       specs {
         id: "metric_b"
         value: "value"
@@ -589,6 +596,7 @@ TEST_F(TraceSummaryTest, GroupedEmptyGroupId) {
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "metric_a"
       specs {
         id: "metric_a"
         value: "value"
@@ -619,6 +627,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
   )"));
   EXPECT_THAT(output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "my_metric_value_a"
       specs {
         id: "my_metric_value_a"
         value: "value_a"
@@ -637,6 +646,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
   )"));
   EXPECT_THAT(output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "my_metric_value_b"
       specs {
         id: "my_metric_value_b"
         value: "value_b"
@@ -688,6 +698,7 @@ TEST_F(TraceSummaryTest, GroupedAllNullValuesAreSkipped) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value_a"
@@ -759,6 +770,7 @@ TEST_F(TraceSummaryTest, GroupedOneNullValueIsNotSkipped) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value_a"
@@ -815,6 +827,7 @@ TEST_F(TraceSummaryTest, GroupedSingleNullValueIsSkipped) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value_a"
@@ -857,6 +870,7 @@ TEST_F(TraceSummaryTest, TemplateSpecWithUnitAndPolarity) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "my_metric"
       specs {
         id: "my_metric_value_a"
         value: "value_a"
@@ -893,6 +907,129 @@ TEST_F(TraceSummaryTest, TemplateSpecWithUnitAndPolarity) {
   )-"));
 }
 
+TEST_F(TraceSummaryTest, InternedDimensionBundleUnusedKeysDropped) {
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      value_columns: "dur"
+      dimensions_specs { name: "dim_1" type: INT64 }
+      dimensions_specs { name: "dim_2" type: INT64 }
+      query {
+        sql {
+          sql: "SELECT 123 as dim_1, 123 as dim_2, 750.0 as dur UNION ALL SELECT 456 as dim_1, 789 as dim_2, 850.0 as dur"
+          column_names: "dim_1"
+          column_names: "dim_2"
+          column_names: "dur"
+        }
+      }
+      interned_dimension_specs {
+        key_column_spec { name: "dim_1" type: INT64 }
+        data_column_specs { name: "version_1" type: INT64 }
+        query {
+          sql {
+            sql: "SELECT 123 as dim_1, 100 as version_1 UNION ALL SELECT 456 as dim_1, 200 as version_1 UNION ALL SELECT 789 as dim_1, 300 as version_1"
+          }
+        }
+      }
+      interned_dimension_specs {
+        key_column_spec { name: "dim_2" type: INT64 }
+        data_column_specs { name: "version_2" type: INT64 }
+        query {
+          sql {
+            sql: "SELECT 123 as dim_2, 1000 as version_2 UNION ALL SELECT 456 as dim_2, 2000 as version_2 UNION ALL SELECT 789 as dim_2, 3000 as version_2"
+          }
+        }
+      }
+    }
+  )"));
+  EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
+    metric_bundles {
+      bundle_id: "my_metric"
+      specs {
+        id: "my_metric_dur"
+        value: "dur"
+        dimensions_specs {
+          name: "dim_1"
+          type: INT64
+        }
+        dimensions_specs {
+          name: "dim_2"
+          type: INT64
+        }
+        query {
+          sql {
+            sql: "SELECT 123 as dim_1, 123 as dim_2, 750.0 as dur UNION ALL SELECT 456 as dim_1, 789 as dim_2, 850.0 as dur"
+            column_names: "dim_1"
+            column_names: "dim_2"
+            column_names: "dur"
+          }
+        }
+        bundle_id: "my_metric"
+        interned_dimension_specs {
+          key_column_spec {
+            name: "dim_1"
+            type: INT64
+          }
+          data_column_specs {
+            name: "version_1"
+            type: INT64
+          }
+          query {
+            sql {
+              sql: "SELECT 123 as dim_1, 100 as version_1 UNION ALL SELECT 456 as dim_1, 200 as version_1 UNION ALL SELECT 789 as dim_1, 300 as version_1"
+            }
+          }
+        }
+        interned_dimension_specs {
+          key_column_spec {
+            name: "dim_2"
+            type: INT64
+          }
+          data_column_specs {
+            name: "version_2"
+            type: INT64
+          }
+          query {
+            sql {
+              sql: "SELECT 123 as dim_2, 1000 as version_2 UNION ALL SELECT 456 as dim_2, 2000 as version_2 UNION ALL SELECT 789 as dim_2, 3000 as version_2"
+            }
+          }
+        }
+      }
+      row {
+        dimension { int64_value: 123 }
+        dimension { int64_value: 123 }
+        values { double_value: 750.000000 }
+      }
+      row {
+        dimension { int64_value: 456 }
+        dimension { int64_value: 789 }
+        values { double_value: 850.000000 }
+      }
+      interned_dimension_bundles {
+        interned_dimension_rows {
+          key_dimension_value { int64_value: 123 }
+          interned_dimension_values { int64_value: 100 }
+        }
+        interned_dimension_rows {
+          key_dimension_value { int64_value: 456 }
+          interned_dimension_values { int64_value: 200 }
+        }
+      }
+      interned_dimension_bundles {
+        interned_dimension_rows {
+          key_dimension_value { int64_value: 123 }
+          interned_dimension_values { int64_value: 1000 }
+        }
+        interned_dimension_rows {
+          key_dimension_value { int64_value: 789 }
+          interned_dimension_values { int64_value: 3000 }
+        }
+      }
+    }
+  )-"));
+}
+
 TEST_F(TraceSummaryTest, TemplateSpecWithValueColumnsAndSpecsError) {
   base::StatusOr<std::string> status_or_output = RunSummarize(R"(
     metric_template_spec {
@@ -914,6 +1051,184 @@ TEST_F(TraceSummaryTest, TemplateSpecWithValueColumnsAndSpecsError) {
   EXPECT_THAT(status_or_output.status().message(),
               HasSubstr("Metric template has both value_columns and "
                         "value_column_specs defined"));
+}
+
+TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      value_columns: "dur"
+      value_columns: "count"
+      dimensions_specs { name: "dim" type: STRING }
+      query {
+        sql {
+          sql: "SELECT 'a' as dim, 750.0 as dur, 3.0 as count UNION ALL SELECT 'b' as dim, 425.0 as dur, 4.0 as count"
+          column_names: "dim"
+          column_names: "dur"
+          column_names: "count"
+        }
+      }
+      interned_dimension_specs {
+        key_column_spec { name: "dim" type: STRING }
+        data_column_specs { name: "version" type: DOUBLE }
+        data_column_specs { name: "is_kernel" type: BOOLEAN }
+        query {
+          sql {
+            sql: "SELECT 'a' as dim, 1.0 as version, false as is_kernel UNION ALL SELECT 'b' as dim, 2.0 as version, true as is_kernel"
+          }
+        }
+      }
+    }
+  )"));
+  EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
+    metric_bundles {
+      bundle_id: "my_metric"
+      specs {
+        id: "my_metric_dur"
+        value: "dur"
+        dimensions_specs {
+          name: "dim"
+          type: STRING
+        }
+        query {
+          sql {
+            sql: "SELECT \'a\' as dim, 750.0 as dur, 3.0 as count UNION ALL SELECT \'b\' as dim, 425.0 as dur, 4.0 as count"
+            column_names: "dim"
+            column_names: "dur"
+            column_names: "count"
+          }
+        }
+        bundle_id: "my_metric"
+        interned_dimension_specs {
+          key_column_spec {
+            name: "dim"
+            type: STRING
+          }
+          data_column_specs {
+            name: "version"
+            type: DOUBLE
+          }
+          data_column_specs { 
+            name: "is_kernel" 
+            type: BOOLEAN 
+          }
+          query {
+            sql {
+               sql: "SELECT \'a\' as dim, 1.0 as version, false as is_kernel UNION ALL SELECT \'b\' as dim, 2.0 as version, true as is_kernel"
+            }
+          }
+        }
+      }
+      specs {
+        id: "my_metric_count"
+        value: "count"
+        dimensions_specs {
+          name: "dim"
+          type: STRING
+        }
+        query {
+          sql {
+            sql: "SELECT \'a\' as dim, 750.0 as dur, 3.0 as count UNION ALL SELECT \'b\' as dim, 425.0 as dur, 4.0 as count"
+            column_names: "dim"
+            column_names: "dur"
+            column_names: "count"
+          }
+        }
+        bundle_id: "my_metric"
+        interned_dimension_specs {
+          key_column_spec {
+            name: "dim"
+            type: STRING
+          }
+          data_column_specs {
+            name: "version"
+            type: DOUBLE
+          }
+          data_column_specs { 
+            name: "is_kernel" 
+            type: BOOLEAN 
+          }
+          query {
+            sql {
+               sql: "SELECT \'a\' as dim, 1.0 as version, false as is_kernel UNION ALL SELECT \'b\' as dim, 2.0 as version, true as is_kernel"
+            }
+          }
+        }
+      }
+      row {
+        dimension {
+          string_value: "a"
+        }
+        values {
+          double_value: 750.000000
+        }
+        values {
+          double_value: 3.000000
+        }
+      }
+      row {
+        dimension {
+          string_value: "b"
+        }
+        values {
+          double_value: 425.000000
+        }
+        values {
+          double_value: 4.000000
+        }
+      }
+      interned_dimension_bundles {
+        interned_dimension_rows {
+          key_dimension_value {
+            string_value: "a"
+          }
+          interned_dimension_values {
+            double_value: 1.000000
+          }
+          interned_dimension_values {
+            bool_value: false
+          }
+        }
+        interned_dimension_rows {
+          key_dimension_value {
+            string_value: "b"
+          }
+          interned_dimension_values {
+            double_value: 2.000000
+          }
+          interned_dimension_values {
+            bool_value: true
+          }
+        }
+      }
+    }
+  )-"));
+}
+
+TEST_F(TraceSummaryTest, InternedDimensionBundleKeyColumnNotInDimensions) {
+  auto status = RunSummarize(R"(
+    metric_spec {
+      id: "my_metric"
+      value: "value"
+      dimensions_specs { name: "dim" type: STRING }
+      query {
+        sql {
+          sql: "SELECT 'a' as dim, 1.0 as value"
+          column_names: "dim"
+          column_names: "value"
+        }
+      }
+      interned_dimension_specs {
+        key_column_spec { name: "other" type: STRING }
+        query { sql { sql: "SELECT 'a' as other" } }
+      }
+    }
+  )");
+  ASSERT_FALSE(status.ok());
+  EXPECT_THAT(
+      status.status().message(),
+      HasSubstr("Key column 'other' in interned dimension bundle not found in "
+                "metric dimensions"));
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -987,6 +1302,133 @@ TEST_F(TraceSummaryTest, OutputCompressionFailsWhenZlibDisabled) {
           "Zlib compression requested but is not supported on this platform."));
 }
 #endif
+
+// Test that sql.column_names works correctly with group_by transformations.
+// The column_names field describes what the SQL returns before transformations,
+// but group_by changes the output schema to group keys + aggregates.
+TEST_F(TraceSummaryTest, SqlColumnNamesWithGroupBy) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "test_metric"
+      dimensions: "process_name"
+      value_columns: "min_val"
+      value_columns: "max_val"
+      value_columns: "avg_val"
+      query {
+        sql {
+          column_names: "process_name"
+          column_names: "metric_val"
+          column_names: "dur"
+          sql: "
+            SELECT 'systemui' as process_name, 100 as metric_val, 1000 as dur
+            UNION ALL
+            SELECT 'systemui' as process_name, 200 as metric_val, 2000 as dur
+            UNION ALL
+            SELECT 'launcher' as process_name, 150 as metric_val, 1500 as dur
+          "
+        }
+        group_by {
+          column_names: "process_name"
+          aggregates {
+            column_name: "metric_val"
+            op: MIN
+            result_column_name: "min_val"
+          }
+          aggregates {
+            column_name: "metric_val"
+            op: MAX
+            result_column_name: "max_val"
+          }
+          aggregates {
+            column_name: "metric_val"
+            op: MEAN
+            result_column_name: "avg_val"
+          }
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+
+  // Verify we get metrics for both processes
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric_min_val\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric_max_val\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric_avg_val\""));
+
+  // Verify dimension values
+  EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"systemui\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"launcher\""));
+
+  // Verify aggregated values for systemui (min=100, max=200, avg=150)
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 100.000000"));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 200.000000"));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 150.000000"));
+}
+
+// Test that sql.column_names works correctly with select_columns
+// transformations.
+TEST_F(TraceSummaryTest, SqlColumnNamesWithSelectColumns) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_spec {
+      id: "test_metric"
+      value: "renamed_value"
+      query {
+        sql {
+          column_names: "id"
+          column_names: "name"
+          column_names: "value"
+          sql: "SELECT 1 as id, 'foo' as name, 42.0 as value"
+        }
+        select_columns {
+          column_name_or_expression: "value"
+          alias: "renamed_value"
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 42"));
+}
+
+// Test that sql.column_names validation still works when there are no
+// transformations (only filters, which don't change the schema).
+TEST_F(TraceSummaryTest, SqlColumnNamesWithFiltersOnly) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_spec {
+      id: "test_metric"
+      value: "value"
+      dimensions: "name"
+      query {
+        sql {
+          column_names: "name"
+          column_names: "value"
+          sql: "
+            SELECT 'a' as name, 10.0 as value
+            UNION ALL
+            SELECT 'b' as name, 20.0 as value
+            UNION ALL
+            SELECT 'c' as name, 30.0 as value
+          "
+        }
+        filters {
+          column_name: "value"
+          op: GREATER_THAN
+          double_rhs: 15.0
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric\""));
+  // Should only have b and c (values > 15)
+  EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"b\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"c\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 20.000000"));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 30.000000"));
+}
 
 }  // namespace
 }  // namespace perfetto::trace_processor::summary

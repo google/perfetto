@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../assets/theme";
-
-.pf-node-graph-add-button-container {
+.pf-exp-node-graph-add-button-container {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 40px;
 }
 
-.pf-node-graph-add-buttons {
+.pf-exp-node-graph-add-buttons {
   display: flex;
   gap: 1rem;
   justify-content: center;
@@ -34,19 +37,15 @@
   padding: 2rem;
   margin-bottom: 2rem;
   text-align: center;
-  border-radius: 0.5rem;
 
   .pf-empty-graph-hero__title {
-    font-size: 1.8em;
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-    font-size: 1.8em;
+    font-size: var(--pf-exp-font-size-lg);
     font-weight: 500;
     margin-bottom: 0.5rem;
   }
 
   .pf-empty-graph-hero__subtitle {
-    font-size: 1.1em;
+    font-size: var(--pf-exp-font-size-md);
     color: var(--pf-color-text-muted);
   }
 }
@@ -55,35 +54,22 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
   width: 200px;
   text-align: center;
   cursor: pointer;
-  border: 1px solid var(--pf-color-border);
-
-  &:hover {
-    background-color: var(--pf-color-hover-background);
-  }
 
   .pf-icon {
     font-size: 2em;
   }
 
   h3 {
-    font-size: 1.1rem;
+    font-size: var(--pf-exp-font-size-md);
     font-weight: 500;
   }
 
   p {
-    font-size: 0.9rem;
+    font-size: var(--pf-exp-font-size-sm);
     flex-grow: 1;
     color: var(--pf-color-text-muted);
   }
-}
-
-.dev-mode-switch {
-  position: absolute;
-  top: 16px;
-  right: 16px;
 }

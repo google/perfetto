@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/util/elf/elf.h"
 
 namespace perfetto::trace_processor::elf {

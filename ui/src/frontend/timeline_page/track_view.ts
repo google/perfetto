@@ -520,16 +520,21 @@ export class TrackView {
     }
 
     if (selected) {
-      const selectedAreaDuration = selection.end - selection.start;
-      ctx.globalAlpha = 0.3;
-      ctx.fillStyle = COLOR_ACCENT;
-      ctx.fillRect(
-        timescale.timeToPx(selection.start),
-        0,
-        timescale.durationToPx(selectedAreaDuration),
-        size.height,
-      );
-      ctx.globalAlpha = 1.0;
+      const startPx = timescale.timeToPx(selection.start);
+      const endPx = timescale.timeToPx(selection.end);
+
+      // Clamp to viewport bounds [0, size.width]
+      const clampedStartPx = Math.max(0, startPx);
+      const clampedEndPx = Math.min(size.width, endPx);
+      const clampedWidth = clampedEndPx - clampedStartPx;
+
+      // Only draw if there's a visible portion
+      if (clampedWidth > 0) {
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = COLOR_ACCENT;
+        ctx.fillRect(clampedStartPx, 0, clampedWidth, size.height);
+        ctx.globalAlpha = 1.0;
+      }
     }
   }
 

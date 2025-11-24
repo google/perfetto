@@ -24,6 +24,9 @@
 
 namespace perfetto {
 namespace trace_processor {
+
+using RowReference = tables::ThreadStateTable::RowReference;
+
 ThreadStateTracker::ThreadStateTracker(TraceProcessorContext* context)
     : storage_(context->storage.get()),
       context_(context),
@@ -198,14 +201,13 @@ void ThreadStateTracker::ClosePendingState(int64_t end_ts,
                                            UniqueTid utid,
                                            bool data_loss) {
   // Discard close if there is no open state to close.
-  if (!HasPreviousRowNumbersForUtid(utid))
+  auto row_ref = GetLastRowRef(utid);
+  if (!row_ref)
     return;
-
-  auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
 
   // Update the duration only for states without data loss.
   if (!data_loss) {
-    row_ref.set_dur(end_ts - row_ref.ts());
+    row_ref->set_dur(end_ts - row_ref->ts());
   }
 }
 
@@ -214,6 +216,11 @@ void ThreadStateTracker::PushThreadState(int64_t ts,
                                          StringId state,
                                          std::optional<uint16_t> cpu) {
   ClosePendingState(ts, utid, false /*data_loss*/);
+
+  if (auto row_ref = GetLastRowRef(utid); row_ref && ts == row_ref->ts()) {
+    // Detected two thread state event changes at the same time.
+    storage_->IncrementStats(stats::generic_task_state_invalid_order);
+  }
 
   AddOpenState(ts, utid, state, cpu);
 }
@@ -225,28 +232,26 @@ void ThreadStateTracker::UpdatePendingState(
     std::optional<UniqueTid> waker_utid,
     std::optional<uint16_t> common_flags) {
   // Discard update if there is no open state to close.
-  if (!HasPreviousRowNumbersForUtid(utid))
+  auto row_ref = GetLastRowRef(utid);
+  if (!row_ref)
     return;
 
-  auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
-
-  row_ref.set_state(state);
+  row_ref->set_state(state);
   if (cpu)
-    row_ref.set_ucpu(context_->cpu_tracker->GetOrCreateCpu(*cpu));
+    row_ref->set_ucpu(context_->cpu_tracker->GetOrCreateCpu(*cpu));
   if (waker_utid)
-    row_ref.set_waker_utid(*waker_utid);
+    row_ref->set_waker_utid(*waker_utid);
   if (common_flags.has_value()) {
-    row_ref.set_irq_context(CommonFlagsToIrqContext(*common_flags));
+    row_ref->set_irq_context(CommonFlagsToIrqContext(*common_flags));
   }
 }
 
 StringId ThreadStateTracker::GetPrevEndState(UniqueTid utid) {
-  if (!HasPreviousRowNumbersForUtid(utid))
+  auto row_ref = GetLastRowRef(utid);
+  if (!row_ref)
     return kNullStringId;
 
-  auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
-
-  return row_ref.state();
+  return row_ref->state();
 }
 
 bool ThreadStateTracker::IsRunning(StringId state) {
@@ -259,6 +264,14 @@ bool ThreadStateTracker::IsRunnable(StringId state) {
 
 bool ThreadStateTracker::IsBlocked(StringId state) {
   return !(IsRunnable(state) || IsRunning(state));
+}
+
+PERFETTO_ALWAYS_INLINE
+std::optional<RowReference> ThreadStateTracker::GetLastRowRef(UniqueTid utid) {
+  if (!HasPreviousRowNumbersForUtid(utid))
+    return std::nullopt;
+
+  return RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
 }
 
 }  // namespace trace_processor

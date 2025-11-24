@@ -846,6 +846,23 @@ MODULES_TABLE = Table(
             'name': '''Name of the enabled module.''',
         }))
 
+TRACE_IMPORT_LOGS_TABLE = Table(
+    python_module=__file__,
+    class_name='TraceImportLogsTable',
+    sql_name='__intrinsic_trace_import_logs',
+    columns=[
+        C('trace_id', CppUint32()),
+        C('ts', CppOptional(CppInt64())),
+        C('byte_offset', CppOptional(CppInt64())),
+        C('stat_key', CppInt64()),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
@@ -857,6 +874,7 @@ ALL_TABLES = [
     EXP_MISSING_CHROME_PROC_TABLE,
     FILEDESCRIPTOR_TABLE,
     FTRACE_EVENT_TABLE,
+    TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,
     MODULES_TABLE,

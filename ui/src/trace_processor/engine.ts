@@ -79,7 +79,7 @@ export interface Engine {
    * @param sql The query to execute.
    * @param tag An optional tag used to trace the origin of the query.
    */
-  query(sql: string, tag?: string): Promise<QueryResult>;
+  query(sql: string): Promise<QueryResult>;
 
   /**
    * Execute a query against the database, returning a promise that resolves
@@ -93,7 +93,7 @@ export interface Engine {
    * @param sql The query to execute.
    * @param tag An optional tag used to trace the origin of the query.
    */
-  tryQuery(sql: string, tag?: string): Promise<Result<QueryResult>>;
+  tryQuery(sql: string): Promise<Result<QueryResult>>;
 
   /**
    * Execute one or more metric and get the result.
@@ -522,9 +522,7 @@ export abstract class EngineBase implements Engine, Disposable {
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new protos.QueryArgs();
     rpc.queryArgs.sqlQuery = sqlQuery;
-    if (tag) {
-      rpc.queryArgs.tag = tag;
-    }
+    rpc.queryArgs.tag = tag;
     this.pendingQueries.push(result);
     this.rpcSendRequest(rpc);
   }
@@ -550,9 +548,9 @@ export abstract class EngineBase implements Engine, Disposable {
   // Note: This function is less flexible than .execute() as it only returns a
   // promise which must be unwrapped before the QueryResult may be accessed.
   async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
-    const queryLog = this.logQueryStart(sqlQuery);
+    const queryLog = this.logQueryStart(sqlQuery, tag);
     try {
-      const result = createQueryResult({query: sqlQuery});
+      const result = createQueryResult({query: sqlQuery, tag});
       this.streamingQuery(result, sqlQuery, tag);
       const resolvedResult = await result;
       queryLog.success = true;
@@ -688,8 +686,8 @@ export abstract class EngineBase implements Engine, Disposable {
 // Lightweight engine proxy which annotates all queries with a tag
 export class EngineProxy implements Engine, Disposable {
   private engine: EngineBase;
-  private tag: string;
   private disposed = false;
+  private tag: string;
 
   get queryLog() {
     return this.engine.queryLog;
@@ -700,21 +698,21 @@ export class EngineProxy implements Engine, Disposable {
     this.tag = tag;
   }
 
-  async query(query: string, tag?: string): Promise<QueryResult> {
+  async query(query: string): Promise<QueryResult> {
     if (this.disposed) {
       // If we are disposed (the trace was closed), return an empty QueryResult
       // that will never see any data or EOF. We can't do otherwise or it will
       // cause crashes to code calling firstRow() and expecting data.
-      return createQueryResult({query});
+      return createQueryResult({query, tag: this.tag});
     }
-    return await this.engine.query(query, tag);
+    return await this.engine.query(query, this.tag);
   }
 
-  async tryQuery(query: string, tag?: string): Promise<Result<QueryResult>> {
+  async tryQuery(query: string): Promise<Result<QueryResult>> {
     if (this.disposed) {
       return errResult(`EngineProxy ${this.tag} was disposed`);
     }
-    return await this.engine.tryQuery(query, tag);
+    return await this.engine.tryQuery(query);
   }
 
   async computeMetric(

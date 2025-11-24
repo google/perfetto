@@ -18,18 +18,22 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
+  SourceNode,
+  nextNodeId,
 } from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
-import {SourceNode} from '../../source_node';
 
-export class TestNode extends SourceNode {
+export class TestNode implements SourceNode {
+  readonly nodeId: string;
+  readonly state: QueryNodeState;
   isDevNode = true;
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
 
   constructor(state: QueryNodeState) {
-    super(state);
+    this.nodeId = nextNodeId();
+    this.state = state;
     this.finalCols = createFinalColumns([]);
     this.nextNodes = [];
   }
@@ -54,11 +58,15 @@ export class TestNode extends SourceNode {
     return m('div', 'Test Node');
   }
 
-  isMaterialised(): boolean {
-    return false;
+  nodeInfo(): m.Children {
+    return m('div', 'Test Node Info');
   }
 
   serializeState(): object {
     return {};
+  }
+
+  validate(): boolean {
+    return true;
   }
 }

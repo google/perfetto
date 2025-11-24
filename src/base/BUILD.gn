@@ -21,7 +21,7 @@ import("../../gn/wasm.gni")
 # On standalone builds this is all the OSes we support. On chromium builds,
 # though, this really means !is_fuchsia && !is_nacl.
 _subprocess_supported =
-    is_linux || is_chromeos || is_android || is_mac || is_win
+    is_linux || is_chromeos || is_android || is_mac || is_win || is_freebsd
 
 perfetto_component("base") {
   deps = [
@@ -213,6 +213,7 @@ perfetto_unittest_source_set("unittests") {
     "bits_unittest.cc",
     "circular_queue_unittest.cc",
     "dynamic_string_writer_unittest.cc",
+    "file_utils_unittest.cc",
     "fixed_string_writer_unittest.cc",
     "flags_unittest.cc",
     "flat_hash_map_unittest.cc",

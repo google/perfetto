@@ -57,6 +57,26 @@ base::StatusOr<std::string> TraceRedactionIntegrationFixure::LoadRedacted()
   return ReadRawTrace(dest_trace_);
 }
 
+std::unique_ptr<trace_processor::TraceProcessor>
+TraceRedactionIntegrationFixure::CreateTraceProcessor(std::string_view raw) {
+  auto read_buffer = std::make_unique<uint8_t[]>(raw.size());
+  memcpy(read_buffer.get(), raw.data(), raw.size());
+
+  trace_processor::Config config;
+  auto trace_processor =
+      trace_processor::TraceProcessor::CreateInstance(config);
+
+  auto parsed = trace_processor->Parse(std::move(read_buffer), raw.size());
+
+  if (!parsed.ok()) {
+    return nullptr;
+  }
+  if (auto status = trace_processor->NotifyEndOfFile(); !status.ok()) {
+    return nullptr;
+  }
+  return trace_processor;
+}
+
 base::StatusOr<std::string> TraceRedactionIntegrationFixure::ReadRawTrace(
     const std::string& path) const {
   std::string redacted_buffer;

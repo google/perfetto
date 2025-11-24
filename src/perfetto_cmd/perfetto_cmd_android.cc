@@ -20,18 +20,33 @@
 
 #include <cinttypes>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
-#include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/android_internal/incident_service.h"
 #include "src/android_internal/lazy_library_loader.h"
 #include "src/android_internal/tracing_service_proxy.h"
 
+#include "protos/perfetto/config/trace_config.gen.h"
+
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
 namespace perfetto {
 namespace {
+
+// traced runs as 'user nobody' (AID_NOBODY), defined here:
+// https://cs.android.com/android/platform/superproject/+/android-latest-release:system/core/libcutils/include/private/android_filesystem_config.h;l=203;drc=f5b540e2b7b9b325d99486d49c0ac57bdd0c5344
+// We only trust packages written by traced.
+static constexpr int32_t kTrustedUid = 9999;
+
+// Directory for local state and temporary files. This is automatically
+// created by the system by setting setprop persist.traced.enable=1.
+const char* kStateDir = "/data/misc/perfetto-traces";
 
 constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 
@@ -184,6 +199,49 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
   if (!fd)
     PERFETTO_PLOG("Could not create a temporary trace file in %s", kStateDir);
   return fd;
+}
+
+// static
+std::optional<TraceConfig> PerfettoCmd::ParseTraceConfigFromMmapedTrace(
+    base::ScopedMmap mmapped_trace) {
+  PERFETTO_CHECK(mmapped_trace.IsValid());
+
+  protozero::ProtoDecoder trace_decoder(mmapped_trace.data(),
+                                        mmapped_trace.length());
+
+  for (auto packet = trace_decoder.ReadField(); packet;
+       packet = trace_decoder.ReadField()) {
+    if (packet.id() != protos::pbzero::Trace::kPacketFieldNumber ||
+        packet.type() !=
+            protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+      return std::nullopt;
+    }
+
+    protozero::ProtoDecoder packet_decoder(packet.as_bytes());
+
+    auto trace_config_field = packet_decoder.FindField(
+        protos::pbzero::TracePacket::kTraceConfigFieldNumber);
+    if (!trace_config_field)
+      continue;
+
+    auto trusted_uid_field = packet_decoder.FindField(
+        protos::pbzero::TracePacket::kTrustedUidFieldNumber);
+    if (!trusted_uid_field)
+      continue;
+
+    int32_t uid_value = trusted_uid_field.as_int32();
+
+    if (uid_value != kTrustedUid)
+      continue;
+
+    TraceConfig trace_config;
+    if (trace_config.ParseFromArray(trace_config_field.data(),
+                                    trace_config_field.size())) {
+      return trace_config;
+    }
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace perfetto

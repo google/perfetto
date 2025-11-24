@@ -42,13 +42,14 @@ import {
   StandardColumn,
   TimestampColumn,
 } from '../../components/widgets/sql/table/columns';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 
 function createPluginSliceIdColumn(
   trace: Trace,
   trackUri: string,
   name: string,
 ): TableColumn {
-  const col = new StandardColumn(name);
+  const col = new StandardColumn(name, undefined);
   col.renderCell = (value: SqlValue, tableManager: TableManager) => {
     if (value === null || typeof value !== 'bigint') {
       return renderStandardCell(value, name, tableManager);
@@ -71,11 +72,11 @@ function createScrollTimelineTableColumns(
 ): TableColumn[] {
   return [
     createPluginSliceIdColumn(trace, trackUri, 'id'),
-    new StandardColumn('scroll_update_id'),
+    new StandardColumn('scroll_update_id', PerfettoSqlTypes.INT),
     new TimestampColumn(trace, 'ts'),
     new DurationColumn(trace, 'dur'),
-    new StandardColumn('name'),
-    new StandardColumn('classification'),
+    new StandardColumn('name', PerfettoSqlTypes.STRING),
+    new StandardColumn('classification', PerfettoSqlTypes.STRING),
   ];
 }
 
