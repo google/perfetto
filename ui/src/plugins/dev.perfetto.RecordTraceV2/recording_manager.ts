@@ -355,7 +355,6 @@ export class CurrentTracingSession {
       ) {
         this.autoOpenedTriggered = true;
         this.openTrace();
-        window.location.hash = '#!/viewer';
       }
     });
   }
