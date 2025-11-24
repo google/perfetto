@@ -91,6 +91,9 @@ on property:persist.traced.enable=1
     # too many other domains can write into that. See b/170404111.
     mkdir /data/misc/perfetto-configs 0775 root shell
 
+    # TODO(ktimofeev): add a comment about persistent traces locations
+    mkdir /data/misc/perfetto-traces/persistent 0777 root shell
+
     stop traced_relay
     start traced
     start traced_probes

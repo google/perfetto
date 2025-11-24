@@ -26,13 +26,13 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/thread_task_runner.h"
-#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -42,6 +42,15 @@
 #include "src/perfetto_cmd/packet_writer.h"
 
 namespace perfetto {
+
+// Forward declaration for a proto.
+namespace protos::gen {
+class TraceConfig_AndroidReportConfig;
+}  // namespace protos::gen
+
+// Directory for persistent files, used on Android. This is automatically
+// created by the system by setting setprop persist.traced.enable=1.
+extern const char* kAndroidPersistentStateDir;
 
 class PerfettoCmd : public Consumer {
  public:
@@ -146,11 +155,20 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
-  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
-      base::ScopedMmap mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
-  void ReportTraceToAndroidFrameworkOrCrash();
+  base::Status ReportTraceToAndroidFramework(
+      base::ScopedFile trace_fd,
+      uint64_t trace_size,
+      const protos::gen::TraceConfig_AndroidReportConfig& report_config,
+      const base::Uuid& uuid,
+      const std::string& unique_session_name);
+  void ReportTraceToAndroidFrameworkOrCrash(base::ScopedFile trace_fd,
+                                            uint64_t trace_size);
+  static std::vector<base::ScopedFile>
+  UnlinkAndReturnPersistentTracesToUpload();
+  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
+      base::ScopedMmap mmapped_trace);
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);

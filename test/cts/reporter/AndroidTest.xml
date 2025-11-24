@@ -31,6 +31,13 @@
         <option name="run-command" value="pm clear android.perfetto.cts.reporter"/>
         <option name="teardown-command" value="pm clear android.perfetto.cts.reporter"/>
     </target_preparer>
+    <!-- Remove any persistent trace files, that may be left if the test crashed or failed. -->
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <!-- Don't throw if there is nothing to remove. -->
+        <option name="throw-if-cmd-fail" value="false" />
+        <option name="run-command" value="rm /data/misc/perfetto-traces/persistent/*"/>
+        <option name="teardown-command" value="rm /data/misc/perfetto-traces/persistent/*"/>
+    </target_preparer>
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="CtsPerfettoReporterTestCases->/data/local/tmp/CtsPerfettoReporterTestCases" />

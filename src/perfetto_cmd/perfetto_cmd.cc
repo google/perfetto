@@ -119,6 +119,9 @@ void ArgsAppend(std::string* str, const std::string& arg) {
 }
 }  // namespace
 
+const char* kAndroidPersistentStateDir =
+    "/data/misc/perfetto-traces/persistent";
+
 PerfettoCmd::PerfettoCmd() {
   // Only the main thread instance on the main thread will receive ctrl-c.
   PerfettoCmd* set_if_null = nullptr;
@@ -768,6 +771,30 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
   }
 
+  if (upload_flag_ && trace_config_->persist_trace_after_reboot()) {
+    if (!trace_config_->write_into_file()) {
+      PERFETTO_ELOG(
+          "TraceConfig's 'write_into_file' must be true when using "
+          "'persist_trace_after_reboot'.");
+      return 1;
+    }
+    // TODO(ktimofeev): add comment on why we pass file name for the traced to
+    // create, tl;dr: it could be that session with name already started so it
+    // should be soft error, but we can't check it from perfetto_cmd.
+    if (trace_config_->unique_session_name().empty()) {
+      PERFETTO_ELOG(
+          "TraceConfig's 'unique_session_name' must be set when using "
+          "'persist_trace_after_reboot'.");
+      return 1;
+    }
+    // TODO(ktimofeev): add comment on why we SHOULD NOT store `output_path` in
+    // `trace_out_path_`.
+    std::string output_path = std::string(kAndroidPersistentStateDir) + "/" +
+                              trace_config_->unique_session_name() + ".pftrace";
+    PERFETTO_CHECK(trace_config_->output_path().empty());
+    trace_config_->set_output_path(output_path);
+  }
+
   // |activate_triggers| in the trace config is shorthand for trigger_perfetto.
   // In this case we don't intend to send any trace config to the service,
   // rather use that as a signal to the cmdline client to connect as a producer
@@ -1238,7 +1265,21 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 #endif
   } else if (report_to_android_framework_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    ReportTraceToAndroidFrameworkOrCrash();
+    // TODO(ktimofeev): can we be here during normal android reboot (we received
+    // SIGKILL)? If we can, we SHOULD NOT unlink the trace file in that case.
+    PERFETTO_LOG("FinalizeTraceAndExit, unique_session_name: %s",
+                 trace_config_->unique_session_name().c_str());
+    if (trace_config_->persist_trace_after_reboot()) {
+      // TODO(ktimofeev): store this path as a perfetto_cmd field?
+      base::ScopedFile trace_fd =
+          base::OpenFile(trace_config_->output_path(), O_RDONLY);
+      uint64_t file_size = base::GetFileSize(*trace_fd).value_or(0);
+      unlink(trace_config_->output_path().c_str());
+      ReportTraceToAndroidFrameworkOrCrash(std::move(trace_fd), file_size);
+    } else {
+      ReportTraceToAndroidFrameworkOrCrash(
+          base::ScopedFile(dup(fileno(*trace_out_stream_))), bytes_written_);
+    }
 #endif
   } else {
     trace_out_stream_.reset();
