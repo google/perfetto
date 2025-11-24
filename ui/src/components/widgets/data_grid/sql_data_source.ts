@@ -26,6 +26,7 @@ import {
   Pagination,
   AggregateSpec,
   areAggregateArraysEqual,
+  compareSqlValues,
 } from './common';
 
 export class SQLDataSource implements DataGridDataSource {
@@ -133,6 +134,46 @@ export class SQLDataSource implements DataGridDataSource {
 
     // Return all rows
     return result.rows;
+  }
+
+  /**
+   * Get distinct values for a column with current filters applied.
+   */
+  async getDistinctValues(
+    column: string,
+    maxValues: number,
+  ): Promise<SqlValue[] | 'too_many' | 'error'> {
+    if (!this.workingQuery) {
+      return 'error';
+    }
+
+    try {
+      const query = `
+        SELECT DISTINCT ${column}
+        FROM (${this.workingQuery})
+        WHERE ${column} IS NOT NULL
+        LIMIT ${maxValues + 1}
+      `;
+
+      const result = await this.engine.query(query);
+
+      if (result.numRows() > maxValues) {
+        return 'too_many';
+      }
+
+      const values: SqlValue[] = [];
+      for (const it = result.iter({}); it.valid(); it.next()) {
+        values.push(it.get(column));
+      }
+
+      // Sort the values
+      values.sort(compareSqlValues);
+
+      return values;
+    } catch (error) {
+      console.error('Failed to fetch distinct values:', error);
+      return 'error';
+    }
   }
 
   /**

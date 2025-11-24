@@ -104,6 +104,16 @@ export interface DataGridDataSource {
    * Returns a promise that resolves to all filtered and sorted rows.
    */
   exportData(): Promise<readonly RowDef[]>;
+
+  /**
+   * Get distinct values for a column with current filters applied.
+   * Returns up to maxValues distinct values, or 'too_many' if there are more.
+   * Returns 'error' if the query fails.
+   */
+  getDistinctValues?(
+    column: string,
+    maxValues: number,
+  ): Promise<SqlValue[] | 'too_many' | 'error'>;
 }
 
 /**
@@ -156,4 +166,37 @@ export function areAggregatesEqual(
   b: AggregateSpec,
 ): boolean {
   return a.col === b.col && a.func === b.func;
+}
+
+/**
+ * Comparator function for SQL values.
+ * Handles strings (locale comparison), numbers, bigints, Uint8Arrays, and nulls.
+ */
+export function compareSqlValues(a: SqlValue, b: SqlValue): number {
+  // Handle null values - nulls come first
+  if (a === null && b === null) return 0;
+  if (a === null) return -1;
+  if (b === null) return 1;
+
+  if (typeof a === 'number' && typeof b === 'number') {
+    return a - b;
+  }
+
+  if (typeof a === 'bigint' && typeof b === 'bigint') {
+    return Number(a - b);
+  }
+
+  if (typeof a === 'string' && typeof b === 'string') {
+    return a.localeCompare(b);
+  }
+
+  if (a instanceof Uint8Array && b instanceof Uint8Array) {
+    // Compare by length for Uint8Arrays
+    return a.length - b.length;
+  }
+
+  // Default comparison using string conversion
+  const strA = String(a);
+  const strB = String(b);
+  return strA.localeCompare(strB);
 }

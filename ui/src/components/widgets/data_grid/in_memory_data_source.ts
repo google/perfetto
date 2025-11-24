@@ -24,6 +24,7 @@ import {
   AggregateSpec,
   areAggregateArraysEqual,
   DataGridFilter,
+  compareSqlValues,
 } from './common';
 
 export class InMemoryDataSource implements DataGridDataSource {
@@ -85,6 +86,39 @@ export class InMemoryDataSource implements DataGridDataSource {
   async exportData(): Promise<readonly RowDef[]> {
     // Return all the filtered and sorted data
     return this.filteredSortedData;
+  }
+
+  /**
+   * Get distinct values for a column with current filters applied.
+   */
+  async getDistinctValues(
+    column: string,
+    maxValues: number,
+  ): Promise<SqlValue[] | 'too_many' | 'error'> {
+    try {
+      // Extract unique values from the filtered data
+      const uniqueValues = new Set<SqlValue>();
+
+      for (const row of this.filteredSortedData) {
+        const value = row[column];
+        if (value !== null) {
+          uniqueValues.add(value);
+          // Check if we've exceeded the limit
+          if (uniqueValues.size > maxValues) {
+            return 'too_many';
+          }
+        }
+      }
+
+      // Convert Set to Array and sort
+      const values = Array.from(uniqueValues);
+      values.sort(compareSqlValues);
+
+      return values;
+    } catch (error) {
+      console.error('Failed to fetch distinct values:', error);
+      return 'error';
+    }
   }
 
   private calcAggregates(
@@ -240,40 +274,8 @@ export class InMemoryDataSource implements DataGridDataSource {
       const valueA = a[sortColumn];
       const valueB = b[sortColumn];
 
-      // Handle null values - they come first in ascending, last in descending
-      if (valueA === null && valueB === null) return 0;
-      if (valueA === null) return sortDirection === 'ASC' ? -1 : 1;
-      if (valueB === null) return sortDirection === 'ASC' ? 1 : -1;
-
-      if (typeof valueA === 'number' && typeof valueB === 'number') {
-        return sortDirection === 'ASC' ? valueA - valueB : valueB - valueA;
-      }
-
-      if (typeof valueA === 'bigint' && typeof valueB === 'bigint') {
-        return sortDirection === 'ASC'
-          ? Number(valueA - valueB)
-          : Number(valueB - valueA);
-      }
-
-      if (typeof valueA === 'string' && typeof valueB === 'string') {
-        return sortDirection === 'ASC'
-          ? valueA.localeCompare(valueB)
-          : valueB.localeCompare(valueA);
-      }
-
-      if (valueA instanceof Uint8Array && valueB instanceof Uint8Array) {
-        // Compare by length for Uint8Arrays
-        return sortDirection === 'ASC'
-          ? valueA.length - valueB.length
-          : valueB.length - valueA.length;
-      }
-
-      // Default comparison using string conversion
-      const strA = String(valueA);
-      const strB = String(valueB);
-      return sortDirection === 'ASC'
-        ? strA.localeCompare(strB)
-        : strB.localeCompare(strA);
+      const cmp = compareSqlValues(valueA, valueB);
+      return sortDirection === 'ASC' ? cmp : -cmp;
     });
   }
 }

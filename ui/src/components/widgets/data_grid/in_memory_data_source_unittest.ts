@@ -403,4 +403,92 @@ describe('InMemoryDataSource', () => {
     expect(result.aggregates.tag).toBe('C'); // Max tag alphabetically
     expect(result.aggregates.id).toBe(1);
   });
+
+  describe('getDistinctValues', () => {
+    test('returns distinct values excluding nulls', async () => {
+      const result = await dataSource.getDistinctValues('tag', 100);
+      expect(Array.isArray(result)).toBe(true);
+      if (Array.isArray(result)) {
+        expect(result).toEqual(['A', 'B', 'C']);
+      }
+    });
+
+    test('returns distinct numeric values', async () => {
+      const result = await dataSource.getDistinctValues('active', 100);
+      expect(Array.isArray(result)).toBe(true);
+      if (Array.isArray(result)) {
+        expect(result).toEqual([0, 1]);
+      }
+    });
+
+    test('excludes null values', async () => {
+      const result = await dataSource.getDistinctValues('value', 100);
+      expect(Array.isArray(result)).toBe(true);
+      if (Array.isArray(result)) {
+        // David has null value, should be excluded
+        expect(result).toEqual([100, 150, 200, 250n, 300n]);
+        expect(result).not.toContain(null);
+      }
+    });
+
+    test('returns "too_many" when exceeding maxValues', async () => {
+      const result = await dataSource.getDistinctValues('tag', 2);
+      expect(result).toBe('too_many');
+    });
+
+    test('returns empty array when all values are null', async () => {
+      const nullData: ReadonlyArray<RowDef> = [
+        {id: 1, col: null},
+        {id: 2, col: null},
+        {id: 3, col: null},
+      ];
+      const nullDataSource = new InMemoryDataSource(nullData);
+      const result = await nullDataSource.getDistinctValues('col', 100);
+      expect(Array.isArray(result)).toBe(true);
+      if (Array.isArray(result)) {
+        expect(result).toEqual([]);
+      }
+    });
+
+    test('returns sorted values', async () => {
+      const result = await dataSource.getDistinctValues('name', 100);
+      expect(Array.isArray(result)).toBe(true);
+      if (Array.isArray(result)) {
+        expect(result).toEqual([
+          'Alice',
+          'Bob',
+          'Charlie',
+          'David',
+          'Eve',
+          'Mallory',
+          'Trent',
+        ]);
+      }
+    });
+
+    test('respects current filters', async () => {
+      // Filter to only active=1
+      const filters: DataGridFilter[] = [{column: 'active', op: '=', value: 1}];
+      dataSource.notifyUpdate({filters});
+
+      const result = await dataSource.getDistinctValues('tag', 100);
+      expect(Array.isArray(result)).toBe(true);
+      if (Array.isArray(result)) {
+        // Only Alice, Charlie, Eve, Trent have active=1
+        // Their tags are A, A, B, A
+        expect(result).toEqual(['A', 'B']);
+        expect(result).not.toContain('C');
+      }
+    });
+
+    test('handles bigint values correctly', async () => {
+      const result = await dataSource.getDistinctValues('value', 100);
+      expect(Array.isArray(result)).toBe(true);
+      if (Array.isArray(result)) {
+        // Should include both numbers and bigints
+        expect(result).toContain(250n);
+        expect(result).toContain(300n);
+      }
+    });
+  });
 });
