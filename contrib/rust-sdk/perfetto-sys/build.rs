@@ -15,6 +15,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 fn main() {
@@ -60,17 +61,28 @@ fn main() {
         if !lib_debug {
             build.define("NDEBUG", None);
         }
+        if env::var("CXX").is_err() {
+            if Command::new("clang++").arg("--version").output().is_ok() {
+                build.compiler("clang++");
+            } else {
+                println!("cargo:warning=Clang not found; falling back to default compiler");
+            }
+        }
         build
             .cpp(true)
             .file(source_file)
             .file(atomic_bool_check_file)
             .std("c++17")
             .debug(lib_debug)
-            .warnings(false)
+            .flag("-Wno-redundant-move")
+            .flag("-Wno-unused-const-variable")
+            .flag_if_supported("-Wno-pragma-system-header-outside-header")
+            .flag_if_supported("-Wno-unneeded-internal-declaration")
             .compile("perfetto_c");
         println!("cargo:rerun-if-changed=libperfetto_c/perfetto_c.cc");
         println!("cargo:rerun-if-changed=libperfetto_c/perfetto_c.h");
         println!("cargo:rerun-if-env-changed=PERFETTO_SYS_LIB_DEBUG");
+        println!("cargo:rerun-if-env-changed=CXX");
     } else {
         let lib_path = env::var("PERFETTO_SYS_LIB_DIR")
             .expect("Set PERFETTO_SYS_LIB_DIR for non-vendored builds");
