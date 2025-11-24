@@ -17,14 +17,11 @@
 #include "test/gtest_and_gmock.h"
 
 #include <fstream>
-#include <ostream>
-#include <sstream>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/base/test/utils.h"
 #include "src/traceconv/pprof_reader.h"
@@ -49,7 +46,7 @@ pprof::PprofProfileReader ConvertTraceToPprof(
   trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
                                 /*timestamps=*/{},
                                 /*annotate_frames=*/false, out_dirname,
-                                ConversionMode::kJavaHeapProfile);
+                                /*conversion_mode=*/std::nullopt);
   std::vector<std::string> filenames;
   base::ListFilesRecursive(out_dirname, filenames);
   // assumption: all test inputs contain exactly one profile
@@ -150,6 +147,29 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
     remove((output_dir + "/" + file).c_str());
 
   base::Rmdir(output_dir);
+}
+
+TEST_F(TraceToPprofTest, DetectPerfSampleMode) {
+  const auto pprof = ConvertTraceToPprof("test/data/perf_sample_sc.pb");
+
+  // "traceconv profile" correctly identifies that this is a perf profile.
+  EXPECT_EQ(pprof.get_sample_count(), 6U);
+  EXPECT_EQ(pprof.get_samples_value_sum(
+                "android::RefBase::incStrong(void const*) const", "samples"),
+            1U);
+}
+
+TEST_F(TraceToPprofTest, DetectHeapprofdSampleMode) {
+  const auto pprof = ConvertTraceToPprof(
+      "test/data/heapprofd_standalone_client_example-trace");
+
+  // "traceconv profile" correctly identifies that this is a heap profile.
+  EXPECT_EQ(pprof.get_sample_count(), 1U);
+  EXPECT_EQ(pprof.get_samples_value_sum(
+                "perfetto::profiling::Client::RecordMalloc(unsigned int, "
+                "unsigned long, unsigned long, unsigned long)",
+                "Unreleased size"),
+            1416U);
 }
 
 class TraceToPprofRealTraceTest : public ::testing::Test {
