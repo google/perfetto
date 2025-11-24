@@ -47,11 +47,7 @@ struct SerializedProfile {
   std::string heap_name;
 };
 
-enum class ConversionMode : uint64_t {
-  kHeapProfile,
-  kPerfProfile,
-  kJavaHeapProfile
-};
+enum class ConversionMode { kHeapProfile, kPerfProfile, kJavaHeapProfile };
 
 enum class ConversionFlags : uint64_t {
   kNone = 0,

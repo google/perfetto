@@ -91,7 +91,6 @@ export function createPerfCallsitesTrack(
         schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
         state: undefined,
       };
-      let state = detailsPanelState;
       const flamegraph = new QueryFlamegraph(trace);
       const metrics: ReadonlyArray<QueryFlamegraphMetric> =
         metricsFromTableOrSubquery(
@@ -130,6 +129,7 @@ export function createPerfCallsitesTrack(
             },
           ],
         );
+      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
 
       return {
         load: async () => {

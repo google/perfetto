@@ -129,9 +129,17 @@ std::optional<ConversionMode> DetectConversionMode(
     PERFETTO_LOG("No profiles found.");
     return std::nullopt;
   } else if (count > 1) {
-    PERFETTO_ELOG(
+    std::string err_msg =
         "More than one type of profile found in the trace, pass an explicit "
-        "disambiguation flag (--alloc / --perf / --java-heap).");
+        "disambiguation flag:\n";
+    if (alloc_present)
+      err_msg += "  --alloc: allocator profile\n";
+    if (perf_present)
+      err_msg += "  --perf: perf profile\n";
+    if (graph_present)
+      err_msg += "  --java-heap: java heap graph\n";
+
+    PERFETTO_ELOG("%s", err_msg.c_str());
     return std::nullopt;
   }
   return alloc_present  ? ConversionMode::kHeapProfile
