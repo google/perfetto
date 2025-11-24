@@ -64,21 +64,6 @@ bool CanConnectToSocket(const std::string& path) {
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
-bool IsSystemdServiceInstalled() {
-#if PERFETTO_BUILDFLAG(PERFETTO_SYSTEMD)
-  constexpr const char* kSystemdServices[] = {
-      "/etc/systemd/system/traced.service",
-      "/lib/systemd/system/traced.service",
-      "/usr/lib/systemd/system/traced.service",
-  };
-  for (const char* path : kSystemdServices) {
-    if (base::FileExists(path))
-      return true;
-  }
-#endif
-  return false;
-}
-
 std::string GetPidFilePath(const char* daemon_name) {
   return base::GetSysTempDir() + "/" + daemon_name + ".pid";
 }
@@ -150,22 +135,6 @@ int CtlStop() {
   printf("Daemons are running. Use Task Manager to stop them.\n");
   return 1;
 #else
-  if (IsSystemdServiceInstalled()) {
-    if (base::GetCurrentUserId() != 0) {
-      printf(
-          "Managed by systemd. Use: sudo systemctl stop traced "
-          "traced-probes\n");
-      return 0;
-    }
-    printf("Systemd service found. Stopping via systemctl...\n");
-    if (system("systemctl stop traced traced-probes") == 0) {
-      printf("All daemons stopped.\n");
-      return 0;
-    }
-    printf("Error: Failed to stop systemd services.\n");
-    return 1;
-  }
-
   int daemons_stopped = 0, daemons_stored = 0;
   for (const char* daemon : kDaemons) {
     std::string pid_path = GetPidFilePath(daemon);
@@ -230,22 +199,6 @@ int CtlStart() {
   while (true)
     base::SleepMicroseconds(1000000);
 #else
-  if (IsSystemdServiceInstalled()) {
-    if (base::GetCurrentUserId() != 0) {
-      printf(R"(Error: Systemd service installed but requires root.
-Use: sudo systemctl start traced traced-probes
-)");
-      return 1;
-    }
-    printf("Starting daemons via systemd...\n");
-    if (system("systemctl start traced traced-probes") == 0) {
-      printf("Success: Daemons started via systemd.\n");
-      return 0;
-    }
-    printf("Failure: Not able to start Daemons via systemd.\n");
-    return 1;
-  }
-
   printf("Starting daemons...\n");
   std::string tracebox_path = base::GetCurExecutablePath();
   for (const char* daemon : kDaemons) {
@@ -286,12 +239,6 @@ int CtlStatus() {
   }
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  if (IsSystemdServiceInstalled()) {
-    printf("Systemd detected. Querying systemctl status:\n");
-    system("systemctl status traced traced-probes --no-pager -l");
-    return 0;
-  }
-
   bool stale_file_found = false;
   for (const char* daemon : kDaemons) {
     std::string pid_path = GetPidFilePath(daemon);
