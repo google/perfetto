@@ -53,6 +53,7 @@
   }
 
   &__options {
+    overflow: hidden;
     flex: 0;
     min-width: 250px;
     overflow: hidden;
@@ -63,7 +64,9 @@
     padding-block: 16px;
 
     label {
-      text-transform: capitalize;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
   }
 
