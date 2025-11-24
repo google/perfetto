@@ -215,7 +215,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           className: 'pf-query-page__results',
           data: dataSource,
           columns: queryResult.columns.map((c) => ({name: c})),
-          showExportButtons: true,
+          showExportButton: true,
           toolbarItemsLeft: m(
             'span.pf-query-page__results-summary',
             `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,

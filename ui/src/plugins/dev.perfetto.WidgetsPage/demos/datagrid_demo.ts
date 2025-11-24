@@ -117,7 +117,7 @@ export function renderDataGrid(app: App): m.Children {
         aggregation: false,
         showResetButton: false,
         demoToolbarItems: false,
-        showExportButtons: false,
+        showExportButton: false,
       },
       noPadding: true,
     }),

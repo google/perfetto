@@ -283,7 +283,7 @@ export interface DataGridAttrs {
    * buttons that export the current filtered/sorted data.
    * Default = false.
    */
-  readonly showExportButtons?: boolean;
+  readonly showExportButton?: boolean;
 
   /**
    * Optional value formatter for export. If not provided, uses the
@@ -399,7 +399,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsLeft,
       toolbarItemsRight,
       className,
-      showExportButtons = false,
+      showExportButton = false,
       valueFormatter,
       onReady,
     } = attrs;
@@ -904,7 +904,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showResetButton,
         toolbarItemsLeft,
         toolbarItemsRight,
-        showExportButtons,
+        showExportButton,
       ),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
@@ -985,13 +985,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     showResetButton: boolean,
     toolbarItemsLeft: m.Children,
     toolbarItemsRight: m.Children,
-    showExportButtons: boolean,
+    showExportButton: boolean,
   ) {
     if (
       filters.length === 0 &&
       !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
       showResetButton === false &&
-      showExportButtons === false
+      showExportButton === false
     ) {
       return undefined;
     }
@@ -1024,7 +1024,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             ]),
         ]),
         toolbarItemsRight,
-        showExportButtons && m(DataGridExportButton, {api: this.dataGridApi}),
+        showExportButton && m(DataGridExportButton, {api: this.dataGridApi}),
       ]),
     ]);
   }
