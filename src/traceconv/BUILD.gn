@@ -73,10 +73,10 @@ static_library("libpprofbuilder") {
 }
 
 source_set("lib") {
+  public_deps = [ ":pprofbuilder" ]
   deps = [
     ":gen_cc_trace_descriptor",
     ":gen_cc_winscope_descriptor",
-    ":pprofbuilder",
     ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
