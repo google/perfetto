@@ -37,14 +37,21 @@ export class ScrollHelper {
 
     if (time !== undefined) {
       const end = time.end ?? time.start;
-      if (time.viewPercentage !== undefined) {
+      const behavior = time.behavior ?? 'pan'; // Default to pan
+
+      if (typeof behavior === 'object' && 'viewPercentage' in behavior) {
+        // Explicit zoom percentage
         this.focusHorizontalRangePercentage(
           time.start,
           end,
-          time.viewPercentage,
+          behavior.viewPercentage,
         );
-      } else {
+      } else if (behavior === 'focus') {
+        // Smart focus: zoom and pan to center the event
         this.focusHorizontalRange(time.start, end);
+      } else {
+        // Pan: just move the viewport without changing zoom
+        this.panHorizontalRange(time.start, end);
       }
     }
 
@@ -60,6 +67,12 @@ export class ScrollHelper {
   ): void {
     const aoi = HighPrecisionTimeSpan.fromTime(start, end);
 
+    // For instant events (duration = 0), just pan to center without zoom
+    if (aoi.duration === 0) {
+      this.panHorizontalRange(start, end);
+      return;
+    }
+
     if (viewPercentage <= 0.0 || viewPercentage > 1.0) {
       console.warn(
         'Invalid value for [viewPercentage]. ' +
@@ -71,6 +84,15 @@ export class ScrollHelper {
     const paddingPercentage = 1.0 - viewPercentage;
     const halfPaddingTime = (aoi.duration * paddingPercentage) / 2;
     this.timeline.updateVisibleTimeHP(aoi.pad(halfPaddingTime));
+  }
+
+  private panHorizontalRange(start: time, end: time): void {
+    // Pan to center the range without changing zoom level
+    const visible = this.timeline.visibleWindow;
+    const aoi = HighPrecisionTimeSpan.fromTime(start, end);
+    const newStart = aoi.midpoint.subNumber(visible.duration / 2);
+    const newWindow = new HighPrecisionTimeSpan(newStart, visible.duration);
+    this.timeline.updateVisibleTimeHP(newWindow);
   }
 
   private focusHorizontalRange(start: time, end: time): void {
