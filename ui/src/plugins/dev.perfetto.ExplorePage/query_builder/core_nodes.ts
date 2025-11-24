@@ -92,6 +92,7 @@ export function registerCoreNodes() {
     description: 'Select, rename, and add new columns to the data.',
     icon: 'edit',
     type: 'modification',
+    category: 'Columns',
     factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
   });
 
@@ -101,6 +102,7 @@ export function registerCoreNodes() {
       'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
     icon: 'add_box',
     type: 'modification',
+    category: 'Columns',
     factory: (state) => {
       const fullState: AddColumnsNodeState = {
         ...state,
