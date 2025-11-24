@@ -42,7 +42,7 @@ RETURNS TableOrSubquery AS
     t1.dur,
     t1.curve_value AS $curve_col,
     iif($cpu IN _device_policies, coalesce(t1.static, 0), 0) AS $static_col,
-    t1.freq AS $freq_col,
+    coalesce(t1.freq, 0) AS $freq_col,
     coalesce(t1.idle, deepest.idle) AS $idle_col,
     t2.dep_policy AS $default_dep_policy,
     t2.dep_freq AS $default_dep_freq
@@ -58,7 +58,7 @@ RETURNS TableOrSubquery AS
     trace_dur(),
     0,
     0,
-    NULL,
+    0,
     idle,
     NULL,
     NULL
@@ -170,6 +170,25 @@ SELECT
   base.dur,
   cast_int!(l3_hit_rate * base.dur) AS l3_hit_count,
   cast_int!(l3_miss_rate * base.dur) AS l3_miss_count,
+  hash(
+    freq_0,
+    idle_0,
+    freq_1,
+    idle_1,
+    freq_2,
+    idle_2,
+    freq_3,
+    idle_3,
+    freq_4,
+    idle_4,
+    freq_5,
+    idle_5,
+    freq_6,
+    idle_6,
+    freq_7,
+    idle_7,
+    dsu_freq
+  ) AS config_hash,
   freq_0,
   idle_0,
   freq_1,
@@ -244,9 +263,60 @@ LEFT JOIN _stats_cpu6
 LEFT JOIN _stats_cpu7
   ON _stats_cpu7._auto_id = base.cpu7_id;
 
--- Slices based table with all independent and dependent CPU data
-CREATE PERFETTO TABLE _w_dependent_cpus_calc AS
+-- Slices view with all UNIQUE configs of independent and dependent CPU data
+CREATE PERFETTO VIEW _w_dependent_cpus_unique AS
 WITH
+  _w_unique_configs AS (
+    SELECT
+      config_hash,
+      freq_0,
+      idle_0,
+      freq_1,
+      idle_1,
+      freq_2,
+      idle_2,
+      freq_3,
+      idle_3,
+      freq_4,
+      idle_4,
+      freq_5,
+      idle_5,
+      freq_6,
+      idle_6,
+      freq_7,
+      idle_7,
+      cpu0_curve,
+      cpu1_curve,
+      cpu2_curve,
+      cpu3_curve,
+      cpu4_curve,
+      cpu5_curve,
+      cpu6_curve,
+      cpu7_curve,
+      default_dep_policy_0,
+      default_dep_policy_1,
+      default_dep_policy_2,
+      default_dep_policy_3,
+      default_dep_policy_4,
+      default_dep_policy_5,
+      default_dep_policy_6,
+      default_dep_policy_7,
+      default_dep_freq_0,
+      default_dep_freq_1,
+      default_dep_freq_2,
+      default_dep_freq_3,
+      default_dep_freq_4,
+      default_dep_freq_5,
+      default_dep_freq_6,
+      default_dep_freq_7,
+      dsu_freq,
+      static_1d,
+      all_cpu_deep_idle,
+      no_static
+    FROM _w_independent_cpus_calc
+    GROUP BY
+      config_hash
+  ),
   -- Only unpivot the necessary columns for dependency calculation.
   -- Additionally, only unpivot the necessary rows for dependency calculation
   -- based off of _cpu_lut_dependencies. The superset of the CROSS JOIN will be
@@ -254,27 +324,48 @@ WITH
   -- eliminate any possible CPU-pairing that are not possible dependencies.
   unpivoted_deps AS (
     SELECT
-      i.ts,
+      i.config_hash,
       d.cpu,
-      d.dep_cpu,
-      CASE d.dep_cpu
-        WHEN 0
-        THEN i.cpu0_curve
+      -- Determine the scoring value (Frequency or Curve) based on device
+      CASE v.vote_by_freq
         WHEN 1
-        THEN i.cpu1_curve
-        WHEN 2
-        THEN i.cpu2_curve
-        WHEN 3
-        THEN i.cpu3_curve
-        WHEN 4
-        THEN i.cpu4_curve
-        WHEN 5
-        THEN i.cpu5_curve
-        WHEN 6
-        THEN i.cpu6_curve
-        WHEN 7
-        THEN i.cpu7_curve
-      END AS curve,
+        THEN CASE d.dep_cpu
+          WHEN 0
+          THEN i.freq_0
+          WHEN 1
+          THEN i.freq_1
+          WHEN 2
+          THEN i.freq_2
+          WHEN 3
+          THEN i.freq_3
+          WHEN 4
+          THEN i.freq_4
+          WHEN 5
+          THEN i.freq_5
+          WHEN 6
+          THEN i.freq_6
+          WHEN 7
+          THEN i.freq_7
+        END
+        ELSE CASE d.dep_cpu
+          WHEN 0
+          THEN i.cpu0_curve
+          WHEN 1
+          THEN i.cpu1_curve
+          WHEN 2
+          THEN i.cpu2_curve
+          WHEN 3
+          THEN i.cpu3_curve
+          WHEN 4
+          THEN i.cpu4_curve
+          WHEN 5
+          THEN i.cpu5_curve
+          WHEN 6
+          THEN i.cpu6_curve
+          WHEN 7
+          THEN i.cpu7_curve
+        END
+      END AS vote_score,
       CASE d.dep_cpu
         WHEN 0
         THEN i.freq_0
@@ -293,6 +384,13 @@ WITH
         WHEN 7
         THEN i.freq_7
       END AS freq,
+      p.policy
+    FROM _w_unique_configs AS i, _cpu_lut_dependencies AS d
+    JOIN _dev_vote_by_freq AS v
+      ON d.cpu = v.cpu
+    JOIN _dev_cpu_policy_map AS p
+      ON d.dep_cpu = p.cpu
+    WHERE
       CASE d.dep_cpu
         WHEN 0
         THEN i.idle_0
@@ -310,96 +408,47 @@ WITH
         THEN i.idle_6
         WHEN 7
         THEN i.idle_7
-      END AS idle
-    FROM _w_independent_cpus_calc AS i
-    CROSS JOIN _cpu_lut_dependencies AS d
-  ),
-  -- For each CPU, find the dependent CPU with the highest "vote"
-  ranked_voters AS (
-    SELECT
-      u.ts,
-      u.cpu,
-      u.dep_cpu,
-      u.freq,
-      -- Rank dependencies by curve value or frequency
-      row_number() OVER (PARTITION BY u.ts, u.cpu ORDER BY CASE WHEN vote.vote_by_freq = 1 THEN u.freq ELSE NULL END DESC, CASE WHEN vote.vote_by_freq = 0 THEN u.curve ELSE NULL END DESC) AS rn
-    FROM unpivoted_deps AS u
-    JOIN _dev_vote_by_freq AS vote
-      ON u.cpu = vote.cpu
-    WHERE
-      u.idle = -1
+      END = -1
   ),
   max_voters AS (
     SELECT
-      ts,
+      config_hash,
       cpu,
-      dep_cpu,
-      freq
-    FROM ranked_voters
-    -- Keep only the top-ranked dependency.
-    WHERE
-      rn = 1
+      freq,
+      policy,
+      max(vote_score)
+    FROM unpivoted_deps
+    GROUP BY
+      config_hash,
+      cpu
   ),
   -- Pivot the results back into new columns.
   pivoted_results AS (
     SELECT
-      m.ts,
-      max(CASE WHEN m.cpu = 0 THEN m.freq END) AS dep_freq_0,
-      max(CASE WHEN m.cpu = 0 THEN p.policy END) AS dep_policy_0,
-      max(CASE WHEN m.cpu = 1 THEN m.freq END) AS dep_freq_1,
-      max(CASE WHEN m.cpu = 1 THEN p.policy END) AS dep_policy_1,
-      max(CASE WHEN m.cpu = 2 THEN m.freq END) AS dep_freq_2,
-      max(CASE WHEN m.cpu = 2 THEN p.policy END) AS dep_policy_2,
-      max(CASE WHEN m.cpu = 3 THEN m.freq END) AS dep_freq_3,
-      max(CASE WHEN m.cpu = 3 THEN p.policy END) AS dep_policy_3,
-      max(CASE WHEN m.cpu = 4 THEN m.freq END) AS dep_freq_4,
-      max(CASE WHEN m.cpu = 4 THEN p.policy END) AS dep_policy_4,
-      max(CASE WHEN m.cpu = 5 THEN m.freq END) AS dep_freq_5,
-      max(CASE WHEN m.cpu = 5 THEN p.policy END) AS dep_policy_5,
-      max(CASE WHEN m.cpu = 6 THEN m.freq END) AS dep_freq_6,
-      max(CASE WHEN m.cpu = 6 THEN p.policy END) AS dep_policy_6,
-      max(CASE WHEN m.cpu = 7 THEN m.freq END) AS dep_freq_7,
-      max(CASE WHEN m.cpu = 7 THEN p.policy END) AS dep_policy_7
-    FROM max_voters AS m
-    JOIN _dev_cpu_policy_map AS p
-      ON m.dep_cpu = p.cpu
+      config_hash,
+      max(CASE WHEN cpu = 0 THEN freq END) AS dep_freq_0,
+      max(CASE WHEN cpu = 0 THEN policy END) AS dep_policy_0,
+      max(CASE WHEN cpu = 1 THEN freq END) AS dep_freq_1,
+      max(CASE WHEN cpu = 1 THEN policy END) AS dep_policy_1,
+      max(CASE WHEN cpu = 2 THEN freq END) AS dep_freq_2,
+      max(CASE WHEN cpu = 2 THEN policy END) AS dep_policy_2,
+      max(CASE WHEN cpu = 3 THEN freq END) AS dep_freq_3,
+      max(CASE WHEN cpu = 3 THEN policy END) AS dep_policy_3,
+      max(CASE WHEN cpu = 4 THEN freq END) AS dep_freq_4,
+      max(CASE WHEN cpu = 4 THEN policy END) AS dep_policy_4,
+      max(CASE WHEN cpu = 5 THEN freq END) AS dep_freq_5,
+      max(CASE WHEN cpu = 5 THEN policy END) AS dep_policy_5,
+      max(CASE WHEN cpu = 6 THEN freq END) AS dep_freq_6,
+      max(CASE WHEN cpu = 6 THEN policy END) AS dep_policy_6,
+      max(CASE WHEN cpu = 7 THEN freq END) AS dep_freq_7,
+      max(CASE WHEN cpu = 7 THEN policy END) AS dep_policy_7
+    FROM max_voters
     GROUP BY
-      m.ts
+      config_hash
   )
 -- Join the calculated dependencies back to the original data.
 SELECT
-  base.ts,
-  base.dur,
-  base.freq_0,
-  base.idle_0,
-  base.freq_1,
-  base.idle_1,
-  base.freq_2,
-  base.idle_2,
-  base.freq_3,
-  base.idle_3,
-  base.freq_4,
-  base.idle_4,
-  base.freq_5,
-  base.idle_5,
-  base.freq_6,
-  base.idle_6,
-  base.freq_7,
-  base.idle_7,
-  base.cpu0_curve,
-  base.cpu1_curve,
-  base.cpu2_curve,
-  base.cpu3_curve,
-  base.cpu4_curve,
-  base.cpu5_curve,
-  base.cpu6_curve,
-  base.cpu7_curve,
-  iif(base.all_cpu_deep_idle = 1, 0, base.l3_hit_count) AS l3_hit_count,
-  iif(base.all_cpu_deep_idle = 1, 0, base.l3_miss_count) AS l3_miss_count,
-  base.no_static,
-  base.static_1d,
-  -- Use DSU frequency if required, else use the calculated dependency
-  -- frequency, else use the fallback default frequency
+  base.*,
   iif(0 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_0, default_dep_freq_0)) AS dep_freq_0,
   iif(0 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_0, default_dep_policy_0)) AS dep_policy_0,
   iif(1 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_1, default_dep_freq_1)) AS dep_freq_1,
@@ -416,6 +465,6 @@ SELECT
   iif(6 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_6, default_dep_policy_6)) AS dep_policy_6,
   iif(7 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_7, default_dep_freq_7)) AS dep_freq_7,
   iif(7 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_7, default_dep_policy_7)) AS dep_policy_7
-FROM _w_independent_cpus_calc AS base
+FROM _w_unique_configs AS base
 LEFT JOIN pivoted_results AS pivoted
-  USING (ts);
+  USING (config_hash);

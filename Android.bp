@@ -15293,6 +15293,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/trace.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/track_event.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/threads.sql",
+        "src/trace_processor/perfetto_sql/stdlib/viz/track_event_callstacks.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/arm_dsu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/freq.sql",
@@ -15300,10 +15301,10 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/hotplug.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/pivot.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu_1d.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu_2d.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_gpu.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_l3.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/cpu_1d.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/cpu_2d.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/gpu.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/l3.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_1d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_1.sql",
@@ -15718,19 +15719,10 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_zip_reader",
         "src/trace_processor/trace_processor_shell.cc",
     ],
-    shared_libs: [
-        "libicu",
-        "liblog",
-        "libprotobuf-cpp-full",
-        "libsqlite",
-        "libutils",
-        "libz",
-    ],
     static_libs: [
-        "perfetto_flags_c_lib",
         "perfetto_src_trace_processor_demangle",
-        "sqlite_ext_percentile",
     ],
+    host_supported: true,
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
         "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -15865,6 +15857,35 @@ cc_library_static {
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DZLIB_IMPLEMENTATION",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "libicu",
+                "liblog",
+                "libprotobuf-cpp-full",
+                "libsqlite",
+                "libutils",
+                "libz",
+            ],
+            static_libs: [
+                "perfetto_flags_c_lib",
+                "sqlite_ext_percentile",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libprotobuf-cpp-full",
+                "libsqlite_static_noicu",
+                "libz",
+                "sqlite_ext_percentile",
+            ],
+        },
+        musl: {
+            static_libs: [
+                "libfts",
+            ],
+        },
+    },
 }
 
 // GN: //src/trace_processor/trace_summary:gen_cc_trace_summary_descriptor
@@ -18993,11 +19014,6 @@ cc_binary {
                     "sdk_repo",
                 ],
             },
-        },
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
         },
     },
 }

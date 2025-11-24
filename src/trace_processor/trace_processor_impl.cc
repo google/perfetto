@@ -1168,6 +1168,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_android_network_packets_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_metadata_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_slice_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_track_event_callstacks_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_flow_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_stack_profile_frame_table());
@@ -1191,11 +1193,7 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   fns.emplace_back(std::make_unique<Ancestor>(
       Ancestor::Type::kStackProfileCallsite, storage));
   fns.emplace_back(
-      std::make_unique<Ancestor>(Ancestor::Type::kSliceByStack, storage));
-  fns.emplace_back(
       std::make_unique<Descendant>(Descendant::Type::kSlice, storage));
-  fns.emplace_back(
-      std::make_unique<Descendant>(Descendant::Type::kSliceByStack, storage));
   fns.emplace_back(std::make_unique<ConnectedFlow>(
       ConnectedFlow::Mode::kDirectlyConnectedFlow, storage));
   fns.emplace_back(std::make_unique<ConnectedFlow>(

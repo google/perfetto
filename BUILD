@@ -3714,6 +3714,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/threads.sql",
+        "src/trace_processor/perfetto_sql/stdlib/viz/track_event_callstacks.sql",
     ],
 )
 
@@ -3728,10 +3729,10 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/hotplug.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/pivot.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu_1d.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu_2d.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_gpu.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_l3.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/cpu_1d.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/cpu_2d.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/gpu.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/l3.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_1d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_1.sql",
