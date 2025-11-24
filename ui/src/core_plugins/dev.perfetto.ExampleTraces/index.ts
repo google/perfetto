@@ -15,6 +15,7 @@
 import {AppImpl} from '../../core/app_impl';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Icons} from '../../base/semantic_icons';
 
 const EXAMPLE_ANDROID_TRACE_URL =
   'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';
@@ -40,9 +41,10 @@ export default class implements PerfettoPlugin {
       },
     });
     ctx.sidebar.addMenuItem({
-      section: 'example_traces',
+      section: 'trace_files',
       commandId: OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID,
-      icon: 'description',
+      icon: Icons.Android,
+      sortOrder: 3,
     });
 
     const OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID =
@@ -55,9 +57,10 @@ export default class implements PerfettoPlugin {
       },
     });
     ctx.sidebar.addMenuItem({
-      section: 'example_traces',
+      section: 'trace_files',
       commandId: OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID,
-      icon: 'description',
+      icon: Icons.Web,
+      sortOrder: 4,
     });
   }
 }
