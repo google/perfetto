@@ -240,23 +240,7 @@ async function loadTraceIntoEngine(
   trace.timeline.updateVisibleTime(visibleTimeSpan);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-
-  // Attempt to preserve the existing page, only add/change the local_cache_key.
-  //
-  // This is so that if the user opens a trace from a URL or has navigated to a
-  // page before opening a trace, we stay on that page. This allows links to
-  // e.g. #!/explore to work as expected.
-  //
-  // Only navigate to the timeline page if we are currently on the home page.
-  const route = Router.parseUrl(window.location.href);
-
-  let nextPage = route.page;
-  if (route.page === '/' || route.page === '') {
-    // Currently on the home page, navigate to the timeline page.
-    nextPage = '/viewer';
-  }
-
-  Router.navigate(`#!${nextPage}${route.subpage}?local_cache_key=${cacheUuid}`);
+  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);
