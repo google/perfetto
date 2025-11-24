@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
@@ -37,7 +36,6 @@ import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
-
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
   readonly queryService: QueryService;
@@ -112,6 +110,26 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           )
         : null;
 
+    // Helper to create separator dot
+    const separator = () =>
+      m(
+        'span.pf-query-stats-separator',
+        {
+          'aria-hidden': 'true',
+        },
+        '•',
+      );
+
+    // Add query stats display (row count and duration)
+    const queryStats =
+      attrs.response && !attrs.isQueryRunning
+        ? m('.pf-query-stats', [
+            m('span', `${attrs.response.totalRowCount.toLocaleString()} rows`),
+            separator(),
+            m('span', `${attrs.response.durationMs.toFixed(1)}ms`),
+          ])
+        : null;
+
     const positionMenu = m(
       PopupMenu,
       {
@@ -130,7 +148,12 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     return [
       runButton,
       statusIndicator,
+      queryStats,
+      queryStats !== null && materializationIndicator !== null
+        ? separator()
+        : null,
       materializationIndicator,
+      materializationIndicator !== null ? separator() : null,
       autoExecuteSwitch,
       positionMenu,
     ];
