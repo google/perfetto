@@ -56,6 +56,13 @@ jobs:
         shell: bash
         run: tools/gen_amalgamated --sdk c --output contrib/rust-sdk/perfetto-sys/libperfetto_c/perfetto
 
+      - name: Setup compiler path
+        shell: bash
+        run: |
+          if [[ -e buildtools/linux64/clang/bin/clang++ ]]; then
+            echo "PATH=$(readlink -f buildtools/linux64/clang/bin):$PATH" >> $GITHUB_ENV
+          fi
+
       - name: Build and run tests
         run: .cargo/bin/cargo test --manifest-path=contrib/rust-sdk/Cargo.toml --features=intrinsics
 
