@@ -632,6 +632,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       node.state.issues.queryError = error;
       node.state.issues.responseError = warning;
       node.state.issues.dataError = noDataWarning;
+      // Clear any previous execution error since we got a successful response
+      node.state.issues.clearExecutionError();
     } else {
       node.state.issues = undefined;
     }
@@ -650,11 +652,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
   private handleQueryError(node: QueryNode, e: unknown) {
     console.error('Failed to run query:', e);
-    this.resetQueryState();
+    // Clear response and data source but keep query so Retry can re-execute
+    this.dataSource = undefined;
+    this.response = undefined;
+    this.queryExecuted = false;
     if (!node.state.issues) {
       node.state.issues = new NodeIssues();
     }
-    node.state.issues.queryError =
+    // Use executionError (not queryError) so error persists across re-renders
+    // that trigger validate() - queryError gets cleared during validation
+    node.state.issues.executionError =
       e instanceof Error ? e : new Error(String(e));
   }
 }
