@@ -908,6 +908,64 @@ void SharedMemoryArbiterImpl::NotifyFlushComplete(FlushRequestID req_id) {
   }
 }
 
+void SharedMemoryArbiterImpl::ScrapeEmulatedSharedMemoryBuffer(
+    const std::map<WriterID, BufferID>& buffer_for_writers) {
+  if (!use_shmem_emulation_)
+    return;
+
+  for (size_t page_idx = 0; page_idx < shmem_abi_.num_pages(); page_idx++) {
+    uint32_t header_bitmap = shmem_abi_.GetPageHeaderBitmap(page_idx);
+
+    uint32_t used_chunks =
+        shmem_abi_.GetUsedChunks(header_bitmap);  // Returns a bitmap.
+    // Skip empty pages.
+    if (used_chunks == 0) {
+      continue;
+    }
+
+    // Scrape the chunks that are currently used. These should be either in
+    // state kChunkBeingWritten or kChunkComplete.
+    for (uint32_t chunk_idx = 0; used_chunks; chunk_idx++, used_chunks >>= 1) {
+      if (!(used_chunks & 1))
+        continue;
+
+      auto state = SharedMemoryABI::GetChunkStateFromHeaderBitmap(header_bitmap,
+                                                                  chunk_idx);
+      PERFETTO_DCHECK(state == SharedMemoryABI::kChunkBeingWritten ||
+                      state == SharedMemoryABI::kChunkComplete);
+      bool chunk_complete = state == SharedMemoryABI::kChunkComplete;
+
+      SharedMemoryABI::Chunk chunk =
+          shmem_abi_.GetChunkUnchecked(page_idx, header_bitmap, chunk_idx);
+
+      uint16_t packet_count;
+      // GetPacketCountAndFlags has acquire_load semantics.
+      std::tie(packet_count, std::ignore) = chunk.GetPacketCountAndFlags();
+
+      // It only makes sense to copy an incomplete chunk if there's at least
+      // one full packet available. (The producer may not have completed the
+      // last packet in it yet, so we need at least 2.)
+      if (!chunk_complete && packet_count < 2)
+        continue;
+
+      // At this point, it is safe to access the remaining header fields of
+      // the chunk. Even if the chunk was only just transferred from
+      // kChunkFree into kChunkBeingWritten state, the header should be
+      // written completely once the packet count increased above 1 (it was
+      // reset to 0 by the service when the chunk was freed).
+
+      const auto writer = buffer_for_writers.find(chunk.writer_id());
+      if (writer == buffer_for_writers.end())
+        continue;
+
+      BufferID target_buffer_id = writer->second;
+      PatchList ignored;
+
+      ReturnCompletedChunk(std::move(chunk), target_buffer_id, &ignored);
+    }
+  }
+}
+
 std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
     MaybeUnboundBufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy) {

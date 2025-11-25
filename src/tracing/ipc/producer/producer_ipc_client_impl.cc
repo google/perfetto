@@ -357,7 +357,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
 #endif
     if (use_shmem_emulation_) {
       PERFETTO_CHECK(!ipc_shared_memory);
-      // Need to create an emulated shmem buffer when the transport deosn't
+      // Need to create an emulated shmem buffer when the transport doesn't
       // support it.
       ipc_shared_memory = InProcessSharedMemory::Create(
           /*size=*/InProcessSharedMemory::kShmemEmulationSize);
@@ -399,6 +399,28 @@ void ProducerIPCClientImpl::OnServiceRequest(
         cmd.flush().request_id(),
         reinterpret_cast<const DataSourceInstanceID*>(data_source_ids),
         static_cast<size_t>(cmd.flush().data_source_ids().size()), flags);
+
+    // NB: For producers using SMB emulation, the actual value of
+    // ProducerSMBScrapingMode::kDefault in the service-side is unknown on the
+    // producer-side. Therefore we only do producer-side SMB scraping if the
+    // scraping mode is explicitly enabled.
+    if (use_shmem_emulation_ &&
+        smb_scraping_mode_ ==
+            TracingService::ProducerSMBScrapingMode::kEnabled) {
+      // Producer-side SMB scraping should occur after the flush is complete.
+      // Most often the NotifyFlushComplete method is called at the end of a
+      // producer's Flush method which also very commonly posts a flush pending
+      // commit data request to the producer IPC client's task runner. Posting
+      // the SMB scraping task into the task runner should push the SMB scraping
+      // after the pending flush data request.
+      auto weak_this = weak_factory_.GetWeakPtr();
+      task_runner_->PostTask([weak_this]() {
+        if (weak_this) {
+          weak_this->shared_memory_arbiter_->ScrapeEmulatedSharedMemoryBuffer(
+              weak_this->writers_);
+        }
+      });
+    }
     return;
   }
 
@@ -474,6 +496,11 @@ void ProducerIPCClientImpl::RegisterTraceWriter(uint32_t writer_id,
         "Cannot RegisterTraceWriter(), not connected to tracing service");
     return;
   }
+  if (use_shmem_emulation_ &&
+      smb_scraping_mode_ == TracingService::ProducerSMBScrapingMode::kEnabled) {
+    writers_[static_cast<WriterID>(writer_id)] =
+        static_cast<BufferID>(target_buffer);
+  }
   protos::gen::RegisterTraceWriterRequest req;
   req.set_trace_writer_id(writer_id);
   req.set_target_buffer(target_buffer);
@@ -487,6 +514,10 @@ void ProducerIPCClientImpl::UnregisterTraceWriter(uint32_t writer_id) {
     PERFETTO_DLOG(
         "Cannot UnregisterTraceWriter(), not connected to tracing service");
     return;
+  }
+  if (use_shmem_emulation_ &&
+      smb_scraping_mode_ == TracingService::ProducerSMBScrapingMode::kEnabled) {
+    writers_.erase(static_cast<WriterID>(writer_id));
   }
   protos::gen::UnregisterTraceWriterRequest req;
   req.set_trace_writer_id(writer_id);

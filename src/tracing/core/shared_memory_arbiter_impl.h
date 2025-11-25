@@ -185,6 +185,8 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   void FlushPendingCommitDataRequests(
       std::function<void()> callback = {}) override;
+  void ScrapeEmulatedSharedMemoryBuffer(
+      const std::map<WriterID, BufferID>& buffer_for_writers) override;
   bool TryShutdown() override;
 
   base::TaskRunner* task_runner() const { return task_runner_; }

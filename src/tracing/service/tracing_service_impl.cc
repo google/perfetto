@@ -433,8 +433,11 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
       PERFETTO_DLOG(
           "Adopting producer-provided SMB of %zu kB for producer \"%s\"",
           shm_size / 1024, endpoint->name_.c_str());
+      auto shmem_mode = client_identity.machine_id() == kDefaultMachineID
+                            ? SharedMemoryABI::ShmemMode::kDefault
+                            : SharedMemoryABI::ShmemMode::kShmemEmulation;
       endpoint->SetupSharedMemory(std::move(shm), page_size,
-                                  /*provided_by_producer=*/true);
+                                  /*provided_by_producer=*/true, shmem_mode);
     } else {
       PERFETTO_LOG(
           "Discarding incorrectly sized producer-provided SMB for producer "
@@ -1997,9 +2000,19 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
   for (const auto& [producer_id, ds_inst] :
        tracing_session->data_source_instances) {
-    if (ds_inst.no_flush)
+    if (!ds_inst.no_flush) {
+      data_source_instances[producer_id].push_back(ds_inst.instance_id);
       continue;
-    data_source_instances[producer_id].push_back(ds_inst.instance_id);
+    }
+    ProducerEndpointImpl* producer = GetProducer(producer_id);
+    if (producer->smb_scraping_enabled_ && producer->IsShmemEmulated()) {
+      // Remote producers (connected via traced_relay) don't share buffer memory
+      // with the tracing service, therefore we NEED to trigger a flush request
+      // so that the producer can self-scrape their emulated SMB. Trigger the
+      // flush by inserting an empty vector if the producer not in the map
+      // already.
+      data_source_instances[producer_id];
+    }
   }
   FlushDataSourceInstances(tracing_session, timeout_ms, data_source_instances,
                            std::move(callback), flush_flags);
@@ -2179,7 +2192,7 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
 void TracingServiceImpl::ScrapeSharedMemoryBuffers(
     TracingSession* tracing_session,
     ProducerEndpointImpl* producer) {
-  if (!producer->smb_scraping_enabled_)
+  if (!producer->smb_scraping_enabled_ || producer->IsShmemEmulated())
     return;
 
   // Can't copy chunks if we don't know about any trace writers.
@@ -2188,7 +2201,7 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
 
   // Performance optimization: On flush or session disconnect, this method is
   // called for each producer. If the producer doesn't participate in the
-  // session, there's no need to scape its chunks right now. We can tell if a
+  // session, there's no need to scrape its chunks right now. We can tell if a
   // producer participates in the session by checking if the producer is allowed
   // to write into the session's log buffers.
   const auto& session_buffers = tracing_session->buffers_index;
@@ -3307,9 +3320,16 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     // client to go away.
     PERFETTO_DLOG("Creating SMB of %zu KB for producer \"%s\"", shm_size / 1024,
                   producer->name_.c_str());
+    // TODO(jahdiel): We are creating shared memory buffers on the tracing
+    // service side even if the producer is using shmem emulation, which is
+    // wasting memory on the tracing service's machine.
     auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
+    auto shmem_mode =
+        producer->client_identity().machine_id() == kDefaultMachineID
+            ? SharedMemoryABI::ShmemMode::kDefault
+            : SharedMemoryABI::ShmemMode::kShmemEmulation;
     producer->SetupSharedMemory(std::move(shared_memory), page_size,
-                                /*provided_by_producer=*/false);
+                                /*provided_by_producer=*/false, shmem_mode);
   }
   producer->SetupDataSource(inst_id, ds_config);
   return ds_instance;
@@ -5100,7 +5120,8 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
 void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
     std::unique_ptr<SharedMemory> shared_memory,
     size_t page_size_bytes,
-    bool provided_by_producer) {
+    bool provided_by_producer,
+    SharedMemoryABI::ShmemMode shmem_mode) {
   PERFETTO_DCHECK(!shared_memory_ && !shmem_abi_.is_valid());
   PERFETTO_DCHECK(page_size_bytes % 1024 == 0);
 
@@ -5110,8 +5131,7 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
 
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                         shared_memory_->size(),
-                        shared_buffer_page_size_kb() * 1024,
-                        SharedMemoryABI::ShmemMode::kDefault);
+                        shared_buffer_page_size_kb() * 1024, shmem_mode);
   if (in_process_) {
     inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
         shared_memory_->start(), shared_memory_->size(),
