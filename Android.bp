@@ -727,7 +727,7 @@ cc_library_shared {
             ],
         },
         host: {
-            static_libs: [
+            whole_static_libs: [
                 "libz",
             ],
         },
@@ -1207,7 +1207,7 @@ cc_library_static {
     min_sdk_version: "30",
     target: {
         android: {
-            static_libs: [
+            whole_static_libs: [
                 "perfetto_flags_c_lib",
             ],
         },
@@ -1780,13 +1780,11 @@ cc_library_static {
         "test/cts/producer_to_consumer_integrationtest_cts.cc",
         "test/cts/traced_perf_test_cts.cc",
     ],
-    static_libs: [
+    whole_static_libs: [
         "libgmock",
         "libgtest",
         "libperfetto_client_experimental",
         "perfetto_flags_c_lib",
-    ],
-    whole_static_libs: [
         "perfetto_gtest_logcat_printer",
     ],
     generated_headers: [
@@ -2104,12 +2102,10 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
     ],
-    static_libs: [
+    whole_static_libs: [
         "libgmock",
         "libgtest",
         "perfetto_flags_c_lib",
-    ],
-    whole_static_libs: [
         "perfetto_gtest_logcat_printer",
     ],
     generated_headers: [
@@ -2324,7 +2320,7 @@ cc_library_static {
     srcs: [
         "test/gtest_logcat_printer.cc",
     ],
-    static_libs: [
+    whole_static_libs: [
         "libgmock",
         "libgtest",
     ],
@@ -14048,7 +14044,7 @@ cc_library_static {
     ],
     target: {
         android: {
-            static_libs: [
+            whole_static_libs: [
                 "perfetto_flags_c_lib",
             ],
         },
@@ -15855,7 +15851,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_zip_reader",
         "src/trace_processor/trace_processor_shell.cc",
     ],
-    static_libs: [
+    whole_static_libs: [
         "perfetto_src_trace_processor_demangle",
     ],
     host_supported: true,
@@ -16003,7 +15999,7 @@ cc_library_static {
                 "libutils",
                 "libz",
             ],
-            static_libs: [
+            whole_static_libs: [
                 "perfetto_flags_c_lib",
                 "sqlite_ext_percentile",
             ],
@@ -18564,12 +18560,10 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
     ],
-    static_libs: [
+    whole_static_libs: [
         "libgmock",
         "libgtest",
         "perfetto_flags_c_lib",
-    ],
-    whole_static_libs: [
         "perfetto_gtest_logcat_printer",
     ],
     generated_headers: [
@@ -18764,7 +18758,7 @@ cc_library_static {
     ],
     target: {
         android: {
-            static_libs: [
+            whole_static_libs: [
                 "perfetto_flags_c_lib",
             ],
         },
@@ -18959,12 +18953,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
         ":perfetto_src_trace_processor_util_zip_reader",
     ],
-    static_libs: [
-        "perfetto_src_trace_processor_demangle",
-    ],
     whole_static_libs: [
         "perfetto_src_trace_processor_demangle",
-        "sqlite_ext_percentile",
     ],
     host_supported: true,
     generated_headers: [
@@ -19106,7 +19096,7 @@ cc_library_static {
                 "libutils",
                 "libz",
             ],
-            static_libs: [
+            whole_static_libs: [
                 "perfetto_flags_c_lib",
                 "sqlite_ext_percentile",
             ],
