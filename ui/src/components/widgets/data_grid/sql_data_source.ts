@@ -38,6 +38,11 @@ export class SQLDataSource implements DataGridDataSource {
   private aggregates?: ReadonlyArray<AggregateSpec>;
   private cachedResult?: DataSourceResult;
   private isLoadingFlag = false;
+  // Cache for distinct values per column - invalidated when workingQuery changes
+  private distinctValuesCache = new Map<
+    string,
+    SqlValue[] | 'too_many' | 'error'
+  >();
 
   constructor(engine: Engine, query: string) {
     this.engine = engine;
@@ -79,6 +84,7 @@ export class SQLDataSource implements DataGridDataSource {
           this.cachedResult = undefined;
           this.pagination = undefined;
           this.aggregates = undefined;
+          this.distinctValuesCache.clear();
 
           // Update the cache with the total row count
           const rowCount = await this.getRowCount(workingQuery);
@@ -138,6 +144,7 @@ export class SQLDataSource implements DataGridDataSource {
 
   /**
    * Get distinct values for a column with current filters applied.
+   * Results are cached and invalidated when filters change.
    */
   async getDistinctValues(
     column: string,
@@ -145,6 +152,12 @@ export class SQLDataSource implements DataGridDataSource {
   ): Promise<SqlValue[] | 'too_many' | 'error'> {
     if (!this.workingQuery) {
       return 'error';
+    }
+
+    // Check cache first
+    const cached = this.distinctValuesCache.get(column);
+    if (cached !== undefined) {
+      return cached;
     }
 
     try {
@@ -158,6 +171,7 @@ export class SQLDataSource implements DataGridDataSource {
       const result = await this.engine.query(query);
 
       if (result.numRows() > maxValues) {
+        this.distinctValuesCache.set(column, 'too_many');
         return 'too_many';
       }
 
@@ -169,9 +183,13 @@ export class SQLDataSource implements DataGridDataSource {
       // Sort the values
       values.sort(compareSqlValues);
 
+      // Cache the result
+      this.distinctValuesCache.set(column, values);
+
       return values;
     } catch (error) {
       console.error('Failed to fetch distinct values:', error);
+      this.distinctValuesCache.set(column, 'error');
       return 'error';
     }
   }

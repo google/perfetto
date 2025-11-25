@@ -52,3 +52,8 @@
     text-overflow: ellipsis;
   }
 }
+
+.pf-distinct-values-menu {
+  max-height: 300px;
+  overflow-y: auto;
+}

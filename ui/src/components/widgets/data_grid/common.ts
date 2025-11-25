@@ -109,6 +109,8 @@ export interface DataGridDataSource {
    * Get distinct values for a column with current filters applied.
    * Returns up to maxValues distinct values, or 'too_many' if there are more.
    * Returns 'error' if the query fails.
+   * Results are cached internally by the data source and invalidated when
+   * filters change.
    */
   getDistinctValues?(
     column: string,

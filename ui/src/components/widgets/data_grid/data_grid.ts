@@ -319,17 +319,20 @@ export interface DataGridApi {
 const MAX_DISTINCT_VALUES = 100;
 const MAX_DISPLAY_STRING_LENGTH = 50;
 const SEARCH_BOX_THRESHOLD = 10;
+const DISTINCT_VALUES_MENU_MAX_HEIGHT = 300;
+
+type DistinctValuesResult = SqlValue[] | 'too_many' | 'error';
+
+interface DistinctValuesMenuState {
+  values?: DistinctValuesResult;
+  loading: boolean;
+  searchText: string;
+}
 
 interface DistinctValuesFilterMenuAttrs {
   readonly column: ColumnDefinition;
   readonly dataSource: DataGridDataSource;
-  readonly filters: ReadonlyArray<DataGridFilter>;
-  readonly sorting: Sorting;
   readonly onFilterAdd: OnFilterAdd;
-  readonly getCachedValues: () => SqlValue[] | 'too_many' | 'error' | undefined;
-  readonly setCachedValues: (values: SqlValue[] | 'too_many' | 'error') => void;
-  readonly fetchValues: () => Promise<SqlValue[] | 'too_many' | 'error'>;
-  readonly formatValue: (value: SqlValue) => string;
   readonly operator: '=' | '!=';
   readonly label: string;
 }
@@ -337,150 +340,155 @@ interface DistinctValuesFilterMenuAttrs {
 class DistinctValuesFilterMenu
   implements m.ClassComponent<DistinctValuesFilterMenuAttrs>
 {
-  private distinctValues?: SqlValue[] | 'too_many' | 'error';
-  private loading = false;
-  private searchText = '';
+  private state: DistinctValuesMenuState = {
+    values: undefined,
+    loading: false,
+    searchText: '',
+  };
 
-  private getDistinctValuesArray(): SqlValue[] | undefined {
-    return Array.isArray(this.distinctValues) ? this.distinctValues : undefined;
-  }
+  async oninit({attrs}: m.Vnode<DistinctValuesFilterMenuAttrs>) {
+    const {dataSource, column} = attrs;
 
-  private async onPopupMount(attrs: DistinctValuesFilterMenuAttrs) {
-    // Check cache first
-    const cached = attrs.getCachedValues();
-    if (cached !== undefined) {
-      this.distinctValues = cached;
-      this.loading = false;
-      m.redraw();
+    if (!dataSource.getDistinctValues) {
+      this.state.values = 'error';
       return;
     }
 
-    // If not cached, fetch distinct values
-    this.loading = true;
-    m.redraw();
+    this.state.loading = true;
 
     try {
-      const values = await attrs.fetchValues();
-      attrs.setCachedValues(values);
-      this.distinctValues = values;
+      const values = await dataSource.getDistinctValues(
+        column.name,
+        MAX_DISTINCT_VALUES,
+      );
+      this.state.values = values;
     } finally {
-      this.loading = false;
-      m.redraw();
+      this.state.loading = false;
     }
   }
 
   view({attrs}: m.Vnode<DistinctValuesFilterMenuAttrs>): m.Children {
+    const {column, onFilterAdd, operator, label} = attrs;
+
     return m(
       PopupMenu,
       {
         position: PopupPosition.RightStart,
         trigger: m(MenuItem, {
-          label: attrs.label,
+          label,
           rightIcon: 'chevron_right',
           closePopupOnClick: false,
         }),
         showArrow: false,
         createNewGroup: false,
         edgeOffset: 5,
-        onPopupMount: () => this.onPopupMount(attrs),
       },
-      this.renderDistinctValuesMenu(attrs),
+      this.renderMenuContent(column, onFilterAdd, operator),
     );
   }
 
-  private renderDistinctValuesMenu(
-    attrs: DistinctValuesFilterMenuAttrs,
+  private renderMenuContent(
+    column: ColumnDefinition,
+    onFilterAdd: OnFilterAdd,
+    operator: '=' | '!=',
   ): m.Children {
-    const {column, onFilterAdd, formatValue, operator} = attrs;
+    const {values, loading, searchText} = this.state;
 
-    // If distinctValues not fetched yet, show loading
-    if (this.distinctValues === undefined) {
+    // Show loading state
+    if (values === undefined || loading) {
+      return m(Spinner);
+    }
+
+    // Handle error state
+    if (values === 'error') {
       return m(MenuItem, {
-        label: 'Loading...',
+        label: 'Failed to fetch values',
         disabled: true,
       });
     }
 
-    const valuesArray = this.getDistinctValuesArray();
-    const isValidArray = valuesArray !== undefined && valuesArray.length > 0;
-    const hasNoValues = valuesArray !== undefined && valuesArray.length === 0;
+    // Handle too many values
+    if (values === 'too_many') {
+      return m(MenuItem, {
+        label: `Too many distinct values (>${MAX_DISTINCT_VALUES})`,
+        disabled: true,
+      });
+    }
 
-    // Filter distinct values based on search text
-    const filteredValues = valuesArray
-      ? valuesArray.filter((value: SqlValue) => {
-          const valueStr = formatValue(value);
-          return valueStr.toLowerCase().includes(this.searchText.toLowerCase());
-        })
-      : [];
+    // Handle empty values
+    if (values.length === 0) {
+      return m(MenuItem, {
+        label: 'No non-null values',
+        disabled: true,
+      });
+    }
 
-    const showSearchBox =
-      valuesArray && valuesArray.length > SEARCH_BOX_THRESHOLD;
+    // Filter values based on search text
+    const filteredValues = values.filter((value) => {
+      const valueStr = formatDisplayValue(value);
+      return valueStr.toLowerCase().includes(searchText.toLowerCase());
+    });
 
-    return [
-      // Show search box only if we have more than threshold values
-      showSearchBox &&
-        m(TextInput, {
-          autofocus: true,
-          placeholder: 'Search values...',
-          value: this.searchText,
-          oninput: (e: InputEvent) => {
-            if (!e.target) return;
-            this.searchText = (e.target as HTMLInputElement).value;
-          },
-        }),
-      showSearchBox && m(MenuDivider),
-      // Show loading spinner
-      this.loading && m(Spinner),
-      // Show filtered distinct values
-      isValidArray &&
-        filteredValues.length > 0 &&
-        filteredValues.map((value: SqlValue) => {
-          const displayValue = formatValue(value);
-          return m(MenuItem, {
-            label: displayValue,
-            onclick: () => {
-              onFilterAdd({
-                column: column.name,
-                op: operator,
-                value: value,
-              });
+    const showSearchBox = values.length > SEARCH_BOX_THRESHOLD;
+
+    return m(
+      '.pf-distinct-values-menu',
+      {
+        style: {
+          maxHeight: `${DISTINCT_VALUES_MENU_MAX_HEIGHT}px`,
+          overflowY: 'auto',
+        },
+      },
+      [
+        // Search box for filtering values
+        showSearchBox &&
+          m(TextInput, {
+            autofocus: true,
+            placeholder: 'Search values...',
+            value: searchText,
+            oninput: (e: InputEvent) => {
+              const target = e.target as HTMLInputElement;
+              this.state.searchText = target.value;
             },
-          });
-        }),
-      // Show "no results" message when search returns nothing
-      isValidArray &&
-        filteredValues.length === 0 &&
-        !this.loading &&
-        m(MenuItem, {
-          label: 'No matching values',
-          disabled: true,
-        }),
-      // Show message when there are no non-null values
-      hasNoValues &&
-        !this.loading &&
-        m(MenuItem, {
-          label: 'No non-null values',
-          disabled: true,
-        }),
-      // Show message for too many distinct values
-      this.distinctValues === 'too_many' &&
-        m(MenuItem, {
-          label: `Too many distinct values (>${MAX_DISTINCT_VALUES})`,
-          disabled: true,
-        }),
-      // Show message for query error
-      this.distinctValues === 'error' &&
-        m(MenuItem, {
-          label: 'Failed to fetch values',
-          disabled: true,
-        }),
-    ];
+          }),
+        showSearchBox && m(MenuDivider),
+        // Value list
+        filteredValues.length > 0
+          ? filteredValues.map((value) =>
+              m(MenuItem, {
+                label: formatDisplayValue(value),
+                onclick: () => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: operator,
+                    value,
+                  });
+                },
+              }),
+            )
+          : m(MenuItem, {
+              label: 'No matching values',
+              disabled: true,
+            }),
+      ],
+    );
   }
 }
 
-interface CachedDistinctValues {
-  queryState: string;
-  values: SqlValue[] | 'too_many' | 'error';
+function formatDisplayValue(value: SqlValue): string {
+  if (value === null) {
+    return 'NULL';
+  }
+  if (typeof value === 'string') {
+    if (value.length > MAX_DISPLAY_STRING_LENGTH) {
+      return value.substring(0, MAX_DISPLAY_STRING_LENGTH - 3) + '...';
+    }
+    return value;
+  }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  return String(value);
 }
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
@@ -510,8 +518,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private currentDataSource?: DataGridDataSource;
   private currentColumns?: ReadonlyArray<ColumnDefinition>;
   private currentValueFormatter?: ValueFormatter;
-  // Cache for distinct values per column
-  private distinctValuesCache = new Map<string, CachedDistinctValues>();
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -533,67 +539,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs.columns.forEach((column) => {
       this.seenColumns.add(column.name);
     });
-  }
-
-  private getQueryState(
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
-  ): string {
-    // Create a string representing the current query state for cache invalidation
-    return JSON.stringify({filters, sorting});
-  }
-
-  private getCachedDistinctValues(
-    column: string,
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
-  ): SqlValue[] | 'too_many' | 'error' | undefined {
-    const queryState = this.getQueryState(filters, sorting);
-    const cached = this.distinctValuesCache.get(column);
-    if (cached && cached.queryState === queryState) {
-      return cached.values;
-    }
-    return undefined;
-  }
-
-  private setCachedDistinctValues(
-    column: string,
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
-    values: SqlValue[] | 'too_many' | 'error',
-  ): void {
-    const queryState = this.getQueryState(filters, sorting);
-    this.distinctValuesCache.set(column, {
-      queryState,
-      values,
-    });
-  }
-
-  private async fetchDistinctValues(
-    dataSource: DataGridDataSource,
-    column: string,
-  ): Promise<SqlValue[] | 'too_many' | 'error'> {
-    if (!dataSource.getDistinctValues) {
-      return 'error';
-    }
-
-    return await dataSource.getDistinctValues(column, MAX_DISTINCT_VALUES);
-  }
-
-  private formatValue(value: SqlValue): string {
-    if (value === null) {
-      return 'NULL';
-    }
-    if (typeof value === 'string') {
-      if (value.length > MAX_DISPLAY_STRING_LENGTH) {
-        return value.substring(0, MAX_DISPLAY_STRING_LENGTH - 3) + '...';
-      }
-      return value;
-    }
-    if (typeof value === 'bigint') {
-      return value.toString();
-    }
-    return String(value);
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -744,21 +689,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             m(DistinctValuesFilterMenu, {
               column,
               dataSource,
-              filters,
-              sorting,
               onFilterAdd,
-              getCachedValues: () =>
-                this.getCachedDistinctValues(column.name, filters, sorting),
-              setCachedValues: (values) =>
-                this.setCachedDistinctValues(
-                  column.name,
-                  filters,
-                  sorting,
-                  values,
-                ),
-              fetchValues: () =>
-                this.fetchDistinctValues(dataSource, column.name),
-              formatValue: (v) => this.formatValue(v),
               operator: '=',
               label: 'Filter equal to...',
             }),
@@ -767,21 +698,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             m(DistinctValuesFilterMenu, {
               column,
               dataSource,
-              filters,
-              sorting,
               onFilterAdd,
-              getCachedValues: () =>
-                this.getCachedDistinctValues(column.name, filters, sorting),
-              setCachedValues: (values) =>
-                this.setCachedDistinctValues(
-                  column.name,
-                  filters,
-                  sorting,
-                  values,
-                ),
-              fetchValues: () =>
-                this.fetchDistinctValues(dataSource, column.name),
-              formatValue: (v) => this.formatValue(v),
               operator: '!=',
               label: 'Filter not equal to...',
             }),

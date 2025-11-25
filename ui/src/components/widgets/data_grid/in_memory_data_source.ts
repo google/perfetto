@@ -36,6 +36,11 @@ export class InMemoryDataSource implements DataGridDataSource {
   private oldSorting: Sorting = {direction: 'UNSORTED'};
   private oldFilters: ReadonlyArray<DataGridFilter> = [];
   private aggregates?: ReadonlyArray<AggregateSpec>;
+  // Cache for distinct values per column - invalidated when filters change
+  private distinctValuesCache = new Map<
+    string,
+    SqlValue[] | 'too_many' | 'error'
+  >();
 
   constructor(data: ReadonlyArray<RowDef>) {
     this.data = data;
@@ -56,14 +61,21 @@ export class InMemoryDataSource implements DataGridDataSource {
     filters = [],
     aggregates,
   }: DataGridModel): void {
+    const filtersChanged = !this.areFiltersEqual(filters, this.oldFilters);
+
     if (
       !this.isSortByEqual(sorting, this.oldSorting) ||
-      !this.areFiltersEqual(filters, this.oldFilters) ||
+      filtersChanged ||
       !areAggregateArraysEqual(aggregates, this.aggregates)
     ) {
       this.oldSorting = sorting;
       this.oldFilters = filters;
       this.aggregates = aggregates;
+
+      // Clear distinct values cache when filters change
+      if (filtersChanged) {
+        this.distinctValuesCache.clear();
+      }
 
       // Apply filters
       let result = this.applyFilters(this.data, filters);
@@ -90,11 +102,18 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   /**
    * Get distinct values for a column with current filters applied.
+   * Results are cached and invalidated when filters change.
    */
   async getDistinctValues(
     column: string,
     maxValues: number,
   ): Promise<SqlValue[] | 'too_many' | 'error'> {
+    // Check cache first
+    const cached = this.distinctValuesCache.get(column);
+    if (cached !== undefined) {
+      return cached;
+    }
+
     try {
       // Extract unique values from the filtered data
       const uniqueValues = new Set<SqlValue>();
@@ -105,6 +124,7 @@ export class InMemoryDataSource implements DataGridDataSource {
           uniqueValues.add(value);
           // Check if we've exceeded the limit
           if (uniqueValues.size > maxValues) {
+            this.distinctValuesCache.set(column, 'too_many');
             return 'too_many';
           }
         }
@@ -114,9 +134,13 @@ export class InMemoryDataSource implements DataGridDataSource {
       const values = Array.from(uniqueValues);
       values.sort(compareSqlValues);
 
+      // Cache the result
+      this.distinctValuesCache.set(column, values);
+
       return values;
     } catch (error) {
       console.error('Failed to fetch distinct values:', error);
+      this.distinctValuesCache.set(column, 'error');
       return 'error';
     }
   }
