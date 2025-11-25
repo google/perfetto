@@ -73,34 +73,6 @@ class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
         }),
       ),
     });
-    // return m(
-    //   Card,
-    //   {
-    //     id: attrs.id,
-    //     className: classNames(
-    //       'pf-flags-page__card',
-    //       attrs.isChanged && 'pf-flags-page__card--changed',
-    //       attrs.focused && 'pf-flags-page__card--focused',
-    //     ),
-    //   },
-    //   [
-    //     m(
-    //       '.pf-flags-page__details',
-    //       m(
-    //         '.pf-flags-page__title',
-    //         attrs.label,
-    //         m(Anchor, {
-    //           href: `#!/flags/${encodeURIComponent(attrs.id)}`,
-    //           className: 'pf-flags-page__link',
-    //           icon: 'link',
-    //           title: 'Link to this flag',
-    //         }),
-    //       ),
-    //       m('.pf-flags-page__id', attrs.id),
-    //       m('.pf-flags-page__description', attrs.description),
-    //     ),
-    //   ],
-    // );
   }
 }
 
@@ -310,15 +282,4 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
       ),
     );
   }
-
-  // oncreate(vnode: m.VnodeDOM<FlagsPageAttrs>) {
-  //   const subpage = decodeURIComponent(vnode.attrs.subpage ?? '');
-  //   const flagId = /[/](\w+)/.exec(subpage)?.slice(1, 2)[0];
-  //   if (flagId) {
-  //     const flag = vnode.dom.querySelector(`#${flagId}`);
-  //     if (flag) {
-  //       flag.scrollIntoView({block: 'center'});
-  //     }
-  //   }
-  // }
 }
