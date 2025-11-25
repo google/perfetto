@@ -139,8 +139,12 @@ export interface SelectionManager {
   /**
    * Scroll the timeline horizontally and vertically to reveal the currently
    * selected entity.
+   *
+   * @param behavior - Controls zoom behavior:
+   *   - 'pan' (default): Just pan to center without changing zoom.
+   *   - 'focus': Smart zoom that centers and zooms to fit the selection.
    */
-  scrollToSelection(): void;
+  scrollToSelection(behavior?: 'pan' | 'focus'): void;
 
   /**
    * Returns the smallest time span that contains the currently selected entity.

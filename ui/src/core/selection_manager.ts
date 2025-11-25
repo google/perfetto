@@ -385,7 +385,7 @@ export class SelectionManagerImpl implements SelectionManager {
     }
   }
 
-  scrollToSelection() {
+  scrollToSelection(behavior?: 'pan' | 'focus') {
     const uri = (() => {
       switch (this.selection.kind) {
         case 'track_event':
@@ -409,7 +409,7 @@ export class SelectionManagerImpl implements SelectionManager {
     // Note: DEFAULT notes return a TimeSpan with start === end (duration 0),
     // so they're handled as instant events in the scroll helper.
     this.scrollHelper.scrollTo({
-      time: range ? {...range} : undefined,
+      time: range ? {...range, behavior} : undefined,
       track: uri ? {uri, expandGroup: true} : undefined,
     });
   }
