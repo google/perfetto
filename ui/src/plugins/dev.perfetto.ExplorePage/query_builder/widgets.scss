@@ -135,12 +135,13 @@
 }
 
 // Form row widget - labeled form row with children
+// Uses <label> as the root element for accessibility
 .pf-exp-form-row {
   display: flex;
   align-items: center;
   gap: 8px;
 
-  label {
+  span {
     font-weight: 500;
     font-size: 12px;
     color: var(--pf-color-text-muted);
@@ -149,12 +150,13 @@
 }
 
 // Labeled control widget - inline label with any control
+// Uses <label> as the root element for accessibility
 .pf-exp-labeled-control {
   display: flex;
   align-items: center;
   gap: 8px;
 
-  label {
+  span {
     font-weight: 500;
     color: var(--pf-color-text);
   }

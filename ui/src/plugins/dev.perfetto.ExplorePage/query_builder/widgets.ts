@@ -202,24 +202,26 @@ export class ActionButtons implements m.ClassComponent<ActionButtonsAttrs> {
 }
 
 // Widget for a labeled form row with input
+// The children are placed inside the label for proper accessibility
 export interface FormRowAttrs {
   label: string;
 }
 
 export class FormRow implements m.ClassComponent<FormRowAttrs> {
   view({attrs, children}: m.CVnode<FormRowAttrs>) {
-    return m('.pf-exp-form-row', m('label', attrs.label), children);
+    return m('label.pf-exp-form-row', m('span', attrs.label), children);
   }
 }
 
 // Widget for inline label with any control (input, select, multiselect, etc.)
+// The children are placed inside the label for proper accessibility
 export interface LabeledControlAttrs {
   label: string;
 }
 
 export class LabeledControl implements m.ClassComponent<LabeledControlAttrs> {
   view({attrs, children}: m.CVnode<LabeledControlAttrs>) {
-    return m('.pf-exp-labeled-control', m('label', attrs.label), children);
+    return m('label.pf-exp-labeled-control', m('span', attrs.label), children);
   }
 }
 
