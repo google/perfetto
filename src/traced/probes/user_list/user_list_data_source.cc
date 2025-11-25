@@ -47,28 +47,8 @@ UserListDataSource::UserListDataSource(const DataSourceConfig& ds_config,
     : ProbesDataSource(session_id, &descriptor), writer_(std::move(writer)) {
   AndroidUserListConfig::Decoder cfg(ds_config.user_list_config_raw());
 
-  bool config_has_filters = false;
   for (auto type = cfg.user_type_filter(); type; ++type) {
     user_type_filter_.emplace((*type).ToStdString());
-    config_has_filters = true;
-  }
-
-  if (!config_has_filters) {
-    PERFETTO_ILOG("Applying default user type filters for 'user' build.");
-    const std::vector<std::string> default_filters = {
-        "android.os.usertype.full.SYSTEM",
-        "android.os.usertype.system.HEADLESS",
-        "android.os.usertype.full.SECONDARY",
-        "android.os.usertype.full.GUEST",
-        "android.os.usertype.full.RESTRICTED",
-        "android.os.usertype.profile.MANAGED",
-        "android.os.usertype.profile.CLONE",
-        "android.os.usertype.profile.COMMUNAL"};
-    for (const auto& filter : default_filters) {
-      user_type_filter_.emplace(filter);
-    }
-  } else {
-    PERFETTO_ILOG("Using user type filters from provided trace config.");
   }
 }
 

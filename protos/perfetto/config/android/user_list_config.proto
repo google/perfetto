@@ -21,7 +21,33 @@ package perfetto.protos;
 // Data source that lists details (such as version code) about users on an
 // Android device.
 message AndroidUserListConfig {
-  // If not empty, emit info about only the following list of user types
-  // (exact match, no regex). Otherwise, emit info about all users.
+  // An allowlist of user type strings, used to control the granularity of
+  // user type information emitted in the trace. Exact, case-sensitive string
+  // matching is used.
+  //
+  // Any user type read from the device that is NOT present in the
+  // effective allowlist will have its type reported as
+  // "android.os.usertype.UNKNOWN".
+  //
+  // The effective allowlist is determined as follows:
+  //
+  // 1. If this 'user_type_filter' field is provided and non-empty:
+  //    This list itself is the effective allowlist.
+  //    Example TraceConfig:
+  //    --------------------
+  //    data_sources {
+  //        config {
+  //            name: "android.user_list"
+  //            target_buffer: 0
+  //            user_list_config {
+  //              # Only report these specific types, others become UNKNOWN.
+  //              user_type_filter: "android.os.usertype.full.SYSTEM"
+  //              user_type_filter: "android.os.usertype.system.HEADLESS"
+  //            }
+  //        }
+  //    }
+  //
+  //
+  // Note: This field does not support regular expressions.
   repeated string user_type_filter = 1;
 }
