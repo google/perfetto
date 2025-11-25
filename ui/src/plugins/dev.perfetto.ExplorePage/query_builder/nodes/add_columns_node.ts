@@ -25,9 +25,9 @@ import m from 'mithril';
 import {Card, CardStack} from '../../../../widgets/card';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
-import {Button, ButtonVariant} from '../../../../widgets/button';
+import {Button} from '../../../../widgets/button';
 import {TextInput} from '../../../../widgets/text_input';
-import {showModal} from '../../../../widgets/modal';
+import {showModal, redrawModal} from '../../../../widgets/modal';
 import {Switch} from '../../../../widgets/switch';
 import {Icon} from '../../../../widgets/icon';
 import {
@@ -36,7 +36,9 @@ import {
   JoinCondition,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {ColumnNameRow} from '../widgets';
+import {ColumnNameRow, ListItem, ActionButtons, FormRow} from '../widgets';
+import {EmptyState} from '../../../../widgets/empty_state';
+import {Callout} from '../../../../widgets/callout';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -437,7 +439,7 @@ export class AddColumnsNode implements ModificationNode {
     this.state.selectedColumns = this.state.selectedColumns ?? [];
     this.state.leftColumn = this.state.leftColumn ?? 'id';
     this.state.rightColumn = this.state.rightColumn ?? 'id';
-    this.state.autoExecute = this.state.autoExecute ?? false;
+    this.state.autoExecute = this.state.autoExecute ?? true;
     this.state.suggestionSelections =
       this.state.suggestionSelections ?? new Map();
     this.state.expandedSuggestions =
@@ -513,6 +515,48 @@ export class AddColumnsNode implements ModificationNode {
 
   private isComputedColumnValid(col: NewColumn): boolean {
     return col.expression.trim() !== '' && col.name.trim() !== '';
+  }
+
+  // Check if a column name already exists (for duplicate detection)
+  // excludeIndex: if editing an existing column, exclude it from the check
+  private getColumnNameError(
+    name: string,
+    excludeIndex?: number,
+  ): string | undefined {
+    const trimmedName = name.trim();
+    if (trimmedName === '') {
+      return undefined; // Empty names are handled by isComputedColumnValid
+    }
+
+    // Check against source columns (use alias if present, otherwise column name)
+    for (const c of this.sourceCols) {
+      const effectiveName = c.alias ?? c.column.name;
+      if (effectiveName === trimmedName) {
+        return `Column "${trimmedName}" already exists in the source data`;
+      }
+    }
+
+    // Check against selected columns from joined source (with aliases)
+    if (this.state.selectedColumns) {
+      for (const colName of this.state.selectedColumns) {
+        const alias = this.state.columnAliases?.get(colName);
+        const effectiveName = alias ?? colName;
+        if (effectiveName === trimmedName) {
+          return `Column "${trimmedName}" already exists in joined columns`;
+        }
+      }
+    }
+
+    // Check against other computed columns
+    for (let i = 0; i < (this.state.computedColumns?.length ?? 0); i++) {
+      if (i === excludeIndex) continue; // Skip the column being edited
+      const col = this.state.computedColumns![i];
+      if (col.name.trim() === trimmedName) {
+        return `Column "${trimmedName}" already exists in computed columns`;
+      }
+    }
+
+    return undefined;
   }
 
   // Suggest joinable tables based on JOINID column types
@@ -672,7 +716,8 @@ export class AddColumnsNode implements ModificationNode {
       title: isEditing ? 'Edit Expression Column' : 'Add Expression Column',
       key: modalKey,
       content: () => {
-        return this.renderComputedColumn(tempColumn);
+        const nameError = this.getColumnNameError(tempColumn.name, columnIndex);
+        return this.renderComputedColumn(tempColumn, nameError);
       },
       buttons: [
         {
@@ -684,6 +729,9 @@ export class AddColumnsNode implements ModificationNode {
         {
           text: isEditing ? 'Save' : 'Add',
           primary: true,
+          disabled: () =>
+            !this.isComputedColumnValid(tempColumn) ||
+            this.getColumnNameError(tempColumn.name, columnIndex) !== undefined,
           action: () => {
             // Apply the temporary changes to the actual state
             if (isEditing && columnIndex !== undefined) {
@@ -731,7 +779,8 @@ export class AddColumnsNode implements ModificationNode {
       title: isEditing ? 'Edit Switch Column' : 'Add Switch Column',
       key: modalKey,
       content: () => {
-        return this.renderComputedColumn(tempColumn);
+        const nameError = this.getColumnNameError(tempColumn.name, columnIndex);
+        return this.renderComputedColumn(tempColumn, nameError);
       },
       buttons: [
         {
@@ -743,6 +792,9 @@ export class AddColumnsNode implements ModificationNode {
         {
           text: isEditing ? 'Save' : 'Add',
           primary: true,
+          disabled: () =>
+            !this.isComputedColumnValid(tempColumn) ||
+            this.getColumnNameError(tempColumn.name, columnIndex) !== undefined,
           action: () => {
             // Apply the temporary changes to the actual state
             if (isEditing && columnIndex !== undefined) {
@@ -790,7 +842,8 @@ export class AddColumnsNode implements ModificationNode {
       title: isEditing ? 'Edit If Column' : 'Add If Column',
       key: modalKey,
       content: () => {
-        return this.renderComputedColumn(tempColumn);
+        const nameError = this.getColumnNameError(tempColumn.name, columnIndex);
+        return this.renderComputedColumn(tempColumn, nameError);
       },
       buttons: [
         {
@@ -802,6 +855,9 @@ export class AddColumnsNode implements ModificationNode {
         {
           text: isEditing ? 'Save' : 'Add',
           primary: true,
+          disabled: () =>
+            !this.isComputedColumnValid(tempColumn) ||
+            this.getColumnNameError(tempColumn.name, columnIndex) !== undefined,
           action: () => {
             // Apply the temporary changes to the actual state
             if (isEditing && columnIndex !== undefined) {
@@ -828,43 +884,31 @@ export class AddColumnsNode implements ModificationNode {
 
     return m(
       '.pf-add-columns-actions-section',
-      m(
-        '.pf-add-columns-actions-buttons',
-        m(Button, {
-          label: hasConnectedNode
-            ? 'From another source ✓'
-            : 'From another source',
-          icon: 'table_chart',
-          variant: ButtonVariant.Outlined,
-          onclick: () => {
-            this.showJoinModal();
+      m(ActionButtons, {
+        buttons: [
+          {
+            label: 'From another source',
+            icon: 'table_chart',
+            active: hasConnectedNode,
+            onclick: () => this.showJoinModal(),
           },
-        }),
-        m(Button, {
-          label: 'Expression',
-          icon: 'functions',
-          variant: ButtonVariant.Outlined,
-          onclick: () => {
-            this.showExpressionModal();
+          {
+            label: 'Expression',
+            icon: 'functions',
+            onclick: () => this.showExpressionModal(),
           },
-        }),
-        m(Button, {
-          label: 'Switch',
-          icon: 'alt_route',
-          variant: ButtonVariant.Outlined,
-          onclick: () => {
-            this.showSwitchModal();
+          {
+            label: 'Switch',
+            icon: 'alt_route',
+            onclick: () => this.showSwitchModal(),
           },
-        }),
-        m(Button, {
-          label: 'If',
-          icon: 'help_outline',
-          variant: ButtonVariant.Outlined,
-          onclick: () => {
-            this.showIfModal();
+          {
+            label: 'If',
+            icon: 'help_outline',
+            onclick: () => this.showIfModal(),
           },
-        }),
-      ),
+        ],
+      }),
     );
   }
 
@@ -873,10 +917,9 @@ export class AddColumnsNode implements ModificationNode {
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
 
     if (!hasConnectedNode && !hasComputedColumns) {
-      return m(
-        '.pf-added-columns-empty',
-        'No columns added yet. Use the buttons above to add columns.',
-      );
+      return m(EmptyState, {
+        title: 'No columns added yet. Use the buttons above to add columns.',
+      });
     }
 
     const items: m.Child[] = [];
@@ -884,27 +927,15 @@ export class AddColumnsNode implements ModificationNode {
     // Show joined columns
     if (hasConnectedNode) {
       items.push(
-        m(
-          '.pf-added-column-item.pf-joined-source',
-          m(Icon, {icon: 'table_chart'}),
-          m(
-            '.pf-added-column-info',
-            m('.pf-added-column-name', 'Joined Source'),
-            m(
-              '.pf-added-column-description',
-              `${this.state.selectedColumns?.length ?? 0} selected columns`,
-            ),
-          ),
-          m(Button, {
-            label: 'Configure',
-            icon: 'settings',
-            variant: ButtonVariant.Outlined,
-            compact: true,
-            onclick: () => {
-              this.showJoinModal();
-            },
-          }),
-        ),
+        m(ListItem, {
+          icon: 'table_chart',
+          name: 'Joined Source',
+          description: `${this.state.selectedColumns?.length ?? 0} selected columns`,
+          actionLabel: 'Configure',
+          actionIcon: 'settings',
+          onAction: () => this.showJoinModal(),
+          className: 'pf-joined-source',
+        }),
       );
     }
 
@@ -932,30 +963,26 @@ export class AddColumnsNode implements ModificationNode {
             : `${typeName} (empty)`;
 
       items.push(
-        m(
-          '.pf-added-column-item',
-          m(Icon, {icon}),
-          m(
-            '.pf-added-column-info',
-            m('.pf-added-column-name', col.name || '(unnamed)'),
-            m('.pf-added-column-description', description),
-          ),
-          m(Button, {
-            label: 'Edit',
-            icon: 'edit',
-            variant: ButtonVariant.Outlined,
-            compact: true,
-            onclick: () => {
-              if (col.type === 'switch') {
-                this.showSwitchModal(index);
-              } else if (col.type === 'if') {
-                this.showIfModal(index);
-              } else {
-                this.showExpressionModal(index);
-              }
-            },
-          }),
-        ),
+        m(ListItem, {
+          icon,
+          name: col.name || '(unnamed)',
+          description,
+          actionLabel: 'Edit',
+          actionIcon: 'edit',
+          onAction: () => {
+            if (col.type === 'switch') {
+              this.showSwitchModal(index);
+            } else if (col.type === 'if') {
+              this.showIfModal(index);
+            } else {
+              this.showExpressionModal(index);
+            }
+          },
+          onRemove: () => {
+            this.state.computedColumns?.splice(index, 1);
+            this.state.onchange?.();
+          },
+        }),
       );
     }
 
@@ -1234,40 +1261,26 @@ export class AddColumnsNode implements ModificationNode {
                   ),
                   this.state.selectedColumns.map((colName) =>
                     m(
-                      '.pf-form-row',
-                      {
-                        style: {
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          marginBottom: '8px',
+                      FormRow,
+                      {label: colName},
+                      m('span', '→'),
+                      m(TextInput, {
+                        placeholder: 'alias (optional)',
+                        value: this.state.columnAliases?.get(colName) ?? '',
+                        oninput: (e: InputEvent) => {
+                          const target = e.target as HTMLInputElement;
+                          const alias = target.value.trim();
+                          if (!this.state.columnAliases) {
+                            this.state.columnAliases = new Map();
+                          }
+                          if (alias) {
+                            this.state.columnAliases.set(colName, alias);
+                          } else {
+                            this.state.columnAliases.delete(colName);
+                          }
+                          this.state.onchange?.();
                         },
-                      },
-                      [
-                        m(
-                          'code',
-                          {style: {minWidth: '120px', fontSize: '12px'}},
-                          colName,
-                        ),
-                        m('span', '→'),
-                        m(TextInput, {
-                          placeholder: 'alias (optional)',
-                          value: this.state.columnAliases?.get(colName) ?? '',
-                          oninput: (e: InputEvent) => {
-                            const target = e.target as HTMLInputElement;
-                            const alias = target.value.trim();
-                            if (!this.state.columnAliases) {
-                              this.state.columnAliases = new Map();
-                            }
-                            if (alias) {
-                              this.state.columnAliases.set(colName, alias);
-                            } else {
-                              this.state.columnAliases.delete(colName);
-                            }
-                            this.state.onchange?.();
-                          },
-                        }),
-                      ],
+                      }),
                     ),
                   ),
                 ],
@@ -1278,8 +1291,8 @@ export class AddColumnsNode implements ModificationNode {
           Card,
           m('h3', 'Join Condition'),
           m(
-            '.pf-form-row',
-            m('label', 'Base Column:'),
+            FormRow,
+            {label: 'Base Column:'},
             m(
               Select,
               {
@@ -1307,8 +1320,8 @@ export class AddColumnsNode implements ModificationNode {
             ),
           ),
           m(
-            '.pf-form-row',
-            m('label', 'Connected Node Column:'),
+            FormRow,
+            {label: 'Connected Node Column:'},
             m(
               Select,
               {
@@ -1340,16 +1353,18 @@ export class AddColumnsNode implements ModificationNode {
     ]);
   }
 
-  private renderComputedColumn(col: NewColumn): m.Child {
+  private renderComputedColumn(col: NewColumn, nameError?: string): m.Child {
     if (col.type === 'switch') {
       return m(
         '.pf-exp-switch-wrapper',
+        nameError && m(Callout, {icon: 'error'}, nameError),
         m(ColumnNameRow, {
           label: 'New switch column name',
           name: col.name,
-          isValid: this.isComputedColumnValid(col),
+          isValid: this.isComputedColumnValid(col) && !nameError,
           onNameChange: (name) => {
             col.name = name;
+            redrawModal();
           },
           onRemove: () => {
             // No-op in modal mode
@@ -1368,12 +1383,14 @@ export class AddColumnsNode implements ModificationNode {
     if (col.type === 'if') {
       return m(
         '.pf-exp-if-wrapper',
+        nameError && m(Callout, {icon: 'error'}, nameError),
         m(ColumnNameRow, {
           label: 'New if column name',
           name: col.name,
-          isValid: this.isComputedColumnValid(col),
+          isValid: this.isComputedColumnValid(col) && !nameError,
           onNameChange: (name) => {
             col.name = name;
+            redrawModal();
           },
           onRemove: () => {
             // No-op in modal mode
@@ -1388,11 +1405,13 @@ export class AddColumnsNode implements ModificationNode {
       );
     }
 
-    const isValid = this.isComputedColumnValid(col);
+    const isValid = this.isComputedColumnValid(col) && !nameError;
 
     return m(
       'div',
       {style: {display: 'flex', flexDirection: 'column', gap: '16px'}},
+      // Error callout for duplicate names
+      nameError && m(Callout, {icon: 'error'}, nameError),
       // Help text
       m(
         'div',
@@ -1460,6 +1479,7 @@ export class AddColumnsNode implements ModificationNode {
         m(TextInput, {
           oninput: (e: Event) => {
             col.name = (e.target as HTMLInputElement).value;
+            redrawModal();
           },
           placeholder: 'Enter column name (e.g., dur_ms)',
           value: col.name,
@@ -1506,20 +1526,6 @@ export class AddColumnsNode implements ModificationNode {
       return false;
     }
 
-    // Check if there are any valid computed columns
-    const hasValidComputedColumns = this.state.computedColumns?.some((col) =>
-      this.isComputedColumnValid(col),
-    );
-
-    // Require either a rightNode or valid computed columns
-    if (!this.rightNode && !hasValidComputedColumns) {
-      setValidationError(
-        this.state,
-        'No node connected to add columns from and no valid computed columns',
-      );
-      return false;
-    }
-
     // If there's a rightNode, validate the join configuration
     if (this.rightNode) {
       // We need valid join columns
@@ -1532,6 +1538,8 @@ export class AddColumnsNode implements ModificationNode {
       }
     }
 
+    // If no columns are being added (no rightNode and no computed columns),
+    // this is valid - it's just a passthrough node
     return true;
   }
 

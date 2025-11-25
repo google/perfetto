@@ -21,14 +21,14 @@
   align-items: center;
   gap: 8px;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--separator-color);
+  border-bottom: 1px solid var(--pf-color-border);
 
   label {
     font-weight: 600;
-    font-size: var(--pf-exp-font-size-sm);
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--pf-text-color-secondary);
+    color: var(--pf-color-text-muted);
   }
 }
 
@@ -37,10 +37,22 @@
   gap: 8px;
 }
 
+// Card header widget
+.pf-exp-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+
+  &__title {
+    margin: 0;
+  }
+}
+
 // Section widget
 .pf-exp-section {
   padding: 1rem;
-  border-bottom: 1px solid var(--separator-color);
+  border-bottom: 1px solid var(--pf-color-border);
 
   &:last-child {
     border-bottom: none;
@@ -54,7 +66,7 @@
   margin-bottom: 1rem;
 
   h2 {
-    font-size: var(--pf-exp-font-size-md);
+    font-size: 14px;
     font-weight: 500;
     margin: 0;
   }
@@ -62,4 +74,112 @@
 
 .pf-exp-section-content {
   // Content fills available space
+}
+
+// List item widget - displays an item with icon, name, description, and action button
+.pf-exp-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+
+  &:hover {
+    background: var(--pf-color-background);
+    border-color: var(--pf-color-primary);
+  }
+
+  &.pf-joined-source {
+    border-left: 4px solid var(--pf-color-primary);
+  }
+}
+
+.pf-exp-list-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; // Allow text truncation
+}
+
+.pf-exp-list-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pf-color-text);
+  font-family: "Roboto Mono", monospace;
+}
+
+.pf-exp-list-item-description {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-exp-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+// Action buttons widget - horizontal row of action buttons
+.pf-exp-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+
+  button {
+    justify-content: flex-start;
+  }
+}
+
+// Form row widget - labeled form row with children
+// Uses <label> as the root element for accessibility
+.pf-exp-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  span {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+    min-width: 100px;
+  }
+}
+
+// Labeled control widget - inline label with any control
+// Uses <label> as the root element for accessibility
+.pf-exp-labeled-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  span {
+    font-weight: 500;
+    color: var(--pf-color-text);
+  }
+}
+
+// Draggable list item widget
+.pf-exp-draggable-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  cursor: grab;
+
+  &:hover {
+    background: var(--pf-color-background);
+  }
+
+  .pf-exp-drag-handle {
+    cursor: grab;
+    color: var(--pf-color-text-muted);
+    user-select: none;
+  }
 }

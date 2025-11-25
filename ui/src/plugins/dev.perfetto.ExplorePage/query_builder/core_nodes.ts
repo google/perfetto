@@ -110,7 +110,7 @@ export function registerCoreNodes() {
         selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
         leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
         rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
-        autoExecute: false,
+        autoExecute: true,
       };
       return new AddColumnsNode(fullState);
     },

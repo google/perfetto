@@ -29,6 +29,7 @@ import {ColumnInfo, newColumnInfoList} from '../column_info';
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
+import {DraggableItem} from '../widgets';
 
 export interface ModifyColumnsSerializedState {
   prevNodeId?: string;
@@ -333,34 +334,20 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   private renderSelectedColumn(col: ColumnInfo, index: number): m.Child {
-    return m(
-      '.pf-column',
-      {
-        ondragover: (e: DragEvent) => {
-          e.preventDefault();
-        },
-        ondrop: (e: DragEvent) => {
-          e.preventDefault();
-          const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
-          const to = index;
+    const handleReorder = (from: number, to: number) => {
+      const newSelectedColumns = [...this.state.selectedColumns];
+      const [removed] = newSelectedColumns.splice(from, 1);
+      newSelectedColumns.splice(to, 0, removed);
+      this.state.selectedColumns = newSelectedColumns;
+      this.state.onchange?.();
+    };
 
-          const newSelectedColumns = [...this.state.selectedColumns];
-          const [removed] = newSelectedColumns.splice(from, 1);
-          newSelectedColumns.splice(to, 0, removed);
-          this.state.selectedColumns = newSelectedColumns;
-          this.state.onchange?.();
-        },
+    return m(
+      DraggableItem,
+      {
+        index,
+        onReorder: handleReorder,
       },
-      m(
-        'span.pf-drag-handle',
-        {
-          draggable: true,
-          ondragstart: (e: DragEvent) => {
-            e.dataTransfer!.setData('text/plain', index.toString());
-          },
-        },
-        '☰',
-      ),
       m(Checkbox, {
         checked: col.checked,
         label: col.column.name,
