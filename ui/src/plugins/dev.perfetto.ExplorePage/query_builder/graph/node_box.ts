@@ -19,18 +19,16 @@ import {Icons} from '../../../../base/semantic_icons';
 import {Button} from '../../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
-import {UIFilter} from '../operations/filter';
-import {Chip} from '../../../../widgets/chip';
 import {Icon} from '../../../../widgets/icon';
 import {Callout} from '../../../../widgets/callout';
 import {Intent} from '../../../../widgets/common';
 import {nodeRegistry} from '../node_registry';
+import {buildCategorizedMenuItems} from './menu_utils';
 
 export interface NodeActions {
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onAddOperationNode: (id: string, node: QueryNode) => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
 }
 
 export interface NodeBoxAttrs extends NodeActions {
@@ -84,6 +82,10 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
     return null;
   }
 
+  const menuItems = buildCategorizedMenuItems(operationNodes, (id) =>
+    onAddOperationNode(id, node),
+  );
+
   return m(
     PopupMenu,
     {
@@ -92,32 +94,7 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
         icon: 'add',
       }),
     },
-    ...operationNodes.map(([id, descriptor]) => {
-      return m(MenuItem, {
-        label: descriptor.name,
-        onclick: () => onAddOperationNode(id, node),
-      });
-    }),
-  );
-}
-
-export function renderFilters(attrs: NodeBoxAttrs): m.Child {
-  const {node, onRemoveFilter} = attrs;
-  if (!node.state.filters || node.state.filters.length === 0) return null;
-
-  return m(
-    '.pf-exp-node-box__filters',
-    node.state.filters?.map((filter) => {
-      const label =
-        'value' in filter
-          ? `${filter.column} ${filter.op} ${filter.value}`
-          : `${filter.column} ${filter.op}`;
-      return m(Chip, {
-        label,
-        removable: true,
-        onRemove: () => onRemoveFilter(node, filter),
-      });
-    }),
+    ...menuItems,
   );
 }
 
@@ -136,7 +113,6 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         node.state.comment &&
           m(Callout, {intent: Intent.None}, node.state.comment),
         m('.pf-exp-node-box__details', node.nodeDetails?.()),
-        renderFilters(attrs),
       ),
       m(
         '.pf-exp-node-box__actions',

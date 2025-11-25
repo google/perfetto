@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {getCurrentChannel} from '../core/channels';
-import {TRACE_SUFFIX} from '../public/trace';
 import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
@@ -50,6 +49,7 @@ import {Icon} from '../widgets/icon';
 import {Button} from '../widgets/button';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
+const TRACE_SUFFIX = '.perfetto-trace';
 
 function getBugReportUrl(): string {
   if (AppImpl.instance.isInternalUser) {
@@ -418,7 +418,8 @@ export class Sidebar implements m.ClassComponent {
         .filter((item) => item.section === sectionId),
     ];
 
-    // Add section-specific global and trace items
+    // Add section-specific global and trace items, and determine default collapsed state
+    let defaultCollapsed = false;
     switch (sectionId) {
       case 'current_trace':
         if (trace !== undefined) {
@@ -429,12 +430,14 @@ export class Sidebar implements m.ClassComponent {
         if (trace !== undefined) {
           allItems.push(...getConvertTraceItems(trace));
         }
+        defaultCollapsed = true;
         break;
       case 'support':
         allItems.push(...getSupportGlobalItems());
         if (trace !== undefined) {
           allItems.push(...getSupportTraceItems(trace));
         }
+        defaultCollapsed = true;
         break;
     }
 
@@ -445,7 +448,11 @@ export class Sidebar implements m.ClassComponent {
     // Don't render empty sections.
     if (menuItems.length === 0) return undefined;
 
-    const expanded = getOrCreate(this._sectionExpanded, sectionId, () => true);
+    const expanded = getOrCreate(
+      this._sectionExpanded,
+      sectionId,
+      () => !defaultCollapsed,
+    );
     return m(
       `section${expanded ? '.pf-sidebar__section--expanded' : ''}`,
       m(

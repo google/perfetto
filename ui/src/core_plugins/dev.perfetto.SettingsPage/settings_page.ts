@@ -18,21 +18,18 @@ import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {z} from 'zod';
 import {Button, ButtonVariant} from '../../widgets/button';
-import {Card, CardStack} from '../../widgets/card';
-import {SettingsShell} from '../../widgets/settings_shell';
+import {CardStack} from '../../widgets/card';
+import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
-import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
-import {CORE_PLUGIN_ID} from '../../core/plugin_manager';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
-import {Anchor} from '../../widgets/anchor';
 
 export interface SettingsPageAttrs {
   readonly subpage?: string;
@@ -56,8 +53,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
 
     // Sort plugin IDs: CORE_PLUGIN_ID first, then alphabetically
     const sortedPluginIds = Array.from(groupedSettings.keys()).sort((a, b) => {
-      if (a === CORE_PLUGIN_ID) return -1;
-      if (b === CORE_PLUGIN_ID) return 1;
+      if (!a) return -1;
+      if (!b) return 1;
       return a.localeCompare(b);
     });
 
@@ -159,9 +156,9 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     for (const result of settings) {
       const setting = result.item;
       const isCore =
-        setting.pluginId === CORE_PLUGIN_ID ||
+        setting.pluginId === undefined ||
         app.plugins.isCorePlugin(setting.pluginId);
-      const targetGroup = isCore ? CORE_PLUGIN_ID : setting.pluginId;
+      const targetGroup = isCore ? 'Core' : setting.pluginId;
 
       const existing = grouped.get(targetGroup) ?? [];
       existing.push(result);
@@ -175,13 +172,10 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     settings: Array<{item: Setting<unknown>; segments: FuzzySegment[]}>,
     subpage: string,
   ) {
-    // Display CORE_PLUGIN_ID as "Core" in the UI
-    const displayName = pluginId === CORE_PLUGIN_ID ? 'Core' : pluginId;
-
     return m(
       '.pf-settings-page__plugin-section',
       {key: pluginId},
-      m('h2.pf-settings-page__plugin-title', displayName),
+      m('h2.pf-settings-page__plugin-title', pluginId),
       m(
         CardStack,
         settings.map(({item}) => {
@@ -218,53 +212,27 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   }
 
   private renderSettingCard(setting: Setting<unknown>, subpage: string) {
-    return m(
-      Card,
-      {
-        id: setting.id,
-        className: classNames(
-          'pf-settings-page__card',
-          !setting.isDefault && 'pf-settings-page__card--changed',
-          subpage === `/${setting.id}` && 'pf-settings-page__card--focused',
-        ),
-        key: setting.id,
-      },
-      m(
-        '.pf-settings-page__details',
-        m(
-          Stack,
-          {
-            orientation: 'horizontal',
-            gap: 'small',
-            className: 'pf-settings-page__label-row',
-          },
-          m('h1', setting.name),
-          m(
-            '.pf-settings-page__link-button',
-            m(Anchor, {
-              href: `#!/settings/${encodeURIComponent(setting.id)}`,
-              icon: 'link',
-              title: 'Link to this setting',
-            }),
-          ),
-        ),
-        m('.pf-settings-page__setting-id', setting.id),
-        setting.description &&
-          m('.pf-settings-page__description', setting.description),
-      ),
-      m('.pf-settings-page__controls', [
+    return m(SettingsCard, {
+      id: setting.id,
+      title: setting.name,
+      description: setting.description.trim(),
+      focused: subpage === `/${setting.id}`,
+      controls: m('.pf-settings-page__controls', [
         !setting.isDefault &&
           m(Button, {
             icon: 'restore',
             title: 'Restore default',
             variant: ButtonVariant.Minimal,
+            className: 'pf-settings-page__restore-button',
             onclick: () => {
               setting.reset();
             },
           }),
         this.renderSettingControl(setting),
       ]),
-    );
+      accent: !setting.isDefault ? Intent.Primary : undefined,
+      linkHref: `#!/settings/${encodeURIComponent(setting.id)}`,
+    });
   }
 
   private renderSettingControl(setting: Setting<unknown>) {
@@ -387,17 +355,6 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
         m(Icon, {icon: 'error_outline'}),
         m('span', 'Cannot edit this setting directly'),
       ]);
-    }
-  }
-
-  oncreate(vnode: m.VnodeDOM<SettingsPageAttrs>) {
-    const subpage = decodeURIComponent(vnode.attrs.subpage ?? '');
-    const settingId = /[/](.+)/.exec(subpage)?.[1];
-    if (settingId) {
-      const setting = vnode.dom.querySelector(`#${CSS.escape(settingId)}`);
-      if (setting) {
-        setting.scrollIntoView({block: 'center'});
-      }
     }
   }
 }

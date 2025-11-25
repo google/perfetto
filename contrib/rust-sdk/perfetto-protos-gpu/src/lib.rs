@@ -13,13 +13,13 @@
 // limitations under the License.
 
 /// Re-export pb_msg macro from this crate.
-pub use perfetto::pb_msg;
+pub use perfetto_sdk::pb_msg;
 
 /// Re-export pb_msg_ext macro from this crate.
-pub use perfetto::pb_msg_ext;
+pub use perfetto_sdk::pb_msg_ext;
 
 /// Re-export pb_enum macro from this crate.
-pub use perfetto::pb_enum;
+pub use perfetto_sdk::pb_enum;
 
 /// Protobuf bindings module.
 pub mod protos;

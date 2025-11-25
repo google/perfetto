@@ -144,16 +144,22 @@ struct FtraceEventAndFieldId {
 // TODO(lalitm): going through this array is O(n) on a hot-path (see
 // ParseTypedFtraceToRaw). Consider changing this if we end up adding a lot of
 // events here.
-constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 7>{
+constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 9>{
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
         protos::pbzero::SchedBlockedReasonFtraceEvent::kCallerFieldNumber},
     FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
+        protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber},
+    FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kWorkqueueActivateWorkFieldNumber,
+        protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
+    FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kWorkqueueExecuteStartFieldNumber,
         protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
-        protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
-        protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber},
+        protos::pbzero::FtraceEvent::kWorkqueueExecuteEndFieldNumber,
+        protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kFuncgraphEntryFieldNumber,
         protos::pbzero::FuncgraphEntryFtraceEvent::kFuncFieldNumber},
@@ -1630,7 +1636,7 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  protozero::ProtoDecoder decoder(blob);
+  ProtoDecoder decoder(blob);
 
   // Special handling for events matching a convention - derive track/counter
   // tracks for them automatically (no perfetto code changes needed).

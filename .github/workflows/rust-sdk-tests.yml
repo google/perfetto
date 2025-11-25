@@ -1,0 +1,70 @@
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow is triggered by analyze.yml
+name: Perfetto Rust SDK CI
+
+on:
+  workflow_call:
+
+permissions:
+  pull-requests: read
+
+env:
+  RUSTUP_HOME: "${{ github.workspace }}/buildtools/rustup"
+  CARGO_HOME: "${{ github.workspace }}/.cargo"
+
+jobs:
+  rust-sdk:
+    runs-on: self-hosted
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/install-build-deps
+        with:
+          install-flags: --rust
+
+      # Fetch the upstream branch as well, so we can diff and see the list of
+      # changed files (unless this is a post-submit test).
+      - name: Fetch upstream branch
+        if: ${{ github.base_ref != '' }}
+        shell: bash
+        run: git fetch origin ${{ github.base_ref }} --depth=1
+
+      - name: Check format
+        # base_ref is "" in post-submit, skip the format check in postsubmit
+        # as there is nothing do diff against.
+        if: ${{ github.base_ref != '' }}
+        shell: bash
+        run: tools/format-rust-sources --upstream=origin/${{ github.base_ref }} --check
+
+      - name: Generate amalgamated shared library sources
+        shell: bash
+        run: tools/gen_amalgamated --sdk c --output contrib/rust-sdk/perfetto-sys/libperfetto_c/perfetto
+
+      - name: Setup compiler path
+        shell: bash
+        run: |
+          if [[ -e buildtools/linux64/clang/bin/clang++ ]]; then
+            echo "PATH=$(readlink -f buildtools/linux64/clang/bin):$PATH" >> $GITHUB_ENV
+          fi
+
+      - name: Build and run tests
+        run: .cargo/bin/cargo test --manifest-path=contrib/rust-sdk/Cargo.toml --features=intrinsics
+
+      - name: Run clippy
+        run: .cargo/bin/cargo clippy --manifest-path=contrib/rust-sdk/Cargo.toml --all-targets --features=intrinsics -- -D warnings

@@ -130,7 +130,7 @@ export default class implements PerfettoPlugin {
     );
     if (result.numRows() === 0) return;
     const trackId = result.iter({id: NUM}).id;
-    const track = ctx.trace?.tracks.findTrack((t) =>
+    const track = ctx.tracks.findTrack((t) =>
       t.tags?.trackIds?.includes(trackId),
     );
     if (!track?.uri) return;

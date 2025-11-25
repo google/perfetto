@@ -40,6 +40,7 @@ int StatsModule::Connect(sqlite3* db,
       source TEXT,
       value BIGINT,
       description TEXT,
+      key BIGINT HIDDEN,
       PRIMARY KEY(name)
     ) WITHOUT ROWID
   )";
@@ -157,6 +158,9 @@ int StatsModule::Column(sqlite3_vtab_cursor* cursor,
       break;
     case Column::kDescription:
       sqlite::result::StaticString(ctx, stats::kDescriptions[c->key]);
+      break;
+    case Column::kKey:
+      sqlite::result::Long(ctx, static_cast<int64_t>(c->key));
       break;
     default:
       PERFETTO_FATAL("Unknown column %d", N);

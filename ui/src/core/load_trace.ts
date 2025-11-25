@@ -48,6 +48,8 @@ import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
+import {parseUrlCommands} from './command_manager';
+import {isStartupCommandAllowed} from './startup_command_allowlist';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -227,7 +229,7 @@ async function loadTraceIntoEngine(
   }
 
   const traceDetails = await getTraceInfo(engine, app, traceSource);
-  const trace = TraceImpl.createInstanceForCore(app, engine, traceDetails);
+  const trace = new TraceImpl(app, engine, traceDetails);
   app.setActiveTrace(trace);
 
   const visibleTimeSpan = await computeVisibleTime(
@@ -240,23 +242,7 @@ async function loadTraceIntoEngine(
   trace.timeline.updateVisibleTime(visibleTimeSpan);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-
-  // Attempt to preserve the existing page, only add/change the local_cache_key.
-  //
-  // This is so that if the user opens a trace from a URL or has navigated to a
-  // page before opening a trace, we stay on that page. This allows links to
-  // e.g. #!/explore to work as expected.
-  //
-  // Only navigate to the timeline page if we are currently on the home page.
-  const route = Router.parseUrl(window.location.href);
-
-  let nextPage = route.page;
-  if (route.page === '/' || route.page === '') {
-    // Currently on the home page, navigate to the timeline page.
-    nextPage = '/viewer';
-  }
-
-  Router.navigate(`#!${nextPage}${route.subpage}?local_cache_key=${cacheUuid}`);
+  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);
@@ -306,10 +292,56 @@ async function loadTraceIntoEngine(
   // Execute startup commands as the final step - simulates user actions
   // after the trace is fully loaded and any saved state has been restored.
   // This ensures startup commands see the complete, final state of the trace.
-  if (trace.commands.hasStartupCommands()) {
+
+  // CRITICAL ORDER: URL commands MUST execute before settings commands!
+  // This ordering has subtle but important implications:
+  // - URL commands are trace-specific and should establish initial state
+  // - Settings commands are user preferences that should override URL defaults
+  // - Changing this order could break trace sharing and user customization
+  // DO NOT REORDER without understanding the full impact!
+  const urlCommands =
+    parseUrlCommands(app.initialRouteArgs.startupCommands) ?? [];
+  const settingsCommands = app.startupCommandsSetting.get();
+
+  // Combine URL and settings commands - runtime allowlist checking will handle filtering
+  const allStartupCommands = [...urlCommands, ...settingsCommands];
+  const enforceAllowlist = app.enforceStartupCommandAllowlistSetting.get();
+
+  if (allStartupCommands.length > 0) {
     updateStatus(app, 'Running startup commands');
     using _ = trace.omnibox.disablePrompts();
-    await trace.commands.runStartupCommands();
+
+    // Execute startup commands in trace context after everything is ready.
+    // This simulates user actions taken after trace load is complete,
+    // including any saved app state restoration. At this point:
+    // - All plugins have loaded and registered their commands
+    // - Trace data is fully accessible
+    // - UI state has been restored from any saved workspace
+    // - Commands can safely query trace data and modify UI state
+
+    // Set allowlist checking during startup if enforcement enabled
+    if (enforceAllowlist) {
+      app.commands.setAllowlistCheck(isStartupCommandAllowed);
+    }
+
+    try {
+      for (const command of allStartupCommands) {
+        try {
+          // Execute through proxy to access both global and trace-specific
+          // commands.
+          await app.commands.runCommand(command.id, ...command.args);
+        } catch (error) {
+          // TODO(stevegolton): Add a mechanism to notify users of startup
+          // command errors. This will involve creating a notification UX
+          // similar to VSCode where there are popups on the bottom right
+          // of the UI.
+          console.warn(`Startup command ${command.id} failed:`, error);
+        }
+      }
+    } finally {
+      // Always restore default (allow all) behavior when done
+      app.commands.setAllowlistCheck(() => true);
+    }
   }
 
   return trace;

@@ -106,6 +106,8 @@ using ProcessMemorySnapshotId = tables::ProcessMemorySnapshotTable::Id;
 
 using SnapshotNodeId = tables::MemorySnapshotNodeTable::Id;
 
+using TrackEventCallstacksId = tables::TrackEventCallstacksTable::Id;
+
 static const TrackId kInvalidTrackId =
     TrackId(std::numeric_limits<uint32_t>::max());
 
@@ -390,6 +392,14 @@ class TraceStorage {
   const tables::SliceTable& slice_table() const { return slice_table_; }
   tables::SliceTable* mutable_slice_table() { return &slice_table_; }
 
+  const tables::TrackEventCallstacksTable& track_event_callstacks_table()
+      const {
+    return track_event_callstacks_table_;
+  }
+  tables::TrackEventCallstacksTable* mutable_track_event_callstacks_table() {
+    return &track_event_callstacks_table_;
+  }
+
   const tables::SpuriousSchedWakeupTable& spurious_sched_wakeup_table() const {
     return spurious_sched_wakeup_table_;
   }
@@ -546,6 +556,13 @@ class TraceStorage {
   }
   tables::PackageListTable* mutable_package_list_table() {
     return &package_list_table_;
+  }
+
+  const tables::AndroidUserListTable& user_list_table() const {
+    return user_list_table_;
+  }
+  tables::AndroidUserListTable* mutable_user_list_table() {
+    return &user_list_table_;
   }
 
   const tables::AndroidGameInterventionListTable&
@@ -1140,6 +1157,8 @@ class TraceStorage {
 
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
   tables::SliceTable slice_table_{&string_pool_};
+  tables::TrackEventCallstacksTable track_event_callstacks_table_{
+      &string_pool_};
 
   // Flow events from userspace events (e.g. Chromium TRACE_EVENT macros).
   tables::FlowTable flow_table_{&string_pool_};
@@ -1189,6 +1208,7 @@ class TraceStorage {
   tables::PerfSampleTable perf_sample_table_{&string_pool_};
   tables::InstrumentsSampleTable instruments_sample_table_{&string_pool_};
   tables::PackageListTable package_list_table_{&string_pool_};
+  tables::AndroidUserListTable user_list_table_{&string_pool_};
   tables::AndroidGameInterventionListTable
       android_game_intervention_list_table_{&string_pool_};
   tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_};

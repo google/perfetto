@@ -83,3 +83,10 @@ export function createProxy<T extends object>(
     },
   }) as T;
 }
+
+// A promisified variant setTimeout().
+export function sleepMs(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setTimeout(() => resolve(), ms);
+  });
+}

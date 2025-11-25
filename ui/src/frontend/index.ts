@@ -24,7 +24,7 @@ import {addErrorHandler, reportError} from '../base/logging';
 import {featureFlags} from '../core/feature_flags';
 import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
-import {initWasm} from '../trace_processor/wasm_engine_proxy';
+import {warmupWasmWorker} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
@@ -70,6 +70,46 @@ import {
   commandInvocationArraySchema,
 } from '../core/command_manager';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
+import {sleepMs} from '../base/utils';
+
+// =============================================================================
+// UI INITIALIZATION STAGES
+// =============================================================================
+//
+// This file orchestrates the Perfetto UI startup through three main stages:
+//
+//   Time ───────────────────────────────────────────────────────────────────>
+//
+//   [Module Load]
+//        │
+//        ├─► main() ───────────────────────────────────────────────────────┐
+//        │    ├─ Setup CSP                                                 │
+//        │    ├─ Init settings & app                                       │
+//        │    ├─ Start CSS load (async) ──────┐                            │
+//        │    ├─ Setup error handlers          │                           │
+//        │    └─ Register window.onload ───────┼──────────┐                │
+//        │                                     │          │                │
+//        │    [User sees blank/loading page]   │          │                │
+//        │                                     ↓          │                │
+//        │                                 CSS loaded     |                │
+//        │                                     │          │                │
+//        │                        onCssLoaded() ◄──────┘  │                │
+//        │                          ├─ Mount Mithril UI   │                │
+//        │                          ├─ Register routes    │                │
+//        │                          ├─ Init plugins       │                │
+//        │                          └─ Check RPC          │                │
+//        │                                                │                │
+//        │    [User sees interactive UI]                  │                │
+//        │                                                ↓                │
+//        │                          All resources loaded (fonts, images)   │
+//        │                                                │                │
+//        │                        onWindowLoaded() ◄──────┘                │
+//        │                          ├─ Warmup Wasm (engine_bundle.js)      │
+//        │                          └─ Install service worker              │
+//        │                                                                 │
+//        └─────────────────────────────────────────────────────────────────┘
+//
+// =============================================================================
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -147,7 +187,6 @@ function setupContentSecurityPolicy() {
       'https://*.googleapis.com',
     ],
     'style-src': [`'self'`, `'unsafe-inline'`],
-    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
@@ -279,7 +318,12 @@ function main() {
   if (favicon instanceof HTMLLinkElement) {
     favicon.href = assetSrc('assets/favicon.png');
   }
+  document.body.classList.add('pf-fonts-loading');
   document.head.append(css);
+
+  Promise.race([document.fonts.ready, sleepMs(15000)]).then(() => {
+    document.body.classList.remove('pf-fonts-loading');
+  });
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
@@ -297,9 +341,6 @@ function main() {
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 
-  initWasm();
-  AppImpl.instance.serviceWorkerController.install();
-
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
 
@@ -314,13 +355,16 @@ function main() {
 
   cssLoadPromise.then(() => onCssLoaded());
 
-  if (AppImpl.instance.testingMode) {
-    document.body.classList.add('testing');
-  }
-
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
     return new IdleDetector().waitForPerfettoIdle(ms);
   };
+
+  // Keep at the end. Potentially it calls into the next stage (onWindowLoaded).
+  if (document.readyState === 'complete') {
+    onWindowLoaded();
+  } else {
+    window.addEventListener('load', () => onWindowLoaded());
+  }
 }
 
 function onCssLoaded() {
@@ -336,8 +380,8 @@ function onCssLoaded() {
 
   const themeSetting = AppImpl.instance.settings.register({
     id: 'theme',
-    name: '[Experimental] UI Theme',
-    description: 'Warning: Dark mode is not fully supported yet.',
+    name: 'UI Theme',
+    description: 'Changes the color palette used throughout the UI.',
     schema: z.enum(['dark', 'light']),
     defaultValue: 'light',
   } as const);
@@ -354,7 +398,7 @@ function onCssLoaded() {
   // Add command to toggle the theme.
   AppImpl.instance.commands.registerCommand({
     id: 'dev.perfetto.ToggleTheme',
-    name: '[Experimental] Toggle UI Theme',
+    name: 'Toggle UI Theme (Dark/Light)',
     callback: () => {
       const currentTheme = themeSetting.get();
       themeSetting.set(currentTheme === 'dark' ? 'light' : 'dark');
@@ -375,6 +419,16 @@ function onCssLoaded() {
           });
         }
       }
+
+      // Add a dummy binding to prevent Mod+P from opening the print dialog.
+      // Firstly, there is no reason to print the UI. Secondly, plugins might
+      // register a Mod+P hotkey later at trace load time. It would be confusing
+      // if this hotkey sometimes does what you want, but sometimes shows the
+      // print dialog.
+      hotkeys.push({
+        hotkey: 'Mod+P',
+        callback: () => {},
+      });
 
       const currentTraceId = app.trace?.engine.engineId ?? 'no-trace';
 
@@ -447,7 +501,15 @@ function onCssLoaded() {
   NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
-  pluginManager.activatePlugins(overrides);
+  pluginManager.activatePlugins(AppImpl.instance, overrides);
+}
+
+// This function is called only later after all the sub-resources (fonts,
+// images) have been loaded.
+function onWindowLoaded() {
+  // These two functions cause large network fetches and are not load bearing.
+  AppImpl.instance.serviceWorkerController.install();
+  warmupWasmWorker();
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.

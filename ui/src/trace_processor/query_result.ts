@@ -206,18 +206,20 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
 // plugin etc.
 export interface QueryErrorInfo {
   query: string;
+  tag?: string; // The EngineProxy tag.
 }
 
 export class QueryError extends Error {
-  readonly query: string;
+  readonly queryErrorInfo: QueryErrorInfo;
 
   constructor(message: string, info: QueryErrorInfo) {
     super(message);
-    this.query = info.query;
+    this.queryErrorInfo = info;
   }
 
   toString() {
-    return `${super.toString()}\nQuery:\n${this.query}`;
+    const info = this.queryErrorInfo;
+    return `${super.toString()}\nEngineTag: ${info.tag}\nQuery:\n${info.query}`;
   }
 }
 

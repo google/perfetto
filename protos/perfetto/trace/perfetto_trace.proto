@@ -874,6 +874,18 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/user_list_config.proto
+
+// Data source that lists details (such as version code) about users on an
+// Android device.
+message AndroidUserListConfig {
+  // If not empty, emit info about only the following list of user types
+  // (exact match, no regex). Otherwise, emit info about all users.
+  repeated string user_type_filter = 1;
+}
+
+// End of protos/perfetto/config/android/user_list_config.proto
+
 // Begin of protos/perfetto/config/android/windowmanager_config.proto
 
 // Custom configuration for the "android.windowmanager" data source.
@@ -3977,7 +3989,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 138
+// Next id: 139
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4177,6 +4189,9 @@ message DataSourceConfig {
   // Data source name: android.cpu_per_uid
   optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
 
+  // Data source name: android.user_list
+  optional AndroidUserListConfig user_list_config = 138 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -4202,7 +4217,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 43.
+// Next id: 44.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4954,6 +4969,19 @@ message TraceConfig {
   // Introduced in: perfetto v53.
   // Supported on: Android 25Q4+.
   optional bool no_flush_before_write_into_file = 42;
+
+  // When true, data sources in remote producers (machines connected via
+  // traced_relay) will be matched by default. When false (the default), data
+  // sources only match the host machine. In either case, an explicit
+  // |DataSource.machine_name_filter| takes priority.
+  //
+  // NB: perfetto versions before v54 do not have this option and match across
+  // machines by default. To be compatible across this version boundary, either
+  // set this field to true, or set an explicit machine_name_filter on all data
+  // sources.
+  //
+  // Introduced in: perfetto v54.
+  optional bool trace_all_machines = 43;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -6893,6 +6921,23 @@ message DisplayState {
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_transactions.proto
+
+// Begin of protos/perfetto/trace/android/user_list.proto
+
+message AndroidUserList {
+  message UserInfo {
+    // eg. android.os.usertype.full.SYSTEM, android.os.usertype.full.SECONDARY
+    optional string type = 1;
+    optional int32 uid = 2;
+  }
+
+  repeated UserInfo users = 1;
+
+  // Error number
+  optional int32 error = 2;
+}
+
+// End of protos/perfetto/trace/android/user_list.proto
 
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
@@ -9990,6 +10035,18 @@ message FuncgraphExitFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/ftrace.proto
 
+// Begin of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
+message FwtpPerfettoCounterFtraceEvent {
+  optional uint64 timestamp = 1;
+  optional uint32 track_id = 2;
+  optional string category = 3;
+  optional string name = 4;
+  optional uint32 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
 // Begin of protos/perfetto/trace/ftrace/g2d.proto
 
 message G2dTracingMarkWriteFtraceEvent {
@@ -11276,6 +11333,8 @@ message PixelMmKswapdWakeFtraceEvent {
 message PixelMmKswapdDoneFtraceEvent {
   optional uint64 delta_nr_scanned = 1;
   optional uint64 delta_nr_reclaimed = 2;
+  optional uint64 delta_nr_allocated = 3;
+  optional uint64 duration_ns = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/pixel_mm.proto
@@ -11545,6 +11604,47 @@ message ScmCallStartFtraceEvent {
 message ScmCallEndFtraceEvent {}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
+
+// Begin of protos/perfetto/trace/ftrace/scsi.proto
+
+message ScsiDispatchCmdErrorFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 rtn = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+}
+message ScsiDispatchCmdTimeoutFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 result = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+  optional uint32 sense_key = 14;
+  optional uint32 asc = 15;
+  optional uint32 ascq = 16;
+}
+message ScsiEhWakeupFtraceEvent {
+  optional uint32 host_no = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/scsi.proto
 
 // Begin of protos/perfetto/trace/ftrace/sde.proto
 
@@ -12140,6 +12240,7 @@ message MmShrinkSlabEndFtraceEvent {
 
 message WorkqueueActivateWorkFtraceEvent {
   optional uint64 work = 1;
+  optional uint64 function = 2;
 }
 message WorkqueueExecuteEndFtraceEvent {
   optional uint64 work = 1;
@@ -12152,9 +12253,9 @@ message WorkqueueExecuteStartFtraceEvent {
 message WorkqueueQueueWorkFtraceEvent {
   optional uint64 work = 1;
   optional uint64 function = 2;
-  optional uint64 workqueue = 3;
-  optional uint32 req_cpu = 4;
-  optional uint32 cpu = 5;
+  optional int32 req_cpu = 4;
+  optional int32 cpu = 5;
+  optional string workqueue = 6;
 }
 
 // End of protos/perfetto/trace/ftrace/workqueue.proto
@@ -12805,6 +12906,10 @@ message FtraceEvent {
     DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
     DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
     DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
+    FwtpPerfettoCounterFtraceEvent fwtp_perfetto_counter = 596;
+    ScsiDispatchCmdErrorFtraceEvent scsi_dispatch_cmd_error = 597;
+    ScsiDispatchCmdTimeoutFtraceEvent scsi_dispatch_cmd_timeout = 598;
+    ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
   }
 }
 
@@ -17429,7 +17534,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 123.
+// Next id: 124.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -17585,6 +17690,8 @@ message TracePacket {
     CpuPerUidData cpu_per_uid_data = 119;
 
     EvdevEvent evdev_event = 121;
+
+    AndroidUserList user_list = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

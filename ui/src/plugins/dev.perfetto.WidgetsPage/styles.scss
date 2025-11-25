@@ -45,36 +45,38 @@
     font-weight: 400;
   }
 
-  &__option {
-    padding-inline: 16px;
-    margin-bottom: 4px;
-  }
-
-  &__options-title {
-    padding-inline: 16px;
-    margin: 8px 0;
-    font-size: 18px;
-    font-weight: 500;
-  }
-
-  .pf-widget-block {
+  &__showcase {
     margin-top: 16px;
     display: flex;
     flex-direction: row;
     gap: 10px;
   }
 
-  .pf-widget-controls {
+  &__options {
+    overflow: hidden;
     flex: 0;
     min-width: 250px;
     overflow: hidden;
+    padding-inline: 16px;
 
     background: var(--pf-color-background-secondary);
     border-radius: 3px;
-    padding-block: 8px;
+    padding-block: 16px;
+
+    label {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
   }
 
-  .pf-widget-container {
+  &__options-title {
+    margin-bottom: 8px;
+    font-size: larger;
+    font-weight: bolder;
+  }
+
+  &__widget-container {
     min-height: 300px;
     max-height: 500px;
 
@@ -85,10 +87,10 @@
     overflow: hidden;
 
     flex: 1;
-  }
 
-  .pf-virtual-canvas {
-    height: 100px;
+    &--no-padding {
+      padding: 0;
+    }
   }
 
   &__menu {

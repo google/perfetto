@@ -38,6 +38,7 @@ export enum NodeType {
   kAddColumns,
   kLimitAndOffset,
   kSort,
+  kFilter,
 
   // Multi node operations
   kIntervalIntersect,
@@ -52,6 +53,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kAddColumns:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
+    case NodeType.kFilter:
       return true;
     default:
       return false;
@@ -63,6 +65,8 @@ export function singleNodeOperation(type: NodeType): boolean {
 export interface NodeActions {
   // Create and connect a table node to a target node's input port
   onAddAndConnectTable?: (tableName: string, portIndex: number) => void;
+  // Insert a ModifyColumns node on an input at a specific port
+  onInsertModifyColumnsNode?: (portIndex: number) => void;
 }
 
 // All information required to create a new node.
@@ -76,6 +80,7 @@ export interface QueryNodeState {
 
   // Operations
   filters?: UIFilter[];
+  filterOperator?: 'AND' | 'OR'; // How to combine filters (default: AND)
 
   issues?: NodeIssues;
 
@@ -91,6 +96,12 @@ export interface QueryNodeState {
   // If false, the user must manually click "Run" to execute queries.
   // Set by the node registry when the node is created.
   autoExecute?: boolean;
+
+  // Materialization state
+  materialized?: boolean;
+  materializationTableName?: string;
+  // Hash of the query that was materialized (for detecting query changes)
+  materializedQueryHash?: string;
 }
 
 export interface BaseNode {
@@ -109,6 +120,7 @@ export interface BaseNode {
   getTitle(): string;
   nodeSpecificModify(): m.Child;
   nodeDetails?(): m.Child | undefined;
+  nodeInfo(): m.Children;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
   serializeState(): object;
@@ -125,7 +137,7 @@ export interface ModificationNode extends BaseNode {
 }
 
 export interface MultiSourceNode extends BaseNode {
-  prevNodes: (QueryNode | undefined)[];
+  prevNodes: QueryNode[];
 }
 
 export type QueryNode = SourceNode | ModificationNode | MultiSourceNode;
@@ -203,7 +215,46 @@ function getStructuredQueries(
 export function queryToRun(query?: Query): string {
   if (query === undefined) return 'N/A';
   const includes = query.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};`);
-  return includes.join('\n') + query.preambles.join('\n') + query.sql;
+  const parts: string[] = [];
+
+  // Add INCLUDE statements with newlines after each
+  if (includes.length > 0) {
+    parts.push(includes.join('\n'));
+  }
+
+  // Add preambles with newlines after each
+  if (query.preambles.length > 0) {
+    parts.push(query.preambles.join('\n'));
+  }
+
+  // Add an extra empty line before the SQL if there are any includes or preambles
+  if (parts.length > 0) {
+    parts.push(''); // This creates the empty line
+  }
+
+  // Add the SQL
+  parts.push(query.sql);
+
+  return parts.join('\n');
+}
+
+/**
+ * Computes a hash of a node's structured query for comparison.
+ * Used to detect if a query has changed and materialization needs to be redone.
+ *
+ * Uses the structured query protobuf directly - no engine analysis needed.
+ * This allows detecting query changes before any SQL execution.
+ */
+export function hashNodeQuery(node: QueryNode): string | undefined {
+  const sq = node.getStructuredQuery();
+  if (sq === undefined) {
+    return undefined;
+  }
+
+  // JSON.stringify on the protobuf object gives us a stable representation
+  // of all the query structure (filters, aggregations, joins, etc.).
+  // Protobuf objects have stable field ordering, making this deterministic.
+  return JSON.stringify(sq);
 }
 
 export async function analyzeNode(
@@ -310,18 +361,22 @@ export function addConnection(
     } else {
       // Otherwise connect to prevNode (default single input from above)
       modNode.prevNode = fromNode;
+      modNode.onPrevNodesUpdated?.();
     }
   } else if ('prevNodes' in toNode && Array.isArray(toNode.prevNodes)) {
     // MultiSourceNode - multiple inputs
     const multiSourceNode = toNode as MultiSourceNode;
-    const arrayIndex = portIndex ?? multiSourceNode.prevNodes.length;
 
-    // Expand array if needed to accommodate the new connection
-    while (multiSourceNode.prevNodes.length <= arrayIndex) {
-      multiSourceNode.prevNodes.push(undefined);
+    if (
+      portIndex !== undefined &&
+      portIndex < multiSourceNode.prevNodes.length
+    ) {
+      // Replace existing connection at this port
+      multiSourceNode.prevNodes[portIndex] = fromNode;
+    } else {
+      // Append to end (ignore portIndex if out of bounds)
+      multiSourceNode.prevNodes.push(fromNode);
     }
-
-    multiSourceNode.prevNodes[arrayIndex] = fromNode;
     multiSourceNode.onPrevNodesUpdated?.();
   }
 }
@@ -360,7 +415,8 @@ export function removeConnection(fromNode: QueryNode, toNode: QueryNode): void {
     const multiSourceNode = toNode as MultiSourceNode;
     const prevIndex = multiSourceNode.prevNodes.indexOf(fromNode);
     if (prevIndex !== -1) {
-      multiSourceNode.prevNodes[prevIndex] = undefined;
+      // Remove from array, compacting it (no undefined holes)
+      multiSourceNode.prevNodes.splice(prevIndex, 1);
       multiSourceNode.onPrevNodesUpdated?.();
     }
   }

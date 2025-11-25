@@ -16,9 +16,10 @@ This workspace consists of three crates:
 
 | Crate | Description |
 |-------|--------------|
-| [`perfetto-sys`](./perfetto-sys) | Low-level FFI bindings to the C API (`perfetto_c`). Can link against system or vendored builds. |
-| [`perfetto`](./perfetto) | Safe and ergonomic wrapper around the raw FFI. Exposes the tracing session, data source, and track event APIs. |
-| [`perfetto-derive`](./perfetto-derive) | Procedural macros for tracing the scope of function calls and automatically capturing all input parameters. |
+| [`perfetto-sdk-sys`](./perfetto-sys) | Low-level FFI bindings to the C API (`perfetto_c`). Can link against system or vendored builds. |
+| [`perfetto-sdk`](./perfetto) | Safe and ergonomic wrapper around the raw FFI. Exposes the tracing session, data source, and track event APIs. |
+| [`perfetto-sdk-derive`](./perfetto-derive) | Procedural macros for tracing the scope of function calls and automatically capturing all input parameters. |
+| [`perfetto-sdk-protos-gpu`](./perfetto-protos-gpu) | Extra protobuf bindings for GPU events. |
 
 ---
 
@@ -30,7 +31,7 @@ This workspace consists of three crates:
 - **Protozero integration** — auto-generated Rust code from Perfetto `.proto` files via a protoc plugin.
 - **Vendored or system builds** — link against a bundled `perfetto_c` library or use an external one.
 - **FFI isolation** — `perfetto-sys` is the only crate exposing an API with `unsafe` code.
-- **Cross-platform support** — Linux and macOS are tested.
+- **Cross-platform support** — Linux support is tested using CI.
 
 ---
 

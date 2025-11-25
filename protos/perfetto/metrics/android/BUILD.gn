@@ -15,7 +15,7 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [ "lite" ]
+  proto_generators = [ "zero" ]
   sources = [
     "ad_services_metric.proto",
     "android_anomaly_metric.proto",
@@ -76,7 +76,6 @@ perfetto_proto_library("@TYPE@") {
     "sysui_notif_shade_list_builder_metric.proto",
     "sysui_slice_performance_statistical_data.proto",
     "sysui_update_notif_on_ui_mode_changed_metric.proto",
-    "task_names.proto",
     "thread_time_in_state_metric.proto",
     "trace_quality.proto",
     "unsymbolized_frames.proto",

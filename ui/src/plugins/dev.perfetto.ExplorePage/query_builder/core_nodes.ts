@@ -32,6 +32,7 @@ import {
 } from './nodes/interval_intersect_node';
 import {MergeNode, MergeNodeState} from './nodes/merge_node';
 import {SortNode, SortNodeState} from './nodes/sort_node';
+import {FilterNode, FilterNodeState} from './nodes/filter_node';
 import {UnionNode, UnionNodeState} from './nodes/union_node';
 import {
   LimitAndOffsetNode,
@@ -91,6 +92,7 @@ export function registerCoreNodes() {
     description: 'Select, rename, and add new columns to the data.',
     icon: 'edit',
     type: 'modification',
+    category: 'Columns',
     factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
   });
 
@@ -100,6 +102,7 @@ export function registerCoreNodes() {
       'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
     icon: 'add_box',
     type: 'modification',
+    category: 'Columns',
     factory: (state) => {
       const fullState: AddColumnsNodeState = {
         ...state,
@@ -107,7 +110,7 @@ export function registerCoreNodes() {
         selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
         leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
         rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
-        autoExecute: false,
+        autoExecute: true,
       };
       return new AddColumnsNode(fullState);
     },
@@ -159,6 +162,14 @@ export function registerCoreNodes() {
     icon: 'sort',
     type: 'modification',
     factory: (state) => new SortNode(state as SortNodeState),
+  });
+
+  nodeRegistry.register('filter_node', {
+    name: 'Filter',
+    description: 'Filter rows based on column values.',
+    icon: 'filter_alt',
+    type: 'modification',
+    factory: (state) => new FilterNode(state as FilterNodeState),
   });
 
   nodeRegistry.register('union_node', {
