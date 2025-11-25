@@ -21,14 +21,14 @@
   align-items: center;
   gap: 8px;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--separator-color);
+  border-bottom: 1px solid var(--pf-color-border);
 
   label {
     font-weight: 600;
-    font-size: var(--pf-exp-font-size-sm);
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--pf-text-color-secondary);
+    color: var(--pf-color-text-muted);
   }
 }
 
@@ -52,7 +52,7 @@
 // Section widget
 .pf-exp-section {
   padding: 1rem;
-  border-bottom: 1px solid var(--separator-color);
+  border-bottom: 1px solid var(--pf-color-border);
 
   &:last-child {
     border-bottom: none;
@@ -66,7 +66,7 @@
   margin-bottom: 1rem;
 
   h2 {
-    font-size: var(--pf-exp-font-size-md);
+    font-size: 14px;
     font-weight: 500;
     margin: 0;
   }
@@ -82,18 +82,18 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--surface-color);
-  border: 1px solid var(--separator-color);
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   transition: all 0.15s ease-in-out;
 
   &:hover {
-    background: var(--background-color);
-    border-color: var(--pf-primary-color);
+    background: var(--pf-color-background);
+    border-color: var(--pf-color-primary);
   }
 
   &.pf-joined-source {
-    border-left: 4px solid var(--pf-primary-color);
+    border-left: 4px solid var(--pf-color-primary);
   }
 }
 
@@ -108,13 +108,13 @@
 .pf-exp-list-item-name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--pf-text-color-primary);
-  font-family: var(--pf-font-family-monospace);
+  color: var(--pf-color-text);
+  font-family: "Roboto Mono", monospace;
 }
 
 .pf-exp-list-item-description {
   font-size: 12px;
-  color: var(--pf-text-color-secondary);
+  color: var(--pf-color-text-muted);
 }
 
 .pf-exp-list-item-actions {
@@ -142,8 +142,8 @@
 
   label {
     font-weight: 500;
-    font-size: var(--pf-exp-font-size-sm);
-    color: var(--pf-text-color-secondary);
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
     min-width: 100px;
   }
 }
@@ -156,7 +156,7 @@
 
   label {
     font-weight: 500;
-    color: var(--pf-text-color-primary);
+    color: var(--pf-color-text);
   }
 }
 
@@ -166,18 +166,18 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  background: var(--surface-color);
-  border: 1px solid var(--separator-color);
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   cursor: grab;
 
   &:hover {
-    background: var(--background-color);
+    background: var(--pf-color-background);
   }
 
   .pf-exp-drag-handle {
     cursor: grab;
-    color: var(--pf-text-color-secondary);
+    color: var(--pf-color-text-muted);
     user-select: none;
   }
 }
