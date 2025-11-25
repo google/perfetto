@@ -165,7 +165,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
               if (e.key === 'Enter') {
                 const text = target.value;
                 if (text.length > 0) {
-                  const filter = fromString(text, sourceCols);
+                  const filter = parseFilterFromText(text, sourceCols);
                   if (!isFilterDefinitionValid(filter)) {
                     if (filter.column === undefined) {
                       this.error = `Column not found in "${text}"`;
@@ -279,11 +279,20 @@ export function isFilterDefinitionValid(
   return true;
 }
 
-// Tries to parse a filter from a raw string. This is a best-effort parser
-// for simple filters and does not support complex values with spaces or quotes.
-// TODO(mayzner): Improve this parser to handle more complex cases, such as
-// quoted strings, escaped characters, or operators within values.
-function fromString(text: string, sourceCols: ColumnInfo[]): Partial<UIFilter> {
+/**
+ * Parses a filter from a text string like "dur > 1000" or "name glob '*render*'".
+ * Returns a Partial<UIFilter> that can be validated with isFilterDefinitionValid.
+ *
+ * This is a best-effort parser for simple filters. Supports:
+ * - Comparison operators: =, !=, <, <=, >, >=
+ * - Null operators: is null, is not null
+ * - Pattern matching: glob
+ * - Quoted string values: "value" or 'value'
+ */
+export function parseFilterFromText(
+  text: string,
+  sourceCols: ColumnInfo[],
+): Partial<UIFilter> {
   // Sort operators by length descending to match "is not null" before "is
   // null".
   const ops = ALL_FILTER_OPS.slice().sort(
