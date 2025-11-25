@@ -28,13 +28,12 @@ import {
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
-import {TextParagraph} from '../../../../../widgets/text_paragraph';
 import {Trace} from '../../../../../public/trace';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
-import {perfettoSqlTypeToString} from '../../../../../trace_processor/perfetto_sql_type';
 import {setValidationError} from '../../node_issues';
+import {TableDescription} from '../../widgets';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
@@ -176,36 +175,9 @@ export class TableSourceNode implements QueryNode {
 
   nodeInfo(): m.Children {
     if (this.state.sqlTable != null) {
-      const table = this.state.sqlTable;
       return m(
         '.pf-stdlib-table-node',
-        m(
-          '.pf-details-box',
-          m(TextParagraph, {text: table.description}),
-          m(
-            'table.pf-table.pf-table-striped',
-            m(
-              'thead',
-              m(
-                'tr',
-                m('th', 'Column'),
-                m('th', 'Type'),
-                m('th', 'Description'),
-              ),
-            ),
-            m(
-              'tbody',
-              table.columns.map((col) => {
-                return m(
-                  'tr',
-                  m('td', col.name),
-                  m('td', perfettoSqlTypeToString(col.type)),
-                  m('td', col.description),
-                );
-              }),
-            ),
-          ),
-        ),
+        m('.pf-details-box', m(TableDescription, {table: this.state.sqlTable})),
       );
     }
     return m(

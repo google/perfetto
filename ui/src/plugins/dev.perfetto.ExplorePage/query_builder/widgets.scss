@@ -154,11 +154,20 @@
 .pf-exp-labeled-control {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
 
   span {
     font-weight: 500;
     color: var(--pf-color-text);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  // Allow inputs to shrink and not overflow
+  .pf-text-input {
+    min-width: 0;
+    flex: 1 1 auto;
   }
 }
 
@@ -181,5 +190,24 @@
     cursor: grab;
     color: var(--pf-color-text-muted);
     user-select: none;
+  }
+}
+
+// Issue list widget - bulleted list inside a callout
+.pf-exp-issue-list {
+  margin-top: 4px;
+  margin-bottom: 0;
+  padding-left: 20px;
+}
+
+// Interval node input row widget
+.pf-exp-interval-node {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+
+  span {
+    flex: 1;
   }
 }

@@ -20,6 +20,10 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     margin-bottom: 1rem;
   }
+}
+
+// Table description component styles (used in table source info and join modal)
+.pf-exp-table-description {
   table {
     width: 100%;
     border-collapse: collapse;
