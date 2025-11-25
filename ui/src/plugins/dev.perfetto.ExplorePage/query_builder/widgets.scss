@@ -37,6 +37,18 @@
   gap: 8px;
 }
 
+// Card header widget
+.pf-exp-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+
+  &__title {
+    margin: 0;
+  }
+}
+
 // Section widget
 .pf-exp-section {
   padding: 1rem;
@@ -120,17 +132,6 @@
   button {
     justify-content: flex-start;
   }
-}
-
-// Empty state widget
-.pf-exp-empty-state {
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--pf-text-color-secondary);
-  font-style: italic;
-  background: var(--background-color);
-  border: 1px dashed var(--separator-color);
-  border-radius: 4px;
 }
 
 // Form row widget - labeled form row with children

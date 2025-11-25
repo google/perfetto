@@ -36,13 +36,8 @@ import {
   JoinCondition,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {
-  ColumnNameRow,
-  ListItem,
-  ActionButtons,
-  EmptyState,
-  FormRow,
-} from '../widgets';
+import {ColumnNameRow, ListItem, ActionButtons, FormRow} from '../widgets';
+import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 
 // Helper components for computed columns (SWITCH and IF)
@@ -923,7 +918,7 @@ export class AddColumnsNode implements ModificationNode {
 
     if (!hasConnectedNode && !hasComputedColumns) {
       return m(EmptyState, {
-        message: 'No columns added yet. Use the buttons above to add columns.',
+        title: 'No columns added yet. Use the buttons above to add columns.',
       });
     }
 

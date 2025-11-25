@@ -67,12 +67,8 @@ export class CardWithHeader implements m.ClassComponent<CardWithHeaderAttrs> {
     return m(
       Card,
       m(
-        'div',
-        {
-          style:
-            'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px',
-        },
-        m('h2.pf-columns-box-title', {style: 'margin: 0'}, title),
+        '.pf-exp-card-header',
+        m('h2.pf-exp-card-header__title', title),
         buttons,
       ),
       children,
@@ -202,17 +198,6 @@ export class ActionButtons implements m.ClassComponent<ActionButtonsAttrs> {
         }),
       ),
     );
-  }
-}
-
-// Widget for an empty state message
-export interface EmptyStateAttrs {
-  message: string;
-}
-
-export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
-  view({attrs}: m.Vnode<EmptyStateAttrs>) {
-    return m('.pf-exp-empty-state', attrs.message);
   }
 }
 
