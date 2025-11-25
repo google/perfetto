@@ -26,6 +26,7 @@ import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
+import {LabeledControl} from '../widgets';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
   prevNode: QueryNode;
@@ -68,22 +69,54 @@ export class LimitAndOffsetNode implements ModificationNode {
 
     return m('div', [
       m(
-        '.limit-row',
-        {
-          style: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: '8px',
+        LabeledControl,
+        {label: 'Limit'},
+        m(TextInput, {
+          style: {width: '40px'},
+          oninput: (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            this.state.limit = Number(target.value);
+            m.redraw();
           },
-        },
-        [
-          m('label', 'Limit'),
+          onblur: () => {
+            this.state.onchange?.();
+          },
+          onkeydown: (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+              this.state.onchange?.();
+            }
+          },
+          value: this.state.limit?.toString() ?? '10',
+        }),
+        !this.showOffset &&
+          m(Button, {
+            icon: 'edit',
+            minimal: true,
+            onclick: () => {
+              this.showOffset = true;
+              // Set offset to 10 when showing for the first time
+              if (this.state.offset === 0 || this.state.offset === undefined) {
+                this.state.offset = 10;
+              }
+              this.state.onchange?.();
+              m.redraw();
+            },
+          }),
+      ),
+      (this.showOffset || hasOffset) &&
+        m(
+          LabeledControl,
+          {label: 'Offset'},
           m(TextInput, {
             style: {width: '40px'},
             oninput: (e: Event) => {
               const target = e.target as HTMLInputElement;
-              this.state.limit = Number(target.value);
+              const value = Number(target.value);
+              this.state.offset = value;
+              // Hide offset when set to 0
+              if (value === 0) {
+                this.showOffset = false;
+              }
               m.redraw();
             },
             onblur: () => {
@@ -94,62 +127,8 @@ export class LimitAndOffsetNode implements ModificationNode {
                 this.state.onchange?.();
               }
             },
-            value: this.state.limit?.toString() ?? '10',
+            value: this.state.offset?.toString() ?? '10',
           }),
-          !this.showOffset &&
-            m(Button, {
-              icon: 'edit',
-              minimal: true,
-              onclick: () => {
-                this.showOffset = true;
-                // Set offset to 10 when showing for the first time
-                if (
-                  this.state.offset === 0 ||
-                  this.state.offset === undefined
-                ) {
-                  this.state.offset = 10;
-                }
-                this.state.onchange?.();
-                m.redraw();
-              },
-            }),
-        ],
-      ),
-      (this.showOffset || hasOffset) &&
-        m(
-          '.offset-row',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            },
-          },
-          [
-            m('label', 'Offset'),
-            m(TextInput, {
-              style: {width: '40px'},
-              oninput: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                const value = Number(target.value);
-                this.state.offset = value;
-                // Hide offset when set to 0
-                if (value === 0) {
-                  this.showOffset = false;
-                }
-                m.redraw();
-              },
-              onblur: () => {
-                this.state.onchange?.();
-              },
-              onkeydown: (e: KeyboardEvent) => {
-                if (e.key === 'Enter') {
-                  this.state.onchange?.();
-                }
-              },
-              value: this.state.offset?.toString() ?? '10',
-            }),
-          ],
         ),
     ]);
   }

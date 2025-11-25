@@ -34,7 +34,7 @@
     }
   }
   .pf-multiselect-item {
-    display: flex; // Put each item on a new line
+    display: block; // Put each item on a new line
     margin-top: 5px;
   }
   .pf-multiselect-header {
