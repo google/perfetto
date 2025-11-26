@@ -15,9 +15,7 @@
 import m from 'mithril';
 
 import {classNames} from '../../../../base/classnames';
-import {Icons} from '../../../../base/semantic_icons';
-import {Button} from '../../../../widgets/button';
-import {MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {PopupMenu} from '../../../../widgets/menu';
 import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
 import {Callout} from '../../../../widgets/callout';
@@ -25,14 +23,9 @@ import {Intent} from '../../../../widgets/common';
 import {nodeRegistry} from '../node_registry';
 import {buildCategorizedMenuItems} from './menu_utils';
 
-export interface NodeActions {
-  readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
-}
-
-export interface NodeBoxAttrs extends NodeActions {
+export interface NodeBoxAttrs {
   readonly node: QueryNode;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
 }
 
 export function renderWarningIcon(node: QueryNode): m.Child {
@@ -45,31 +38,6 @@ export function renderWarningIcon(node: QueryNode): m.Child {
     icon: 'warning',
     title: node.state.issues.getTitle(),
   });
-}
-
-export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
-  const {node, onDuplicateNode, onDeleteNode} = attrs;
-  const menuItems: m.Child[] = [
-    m(MenuItem, {
-      label: 'Duplicate',
-      onclick: () => onDuplicateNode(node),
-    }),
-    m(MenuItem, {
-      label: 'Delete',
-      onclick: () => onDeleteNode(node),
-    }),
-  ];
-
-  return m(
-    PopupMenu,
-    {
-      trigger: m(Button, {
-        iconFilled: true,
-        icon: Icons.ContextMenu,
-      }),
-    },
-    ...menuItems,
-  );
 }
 
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
@@ -118,7 +86,6 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         '.pf-exp-node-box__actions',
         renderAddButton(attrs),
         renderWarningIcon(node),
-        renderContextMenu(attrs),
       ),
     ];
   },
