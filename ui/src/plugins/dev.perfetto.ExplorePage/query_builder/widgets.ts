@@ -126,15 +126,26 @@ export class Section implements m.ClassComponent<SectionAttrs> {
   }
 }
 
-// Widget for displaying an item with icon, name, description, and action button
+// Action button definition for ListItem
+export interface ListItemAction {
+  label?: string;
+  icon: string;
+  title?: string;
+  onclick: () => void;
+}
+
+// Widget for displaying an item with icon, name, description, and action button(s)
 // Used in lists of added columns, filters, etc.
 export interface ListItemAttrs {
   icon: string;
   name: string;
   description: string;
-  actionLabel: string;
+  // Single action button (legacy)
+  actionLabel?: string;
   actionIcon?: string;
-  onAction: () => void;
+  onAction?: () => void;
+  // Multiple action buttons (new)
+  actions?: ListItemAction[];
   onRemove?: () => void;
   className?: string;
   onclick?: (event: MouseEvent) => void;
@@ -142,16 +153,7 @@ export interface ListItemAttrs {
 
 export class ListItem implements m.ClassComponent<ListItemAttrs> {
   view({attrs}: m.Vnode<ListItemAttrs>) {
-    const {
-      icon,
-      name,
-      description,
-      actionLabel,
-      actionIcon,
-      onAction,
-      onRemove,
-      onclick,
-    } = attrs;
+    const {icon, name, description, onAction, onRemove, onclick} = attrs;
 
     return m(
       '.pf-exp-list-item',
@@ -163,7 +165,7 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
         onkeydown: (e: KeyboardEvent) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onAction();
+            onAction?.();
           } else if (e.key === 'Delete' || e.key === 'Backspace') {
             if (onRemove) {
               e.preventDefault();
@@ -178,24 +180,55 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
         m('.pf-exp-list-item-name', name),
         m('.pf-exp-list-item-description', description),
       ),
-      m(
-        '.pf-exp-list-item-actions',
+      m('.pf-exp-list-item-actions', this.renderButtons(attrs)),
+    );
+  }
+
+  private renderButtons(attrs: ListItemAttrs): m.Children {
+    const buttons: m.Children = [];
+
+    // Render multiple actions if provided
+    if (attrs.actions) {
+      for (const action of attrs.actions) {
+        buttons.push(
+          m(Button, {
+            label: action.label,
+            icon: action.icon,
+            title: action.title,
+            variant: ButtonVariant.Outlined,
+            compact: true,
+            onclick: action.onclick,
+          }),
+        );
+      }
+    }
+
+    // Legacy single action support
+    if (attrs.onAction) {
+      buttons.push(
         m(Button, {
-          label: actionLabel,
-          icon: actionIcon,
+          label: attrs.actionLabel ?? '',
+          icon: attrs.actionIcon,
           variant: ButtonVariant.Outlined,
           compact: true,
-          onclick: onAction,
+          onclick: attrs.onAction,
         }),
-        onRemove &&
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: onRemove,
-            title: 'Remove item',
-          }),
-      ),
-    );
+      );
+    }
+
+    // Remove button
+    if (attrs.onRemove) {
+      buttons.push(
+        m(Button, {
+          icon: 'close',
+          compact: true,
+          onclick: attrs.onRemove,
+          title: 'Remove item',
+        }),
+      );
+    }
+
+    return buttons;
   }
 }
 

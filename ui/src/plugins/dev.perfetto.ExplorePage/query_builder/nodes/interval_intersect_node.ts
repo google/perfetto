@@ -22,7 +22,6 @@ import {
 } from '../../query_node';
 import protos from '../../../../protos';
 import {ColumnInfo, columnInfoFromName} from '../column_info';
-import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {NodeIssues} from '../node_issues';
@@ -32,7 +31,7 @@ import {
   MultiSelectDiff,
 } from '../../../../widgets/multiselect';
 import {StructuredQueryBuilder} from '../structured_query_builder';
-import {LabeledControl, IssueList} from '../widgets';
+import {LabeledControl, IssueList, ListItem} from '../widgets';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -466,33 +465,36 @@ export class IntervalIntersectNode implements QueryNode {
       connectedInputs.map(({node, index}) => {
         const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
 
-        return m(
-          '.pf-exp-interval-node',
-          {key: node.nodeId},
-          m('span', `Input ${index}`),
-          m(Button, {
-            label: 'Filter unfinished intervals',
-            icon: filterEnabled ? 'check_box' : 'check_box_outline_blank',
-            title: 'Filter out intervals with negative duration',
-            onclick: () => {
-              if (!this.state.filterNegativeDur) {
-                this.state.filterNegativeDur = [];
-              }
-              this.state.filterNegativeDur[index] = !filterEnabled;
-              this.state.onchange?.();
+        return m(ListItem, {
+          key: node.nodeId,
+          icon: 'input',
+          name: `Input ${index}`,
+          description: filterEnabled
+            ? 'Filtering unfinished intervals'
+            : 'Including all intervals',
+          actions: [
+            {
+              icon: filterEnabled ? 'check_box' : 'check_box_outline_blank',
+              title: 'Filter out intervals with negative duration',
+              onclick: () => {
+                if (!this.state.filterNegativeDur) {
+                  this.state.filterNegativeDur = [];
+                }
+                this.state.filterNegativeDur[index] = !filterEnabled;
+                this.state.onchange?.();
+              },
             },
-          }),
-          m(Button, {
-            icon: 'view_column',
-            title: 'Pick columns',
-            compact: true,
-            onclick: () => {
-              if (this.state.actions?.onInsertModifyColumnsNode) {
-                this.state.actions.onInsertModifyColumnsNode(index);
-              }
+            {
+              icon: 'view_column',
+              title: 'Pick columns',
+              onclick: () => {
+                if (this.state.actions?.onInsertModifyColumnsNode) {
+                  this.state.actions.onInsertModifyColumnsNode(index);
+                }
+              },
             },
-          }),
-        );
+          ],
+        });
       }),
     );
   }
