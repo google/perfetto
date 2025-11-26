@@ -162,7 +162,26 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   private renderContent(attrs: DataExplorerAttrs): m.Children {
     const errors = findErrors(attrs.query, attrs.response);
 
-    // Show execution errors first (e.g., when materialization fails due to
+    // Show validation errors first (queryError is set by validate() methods).
+    // Validation errors take priority over execution errors because if validation
+    // fails, we should not execute the query at all.
+    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
+      // Clear any stale execution error when validation fails
+      attrs.node.state.issues.clearExecutionError();
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.queryError.message,
+        ),
+      );
+    }
+
+    // Show execution errors (e.g., when materialization fails due to
     // invalid column names). These are stored separately from validation errors
     // so they survive validate() calls during rendering.
     if (attrs.node.state.issues?.executionError) {
@@ -186,22 +205,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             attrs.onExecute();
           },
         }),
-      );
-    }
-
-    // Show validation errors (queryError is set by validate() methods).
-    // Only show if validation fails - validate() returns false when queryError is set.
-    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.queryError.message,
-        ),
       );
     }
 

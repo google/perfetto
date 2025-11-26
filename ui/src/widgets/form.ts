@@ -43,6 +43,11 @@ export interface FormAttrs extends HTMLAttrs {
 
   // Prevent default form action on submit. Defaults to true.
   preventDefault?: boolean;
+
+  // Custom validation function. If provided, it will be called in addition to
+  // the native HTML form validation. The submit button will be disabled if
+  // this function returns false.
+  validation?: () => boolean;
 }
 
 // A simple wrapper around a <form> element providing some opinionated default
@@ -102,21 +107,27 @@ export class Form implements m.ClassComponent<FormAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<FormAttrs, this>) {
-    this.maybeDisableSubmitButton(vnode.dom);
+    this.maybeDisableSubmitButton(vnode.attrs.validation, vnode.dom);
   }
 
   onupdate(vnode: m.VnodeDOM<FormAttrs, this>) {
-    this.maybeDisableSubmitButton(vnode.dom);
+    this.maybeDisableSubmitButton(vnode.attrs.validation, vnode.dom);
   }
 
-  private maybeDisableSubmitButton(dom: Element) {
+  private maybeDisableSubmitButton(
+    validation: (() => boolean) | undefined,
+    dom: Element,
+  ) {
     // Work out if the form is valid and enable/disable the submit button.
     const formElement = dom as HTMLFormElement;
     const submitButton = formElement.querySelector(
       'button[type="submit"]',
     ) as HTMLButtonElement | null;
     if (submitButton) {
-      submitButton.disabled = !formElement.checkValidity();
+      // Check both native HTML validation and custom validation function
+      const nativeValid = formElement.checkValidity();
+      const customValid = validation ? validation() : true;
+      submitButton.disabled = !nativeValid || !customValid;
     }
   }
 }
