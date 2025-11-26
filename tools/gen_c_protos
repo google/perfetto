@@ -22,46 +22,47 @@ import subprocess
 import sys
 import tempfile
 
-SOURCE_FILES = [
-    {
-        'files': [
-            'protos/perfetto/common/builtin_clock.proto',
-            'protos/perfetto/common/data_source_descriptor.proto',
-            'protos/perfetto/config/data_source_config.proto',
-            'protos/perfetto/config/trace_config.proto',
-            'protos/perfetto/config/track_event/track_event_config.proto',
-            'protos/perfetto/trace/android/android_track_event.proto',
-            'protos/perfetto/trace/clock_snapshot.proto',
-            'protos/perfetto/trace/interned_data/interned_data.proto',
-            'protos/perfetto/trace/test_event.proto',
-            'protos/perfetto/trace/trace.proto',
-            'protos/perfetto/trace/trace_packet.proto',
-            'protos/perfetto/trace/track_event/counter_descriptor.proto',
-            'protos/perfetto/trace/track_event/debug_annotation.proto',
-            'protos/perfetto/trace/track_event/track_descriptor.proto',
-            'protos/perfetto/trace/track_event/track_event.proto',
-        ],
-        'guard_strip_prefix': 'PROTOS_PERFETTO_',
-        'guard_add_prefix': 'INCLUDE_PERFETTO_PUBLIC_PROTOS_',
-        'path_strip_prefix': 'protos/perfetto',
-        'path_add_prefix': 'perfetto/public/protos',
-        'include_prefix': 'include/',
-    },
-    {
-        'files': [
-            'src/protozero/test/example_proto/extensions.proto',
-            'src/protozero/test/example_proto/library.proto',
-            'src/protozero/test/example_proto/library_internals/galaxies.proto',
-            'src/protozero/test/example_proto/other_package/test_messages.proto',
-            'src/protozero/test/example_proto/subpackage/test_messages.proto',
-            'src/protozero/test/example_proto/test_messages.proto',
-            'src/protozero/test/example_proto/upper_import.proto',
-        ],
-        'guard_strip_prefix': 'SRC_PROTOZERO_TEST_EXAMPLE_PROTO_',
-        'guard_add_prefix': 'SRC_SHARED_LIB_TEST_PROTOS_',
-        'path_strip_prefix': 'src/protozero/test/example_proto',
-        'path_add_prefix': 'src/shared_lib/test/protos',
-    },
+PERFETTO_DEFAULTS = {
+    'guard_strip_prefix': 'PROTOS_PERFETTO_',
+    'guard_add_prefix': 'INCLUDE_PERFETTO_PUBLIC_PROTOS_',
+    'path_strip_prefix': 'protos/perfetto',
+    'path_add_prefix': 'perfetto/public/protos',
+    'include_prefix': 'include/',
+}
+
+TEST_DEFAULTS = {
+    'guard_strip_prefix': 'SRC_PROTOZERO_TEST_EXAMPLE_PROTO_',
+    'guard_add_prefix': 'SRC_SHARED_LIB_TEST_PROTOS_',
+    'path_strip_prefix': 'src/protozero/test/example_proto',
+    'path_add_prefix': 'src/shared_lib/test/protos',
+}
+
+PROD_FILES = [
+    'protos/perfetto/common/builtin_clock.proto',
+    'protos/perfetto/common/data_source_descriptor.proto',
+    'protos/perfetto/config/data_source_config.proto',
+    'protos/perfetto/config/trace_config.proto',
+    'protos/perfetto/config/track_event/track_event_config.proto',
+    'protos/perfetto/trace/android/android_track_event.proto',
+    'protos/perfetto/trace/clock_snapshot.proto',
+    'protos/perfetto/trace/interned_data/interned_data.proto',
+    'protos/perfetto/trace/test_event.proto',
+    'protos/perfetto/trace/trace.proto',
+    'protos/perfetto/trace/trace_packet.proto',
+    'protos/perfetto/trace/track_event/counter_descriptor.proto',
+    'protos/perfetto/trace/track_event/debug_annotation.proto',
+    'protos/perfetto/trace/track_event/track_descriptor.proto',
+    'protos/perfetto/trace/track_event/track_event.proto',
+]
+
+TEST_FILES = [
+    'src/protozero/test/example_proto/extensions.proto',
+    'src/protozero/test/example_proto/library.proto',
+    'src/protozero/test/example_proto/library_internals/galaxies.proto',
+    'src/protozero/test/example_proto/other_package/test_messages.proto',
+    'src/protozero/test/example_proto/subpackage/test_messages.proto',
+    'src/protozero/test/example_proto/test_messages.proto',
+    'src/protozero/test/example_proto/upper_import.proto',
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -149,17 +150,60 @@ def include_path_for(filename):
 
 
 def main():
-  parser = argparse.ArgumentParser()
-  parser.add_argument('--check-only', action='store_true')
-  parser.add_argument('OUT')
+  parser = argparse.ArgumentParser(
+      formatter_class=argparse.RawDescriptionHelpFormatter,
+      description="""Generates C API header files (.pzc.h) from proto definitions.
+
+This script generates ProtoZero C headers for both standard Perfetto protos
+and custom proto files.
+
+OUTPUT:
+  Generated .pzc.h files are placed in include/perfetto/public/protos/
+  mirroring the structure from protos/perfetto/:
+    protos/perfetto/trace/trace.proto
+      -> include/perfetto/public/protos/trace/trace.pzc.h""",
+      epilog="""Example workflow:
+  # Generate custom protos
+  tools/gen_c_protos out/linux_clang_release \\
+      --proto protos/perfetto/trace/android/your_custom.proto \\
+      --proto protos/perfetto/common/your_common.proto
+""")
+
+  parser.add_argument(
+      'OUT', help='Build output directory (e.g., out/linux_clang_release)')
+  parser.add_argument(
+      '--proto',
+      action='append',
+      help='Additional .proto files to generate. Path must be relative to the repository root (e.g., protos/perfetto/common/builtin_clock.proto)',
+      default=[])
+  parser.add_argument(
+      '--check-only',
+      action='store_true',
+      help='Verify generated files match existing without writing')
+
   args = parser.parse_args()
+
   out = args.OUT
+
+  if args.proto:
+    source_files = [{
+        'files': args.proto,
+        **PERFETTO_DEFAULTS,
+    }]
+  else:
+    source_files = [{
+        'files': PROD_FILES,
+        **PERFETTO_DEFAULTS,
+    }, {
+        'files': TEST_FILES,
+        **TEST_DEFAULTS,
+    }]
 
   call('ninja', '-C', out, 'protoc', 'protozero_c_plugin')
 
   try:
     with tempfile.TemporaryDirectory() as tmpdirname:
-      for sources in SOURCE_FILES:
+      for sources in source_files:
         for source in sources['files']:
           generate(
               source,
@@ -189,9 +233,11 @@ def main():
           if args.check_only:
             if not filecmp.cmp(tmpfilename, targetfilename):
               raise AssertionError('Target {} does not match', targetfilename)
+            print('Verified {}'.format(targetfilename))
           else:
             os.makedirs(os.path.dirname(targetfilename), exist_ok=True)
             shutil.copyfile(tmpfilename, targetfilename)
+            print('Generated {}'.format(targetfilename))
 
   except AssertionError as e:
     if not str(e):

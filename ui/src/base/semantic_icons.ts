@@ -52,6 +52,7 @@ export class Icons {
   static readonly Save = 'save';
   static readonly Undo = 'undo';
   static readonly Redo = 'redo';
+  static readonly NoData = 'search_off';
 
   // Page control
   static readonly NextPage = 'chevron_right';
@@ -74,4 +75,8 @@ export class Icons {
   static readonly Play = 'play_arrow';
   static readonly Edit = 'edit';
   static readonly DragHandle = 'drag_indicator';
+
+  // Platform icons
+  static readonly Android = 'android';
+  static readonly Web = 'language';
 }

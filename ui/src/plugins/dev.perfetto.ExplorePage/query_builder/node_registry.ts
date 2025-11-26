@@ -41,6 +41,10 @@ export interface NodeDescriptor {
   // Whether this node is a source, modification or a multi-source node.
   type: 'source' | 'modification' | 'multisource';
 
+  // Optional category for grouping related nodes in the UI.
+  // Nodes with the same category will be shown in a submenu.
+  category?: string;
+
   // An optional, async function that runs before the node is created.
   // It can be used for interactive setup, like showing a modal.
   // If it returns null, the creation is aborted.

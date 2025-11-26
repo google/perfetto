@@ -16,8 +16,6 @@
 
 INCLUDE PERFETTO MODULE graphs.critical_path;
 
-INCLUDE PERFETTO MODULE graphs.search;
-
 INCLUDE PERFETTO MODULE intervals.overlap;
 
 INCLUDE PERFETTO MODULE intervals.intersect;

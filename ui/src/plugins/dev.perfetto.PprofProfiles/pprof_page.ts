@@ -15,7 +15,10 @@
 import m from 'mithril';
 
 import {Monitor} from '../../base/monitor';
-import {QueryFlamegraph} from '../../components/query_flamegraph';
+import {
+  QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
+} from '../../components/query_flamegraph';
 import {Trace} from '../../public/trace';
 import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
@@ -33,13 +36,14 @@ const HIDE_VIEW_EXPLANATION_KEY = 'hidePprofViewExplanation';
 export interface PprofPageAttrs {
   readonly trace: Trace;
   readonly state: PprofPageState;
+  readonly onStateChange: (state: PprofPageState) => void;
   readonly profiles: ReadonlyArray<PprofProfile>;
 }
 
 export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
   private profiles?: ReadonlyArray<PprofProfile>;
   private readonly monitor = new Monitor([() => this.profiles]);
-  private flamegraph?: QueryFlamegraph;
+  private flamegraphWithMetrics?: QueryFlamegraphWithMetrics;
   private currentTab = 'flamegraph';
 
   view({attrs}: m.CVnode<PprofPageAttrs>): m.Children {
@@ -48,8 +52,10 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
       const selectedProfile =
         attrs.profiles.find((p) => p.id === attrs.state.selectedProfileId) ||
         (attrs.profiles.length > 0 ? attrs.profiles[0] : undefined);
-      attrs.state.flamegraphState = undefined;
-      attrs.state.selectedProfileId = selectedProfile?.id;
+      attrs.onStateChange({
+        flamegraphState: undefined,
+        selectedProfileId: selectedProfile?.id,
+      });
       if (selectedProfile) {
         this.createFlamegraph(attrs, selectedProfile);
       }
@@ -77,8 +83,19 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
         this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
           m(StackFixed, this.renderViewExplanation()),
         m(StackAuto, [
-          this.flamegraph && this.flamegraph.render(),
-          !this.flamegraph && this.renderEmptyState(),
+          this.flamegraphWithMetrics &&
+            attrs.state.flamegraphState &&
+            this.flamegraphWithMetrics.flamegraph.render({
+              metrics: this.flamegraphWithMetrics.metrics,
+              state: attrs.state.flamegraphState,
+              onStateChange: (state) => {
+                attrs.onStateChange({
+                  ...attrs.state,
+                  flamegraphState: state,
+                });
+              },
+            }),
+          !this.flamegraphWithMetrics && this.renderEmptyState(),
         ]),
       ],
     );
@@ -86,18 +103,23 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
 
   private createFlamegraph(attrs: PprofPageAttrs, profile: PprofProfile): void {
     if (profile.metrics.length === 0) {
-      this.flamegraph = undefined;
-      attrs.state.flamegraphState = undefined;
+      this.flamegraphWithMetrics = undefined;
+      attrs.onStateChange({
+        ...attrs.state,
+        flamegraphState: undefined,
+      });
       return;
     }
-    attrs.state.flamegraphState = {
-      state: Flamegraph.createDefaultState(profile.metrics),
+    attrs.onStateChange({
+      ...attrs.state,
+      flamegraphState: attrs.state.flamegraphState
+        ? Flamegraph.updateState(attrs.state.flamegraphState, profile.metrics)
+        : Flamegraph.createDefaultState(profile.metrics),
+    });
+    this.flamegraphWithMetrics = {
+      flamegraph: new QueryFlamegraph(attrs.trace),
+      metrics: profile.metrics,
     };
-    this.flamegraph = new QueryFlamegraph(
-      attrs.trace,
-      profile.metrics,
-      attrs.state.flamegraphState,
-    );
   }
 
   private shouldShowExplanation(key: string): boolean {
@@ -216,7 +238,10 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
               (e.target as HTMLSelectElement).value,
             );
             const newProfile = attrs.profiles[selectedIndex];
-            attrs.state.selectedProfileId = newProfile.id;
+            attrs.onStateChange({
+              ...attrs.state,
+              selectedProfileId: newProfile.id,
+            });
             this.createFlamegraph(attrs, newProfile);
           },
         },

@@ -98,7 +98,22 @@ export interface DataGridDataSource {
   readonly rows?: DataSourceResult;
   readonly isLoading?: boolean;
   notifyUpdate(model: DataGridModel): void;
+
+  /**
+   * Export all data with current filters/sorting applied.
+   * Returns a promise that resolves to all filtered and sorted rows.
+   */
+  exportData(): Promise<readonly RowDef[]>;
 }
+
+/**
+ * Function to format a value as a string for export/clipboard.
+ */
+export type ValueFormatter = (
+  value: SqlValue,
+  columnName: string,
+  formatHint?: string,
+) => string;
 
 /**
  * Compares two arrays of AggregateSpec objects for equality.

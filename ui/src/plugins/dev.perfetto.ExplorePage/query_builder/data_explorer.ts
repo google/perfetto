@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
@@ -37,7 +36,6 @@ import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
-
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
   readonly queryService: QueryService;
@@ -112,6 +110,26 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           )
         : null;
 
+    // Helper to create separator dot
+    const separator = () =>
+      m(
+        'span.pf-query-stats-separator',
+        {
+          'aria-hidden': 'true',
+        },
+        '•',
+      );
+
+    // Add query stats display (row count and duration)
+    const queryStats =
+      attrs.response && !attrs.isQueryRunning
+        ? m('.pf-query-stats', [
+            m('span', `${attrs.response.totalRowCount.toLocaleString()} rows`),
+            separator(),
+            m('span', `${attrs.response.durationMs.toFixed(1)}ms`),
+          ])
+        : null;
+
     const positionMenu = m(
       PopupMenu,
       {
@@ -130,7 +148,12 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     return [
       runButton,
       statusIndicator,
+      queryStats,
+      queryStats !== null && materializationIndicator !== null
+        ? separator()
+        : null,
       materializationIndicator,
+      materializationIndicator !== null ? separator() : null,
       autoExecuteSwitch,
       positionMenu,
     ];
@@ -139,7 +162,35 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   private renderContent(attrs: DataExplorerAttrs): m.Children {
     const errors = findErrors(attrs.query, attrs.response);
 
-    // Show validation errors with centered warning icon
+    // Show execution errors first (e.g., when materialization fails due to
+    // invalid column names). These are stored separately from validation errors
+    // so they survive validate() calls during rendering.
+    if (attrs.node.state.issues?.executionError) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.executionError.message,
+        ),
+        m(Button, {
+          label: 'Retry',
+          icon: 'refresh',
+          intent: Intent.Primary,
+          onclick: () => {
+            // Clear the execution error and re-run the query
+            attrs.node.state.issues?.clearExecutionError();
+            attrs.onExecute();
+          },
+        }),
+      );
+    }
+
+    // Show validation errors (queryError is set by validate() methods).
+    // Only show if validation fails - validate() returns false when queryError is set.
     if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
       return m(
         '.pf-data-explorer-empty-state',

@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
+INCLUDE PERFETTO MODULE graphs.scan;
+
 CREATE PERFETTO TABLE _android_heap_profile_raw_callstacks AS
 WITH
   metrics AS MATERIALIZED (

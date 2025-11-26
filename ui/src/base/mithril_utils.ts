@@ -23,6 +23,14 @@ export function hasChildren<T>({children}: m.Vnode<T>): boolean {
   );
 }
 
+export function childrenValid(children: m.Children): boolean {
+  if (children === null || children === undefined) return false;
+  if (Array.isArray(children)) {
+    return children.length > 0 && children.some(childrenValid);
+  }
+  return true;
+}
+
 // A component which simply passes through it's children.
 // Can be used for having something to attach lifecycle hooks to without having
 // to add an extra HTML element to the DOM.

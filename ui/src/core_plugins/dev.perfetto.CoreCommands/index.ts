@@ -201,8 +201,9 @@ export default class CoreCommands implements PerfettoPlugin {
     });
     ctx.sidebar.addMenuItem({
       commandId: OPEN_TRACE_COMMAND_ID,
-      section: 'navigation',
+      section: 'trace_files',
       icon: 'folder_open',
+      sortOrder: 1,
     });
 
     const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
@@ -217,7 +218,7 @@ export default class CoreCommands implements PerfettoPlugin {
     if (SHOW_OPEN_WITH_LEGACY_UI_BUTTON.get()) {
       ctx.sidebar.addMenuItem({
         commandId: OPEN_LEGACY_COMMAND_ID,
-        section: 'navigation',
+        section: 'trace_files',
         icon: 'filter_none',
       });
     }
@@ -566,14 +567,8 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.FocusSelection',
       name: 'Focus current selection',
-      callback: () => ctx.selection.scrollToSelection(),
+      callback: () => ctx.selection.scrollToSelection('focus'),
       defaultHotkey: 'F',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.ZoomOnSelection',
-      name: 'Zoom in on current selection',
-      callback: () => ctx.selection.zoomOnSelection(),
     });
 
     ctx.commands.registerCommand({

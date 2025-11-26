@@ -1706,6 +1706,107 @@ TEST_F(TracingServiceImplTest, MachineNameFilterWithHostExternalName) {
   base::UnsetEnv("PERFETTO_MACHINE_NAME");
 }
 
+TEST_F(TracingServiceImplTest, MachineFilterDefault) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer_host = CreateMockProducer();
+  producer_host->Connect(svc.get(), "producer_host");
+  producer_host->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer_m2 = CreateMockProducer();
+  producer_m2->Connect(svc.get(), "producer_m2", /*uid=*/42, /*pid=*/1025,
+                       /*machine_id=*/1234, "machine2");
+  producer_m2->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer_m3 = CreateMockProducer();
+  producer_m3->Connect(svc.get(), "producer_m3", /*uid=*/42, /*pid=*/1025,
+                       /*machine_id=*/5678, "machine3");
+  producer_m3->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+
+  //
+  // No machine_name_filter, only the host machine producer should match
+  // (default changed in perfetto v54).
+  //
+
+  consumer->EnableTracing(trace_config);
+
+  producer_host->WaitForTracingSetup();
+  producer_host->WaitForDataSourceSetup("data_source");
+  producer_host->WaitForDataSourceStart("data_source");
+
+  // Remote producers should not be started
+  EXPECT_CALL(*producer_m2, OnConnect()).Times(0);
+  EXPECT_CALL(*producer_m3, OnConnect()).Times(0);
+
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer_m2.get());
+  Mock::VerifyAndClearExpectations(producer_m3.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer_host->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, MachineFilterDefaultOverride) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer_host = CreateMockProducer();
+  producer_host->Connect(svc.get(), "producer_host");
+  producer_host->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer_m2 = CreateMockProducer();
+  producer_m2->Connect(svc.get(), "producer_m2", /*uid=*/42, /*pid=*/1025,
+                       /*machine_id=*/1234, "machine2");
+  producer_m2->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer_m3 = CreateMockProducer();
+  producer_m3->Connect(svc.get(), "producer_m3", /*uid=*/42, /*pid=*/1025,
+                       /*machine_id=*/5678, "machine3");
+  producer_m3->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  trace_config.set_trace_all_machines(true);
+
+  //
+  // Expect all producers to match due to |trace_all_machines: true|.
+  //
+
+  consumer->EnableTracing(trace_config);
+
+  producer_host->WaitForTracingSetup();
+  producer_host->WaitForDataSourceSetup("data_source");
+  producer_m2->WaitForTracingSetup();
+  producer_m2->WaitForDataSourceSetup("data_source");
+  producer_m3->WaitForTracingSetup();
+  producer_m3->WaitForDataSourceSetup("data_source");
+
+  producer_host->WaitForDataSourceStart("data_source");
+  producer_m2->WaitForDataSourceStart("data_source");
+  producer_m3->WaitForDataSourceStart("data_source");
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer_host->WaitForDataSourceStop("data_source");
+  producer_m2->WaitForDataSourceStop("data_source");
+  producer_m3->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
 TEST_F(TracingServiceImplTest, ProducerNameFilterChange) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -2364,7 +2465,7 @@ TEST_F(TracingServiceImplTest, NoFlushBeforeWriteIntoFile) {
 }
 
 TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
-  if (!base::flags::buffer_clone_preserve_read_iter) {
+  if (!PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER)) {
     GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
   }
 
@@ -2460,7 +2561,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
 }
 
 TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
-  if (!base::flags::buffer_clone_preserve_read_iter) {
+  if (!PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER)) {
     GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
   }
 
@@ -2572,7 +2673,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
 // session. This is test is needed, because we have a slightly different code
 // path when we clone the 'write_into_file' session.
 TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionLifecycleEvents) {
-  if (!base::flags::buffer_clone_preserve_read_iter) {
+  if (!PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER)) {
     GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
   }
 

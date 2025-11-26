@@ -43,6 +43,11 @@ def call(cmd, *args):
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--check-only', default=False, action='store_true')
+  parser.add_argument(
+      '--protos',
+      default=False,
+      action='store_true',
+      help='Generate proto-related files (.gen.cc/h, .pcz.h, descriptors, etc)')
   parser.add_argument('OUT')
   args = parser.parse_args()
   out = args.OUT
@@ -57,12 +62,17 @@ def main():
     if not IS_WIN:
       call('gen_bazel', *check_only)
       call('gen_android_bp', *check_only)
-    call('gen_merged_protos', *check_only)
     call('gen_amalgamated_python_tools', *check_only)
-    call('ninja', '-C', out, 'protoc')
-    call('gen_binary_descriptors', '--protoc', protoc_path(out), *check_only)
-    call('gen_c_protos', *check_only, out)
-    call('gen_python_protos', '--protoc', protoc_path(out), *check_only)
+
+    # Proto generation is now optional and must be explicitly enabled
+    if args.protos:
+      call('gen_merged_protos', *check_only)
+      call('ninja', '-C', out, 'protoc')
+      call('gen_binary_descriptors', '--protoc', protoc_path(out), *check_only)
+      call('gen_c_protos', *check_only, out)
+      call('gen_python_protos', '--protoc', protoc_path(out), *check_only)
+    else:
+      print('Skipping proto generation. Use --protos to generate proto files.')
 
     if IS_WIN:
       print('WARNING: Cannot generate BUILD / Android.bp from Windows. ' +

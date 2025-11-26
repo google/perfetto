@@ -120,6 +120,22 @@ export class SQLDataSource implements DataGridDataSource {
   }
 
   /**
+   * Export all data with current filters/sorting applied.
+   */
+  async exportData(): Promise<Row[]> {
+    if (!this.workingQuery) {
+      // If no working query exists yet, we can't export anything
+      return [];
+    }
+
+    const query = `SELECT * FROM (${this.workingQuery})`;
+    const result = await runQueryForQueryTable(query, this.engine);
+
+    // Return all rows
+    return result.rows;
+  }
+
+  /**
    * Builds a complete SQL query that defines the working dataset (ignores
    * pagination).
    */

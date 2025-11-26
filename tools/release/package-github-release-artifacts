@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+# Copyright (C) 2021 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Packages prebuilts and SDK sources for GitHub releases.
+
+Usage: ./tools/release/package-github-release-artifacts v20.0
+
+IMPORTANT: This script must be run from the git tag being packaged. The SDK
+source files are generated from the current working directory, so running this
+script from a different commit will result in mismatched SDK sources.
+
+This will generate:
+- One .zip file for every os-arch combo (e.g. android-arm.zip)
+- SDK source zips (perfetto-cpp-sdk-src.zip, perfetto-c-sdk-src.zip)
+All files will be placed into /tmp/perfetto-v20.0-github-release/ .
+"""
+
+import argparse
+import subprocess
+import os
+import sys
+import tempfile
+import shutil
+
+
+def exec(*args):
+  print(' '.join(args))
+  subprocess.check_call(args)
+
+
+def get_repo_root():
+  """Returns the root directory of the Perfetto repository."""
+  script_dir = os.path.dirname(os.path.abspath(__file__))
+  return os.path.abspath(os.path.join(script_dir, '..', '..'))
+
+
+def verify_git_state(expected_version):
+  """Verifies git is on the correct tag with no uncommitted changes."""
+  warnings = []
+
+  # Check for uncommitted changes
+  try:
+    result = subprocess.run(['git', 'status', '--porcelain'],
+                            capture_output=True,
+                            text=True)
+    if result.returncode == 0 and result.stdout.strip():
+      warnings.append(
+          f'Working directory has uncommitted changes:\n{result.stdout}')
+  except Exception as e:
+    warnings.append(f'Could not check git status: {e}')
+
+  # Check current tag
+  try:
+    result = subprocess.run(['git', 'describe', '--exact-match', '--tags'],
+                            capture_output=True,
+                            text=True)
+    if result.returncode == 0:
+      current_tag = result.stdout.strip()
+      if current_tag != expected_version:
+        warnings.append(
+            f'On tag {current_tag}, but packaging {expected_version}')
+    else:
+      warnings.append(f'Not on a git tag (expected {expected_version})')
+  except Exception as e:
+    warnings.append(f'Could not check git tag: {e}')
+
+  if warnings:
+    print('WARNING: SDK sources may not match the release tag:')
+    for warning in warnings:
+      print(f'  - {warning}')
+    return input('\nContinue anyway? [y/N] ').lower().strip() in ['y', 'yes']
+
+  print(f'✓ On tag {expected_version} with clean working directory')
+  return True
+
+
+def generate_sdk_sources(tmpdir):
+  """Generates SDK source zips using gen_amalgamated."""
+  repo_root = get_repo_root()
+  gen_amalgamated = os.path.join(repo_root, 'tools', 'gen_amalgamated')
+
+  sdk_zips = []
+
+  # Generate C++ SDK (default targets)
+  print('\n--- Generating C++ SDK amalgamated sources ---')
+  cpp_sdk_staging = tempfile.mkdtemp(prefix='perfetto-cpp-sdk-')
+  try:
+    exec('python3', gen_amalgamated, '--output',
+         os.path.join(cpp_sdk_staging, 'perfetto'))
+    os.chdir(tmpdir)
+    exec('zip', '-9rj', 'perfetto-cpp-sdk-src.zip', cpp_sdk_staging)
+    sdk_zips.append('perfetto-cpp-sdk-src.zip')
+    print('C++ SDK source zip created: perfetto-cpp-sdk-src.zip')
+  finally:
+    shutil.rmtree(cpp_sdk_staging, ignore_errors=True)
+
+  # Generate C SDK
+  # TODO(lalitm): determine the correct target for C SDK
+  print('\n--- Generating C SDK amalgamated sources ---')
+  c_sdk_staging = tempfile.mkdtemp(prefix='perfetto-c-sdk-')
+  try:
+    # For now, use the same targets as C++ SDK
+    # This should be updated with the correct C SDK target
+    exec('python3', gen_amalgamated, '--output',
+         os.path.join(c_sdk_staging, 'perfetto'))
+    os.chdir(tmpdir)
+    exec('zip', '-9rj', 'perfetto-c-sdk-src.zip', c_sdk_staging)
+    sdk_zips.append('perfetto-c-sdk-src.zip')
+    print('C SDK source zip created: perfetto-c-sdk-src.zip')
+  finally:
+    shutil.rmtree(c_sdk_staging, ignore_errors=True)
+
+  return sdk_zips
+
+
+def main():
+  parser = argparse.ArgumentParser(epilog='Example: %s v19.0' % __file__)
+  parser.add_argument('version', help='Version tag (e.g., v20.0)')
+
+  args = parser.parse_args()
+
+  # Verify we're on the correct tag with no uncommitted changes
+  if not verify_git_state(args.version):
+    print('Aborted.')
+    return 1
+
+  tmpdir = '/tmp/perfetto-%s-github-release' % args.version
+  src = 'gs://perfetto-luci-artifacts/%s/' % args.version
+  os.makedirs(tmpdir, exist_ok=True)
+
+  # Download and package prebuilts
+  print('--- Downloading prebuilts from GCS ---')
+  os.chdir(tmpdir)
+  exec('gsutil', '-m', 'rsync', '-rc', src, tmpdir + '/')
+
+  zips = []
+  for arch in os.listdir(tmpdir):
+    if not os.path.isdir(arch):
+      continue
+    exec('zip', '-9r', '%s.zip' % arch, arch)
+    zips.append(arch + '.zip')
+
+  # Generate SDK source zips
+  sdk_zips = generate_sdk_sources(tmpdir)
+  zips.extend(sdk_zips)
+
+  print('')
+  print('=' * 70)
+  print('%d zip files saved in %s' % (len(zips), tmpdir))
+  print('Prebuilt binaries: %d' % (len(zips) - len(sdk_zips)))
+  print('SDK sources: %d' % len(sdk_zips))
+  print('Files: %s' % ', '.join(sorted(zips)))
+  print('=' * 70)
+
+
+if __name__ == '__main__':
+  sys.exit(main())

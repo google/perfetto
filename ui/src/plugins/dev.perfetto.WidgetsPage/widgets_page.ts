@@ -41,6 +41,7 @@ import {renderNodeGraph} from './demos/nodegraph_demo';
 import {renderPopup} from './demos/popup_demo';
 import {popupMenuDemo} from './demos/popup_menu_demo';
 import {renderPortal} from './demos/portal_demo';
+import {renderResizeHandle} from './demos/resize_handle_demo';
 import {segmentedButtons} from './demos/segmented_buttons_demo';
 import {renderSelect} from './demos/select_demo';
 import {renderSpinner} from './demos/spinner_demo';
@@ -90,6 +91,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'popup', label: 'Popup', view: renderPopup},
   {id: 'popup-menu', label: 'PopupMenu', view: popupMenuDemo},
   {id: 'portal', label: 'Portal', view: renderPortal},
+  {id: 'resize-handle', label: 'ResizeHandle', view: renderResizeHandle},
   {id: 'segmented-buttons', label: 'SegmentedButtons', view: segmentedButtons},
   {id: 'select', label: 'Select', view: renderSelect},
   {id: 'spinner', label: 'Spinner', view: renderSpinner},

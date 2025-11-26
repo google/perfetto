@@ -26,7 +26,7 @@ export default class implements PerfettoPlugin {
       render: (subpage) => m(WidgetsPage, {app, subpage}),
     });
     app.sidebar.addMenuItem({
-      section: 'navigation',
+      section: 'settings',
       text: 'Widgets',
       href: '#!/widgets',
       icon: 'widgets',

@@ -33,6 +33,7 @@ import {
   SortCriterion as BuilderSortCriterion,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
+import {LabeledControl, DraggableItem} from '../widgets';
 
 export interface SortCriterion {
   colName: string;
@@ -107,21 +108,23 @@ export class SortNode implements ModificationNode {
             .join(', ')
         : 'None';
 
+    const handleReorder = (from: number, to: number) => {
+      if (!this.state.sortCriteria) return;
+      const newSortCriteria = [...this.state.sortCriteria];
+      const [removed] = newSortCriteria.splice(from, 1);
+      newSortCriteria.splice(to, 0, removed);
+      this.state.sortCriteria = newSortCriteria;
+      this.sortCols = this.resolveSortCols();
+      this.state.onchange?.();
+      m.redraw();
+    };
+
     return m('div', [
       m(
-        '.pf-sort-selector',
+        LabeledControl,
         {
-          style: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom:
-              this.showEditControls && this.state.sortCriteria.length > 0
-                ? '8px'
-                : '0',
-          },
+          label: 'Sort by:',
         },
-        m('label', 'Sort by:'),
         m(PopupMultiSelect, {
           label,
           options: sortOptions,
@@ -166,48 +169,23 @@ export class SortNode implements ModificationNode {
       this.showEditControls &&
         this.state.sortCriteria?.map((criterion, index) =>
           m(
-            '.sort-criterion',
+            DraggableItem,
             {
-              draggable: true,
-              ondragstart: (e: DragEvent) => {
-                e.dataTransfer!.setData('text/plain', index.toString());
-              },
-              ondragover: (e: DragEvent) => {
-                e.preventDefault();
-              },
-              ondrop: (e: DragEvent) => {
-                e.preventDefault();
-                if (!this.state.sortCriteria) return;
-                const from = parseInt(
-                  e.dataTransfer!.getData('text/plain'),
-                  10,
-                );
-                const to = index;
-
-                const newSortCriteria = [...this.state.sortCriteria];
-                const [removed] = newSortCriteria.splice(from, 1);
-                newSortCriteria.splice(to, 0, removed);
-                this.state.sortCriteria = newSortCriteria;
-                this.sortCols = this.resolveSortCols();
-                this.state.onchange?.();
-                m.redraw();
-              },
+              index,
+              onReorder: handleReorder,
             },
-            [
-              m('span.pf-drag-handle', '☰'),
-              m('span', criterion.colName),
-              m(Button, {
-                label: criterion.direction,
-                onclick: () => {
-                  if (this.state.sortCriteria) {
-                    this.state.sortCriteria[index].direction =
-                      criterion.direction === 'ASC' ? 'DESC' : 'ASC';
-                    this.state.onchange?.();
-                    m.redraw();
-                  }
-                },
-              }),
-            ],
+            m('span', criterion.colName),
+            m(Button, {
+              label: criterion.direction,
+              onclick: () => {
+                if (this.state.sortCriteria) {
+                  this.state.sortCriteria[index].direction =
+                    criterion.direction === 'ASC' ? 'DESC' : 'ASC';
+                  this.state.onchange?.();
+                  m.redraw();
+                }
+              },
+            }),
           ),
         ),
     ]);

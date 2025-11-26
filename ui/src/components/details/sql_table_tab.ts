@@ -20,7 +20,7 @@ import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
-import {SqlTableState} from '../widgets/sql/table/state';
+import {getSelectableColumns, SqlTableState} from '../widgets/sql/table/state';
 import {SqlTable} from '../widgets/sql/table/table';
 import {SqlTableDescription} from '../widgets/sql/table/table_description';
 import {Trace} from '../../public/trace';
@@ -215,6 +215,7 @@ class SqlTableTab implements Tab {
         }),
         content: m(PivotTable, {
           state: pivot,
+          getSelectableColumns: () => getSelectableColumns(this.tableState),
           extraRowButton: (node) =>
             // Do not show any buttons for root as it doesn't have any filters anyway.
             !node.isRoot() &&

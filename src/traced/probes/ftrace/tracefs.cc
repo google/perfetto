@@ -545,7 +545,7 @@ void Tracefs::ClearTrace() {
 
   const auto total_cpu_count = NumberOfCpus();
 
-  if constexpr (base::flags::ftrace_clear_offline_cpus_only) {
+  if constexpr (PERFETTO_FLAGS(FTRACE_CLEAR_OFFLINE_CPUS_ONLY)) {
     const auto online_cpu_count = NumberOfOnlineCpus();
 
     // Truncating the trace file leads to tracing_reset_online_cpus being called

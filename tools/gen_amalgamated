@@ -40,6 +40,26 @@ default_targets = [
     '//protos/perfetto/trace:zero',
 ]
 
+c_sdk_targets = [
+    '//src/shared_lib:shared_lib',
+]
+
+# Preamble to add to the C SDK header file to disable shared library exports.
+c_sdk_header_preamble = [
+    '// Enable GNU extensions for syscall() on Linux when compiling as C.',
+    '#if defined(__linux__) && !defined(_GNU_SOURCE)',
+    '#define _GNU_SOURCE',
+    '#endif',
+    '',
+    '// Disable shared library export annotations for static linking.',
+    '#define PERFETTO_SDK_DISABLE_SHLIB_EXPORT',
+    '',
+]
+
+# Filter for C SDK headers: only include headers from include/perfetto/public/
+# All other headers (C++ internal dependencies) go in the source file.
+c_sdk_header_filter = r'^include/perfetto/public/'
+
 # Arguments for the GN output directory (unless overridden from the command
 # line).
 gn_args = ' '.join([
@@ -60,7 +80,7 @@ gn_args = ' '.join([
 # but doing that is unmaintainable. We also do this for cpp bindings since some
 # tracing SDK functions depend on them (and the system tracing IPC mechanism
 # does so too).
-recurse_in_header_deps = '^//protos/.*(cpp|zero)$'
+recurse_in_header_deps = r'^//protos/.*(cpp|zero)$|^//include/perfetto/public.*$'
 
 # Compiler flags which aren't filtered out.
 cflag_allowlist = r'^-(W.*|fno-exceptions|fPIC|std.*|fvisibility.*)$'
@@ -211,7 +231,12 @@ class DependencyTree(object):
 class AmalgamatedProject(object):
   """In-memory representation of an amalgamated source/header pair."""
 
-  def __init__(self, desc, source_deps, compute_deps_only=False):
+  def __init__(self,
+               desc,
+               source_deps,
+               compute_deps_only=False,
+               header_preamble=None,
+               header_filter=None):
     """Constructor.
 
         Args:
@@ -221,12 +246,17 @@ class AmalgamatedProject(object):
             compute_deps_only: If True, the project will only be used to compute
                 dependency information. Use |get_source_files()| to retrieve
                 the result.
+            header_preamble: Optional list of lines to prepend to the header file.
+            header_filter: Optional regex pattern. Only headers matching this pattern
+                will be included in the header file; others go in the source file.
         """
     self.desc = desc
     self.source_deps = source_deps
     self.header = []
     self.source = []
     self.source_defines = []
+    self.header_preamble = header_preamble or []
+    self.header_filter = header_filter
     # Note that we don't support multi-arg flags.
     self.cflags = set(default_cflags)
     self.ldflags = set()
@@ -380,6 +410,12 @@ class AmalgamatedProject(object):
       except Error as e:
         raise Error('Failed adding source %s: %s' % (source_name, e))
 
+  def _should_header_go_in_header_file(self, header_path):
+    """Returns True if header should go in .h file, False if it should go in .cc"""
+    if not self.header_filter:
+      return True
+    return re.match(self.header_filter, normalize_path(header_path)) is not None
+
   def _add_header_included_header(self, include_dirs, header_name):
     for include_dir in include_dirs:
       full_path = os.path.join(gn_utils.repo_root(), include_dir, header_name)
@@ -387,10 +423,23 @@ class AmalgamatedProject(object):
         if full_path in self._processed_headers:
           return
         self._processed_headers.add(full_path)
+
+        # Check if this header should go in the header file or source file
+        if self._should_header_go_in_header_file(full_path):
+          output = self.header
+          process_func = self._process_header_includes
+        else:
+          # Headers that don't match the filter go in the source file
+          if full_path in self._processed_source_headers:
+            return
+          self._processed_source_headers.add(full_path)
+          output = self.source
+          process_func = lambda dirs, f: self._process_header_includes(dirs, f)
+
         with open(full_path) as f:
-          self.header.append('// %s begin header: %s' %
-                             (tool_name, normalize_path(full_path)))
-          self.header.extend(self._process_header_includes(include_dirs, f))
+          output.append('// %s begin header: %s' %
+                        (tool_name, normalize_path(full_path)))
+          output.extend(process_func(include_dirs, f))
         return
     if self._compute_deps_only:
       return
@@ -407,11 +456,22 @@ class AmalgamatedProject(object):
       if self._compute_deps_only:
         return
       raise Error('Header file %s not found' % header_name)
+
+    # Check if this header should go in the header file or source file
+    if self._should_header_go_in_header_file(full_path):
+      output = self.header
+    else:
+      # Headers that don't match the filter go in the source file
+      if full_path in self._processed_source_headers:
+        return
+      self._processed_source_headers.add(full_path)
+      output = self.source
+
     with open(full_path) as f:
-      self.header.append('// %s begin header: %s' %
-                         (tool_name, normalize_path(full_path)))
+      output.append('// %s begin header: %s' %
+                    (tool_name, normalize_path(full_path)))
       try:
-        self.header.extend(self._process_header_includes(include_dirs, f))
+        output.extend(self._process_header_includes(include_dirs, f))
       except Error as e:
         raise Error('Failed adding header %s: %s' % (header_name, e))
 
@@ -512,7 +572,8 @@ class AmalgamatedProject(object):
     self._make_directories(os.path.dirname(header_file))
     self._make_directories(os.path.dirname(source_file))
     with open(header_file, 'w') as f:
-      f.write('\n'.join([preamble] + self.header + ['\n']))
+      f.write('\n'.join([preamble] + self.header_preamble + self.header +
+                        ['\n']))
     with open(source_file, 'w') as f:
       include_stmt = '#include "%s"' % os.path.basename(header_file)
       f.write('\n'.join([preamble] + self.source_defines + [include_stmt] +
@@ -550,6 +611,45 @@ Example build command:
     return build_cmd
 
 
+def generate_sdk(targets,
+                 output_prefix,
+                 args,
+                 out,
+                 header_preamble=None,
+                 header_filter=None):
+  source_deps = gn_utils.compute_source_dependencies(out,
+                                                     args.system_buildtools)
+  project = AmalgamatedProject(
+      gn_utils.load_build_description(out, args.system_buildtools),
+      source_deps,
+      compute_deps_only=args.dump_deps,
+      header_preamble=header_preamble,
+      header_filter=header_filter)
+
+  for target in targets:
+    project.add_target(target)
+
+  if args.dump_deps:
+    source_files = [
+        source_file for _, source_file in project.get_source_files()
+    ]
+    print('\n'.join(sorted(set(source_files))))
+    return
+
+  project.generate()
+  result = project.save(output_prefix, args.system_buildtools)
+  if not args.quiet:
+    print(result)
+  if args.build:
+    if not args.quiet:
+      sys.stdout.write('Building amalgamated project...')
+      sys.stdout.flush()
+    subprocess.check_call(
+        project.get_build_command(output_prefix, args.system_buildtools))
+    if not args.quiet:
+      print('done')
+
+
 def main():
   parser = argparse.ArgumentParser(
       description='Generate an amalgamated header/source pair from a GN '
@@ -561,7 +661,7 @@ def main():
   parser.add_argument(
       '--output',
       help='Base name of files to create. A .cc/.h extension will be added',
-      default=os.path.join(gn_utils.repo_root(), 'out/amalgamated/perfetto'))
+      default=None)
   parser.add_argument(
       '--gn_args',
       help='GN arguments used to prepare the output directory',
@@ -585,11 +685,15 @@ def main():
       'of the hermetic ones',
       action='store_true')
   parser.add_argument(
+      '--sdk',
+      choices=['c', 'cpp', 'all'],
+      default='all',
+      help='Which SDK to generate. Default: all')
+  parser.add_argument(
       'targets',
       nargs=argparse.REMAINDER,
       help='Targets to include in the output (e.g., "//:libperfetto")')
   args = parser.parse_args()
-  targets = args.targets or default_targets
 
   # The CHANGELOG mtime triggers the perfetto_version.gen.h genrule. This is
   # to avoid emitting a stale version information in the remote case of somebody
@@ -598,9 +702,49 @@ def main():
   assert (os.path.exists(changelog_path))
   subprocess.check_call(['touch', '-c', changelog_path])
 
-  output = args.output
+  # Determine base output path
   if args.check:
-    output = os.path.join(tempfile.mkdtemp(), 'perfetto_amalgamated')
+    base_output = tempfile.mkdtemp()
+  elif args.output is not None:
+    base_output = os.path.dirname(args.output)
+    base_name = os.path.basename(args.output)
+  else:
+    base_output = os.path.join(gn_utils.repo_root(), 'out/amalgamated')
+    base_name = 'perfetto'
+
+  sdks = []
+  if args.sdk in ['cpp', 'all']:
+    tgt = args.targets or default_targets
+    if args.check:
+      out_path = os.path.join(base_output, 'perfetto_amalgamated')
+    elif args.output is not None:
+      out_path = args.output
+    else:
+      out_path = os.path.join(base_output, 'perfetto')
+    sdks.append({
+        'targets': tgt,
+        'output': out_path,
+        'header_preamble': None,
+        'header_filter': None
+    })
+
+  if args.sdk in ['c', 'all']:
+    tgt = args.targets or c_sdk_targets
+    if args.check:
+      out_path = os.path.join(base_output, 'perfetto_c_amalgamated')
+    elif args.output is not None:
+      # When user specifies output path, append _c to the basename
+      out_path = os.path.join(
+          os.path.dirname(args.output),
+          os.path.basename(args.output) + '_c')
+    else:
+      out_path = os.path.join(base_output, 'perfetto_c')
+    sdks.append({
+        'targets': tgt,
+        'output': out_path,
+        'header_preamble': c_sdk_header_preamble,
+        'header_filter': c_sdk_header_filter
+    })
 
   out = gn_utils.prepare_out_directory(
       args.gn_args, args.out, system_buildtools=args.system_buildtools)
@@ -609,44 +753,25 @@ def main():
   try:
     desc = gn_utils.load_build_description(out, args.system_buildtools)
 
-    # We need to build everything first so that the necessary header
-    # dependencies get generated. However if we are just dumping dependency
-    # information this can be skipped, allowing cross-platform operation.
+    # Build all targets first
+    all_targets = []
+    for sdk in sdks:
+      all_targets.extend(sdk['targets'])
+
     if not args.dump_deps:
       gn_utils.build_targets(
-          out, targets, system_buildtools=args.system_buildtools)
-    source_deps = gn_utils.compute_source_dependencies(out,
-                                                       args.system_buildtools)
-    project = AmalgamatedProject(
-        desc, source_deps, compute_deps_only=args.dump_deps)
+          out, all_targets, system_buildtools=args.system_buildtools)
 
-    for target in targets:
-      project.add_target(target)
+    for sdk in sdks:
+      generate_sdk(sdk['targets'], sdk['output'], args, out,
+                   sdk['header_preamble'], sdk['header_filter'])
 
-    if args.dump_deps:
-      source_files = [
-          source_file for _, source_file in project.get_source_files()
-      ]
-      print('\n'.join(sorted(set(source_files))))
-      return
-
-    project.generate()
-    result = project.save(output, args.system_buildtools)
-    if not args.quiet:
-      print(result)
-    if args.build:
-      if not args.quiet:
-        sys.stdout.write('Building amalgamated project...')
-        sys.stdout.flush()
-      subprocess.check_call(
-          project.get_build_command(output, args.system_buildtools))
-      if not args.quiet:
-        print('done')
   finally:
     if not args.keep:
       shutil.rmtree(out)
     if args.check:
-      shutil.rmtree(os.path.dirname(output))
+      for sdk in sdks:
+        shutil.rmtree(os.path.dirname(sdk['output']))
 
 
 if __name__ == '__main__':

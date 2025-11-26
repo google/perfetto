@@ -32,55 +32,6 @@
     border-radius: 4px;
   }
 
-  &__card {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: space-between;
-
-    &--changed {
-      border-left: solid 3px var(--pf-color-primary);
-    }
-
-    &--focused {
-      background-color: color-mix(
-        in srgb,
-        var(--pf-color-highlight) 70%,
-        transparent
-      );
-      animation: highlight-flash 1s ease-out;
-    }
-  }
-
-  &__details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  &__setting-id {
-    font-size: 0.7em;
-    color: var(--pf-color-text-muted);
-    font-family: var(--pf-font-monospace);
-    margin-bottom: 6px;
-  }
-
-  &__description {
-    font-size: smaller;
-    white-space: pre-line;
-  }
-
-  &__link-button {
-    visibility: hidden;
-  }
-
-  &__controls {
-    display: flex;
-    flex-direction: row;
-    column-gap: 12px;
-    align-items: center;
-  }
-
   &__complex-error {
     display: flex;
     align-items: center;
@@ -88,24 +39,11 @@
     color: var(--pf-color-danger);
     font-size: 14px;
   }
-}
 
-.pf-card:hover .pf-settings-page__link-button {
-  visibility: visible;
-}
-
-@keyframes highlight-flash {
-  0% {
-    background-color: transparent;
-  }
-  30% {
-    background-color: var(--pf-color-highlight);
-  }
-  100% {
-    background-color: color-mix(
-      in srgb,
-      var(--pf-color-highlight) 70%,
-      transparent
-    );
+  &__controls {
+    display: flex;
+    flex-direction: row;
+    column-gap: 16px;
+    align-items: center;
   }
 }

@@ -146,20 +146,8 @@ export class TransformColumn implements TableColumn {
     return this.args.transformed.getTitle?.();
   }
 
-  renderCell(
-    value: SqlValue,
-    tableManager?: TableManager,
-    supportingValues?: {} | undefined,
-  ): RenderedCell {
-    return this.args.transformed.renderCell(
-      value,
-      tableManager,
-      supportingValues,
-    );
-  }
-
-  supportingColumns() {
-    return this.args.transformed.supportingColumns?.() || (() => {});
+  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell {
+    return this.args.transformed.renderCell(value, tableManager);
   }
 
   listDerivedColumns(manager: TableManager) {

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Checkbox} from '../../../widgets/checkbox';
-import {renderWidgetShowcase} from '../widgets_page_utils';
+import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 
 export function renderCheckbox(): m.Children {
   return [
@@ -27,9 +27,21 @@ export function renderCheckbox(): m.Children {
       ),
     ),
     renderWidgetShowcase({
-      renderWidget: (opts) => m(Checkbox, {label: 'Checkbox', ...opts}),
+      renderWidget: ({label, labelLeft, showInlineText, ...opts}) => [
+        showInlineText && 'Before',
+        m(Checkbox, {
+          label: label ? 'Checkbox' : undefined,
+          labelLeft: labelLeft ? 'Checkbox' : undefined,
+          ...opts,
+        }),
+        showInlineText && 'after',
+      ],
       initialOpts: {
+        label: true,
+        labelLeft: false,
         disabled: false,
+        variant: new EnumOption('checkbox', ['checkbox', 'switch'] as const),
+        showInlineText: false,
       },
     }),
   ];

@@ -31,6 +31,7 @@ import {
   MultiSelectDiff,
 } from '../../../../widgets/multiselect';
 import {StructuredQueryBuilder} from '../structured_query_builder';
+import {LabeledControl} from '../widgets';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -304,21 +305,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
         : 'None';
 
     return m(
-      '.pf-exp-partition-columns',
-      {
-        style: compact
-          ? {marginTop: '4px', marginBottom: '4px'}
-          : {marginTop: '8px', marginBottom: '8px'},
-      },
-      m(
-        'label',
-        {
-          style: compact
-            ? {marginRight: '8px', fontSize: '12px'}
-            : {marginRight: '8px'},
-        },
-        'Partition by:',
-      ),
+      LabeledControl,
+      {label: 'Partition by:'},
       m(PopupMultiSelect, {
         label,
         options: partitionOptions,

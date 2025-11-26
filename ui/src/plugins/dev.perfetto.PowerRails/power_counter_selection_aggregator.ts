@@ -87,10 +87,12 @@ export class PowerCounterSelectionAggregator implements Aggregator {
       {
         title: 'Delta energy (mJ)',
         columnId: 'delta_value',
+        sum: true,
       },
       {
         title: 'Avg Power (mW)',
         columnId: 'rate',
+        sum: true,
       },
       {
         title: 'Sample Count',

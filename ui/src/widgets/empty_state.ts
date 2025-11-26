@@ -39,13 +39,7 @@ export interface EmptyStateAttrs extends HTMLAttrs {
 // actions for things you might want to do next (e.g. clear a search box).
 export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
   view({attrs, children}: m.Vnode<EmptyStateAttrs, this>): void | m.Children {
-    const {
-      icon = Icons.Search, // Icon defaults to the search symbol
-      title,
-      className,
-      fillHeight,
-      ...rest
-    } = attrs;
+    const {icon = Icons.NoData, title, className, fillHeight, ...rest} = attrs;
     return m(
       '.pf-empty-state',
       {

@@ -19,9 +19,87 @@ const path = require('path');
 const replace = require('rollup-plugin-re');
 const sourcemaps = require('rollup-plugin-sourcemaps');
 const json = require('@rollup/plugin-json');
+const {SourceMapConsumer, SourceMapGenerator} = require('source-map');
 
 const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
+
+// Plugin to embed minimal source maps directly into bundles
+function embedMinimalSourceMap() {
+  return {
+    name: 'embed-minimal-sourcemap',
+    async generateBundle(options, bundle) {
+      for (const chunk of Object.values(bundle)) {
+        if (!chunk.fileName || !chunk.fileName.endsWith('_bundle.js') || !chunk.map) {
+          continue;
+        }
+
+        try {
+          // Create minimal source map from Rollup's full map
+          const consumer = await new SourceMapConsumer(chunk.map);
+          const generator = new SourceMapGenerator({
+            file: chunk.map.file,
+          });
+
+          // Track which lines we've seen to only add one mapping per line
+          const seenLines = new Set();
+          
+          // Clean source paths
+          const cleanSourcePath = (source) => {
+            let cleaned = source.replace('../../../out/ui/', '');
+            cleaned = cleaned.replace('../../node_modules/', 'node_modules/');
+            return cleaned;
+          };
+
+          consumer.eachMapping((mapping) => {
+            if (!mapping.source) return;
+            
+            // Only add first mapping per generated line
+            const lineKey = mapping.generatedLine;
+            if (seenLines.has(lineKey)) return;
+            seenLines.add(lineKey);
+
+            const cleanSource = cleanSourcePath(mapping.source);
+            
+            generator.addMapping({
+              generated: {
+                line: mapping.generatedLine,
+                column: 0, // First column only
+              },
+              original: {
+                line: mapping.originalLine,
+                column: mapping.originalColumn,
+              },
+              source: cleanSource,
+              // name intentionally omitted to strip name references
+            });
+          });
+
+          consumer.destroy();
+
+          const minimalMap = JSON.parse(generator.toString());
+          
+          // Remove sourcesContent to reduce size
+          delete minimalMap.sourcesContent;
+          // Remove names array (should be empty anyway since we didn't add names)
+          delete minimalMap.names;
+
+          // Embed the minimal map at the end of the bundle using a registry
+          // Use 'self' instead of 'window' for worker compatibility
+          // Each bundle registers its map with its filename as the key
+          chunk.code += `\n;(self.__SOURCEMAPS=self.__SOURCEMAPS||{})['${chunk.fileName}']=${JSON.stringify(minimalMap)};`;
+
+          if (process.env.VERBOSE) {
+            console.log(`Embedded minimal source map into ${chunk.fileName}`);
+          }
+        } catch (err) {
+          console.error(`Error creating minimal source map for ${chunk.fileName}:`, err.message);
+          // Don't fail the build, just skip embedding
+        }
+      }
+    },
+  };
+}
 
 function defBundle(tsRoot, bundle, distDir) {
   return {
@@ -32,6 +110,10 @@ function defBundle(tsRoot, bundle, distDir) {
       esModule: false,
       file: `${OUT_SYMLINK}/${distDir}/${bundle}_bundle.js`,
       sourcemap: true,
+    },
+    watch: {
+      exclude: ['out/**'],
+      buildDelay: 250,
     },
     plugins: [
       replace({
@@ -74,6 +156,9 @@ function defBundle(tsRoot, bundle, distDir) {
 
       // Translate source maps to point back to the .ts sources.
       sourcemaps(),
+      
+      // Embed minimal source map for error reporting
+      embedMinimalSourceMap(),
     ].concat(maybeUglify()),
     onwarn: function (warning, warn) {
       if (warning.code === 'CIRCULAR_DEPENDENCY') {

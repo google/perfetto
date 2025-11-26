@@ -18,8 +18,21 @@ import {duration, time, TimeSpan} from '../base/time';
 import {Track} from './track';
 
 export interface ContentWithLoadingFlag {
+  /**
+   * Indicates whether the content is still loading. If true, a loading spinner
+   * is shown instead of the tab content.
+   */
   readonly isLoading: boolean;
+
+  /**
+   * Content to render inside the selection tab.
+   */
   readonly content: m.Children;
+
+  /**
+   * Optional buttons displayed on the RHS of the aggregation panel.
+   */
+  readonly buttons?: m.Children;
 }
 
 export interface AreaSelectionTab {
@@ -126,8 +139,12 @@ export interface SelectionManager {
   /**
    * Scroll the timeline horizontally and vertically to reveal the currently
    * selected entity.
+   *
+   * @param behavior - Controls zoom behavior:
+   *   - 'pan' (default): Just pan to center without changing zoom.
+   *   - 'focus': Smart zoom that centers and zooms to fit the selection.
    */
-  scrollToSelection(): void;
+  scrollToSelection(behavior?: 'pan' | 'focus'): void;
 
   /**
    * Returns the smallest time span that contains the currently selected entity.

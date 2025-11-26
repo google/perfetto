@@ -309,8 +309,12 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         {title: 'Arguments'},
         m(Tree, renderSliceArguments(trace, slice.args)),
       );
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (precFlows ?? followingFlows ?? args ?? additionalSections) {
+    if (
+      precFlows !== undefined ||
+      followingFlows !== undefined ||
+      args !== undefined ||
+      additionalSections !== undefined
+    ) {
       return m(
         GridLayoutColumn,
         precFlows,

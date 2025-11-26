@@ -3935,4 +3935,98 @@ SELECT *
 FROM sq_0)");
 }
 
+// Tests for sql.column_names with transformations that change the schema.
+// The column_names field describes what the SQL query returns before
+// transformations, but group_by and select_columns change the output schema.
+TEST(StructuredQueryGeneratorTest, SqlColumnNamesWithGroupBy) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "
+        INCLUDE PERFETTO MODULE android.memory.dmabuf;
+        SELECT
+          process_name,
+          value AS metric_val,
+          LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
+          OVER(PARTITION BY COALESCE(upid, utid) ORDER BY ts) - ts AS dur
+        FROM android_memory_cumulative_dmabuf
+        WHERE upid IS NOT NULL
+      "
+      column_names: "process_name"
+      column_names: "metric_val"
+      column_names: "dur"
+    }
+    group_by: {
+      column_names: "process_name"
+      aggregates: {
+        column_name: "metric_val"
+        op: MIN
+        result_column_name: "min_val"
+      }
+      aggregates: {
+        column_name: "metric_val"
+        op: MAX
+        result_column_name: "max_val"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // The final output should have process_name, min_val, max_val
+  // NOT process_name, metric_val, dur (which is what column_names specifies)
+  EXPECT_THAT(res, testing::HasSubstr("SELECT process_name, MIN(metric_val) AS "
+                                      "min_val, MAX(metric_val) AS max_val"));
+  EXPECT_THAT(res, testing::HasSubstr("GROUP BY process_name"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlColumnNamesWithSelectColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT id, name, value FROM my_table"
+      column_names: "id"
+      column_names: "name"
+      column_names: "value"
+    }
+    select_columns: {
+      column_name_or_expression: "id"
+    }
+    select_columns: {
+      column_name_or_expression: "name"
+      alias: "renamed_name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // The final output should have id, renamed_name
+  // NOT id, name, value (which is what column_names specifies)
+  EXPECT_THAT(res, testing::HasSubstr("SELECT id, name AS renamed_name"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlColumnNamesWithoutTransformations) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT id, name, value FROM my_table WHERE id > 10"
+      column_names: "id"
+      column_names: "name"
+      column_names: "value"
+    }
+    filters: {
+      column_name: "value"
+      op: GREATER_THAN
+      int64_rhs: 100
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // When there's no group_by or select_columns, the column_names should match
+  // The SQL source wraps with: SELECT col1, col2, col3 FROM (user SQL)
+  EXPECT_THAT(res, testing::HasSubstr("SELECT id, name, value"));
+  EXPECT_THAT(res, testing::HasSubstr("WHERE value > 100"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

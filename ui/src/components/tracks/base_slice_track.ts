@@ -20,13 +20,16 @@ import {VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/logging';
 import {clamp, floatEqual} from '../../base/math_utils';
 import {cropText} from '../../base/string_utils';
+import {HighPrecisionTime} from '../../base/high_precision_time';
 import {Time, time} from '../../base/time';
+import {TimeScale} from '../../base/time_scale';
 import {uuidv4Sql} from '../../base/uuid';
 import {featureFlags} from '../../core/feature_flags';
 import {raf} from '../../core/raf_scheduler';
 import {Trace} from '../../public/trace';
 import {
   Slice,
+  SnapPoint,
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,
@@ -979,6 +982,68 @@ export abstract class BaseSliceTrack<
       top,
       bottom: top + this.sliceLayout.sliceHeight,
     };
+  }
+
+  getSnapPoint(
+    targetTime: time,
+    thresholdPx: number,
+    timescale: TimeScale,
+  ): SnapPoint | undefined {
+    // Convert pixel threshold to time duration (in nanoseconds as number)
+    const thresholdNs = timescale.pxToDuration(thresholdPx);
+
+    // Use HighPrecisionTime to handle time arithmetic with fractional nanoseconds
+    const hpTargetTime = new HighPrecisionTime(targetTime);
+    const hpSearchStart = hpTargetTime.addNumber(-thresholdNs);
+    const hpSearchEnd = hpTargetTime.addNumber(thresholdNs);
+
+    // Convert back to time for comparisons
+    const searchStart = hpSearchStart.toTime();
+    const searchEnd = hpSearchEnd.toTime();
+
+    let closestSnap: SnapPoint | undefined = undefined;
+    let closestDistNs = thresholdNs;
+
+    // Helper function to check a boundary
+    const checkBoundary = (boundaryTime: time) => {
+      // Skip if outside search window
+      if (boundaryTime < searchStart || boundaryTime > searchEnd) {
+        return;
+      }
+
+      // Calculate distance using HighPrecisionTime for accuracy
+      const hpBoundary = new HighPrecisionTime(boundaryTime);
+      const distNs = Math.abs(hpTargetTime.sub(hpBoundary).toNumber());
+
+      if (distNs < closestDistNs) {
+        closestSnap = {
+          time: boundaryTime,
+        };
+        closestDistNs = distNs;
+      }
+    };
+
+    // Check regular slices
+    for (const slice of this.slices) {
+      // Check start boundary using precise timestamp
+      checkBoundary(slice.ts);
+
+      // Check end boundary (if non-zero duration)
+      if (slice.dur > 0n) {
+        const endTime = Time.add(slice.ts, slice.dur);
+        checkBoundary(endTime);
+      }
+    }
+
+    // Check incomplete slices
+    for (const slice of this.incomplete) {
+      // Use precise timestamp for incomplete slices too
+      checkBoundary(slice.ts);
+
+      // Incomplete slices have dur = -1, so we don't check end
+    }
+
+    return closestSnap;
   }
 
   protected get engine() {

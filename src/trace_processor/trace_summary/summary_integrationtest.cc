@@ -1303,5 +1303,132 @@ TEST_F(TraceSummaryTest, OutputCompressionFailsWhenZlibDisabled) {
 }
 #endif
 
+// Test that sql.column_names works correctly with group_by transformations.
+// The column_names field describes what the SQL returns before transformations,
+// but group_by changes the output schema to group keys + aggregates.
+TEST_F(TraceSummaryTest, SqlColumnNamesWithGroupBy) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "test_metric"
+      dimensions: "process_name"
+      value_columns: "min_val"
+      value_columns: "max_val"
+      value_columns: "avg_val"
+      query {
+        sql {
+          column_names: "process_name"
+          column_names: "metric_val"
+          column_names: "dur"
+          sql: "
+            SELECT 'systemui' as process_name, 100 as metric_val, 1000 as dur
+            UNION ALL
+            SELECT 'systemui' as process_name, 200 as metric_val, 2000 as dur
+            UNION ALL
+            SELECT 'launcher' as process_name, 150 as metric_val, 1500 as dur
+          "
+        }
+        group_by {
+          column_names: "process_name"
+          aggregates {
+            column_name: "metric_val"
+            op: MIN
+            result_column_name: "min_val"
+          }
+          aggregates {
+            column_name: "metric_val"
+            op: MAX
+            result_column_name: "max_val"
+          }
+          aggregates {
+            column_name: "metric_val"
+            op: MEAN
+            result_column_name: "avg_val"
+          }
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+
+  // Verify we get metrics for both processes
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric_min_val\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric_max_val\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric_avg_val\""));
+
+  // Verify dimension values
+  EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"systemui\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"launcher\""));
+
+  // Verify aggregated values for systemui (min=100, max=200, avg=150)
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 100.000000"));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 200.000000"));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 150.000000"));
+}
+
+// Test that sql.column_names works correctly with select_columns
+// transformations.
+TEST_F(TraceSummaryTest, SqlColumnNamesWithSelectColumns) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_spec {
+      id: "test_metric"
+      value: "renamed_value"
+      query {
+        sql {
+          column_names: "id"
+          column_names: "name"
+          column_names: "value"
+          sql: "SELECT 1 as id, 'foo' as name, 42.0 as value"
+        }
+        select_columns {
+          column_name_or_expression: "value"
+          alias: "renamed_value"
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 42"));
+}
+
+// Test that sql.column_names validation still works when there are no
+// transformations (only filters, which don't change the schema).
+TEST_F(TraceSummaryTest, SqlColumnNamesWithFiltersOnly) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_spec {
+      id: "test_metric"
+      value: "value"
+      dimensions: "name"
+      query {
+        sql {
+          column_names: "name"
+          column_names: "value"
+          sql: "
+            SELECT 'a' as name, 10.0 as value
+            UNION ALL
+            SELECT 'b' as name, 20.0 as value
+            UNION ALL
+            SELECT 'c' as name, 30.0 as value
+          "
+        }
+        filters {
+          column_name: "value"
+          op: GREATER_THAN
+          double_rhs: 15.0
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"test_metric\""));
+  // Should only have b and c (values > 15)
+  EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"b\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"c\""));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 20.000000"));
+  EXPECT_THAT(*status_or_output, HasSubstr("double_value: 30.000000"));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::summary

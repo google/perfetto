@@ -34,9 +34,13 @@ import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
-import {Flamegraph} from '../../widgets/flamegraph';
-import {CallstackDetailsSection} from './callstack_details_section';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
+import {Store} from '../../base/store';
+import {z} from 'zod';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
 function createTrackEventDetailsPanel(trace: Trace) {
   return () =>
@@ -45,117 +49,13 @@ function createTrackEventDetailsPanel(trace: Trace) {
     });
 }
 
-function createTrackEventCallstackFlamegraphTab(trace: Trace) {
-  let previousSelection: undefined | AreaSelection;
-  let flamegraph: undefined | QueryFlamegraph;
-  return {
-    id: 'track_event_callstack_flamegraph',
-    name: 'Track Event Callstacks',
-    render(selection: AreaSelection) {
-      const changed =
-        previousSelection === undefined ||
-        !areaSelectionsEqual(previousSelection, selection);
-      if (changed) {
-        flamegraph = computeTrackEventCallstackFlamegraph(trace, selection);
-        previousSelection = selection;
-      }
-      if (flamegraph === undefined) {
-        return undefined;
-      }
-      return {isLoading: false, content: flamegraph.render()};
-    },
-  };
-}
+const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+});
 
-function computeTrackEventCallstackFlamegraph(
-  trace: Trace,
-  selection: AreaSelection,
-) {
-  const trackIds = [];
-  for (const trackInfo of selection.tracks) {
-    if (trackInfo?.tags?.trackEvent === true) {
-      const tids = trackInfo.tags.trackIds;
-      if (tids) {
-        trackIds.push(...tids);
-      }
-    }
-  }
-  if (trackIds.length === 0) {
-    return undefined;
-  }
-  const metrics = metricsFromTableOrSubquery(
-    `
-      (
-        with relevant_slices as (
-          select id
-          from _interval_intersect_single!(
-            ${selection.start},
-            ${selection.end},
-            (
-              select
-                id,
-                ts,
-                -- We do this instead of filtering out negative durations
-                -- because we still want to include begin callsites for
-                -- incomplete slices. The code below will take care of
-                -- only looking at begin callsites for such slices.
-                max(dur, 0) as dur
-              from slice
-              where track_id in (${trackIds.join()})
-            )
-          )
-        )
-        select
-          id,
-          parent_id as parentId,
-          name,
-          mapping_name,
-          source_file || ':' || line_number as source_location,
-          self_count
-        from _callstacks_for_callsites!((
-          select extract_arg(arg_set_id, 'callsite_id') as callsite_id
-          from relevant_slices
-          join slice using (id)
-          where ts >= ${selection.start}
-            and ts <= ${selection.end}
-            and track_id in (${trackIds.join(',')})
-          union all
-          select extract_arg(arg_set_id, 'end_callsite_id') as callsite_id
-          from relevant_slices
-          join slice using (id)
-          where ts + dur >= ${selection.start}
-            and ts + dur <= ${selection.end}
-            and dur > 0
-            and extract_arg(arg_set_id, 'end_callsite_id') is not null
-        ))
-      )
-    `,
-    [
-      {
-        name: 'Samples',
-        unit: '',
-        columnName: 'self_count',
-      },
-    ],
-    `
-     include perfetto module callstacks.stack_profile;
-     include perfetto module intervals.intersect;
-    `,
-    [{name: 'mapping_name', displayName: 'Mapping'}],
-    [
-      {
-        name: 'source_location',
-        displayName: 'Source Location',
-        mergeAggregation: 'ONE_OR_SUMMARY',
-      },
-    ],
-  );
-  return new QueryFlamegraph(trace, metrics, {
-    state: Flamegraph.createDefaultState(metrics),
-  });
-}
+type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
 
-export default class implements PerfettoPlugin {
+export default class TrackEventPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackEvent';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
@@ -163,33 +63,69 @@ export default class implements PerfettoPlugin {
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
+  private store?: Store<TrackEventPluginState>;
+
+  private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
+    const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
+    return result.data ?? {};
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const res = await ctx.engine.query(`
-      include perfetto module viz.summary.track_event;
-      select
-        ifnull(g.upid, t.upid) as upid,
-        g.utid,
-        g.parent_id as parentId,
-        g.is_counter AS isCounter,
-        g.name,
-        g.description,
-        g.unit,
-        g.y_axis_share_key as yAxisShareKey,
-        g.builtin_counter_type as builtinCounterType,
-        g.has_data AS hasData,
-        g.has_children AS hasChildren,
-        g.track_ids as trackIds,
-        g.order_id as orderId,
-        t.name as threadName,
-        t.tid as tid,
-        ifnull(p.pid, tp.pid) as pid,
-        ifnull(p.name, tp.name) as processName
-      from _track_event_tracks_ordered_groups g
-      left join process p using (upid)
-      left join thread t using (utid)
-      left join process tp on tp.upid = t.upid
-    `);
+    this.store = ctx.mountStore(TrackEventPlugin.id, (init) =>
+      this.migrateTrackEventPluginState(init),
+    );
+
+    await ctx.engine.query(`include perfetto module viz.summary.track_event;`);
+
+    // Step 1: Materialize track metadata
+    // Can be cleaned up at the end of this function as only tables and
+    // immediate queries depend on this.
+    await using _ = await createPerfettoTable({
+      name: '__track_event_tracks',
+      engine: ctx.engine,
+      as: `
+        select
+          ifnull(g.upid, t.upid) as upid,
+          g.utid,
+          g.parent_id as parentId,
+          g.is_counter AS isCounter,
+          g.name,
+          g.description,
+          g.unit,
+          g.y_axis_share_key as yAxisShareKey,
+          g.builtin_counter_type as builtinCounterType,
+          g.has_data AS hasData,
+          g.has_children AS hasChildren,
+          g.has_callstacks AS hasCallstacks,
+          g.min_track_id as minTrackId,
+          g.track_ids as trackIds,
+          g.order_id as orderId,
+          t.name as threadName,
+          t.tid as tid,
+          ifnull(p.pid, tp.pid) as pid,
+          ifnull(p.name, tp.name) as processName,
+          (length(g.track_ids) - length(replace(g.track_ids, ',', '')) + 1) as trackCount
+        from _track_event_tracks_ordered_groups g
+        left join process p using (upid)
+        left join thread t using (utid)
+        left join process tp on tp.upid = t.upid
+      `,
+    });
+
+    // Step 2: Create shared depth table for slice tracks with multiple trackIds
+    await createPerfettoTable({
+      name: '__trackevent_track_layout_depth',
+      engine: ctx.engine,
+      as: `
+        select id, t.minTrackId, layout_depth as depth
+        from __track_event_tracks t
+        join experimental_slice_layout(t.trackIds) s
+        where isCounter = 0 and trackCount > 1
+        order by s.id
+      `,
+    });
+
+    const res = await ctx.engine.query('select * from __track_event_tracks');
     const it = res.iter({
       upid: NUM_NULL,
       utid: NUM_NULL,
@@ -202,6 +138,7 @@ export default class implements PerfettoPlugin {
       builtinCounterType: STR_NULL,
       hasData: NUM,
       hasChildren: NUM,
+      hasCallstacks: NUM,
       trackIds: STR,
       orderId: NUM,
       threadName: STR_NULL,
@@ -226,6 +163,7 @@ export default class implements PerfettoPlugin {
         builtinCounterType,
         hasData,
         hasChildren,
+        hasCallstacks,
         trackIds: rawTrackIds,
         orderId,
         threadName,
@@ -297,12 +235,17 @@ export default class implements PerfettoPlugin {
             upid: upid ?? undefined,
             utid: utid ?? undefined,
             trackEvent: true,
+            hasCallstacks: hasCallstacks === 1,
           },
           renderer: await createTraceProcessorSliceTrack({
             trace: ctx,
             uri,
             trackIds,
             detailsPanel: createTrackEventDetailsPanel(ctx),
+            depthTableName:
+              trackIds.length > 1
+                ? '__trackevent_track_layout_depth'
+                : undefined,
           }),
         });
       }
@@ -327,8 +270,135 @@ export default class implements PerfettoPlugin {
 
     // Register area selection tab for callstack flamegraph
     ctx.selection.registerAreaSelectionTab(
-      createTrackEventCallstackFlamegraphTab(ctx),
+      this.createTrackEventCallstackFlamegraphTab(ctx),
     );
+  }
+
+  private createTrackEventCallstackFlamegraphTab(trace: Trace) {
+    let previousSelection: AreaSelection | undefined;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
+    return {
+      id: 'track_event_callstack_flamegraph',
+      name: 'Track Event Callstacks',
+      render: (selection: AreaSelection) => {
+        const changed =
+          previousSelection === undefined ||
+          !areaSelectionsEqual(previousSelection, selection);
+        if (changed) {
+          flamegraphWithMetrics = this.computeTrackEventCallstackFlamegraph(
+            trace,
+            selection,
+          );
+          previousSelection = selection;
+        }
+        if (flamegraphWithMetrics === undefined) {
+          return undefined;
+        }
+        const {flamegraph, metrics} = flamegraphWithMetrics;
+        const store = assertExists(this.store);
+        return {
+          isLoading: false,
+          content: flamegraph.render({
+            metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
+            },
+          }),
+        };
+      },
+    };
+  }
+
+  private computeTrackEventCallstackFlamegraph(
+    trace: Trace,
+    selection: AreaSelection,
+  ): QueryFlamegraphWithMetrics | undefined {
+    const trackIds = [];
+    for (const trackInfo of selection.tracks) {
+      const tids = trackInfo?.tags?.trackIds;
+      if (tids && trackInfo.tags.hasCallstacks === true) {
+        trackIds.push(...tids);
+      }
+    }
+    if (trackIds.length === 0) {
+      return undefined;
+    }
+    const metrics = metricsFromTableOrSubquery(
+      `
+      (
+        with relevant_slices as (
+          select id
+          from _interval_intersect_single!(
+            ${selection.start},
+            ${selection.end},
+            (
+              select
+                id,
+                ts,
+                max(dur, 0) as dur
+              from slice
+              where track_id in (${trackIds.join()})
+            )
+          )
+        )
+        select
+          id,
+          parent_id as parentId,
+          name,
+          mapping_name,
+          source_file || ':' || line_number as source_location,
+          self_count
+        from _callstacks_for_callsites!((
+          select callsite_id
+          from relevant_slices
+          join slice using (id)
+          join __intrinsic_track_event_callstacks using (slice_id)
+          where ts >= ${selection.start}
+            and ts <= ${selection.end}
+            and callsite_id is not null
+          union all
+          select end_callsite_id as callsite_id
+          from relevant_slices
+          join slice using (id)
+          join __intrinsic_track_event_callstacks using (slice_id)
+          where ts + dur >= ${selection.start}
+            and ts + dur <= ${selection.end}
+            and dur > 0
+            and end_callsite_id is not null
+        ))
+      )
+    `,
+      [
+        {
+          name: 'Samples',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      `
+     include perfetto module callstacks.stack_profile;
+     include perfetto module intervals.intersect;
+    `,
+      [{name: 'mapping_name', displayName: 'Mapping'}],
+      [
+        {
+          name: 'source_location',
+          displayName: 'Source Location',
+          mergeAggregation: 'ONE_OR_SUMMARY',
+        },
+      ],
+    );
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
+    return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 
   private findParentTrackNode(

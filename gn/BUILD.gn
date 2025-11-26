@@ -65,8 +65,9 @@ action("gen_buildflags") {
   }
 
   # We need local symbolization to run diff tests in chrome.
-  if (enable_perfetto_tools ||
-      (enable_perfetto_trace_processor && build_with_chromium)) {
+  if (enable_perfetto_trace_processor &&
+      (perfetto_build_standalone || build_with_chromium) &&
+      !perfetto_build_with_android) {
     perfetto_local_symbolizer =
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX() || " +
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_FREEBSD() || " +
@@ -229,7 +230,7 @@ protobuf_full_deps_allowlist = [
   "../src/ipc/protoc_plugin:*",
   "../src/protozero/protoc_plugin:*",
   "../src/protozero/filtering:filter_util",
-  "../src/trace_processor:trace_processor_shell",
+  "../src/trace_processor:trace_processor_shell_lib",
   "../src/protozero/filtering:filter_util",
   "../tools/*",
   "../src/tools/*",
