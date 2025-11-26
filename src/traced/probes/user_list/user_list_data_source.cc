@@ -52,8 +52,6 @@ UserListDataSource::UserListDataSource(const DataSourceConfig& ds_config,
   }
 }
 
-// ... rest of the file remains the same ...
-
 void UserListDataSource::Start() {
   auto trace_packet = writer_->NewTracePacket();
   auto* user_list_packet = trace_packet->set_user_list();
