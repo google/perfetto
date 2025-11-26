@@ -23,6 +23,7 @@ import {
   NodeActions,
   addConnection,
   removeConnection,
+  singleNodeOperation,
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {Trace} from '../../public/trace';
@@ -138,12 +139,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // Use a wrapper object to hold the node reference (allows mutation without 'let')
       const nodeRef: {current?: QueryNode} = {};
 
-      const isMultisource = descriptor.type === 'multisource';
-
       const nodeState: QueryNodeState = {
         ...initialState,
-        // For modification nodes, set prevNode; multisource nodes will be connected via addConnection
-        ...(isMultisource ? {} : {prevNode: node}),
         sqlModules,
         trace: attrs.trace,
         // Provide actions for nodes that need to interact with the graph
@@ -181,18 +178,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // Mark this node as initialized
       this.initializedNodes.add(newNode.nodeId);
 
-      if (isMultisource) {
-        // For multisource nodes: just connect and add to root nodes
-        // Don't insert in-between - the node combines multiple sources
-        addConnection(node, newNode);
-
-        onStateUpdate((currentState) => ({
-          ...currentState,
-          rootNodes: [...currentState.rootNodes, newNode],
-          selectedNode: newNode,
-        }));
-      } else {
-        // For modification nodes: insert between the target and its children
+      if (singleNodeOperation(newNode.type)) {
+        // For single-input operations: insert between the target and its children
         // Store the existing next nodes
         const existingNextNodes = [...node.nextNodes];
 
@@ -214,6 +201,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
         onStateUpdate((currentState) => ({
           ...currentState,
+          selectedNode: newNode,
+        }));
+      } else {
+        // For multi-source nodes: just connect and add to root nodes
+        // Don't insert in-between - the node combines multiple sources
+        addConnection(node, newNode);
+
+        onStateUpdate((currentState) => ({
+          ...currentState,
+          rootNodes: [...currentState.rootNodes, newNode],
           selectedNode: newNode,
         }));
       }
@@ -309,13 +306,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Get the current input node at the specified port
     let inputNode: QueryNode | undefined;
-    if ('inputNodes' in targetNode && targetNode.inputNodes) {
-      inputNode = targetNode.inputNodes[portIndex];
-    } else if (
-      'prevNodes' in targetNode &&
-      Array.isArray(targetNode.prevNodes)
-    ) {
-      inputNode = targetNode.prevNodes[portIndex];
+    if ('secondaryInputs' in targetNode && targetNode.secondaryInputs) {
+      inputNode = targetNode.secondaryInputs.connections.get(portIndex);
     }
 
     if (!inputNode) {
@@ -323,10 +315,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
-    // Create the ModifyColumns node with the input node as prevNode
+    // Create the ModifyColumns node
     const newNode = descriptor.factory(
       {
-        prevNode: inputNode,
         sqlModules,
         trace: attrs.trace,
       },
@@ -336,7 +327,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // Remove the old connection from inputNode to targetNode
     removeConnection(inputNode, targetNode);
 
-    // Add connection from inputNode to ModifyColumns node
+    // Add connection from inputNode to ModifyColumns node (sets primaryInput)
     addConnection(inputNode, newNode);
 
     // Add connection from ModifyColumns node to targetNode at the same port
@@ -400,13 +391,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       queue.push(...node.nextNodes);
 
       // Traverse backward edges
-      if ('prevNode' in node && node.prevNode) {
-        queue.push(node.prevNode);
-      } else if ('prevNodes' in node) {
-        for (const prevNode of node.prevNodes) {
-          if (prevNode !== undefined) {
-            queue.push(prevNode);
-          }
+      if ('primaryInput' in node && node.primaryInput) {
+        queue.push(node.primaryInput);
+      } else if ('secondaryInputs' in node && node.secondaryInputs) {
+        for (const inputNode of node.secondaryInputs.connections.values()) {
+          queue.push(inputNode);
         }
       }
     }
@@ -498,20 +487,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Get parent nodes before removing connections
     const parentNodes: QueryNode[] = [];
-    if ('prevNode' in node && node.prevNode) {
-      parentNodes.push(node.prevNode);
-    } else if ('prevNodes' in node) {
-      for (const prevNode of node.prevNodes) {
-        if (prevNode !== undefined) parentNodes.push(prevNode);
+    if ('primaryInput' in node && node.primaryInput) {
+      parentNodes.push(node.primaryInput);
+    } else if ('secondaryInputs' in node && node.secondaryInputs) {
+      for (const inputNode of node.secondaryInputs.connections.values()) {
+        parentNodes.push(inputNode);
       }
     }
 
-    // Also collect nodes from inputNodes (side ports)
-    if ('inputNodes' in node && node.inputNodes) {
-      for (const inputNode of node.inputNodes) {
-        if (inputNode !== undefined) parentNodes.push(inputNode);
-      }
-    }
+    // Side ports are already handled by secondaryInputs above
 
     // Get child nodes
     const childNodes = [...node.nextNodes];
@@ -565,7 +549,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     // Handle state updates based on node type
-    if ('prevNode' in toNode && toNode.prevNode === undefined) {
+    if ('primaryInput' in toNode && toNode.primaryInput === undefined) {
       // toNode is a ModificationNode that's now orphaned
       // Add it to rootNodes so it remains visible (but invalid)
       const newRootNodes = state.rootNodes.includes(toNode)
@@ -576,7 +560,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         ...currentState,
         rootNodes: newRootNodes,
       }));
-    } else if ('prevNodes' in toNode) {
+    } else if ('secondaryInputs' in toNode) {
       // toNode is a MultiSourceNode - just trigger a state update
       onStateUpdate((currentState) => ({...currentState}));
     }

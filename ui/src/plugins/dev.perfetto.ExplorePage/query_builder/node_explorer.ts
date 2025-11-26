@@ -21,7 +21,6 @@ import {
   Query,
   QueryNode,
   queryToRun,
-  addConnection,
 } from '../query_node';
 import {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -66,14 +65,11 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   }
 
   private updateQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
+    // TODO: Re-implement WITH statement dependencies for SqlSourceNode
+    // This was removed during the connection model migration
     if (node instanceof SqlSourceNode && node.state.sql) {
-      // Clear this node from the prevNodes
-      for (const prevNode of node.prevNodes) {
-        prevNode.nextNodes = prevNode.nextNodes.filter((n) => n !== node);
-      }
-
+      // Validate that the node doesn't reference itself
       const nodeIds = node.findDependencies();
-      const dependencies: QueryNode[] = [];
       for (const nodeId of nodeIds) {
         if (nodeId === node.nodeId) {
           node.state.issues = new NodeIssues();
@@ -81,18 +77,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
             'Node cannot depend on itself',
           );
           return;
-        }
-
-        const dependencyNode = attrs.resolveNode(nodeId);
-        if (dependencyNode) {
-          dependencies.push(dependencyNode);
-        }
-      }
-      node.prevNodes = dependencies;
-      for (let i = 0; i < node.prevNodes.length; i++) {
-        const prevNode = node.prevNodes[i];
-        if (prevNode !== undefined) {
-          addConnection(prevNode, node, i);
         }
       }
     }

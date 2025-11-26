@@ -18,7 +18,6 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  ModificationNode,
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
@@ -37,29 +36,28 @@ import {Editor} from '../../../../widgets/editor';
 import {Switch} from '../../../../widgets/switch';
 
 export interface FilterNodeState extends QueryNodeState {
-  prevNode: QueryNode;
   filters?: UIFilter[];
   filterOperator?: 'AND' | 'OR';
   filterMode?: 'structured' | 'freeform';
   sqlExpression?: string;
 }
 
-export class FilterNode implements ModificationNode {
+export class FilterNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kFilter;
-  readonly prevNode: QueryNode;
+  primaryInput?: QueryNode;
+  secondaryInputs?: undefined; // FilterNode doesn't support secondary inputs
   nextNodes: QueryNode[];
   readonly state: FilterNodeState;
 
   constructor(state: FilterNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNode = state.prevNode;
     this.nextNodes = [];
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNode?.finalCols ?? [];
+    return this.primaryInput?.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -276,7 +274,7 @@ export class FilterNode implements ModificationNode {
       this.state.issues.clear();
     }
 
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       this.setValidationError('No input node connected');
       return false;
     }
@@ -297,14 +295,14 @@ export class FilterNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (this.prevNode === undefined) return undefined;
+    if (this.primaryInput === undefined) return undefined;
 
     const mode = this.state.filterMode ?? 'structured';
 
     if (mode === 'freeform') {
       // Use SQL expression for freeform filtering
       if (!this.state.sqlExpression || this.state.sqlExpression.trim() === '') {
-        return this.prevNode.getStructuredQuery();
+        return this.primaryInput.getStructuredQuery();
       }
 
       // Create a filter group with just the SQL expression
@@ -316,7 +314,7 @@ export class FilterNode implements ModificationNode {
         });
 
       return StructuredQueryBuilder.withFilter(
-        this.prevNode,
+        this.primaryInput,
         filterGroup,
         this.nodeId,
       );
@@ -324,7 +322,7 @@ export class FilterNode implements ModificationNode {
 
     // Structured mode
     if (!this.state.filters || this.state.filters.length === 0) {
-      return this.prevNode.getStructuredQuery();
+      return this.primaryInput.getStructuredQuery();
     }
 
     const filtersProto = createExperimentalFiltersProto(
@@ -334,11 +332,11 @@ export class FilterNode implements ModificationNode {
     );
 
     if (!filtersProto) {
-      return this.prevNode.getStructuredQuery();
+      return this.primaryInput.getStructuredQuery();
     }
 
     return StructuredQueryBuilder.withFilter(
-      this.prevNode,
+      this.primaryInput,
       filtersProto,
       this.nodeId,
     );
@@ -346,6 +344,7 @@ export class FilterNode implements ModificationNode {
 
   serializeState(): object {
     return {
+      primaryInputId: this.primaryInput?.nodeId,
       filters: this.state.filters?.map((f) => {
         if ('value' in f) {
           return {
@@ -372,19 +371,16 @@ export class FilterNode implements ModificationNode {
   /**
    * Deserializes a FilterNodeState from JSON.
    *
-   * IMPORTANT: This method returns a state with prevNode set to undefined.
+   * IMPORTANT: This method returns a state with primaryInput set to undefined.
    * The caller (typically json_handler.ts) is responsible for:
-   * 1. Creating all nodes first with undefined prevNode references
-   * 2. Reconnecting the graph by setting prevNode references based on serialized node IDs
+   * 1. Creating all nodes first with undefined primaryInput references
+   * 2. Reconnecting the graph by setting primaryInput references based on serialized node IDs
    * 3. Calling validate() on each node after reconnection to ensure graph integrity
    *
-   * @param state The serialized state (prevNode will be ignored)
-   * @returns A FilterNodeState with prevNode set to undefined (to be set by caller)
+   * @param state The serialized state
+   * @returns A FilterNodeState ready for construction
    */
   static deserializeState(state: FilterNodeState): FilterNodeState {
-    return {
-      ...state,
-      prevNode: undefined as unknown as QueryNode,
-    };
+    return {...state};
   }
 }

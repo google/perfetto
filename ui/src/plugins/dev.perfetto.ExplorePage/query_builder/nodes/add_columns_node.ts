@@ -17,7 +17,7 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  ModificationNode,
+  getSecondaryInput,
 } from '../../query_node';
 import {ColumnInfo, columnInfoFromName} from '../column_info';
 import protos from '../../../../protos';
@@ -397,7 +397,6 @@ interface NewColumn {
 }
 
 export interface AddColumnsNodeState extends QueryNodeState {
-  prevNode: QueryNode;
   selectedColumns?: string[];
   leftColumn?: string;
   rightColumn?: string;
@@ -422,19 +421,26 @@ export interface AddColumnsNodeState extends QueryNodeState {
   computedColumns?: NewColumn[];
 }
 
-export class AddColumnsNode implements ModificationNode {
+export class AddColumnsNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kAddColumns;
-  readonly prevNode: QueryNode;
-  inputNodes?: (QueryNode | undefined)[];
+  primaryInput?: QueryNode;
+  secondaryInputs: {
+    connections: Map<number, QueryNode>;
+    min: 1;
+    max: 1;
+  };
   nextNodes: QueryNode[];
   readonly state: AddColumnsNodeState;
 
   constructor(state: AddColumnsNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNode = state.prevNode;
-    this.inputNodes = [];
+    this.secondaryInputs = {
+      connections: new Map(),
+      min: 1,
+      max: 1,
+    };
     this.nextNodes = [];
     this.state.selectedColumns = this.state.selectedColumns ?? [];
     this.state.leftColumn = this.state.leftColumn ?? 'id';
@@ -462,12 +468,12 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNode?.finalCols ?? [];
+    return this.primaryInput?.finalCols ?? [];
   }
 
   // Get the node connected to the left-side input port (for adding columns from)
   get rightNode(): QueryNode | undefined {
-    return this.inputNodes?.[0];
+    return getSecondaryInput(this, 0);
   }
 
   get rightCols(): ColumnInfo[] {
@@ -1516,12 +1522,12 @@ export class AddColumnsNode implements ModificationNode {
       this.state.issues.clear();
     }
 
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       setValidationError(this.state, 'No input node connected');
       return false;
     }
 
-    if (!this.prevNode.validate()) {
+    if (!this.primaryInput.validate()) {
       setValidationError(this.state, 'Previous node is invalid');
       return false;
     }
@@ -1549,6 +1555,7 @@ export class AddColumnsNode implements ModificationNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return undefined;
+    if (this.primaryInput === undefined) return undefined;
 
     // If there's no rightNode, we only add computed columns (no JOIN)
     if (!this.rightNode) {
@@ -1564,7 +1571,7 @@ export class AddColumnsNode implements ModificationNode {
 
       // If there are no computed columns, just pass through
       if (computedColumns.length === 0) {
-        return this.prevNode.getStructuredQuery();
+        return this.primaryInput.getStructuredQuery();
       }
 
       // Build column specifications including existing columns and computed columns
@@ -1582,7 +1589,7 @@ export class AddColumnsNode implements ModificationNode {
 
       // Use withSelectColumns to add computed columns without a JOIN
       return StructuredQueryBuilder.withSelectColumns(
-        this.prevNode,
+        this.primaryInput,
         allColumns,
         referencedModules && referencedModules.length > 0
           ? referencedModules
@@ -1614,7 +1621,7 @@ export class AddColumnsNode implements ModificationNode {
 
     // If no columns are selected from the JOIN and no computed columns, just pass through
     if (inputColumns.length === 0) {
-      return this.prevNode.getStructuredQuery();
+      return this.primaryInput.getStructuredQuery();
     }
 
     // Prepare join condition
@@ -1625,7 +1632,7 @@ export class AddColumnsNode implements ModificationNode {
     };
 
     return StructuredQueryBuilder.withAddColumns(
-      this.prevNode,
+      this.primaryInput,
       this.rightNode,
       inputColumns,
       condition,
@@ -1634,7 +1641,13 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   serializeState(): object {
+    // Get the secondary input node ID (the node connected to port 0)
+    const secondaryInputNodeId =
+      this.secondaryInputs.connections.get(0)?.nodeId;
+
     return {
+      primaryInputId: this.primaryInput?.nodeId,
+      secondaryInputNodeId,
       selectedColumns: this.state.selectedColumns,
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
@@ -1675,7 +1688,6 @@ export class AddColumnsNode implements ModificationNode {
   ): AddColumnsNodeState {
     return {
       ...serializedState,
-      prevNode: undefined as unknown as QueryNode,
       suggestionSelections:
         (serializedState.suggestionSelections as unknown as Record<
           string,

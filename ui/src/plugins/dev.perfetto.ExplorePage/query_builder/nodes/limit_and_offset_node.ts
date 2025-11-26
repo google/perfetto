@@ -18,7 +18,6 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  ModificationNode,
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
@@ -29,14 +28,13 @@ import {setValidationError} from '../node_issues';
 import {LabeledControl} from '../widgets';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
-  prevNode: QueryNode;
   limit?: number;
   offset?: number;
 }
-export class LimitAndOffsetNode implements ModificationNode {
+export class LimitAndOffsetNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kLimitAndOffset;
-  readonly prevNode: QueryNode;
+  primaryInput?: QueryNode;
   nextNodes: QueryNode[];
   readonly state: LimitAndOffsetNodeState;
   private showOffset = false;
@@ -44,7 +42,6 @@ export class LimitAndOffsetNode implements ModificationNode {
   constructor(state: LimitAndOffsetNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNode = state.prevNode;
     this.nextNodes = [];
     this.state.limit = this.state.limit ?? 10;
     this.state.offset = this.state.offset ?? 0;
@@ -53,7 +50,7 @@ export class LimitAndOffsetNode implements ModificationNode {
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNode?.finalCols ?? [];
+    return this.primaryInput?.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -163,12 +160,12 @@ export class LimitAndOffsetNode implements ModificationNode {
       this.state.issues.clear();
     }
 
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       setValidationError(this.state, 'No input node connected');
       return false;
     }
 
-    if (!this.prevNode.validate()) {
+    if (!this.primaryInput.validate()) {
       setValidationError(this.state, 'Previous node is invalid');
       return false;
     }
@@ -181,17 +178,17 @@ export class LimitAndOffsetNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (this.prevNode === undefined) return undefined;
+    if (this.primaryInput === undefined) return undefined;
 
     const hasLimit = this.state.limit !== undefined && this.state.limit >= 0;
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
 
     if (!hasLimit && !hasOffset) {
-      return this.prevNode.getStructuredQuery();
+      return this.primaryInput.getStructuredQuery();
     }
 
     return StructuredQueryBuilder.withLimitOffset(
-      this.prevNode,
+      this.primaryInput,
       this.state.limit,
       this.state.offset,
       this.nodeId,
@@ -202,6 +199,7 @@ export class LimitAndOffsetNode implements ModificationNode {
     // Only return serializable fields, excluding callbacks and objects
     // that might contain circular references
     return {
+      primaryInputId: this.primaryInput?.nodeId,
       limit: this.state.limit,
       offset: this.state.offset,
       comment: this.state.comment,
@@ -211,9 +209,6 @@ export class LimitAndOffsetNode implements ModificationNode {
   static deserializeState(
     state: LimitAndOffsetNodeState,
   ): LimitAndOffsetNodeState {
-    return {
-      ...state,
-      prevNode: undefined as unknown as QueryNode,
-    };
+    return {...state};
   }
 }

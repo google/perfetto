@@ -53,9 +53,6 @@ import {
 import {
   QueryNode,
   singleNodeOperation,
-  SourceNode,
-  MultiSourceNode,
-  ModificationNode,
   NodeType,
   addConnection,
   removeConnection,
@@ -84,21 +81,14 @@ const LAYOUT_CONSTANTS = {
 // TYPE GUARDS
 // ========================================
 
-function isSourceNode(node: QueryNode): node is SourceNode {
-  return (
-    node.type === NodeType.kTable ||
-    node.type === NodeType.kSimpleSlices ||
-    node.type === NodeType.kSqlSource
-  );
+// Source nodes have no inputs (no primaryInput, no secondaryInputs)
+function isSourceNode(node: QueryNode): boolean {
+  return node.primaryInput === undefined && node.secondaryInputs === undefined;
 }
 
-// Multi-input nodes (have prevNodes array, cannot be docked)
-function isMultiSourceNode(node: QueryNode): node is MultiSourceNode {
-  return (
-    node.type === NodeType.kIntervalIntersect ||
-    node.type === NodeType.kUnion ||
-    node.type === NodeType.kMerge
-  );
+// Multi-source nodes have secondaryInputs but no primaryInput
+function isMultiSourceNode(node: QueryNode): boolean {
+  return node.secondaryInputs !== undefined && node.primaryInput === undefined;
 }
 
 // ========================================
@@ -181,22 +171,15 @@ function getInputLabels(node: QueryNode): NodePort[] {
   }
 
   if (isMultiSourceNode(node)) {
-    const multiSourceNode = node as MultiSourceNode;
-
     // Check if node has custom input labels
-    if (
-      'getInputLabels' in multiSourceNode &&
-      typeof multiSourceNode.getInputLabels === 'function'
-    ) {
-      return (
-        multiSourceNode as MultiSourceNode & {getInputLabels: () => string[]}
-      )
+    if ('getInputLabels' in node && typeof node.getInputLabels === 'function') {
+      return (node as QueryNode & {getInputLabels: () => string[]})
         .getInputLabels()
-        .map((label) => ({content: label, direction: 'left'}));
+        .map((label) => ({content: label, direction: 'left' as const}));
     }
 
     // Always show one extra empty port for adding new connections
-    const numPorts = multiSourceNode.prevNodes.length + 1;
+    const numPorts = (node.secondaryInputs?.connections.size ?? 0) + 1;
     const labels: NodePort[] = [];
     for (let i = 0; i < numPorts; i++) {
       labels.push({content: `Input ${i + 1}`, direction: 'left'});
@@ -204,43 +187,37 @@ function getInputLabels(node: QueryNode): NodePort[] {
     return labels;
   }
 
-  // Check if ModificationNode has inputNodes (additional left-side inputs)
-  if ('inputNodes' in node) {
-    const modNode = node as ModificationNode;
-    if (modNode.inputNodes !== undefined && Array.isArray(modNode.inputNodes)) {
-      // Check if node has custom input labels
-      if (
-        'getInputLabels' in modNode &&
-        typeof modNode.getInputLabels === 'function'
-      ) {
-        return modNode.getInputLabels();
-      }
+  // Check if modification node has secondaryInputs (additional left-side inputs)
+  if (node.secondaryInputs) {
+    // Check if node has custom input labels
+    if ('getInputLabels' in node && typeof node.getInputLabels === 'function') {
+      return (
+        node as QueryNode & {getInputLabels: () => NodePort[]}
+      ).getInputLabels();
+    }
 
-      const labels: NodePort[] = [];
+    const labels: NodePort[] = [];
 
-      // Add top port for prevNode (main data flow)
-      labels.push({content: 'Input', direction: 'top'});
+    // Add top port for primaryInput (main data flow)
+    labels.push({content: 'Input', direction: 'top'});
 
-      // For AddColumnsNode, show exactly one left-side port
-      // (it only supports connecting one table to add columns from)
-      if ('type' in modNode && modNode.type === NodeType.kAddColumns) {
-        labels.push({content: 'Table', direction: 'left'});
-        return labels;
-      }
-
-      // For other nodes with inputNodes, dynamically show ports
-      const numConnected = modNode.inputNodes.filter(
-        (it: QueryNode | undefined) => it,
-      ).length;
-      // Always show one extra empty port for adding new connections
-      const numLeftPorts = numConnected + 1;
-
-      // Add left-side ports for inputNodes (additional table inputs)
-      for (let i = 0; i < numLeftPorts; i++) {
-        labels.push({content: `Table ${i + 1}`, direction: 'left'});
-      }
+    // For AddColumnsNode, show exactly one left-side port
+    // (it only supports connecting one table to add columns from)
+    if (node.type === NodeType.kAddColumns) {
+      labels.push({content: 'Table', direction: 'left'});
       return labels;
     }
+
+    // For other nodes with secondaryInputs, dynamically show ports
+    const numConnected = node.secondaryInputs.connections.size;
+    // Always show one extra empty port for adding new connections
+    const numLeftPorts = numConnected + 1;
+
+    // Add left-side ports for secondaryInputs (additional table inputs)
+    for (let i = 0; i < numLeftPorts; i++) {
+      labels.push({content: `Table ${i + 1}`, direction: 'left'});
+    }
+    return labels;
   }
 
   return [{content: 'Input', direction: 'top'}];
@@ -290,13 +267,13 @@ function getRootNodes(
 
   // A node is docked (not a root) if:
   // 1. It's a single-node operation (modification node)
-  // 2. It has a prevNode (parent in the primary flow)
+  // 2. It has a primaryInput (parent in the primary flow)
   // 3. It doesn't have a layout position (purely visual property)
   for (const node of allNodes) {
     if (
       singleNodeOperation(node.type) &&
-      'prevNode' in node &&
-      node.prevNode !== undefined &&
+      'primaryInput' in node &&
+      node.primaryInput !== undefined &&
       isChildDocked(node, nodeLayouts)
     ) {
       dockedNodes.add(node);
@@ -401,8 +378,8 @@ function getNextDockedNode(
   ) {
     const child = qnode.nextNodes[0];
     // Only dock the child if it's part of the primary flow chain
-    // (i.e., the child's prevNode points back to this parent)
-    if ('prevNode' in child && child.prevNode === qnode) {
+    // (i.e., the child's primaryInput points back to this parent)
+    if ('primaryInput' in child && child.primaryInput === qnode) {
       return renderChildNode(child, attrs);
     }
   }
@@ -485,30 +462,36 @@ function renderNodes(
 // CONNECTION HANDLING
 // ========================================
 
-// For multi-source nodes, finds which input port (0-indexed) the parent is connected to
-function calculateInputPort(child: QueryNode, parent: QueryNode): number {
-  if (isMultiSourceNode(child)) {
-    const index = child.prevNodes.indexOf(parent);
-    return index !== -1 ? index : 0;
-  }
+// Single-input nodes use port 0 for primaryInput, multi-source nodes don't have primaryInput
+function hasPrimaryInputPort(node: QueryNode): boolean {
+  return singleNodeOperation(node.type);
+}
 
-  // Check if modification node has inputNodes (additional left-side inputs)
-  if ('inputNodes' in child && 'prevNode' in child) {
-    const modNode = child as ModificationNode;
-    if (modNode.inputNodes !== undefined && Array.isArray(modNode.inputNodes)) {
-      // Check if parent is the main prevNode (port 0)
-      if (modNode.prevNode === parent) {
-        return 0;
-      }
-      // Check if parent is in inputNodes array (ports 1+)
-      const index = modNode.inputNodes.indexOf(parent);
-      if (index !== -1) {
-        return index + 1; // Port 1 = inputNodes[0], Port 2 = inputNodes[1], etc.
+// Find which visual port a parent node is connected to
+function getInputPort(child: QueryNode, parent: QueryNode): number {
+  if (child.primaryInput === parent) {
+    return 0;
+  }
+  if (child.secondaryInputs) {
+    const offset = hasPrimaryInputPort(child) ? 1 : 0;
+    for (const [index, node] of child.secondaryInputs.connections) {
+      if (node === parent) {
+        return index + offset;
       }
     }
   }
-
   return 0;
+}
+
+// Convert visual port to secondary input index (undefined means primary input)
+function toSecondaryIndex(
+  node: QueryNode,
+  visualPort: number,
+): number | undefined {
+  if (hasPrimaryInputPort(node)) {
+    return visualPort === 0 ? undefined : visualPort - 1;
+  }
+  return visualPort;
 }
 
 // Builds visual connections between nodes (skips docked chains since they use 'next' property)
@@ -524,13 +507,13 @@ function buildConnections(
       if (child === undefined) continue;
 
       // Skip docked children - they're rendered via 'next' property, not as connections
-      // But only skip if it's part of the primary flow chain (child's prevNode points back)
+      // But only skip if it's part of the primary flow chain (child's primaryInput points back)
       if (
         qnode.nextNodes.length === 1 &&
         singleNodeOperation(child.type) &&
         isChildDocked(child, nodeLayouts) &&
-        'prevNode' in child &&
-        child.prevNode === qnode
+        'primaryInput' in child &&
+        child.primaryInput === qnode
       ) {
         continue;
       }
@@ -539,7 +522,7 @@ function buildConnections(
         fromNode: qnode.nodeId,
         fromPort: 0,
         toNode: child.nodeId,
-        toPort: calculateInputPort(child, qnode),
+        toPort: getInputPort(child, qnode),
       });
     }
   }
@@ -556,15 +539,8 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
     return;
   }
 
-  // For multisource nodes, all ports are left-side and 0-indexed (port 0 = prevNodes[0])
-  // For modification nodes, port 0 is top (prevNode), ports 1+ are left-side (inputNodes[0], inputNodes[1], ...)
-  let portIndex: number | undefined;
-  if (isMultiSourceNode(toNode)) {
-    portIndex = conn.toPort;
-  } else {
-    portIndex = conn.toPort > 0 ? conn.toPort - 1 : undefined;
-  }
-  addConnection(fromNode, toNode, portIndex);
+  const secondaryIndex = toSecondaryIndex(toNode, conn.toPort);
+  addConnection(fromNode, toNode, secondaryIndex);
 
   m.redraw();
 }
@@ -779,7 +755,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             const childQueryNode = findQueryNode(childNode.id, rootNodes);
 
             if (parentNode && childQueryNode) {
-              // Add connection (this will update both nextNodes and prevNode/prevNodes)
+              // Add connection (this will update both nextNodes and primaryInput/secondaryInputs)
               addConnection(parentNode, childQueryNode);
             }
 

@@ -18,7 +18,6 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  SourceNode,
   nextNodeId,
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
@@ -34,7 +33,7 @@ export interface SlicesSourceState extends QueryNodeState {
   onchange?: () => void;
 }
 
-export class SlicesSourceNode implements SourceNode {
+export class SlicesSourceNode implements QueryNode {
   readonly nodeId: string;
   readonly state: SlicesSourceState;
   readonly finalCols: ColumnInfo[];

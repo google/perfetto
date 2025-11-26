@@ -61,7 +61,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       expect(node.state.filterNegativeDur).toEqual([true, true]);
@@ -80,7 +80,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
         filterNegativeDur: [false, true],
       });
 
@@ -105,7 +105,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2, node3],
+        inputNodes: [node1, node2, node3],
         filterNegativeDur: [false],
       });
 
@@ -114,7 +114,7 @@ describe('IntervalIntersectNode', () => {
 
     it('should set autoExecute to false by default', () => {
       const node = new IntervalIntersectNode({
-        prevNodes: [],
+        inputNodes: [],
       });
 
       expect(node.state.autoExecute).toBe(false);
@@ -124,7 +124,7 @@ describe('IntervalIntersectNode', () => {
   describe('finalCols', () => {
     it('should return empty array when no prev nodes', () => {
       const node = new IntervalIntersectNode({
-        prevNodes: [],
+        inputNodes: [],
       });
 
       expect(node.finalCols).toEqual([]);
@@ -143,7 +143,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       const cols = node.finalCols;
@@ -166,7 +166,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
         partitionColumns: ['utid'],
       });
 
@@ -194,7 +194,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2, node3],
+        inputNodes: [node1, node2, node3],
       });
 
       const cols = node.finalCols;
@@ -240,7 +240,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       const cols = node.finalCols;
@@ -287,7 +287,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       const cols = node.finalCols;
@@ -317,7 +317,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
         partitionColumns: ['utid'],
       });
 
@@ -350,7 +350,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
         partitionColumns: ['utid', 'upid'],
       });
 
@@ -375,7 +375,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       const cols = node.finalCols;
@@ -409,7 +409,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2, node3],
+        inputNodes: [node1, node2, node3],
       });
 
       const cols = node.finalCols;
@@ -468,7 +468,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       const cols = node.finalCols;
@@ -491,7 +491,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1],
+        inputNodes: [node1],
       });
 
       expect(node.validate()).toBe(false);
@@ -513,7 +513,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       expect(node.validate()).toBe(true);
@@ -531,7 +531,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       expect(node.validate()).toBe(false);
@@ -553,7 +553,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       expect(node.validate()).toBe(false);
@@ -575,7 +575,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       expect(node.validate()).toBe(false);
@@ -599,7 +599,7 @@ describe('IntervalIntersectNode', () => {
       node2.validate = () => false;
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       expect(node.validate()).toBe(false);
@@ -614,7 +614,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1],
+        inputNodes: [node1],
       });
 
       // First validation should fail
@@ -627,7 +627,7 @@ describe('IntervalIntersectNode', () => {
         createColumnInfo('ts', 'INT64'),
         createColumnInfo('dur', 'INT64'),
       ]);
-      node.prevNodes.push(node2);
+      node.secondaryInputs.connections.set(1, node2);
 
       // Second validation should pass and clear errors
       expect(node.validate()).toBe(true);
@@ -638,7 +638,7 @@ describe('IntervalIntersectNode', () => {
   describe('getTitle', () => {
     it('should return "Interval Intersect"', () => {
       const node = new IntervalIntersectNode({
-        prevNodes: [],
+        inputNodes: [],
       });
 
       expect(node.getTitle()).toBe('Interval Intersect');
@@ -659,7 +659,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
         filterNegativeDur: [true, false],
         partitionColumns: ['utid'],
       });
@@ -685,7 +685,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
         filterNegativeDur: [true, false],
         partitionColumns: ['utid'],
       });
@@ -721,14 +721,15 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2, node3],
+        inputNodes: [node1, node2, node3],
         filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       });
 
       const serialized = node.serializeState();
 
-      expect(serialized.intervalNodes).toEqual(['node2', 'node3']);
+      // All input node IDs are now serialized
+      expect(serialized.intervalNodes).toEqual(['node1', 'node2', 'node3']);
       expect(serialized.filterNegativeDur).toEqual([true, false, true]);
       expect(serialized.partitionColumns).toEqual(['utid']);
     });
@@ -746,12 +747,13 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       const serialized = node.serializeState();
 
-      expect(serialized.intervalNodes).toEqual(['node2']);
+      // All input node IDs are now serialized
+      expect(serialized.intervalNodes).toEqual(['node1', 'node2']);
       expect(serialized.partitionColumns).toBeUndefined();
     });
   });
@@ -781,7 +783,8 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const serialized = {
-        intervalNodes: ['node2', 'node3'],
+        // All input node IDs are stored
+        intervalNodes: ['node1', 'node2', 'node3'],
         filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       };
@@ -789,10 +792,9 @@ describe('IntervalIntersectNode', () => {
       const deserialized = IntervalIntersectNode.deserializeState(
         nodes,
         serialized,
-        node1,
       );
 
-      expect(deserialized.prevNodes).toEqual([node1, node2, node3]);
+      expect(deserialized.inputNodes).toEqual([node1, node2, node3]);
       expect(deserialized.filterNegativeDur).toEqual([true, false, true]);
       expect(deserialized.partitionColumns).toEqual(['utid']);
     });
@@ -815,20 +817,20 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const serialized = {
-        intervalNodes: ['node2', 'node_missing'],
-        filterNegativeDur: [true, false],
+        // Include a missing node ID to test graceful handling
+        intervalNodes: ['node1', 'node2', 'node_missing'],
+        filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       };
 
       const deserialized = IntervalIntersectNode.deserializeState(
         nodes,
         serialized,
-        node1,
       );
 
-      // Should only include found nodes
-      expect(deserialized.prevNodes).toEqual([node1, node2]);
-      expect(deserialized.filterNegativeDur).toEqual([true, false]);
+      // Should only include found nodes (node_missing is filtered out)
+      expect(deserialized.inputNodes).toEqual([node1, node2]);
+      expect(deserialized.filterNegativeDur).toEqual([true, false, true]);
     });
   });
 
@@ -846,7 +848,7 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
       });
 
       // Clear filterNegativeDur
@@ -858,7 +860,7 @@ describe('IntervalIntersectNode', () => {
       expect(node.state.filterNegativeDur).toEqual([true, true]);
     });
 
-    it('should compact filterNegativeDur when prevNodes shrinks', () => {
+    it('should compact filterNegativeDur when inputNodes shrinks', () => {
       const node1 = createMockPrevNode('node1', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
@@ -876,19 +878,19 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2, node3],
+        inputNodes: [node1, node2, node3],
         filterNegativeDur: [true, false, true],
       });
 
-      // Remove one prev node
-      node.prevNodes.pop();
+      // Remove one input node
+      node.secondaryInputs.connections.delete(2);
 
       node.onPrevNodesUpdated();
 
       expect(node.state.filterNegativeDur).toEqual([true, false]);
     });
 
-    it('should expand filterNegativeDur when prevNodes grows', () => {
+    it('should expand filterNegativeDur when inputNodes grows', () => {
       const node1 = createMockPrevNode('node1', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
@@ -906,12 +908,12 @@ describe('IntervalIntersectNode', () => {
       ]);
 
       const node = new IntervalIntersectNode({
-        prevNodes: [node1, node2],
+        inputNodes: [node1, node2],
         filterNegativeDur: [true, false],
       });
 
-      // Add another prev node
-      node.prevNodes.push(node3);
+      // Add another input node
+      node.secondaryInputs.connections.set(2, node3);
 
       node.onPrevNodesUpdated();
 

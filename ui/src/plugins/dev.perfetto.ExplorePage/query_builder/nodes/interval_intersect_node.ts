@@ -18,7 +18,7 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  MultiSourceNode,
+  SecondaryInputSpec,
 } from '../../query_node';
 import protos from '../../../../protos';
 import {ColumnInfo, columnInfoFromName} from '../column_info';
@@ -41,20 +41,27 @@ export interface IntervalIntersectSerializedState {
 }
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
-  readonly prevNodes: QueryNode[];
+  inputNodes: QueryNode[];
   filterNegativeDur?: boolean[]; // Per-input filter to exclude negative durations
   partitionColumns?: string[]; // Columns to partition by during interval intersection
 }
 
-export class IntervalIntersectNode implements MultiSourceNode {
+export class IntervalIntersectNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kIntervalIntersect;
-  readonly prevNodes: QueryNode[];
+  secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
   readonly state: IntervalIntersectNodeState;
 
+  get inputNodesList(): QueryNode[] {
+    return [...this.secondaryInputs.connections.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, node]) => node);
+  }
+
   get finalCols(): ColumnInfo[] {
-    if (this.prevNodes.length === 0) {
+    const inputNodes = this.inputNodesList;
+    if (inputNodes.length === 0) {
       return [];
     }
 
@@ -76,8 +83,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
     }
 
     // For each input node, add id_N, ts_N, dur_N
-    for (let i = 0; i < this.prevNodes.length; i++) {
-      const node = this.prevNodes[i];
+    for (let i = 0; i < inputNodes.length; i++) {
+      const node = inputNodes[i];
       if (node === undefined) continue;
 
       // Find the actual column info for id, ts, dur to get their types
@@ -111,7 +118,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
 
     // First, identify which columns are duplicated across inputs
     const columnCounts = new Map<string, number>();
-    for (const node of this.prevNodes) {
+    for (const node of inputNodes) {
       if (node === undefined) continue;
 
       for (const col of node.finalCols) {
@@ -127,7 +134,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
     }
 
     // Add only non-duplicated columns (columns that appear in exactly one input)
-    for (const node of this.prevNodes) {
+    for (const node of inputNodes) {
       if (node === undefined) continue;
 
       for (const col of node.finalCols) {
@@ -150,10 +157,10 @@ export class IntervalIntersectNode implements MultiSourceNode {
   constructor(state: IntervalIntersectNodeState) {
     this.nodeId = nextNodeId();
 
-    // Initialize filterNegativeDur array with true for each prevNode if not provided
+    // Initialize filterNegativeDur array with true for each inputNode if not provided
     const filterNegativeDur = state.filterNegativeDur ?? [];
     // Fill missing indices with true (default to filtering enabled)
-    for (let i = 0; i < state.prevNodes.length; i++) {
+    for (let i = 0; i < state.inputNodes.length; i++) {
       if (filterNegativeDur[i] === undefined) {
         filterNegativeDur[i] = true;
       }
@@ -164,7 +171,15 @@ export class IntervalIntersectNode implements MultiSourceNode {
       autoExecute: state.autoExecute ?? false,
       filterNegativeDur,
     };
-    this.prevNodes = state.prevNodes;
+    this.secondaryInputs = {
+      connections: new Map(),
+      min: 2,
+      max: 'unbounded',
+    };
+    // Initialize connections from state.inputNodes
+    for (let i = 0; i < state.inputNodes.length; i++) {
+      this.secondaryInputs.connections.set(i, state.inputNodes[i]);
+    }
     this.nextNodes = [];
   }
 
@@ -174,33 +189,20 @@ export class IntervalIntersectNode implements MultiSourceNode {
       this.state.issues.clear();
     }
 
-    // Check for undefined entries (disconnected inputs)
-    const validPrevNodes = this.prevNodes.filter(
-      (node): node is QueryNode => node !== undefined,
-    );
+    const inputNodes = this.inputNodesList;
 
-    if (validPrevNodes.length < this.prevNodes.length) {
-      this.setValidationError(
-        'Interval intersect node has disconnected inputs. Please connect all inputs or remove this node.',
-      );
-      return false;
-    }
-
-    if (this.prevNodes.length < 2) {
+    if (inputNodes.length < 2) {
       this.setValidationError(
         'Interval intersect node requires at least two inputs.',
       );
       return false;
     }
 
-    for (const prevNode of this.prevNodes) {
-      // Skip undefined entries (already handled above)
-      if (prevNode === undefined) continue;
-
-      if (!prevNode.validate()) {
+    for (const inputNode of inputNodes) {
+      if (!inputNode.validate()) {
         this.setValidationError(
-          prevNode.state.issues?.queryError?.message ??
-            `Previous node '${prevNode.getTitle()}' is invalid`,
+          inputNode.state.issues?.queryError?.message ??
+            `Input node '${inputNode.getTitle()}' is invalid`,
         );
         return false;
       }
@@ -220,8 +222,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
       return true;
     };
 
-    for (const prevNode of this.prevNodes) {
-      if (!checkColumns(prevNode, ['id', 'ts', 'dur'])) return false;
+    for (const inputNode of inputNodes) {
+      if (!checkColumns(inputNode, ['id', 'ts', 'dur'])) return false;
     }
 
     return true;
@@ -344,17 +346,17 @@ export class IntervalIntersectNode implements MultiSourceNode {
       this.state.filterNegativeDur = [];
     }
 
-    // Compact filterNegativeDur array to match prevNodes length
-    // When nodes are removed, prevNodes is compacted, so we need to match that
-    if (this.state.filterNegativeDur.length > this.prevNodes.length) {
+    // Compact filterNegativeDur array to match inputNodes length
+    // When nodes are removed, inputNodes is compacted, so we need to match that
+    if (this.state.filterNegativeDur.length > this.inputNodesList.length) {
       this.state.filterNegativeDur = this.state.filterNegativeDur.slice(
         0,
-        this.prevNodes.length,
+        this.inputNodesList.length,
       );
     }
 
     // Initialize missing indices with true (default to filtering enabled)
-    for (let i = 0; i < this.prevNodes.length; i++) {
+    for (let i = 0; i < this.inputNodesList.length; i++) {
       if (this.state.filterNegativeDur[i] === undefined) {
         this.state.filterNegativeDur[i] = true;
       }
@@ -369,8 +371,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
     const partitionColumns = new Set(this.state.partitionColumns ?? []);
 
     // Track which inputs each column appears in
-    for (let i = 0; i < this.prevNodes.length; i++) {
-      const node = this.prevNodes[i];
+    for (let i = 0; i < this.inputNodesList.length; i++) {
+      const node = this.inputNodesList[i];
       const columns = node.finalCols.map((c) => c.name);
       for (const col of columns) {
         if (!EXCLUDED_COLUMNS.has(col) && !partitionColumns.has(col)) {
@@ -398,10 +400,10 @@ export class IntervalIntersectNode implements MultiSourceNode {
     const EXCLUDED_COLUMNS = new Set(['id', 'ts', 'dur']);
     const EXCLUDED_TYPES = new Set(['STRING', 'BYTES']);
 
-    if (this.prevNodes.length === 0) return [];
+    if (this.inputNodesList.length === 0) return [];
 
     // Start with columns from the first input
-    const firstNode = this.prevNodes[0];
+    const firstNode = this.inputNodesList[0];
     const commonColumns = new Set(
       firstNode.finalCols
         .filter(
@@ -411,8 +413,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
     );
 
     // Intersect with columns from remaining inputs
-    for (let i = 1; i < this.prevNodes.length; i++) {
-      const node = this.prevNodes[i];
+    for (let i = 1; i < this.inputNodesList.length; i++) {
+      const node = this.inputNodesList[i];
       const nodeColumns = new Map(node.finalCols.map((c) => [c.name, c.type]));
       // Keep only columns that exist in this node too with a non-excluded type
       for (const col of commonColumns) {
@@ -436,9 +438,9 @@ export class IntervalIntersectNode implements MultiSourceNode {
       this.state.filterNegativeDur = [];
     }
 
-    // Map prevNodes to UI elements with their indices
+    // Map inputNodes to UI elements with their indices
     const connectedInputs: Array<{node: QueryNode; index: number}> =
-      this.prevNodes.map((node, index) => ({node, index}));
+      this.inputNodesList.map((node, index) => ({node, index}));
 
     // If no inputs connected, show a message
     if (connectedInputs.length === 0) {
@@ -511,7 +513,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
 
   clone(): QueryNode {
     const stateCopy: IntervalIntersectNodeState = {
-      prevNodes: [...this.state.prevNodes],
+      inputNodes: [...this.state.inputNodes],
       filterNegativeDur: this.state.filterNegativeDur
         ? [...this.state.filterNegativeDur]
         : undefined,
@@ -527,8 +529,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
     if (!this.validate()) return;
 
     const sq = StructuredQueryBuilder.withIntervalIntersect(
-      this.prevNodes[0],
-      this.prevNodes.slice(1),
+      this.inputNodesList[0],
+      this.inputNodesList.slice(1),
       this.state.partitionColumns,
       this.state.filterNegativeDur,
       this.nodeId,
@@ -549,8 +551,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
 
   serializeState(): IntervalIntersectSerializedState {
     return {
-      intervalNodes: this.prevNodes
-        .slice(1)
+      // Store ALL input node IDs (not just slice(1)) for reliable deserialization
+      intervalNodes: this.inputNodesList
         .filter((n): n is QueryNode => n !== undefined)
         .map((n) => n.nodeId),
       comment: this.state.comment,
@@ -562,17 +564,17 @@ export class IntervalIntersectNode implements MultiSourceNode {
   static deserializeState(
     nodes: Map<string, QueryNode>,
     state: IntervalIntersectSerializedState,
-    baseNode: QueryNode,
   ): {
-    prevNodes: QueryNode[];
+    inputNodes: QueryNode[];
     filterNegativeDur?: boolean[];
     partitionColumns?: string[];
   } {
-    const intervalNodes = state.intervalNodes
+    // Resolve all input nodes from their IDs
+    const inputNodes = state.intervalNodes
       .map((id) => nodes.get(id))
       .filter((node): node is QueryNode => node !== undefined);
     return {
-      prevNodes: [baseNode, ...intervalNodes],
+      inputNodes,
       filterNegativeDur: state.filterNegativeDur,
       partitionColumns: state.partitionColumns,
     };
