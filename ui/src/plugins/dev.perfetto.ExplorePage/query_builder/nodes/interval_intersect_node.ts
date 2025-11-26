@@ -24,6 +24,7 @@ import protos from '../../../../protos';
 import {ColumnInfo, columnInfoFromName} from '../column_info';
 import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
+import {EmptyState} from '../../../../widgets/empty_state';
 import {NodeIssues} from '../node_issues';
 import {
   PopupMultiSelect,
@@ -268,7 +269,7 @@ export class IntervalIntersectNode implements QueryNode {
       m(
         'p',
         m('strong', 'Duplicate columns:'),
-        ' If multiple inputs have the same column name, the result will only include one version, which can make it difficult to distinguish them. Use Modify Columns to rename conflicting columns before connecting.',
+        " Columns that appear in multiple inputs will be excluded from the result. Use '+ -> Columns -> Modify' to rename conflicting columns before connecting.",
       ),
       m(
         'p',
@@ -441,9 +442,15 @@ export class IntervalIntersectNode implements QueryNode {
     const connectedInputs: Array<{node: QueryNode; index: number}> =
       this.inputNodesList.map((node, index) => ({node, index}));
 
-    // If no inputs connected, show a message
+    // If no inputs connected, show empty state
     if (connectedInputs.length === 0) {
-      return m('.pf-exp-query-operations', 'No inputs connected');
+      return m(
+        '.pf-exp-query-operations',
+        m(EmptyState, {
+          icon: 'link_off',
+          title: 'No inputs connected',
+        }),
+      );
     }
 
     return m(
@@ -451,48 +458,42 @@ export class IntervalIntersectNode implements QueryNode {
       error && m(Callout, {icon: 'error'}, error.message),
       m(IssueList, {
         icon: 'warning',
-        title: 'Duplicate columns found:',
+        title:
+          "Duplicate columns will be excluded from the result. Use '+ -> Columns -> Modify' to rename them:",
         items: duplicateWarnings,
       }),
       this.renderPartitionSelector(false),
-      m(
-        '.pf-exp-section',
-        m(
-          '.pf-exp-operations-container',
-          connectedInputs.map(({node, index}) => {
-            const label = `Input ${index}`;
-            const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
+      connectedInputs.map(({node, index}) => {
+        const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
 
-            return m(
-              '.pf-exp-interval-node',
-              {key: node.nodeId},
-              m('span', `${label}: ${node.getTitle()}`),
-              m(Button, {
-                label: 'Filter unfinished intervals',
-                icon: filterEnabled ? 'check_box' : 'check_box_outline_blank',
-                title: 'Filter out intervals with negative duration',
-                onclick: () => {
-                  if (!this.state.filterNegativeDur) {
-                    this.state.filterNegativeDur = [];
-                  }
-                  this.state.filterNegativeDur[index] = !filterEnabled;
-                  this.state.onchange?.();
-                },
-              }),
-              m(Button, {
-                icon: 'view_column',
-                title: 'Pick columns',
-                compact: true,
-                onclick: () => {
-                  if (this.state.actions?.onInsertModifyColumnsNode) {
-                    this.state.actions.onInsertModifyColumnsNode(index);
-                  }
-                },
-              }),
-            );
+        return m(
+          '.pf-exp-interval-node',
+          {key: node.nodeId},
+          m('span', `Input ${index}`),
+          m(Button, {
+            label: 'Filter unfinished intervals',
+            icon: filterEnabled ? 'check_box' : 'check_box_outline_blank',
+            title: 'Filter out intervals with negative duration',
+            onclick: () => {
+              if (!this.state.filterNegativeDur) {
+                this.state.filterNegativeDur = [];
+              }
+              this.state.filterNegativeDur[index] = !filterEnabled;
+              this.state.onchange?.();
+            },
           }),
-        ),
-      ),
+          m(Button, {
+            icon: 'view_column',
+            title: 'Pick columns',
+            compact: true,
+            onclick: () => {
+              if (this.state.actions?.onInsertModifyColumnsNode) {
+                this.state.actions.onInsertModifyColumnsNode(index);
+              }
+            },
+          }),
+        );
+      }),
     );
   }
 
@@ -521,7 +522,7 @@ export class IntervalIntersectNode implements QueryNode {
       this.nodeId,
     );
 
-    if (!sq) return undefined;
+    if (sq === undefined) return undefined;
 
     // Add select_columns to explicitly specify which columns to return
     // This ensures we only expose the clean, well-defined columns from finalCols

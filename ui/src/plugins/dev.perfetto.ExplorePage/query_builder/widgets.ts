@@ -21,6 +21,7 @@ import {TextParagraph} from '../../../widgets/text_paragraph';
 import {SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
 
 // Generic widget for a row with name input, validation, and remove button
 // Used by all "new column" types
@@ -299,9 +300,17 @@ export class IssueList implements m.ClassComponent<IssueListAttrs> {
       return null;
     }
 
+    // Map icon to Intent for proper styling
+    const intentMap: Record<string, Intent> = {
+      error: Intent.Danger,
+      warning: Intent.Warning,
+      info: Intent.Primary,
+    };
+    const intent = intentMap[icon] ?? Intent.None;
+
     return m(
       Callout,
-      {icon},
+      {icon, intent},
       m('div', title),
       m(
         'ul.pf-exp-issue-list',
