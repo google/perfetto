@@ -313,8 +313,6 @@ function ensureNodeLayouts(
           accentBar: true,
           content: m(NodeBox, {
             node: qnode,
-            onDuplicateNode: attrs.onDuplicateNode,
-            onDeleteNode: attrs.onDeleteNode,
             onAddOperationNode: attrs.onAddOperationNode,
           }),
           // Don't include 'next' here - we want placement for just this node
@@ -386,6 +384,22 @@ function getNextDockedNode(
   return undefined;
 }
 
+function buildNodeContextMenuItems(
+  qnode: QueryNode,
+  attrs: GraphAttrs,
+): m.Children {
+  return [
+    m(MenuItem, {
+      label: 'Duplicate',
+      onclick: () => attrs.onDuplicateNode(qnode),
+    }),
+    m(MenuItem, {
+      label: 'Delete',
+      onclick: () => attrs.onDeleteNode(qnode),
+    }),
+  ];
+}
+
 function createNodeConfig(
   qnode: QueryNode,
   attrs: GraphAttrs,
@@ -406,10 +420,9 @@ function createNodeConfig(
     canDockTop: !noTopPort,
     hue: getNodeHue(qnode),
     accentBar: true,
+    contextMenuItems: buildNodeContextMenuItems(qnode, attrs),
     content: m(NodeBox, {
       node: qnode,
-      onDuplicateNode: attrs.onDuplicateNode,
-      onDeleteNode: attrs.onDeleteNode,
       onAddOperationNode: attrs.onAddOperationNode,
     }),
     next: getNextDockedNode(qnode, attrs),
