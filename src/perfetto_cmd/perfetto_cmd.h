@@ -165,6 +165,7 @@ class PerfettoCmd : public Consumer {
       const std::string& unique_session_name);
   void ReportTraceToAndroidFrameworkOrCrash(base::ScopedFile trace_fd,
                                             uint64_t trace_size);
+  void ReportAllPersistentTracesToAndroidFramework();
   static std::vector<base::ScopedFile>
   UnlinkAndReturnPersistentTracesToUpload();
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
@@ -184,6 +185,7 @@ class PerfettoCmd : public Consumer {
   base::ScopedFstream trace_out_stream_;
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
+  std::string persistent_trace_out_path_;
   base::EventFd ctrl_c_evt_;
   bool ctrl_c_handler_installed_ = false;
   base::ScopedPlatformHandle notify_fd_;
@@ -206,6 +208,7 @@ class PerfettoCmd : public Consumer {
   bool background_wait_ = false;
   bool ignore_guardrails_ = false;
   bool upload_flag_ = false;
+  bool upload_after_reboot_flag_ = false;
   bool connected_ = false;
   std::string uuid_;
   std::optional<TracingSessionID> clone_tsid_{};
