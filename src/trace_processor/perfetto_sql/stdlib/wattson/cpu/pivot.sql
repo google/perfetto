@@ -266,6 +266,19 @@ LEFT JOIN _stats_cpu7
 -- Slices view with all UNIQUE configs of independent and dependent CPU data
 CREATE PERFETTO VIEW _w_dependent_cpus_unique AS
 WITH
+  dsu_flags AS (
+    SELECT
+      -- MAX(condition) returns 1 if the dependency exists, 0 or NULL otherwise
+      max(cpu = 0) AS dsu_0,
+      max(cpu = 1) AS dsu_1,
+      max(cpu = 2) AS dsu_2,
+      max(cpu = 3) AS dsu_3,
+      max(cpu = 4) AS dsu_4,
+      max(cpu = 5) AS dsu_5,
+      max(cpu = 6) AS dsu_6,
+      max(cpu = 7) AS dsu_7
+    FROM _cpu_w_dsu_dependency
+  ),
   _w_unique_configs AS (
     SELECT
       config_hash,
@@ -385,7 +398,8 @@ WITH
         THEN i.freq_7
       END AS freq,
       p.policy
-    FROM _w_unique_configs AS i, _cpu_lut_dependencies AS d
+    FROM _w_unique_configs AS i
+    CROSS JOIN _cpu_lut_dependencies AS d
     JOIN _dev_vote_by_freq AS v
       ON d.cpu = v.cpu
     JOIN _dev_cpu_policy_map AS p
@@ -449,22 +463,23 @@ WITH
 -- Join the calculated dependencies back to the original data.
 SELECT
   base.*,
-  iif(0 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_0, default_dep_freq_0)) AS dep_freq_0,
-  iif(0 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_0, default_dep_policy_0)) AS dep_policy_0,
-  iif(1 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_1, default_dep_freq_1)) AS dep_freq_1,
-  iif(1 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_1, default_dep_policy_1)) AS dep_policy_1,
-  iif(2 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_2, default_dep_freq_2)) AS dep_freq_2,
-  iif(2 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_2, default_dep_policy_2)) AS dep_policy_2,
-  iif(3 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_3, default_dep_freq_3)) AS dep_freq_3,
-  iif(3 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_3, default_dep_policy_3)) AS dep_policy_3,
-  iif(4 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_4, default_dep_freq_4)) AS dep_freq_4,
-  iif(4 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_4, default_dep_policy_4)) AS dep_policy_4,
-  iif(5 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_5, default_dep_freq_5)) AS dep_freq_5,
-  iif(5 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_5, default_dep_policy_5)) AS dep_policy_5,
-  iif(6 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_6, default_dep_freq_6)) AS dep_freq_6,
-  iif(6 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_6, default_dep_policy_6)) AS dep_policy_6,
-  iif(7 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_7, default_dep_freq_7)) AS dep_freq_7,
-  iif(7 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_7, default_dep_policy_7)) AS dep_policy_7
+  iif(dsu.dsu_0, dsu_freq, coalesce(dep_freq_0, default_dep_freq_0)) AS dep_freq_0,
+  iif(dsu.dsu_0, 255, coalesce(dep_policy_0, default_dep_policy_0)) AS dep_policy_0,
+  iif(dsu.dsu_1, dsu_freq, coalesce(dep_freq_1, default_dep_freq_1)) AS dep_freq_1,
+  iif(dsu.dsu_1, 255, coalesce(dep_policy_1, default_dep_policy_1)) AS dep_policy_1,
+  iif(dsu.dsu_2, dsu_freq, coalesce(dep_freq_2, default_dep_freq_2)) AS dep_freq_2,
+  iif(dsu.dsu_2, 255, coalesce(dep_policy_2, default_dep_policy_2)) AS dep_policy_2,
+  iif(dsu.dsu_3, dsu_freq, coalesce(dep_freq_3, default_dep_freq_3)) AS dep_freq_3,
+  iif(dsu.dsu_3, 255, coalesce(dep_policy_3, default_dep_policy_3)) AS dep_policy_3,
+  iif(dsu.dsu_4, dsu_freq, coalesce(dep_freq_4, default_dep_freq_4)) AS dep_freq_4,
+  iif(dsu.dsu_4, 255, coalesce(dep_policy_4, default_dep_policy_4)) AS dep_policy_4,
+  iif(dsu.dsu_5, dsu_freq, coalesce(dep_freq_5, default_dep_freq_5)) AS dep_freq_5,
+  iif(dsu.dsu_5, 255, coalesce(dep_policy_5, default_dep_policy_5)) AS dep_policy_5,
+  iif(dsu.dsu_6, dsu_freq, coalesce(dep_freq_6, default_dep_freq_6)) AS dep_freq_6,
+  iif(dsu.dsu_6, 255, coalesce(dep_policy_6, default_dep_policy_6)) AS dep_policy_6,
+  iif(dsu.dsu_7, dsu_freq, coalesce(dep_freq_7, default_dep_freq_7)) AS dep_freq_7,
+  iif(dsu.dsu_7, 255, coalesce(dep_policy_7, default_dep_policy_7)) AS dep_policy_7
 FROM _w_unique_configs AS base
+CROSS JOIN dsu_flags AS dsu
 LEFT JOIN pivoted_results AS pivoted
   USING (config_hash);
