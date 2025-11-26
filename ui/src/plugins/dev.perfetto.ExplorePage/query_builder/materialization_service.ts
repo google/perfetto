@@ -109,6 +109,11 @@ export class MaterializationService {
   /**
    * Drops a materialized table for a node.
    *
+   * IMPORTANT: State is updated BEFORE the DROP query executes to prevent race
+   * conditions where another runQuery() call checks canReuseMaterialization()
+   * while the DROP is in progress. Without this, rapid clicking could cause
+   * COUNT queries to run against tables that are being dropped.
+   *
    * @param node The node whose materialized table should be dropped
    */
   async dropMaterialization(node: QueryNode): Promise<void> {
@@ -117,13 +122,16 @@ export class MaterializationService {
     }
 
     const tableName = node.state.materializationTableName;
-    // Use query() not tryQuery() - we want to know if drop fails
-    await this.engine.query(`DROP TABLE IF EXISTS ${tableName}`);
 
-    // Only update state if drop succeeded
+    // Update state BEFORE awaiting the DROP to prevent race conditions.
+    // If another runQuery() call happens while DROP is in progress,
+    // canReuseMaterialization() will correctly return false.
     node.state.materialized = false;
     node.state.materializationTableName = undefined;
     node.state.materializedQueryHash = undefined;
+
+    // Use query() not tryQuery() - we want to know if drop fails
+    await this.engine.query(`DROP TABLE IF EXISTS ${tableName}`);
   }
 
   /**

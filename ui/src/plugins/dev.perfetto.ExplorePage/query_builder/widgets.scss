@@ -86,10 +86,25 @@
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   transition: all 0.15s ease-in-out;
+  cursor: pointer;
 
   &:hover {
     background: var(--pf-color-background);
     border-color: var(--pf-color-primary);
+  }
+
+  &:focus {
+    outline: 2px solid var(--pf-color-accent, var(--pf-color-primary));
+    outline-offset: 2px;
+  }
+
+  &:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pf-color-accent, var(--pf-color-primary));
+    outline-offset: 2px;
   }
 
   &.pf-joined-source {
@@ -209,5 +224,27 @@
 
   span {
     flex: 1;
+  }
+}
+
+// Advanced mode change button - subtle text-like button for mode switching
+// Overrides Button widget styles for a more subtle appearance
+.pf-exp-advanced-mode-button.pf-button {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+
+  &:hover {
+    color: var(--pf-color-primary);
+    background: var(--pf-color-background-secondary);
+  }
+
+  .pf-left-icon {
+    font-size: 16px;
+  }
+
+  .pf-button__label {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
   }
 }

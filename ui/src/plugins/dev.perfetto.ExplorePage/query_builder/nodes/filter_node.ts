@@ -23,17 +23,25 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {
   UIFilter,
-  renderFilterOperation,
   createExperimentalFiltersProto,
-  formatFilterDetails,
   showFilterEditModal,
+  formatFilterDetails,
+  isFilterDefinitionValid,
+  parseFilterFromText,
 } from '../operations/filter';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
 import {showModal} from '../../../../widgets/modal';
-import {TabStrip} from '../../../../widgets/tabs';
 import {Editor} from '../../../../widgets/editor';
 import {Switch} from '../../../../widgets/switch';
+import {Button, ButtonVariant} from '../../../../widgets/button';
+import {TextInput} from '../../../../widgets/text_input';
+import {AdvancedModeChangeButton, ListItem} from '../widgets';
+import {EmptyState} from '../../../../widgets/empty_state';
+import {classNames} from '../../../../base/classnames';
+
+// Maximum length for truncated SQL display
+const SQL_TRUNCATE_LENGTH = 50;
 
 export interface FilterNodeState extends QueryNodeState {
   filters?: UIFilter[];
@@ -152,86 +160,308 @@ export class FilterNode implements QueryNode {
     this.validate();
 
     const mode = this.state.filterMode ?? 'structured';
-    const operator = this.state.filterOperator ?? 'AND';
 
     // Set autoExecute based on mode
     this.state.autoExecute = mode === 'structured';
 
-    return m('.pf-exp-query-operations', [
-      // Tab strip
+    return m('.pf-filter-node-content', [
+      this.renderInputOptions(),
+      this.renderFiltersList(),
+      this.renderFooter(),
+    ]);
+  }
+
+  private renderInputOptions(): m.Child {
+    const mode = this.state.filterMode ?? 'structured';
+
+    // In freeform mode, show edit button
+    if (mode === 'freeform') {
+      return m(
+        '.pf-filter-input-options',
+        m(Button, {
+          label: 'Edit WHERE clause',
+          icon: 'edit',
+          variant: ButtonVariant.Outlined,
+          onclick: () => this.showSqlExpressionModal(),
+        }),
+      );
+    }
+
+    // Structured mode: show two clear alternatives - left and right with separator
+    return m(
+      '.pf-filter-input-options',
+      // Option 1: Create filter button (left)
+      m(Button, {
+        label: 'Create filter',
+        icon: 'add',
+        variant: ButtonVariant.Outlined,
+        onclick: () => this.showAddFilterModal(),
+      }),
+      // Visible separator
+      m('span.pf-filter-or-separator', 'or'),
+      // Option 2: Type filter text input (right)
       m(
-        'div',
-        m(TabStrip, {
-          tabs: [
-            {key: 'structured', title: 'Structured'},
-            {key: 'freeform', title: 'Freeform SQL'},
-          ],
-          currentTabKey: mode,
-          onTabChange: (key: string) => {
-            this.state.filterMode = key as 'structured' | 'freeform';
+        '.pf-filter-type-input',
+        m(TextInput, {
+          placeholder: 'Type filter (e.g., dur > 1000)',
+          leftIcon: 'filter_alt',
+          onkeydown: (e: KeyboardEvent) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const input = e.target as HTMLInputElement;
+            const text = input.value.trim();
+            if (text === '') return;
+
+            // Parse the text into a structured filter
+            const filter = parseFilterFromText(text, this.sourceCols);
+            if (!isFilterDefinitionValid(filter)) {
+              // Show error to user - filter couldn't be parsed
+              showModal({
+                title: 'Invalid filter',
+                content: m(
+                  'div',
+                  m('p', `Could not parse filter: "${text}"`),
+                  m(
+                    'p',
+                    'Expected format: column operator value (e.g., dur > 1000)',
+                  ),
+                ),
+              });
+              return;
+            }
+
+            // Add the parsed filter to the list
+            this.state.filters = [...(this.state.filters ?? []), filter];
+            this.state.filterMode = 'structured';
+            this.state.onchange?.();
+            input.value = '';
+          },
+        }),
+      ),
+    );
+  }
+
+  private renderFiltersList(): m.Child {
+    const mode = this.state.filterMode ?? 'structured';
+    const filters = this.state.filters ?? [];
+    const hasFilters = filters.length > 0;
+    const hasSqlExpression =
+      this.state.sqlExpression !== undefined &&
+      this.state.sqlExpression.trim() !== '';
+
+    if (mode === 'freeform') {
+      if (!hasSqlExpression) {
+        return m(EmptyState, {
+          title: 'No WHERE clause defined.',
+        });
+      }
+      // Show SQL expression as a single list item
+      return m(
+        '.pf-filters-list',
+        m(ListItem, {
+          icon: 'code',
+          name: 'WHERE clause',
+          description: this.truncateSql(this.state.sqlExpression ?? ''),
+          actionLabel: 'Edit',
+          actionIcon: 'edit',
+          onAction: () => this.showSqlExpressionModal(),
+          onRemove: () => {
+            this.state.sqlExpression = '';
+            this.state.filterMode = 'structured';
             this.state.onchange?.();
           },
         }),
-        m('hr', {
-          style: {margin: '0', borderTop: '1px solid var(--separator-color)'},
+      );
+    }
+
+    if (!hasFilters) {
+      return m(EmptyState, {
+        title: 'No filters added yet.',
+      });
+    }
+
+    const items: m.Child[] = [];
+
+    // Show each filter as a list item
+    for (const [index, filter] of filters.entries()) {
+      const isEnabled = filter.enabled !== false;
+      const filterDescription = this.formatFilterDescription(filter);
+
+      items.push(
+        m(ListItem, {
+          icon: isEnabled ? 'filter_alt' : 'filter_alt_off',
+          name: filter.column,
+          description: filterDescription,
+          actionLabel: 'Edit',
+          actionIcon: 'edit',
+          onAction: () => this.handleFilterEdit(filter),
+          onRemove: () => this.removeFilter(index),
+          className: classNames(!isEnabled && 'pf-filter-disabled'),
+          onclick: (e: MouseEvent) => {
+            // Do nothing if a button was clicked
+            if ((e.target as HTMLElement).closest('button')) {
+              return;
+            }
+            filter.enabled = !isEnabled;
+            this.state.onchange?.();
+          },
         }),
-      ),
+      );
+    }
 
-      // AND/OR Switch (only for structured mode)
-      mode === 'structured' &&
-        m(
-          '.pf-exp-filter-mode-top',
-          m(Switch, {
-            labelLeft: 'AND',
-            label: 'OR',
-            checked: operator === 'OR',
-            onchange: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              const newOperator = target.checked ? 'OR' : 'AND';
-              this.state.filterOperator = newOperator;
-              this.state.onchange?.();
-            },
-          }),
-        ),
+    return m('.pf-filters-list', items);
+  }
 
-      // Tab content
-      mode === 'structured'
+  private renderFooter(): m.Child {
+    const mode = this.state.filterMode ?? 'structured';
+    const filters = this.state.filters ?? [];
+    const operator = this.state.filterOperator ?? 'AND';
+
+    // Show AND/OR switch only when there are 2+ filters in structured mode
+    const showOperatorSwitch = mode === 'structured' && filters.length >= 2;
+
+    return m(
+      '.pf-filter-footer',
+      // AND/OR toggle (only visible with 2+ filters) - left side
+      showOperatorSwitch
         ? m(
-            'div',
-            {style: {paddingTop: '10px'}},
-            renderFilterOperation(
-              this.state.filters,
-              this.state.filterOperator,
-              this.sourceCols,
-              (newFilters) => {
-                this.state.filters = [...newFilters];
-                this.state.onchange?.();
-              },
-              (operator) => {
-                this.state.filterOperator = operator;
-                this.state.onchange?.();
-              },
-              (filter) => this.handleFilterEdit(filter),
-            ),
-          )
-        : m(
-            'div',
-            {
-              style: {
-                minHeight: '400px',
-                backgroundColor: '#282c34',
-                position: 'relative',
-              },
-            },
-            m(Editor, {
-              text: this.state.sqlExpression ?? '',
-              onUpdate: (text: string) => {
-                this.state.sqlExpression = text;
+            '.pf-filter-operator-toggle',
+            m(Switch, {
+              labelLeft: 'AND',
+              label: 'OR',
+              checked: operator === 'OR',
+              onchange: (e: Event) => {
+                const target = e.target as HTMLInputElement;
+                const newOperator = target.checked ? 'OR' : 'AND';
+                this.state.filterOperator = newOperator;
                 this.state.onchange?.();
               },
             }),
-          ),
-    ]);
+          )
+        : null,
+      // Mode switch button (bottom right)
+      m(AdvancedModeChangeButton, {
+        label:
+          mode === 'structured'
+            ? 'Switch to WHERE clause'
+            : 'Switch to filters',
+        icon: mode === 'structured' ? 'code' : 'filter_alt',
+        onclick: () => this.handleModeSwitch(mode),
+      }),
+    );
+  }
+
+  private handleModeSwitch(currentMode: 'structured' | 'freeform'): void {
+    if (currentMode === 'structured') {
+      // Switching to freeform: if no SQL expression yet, open modal first
+      const hasExpression =
+        this.state.sqlExpression !== undefined &&
+        this.state.sqlExpression.trim() !== '';
+      if (hasExpression) {
+        this.state.filterMode = 'freeform';
+        this.state.onchange?.();
+      } else {
+        this.showSqlExpressionModal();
+      }
+    } else {
+      // Switching to structured
+      this.state.filterMode = 'structured';
+      this.state.onchange?.();
+    }
+  }
+
+  private showAddFilterModal(): void {
+    // Check if there are any columns available
+    if (this.sourceCols.length === 0) {
+      showModal({
+        title: 'Cannot add filter',
+        content: m(
+          'div',
+          m('p', 'No columns are available to filter on.'),
+          m('p', 'Please select a table or add columns before adding filters.'),
+        ),
+      });
+      return;
+    }
+
+    // Start with first column and "is not null" operator
+    const defaultColumn = this.sourceCols[0].name;
+    const newFilter: Partial<UIFilter> = {
+      column: defaultColumn,
+      op: 'is not null',
+    };
+
+    showFilterEditModal(newFilter, this.sourceCols, (createdFilter) => {
+      this.state.filters = [...(this.state.filters ?? []), createdFilter];
+      this.state.filterMode = 'structured';
+      this.state.onchange?.();
+      m.redraw();
+    });
+  }
+
+  private showSqlExpressionModal(): void {
+    let tempExpression = this.state.sqlExpression ?? '';
+
+    showModal({
+      title: 'SQL Filter Expression',
+      key: 'sql-expression-modal',
+      content: () =>
+        m(
+          '.pf-filter-sql-editor',
+          m(Editor, {
+            text: tempExpression,
+            onUpdate: (text: string) => {
+              tempExpression = text;
+            },
+          }),
+        ),
+      buttons: [
+        {
+          text: 'Cancel',
+          action: () => {},
+        },
+        {
+          text: 'Apply',
+          primary: true,
+          action: () => {
+            this.state.sqlExpression = tempExpression;
+            if (tempExpression.trim() !== '') {
+              this.state.filterMode = 'freeform';
+            }
+            this.state.onchange?.();
+          },
+        },
+      ],
+    });
+  }
+
+  private removeFilter(index: number): void {
+    const filters = this.state.filters;
+    if (!filters || index >= filters.length) return;
+
+    const newFilters = [...filters];
+    newFilters.splice(index, 1);
+    this.state.filters = newFilters;
+    this.state.onchange?.();
+  }
+
+  private formatFilterDescription(filter: UIFilter): string {
+    if ('value' in filter) {
+      const valueStr =
+        typeof filter.value === 'string'
+          ? `"${filter.value}"`
+          : String(filter.value);
+      return `${filter.op} ${valueStr}`;
+    }
+    return filter.op;
+  }
+
+  private truncateSql(sql: string): string {
+    const trimmed = sql.trim();
+    if (trimmed.length <= SQL_TRUNCATE_LENGTH) {
+      return trimmed;
+    }
+    return trimmed.substring(0, SQL_TRUNCATE_LENGTH - 1) + '\u2026';
   }
 
   nodeInfo(): m.Children {

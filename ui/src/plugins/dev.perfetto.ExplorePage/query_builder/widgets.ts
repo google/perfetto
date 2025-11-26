@@ -136,6 +136,7 @@ export interface ListItemAttrs {
   onAction: () => void;
   onRemove?: () => void;
   className?: string;
+  onclick?: (event: MouseEvent) => void;
 }
 
 export class ListItem implements m.ClassComponent<ListItemAttrs> {
@@ -148,11 +149,28 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
       actionIcon,
       onAction,
       onRemove,
+      onclick,
     } = attrs;
 
     return m(
       '.pf-exp-list-item',
-      {className: attrs.className},
+      {
+        className: attrs.className,
+        tabindex: 0,
+        role: 'listitem',
+        onclick,
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onAction();
+          } else if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (onRemove) {
+              e.preventDefault();
+              onRemove();
+            }
+          }
+        },
+      },
       m(Icon, {icon}),
       m(
         '.pf-exp-list-item-info',
@@ -173,6 +191,7 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
             icon: 'close',
             compact: true,
             onclick: onRemove,
+            title: 'Remove item',
           }),
       ),
     );
@@ -326,5 +345,28 @@ export class TableDescription
         ),
       ),
     );
+  }
+}
+// Button for switching between basic and advanced modes
+// Styled as a subtle, text-like button to indicate it's a secondary action
+export interface AdvancedModeChangeButtonAttrs {
+  label: string;
+  icon?: string;
+  onclick: () => void;
+}
+
+export class AdvancedModeChangeButton
+  implements m.ClassComponent<AdvancedModeChangeButtonAttrs>
+{
+  view({attrs}: m.Vnode<AdvancedModeChangeButtonAttrs>) {
+    const {label, icon, onclick} = attrs;
+
+    return m(Button, {
+      className: 'pf-exp-advanced-mode-button',
+      label,
+      icon,
+      onclick,
+      variant: ButtonVariant.Minimal,
+    });
   }
 }
