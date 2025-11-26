@@ -82,6 +82,7 @@ import {
 import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
 import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
+import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
 import {TableSourceNode} from './nodes/sources/table_source';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
@@ -144,6 +145,7 @@ enum SelectedView {
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
+  private trace: Trace;
   private queryService: QueryService;
   private materializationService: MaterializationService;
   private query?: Query | Error;
@@ -158,6 +160,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private selectedView: SelectedView = SelectedView.kInfo;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
+    this.trace = attrs.trace;
     this.queryService = new QueryService(attrs.trace.engine);
     this.materializationService = new MaterializationService(
       attrs.trace.engine,
@@ -602,6 +605,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         // re-analysis for downstream nodes without marking this node as changed.
         // We don't need to resetQueryState() here as that would clear the results display.
       }
+
+      // Automatically show results in timeline tab (like query page does)
+      // Note: We don't pass prefetchedResponse because Explore page uses
+      // SQLDataSource with empty rows array. Let the tab fetch data itself.
+      addQueryResultsTab(
+        this.trace,
+        {
+          query: this.query.sql,
+          title: 'Explore Query',
+        },
+        'explore_page',
+      );
     } catch (e) {
       // If we created a new materialization and it failed, clean it up
       if (createdNewMaterialization && tableName !== undefined) {
