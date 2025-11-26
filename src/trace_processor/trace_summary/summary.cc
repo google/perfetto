@@ -704,14 +704,7 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
     }
 
     PerfettoSqlStructuredQuery::Decoder query(first_spec.query());
-    // The sql.column_names field documents what columns the SQL query itself
-    // returns (before structured query transformations). We can only validate
-    // this when there are no transformations that modify the output schema:
-    // - group_by transforms columns into group keys + aggregates
-    // - select_columns transforms columns via selection/aliasing/expressions
-    // Other operations (filters, order_by, limit, offset) preserve columns.
-    if (query.has_sql() && !query.has_group_by() &&
-        !query.has_select_columns()) {
+    if (query.has_sql()) {
       PerfettoSqlStructuredQuery::Sql::Decoder sql_query(query.sql());
       if (sql_query.has_column_names()) {
         std::set<std::string> actual_column_names;

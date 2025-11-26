@@ -46,10 +46,10 @@ class PprofProfileReader {
       const std::string& last_function_name) const;
 
   third_party::perftools::profiles::gen::Location find_location(
-      uint64_t location_id) const;
+      const uint64_t location_id) const;
 
   third_party::perftools::profiles::gen::Function find_function(
-      uint64_t function_id) const;
+      const uint64_t function_id) const;
 
   uint64_t get_sample_value_index(const std::string& value_name) const;
 

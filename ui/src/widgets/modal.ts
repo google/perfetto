@@ -72,8 +72,7 @@ export interface ModalButton {
   text: string;
   primary?: boolean;
   id?: string;
-  // Can be a static boolean or a function for dynamic evaluation on each render
-  disabled?: boolean | (() => boolean);
+  disabled?: boolean;
   action?: () => void;
 }
 
@@ -130,10 +129,6 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
 
     const buttons: m.Children = [];
     for (const button of attrs.buttons || []) {
-      const isDisabled =
-        typeof button.disabled === 'function'
-          ? button.disabled()
-          : button.disabled;
       buttons.push(
         m(Button, {
           intent: button.primary ? Intent.Primary : Intent.None,
@@ -144,7 +139,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
             if (button.action !== undefined) button.action();
           },
           label: button.text,
-          disabled: isDisabled,
+          disabled: button.disabled,
         }),
       );
     }

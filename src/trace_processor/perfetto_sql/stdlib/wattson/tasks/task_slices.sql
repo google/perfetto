@@ -91,6 +91,7 @@ SELECT
   intervals.ts,
   intervals.dur,
   slices.name AS hard_irq_name,
+  slices.stack_id AS hard_irq_stack_id,
   cpu_track.cpu
 FROM _intervals_flatten!(_intervals_merge_root_and_children!(root_slices, child_slices)) AS intervals
 JOIN slices
@@ -105,6 +106,7 @@ SELECT
   linux_soft_irqs.ts,
   linux_soft_irqs.dur,
   slices.name AS soft_irq_name,
+  slices.stack_id AS soft_irq_stack_id,
   cpu_track.cpu
 FROM linux_soft_irqs
 JOIN slices
@@ -120,16 +122,26 @@ CREATE VIRTUAL TABLE _all_irqs_combined_slices USING SPAN_OUTER_JOIN (
 -- Replace soft IRQs with hard IRQs if hard IRQs are present. Hard IRQs could
 -- preempt soft IRQs, but not the other way around.
 CREATE PERFETTO VIEW _all_irqs_flattened_slices AS
+WITH
+  base_name AS (
+    SELECT
+      ts,
+      dur,
+      cpu,
+      coalesce(hard_irq_name, soft_irq_name) AS irq_name,
+      coalesce(hard_irq_stack_id, soft_irq_stack_id) AS stack_id
+    FROM _all_irqs_combined_slices
+  )
 SELECT
   ts,
   dur,
   cpu,
-  coalesce(hard_irq_name, soft_irq_name) AS irq_name,
+  irq_name,
   -- Create a synthetic irq_id such that IRQ slices have the same
   -- properties/columns as thread slices, which allows us to fit IRQ slices into
   -- the existing framework of attributing power to tasks.
-  hash(coalesce(hard_irq_name, soft_irq_name)) AS irq_id
-FROM _all_irqs_combined_slices;
+  hash(irq_name) AS irq_id
+FROM base_name;
 
 -- SPAN_OUTER_JOIN needed because IRQ table do not have contiguous slices,
 -- whereas tasks table will be contiguous

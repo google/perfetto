@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {
   DataGridDataSource,
@@ -79,14 +78,6 @@ export class InMemoryDataSource implements DataGridDataSource {
     }
   }
 
-  /**
-   * Export all data with current filters/sorting applied.
-   */
-  async exportData(): Promise<readonly RowDef[]> {
-    // Return all the filtered and sorted data
-    return this.filteredSortedData;
-  }
-
   private calcAggregates(
     results: ReadonlyArray<RowDef>,
     aggregates: ReadonlyArray<AggregateSpec>,
@@ -141,6 +132,8 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private isSortByEqual(a: Sorting, b: Sorting): boolean {
+    if (a === b) return true;
+
     if (a.direction === 'UNSORTED' && b.direction === 'UNSORTED') {
       return true;
     }
@@ -162,14 +155,13 @@ export class InMemoryDataSource implements DataGridDataSource {
     filtersA: ReadonlyArray<DataGridFilter>,
     filtersB: ReadonlyArray<DataGridFilter>,
   ): boolean {
+    if (filtersA === filtersB) return true;
     if (filtersA.length !== filtersB.length) return false;
 
     // Compare each filter
     return filtersA.every((filterA, index) => {
       const filterB = filtersB[index];
-      return (
-        stringifyJsonWithBigints(filterA) === stringifyJsonWithBigints(filterB)
-      );
+      return JSON.stringify(filterA) === JSON.stringify(filterB);
     });
   }
 

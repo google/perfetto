@@ -207,7 +207,7 @@ export function getCauseLink(
               time: {
                 start: ts,
                 end: Time.fromRaw(ts + dur),
-                behavior: {viewPercentage: 0.3},
+                viewPercentage: 0.3,
               },
             });
             trace.selection.selectArea({

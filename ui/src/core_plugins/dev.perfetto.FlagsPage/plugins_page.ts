@@ -19,11 +19,11 @@ import {exists} from '../../base/utils';
 import {AppImpl} from '../../core/app_impl';
 import {PluginWrapper} from '../../core/plugin_manager';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
-import {CardStack} from '../../widgets/card';
+import {Card, CardStack} from '../../widgets/card';
 import {Chip} from '../../widgets/chip';
 import {Intent} from '../../widgets/common';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
+import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {FuzzyFinder} from '../../base/fuzzy';
 import {Stack, StackAuto} from '../../widgets/stack';
@@ -31,6 +31,7 @@ import {TextInput} from '../../widgets/text_input';
 import {EmptyState} from '../../widgets/empty_state';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
+import {Anchor} from '../../widgets/anchor';
 
 enum SortOrder {
   Name = 'name',
@@ -240,23 +241,51 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
     focused: boolean,
   ): m.Children {
     const loadTime = plugin.traceContext?.loadTimeMs;
-    return m(SettingsCard, {
-      className: classNames(
-        'pf-plugins-page__card',
-        plugin.enableFlag.get() && 'pf-plugins-page__card--enabled',
+    return m(
+      Card,
+      {
+        id: plugin.desc.id,
+        className: classNames(
+          'pf-plugins-page__card',
+          plugin.active && 'pf-plugins-page__card--active',
+          plugin.enableFlag.get() && 'pf-plugins-page__card--enabled',
+          focused && 'pf-plugins-page__card--focused',
+        ),
+        key: plugin.desc.id,
+      },
+      m(
+        '.pf-plugins-page__details',
+        m(
+          Stack,
+          {
+            orientation: 'horizontal',
+            gap: 'small',
+            className: 'pf-plugins-page__label-row',
+          },
+          m('h1', plugin.desc.id),
+          m(
+            '.pf-plugins-page__link-button',
+            m(Anchor, {
+              href: `#!/plugins/${encodeURIComponent(plugin.desc.id)}`,
+              icon: 'link',
+              title: 'Link to this plugin',
+            }),
+          ),
+        ),
+        plugin.desc.description &&
+          m('.pf-plugins-page__description', plugin.desc.description),
       ),
-      title: plugin.desc.id,
-      linkHref: `#!/plugins/${encodeURIComponent(plugin.desc.id)}`,
-      description: plugin.desc.description?.trim(),
-
-      focused: focused,
-      controls: m(
-        'span.pf-plugins-page__controls',
+      m(
+        '.pf-plugins-page__controls',
+        // plugin.enabled !== plugin.enableFlag.get() && reloadButton(),
         exists(loadTime) &&
-          m(Chip, {
-            className: 'pf-plugins-page__chip',
-            label: `STARTUP ${loadTime.toFixed(1)} ms`,
-          }),
+          m(
+            'span',
+            m(Chip, {
+              className: 'pf-plugins-page__chip',
+              label: `STARTUP ${loadTime.toFixed(1)} ms`,
+            }),
+          ),
         m(Switch, {
           checked: plugin.enableFlag.get(),
           onchange: () => {
@@ -268,14 +297,7 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
           },
         }),
       ),
-      accent: plugin.enabled
-        ? Intent.Success
-        : plugin.active
-          ? Intent.Warning
-          : plugin.enableFlag.get()
-            ? Intent.Primary
-            : undefined,
-    });
+    );
   }
 
   oncreate(vnode: m.VnodeDOM<PluginsPageAttrs>) {

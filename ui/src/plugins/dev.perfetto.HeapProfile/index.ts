@@ -20,35 +20,16 @@ import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {Track} from '../../public/track';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {Store} from '../../base/store';
-import {z} from 'zod';
-import {assertExists} from '../../base/logging';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
-const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.object({
-  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-});
-
-type HeapProfilePluginState = z.infer<typeof HEAP_PROFILE_PLUGIN_STATE_SCHEMA>;
-
-export default class HeapProfilePlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   private readonly trackMap = new Map<number, Track>();
-  private store?: Store<HeapProfilePluginState>;
-
-  private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
-    const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(HeapProfilePlugin.id, (init) =>
-      this.migrateHeapProfilePluginState(init),
-    );
     await this.createHeapProfileTable(trace);
     await this.addProcessTracks(trace);
 
@@ -101,7 +82,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       const upid = it.upid;
       const uri = `/process_${upid}/heap_profile`;
 
-      const store = assertExists(this.store);
       const track: Track = {
         uri,
         tags: {
@@ -113,12 +93,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           EVENT_TABLE_NAME,
           upid,
           incomplete,
-          store.state.detailsPanelFlamegraphState,
-          (state) => {
-            store.edit((draft) => {
-              draft.detailsPanelFlamegraphState = state;
-            });
-          },
         ),
       };
 

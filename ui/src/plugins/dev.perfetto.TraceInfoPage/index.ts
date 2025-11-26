@@ -43,5 +43,12 @@ export default class implements PerfettoPlugin {
       icon: 'info',
       sortOrder: 15,
     });
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      text: 'Info and Stats',
+      href: '#!/info/stats',
+      icon: 'query_stats',
+      sortOrder: 23,
+    });
   }
 }

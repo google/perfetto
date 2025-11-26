@@ -13,9 +13,9 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE counters.intervals;
-
 INCLUDE PERFETTO MODULE android.suspend;
+
+INCLUDE PERFETTO MODULE counters.intervals;
 
 CREATE PERFETTO TABLE _kernel_wakelock_track AS
 SELECT

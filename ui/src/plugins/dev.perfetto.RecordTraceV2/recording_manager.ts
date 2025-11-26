@@ -25,23 +25,13 @@ import {
   RECORD_SESSION_SCHEMA,
   RecordPluginSchema,
   RecordSessionSchema,
-  SavedSessionSchema,
 } from './serialization_schema';
 import {TargetPlatformId} from './interfaces/target_platform';
 import {TracingSession} from './interfaces/tracing_session';
 import {uuidv4} from '../../base/uuid';
 import {Time, Timecode} from '../../base/time';
 
-import {getPresetsForPlatform} from './presets';
-
 const LOCALSTORAGE_KEY = 'recordPlugin';
-
-interface LoadConfigOptions {
-  config: RecordSessionSchema;
-  configId?: string;
-  configName?: string;
-  configModified?: boolean;
-}
 
 export class RecordingManager {
   readonly pages = new Map<string, RecordSubpage>();
@@ -51,12 +41,7 @@ export class RecordingManager {
   private provider?: RecordingTargetProvider;
   private target?: RecordingTarget;
   private _tracingSession?: CurrentTracingSession;
-  recordConfig = new ConfigManager();
-  savedConfigs: SavedSessionSchema[] = [];
-  selectedConfigId?: string; // ID of currently selected preset or saved config
-  selectedConfigName?: string; // Human-readable name of selected config
-  private loadedConfigGeneration = 0;
-  private initiallyConfigModified = false;
+  readonly recordConfig = new ConfigManager();
   autoOpenTraceWhenTracingEnds = true;
 
   constructor(readonly app: App) {}
@@ -152,78 +137,6 @@ export class RecordingManager {
     return wrappedSession;
   }
 
-  get isConfigModified() {
-    return (
-      this.initiallyConfigModified ||
-      this.recordConfig.generation !== this.loadedConfigGeneration
-    );
-  }
-
-  saveConfig(name: string, config: RecordSessionSchema) {
-    const existing = this.savedConfigs.find((c) => c.name === name);
-    if (existing) {
-      existing.config = config;
-    } else {
-      this.savedConfigs.push({name, config});
-    }
-    this.persistIntoLocalStorage();
-  }
-
-  deleteConfig(name: string) {
-    this.savedConfigs = this.savedConfigs.filter((c) => c.name !== name);
-    this.persistIntoLocalStorage();
-  }
-
-  loadConfig({
-    config,
-    configId,
-    configName,
-    configModified = false,
-  }: LoadConfigOptions) {
-    this.loadSession(config);
-    this.selectedConfigId = configId;
-    this.selectedConfigName = configName;
-    this.loadedConfigGeneration = this.recordConfig.generation;
-    this.initiallyConfigModified = configModified;
-    this.app.raf.scheduleFullRedraw();
-  }
-
-  resolveConfigName(configId: string): string | undefined {
-    if (configId.startsWith('preset:')) {
-      const presetId = configId.substring(7);
-      const presets = getPresetsForPlatform(this.currentPlatform);
-      const preset = presets.find((p) => p.id === presetId);
-      return preset?.title;
-    } else if (configId.startsWith('saved:')) {
-      const savedName = configId.substring(6);
-      const saved = this.savedConfigs.find((c) => c.name === savedName);
-      return saved?.name;
-    }
-    return undefined;
-  }
-
-  clearSelectedConfig() {
-    this.selectedConfigId = undefined;
-    this.selectedConfigName = undefined;
-    this.loadedConfigGeneration = this.recordConfig.generation;
-    this.initiallyConfigModified = false;
-  }
-
-  loadDefaultConfig() {
-    // Load first preset if available
-    const presets = getPresetsForPlatform(this.currentPlatform);
-    if (presets.length > 0) {
-      this.loadConfig({
-        config: presets[0].session,
-        configId: `preset:${presets[0].id}`,
-        configName: presets[0].title,
-      });
-    } else {
-      this.clearSession();
-      this.clearSelectedConfig();
-    }
-  }
-
   serializeSession(): RecordSessionSchema {
     // Initialize with default values.
     const state: RecordSessionSchema = RECORD_SESSION_SCHEMA.parse({});
@@ -249,7 +162,6 @@ export class RecordingManager {
   persistIntoLocalStorage(): void {
     const state: RecordPluginSchema = RECORD_PLUGIN_SCHEMA.parse({});
     state.lastSession = this.serializeSession();
-    state.savedSessions = this.savedConfigs;
     for (const page of this.pages.values()) {
       if (page.kind === 'GLOBAL_PAGE') {
         page.serialize(state);
@@ -273,14 +185,14 @@ export class RecordingManager {
       throw new Error('Record plugin: deserialization failed', res.error);
     }
     const state = res.data;
-    this.savedConfigs = state.savedSessions ?? [];
     for (const page of this.pages.values()) {
       if (page.kind === 'GLOBAL_PAGE') {
         page.deserialize(state);
       }
     }
-    // Note: target_selection_page.deserialize() handles loading the session,
-    // so we don't need to call loadSession here
+    if (state.lastSession !== undefined) {
+      this.loadSession(state.lastSession);
+    }
   }
 
   restoreSessionFromJson(json: string): Result<void> {
@@ -355,6 +267,7 @@ export class CurrentTracingSession {
       ) {
         this.autoOpenedTriggered = true;
         this.openTrace();
+        window.location.hash = '#!/viewer';
       }
     });
   }

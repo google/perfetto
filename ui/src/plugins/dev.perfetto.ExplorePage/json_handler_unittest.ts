@@ -101,6 +101,7 @@ describe('JSON serialization/deserialization', () => {
     });
     const modifyNode = new ModifyColumnsNode({
       prevNode: tableNode,
+      newColumns: [],
       selectedColumns: [],
     });
     tableNode.nextNodes.push(modifyNode);
@@ -406,6 +407,7 @@ describe('JSON serialization/deserialization', () => {
 
     const modifyNode = new ModifyColumnsNode({
       prevNode: tableNode,
+      newColumns: [],
       selectedColumns: [],
     });
     tableNode.nextNodes.push(modifyNode);
@@ -572,6 +574,7 @@ describe('JSON serialization/deserialization', () => {
     });
     const modifyNode = new ModifyColumnsNode({
       prevNode: tableNode,
+      newColumns: [],
       selectedColumns: [],
     });
     tableNode.nextNodes.push(modifyNode);
@@ -605,6 +608,7 @@ describe('JSON serialization/deserialization', () => {
 
     const modifyColumnsNode = new ModifyColumnsNode({
       prevNode: tableNode,
+      newColumns: [{expression: '1', name: 'new_col'}],
       selectedColumns: [],
     });
     tableNode.nextNodes.push(modifyColumnsNode);
@@ -634,6 +638,8 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedModifyNode = deserializedTableNode
       .nextNodes[0] as ModifyColumnsNode;
+    expect(deserializedModifyNode.state.newColumns.length).toBe(1);
+    expect(deserializedModifyNode.state.newColumns[0].name).toBe('new_col');
     expect(deserializedModifyNode.nextNodes.length).toBe(1);
     const deserializedFilterNode = deserializedModifyNode
       .nextNodes[0] as FilterNode;
@@ -685,6 +691,7 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: ['name', 'ts'],
       leftColumn: 'id',
       rightColumn: 'id',
+      mode: 'guided',
     });
     tableNode1.nextNodes.push(addColumnsNode);
 
@@ -747,6 +754,7 @@ describe('JSON serialization/deserialization', () => {
     ]);
     expect(deserializedAddColumnsNode.state.leftColumn).toBe('id');
     expect(deserializedAddColumnsNode.state.rightColumn).toBe('id');
+    expect(deserializedAddColumnsNode.state.mode).toBe('guided');
 
     // Verify layouts are preserved
     expect(
@@ -773,19 +781,16 @@ describe('JSON serialization/deserialization', () => {
     // Find a column to rename (let's use the first one)
     const columnToRename = allColumns[0];
 
-    // Create modify columns node that renames a column using alias
-    const selectedColumnsWithAlias = [
-      {
-        ...allColumns[0],
-        alias: 'renamed_column',
-        checked: true,
-      },
-      ...allColumns.slice(1, 3).map((col) => ({...col, checked: true})),
-    ];
-
+    // Create modify columns node that renames a column
     const modifyColumnsNode = new ModifyColumnsNode({
       prevNode: tableNode1,
-      selectedColumns: selectedColumnsWithAlias,
+      newColumns: [
+        {
+          expression: columnToRename.column.name,
+          name: 'renamed_column',
+        },
+      ],
+      selectedColumns: allColumns.slice(1, 3), // Select some other columns
     });
     tableNode1.nextNodes.push(modifyColumnsNode);
 
@@ -800,6 +805,7 @@ describe('JSON serialization/deserialization', () => {
     const addColumnsNode = new AddColumnsNode({
       prevNode: tableNode2,
       selectedColumns: [],
+      mode: 'guided',
     });
     tableNode2.nextNodes.push(addColumnsNode);
 
@@ -886,6 +892,7 @@ describe('JSON serialization/deserialization', () => {
         }
         return col;
       }),
+      newColumns: [],
     });
     tableNode.nextNodes.push(modifyNode);
 
@@ -1485,6 +1492,7 @@ describe('JSON serialization/deserialization', () => {
     const sliceTable = sqlModules.getTable('slice')!;
     const modifyColumnsNode = new ModifyColumnsNode({
       prevNode: tableNode,
+      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
       selectedColumns: [
         {
           name: 'name',
@@ -1518,12 +1526,15 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode.state.selectedColumns.length).toBe(2);
     expect(deserializedNode.state.selectedColumns[0].name).toBe('name');
     expect(deserializedNode.state.selectedColumns[1].name).toBe('ts');
+    expect(deserializedNode.state.newColumns.length).toBe(1);
+    expect(deserializedNode.state.newColumns[0].expression).toBe('dur / 1000');
   });
 
   test('serializes modify columns node without prevNode', () => {
     // Create a modify columns node without a prevNode (edge case)
     const modifyColumnsNode = new ModifyColumnsNode({
       prevNode: undefined as unknown as QueryNode,
+      newColumns: [{expression: '42', name: 'constant'}],
       selectedColumns: [],
     });
 
@@ -1542,6 +1553,8 @@ describe('JSON serialization/deserialization', () => {
     );
     expect(serializedNode).toBeDefined();
     expect(serializedNode.state.prevNodeId).toBeUndefined();
+    expect(serializedNode.state.newColumns.length).toBe(1);
+    expect(serializedNode.state.newColumns[0].name).toBe('constant');
   });
 
   test('serializes and deserializes aggregation node with multiple aggregations', () => {
@@ -1658,6 +1671,7 @@ describe('JSON serialization/deserialization', () => {
     const sliceTable = sqlModules.getTable('slice')!;
     const modifyNode = new ModifyColumnsNode({
       prevNode: filterNode,
+      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
       selectedColumns: [
         {
           name: 'name',
@@ -1762,6 +1776,7 @@ describe('JSON serialization/deserialization', () => {
     const sliceTable = sqlModules.getTable('slice')!;
     const modifyNode1 = new ModifyColumnsNode({
       prevNode: tableNode,
+      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
       selectedColumns: [
         {
           name: 'name',
@@ -1774,6 +1789,7 @@ describe('JSON serialization/deserialization', () => {
 
     const modifyNode2 = new ModifyColumnsNode({
       prevNode: tableNode,
+      newColumns: [{expression: 'ts / 1000000', name: 'ts_ms'}],
       selectedColumns: [
         {
           name: 'ts',
@@ -1803,6 +1819,8 @@ describe('JSON serialization/deserialization', () => {
 
     expect(branch1.prevNode?.nodeId).toBe(deserializedTableNode.nodeId);
     expect(branch2.prevNode?.nodeId).toBe(deserializedTableNode.nodeId);
+    expect(branch1.state.newColumns[0].name).toBe('dur_ms');
+    expect(branch2.state.newColumns[0].name).toBe('ts_ms');
   });
 
   test('deserializes graph without nodeLayouts field (auto-layout)', () => {

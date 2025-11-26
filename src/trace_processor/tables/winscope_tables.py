@@ -793,7 +793,7 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
         ),
         C(
             'base64_proto_id',
-            CppOptional(CppUint32()),
+            CppUint32(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
@@ -829,9 +829,7 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
         ),
         C(
             'container_type',
-            CppOptional(CppString()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+            CppString(),
         ),
         C(
             'name_override',

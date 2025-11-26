@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.startup.startup_events;
+
 CREATE PERFETTO VIEW _startup_async_events AS
 SELECT
   ts,

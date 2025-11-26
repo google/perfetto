@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
 
-INCLUDE PERFETTO MODULE wattson.curves.utils;
-
 -- GPU power estimates in mW
 CREATE PERFETTO TABLE _gpu_estimates_mw AS
 SELECT

@@ -94,10 +94,18 @@ export class CastColumn implements TableColumn {
     return this.wrappedColumn.getTitle?.();
   }
 
-  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell {
+  renderCell(
+    value: SqlValue,
+    tableManager?: TableManager,
+    supportingValues?: {} | undefined,
+  ): RenderedCell {
     // Delegate rendering to the appropriate column type based on the cast type
     // This allows proper formatting for timestamps, durations, etc.
-    return this.wrappedColumn.renderCell(value, tableManager);
+    return this.wrappedColumn.renderCell(value, tableManager, supportingValues);
+  }
+
+  supportingColumns() {
+    return this.wrappedColumn.supportingColumns?.() || (() => {});
   }
 
   listDerivedColumns(manager: TableManager) {

@@ -37,11 +37,13 @@
   $tick-anim-time: $tick-anim-time-width + $tick-anim-time-height;
   $tick-easing: linear;
 
+  $box-size: 1em;
   $tick-height: 0.55em;
   $tick-width: 0.3em;
   $box-label-padding: 0.33em;
 
-  display: inline;
+  display: inline-flex;
+  gap: 0.3em;
   align-items: baseline;
   position: relative; // Turns this container into a positioned element
   user-select: none;
@@ -54,48 +56,23 @@
     pointer-events: none;
   }
 
-  &__box {
+  // The span forms the "box" of the checkbox
+  span {
+    flex: 0 0 auto;
     display: inline-block;
-    position: relative; // Align ::after to this box
-    top: -0.1em;
-    vertical-align: middle;
-    height: 1em;
-    transition: background $anim-timing;
-
-    &:after {
-      content: "";
-      position: absolute;
-    }
-  }
-
-  input:focus-visible + .pf-checkbox__box {
-    @include focus;
-  }
-
-  &.pf-disabled {
-    opacity: 0.5;
-    pointer-events: none;
-    cursor: not-allowed;
-  }
-
-  &__label {
-    padding-left: $box-label-padding;
-  }
-
-  &__label-left {
-    padding-right: $box-label-padding;
-  }
-
-  // 'Check' style checkbox
-
-  &__box--check {
-    aspect-ratio: 1;
+    position: relative; // Align tick to this box
+    align-self: center;
+    height: $box-size;
+    width: $box-size;
     border-radius: $border-radius;
     border: solid 2px currentColor;
+    transition: background $anim-timing;
     background: none;
 
     // The :after element forms the "tick" of the checkbox
     &:after {
+      content: "";
+      position: absolute;
       bottom: 0.4em;
       left: 0em;
       width: 0px;
@@ -112,16 +89,22 @@
     }
   }
 
-  &:hover .pf-checkbox__box--check {
-    background: color_hover(transparent);
+  &:hover {
+    span {
+      background: color_hover(transparent);
+    }
   }
 
-  input:checked + .pf-checkbox__box--check {
+  input:checked + span {
     border-color: var(--pf-color-primary);
     background: var(--pf-color-primary);
   }
 
-  input:checked + .pf-checkbox__box--check:after {
+  input:focus-visible + span {
+    @include focus;
+  }
+
+  input:checked + span:after {
     width: $tick-width;
     height: $tick-height;
     border-width: 0 0.15em 0.15em 0;
@@ -131,39 +114,9 @@
       border-width 0ms;
   }
 
-  // 'Switch' style checkbox
-
-  &__box--switch {
-    height: 16px;
-    width: 30px;
-    border-radius: 1em; // Pill shape
-    background: var(--pf-color-border);
-    vertical-align: middle;
-
-    // The :after element forms the "thumb" of the switch
-    &:after {
-      content: "";
-      display: block;
-      position: absolute;
-      left: 2px;
-      top: 0;
-      bottom: 0;
-      margin-top: auto;
-      margin-bottom: auto;
-      width: 12px;
-      height: 12px;
-      background: white;
-      box-sizing: border-box;
-      border-radius: 50%;
-      transition: left $anim-timing;
-    }
-  }
-
-  input:checked + .pf-checkbox__box--switch {
-    background: var(--pf-color-primary);
-  }
-
-  input:checked + .pf-checkbox__box--switch:after {
-    left: 16px;
+  &.pf-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
   }
 }

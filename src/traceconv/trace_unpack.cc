@@ -18,6 +18,7 @@
 
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <vector>
 
 #include "perfetto/trace_processor/read_trace.h"

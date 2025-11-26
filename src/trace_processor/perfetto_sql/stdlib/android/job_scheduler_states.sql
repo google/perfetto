@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE counters.intervals;
+
 INCLUDE PERFETTO MODULE android.battery.charging_states;
 
 INCLUDE PERFETTO MODULE android.screen_state;

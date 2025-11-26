@@ -23,7 +23,6 @@ import {Icon} from '../../../../widgets/icon';
 import {Callout} from '../../../../widgets/callout';
 import {Intent} from '../../../../widgets/common';
 import {nodeRegistry} from '../node_registry';
-import {buildCategorizedMenuItems} from './menu_utils';
 
 export interface NodeActions {
   readonly onDuplicateNode: (node: QueryNode) => void;
@@ -82,10 +81,6 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
     return null;
   }
 
-  const menuItems = buildCategorizedMenuItems(operationNodes, (id) =>
-    onAddOperationNode(id, node),
-  );
-
   return m(
     PopupMenu,
     {
@@ -94,7 +89,12 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
         icon: 'add',
       }),
     },
-    ...menuItems,
+    ...operationNodes.map(([id, descriptor]) => {
+      return m(MenuItem, {
+        label: descriptor.name,
+        onclick: () => onAddOperationNode(id, node),
+      });
+    }),
   );
 }
 

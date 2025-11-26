@@ -97,6 +97,7 @@ export class TraceImpl implements Trace, Disposable {
     );
 
     this.scrollHelper = new ScrollHelper(
+      this.traceInfo,
       this.timeline,
       this.workspaces,
       this.tracks,
@@ -104,6 +105,7 @@ export class TraceImpl implements Trace, Disposable {
 
     this.selection = new SelectionManagerImpl(
       this.engine,
+      this.timeline,
       this.tracks,
       this.notes,
       this.scrollHelper,

@@ -19,7 +19,6 @@ perfetto_sql_source_set("viz") {
     "flamegraph.sql",
     "slices.sql",
     "threads.sql",
-    "track_event_callstacks.sql",
   ]
   deps = [ "summary" ]
 }

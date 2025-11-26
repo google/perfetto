@@ -14,6 +14,8 @@
 
 INCLUDE PERFETTO MODULE counters.intervals;
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 -- Table of the screen state - on, off or doze (always on display).
 CREATE PERFETTO TABLE android_screen_state (
   -- ID.

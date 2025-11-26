@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE linux.cpu.utilization.general;
 
+INCLUDE PERFETTO MODULE time.conversion;
+
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE slices.with_context;

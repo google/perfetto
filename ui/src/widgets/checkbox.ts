@@ -18,26 +18,12 @@ import {HTMLCheckboxAttrs} from './common';
 
 export interface CheckboxAttrs extends HTMLCheckboxAttrs {
   // Optional text to show to the right of the checkbox.
-  readonly label?: m.Children;
-
-  // Optional text to show to the left of the checkbox.
-  readonly labelLeft?: m.Children;
-
-  // Whether to render as a switch instead of a checkbox.
-  readonly variant?: 'checkbox' | 'switch';
+  label?: string;
 }
 
 export class Checkbox implements m.ClassComponent<CheckboxAttrs> {
   view({attrs}: m.CVnode<CheckboxAttrs>) {
-    const {
-      label,
-      labelLeft,
-      disabled,
-      checked,
-      className,
-      variant,
-      ...htmlAttrs
-    } = attrs;
+    const {label, disabled, checked, className, ...htmlAttrs} = attrs;
     const classes = classNames(disabled && 'pf-disabled', className);
 
     // The default checkbox is removed and an entirely new one created inside
@@ -48,15 +34,9 @@ export class Checkbox implements m.ClassComponent<CheckboxAttrs> {
         ...htmlAttrs,
         className: classes,
       },
-      labelLeft !== undefined && m('span.pf-checkbox__label-left', labelLeft),
       m('input[type=checkbox]', {disabled, checked}),
-      m('span.pf-checkbox__box', {
-        className:
-          variant === 'switch'
-            ? 'pf-checkbox__box--switch'
-            : 'pf-checkbox__box--check',
-      }),
-      label !== undefined && m('span.pf-checkbox__label', label),
+      m('span'),
+      label,
     );
   }
 }

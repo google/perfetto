@@ -66,7 +66,6 @@ export class PivotTableTab implements AreaSelectionTab {
       isLoading: state?.getData() === undefined,
       content: m(PivotTable, {
         state,
-        getSelectableColumns: () => state.table.columns,
         extraRowButton: (node) =>
           m(Button, {
             icon: Icons.GoTo,

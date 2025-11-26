@@ -16,7 +16,6 @@ import {assertExists} from '../../base/logging';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
-  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
@@ -31,48 +30,28 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {createPerfCallsitesTrack} from './perf_samples_profile_track';
-import {Store} from '../../base/store';
-import {z} from 'zod';
 
 const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
-
-const LINUX_PERF_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-});
-
-type LinuxPerfPluginState = z.infer<typeof LINUX_PERF_PLUGIN_STATE_SCHEMA>;
 
 function makeUriForProc(upid: number, sessionId: number) {
   return `/process_${upid}/perf_samples_profile_${sessionId}`;
 }
 
-export default class LinuxPerfPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.LinuxPerf';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
     TraceProcessorTrackPlugin,
   ];
 
-  private store?: Store<LinuxPerfPluginState>;
-
-  private migrateLinuxPerfPluginState(init: unknown): LinuxPerfPluginState {
-    const result = LINUX_PERF_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(LinuxPerfPlugin.id, (init) =>
-      this.migrateLinuxPerfPluginState(init),
-    );
-    const store = assertExists(this.store);
-    await this.addProcessPerfSamplesTracks(trace, store);
-    await this.addThreadPerfSamplesTracks(trace, store);
+    await this.addProcessPerfSamplesTracks(trace);
+    await this.addThreadPerfSamplesTracks(trace);
     await this.addPerfCounterTracks(trace);
 
     trace.onTraceReady.addListener(async () => {
@@ -80,10 +59,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     });
   }
 
-  private async addProcessPerfSamplesTracks(
-    trace: Trace,
-    store: Store<LinuxPerfPluginState>,
-  ) {
+  private async addProcessPerfSamplesTracks(trace: Trace) {
     const pResult = await trace.engine.query(`
       SELECT DISTINCT upid, pct.name AS cntrName, perf_session_id AS sessionId
       FROM perf_sample
@@ -125,19 +101,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
           upid,
         },
-        renderer: createPerfCallsitesTrack(
-          trace,
-          uri,
-          upid,
-          undefined,
-          undefined,
-          store.state.detailsPanelFlamegraphState,
-          (state) => {
-            store.edit((draft) => {
-              draft.detailsPanelFlamegraphState = state;
-            });
-          },
-        ),
+        renderer: createPerfCallsitesTrack(trace, uri, upid),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -168,12 +132,6 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
             upid,
             undefined,
             sessionId,
-            store.state.detailsPanelFlamegraphState,
-            (state) => {
-              store.edit((draft) => {
-                draft.detailsPanelFlamegraphState = state;
-              });
-            },
           ),
         });
         const track = new TrackNode({
@@ -200,10 +158,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     });
   }
 
-  private async addThreadPerfSamplesTracks(
-    trace: Trace,
-    store: Store<LinuxPerfPluginState>,
-  ) {
+  private async addThreadPerfSamplesTracks(trace: Trace) {
     const tResult = await trace.engine.query(`
       SELECT DISTINCT
         upid, utid, tid, thread.name AS threadName,
@@ -262,19 +217,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
         },
-        renderer: createPerfCallsitesTrack(
-          trace,
-          uri,
-          upid ?? undefined,
-          utid,
-          undefined,
-          store.state.detailsPanelFlamegraphState,
-          (state) => {
-            store.edit((draft) => {
-              draft.detailsPanelFlamegraphState = state;
-            });
-          },
-        ),
+        renderer: createPerfCallsitesTrack(trace, uri, upid ?? undefined, utid),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -305,12 +248,6 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
             upid ?? undefined,
             utid,
             sessionId,
-            store.state.detailsPanelFlamegraphState,
-            (state) => {
-              store.edit((draft) => {
-                draft.detailsPanelFlamegraphState = state;
-              });
-            },
           ),
         });
         const track = new TrackNode({
@@ -380,116 +317,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       trace.defaultWorkspace.addChildInOrder(perfCountersGroup);
     }
 
-    trace.selection.registerAreaSelectionTab(
-      this.createAreaSelectionTab(trace),
-    );
-  }
-
-  private createAreaSelectionTab(trace: Trace) {
-    let previousSelection: AreaSelection | undefined;
-    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
-
-    return {
-      id: 'perf_sample_flamegraph',
-      name: 'Perf sample flamegraph',
-      render: (selection: AreaSelection) => {
-        const changed =
-          previousSelection === undefined ||
-          !areaSelectionsEqual(previousSelection, selection);
-        if (changed) {
-          flamegraphWithMetrics = this.computePerfSampleFlamegraph(
-            trace,
-            selection,
-          );
-          previousSelection = selection;
-        }
-        if (flamegraphWithMetrics === undefined) {
-          return undefined;
-        }
-        const {flamegraph, metrics} = flamegraphWithMetrics;
-        const store = assertExists(this.store);
-        return {
-          isLoading: false,
-          content: flamegraph.render({
-            metrics,
-            state: store.state.areaSelectionFlamegraphState,
-            onStateChange: (state) => {
-              store.edit((draft) => {
-                draft.areaSelectionFlamegraphState = state;
-              });
-            },
-          }),
-        };
-      },
-    };
-  }
-
-  private computePerfSampleFlamegraph(
-    trace: Trace,
-    currentSelection: AreaSelection,
-  ): QueryFlamegraphWithMetrics | undefined {
-    const processTrackTags = getSelectedProcessTrackTags(currentSelection);
-    const threadTrackTags = getSelectedThreadTrackTags(currentSelection);
-    if (processTrackTags.length === 0 && threadTrackTags.length === 0) {
-      return undefined;
-    }
-
-    const trackConstraints = [
-      ...processTrackTags.map(
-        ([upid, sessionId]) =>
-          `(t.upid = ${upid} AND p.perf_session_id = ${sessionId})`,
-      ),
-      ...threadTrackTags.map(
-        ([utid, sessionId]) =>
-          `(t.utid = ${utid} AND p.perf_session_id = ${sessionId})`,
-      ),
-    ].join(' OR ');
-
-    const metrics = metricsFromTableOrSubquery(
-      `
-      (
-        select
-          id,
-          parent_id as parentId,
-          name,
-          mapping_name,
-          source_file || ':' || line_number as source_location,
-          self_count
-        from _callstacks_for_callsites!((
-          select p.callsite_id
-          from perf_sample p
-          join thread t using (utid)
-          where p.ts >= ${currentSelection.start}
-            and p.ts <= ${currentSelection.end}
-            and (${trackConstraints})
-        ))
-      )
-    `,
-      [
-        {
-          name: 'Perf Samples',
-          unit: '',
-          columnName: 'self_count',
-        },
-      ],
-      'include perfetto module linux.perf.samples',
-      [{name: 'mapping_name', displayName: 'Mapping'}],
-      [
-        {
-          name: 'source_location',
-          displayName: 'Source location',
-          mergeAggregation: 'ONE_OR_SUMMARY',
-        },
-      ],
-    );
-    const store = assertExists(this.store);
-    store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
-        draft.areaSelectionFlamegraphState,
-        metrics,
-      );
-    });
-    return {flamegraph: new QueryFlamegraph(trace), metrics};
+    trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));
   }
 }
 
@@ -505,6 +333,32 @@ async function selectPerfTracksIfSingleProcess(trace: Trace) {
   if (profile.numRows() == 1) {
     trace.commands.runCommand('dev.perfetto.SelectAllPerfSamples');
   }
+}
+
+function createAreaSelectionTab(trace: Trace) {
+  let previousSelection: undefined | AreaSelection;
+  let flamegraph: undefined | QueryFlamegraph;
+
+  return {
+    id: 'perf_sample_flamegraph',
+    name: 'Perf sample flamegraph',
+    render(selection: AreaSelection) {
+      const changed =
+        previousSelection === undefined ||
+        !areaSelectionsEqual(previousSelection, selection);
+
+      if (changed) {
+        flamegraph = computePerfSampleFlamegraph(trace, selection);
+        previousSelection = selection;
+      }
+
+      if (flamegraph === undefined) {
+        return undefined;
+      }
+
+      return {isLoading: false, content: flamegraph.render()};
+    },
+  };
 }
 
 function getSelectedProcessTrackTags(currentSelection: AreaSelection) {
@@ -537,4 +391,67 @@ function getSelectedThreadTrackTags(currentSelection: AreaSelection) {
     }
   }
   return ret;
+}
+
+function computePerfSampleFlamegraph(
+  trace: Trace,
+  currentSelection: AreaSelection,
+) {
+  const processTrackTags = getSelectedProcessTrackTags(currentSelection);
+  const threadTrackTags = getSelectedThreadTrackTags(currentSelection);
+  if (processTrackTags.length === 0 && threadTrackTags.length === 0) {
+    return undefined;
+  }
+
+  const trackConstraints = [
+    ...processTrackTags.map(
+      ([upid, sessionId]) =>
+        `(t.upid = ${upid} AND p.perf_session_id = ${sessionId})`,
+    ),
+    ...threadTrackTags.map(
+      ([utid, sessionId]) =>
+        `(p.utid = ${utid} AND p.perf_session_id = ${sessionId})`,
+    ),
+  ].join(' OR ');
+
+  const metrics = metricsFromTableOrSubquery(
+    `
+      (
+        select
+          id,
+          parent_id as parentId,
+          name,
+          mapping_name,
+          source_file || ':' || line_number as source_location,
+          self_count
+        from _callstacks_for_callsites!((
+          select p.callsite_id
+          from perf_sample p
+          join thread t using (utid)
+          where p.ts >= ${currentSelection.start}
+            and p.ts <= ${currentSelection.end}
+            and (${trackConstraints})
+        ))
+      )
+    `,
+    [
+      {
+        name: 'count',
+        unit: '',
+        columnName: 'self_count',
+      },
+    ],
+    'include perfetto module linux.perf.samples',
+    [{name: 'mapping_name', displayName: 'Mapping'}],
+    [
+      {
+        name: 'source_location',
+        displayName: 'Source location',
+        mergeAggregation: 'ONE_OR_SUMMARY',
+      },
+    ],
+  );
+  return new QueryFlamegraph(trace, metrics, {
+    state: Flamegraph.createDefaultState(metrics),
+  });
 }

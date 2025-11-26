@@ -79,7 +79,6 @@ ftrace_proto_names = [
   "samsung.proto",
   "sched.proto",
   "scm.proto",
-  "scsi.proto",
   "sde.proto",
   "signal.proto",
   "skb.proto",

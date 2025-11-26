@@ -35,6 +35,34 @@ function lorem() {
   return m('', {style: {width: '200px'}}, text);
 }
 
+function ControlledPopup() {
+  let popupOpen = false;
+
+  return {
+    view: function () {
+      return m(
+        Popup,
+        {
+          trigger: m(Button, {
+            label: `${popupOpen ? 'Close' : 'Open'} Popup`,
+            onclick: () => {
+              popupOpen = true;
+            },
+          }),
+          isOpen: popupOpen,
+          onChange: (shouldOpen: boolean) => (popupOpen = shouldOpen),
+        },
+        m(Button, {
+          label: 'Close Popup',
+          onclick: () => {
+            popupOpen = false;
+          },
+        }),
+      );
+    },
+  };
+}
+
 export function renderPopup(): m.Children {
   return [
     m(
@@ -53,7 +81,7 @@ export function renderPopup(): m.Children {
         m(
           Popup,
           {
-            trigger: m(Button, {label: 'Toggle popup'}),
+            trigger: m(Button, {label: 'Toggle Popup'}),
             ...rest,
           },
           lorem(),
@@ -70,7 +98,7 @@ export function renderPopup(): m.Children {
       },
     }),
 
-    renderDocSection('Controlled Popup', [
+    renderDocSection('Controlled Popups', [
       m('p', [
         `The open/close state of a controlled popup is passed in via
       the 'isOpen' attribute. This means we can get open or close the popup
@@ -84,21 +112,8 @@ export function renderPopup(): m.Children {
     ]),
 
     renderWidgetShowcase({
-      renderWidget: ({isOpen}) =>
-        m(
-          Popup,
-          {
-            trigger: m(Button, {
-              disabled: true,
-              label: `Popup is ${isOpen ? 'open' : 'closed'}`,
-            }),
-            isOpen,
-          },
-          lorem(),
-        ),
-      initialOpts: {
-        isOpen: false,
-      },
+      renderWidget: (opts) => m(ControlledPopup, opts),
+      initialOpts: {},
     }),
 
     renderDocSection('Nested Popups', [
@@ -110,7 +125,7 @@ export function renderPopup(): m.Children {
         m(
           Popup,
           {
-            trigger: m(Button, {label: 'Toggle nested popup'}),
+            trigger: m(Button, {label: 'Open the popup'}),
           },
           m(ButtonBar, [
             m(
@@ -121,6 +136,10 @@ export function renderPopup(): m.Children {
               m(MenuItem, {label: 'Option 1'}),
               m(MenuItem, {label: 'Option 2'}),
             ),
+            m(Button, {
+              label: 'Done',
+              dismissPopup: true,
+            }),
           ]),
         ),
     }),

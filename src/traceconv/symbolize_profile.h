@@ -17,6 +17,7 @@
 #ifndef SRC_TRACECONV_SYMBOLIZE_PROFILE_H_
 #define SRC_TRACECONV_SYMBOLIZE_PROFILE_H_
 
+#include <functional>
 #include <iostream>
 
 namespace perfetto {

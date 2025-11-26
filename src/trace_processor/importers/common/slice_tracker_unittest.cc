@@ -253,6 +253,7 @@ TEST_F(SliceTrackerTest, TwoSliceDetailed) {
   EXPECT_EQ(sr0.category().value_or(kNullStringId).raw_id(), 0u);
   EXPECT_EQ(sr0.name().value_or(kNullStringId).raw_id(), 1u);
   EXPECT_EQ(sr0.depth(), 0u);
+  EXPECT_EQ(sr0.parent_stack_id(), 0);
 
   auto sr1 = slices[1];
   EXPECT_EQ(sr1.ts(), 3);
@@ -261,6 +262,9 @@ TEST_F(SliceTrackerTest, TwoSliceDetailed) {
   EXPECT_EQ(sr1.category().value_or(kNullStringId).raw_id(), 0u);
   EXPECT_EQ(sr1.name().value_or(kNullStringId).raw_id(), 2u);
   EXPECT_EQ(sr1.depth(), 1u);
+  EXPECT_NE(sr1.stack_id(), 0);
+
+  EXPECT_EQ(sr0.stack_id(), sr1.parent_stack_id());
 }
 
 TEST_F(SliceTrackerTest, Scoped) {

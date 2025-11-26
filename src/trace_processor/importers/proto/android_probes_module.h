@@ -53,7 +53,6 @@ class AndroidProbesModule : public ProtoImporterModule {
 
   ModuleResult ParseEnergyDescriptor(protozero::ConstBytes blob);
   ModuleResult ParseAndroidPackagesList(protozero::ConstBytes blob);
-  ModuleResult ParseAndroidUserList(protozero::ConstBytes blob);
   void ParseEntityStateDescriptor(protozero::ConstBytes blob);
 
  private:

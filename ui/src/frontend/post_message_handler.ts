@@ -326,12 +326,8 @@ async function scrollToTimeRange(
   if (trace && !app.isLoadingTrace) {
     const start = Time.fromSeconds(postedScrollToRange.timeStart);
     const end = Time.fromSeconds(postedScrollToRange.timeEnd);
-    const behavior =
-      postedScrollToRange.viewPercentage !== undefined
-        ? {viewPercentage: postedScrollToRange.viewPercentage}
-        : undefined;
     trace.scrollTo({
-      time: {start, end, behavior},
+      time: {start, end, viewPercentage: postedScrollToRange.viewPercentage},
     });
   } else {
     if (maxAttempts === undefined) {

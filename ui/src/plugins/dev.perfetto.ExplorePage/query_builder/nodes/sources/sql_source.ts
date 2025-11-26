@@ -21,7 +21,7 @@ import {
   createFinalColumns,
   MultiSourceNode,
   nextNodeId,
-  notifyNextNodes,
+  setOperationChanged,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -79,10 +79,8 @@ export class SqlSourceNode implements MultiSourceNode {
 
   onQueryExecuted(columns: string[]) {
     this.setSourceColumns(columns);
-    // Notify downstream nodes that our columns have changed, but don't mark
-    // this node as having an operation change (which would cause hash to change
-    // and trigger re-execution). Column discovery is metadata, not a query change.
-    notifyNextNodes(this);
+    // Mark node as changed to trigger re-analysis with updated columns
+    setOperationChanged(this);
   }
 
   clone(): QueryNode {

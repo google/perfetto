@@ -418,8 +418,7 @@ export class Sidebar implements m.ClassComponent {
         .filter((item) => item.section === sectionId),
     ];
 
-    // Add section-specific global and trace items, and determine default collapsed state
-    let defaultCollapsed = false;
+    // Add section-specific global and trace items
     switch (sectionId) {
       case 'current_trace':
         if (trace !== undefined) {
@@ -430,14 +429,12 @@ export class Sidebar implements m.ClassComponent {
         if (trace !== undefined) {
           allItems.push(...getConvertTraceItems(trace));
         }
-        defaultCollapsed = true;
         break;
       case 'support':
         allItems.push(...getSupportGlobalItems());
         if (trace !== undefined) {
           allItems.push(...getSupportTraceItems(trace));
         }
-        defaultCollapsed = true;
         break;
     }
 
@@ -448,11 +445,7 @@ export class Sidebar implements m.ClassComponent {
     // Don't render empty sections.
     if (menuItems.length === 0) return undefined;
 
-    const expanded = getOrCreate(
-      this._sectionExpanded,
-      sectionId,
-      () => !defaultCollapsed,
-    );
+    const expanded = getOrCreate(this._sectionExpanded, sectionId, () => true);
     return m(
       `section${expanded ? '.pf-sidebar__section--expanded' : ''}`,
       m(

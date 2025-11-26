@@ -79,13 +79,35 @@ v16.0 - 2021-06-01:
   ...
 ```
 
-## Tagging the release
+## Building and tagging the release
 
-1. Once all changes for the release have been merged into the release branch,
-   create and push the tag for it ("vX.Y" being the new version).
+1. Generate and commit the amalgamated source files.
 
 ```bash
-# Ensure the branch is up to date
+tools/gen_amalgamated --output sdk/perfetto
+git add sdk/perfetto.{cc,h}
+git commit -m "Amalgamated source for vX.Y"
+```
+
+2. Check that the SDK example code works with the new release.
+
+```bash
+cd examples/sdk
+cmake -B build
+cmake --build build
+```
+
+3. Upload the new release for review.
+
+```bash
+gh pr create
+```
+
+4. Once the release has been reviewed and landed, create and push the tag for
+   it ("vX.Y" being the new version).
+
+```bash
+# This brings the branch up to date with the CL landed in the step above.
 git pull
 
 git status
@@ -96,54 +118,36 @@ git tag -a -m "Perfetto vX.Y" vX.Y
 git push origin vX.Y
 ```
 
-2. Update the documentation to point to the latest release.
+5. Update the documentation to point to the latest release.
 
    - [docs/instrumentation/tracing-sdk.md](/docs/instrumentation/tracing-sdk.md)
    - [examples/sdk/README.md](/examples/sdk/README.md)
 
-6. Send an email with the CHANGELOG to perfetto-dev@ with perfetto-announce@
-   bcc'ed (internal - make sure you have permissions before doing so) and to the
+6. Send an email with the CHANGELOG to perfetto-dev@ (internal) and to the
    [public perfetto-dev](https://groups.google.com/forum/#!forum/perfetto-dev).
 
-## Creating a GitHub release with prebuilts and SDK sources
+## Creating a GitHub release with prebuilts
 
-3. Within few mins the LUCI scheduler will trigger builds of prebuilt binaries
+7. Within few mins the LUCI scheduler will trigger builds of prebuilt binaries
    on https://luci-scheduler.appspot.com/jobs/perfetto . Wait for all the bots
    to have completed successfully and be back into the WAITING state.
 
-4. **IMPORTANT**: Check out the release tag before running the packaging script:
-
-```bash
-git checkout vX.Y
-```
-
-5. Run `tools/release/package-github-release-artifacts vX.Y`. This will:
-   - Verify the working directory is clean (no uncommitted changes)
-   - Verify you're on the correct git tag (vX.Y)
-   - Download the prebuilt binaries from LUCI
-   - Generate amalgamated SDK source files **from the current checkout**
-   - Package everything into `/tmp/perfetto-vX.Y-github-release/`
-
-  - There must be 12 zips in total:
-    - 10 prebuilt binaries: linux-{arm,arm64,amd64},
-      android-{arm,arm64,x86,x64}, mac-{amd64,arm64}, win-amd64
-    - 2 SDK source zips: perfetto-cpp-sdk-src.zip, perfetto-c-sdk-src.zip
-  - If one or more prebuilt zips are missing it means that one of the LUCI bots failed,
+8. Run `tools/release/package-prebuilts-for-github-release vX.Y`. It will pull the
+   prebuilts under `/tmp/perfetto-prebuilts-vX.Y`.
+  - There must be 10 zips in total: linux-{arm,arm64,amd64},
+    android-{arm,arm64,x86,x64}, mac-{amd64,arm64}, win-amd64.
+  - If one or more are missing it means that one of the LUCI bots failed,
     check the logs (follow the "Task URL: " link) from the invocation log.
   - If this happens you'll need to respin a vX.(Y+1) release with the fix
     (look at the history v20.1, where a Windows failure required a respin).
 
-6. Open https://github.com/google/perfetto/releases/new and
+9. Open https://github.com/google/perfetto/releases/new and
   - Select "Choose Tag" -> vX.Y
   - "Release title" -> "Perfetto vX.Y"
   - "Describe release" -> Copy the CHANGELOG, wrapping it in triple backticks.
-  - "Attach binaries" -> Attach all twelve .zip files from the previous step
-    (10 prebuilt binaries + 2 SDK source zips).
+  - "Attach binaries" -> Attach the ten .zip files from the previous step.
 
-7. Run `tools/roll-prebuilts vX.Y`. It will update the SHA256 into the various
+10. Run `tools/roll-prebuilts vX.Y`. It will update the SHA256 into the various
    scripts under `tools/`. Upload a CL with the changes.
 
-8. Send an email with the CHANGELOG to perfetto-dev@ (internal) and to the
-   [public perfetto-dev](https://groups.google.com/forum/#!forum/perfetto-dev).
-
-9. Phew, you're done!
+11. Phew, you're done!

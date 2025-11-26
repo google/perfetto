@@ -15,86 +15,57 @@
 import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
 import {Button, ButtonVariant} from './button';
+import {Intent} from './common';
 
-export type CopyState = 'idle' | 'working' | 'copied';
-
-export class CopyButtonHelper {
-  private _copyState: CopyState = 'idle';
-  private copiedTimeoutId: ReturnType<typeof setTimeout> | undefined;
-  private loadingTimeoutId: ReturnType<typeof setTimeout> | undefined;
+export class CopyHelper {
+  private _copied = false;
+  private timeoutId: ReturnType<typeof setTimeout> | undefined;
   private readonly timeout: number;
-  private readonly loadingDelay: number;
 
-  constructor(timeout = 2000, loadingDelay = 100) {
+  constructor(timeout = 2000) {
     this.timeout = timeout;
-    this.loadingDelay = loadingDelay;
   }
 
-  get state(): CopyState {
-    return this._copyState;
+  get copied(): boolean {
+    return this._copied;
   }
 
-  async copy(textToCopy: string | (() => string | Promise<string>)) {
-    clearTimeout(this.copiedTimeoutId);
-    clearTimeout(this.loadingTimeoutId);
-    this.copiedTimeoutId = undefined;
-    this.loadingTimeoutId = undefined;
-
-    // Set to working after a delay
-    this.loadingTimeoutId = setTimeout(() => {
-      this._copyState = 'working';
-      m.redraw();
-    }, this.loadingDelay);
-
-    const text =
-      typeof textToCopy === 'string'
-        ? textToCopy
-        : await Promise.resolve(textToCopy());
-
+  async copy(text: string) {
     await navigator.clipboard.writeText(text);
-
-    // Clear the loading timeout in case copy completed quickly
-    clearTimeout(this.loadingTimeoutId);
-    this.loadingTimeoutId = undefined;
-
-    this._copyState = 'copied';
+    this._copied = true;
     m.redraw();
 
-    this.copiedTimeoutId = setTimeout(() => {
-      this._copyState = 'idle';
+    clearTimeout(this.timeoutId);
+    this.timeoutId = setTimeout(() => {
+      this._copied = false;
       m.redraw();
     }, this.timeout);
   }
 }
 
 export interface CopyToClipboardButtonAttrs {
-  readonly textToCopy: string | (() => string | Promise<string>);
+  readonly textToCopy: string;
   readonly title?: string;
   readonly label?: string;
   readonly variant?: ButtonVariant;
 }
 
 export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs> {
-  const helper = new CopyButtonHelper();
+  const helper = new CopyHelper();
 
   return {
     view({attrs}: m.Vnode<CopyToClipboardButtonAttrs>): m.Children {
       const hasLabel = Boolean(attrs.label);
       const label = (function () {
         if (!hasLabel) return '';
-        switch (helper.state) {
-          case 'idle':
-          case 'working':
-            return attrs.label;
-          case 'copied':
-            return 'Copied';
-        }
+        if (helper.copied) return 'Copied';
+        return attrs.label;
       })();
       return m(Button, {
         variant: attrs.variant,
         title: attrs.title ?? 'Copy to clipboard',
-        icon: helper.state === 'copied' ? Icons.Check : Icons.Copy,
-        loading: helper.state === 'working',
+        icon: helper.copied ? Icons.Check : Icons.Copy,
+        intent: helper.copied ? Intent.Success : Intent.None,
         label,
         onclick: async () => {
           await helper.copy(attrs.textToCopy);

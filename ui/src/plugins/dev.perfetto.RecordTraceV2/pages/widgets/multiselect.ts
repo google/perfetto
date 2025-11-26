@@ -20,15 +20,12 @@ export interface CheckboxesAttrs<T> {
   title?: string;
   options: Map<string, T>;
   onChange?: (options: string[]) => void;
-  defaultSelected?: string[];
 }
 
 export class TypedMultiselect<T> implements ProbeSetting {
-  private _selectedKeys: Set<string>;
+  private _selectedKeys = new Set<string>();
 
-  constructor(readonly attrs: CheckboxesAttrs<T>) {
-    this._selectedKeys = new Set(attrs.defaultSelected ?? []);
-  }
+  constructor(readonly attrs: CheckboxesAttrs<T>) {}
 
   setEnabled(key: string, enabled: boolean) {
     if (enabled) {

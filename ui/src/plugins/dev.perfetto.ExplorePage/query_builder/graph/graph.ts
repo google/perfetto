@@ -63,7 +63,6 @@ import {
 import {EmptyGraph} from '../empty_graph';
 import {nodeRegistry} from '../node_registry';
 import {NodeBox} from './node_box';
-import {buildCategorizedMenuItems} from './menu_utils';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -251,12 +250,18 @@ function buildMenuItems(
   devMode: boolean | undefined,
   onAddNode: (id: string) => void,
 ): m.Children[] {
-  const nodes = nodeRegistry
+  return nodeRegistry
     .list()
     .filter(([_id, descriptor]) => descriptor.type === nodeType)
-    .filter(([_id, descriptor]) => !descriptor.devOnly || devMode);
-
-  return buildCategorizedMenuItems(nodes, onAddNode);
+    .map(([id, descriptor]) => {
+      if (descriptor.devOnly && !devMode) {
+        return null;
+      }
+      return m(MenuItem, {
+        label: descriptor.name,
+        onclick: () => onAddNode(id),
+      });
+    });
 }
 
 function buildAddMenuItems(

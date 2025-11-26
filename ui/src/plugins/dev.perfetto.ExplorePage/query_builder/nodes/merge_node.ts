@@ -33,7 +33,6 @@ import {
   StructuredQueryBuilder,
   JoinCondition,
 } from '../structured_query_builder';
-import {FormRow} from '../widgets';
 
 export interface MergeSerializedState {
   leftNodeId: string;
@@ -280,8 +279,8 @@ export class MergeNode implements MultiSourceNode {
         m(
           Card,
           m(
-            FormRow,
-            {label: 'Left Alias:'},
+            '.pf-form-row',
+            m('label', 'Left Alias:'),
             m(TextInput, {
               value: this.state.leftQueryAlias,
               placeholder: 'e.g., left, t1, base',
@@ -293,8 +292,8 @@ export class MergeNode implements MultiSourceNode {
             }),
           ),
           m(
-            FormRow,
-            {label: 'Right Alias:'},
+            '.pf-form-row',
+            m('label', 'Right Alias:'),
             m(TextInput, {
               value: this.state.rightQueryAlias,
               placeholder: 'e.g., right, t2, other',
@@ -325,8 +324,8 @@ export class MergeNode implements MultiSourceNode {
             this.state.conditionType === 'equality'
               ? [
                   m(
-                    FormRow,
-                    {label: 'Left Column:'},
+                    '.pf-form-row',
+                    m('label', 'Left Column:'),
                     m(
                       Select,
                       {
@@ -354,8 +353,8 @@ export class MergeNode implements MultiSourceNode {
                     ),
                   ),
                   m(
-                    FormRow,
-                    {label: 'Right Column:'},
+                    '.pf-form-row',
+                    m('label', 'Right Column:'),
                     m(
                       Select,
                       {

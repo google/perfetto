@@ -14,15 +14,13 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE slices.stack;
-
 CREATE PERFETTO VIEW perf_sample_in(ts TIMESTAMP, dur LONG)
 AS
 SELECT ts, 0 AS dur FROM perf_sample;
 
 CREATE VIRTUAL TABLE span
 USING
-  SPAN_JOIN(perf_sample_in, slice_with_stack_id PARTITIONED depth);
+  SPAN_JOIN(perf_sample_in, slice PARTITIONED depth);
 
 CREATE PERFETTO TABLE slice_stack
 AS

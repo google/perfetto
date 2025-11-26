@@ -37,11 +37,12 @@ class TraceProcessorContext;
 
 // Implements the following dynamic tables:
 // * descendant_slice
+// * descendant_slice_by_stack
 //
 // See docs/analysis/trace-processor for usage.
 class Descendant : public StaticTableFunction {
  public:
-  enum class Type : uint8_t { kSlice = 1 };
+  enum class Type : uint8_t { kSlice = 1, kSliceByStack = 2 };
   class Cursor : public StaticTableFunction::Cursor {
    public:
     Cursor(Type type, TraceStorage* storage);
@@ -53,6 +54,7 @@ class Descendant : public StaticTableFunction {
     tables::SliceSubsetTable table_;
     std::vector<tables::SliceTable::RowNumber> descendants_;
     tables::SliceTable::ConstCursor slice_cursor_;
+    tables::SliceTable::ConstCursor stack_cursor_;
   };
 
   Descendant(Type type, TraceStorage* storage);

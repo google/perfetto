@@ -19,7 +19,6 @@
 
 #include "perfetto/public/abi/backend_type.h"
 #include "perfetto/public/abi/tracing_session_abi.h"
-#include "perfetto/public/compiler.h"
 
 static inline struct PerfettoTracingSessionImpl* PerfettoTracingSessionCreate(
     PerfettoBackendTypes backend) {
@@ -29,7 +28,7 @@ static inline struct PerfettoTracingSessionImpl* PerfettoTracingSessionCreate(
   if (backend == PERFETTO_BACKEND_SYSTEM) {
     return PerfettoTracingSessionSystemCreate();
   }
-  return PERFETTO_NULL;
+  return nullptr;
 }
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_TRACING_SESSION_H_

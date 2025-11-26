@@ -69,6 +69,7 @@ perfetto_sql_source_set("android") {
     "android_startup.sql",
     "android_surfaceflinger.sql",
     "android_sysui_notifications_blocking_calls_metric.sql",
+    "android_task_names.sql",
     "android_trace_quality.sql",
     "codec_metrics.sql",
     "composer_execution.sql",

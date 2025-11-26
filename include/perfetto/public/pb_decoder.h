@@ -65,7 +65,7 @@ static inline void PerfettoPbDecoderIterateNext(
 }
 
 static inline bool PerfettoPbDecoderFieldGetUint32(
-    const struct PerfettoPbDecoderField* field,
+    const PerfettoPbDecoderField* field,
     uint32_t* out) {
   switch (field->wire_type) {
     case PERFETTO_PB_WIRE_TYPE_VARINT:
@@ -80,7 +80,7 @@ static inline bool PerfettoPbDecoderFieldGetUint32(
 }
 
 static inline bool PerfettoPbDecoderFieldGetInt32(
-    const struct PerfettoPbDecoderField* field,
+    const PerfettoPbDecoderField* field,
     int32_t* out) {
   switch (field->wire_type) {
     case PERFETTO_PB_WIRE_TYPE_VARINT:
@@ -95,7 +95,7 @@ static inline bool PerfettoPbDecoderFieldGetInt32(
 }
 
 static inline bool PerfettoPbDecoderFieldGetUint64(
-    const struct PerfettoPbDecoderField* field,
+    const PerfettoPbDecoderField* field,
     uint64_t* out) {
   switch (field->wire_type) {
     case PERFETTO_PB_WIRE_TYPE_VARINT:
@@ -110,7 +110,7 @@ static inline bool PerfettoPbDecoderFieldGetUint64(
 }
 
 static inline bool PerfettoPbDecoderFieldGetInt64(
-    const struct PerfettoPbDecoderField* field,
+    const PerfettoPbDecoderField* field,
     int64_t* out) {
   switch (field->wire_type) {
     case PERFETTO_PB_WIRE_TYPE_VARINT:
@@ -125,7 +125,7 @@ static inline bool PerfettoPbDecoderFieldGetInt64(
 }
 
 static inline bool PerfettoPbDecoderFieldGetBool(
-    const struct PerfettoPbDecoderField* field,
+    const PerfettoPbDecoderField* field,
     bool* out) {
   switch (field->wire_type) {
     case PERFETTO_PB_WIRE_TYPE_VARINT:
@@ -140,7 +140,7 @@ static inline bool PerfettoPbDecoderFieldGetBool(
 }
 
 static inline bool PerfettoPbDecoderFieldGetFloat(
-    const struct PerfettoPbDecoderField* field,
+    const PerfettoPbDecoderField* field,
     float* out) {
   switch (field->wire_type) {
     case PERFETTO_PB_WIRE_TYPE_FIXED64:
@@ -154,7 +154,7 @@ static inline bool PerfettoPbDecoderFieldGetFloat(
 }
 
 static inline bool PerfettoPbDecoderFieldGetDouble(
-    const struct PerfettoPbDecoderField* field,
+    const PerfettoPbDecoderField* field,
     double* out) {
   switch (field->wire_type) {
     case PERFETTO_PB_WIRE_TYPE_FIXED64:

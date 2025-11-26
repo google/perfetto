@@ -134,30 +134,20 @@ def main():
   print('===================================================================')
   print('Uploading to gs://%s' % BUCKET_NAME)
   print('===================================================================')
+  # Do NOT set cache-headers here, it messes up with GCS' handling of
+  # transparent gzip content-encoding. Cache-control headers are set instead by
+  # the GAE instance (see /infra/ui.perfetto.dev/appengine/main.py).
+  cp_cmd = ['gsutil', '-m', 'cp', '-j', 'html,js,json,css,wasm,map']
   for name in os.listdir(merged_dist_dir):
     path = pjoin(merged_dist_dir, name)
     if os.path.isdir(path):
       if version_exists(name):
         print('Skipping upload of %s because it already exists on GCS' % name)
         continue
-      # Do NOT set cache-headers here, it messes up with GCS' handling of
-      # transparent gzip content-encoding. Public cache-control headers are set
-      # by the GAE instance (see /infra/ui.perfetto.dev/appengine/main.py).
-      # Do NOT add 'html' to the -z list. We want to set 'no-cache' on
-      # index.html to prevent that the GAE instance is subject to caching on
-      # autopush, but cache-control and -z are mutually exclusive (b/327213431).
-      cp_cmd = [
-          'gsutil', '-m', 'cp', '-z', 'js,json,css,wasm,map', '-r', path,
-          'gs://%s/' % BUCKET_NAME
-      ]
-      check_call_and_log(cp_cmd)
+      check_call_and_log(cp_cmd + ['-r', path, 'gs://%s/' % BUCKET_NAME])
     else:
       # /index.html or /service_worker.js{,.map}
-      cp_cmd = [
-          'gsutil', '-h', 'Cache-Control: no-cache,no-transform', 'cp', path,
-          'gs://%s/%s' % (BUCKET_NAME, name)
-      ]
-      check_call_and_log(cp_cmd)
+      check_call_and_log(cp_cmd + [path, 'gs://%s/%s' % (BUCKET_NAME, name)])
 
 
 if __name__ == '__main__':

@@ -24,39 +24,17 @@ import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
-  QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {Flamegraph} from '../../widgets/flamegraph';
 import {assertExists} from '../../base/logging';
-import {Store} from '../../base/store';
-import {z} from 'zod';
 
 const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 
-const CPU_PROFILE_PLUGIN_STATE_SCHEMA = z
-  .object({
-    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-    detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-  })
-  .readonly();
-
-type CpuProfilePluginState = z.infer<typeof CPU_PROFILE_PLUGIN_STATE_SCHEMA>;
-
-export default class CpuProfilePlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
-  private store?: Store<CpuProfilePluginState>;
-
-  private migrateCpuProfilePluginState(init: unknown): CpuProfilePluginState {
-    const result = CPU_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(CpuProfilePlugin.id, (init) =>
-      this.migrateCpuProfilePluginState(init),
-    );
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (
         select distinct utid
@@ -72,7 +50,6 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       where not is_idle
     `);
 
-    const store = assertExists(this.store);
     const it = result.iter({
       utid: NUM,
       upid: NUM_NULL,
@@ -90,17 +67,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
           utid,
           ...(exists(upid) && {upid}),
         },
-        renderer: createCpuProfileTrack(
-          ctx,
-          uri,
-          utid,
-          store.state.detailsPanelFlamegraphState,
-          (state) => {
-            store.edit((draft) => {
-              draft.detailsPanelFlamegraphState = state;
-            });
-          },
-        ),
+        renderer: createCpuProfileTrack(ctx, uri, utid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -113,67 +80,52 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       group?.addChildInOrder(track);
     }
 
-    ctx.selection.registerAreaSelectionTab(this.createAreaSelectionTab(ctx));
+    ctx.selection.registerAreaSelectionTab(createAreaSelectionTab(ctx));
 
     ctx.onTraceReady.addListener(async () => {
       await selectCpuProfileCallsite(ctx);
     });
   }
+}
 
-  private createAreaSelectionTab(trace: Trace) {
-    let previousSelection: AreaSelection | undefined;
-    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
+function createAreaSelectionTab(trace: Trace) {
+  let previousSelection: undefined | AreaSelection;
+  let flamegraph: undefined | QueryFlamegraph;
 
-    return {
-      id: 'cpu_profile_flamegraph',
-      name: 'CPU Profile Sample Flamegraph',
-      render: (selection: AreaSelection) => {
-        const changed =
-          previousSelection === undefined ||
-          !areaSelectionsEqual(previousSelection, selection);
-        if (changed) {
-          flamegraphWithMetrics = this.computeCpuProfileFlamegraph(
-            trace,
-            selection,
-          );
-          previousSelection = selection;
-        }
-        if (flamegraphWithMetrics === undefined) {
-          return undefined;
-        }
-        const {flamegraph, metrics} = flamegraphWithMetrics;
-        const store = assertExists(this.store);
-        return {
-          isLoading: false,
-          content: flamegraph.render({
-            metrics,
-            state: store.state.areaSelectionFlamegraphState,
-            onStateChange: (state) => {
-              store.edit((draft) => {
-                draft.areaSelectionFlamegraphState = state;
-              });
-            },
-          }),
-        };
-      },
-    };
-  }
+  return {
+    id: 'cpu_profile_flamegraph',
+    name: 'CPU Profile Sample Flamegraph',
+    render(selection: AreaSelection) {
+      const changed =
+        previousSelection === undefined ||
+        !areaSelectionsEqual(previousSelection, selection);
 
-  private computeCpuProfileFlamegraph(
-    trace: Trace,
-    selection: AreaSelection,
-  ): QueryFlamegraphWithMetrics | undefined {
-    const utids = [];
-    for (const trackInfo of selection.tracks) {
-      if (trackInfo?.tags?.kinds?.includes(CPU_PROFILE_TRACK_KIND)) {
-        utids.push(trackInfo.tags?.utid);
+      if (changed) {
+        flamegraph = computeCpuProfileFlamegraph(trace, selection);
+        previousSelection = selection;
       }
+
+      if (flamegraph === undefined) {
+        return undefined;
+      }
+
+      return {isLoading: false, content: flamegraph.render()};
+    },
+  };
+}
+
+function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
+  const utids = [];
+  for (const trackInfo of selection.tracks) {
+    if (trackInfo?.tags?.kinds?.includes(CPU_PROFILE_TRACK_KIND)) {
+      utids.push(trackInfo.tags?.utid);
     }
-    if (utids.length === 0) {
-      return undefined;
-    }
-    const metrics = metricsFromTableOrSubquery(
-      `
+  }
+  if (utids.length === 0) {
+    return undefined;
+  }
+  const metrics = metricsFromTableOrSubquery(
+    `
       (
         select
           id,
@@ -191,32 +143,26 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         ))
       )
     `,
-      [
-        {
-          name: 'CPU Profile Samples',
-          unit: '',
-          columnName: 'self_count',
-        },
-      ],
-      'include perfetto module callstacks.stack_profile',
-      [{name: 'mapping_name', displayName: 'Mapping'}],
-      [
-        {
-          name: 'source_location',
-          displayName: 'Source Location',
-          mergeAggregation: 'ONE_OR_SUMMARY',
-        },
-      ],
-    );
-    const store = assertExists(this.store);
-    store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
-        draft.areaSelectionFlamegraphState,
-        metrics,
-      );
-    });
-    return {flamegraph: new QueryFlamegraph(trace), metrics};
-  }
+    [
+      {
+        name: 'CPU Profile Samples',
+        unit: '',
+        columnName: 'self_count',
+      },
+    ],
+    'include perfetto module callstacks.stack_profile',
+    [{name: 'mapping_name', displayName: 'Mapping'}],
+    [
+      {
+        name: 'source_location',
+        displayName: 'Source Location',
+        mergeAggregation: 'ONE_OR_SUMMARY',
+      },
+    ],
+  );
+  return new QueryFlamegraph(trace, metrics, {
+    state: Flamegraph.createDefaultState(metrics),
+  });
 }
 
 async function selectCpuProfileCallsite(trace: Trace) {

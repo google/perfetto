@@ -50,13 +50,6 @@ describe('NodeIssues', () => {
       expect(issues.hasIssues()).toBe(true);
     });
 
-    it('should return true when executionError exists', () => {
-      const issues = new NodeIssues();
-      issues.executionError = new Error('Execution error');
-
-      expect(issues.hasIssues()).toBe(true);
-    });
-
     it('should return true when multiple issues exist', () => {
       const issues = new NodeIssues();
       issues.queryError = new Error('Query error');
@@ -100,15 +93,6 @@ describe('NodeIssues', () => {
       const result = issues.getTitle();
 
       expect(result).toBe('Data Error: Invalid data format\n');
-    });
-
-    it('should format executionError correctly', () => {
-      const issues = new NodeIssues();
-      issues.executionError = new Error('Materialization failed');
-
-      const result = issues.getTitle();
-
-      expect(result).toBe('Execution Error: Materialization failed\n');
     });
 
     it('should format warnings correctly', () => {
@@ -157,12 +141,11 @@ describe('NodeIssues', () => {
   });
 
   describe('clear', () => {
-    it('should clear validation errors and warnings but not executionError', () => {
+    it('should clear all errors and warnings', () => {
       const issues = new NodeIssues();
       issues.queryError = new Error('Query error');
       issues.responseError = new Error('Response error');
       issues.dataError = new Error('Data error');
-      issues.executionError = new Error('Execution error');
       issues.warnings = [new Error('Warning 1'), new Error('Warning 2')];
 
       issues.clear();
@@ -171,10 +154,7 @@ describe('NodeIssues', () => {
       expect(issues.responseError).toBeUndefined();
       expect(issues.dataError).toBeUndefined();
       expect(issues.warnings).toEqual([]);
-      // executionError should NOT be cleared by clear()
-      expect(issues.executionError).toBeDefined();
-      expect(issues.executionError?.message).toBe('Execution error');
-      expect(issues.hasIssues()).toBe(true);
+      expect(issues.hasIssues()).toBe(false);
     });
 
     it('should work when called multiple times', () => {
@@ -184,7 +164,7 @@ describe('NodeIssues', () => {
       issues.clear();
       issues.clear();
 
-      expect(issues.queryError).toBeUndefined();
+      expect(issues.hasIssues()).toBe(false);
     });
 
     it('should allow adding new issues after clearing', () => {
@@ -205,26 +185,6 @@ describe('NodeIssues', () => {
 
       expect(() => issues.clear()).not.toThrow();
       expect(issues.hasIssues()).toBe(false);
-    });
-  });
-
-  describe('clearExecutionError', () => {
-    it('should clear only executionError', () => {
-      const issues = new NodeIssues();
-      issues.queryError = new Error('Query error');
-      issues.executionError = new Error('Execution error');
-
-      issues.clearExecutionError();
-
-      expect(issues.executionError).toBeUndefined();
-      expect(issues.queryError).toBeDefined();
-      expect(issues.hasIssues()).toBe(true);
-    });
-
-    it('should work when executionError is undefined', () => {
-      const issues = new NodeIssues();
-
-      expect(() => issues.clearExecutionError()).not.toThrow();
     });
   });
 

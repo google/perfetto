@@ -182,8 +182,6 @@ SELECT
   first_slices.cpu,
   NULL AS idle
 FROM first_cpu_idle_slices AS first_slices
-WHERE
-  dur > 0
 UNION ALL
 SELECT
   ts,
@@ -191,8 +189,6 @@ SELECT
   cpu,
   idle
 FROM _cpu_idle
-WHERE
-  dur > 0
 UNION ALL
 -- Add empty cpu idle counters for CPUs that are physically present, but did not
 -- have a single idle event register. The time region needs to be defined so

@@ -19,7 +19,8 @@ export interface CommandManager {
 
   hasCommand(commandId: string): boolean;
 
-  runCommand(id: string, ...args: unknown[]): unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  runCommand(id: string, ...args: any[]): any;
 }
 
 export interface Command {
@@ -28,7 +29,8 @@ export interface Command {
   // A human-friendly name for this command.
   name: string;
   // Callback is called when the command is invoked.
-  callback: (...args: unknown[]) => unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  callback: (...args: any[]) => any;
   // Default hotkey for this command.
   // Note: this is just the default and may be changed by the user.
   // Examples:

@@ -33,7 +33,10 @@ export class Hints implements m.ClassComponent {
         'ul',
         m('li', [
           m(Switch, {
-            label: ['Try the new dark mode.', isDarkMode && ' \u{1F60E}'],
+            label: [
+              'Try the new dark mode (experimental).',
+              isDarkMode && ' \u{1F60E}',
+            ],
             checked: isDarkMode,
             onchange: (e) => {
               themeSetting?.set(
