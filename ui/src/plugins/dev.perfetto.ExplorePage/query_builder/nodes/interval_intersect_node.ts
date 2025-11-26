@@ -377,7 +377,7 @@ export class IntervalIntersectNode implements QueryNode {
       for (const col of columns) {
         if (!EXCLUDED_COLUMNS.has(col) && !partitionColumns.has(col)) {
           const inputs = columnToInputs.get(col) ?? [];
-          inputs.push(i + 1); // +1 for user-friendly "Input 1, Input 2" labels
+          inputs.push(i);
           columnToInputs.set(col, inputs);
         }
       }
@@ -460,7 +460,7 @@ export class IntervalIntersectNode implements QueryNode {
         m(
           '.pf-exp-operations-container',
           connectedInputs.map(({node, index}) => {
-            const label = `Input ${index + 1}`;
+            const label = `Input ${index}`;
             const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
 
             return m(
