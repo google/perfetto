@@ -36,6 +36,35 @@ interface TableWithModule {
   moduleName: string;
 }
 
+// Helper function to get the display label for importance levels.
+function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
+  switch (importance) {
+    case 'high':
+      return 'Important';
+    case 'mid':
+      return 'Recommended';
+    case 'low':
+      return 'Low';
+  }
+}
+
+// Helper function to get the sort priority for importance levels.
+// Lower numbers = higher priority (sorted first).
+function getImportancePriority(
+  importance: 'high' | 'mid' | 'low' | undefined,
+): number {
+  switch (importance) {
+    case 'high':
+      return 0;
+    case 'mid':
+      return 1;
+    case 'low':
+      return 3;
+    default:
+      return 2; // Normal importance (undefined)
+  }
+}
+
 // Renders a search input bar.
 // This component is responsible for handling user input for searching
 // and communicating the query back to the parent component.
@@ -106,7 +135,19 @@ class TableCard
       },
       m(
         '.pf-table-card',
-        m('.table-name', renderedName),
+        m(
+          '.pf-table-card-header',
+          m('.table-name', renderedName),
+          table.importance &&
+            m(Chip, {
+              label: getImportanceLabel(table.importance),
+              compact: true,
+              className: classNames(
+                'pf-importance-chip',
+                `pf-importance-${table.importance}`,
+              ),
+            }),
+        ),
         packageName === 'prelude' ? null : m('.table-module', moduleName),
         table.description && m('.table-description', table.description),
       ),
@@ -122,11 +163,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
   view({attrs}: m.CVnode<TableListAttrs>) {
     const allModules = attrs.sqlModules.listModules();
 
-    // Collect all unique tags from all modules
+    // Collect all unique tags from modules that have at least one table
     const allTagsSet = new Set<string>();
     for (const module of allModules) {
-      for (const tag of module.tags) {
-        allTagsSet.add(tag);
+      if (module.tables.length > 0) {
+        for (const tag of module.tags) {
+          allTagsSet.add(tag);
+        }
       }
     }
     const allTags = Array.from(allTagsSet).sort();
@@ -144,6 +187,20 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     const allTables: TableWithModule[] = filteredModules.flatMap((module) =>
       module.tables.map((table) => ({table, moduleName: module.includeKey})),
     );
+
+    // Sort tables by importance level (high > mid > normal > low), then alphabetically
+    allTables.sort((a, b) => {
+      const priorityA = getImportancePriority(a.table.importance);
+      const priorityB = getImportancePriority(b.table.importance);
+
+      // Sort by importance priority first
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+
+      // Within the same importance level, sort alphabetically
+      return a.table.name.localeCompare(b.table.name);
+    });
 
     const finder = new FuzzyFinder(allTables, (item) => item.table.name);
     const fuzzyResults = finder.find(attrs.searchQuery);
