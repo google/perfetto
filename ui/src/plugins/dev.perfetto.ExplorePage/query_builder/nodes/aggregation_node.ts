@@ -177,6 +177,29 @@ export class AggregationNode implements QueryNode {
       );
       return false;
     }
+
+    // Check for duplicate column names
+    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
+    const columnNames = new Set<string>();
+
+    // Add group-by column names
+    for (const col of selectedGroupBy) {
+      columnNames.add(col.name);
+    }
+
+    // Check aggregation result column names for duplicates
+    for (const agg of this.state.aggregations) {
+      if (!agg.isValid) continue;
+      const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
+      if (columnNames.has(resultName)) {
+        this.setValidationError(
+          `Duplicate column name "${resultName}" - aggregation result conflicts with GROUP BY column or another aggregation`,
+        );
+        return false;
+      }
+      columnNames.add(resultName);
+    }
+
     return true;
   }
 
@@ -616,9 +639,33 @@ class AggregationOperationComponent
         );
       });
 
-      // Validation function that checks if the aggregation is complete and valid
+      // Validation function that checks for duplicate column names
       const isAggregationValid = (): boolean => {
-        return validateAggregation(agg);
+        if (!validateAggregation(agg)) return false;
+
+        const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
+
+        // Check against selected GROUP BY columns
+        const selectedGroupBy = attrs.groupByColumns.filter((c) => c.checked);
+        for (const col of selectedGroupBy) {
+          if (col.name === resultName) {
+            return false;
+          }
+        }
+
+        // Check against other aggregation result names
+        for (let i = 0; i < attrs.aggregations.length; i++) {
+          if (i === index) continue; // Skip current aggregation
+          const otherAgg = attrs.aggregations[i];
+          if (!otherAgg.isValid) continue;
+          const otherName =
+            otherAgg.newColumnName ?? placeholderNewColumnName(otherAgg);
+          if (otherName === resultName) {
+            return false;
+          }
+        }
+
+        return true;
       };
 
       return m(
@@ -723,7 +770,7 @@ class AggregationOperationComponent
           'AS',
           m(TextInput, {
             placeholder: placeholderNewColumnName(agg),
-            oninput: (e: Event) => {
+            oninput: (e: InputEvent) => {
               agg.newColumnName = (e.target as HTMLInputElement).value.trim();
             },
             value: agg.newColumnName,

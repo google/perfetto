@@ -232,7 +232,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onQueryAnalyzed: (query: Query | Error) => {
             this.query = query;
             const shouldAutoExecute = selectedNode.state.autoExecute ?? true;
-            if (isAQuery(this.query)) {
+            // Don't execute if validation fails (e.g., duplicate column names)
+            if (isAQuery(this.query) && selectedNode.validate()) {
               // Check if we have an existing materialized table for this exact query
               const currentQueryHash = hashNodeQuery(selectedNode);
               const hasMatchingMaterialization = this.canReuseMaterialization(
@@ -316,6 +317,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 }
               },
               onExecute: () => {
+                // Don't execute if validation fails (e.g., duplicate column names)
+                if (!selectedNode.validate()) {
+                  return;
+                }
                 // Reset queryExecuted flag to allow execution
                 // Analysis has already happened, this.query is already set
                 this.queryExecuted = false;
