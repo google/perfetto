@@ -140,11 +140,6 @@ export interface ListItemAttrs {
   icon: string;
   name: string;
   description: string;
-  // Single action button (legacy)
-  actionLabel?: string;
-  actionIcon?: string;
-  onAction?: () => void;
-  // Multiple action buttons (new)
   actions?: ListItemAction[];
   onRemove?: () => void;
   className?: string;
@@ -153,7 +148,7 @@ export interface ListItemAttrs {
 
 export class ListItem implements m.ClassComponent<ListItemAttrs> {
   view({attrs}: m.Vnode<ListItemAttrs>) {
-    const {icon, name, description, onAction, onRemove, onclick} = attrs;
+    const {icon, name, description, actions, onRemove, onclick} = attrs;
 
     return m(
       '.pf-exp-list-item',
@@ -165,7 +160,8 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
         onkeydown: (e: KeyboardEvent) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onAction?.();
+            // Trigger first action on Enter/Space
+            actions?.[0]?.onclick();
           } else if (e.key === 'Delete' || e.key === 'Backspace') {
             if (onRemove) {
               e.preventDefault();
@@ -187,7 +183,7 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
   private renderButtons(attrs: ListItemAttrs): m.Children {
     const buttons: m.Children = [];
 
-    // Render multiple actions if provided
+    // Render action buttons
     if (attrs.actions) {
       for (const action of attrs.actions) {
         buttons.push(
@@ -201,19 +197,6 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
           }),
         );
       }
-    }
-
-    // Legacy single action support
-    if (attrs.onAction) {
-      buttons.push(
-        m(Button, {
-          label: attrs.actionLabel ?? '',
-          icon: attrs.actionIcon,
-          variant: ButtonVariant.Outlined,
-          compact: true,
-          onclick: attrs.onAction,
-        }),
-      );
     }
 
     // Remove button

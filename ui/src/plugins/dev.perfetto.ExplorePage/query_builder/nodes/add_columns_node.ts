@@ -1067,9 +1067,13 @@ export class AddColumnsNode implements QueryNode {
           icon: 'table_chart',
           name: 'Joined Source',
           description: `${this.state.selectedColumns?.length ?? 0} selected columns`,
-          actionLabel: 'Configure',
-          actionIcon: 'settings',
-          onAction: () => this.showJoinModal(),
+          actions: [
+            {
+              label: 'Configure',
+              icon: 'settings',
+              onclick: () => this.showJoinModal(),
+            },
+          ],
           className: 'pf-joined-source',
         }),
       );
@@ -1103,17 +1107,21 @@ export class AddColumnsNode implements QueryNode {
           icon,
           name: col.name || '(unnamed)',
           description,
-          actionLabel: 'Edit',
-          actionIcon: 'edit',
-          onAction: () => {
-            if (col.type === 'switch') {
-              this.showSwitchModal(index);
-            } else if (col.type === 'if') {
-              this.showIfModal(index);
-            } else {
-              this.showExpressionModal(index);
-            }
-          },
+          actions: [
+            {
+              label: 'Edit',
+              icon: 'edit',
+              onclick: () => {
+                if (col.type === 'switch') {
+                  this.showSwitchModal(index);
+                } else if (col.type === 'if') {
+                  this.showIfModal(index);
+                } else {
+                  this.showExpressionModal(index);
+                }
+              },
+            },
+          ],
           onRemove: () => {
             this.state.computedColumns?.splice(index, 1);
             this.state.onchange?.();
