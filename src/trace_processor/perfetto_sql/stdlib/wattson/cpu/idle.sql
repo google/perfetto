@@ -40,6 +40,23 @@ LIMIT 1;
 -- thread.
 CREATE PERFETTO TABLE _unified_idle_state AS
 WITH
+  -- If _wattson_cpuidle_counters_exist has rows, this CTE returns empty,
+  -- effectively disabling the 'swapper_as_idle' branch efficiently.
+  const_params AS (
+    SELECT
+      (
+        SELECT
+          idle
+        FROM _deepest_idle
+        LIMIT 1
+      ) AS deepest_idle
+    WHERE
+      NOT EXISTS(
+        SELECT
+          1
+        FROM _wattson_cpuidle_counters_exist
+      )
+  ),
   idle_prev AS (
     SELECT
       ts,
@@ -62,20 +79,10 @@ WITH
     SELECT
       ts,
       cpu,
-      iif(is_idle, (
-        SELECT
-          idle
-        FROM _deepest_idle
-      ), 4294967295) AS idle
-    FROM sched
+      iif(is_idle, p.deepest_idle, 4294967295) AS idle
+    FROM sched, const_params AS p
     LEFT JOIN thread
       USING (utid)
-    WHERE
-      NOT EXISTS(
-        SELECT
-          1
-        FROM _wattson_cpuidle_counters_exist
-      )
   ),
   idle_transitions AS (
     SELECT
