@@ -35,8 +35,8 @@ export class HttpRpcEngine extends EngineBase {
   private disposed = false;
   private queue: Blob[] = [];
   private isProcessingQueue = false;
-  private traceProcessorUuid = "";
-  private isWaitingForid = false;
+  private traceProcessorUuid = '';
+  private isWaitingForUuid = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
@@ -51,14 +51,14 @@ export class HttpRpcEngine extends EngineBase {
     if (this.websocket !== undefined || this.disposed) return;
 
     let wsUrl: string;
-    if (this.traceProcessorUuid === "") {
+    if (this.traceProcessorUuid === '') {
       // This is a new session. Ask the server for a new TP instance.
       wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/new`;
-      this.isWaitingForid = true;
+      this.isWaitingForUuid = true;
     } else {
       // We have an existing instance Uuid, connect to that specific instance.
       wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/${this.traceProcessorUuid}`;
-      this.isWaitingForid = false;
+      this.isWaitingForUuid = false;
     }
 
     this.websocket = new WebSocket(wsUrl);
@@ -85,7 +85,7 @@ export class HttpRpcEngine extends EngineBase {
     // If we are waiting for the instance ID, the connection is not truly "ready"
     // until that instance ID has been received. onWebsocketMessage will call this
     // again once the instance ID arrives.
-    if (this.isWaitingForid) return;
+    if (this.isWaitingForUuid) return;
 
     this.connected = true;
     for (;;) {
@@ -114,7 +114,7 @@ export class HttpRpcEngine extends EngineBase {
 
   private onWebsocketMessage(e: MessageEvent) {
     const blob = assertExists(e.data as Blob);
-    if (this.isWaitingForid) {
+    if (this.isWaitingForUuid) {
       blob.arrayBuffer().then((buffer) => {
         const rpcMsgEncoded = new Uint8Array(buffer);
         const rpc = protos.TraceProcessorRpc.decode(rpcMsgEncoded);
@@ -131,8 +131,8 @@ export class HttpRpcEngine extends EngineBase {
         ) {
           this.fail(`Initial message missing instance UUID: ${rpc}`);
         } else {
-          this.traceProcessorUuid = rpc.status?.instanceUuid ?? "";
-          this.isWaitingForid = false;
+          this.traceProcessorUuid = rpc.status?.instanceUuid ?? '';
+          this.isWaitingForUuid = false;
           this.onWebsocketConnected();
         }
       });

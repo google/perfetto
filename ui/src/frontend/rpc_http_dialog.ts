@@ -337,7 +337,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           (tp) => (tp.loadedTraceName ?? '') !== '',
         );
 
-        // Sort processors: those without active tabs first, then by instance ID.
+        // Sort processors: those without active tabs first, then by UUID.
         const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
           const aHasTab = a.isAttached ?? false;
           const bHasTab = b.isAttached ?? false;
@@ -398,7 +398,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 StackAuto,
                 m(
                   'p',
-                  `#${status.instanceUuid ?? ''} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
+                  `${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
                 ),
               ),
               // right side: button that sends an http request that closes the respective tp

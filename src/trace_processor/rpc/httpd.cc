@@ -27,11 +27,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/http/http_server.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -247,8 +247,7 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
     base::Uuid instance_uuid = base::Uuidv4();
     std::string uuid = instance_uuid.ToPrettyString();
     id_to_tp_map.emplace(uuid, std::move(new_thread));
-    PERFETTO_ILOG("Preloaded trace processor assigned ID: %s",
-                  uuid.c_str());
+    PERFETTO_ILOG("Preloaded trace processor assigned ID: %s", uuid.c_str());
   }
 }
 Httpd::~Httpd() = default;
@@ -421,8 +420,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
                       instance_uuid.c_str());
       } else {
         // Case 4: Must be /websocket/<id>
-        std::string parsed_uuid =
-            path.substr(1);
+        std::string parsed_uuid = path.substr(1);
         if (parsed_uuid.empty()) {
           return conn.SendResponseAndClose("404 Not Found", {});
         }
@@ -472,7 +470,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   if (req.uri == "/close") {
-    //TODO: fix the UI /close request to send UUID instead of instance ID
+    // TODO: fix the UI /close request to send UUID instead of instance ID
     const std::string instance_uuid = req.body.ToStdString();
     if (instance_uuid.empty()) {
       return conn.SendResponseAndClose("400 Bad Request", default_headers);

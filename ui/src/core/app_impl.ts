@@ -78,7 +78,7 @@ export class AppContext {
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
-    selectedTraceProcessorUuid: "", // Store the selected ID here
+    selectedTraceProcessorUuid: '', // Store the selected ID here
   };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
@@ -302,7 +302,7 @@ export class AppImpl implements App {
   openTraceFromHttpRpc(traceProcessorUuid?: string): void {
     this.openTrace({
       type: 'HTTP_RPC',
-      traceProcessorUuid: traceProcessorUuid ?? "",
+      traceProcessorUuid: traceProcessorUuid ?? '',
     });
   }
 
@@ -325,7 +325,7 @@ export class AppImpl implements App {
       }
     } else if (src.type === 'HTTP_RPC') {
       AppImpl.instance.httpRpc.selectedTraceProcessorUuid =
-        src.traceProcessorUuid ?? "";
+        src.traceProcessorUuid ?? '';
     }
 
     // Rationale for asyncLimiter: openTrace takes several seconds and involves
