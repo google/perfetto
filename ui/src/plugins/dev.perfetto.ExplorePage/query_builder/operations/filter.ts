@@ -26,6 +26,7 @@ import protos from '../../../../protos';
 import {Stack} from '../../../../widgets/stack';
 import {Icons} from '../../../../base/semantic_icons';
 import {showModal, closeModal} from '../../../../widgets/modal';
+import {Form, FormLabel} from '../../../../widgets/form';
 
 interface FilterValue {
   readonly column: string;
@@ -274,6 +275,10 @@ export function isFilterDefinitionValid(
     if (!('value' in filter) || filter.value === undefined) {
       return false;
     }
+    // Also reject empty string values
+    if (typeof filter.value === 'string' && filter.value.trim() === '') {
+      return false;
+    }
   }
 
   return true;
@@ -498,8 +503,6 @@ export function showFilterEditModal(
         (o) => o.displayName === editedFilter.op,
       );
       const valueRequired = isValueRequired(opObject);
-      // Validate the filter before enabling save
-      const isValid = isFilterDefinitionValid(editedFilter);
 
       const colOptions = sourceCols.map((col) => {
         return m(
@@ -521,121 +524,96 @@ export function showFilterEditModal(
       });
 
       return m(
-        '.pf-filter-editor-modal',
+        Form,
         {
-          style: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            padding: '8px 0',
+          submitLabel: 'Save',
+          cancelLabel: 'Cancel',
+          validation: () => isFilterDefinitionValid(editedFilter),
+          onSubmit: () => {
+            if (isFilterDefinitionValid(editedFilter)) {
+              onSave(editedFilter);
+              closeModal(modalKey);
+            }
           },
+          onCancel: () => closeModal(modalKey),
         },
-        [
-          m(
-            'div',
-            {style: {display: 'flex', gap: '8px'}},
-            m(
-              Select,
-              {
-                onchange: (e: Event) => {
-                  const target = e.target as HTMLSelectElement;
-                  editedFilter = {...editedFilter, column: target.value};
-                  m.redraw();
-                },
-              },
-              colOptions,
-            ),
-            m(
-              Select,
-              {
-                onchange: (e: Event) => {
-                  const target = e.target as HTMLSelectElement;
-                  const newOp = ALL_FILTER_OPS.find(
-                    (op) => op.key === target.value,
-                  );
-                  if (newOp) {
-                    // Construct the correct filter type based on whether value is required
-                    if (isValueRequired(newOp)) {
-                      // FilterValue type - ensure value exists
-                      editedFilter = {
-                        column: editedFilter.column,
-                        op: newOp.displayName as FilterValue['op'],
-                        value:
-                          'value' in editedFilter ? editedFilter.value : '',
-                        enabled: editedFilter.enabled,
-                      };
-                    } else {
-                      // FilterNull type - no value property
-                      editedFilter = {
-                        column: editedFilter.column,
-                        op: newOp.displayName as FilterNull['op'],
-                        enabled: editedFilter.enabled,
-                      };
-                    }
-                    m.redraw();
-                  }
-                },
-              },
-              opOptions,
-            ),
-          ),
-          valueRequired &&
-            m(TextInput, {
-              placeholder: 'Value',
-              value: 'value' in editedFilter ? String(editedFilter.value) : '',
-              oninput: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                const value = parseFilterValue(target.value);
-                if (value !== undefined && 'value' in editedFilter) {
-                  // Since valueRequired is true, editedFilter must be FilterValue
+        m(FormLabel, 'Column'),
+        m(
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              editedFilter = {...editedFilter, column: target.value};
+              m.redraw();
+            },
+          },
+          colOptions,
+        ),
+        m(FormLabel, 'Operator'),
+        m(
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              const newOp = ALL_FILTER_OPS.find(
+                (op) => op.key === target.value,
+              );
+              if (newOp) {
+                // Construct the correct filter type based on whether value is required
+                if (isValueRequired(newOp)) {
+                  // FilterValue type - ensure value exists
                   editedFilter = {
-                    ...editedFilter,
-                    value,
+                    column: editedFilter.column,
+                    op: newOp.displayName as FilterValue['op'],
+                    value: 'value' in editedFilter ? editedFilter.value : '',
+                    enabled: editedFilter.enabled,
+                  };
+                } else {
+                  // FilterNull type - no value property
+                  editedFilter = {
+                    column: editedFilter.column,
+                    op: newOp.displayName as FilterNull['op'],
+                    enabled: editedFilter.enabled,
                   };
                 }
                 m.redraw();
-              },
-              onkeydown: (e: KeyboardEvent) => {
-                if (e.key === 'Enter' && isValid) {
-                  // Type guard ensures editedFilter is UIFilter when isValid is true
-                  onSave(editedFilter as UIFilter);
-                  closeModal(modalKey);
-                } else if (e.key === 'Escape') {
-                  closeModal(modalKey);
-                }
-              },
-            }),
-        ],
+              }
+            },
+          },
+          opOptions,
+        ),
+        valueRequired && m(FormLabel, 'Value'),
+        valueRequired &&
+          m(TextInput, {
+            placeholder: 'Enter filter value',
+            value: 'value' in editedFilter ? String(editedFilter.value) : '',
+            required: true,
+            oninput: (e: Event) => {
+              const target = e.target as HTMLInputElement;
+              const parsed = parseFilterValue(target.value);
+              // Always update value to allow free editing (including clearing)
+              // Use parsed value if available, otherwise raw input
+              // Since valueRequired is true, we're working with a FilterValue type
+              editedFilter = {
+                column: editedFilter.column,
+                op: editedFilter.op as FilterValue['op'],
+                value: parsed ?? target.value,
+                enabled: editedFilter.enabled,
+              };
+              m.redraw();
+            },
+          }),
+        onDelete &&
+          m(Button, {
+            label: 'Delete filter',
+            icon: 'delete',
+            onclick: () => {
+              onDelete();
+              closeModal(modalKey);
+            },
+          }),
       );
     },
-    buttons: [
-      ...(onDelete
-        ? [
-            {
-              text: 'Delete',
-              action: () => {
-                onDelete();
-              },
-            },
-          ]
-        : []),
-      {
-        text: 'Cancel',
-        action: () => {},
-      },
-      {
-        text: 'Save',
-        primary: true,
-        disabled: !isFilterDefinitionValid(editedFilter),
-        action: () => {
-          // Only call onSave if the filter is valid
-          // Type guard from isFilterDefinitionValid ensures editedFilter is UIFilter
-          if (isFilterDefinitionValid(editedFilter)) {
-            onSave(editedFilter);
-          }
-        },
-      },
-    ],
   });
 }
 
