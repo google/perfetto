@@ -906,7 +906,6 @@ message AndroidUserListConfig {
   //    }
   //
   //
-  // Note: This field does not support regular expressions.
   repeated string user_type_filter = 1;
 }
 
