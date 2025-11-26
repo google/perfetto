@@ -254,20 +254,163 @@ export interface GridApi {
 /**
  * Attributes for the Grid component.
  */
+/**
+ * Configuration for the Grid component.
+ * Grid is a low-level presentation component - consumers must wrap content
+ * in GridHeaderCell and GridCell components.
+ */
 export interface GridAttrs {
+  /**
+   * Column definitions for the grid.
+   * Each column specifies a key, optional header content, and display options.
+   *
+   * @example
+   * columns: [
+   *   {
+   *     key: 'id',
+   *     header: m(GridHeaderCell, {sort: 'ASC'}, 'ID'),
+   *     minWidth: 100,
+   *   },
+   *   {
+   *     key: 'name',
+   *     header: m(GridHeaderCell, {menuItems: [...]}, 'Name'),
+   *   },
+   * ]
+   */
   readonly columns: ReadonlyArray<GridColumn>;
+
+  /**
+   * Row data to display in the grid.
+   * Can be either a full array of rows or a partial/paginated dataset.
+   *
+   * Full dataset (array):
+   * - Use when all data fits in memory
+   * - Virtualization is optional
+   *
+   * Partial dataset (PartialRowData):
+   * - Use for large datasets with on-demand loading
+   * - Virtualization is required
+   *
+   * @example Full dataset
+   * rowData: [
+   *   [m(GridCell, '1'), m(GridCell, 'Alice')],
+   *   [m(GridCell, '2'), m(GridCell, 'Bob')],
+   * ]
+   *
+   * @example Partial/paginated dataset
+   * rowData: {
+   *   data: currentRows,
+   *   total: 1000000,
+   *   offset: 0,
+   *   onLoadData: (offset, limit) => {
+   *     // Load data for requested range
+   *   },
+   * }
+   */
   readonly rowData: GridRowData;
+
+  /**
+   * Virtual scrolling configuration.
+   * When enabled, only visible rows are rendered for better performance.
+   * Required when using PartialRowData, optional for full datasets.
+   *
+   * @example
+   * virtualization: {
+   *   rowHeightPx: 24,  // Fixed height for each row
+   * }
+   */
   readonly virtualization?: GridVirtualization;
+
+  /**
+   * Whether the grid should expand to fill its parent container's height.
+   * When true, the grid will take up all available vertical space.
+   * Default = false.
+   *
+   * @example
+   * fillHeight: true
+   */
   readonly fillHeight?: boolean;
+
+  /**
+   * Optional CSS class name to apply to the grid root element.
+   * Used for custom styling.
+   *
+   * @example
+   * className: 'my-custom-grid'
+   */
   readonly className?: string;
+
+  /**
+   * Callback fired when the user hovers over a row.
+   * Receives the absolute row index (not relative to current page).
+   * Use with virtualized grids to implement row highlighting or preview features.
+   *
+   * @param rowIndex The absolute index of the hovered row
+   *
+   * @example
+   * onRowHover: (rowIndex) => {
+   *   console.log(`Hovering row ${rowIndex}`);
+   * }
+   */
   readonly onRowHover?: (rowIndex: number) => void;
+
+  /**
+   * Callback fired when the user's mouse leaves a row.
+   * Pairs with onRowHover for implementing hover effects.
+   *
+   * @example
+   * onRowOut: () => {
+   *   console.log('Left row');
+   * }
+   */
   readonly onRowOut?: () => void;
+
+  /**
+   * Callback fired when columns are reordered via drag-and-drop.
+   * Only called if column.reorderable is set on columns.
+   *
+   * @param from The key of the column being moved
+   * @param to The key of the target column
+   * @param position Whether to place before or after the target
+   *
+   * @example
+   * onColumnReorder: (from, to, position) => {
+   *   const newOrder = reorderArray(columnOrder, from, to, position);
+   *   setColumnOrder(newOrder);
+   * }
+   */
   readonly onColumnReorder?: (
     from: string | number | undefined,
     to: string | number | undefined,
     position: ReorderPosition,
   ) => void;
+
+  /**
+   * Callback fired when the grid is fully initialized.
+   * Receives an API object for programmatic control of the grid.
+   * Use this to access methods like autoFitColumn() and autoFitAllColumns().
+   *
+   * @param api The grid's imperative API
+   *
+   * @example
+   * onReady: (api) => {
+   *   // Auto-fit all columns on mount
+   *   api.autoFitAllColumns();
+   * }
+   */
   readonly onReady?: (api: GridApi) => void;
+
+  /**
+   * Content to display when the grid has no rows.
+   * Typically used to show a helpful message or call-to-action.
+   *
+   * @example
+   * emptyState: m(EmptyState, {
+   *   icon: 'inbox',
+   *   title: 'No data available',
+   * })
+   */
+  readonly emptyState?: m.Children;
 }
 
 /**
@@ -497,6 +640,9 @@ export class Grid implements m.ClassComponent<GridAttrs> {
             attrs,
           )
         : this.renderGridBody(columns, rows, attrs),
+      totalRows === 0 &&
+        attrs.emptyState !== undefined &&
+        m('.pf-grid__empty-state', attrs.emptyState),
     );
   }
 
