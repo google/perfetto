@@ -287,6 +287,7 @@ message StatusResult {
   optional uint32 instance_id = 5;
   optional uint64 inactivity_ns = 6;
   optional bool is_attached = 7;
+  optional string instance_uuid = 8;
 }
 
 // Input for the /compute_metric endpoint.

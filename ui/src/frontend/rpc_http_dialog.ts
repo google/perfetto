@@ -198,7 +198,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
       closeModal();
       return;
     case 'useRpcWithPreloadedTrace':
-      AppImpl.instance.openTraceFromHttpRpc(result.instanceId);
+      AppImpl.instance.openTraceFromHttpRpc(result.instanceUuid);
       return;
     case 'useRpc':
       // Resetting state is the default.
@@ -306,7 +306,7 @@ async function showDialogIncompatibleRPC(
 }
 
 type PreloadedDialogResult =
-  | {kind: 'useRpcWithPreloadedTrace'; instanceId?: number}
+  | {kind: 'useRpcWithPreloadedTrace'; instanceUuid?: string}
   | {kind: 'useRpc'}
   | {kind: 'useWasm'}
   | {kind: 'dismissed'};
@@ -346,9 +346,9 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             return aHasTab ? 1 : -1;
           }
 
-          const aId = a.instanceId ?? 0;
-          const bId = b.instanceId ?? 0;
-          return aId - bId;
+          const aId = a.instanceUuid ?? "";
+          const bId = b.instanceUuid ?? "";
+          return aId.localeCompare(bId);
         });
 
         const activeTabCount = sortedProcessors.filter(
@@ -372,12 +372,12 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
         const rows = sortedProcessors.map((tp, index) => {
           const status = tp;
           const hasActiveTab = status.isAttached ?? false;
-          const id = status.instanceId ?? undefined;
+          const uuid = status.instanceUuid ?? undefined;
 
           return m(
             Card,
             {
-              key: `row-${id ?? `default-${index}`}`,
+              key: `row-${uuid ?? `default-${index}`}`,
               role: 'option',
               tabindex: hasActiveTab ? -1 : 0,
               interactive: !hasActiveTab,
@@ -387,7 +387,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
 
                 // close and resolve immediately to open that trace in this tab
                 closeModal();
-                resolve({kind: 'useRpcWithPreloadedTrace', instanceId: id});
+                resolve({kind: 'useRpcWithPreloadedTrace', instanceUuid: uuid});
               },
             },
             m(
@@ -398,7 +398,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 StackAuto,
                 m(
                   'p',
-                  `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
+                  `#${status.instanceUuid ?? ''} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
                 ),
               ),
               // right side: button that sends an http request that closes the respective tp
@@ -408,13 +408,13 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 compact: true,
                 onclick: async (e: MouseEvent) => {
                   e.stopPropagation();
-                  if (id === undefined) return;
+                  if (uuid === undefined) return;
                   await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
                     method: 'POST',
-                    body: String(id),
+                    body: uuid,
                   });
                   traceProcessors = traceProcessors.filter(
-                    (p) => p.instanceId !== id,
+                    (p) => p.instanceUuid !== uuid,
                   );
                   m.redraw();
                 },

@@ -78,7 +78,7 @@ export class AppContext {
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
-    selectedTraceProcessorId: 0, // Store the selected ID here
+    selectedTraceProcessorUuid: "", // Store the selected ID here
   };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
@@ -299,10 +299,10 @@ export class AppImpl implements App {
     this.openTrace({...args, type: 'ARRAY_BUFFER', serializedAppState});
   }
 
-  openTraceFromHttpRpc(traceProcessorId?: number): void {
+  openTraceFromHttpRpc(traceProcessorUuid?: string): void {
     this.openTrace({
       type: 'HTTP_RPC',
-      traceProcessorId: traceProcessorId ?? 0,
+      traceProcessorUuid: traceProcessorUuid ?? "",
     });
   }
 
@@ -324,8 +324,8 @@ export class AppImpl implements App {
         src = {...src, buffer: src.buffer.slice().buffer};
       }
     } else if (src.type === 'HTTP_RPC') {
-      AppImpl.instance.httpRpc.selectedTraceProcessorId =
-        src.traceProcessorId ?? 0;
+      AppImpl.instance.httpRpc.selectedTraceProcessorUuid =
+        src.traceProcessorUuid ?? "";
     }
 
     // Rationale for asyncLimiter: openTrace takes several seconds and involves
