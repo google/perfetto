@@ -132,17 +132,17 @@ TEST(UserListDataSourceTest, ParseUserListStreamWithFilter) {
   EXPECT_EQ(parsed_list.users()[0].type(), "android.os.usertype.full.SYSTEM");
   EXPECT_EQ(parsed_list.users()[0].uid(), 0);
   EXPECT_EQ(parsed_list.users()[1].type(),
-            "android.os.usertype.UNKNOWN");  // Was SECONDARY
+            "android.os.usertype.FILTERED");  // Was SECONDARY
   EXPECT_EQ(parsed_list.users()[1].uid(), 10);
   EXPECT_EQ(parsed_list.users()[2].type(),
             "android.os.usertype.profile.MANAGED");
   EXPECT_EQ(parsed_list.users()[2].uid(), 11);
   EXPECT_EQ(parsed_list.users()[3].type(),
-            "android.os.usertype.UNKNOWN");  // Was GUEST
+            "android.os.usertype.FILTERED");  // Was GUEST
   EXPECT_EQ(parsed_list.users()[3].uid(), 12);
 }
 
-TEST(UserListDataSourceTest, ParseUserListStreamWithFilterOnlyUnknown) {
+TEST(UserListDataSourceTest, ParseUserListStreamWithFilterNotPresentOnly) {
   char buf[] =
       "android.os.usertype.full.SECONDARY 10\n"
       "android.os.usertype.full.GUEST 11\n";
@@ -158,9 +158,9 @@ TEST(UserListDataSourceTest, ParseUserListStreamWithFilterOnlyUnknown) {
 
   EXPECT_EQ(parsed_list.error(), 0);
   ASSERT_EQ(parsed_list.users_size(), 2);
-  EXPECT_EQ(parsed_list.users()[0].type(), "android.os.usertype.UNKNOWN");
+  EXPECT_EQ(parsed_list.users()[0].type(), "android.os.usertype.FILTERED");
   EXPECT_EQ(parsed_list.users()[0].uid(), 10);
-  EXPECT_EQ(parsed_list.users()[1].type(), "android.os.usertype.UNKNOWN");
+  EXPECT_EQ(parsed_list.users()[1].type(), "android.os.usertype.FILTERED");
   EXPECT_EQ(parsed_list.users()[1].uid(), 11);
 }
 

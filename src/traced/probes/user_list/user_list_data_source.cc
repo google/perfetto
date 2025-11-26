@@ -131,7 +131,7 @@ int ParseUserListStream(protos::pbzero::AndroidUserList* user_list_packet,
                         const base::ScopedFstream& fs,
                         const std::set<std::string>& user_type_filter) {
   char line[2048];
-  const std::string unknown_type = "android.os.usertype.UNKNOWN";
+  const std::string filtered_type = "android.os.usertype.FILTERED";
 
   while (fgets(line, sizeof(line), *fs) != nullptr) {
     User usr_struct;
@@ -144,8 +144,8 @@ int ParseUserListStream(protos::pbzero::AndroidUserList* user_list_packet,
     // Check if the filter is active and if the type is NOT in the filter.
     if (!user_type_filter.empty() &&
         user_type_filter.count(usr_struct.type) == 0) {
-      // Type is not in the filter, set to android.os.usertype.UNKNOWN.
-      user->set_type(unknown_type.c_str(), unknown_type.size());
+      // Type is not in the filter, set to android.os.usertype.FILTERED.
+      user->set_type(filtered_type.c_str(), filtered_type.size());
     } else {
       // Type is in the filter or the filter is empty, use the original type.
       user->set_type(usr_struct.type.c_str(), usr_struct.type.size());

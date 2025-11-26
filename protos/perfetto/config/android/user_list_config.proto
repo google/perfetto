@@ -27,7 +27,7 @@ message AndroidUserListConfig {
   //
   // Any user type read from the device that is NOT present in the
   // effective allowlist will have its type reported as
-  // "android.os.usertype.UNKNOWN".
+  // "android.os.usertype.FILTERED".
   //
   // The effective allowlist is determined as follows:
   //
@@ -40,7 +40,7 @@ message AndroidUserListConfig {
   //            name: "android.user_list"
   //            target_buffer: 0
   //            user_list_config {
-  //              # Only report these specific types, others become UNKNOWN.
+  //              # Only report these specific types, others become FILTERED.
   //              user_type_filter: "android.os.usertype.full.SYSTEM"
   //              user_type_filter: "android.os.usertype.system.HEADLESS"
   //            }
