@@ -23,7 +23,6 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  SourceNode,
   nextNodeId,
 } from '../../../query_node';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
@@ -94,10 +93,9 @@ export function modalForTableSelection(
   });
 }
 
-export class TableSourceNode implements SourceNode {
+export class TableSourceNode implements QueryNode {
   readonly nodeId: string;
   readonly state: TableSourceState;
-  readonly prevNodes: QueryNode[] = [];
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
 

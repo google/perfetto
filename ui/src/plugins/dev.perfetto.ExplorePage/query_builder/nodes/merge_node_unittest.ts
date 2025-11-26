@@ -60,7 +60,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -82,7 +83,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: undefined!,
         rightQueryAlias: undefined!,
         conditionType: 'equality',
@@ -97,13 +99,14 @@ describe('MergeNode', () => {
   });
 
   describe('finalCols', () => {
-    it('should return empty array when prevNodes length is not 2', () => {
+    it('should return empty array when only one node is provided', () => {
       const node1 = createMockPrevNode('node1', [
         createColumnInfo('id', 'INT'),
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1],
+        leftNode: node1,
+        rightNode: undefined,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -126,7 +129,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -155,7 +159,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -193,7 +198,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -225,7 +231,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -263,7 +270,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -300,7 +308,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 't1',
         rightQueryAlias: 't2',
         conditionType: 'freeform',
@@ -328,7 +337,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -351,7 +361,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -367,11 +378,12 @@ describe('MergeNode', () => {
   });
 
   describe('validation', () => {
-    it('should fail when prevNodes length is not 2', () => {
+    it('should fail when only one node is provided', () => {
       const node1 = createMockPrevNode('node1', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1],
+        leftNode: node1,
+        rightNode: undefined,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -395,7 +407,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: undefined!,
         rightQueryAlias: undefined!,
         conditionType: 'equality',
@@ -413,7 +426,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -433,7 +447,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'freeform',
@@ -457,7 +472,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -483,7 +499,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'freeform',
@@ -510,7 +527,8 @@ describe('MergeNode', () => {
       ]);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 't1',
         rightQueryAlias: 't2',
         conditionType: 'freeform',
@@ -529,7 +547,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -548,7 +567,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'foo',
         rightQueryAlias: 'bar',
         conditionType: 'equality',
@@ -567,7 +587,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -591,7 +612,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -615,7 +637,8 @@ describe('MergeNode', () => {
       const node1 = createMockPrevNode('node1', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1],
+        leftNode: node1,
+        rightNode: undefined,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -649,7 +672,8 @@ describe('MergeNode', () => {
       } as QueryNode;
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -687,7 +711,8 @@ describe('MergeNode', () => {
       } as QueryNode;
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -721,7 +746,8 @@ describe('MergeNode', () => {
       } as QueryNode;
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 't1',
         rightQueryAlias: 't2',
         conditionType: 'freeform',
@@ -753,7 +779,8 @@ describe('MergeNode', () => {
       const node2 = createMockPrevNode('node2', []);
 
       const mergeNode = new MergeNode({
-        prevNodes: [node1, node2],
+        leftNode: node1,
+        rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -796,9 +823,8 @@ describe('MergeNode', () => {
         sqlExpression: '',
       });
 
-      expect(state.prevNodes.length).toBe(2);
-      expect(state.prevNodes[0]).toBe(node1);
-      expect(state.prevNodes[1]).toBe(node2);
+      expect(state.leftNode).toBe(node1);
+      expect(state.rightNode).toBe(node2);
       expect(state.leftQueryAlias).toBe('left');
       expect(state.rightQueryAlias).toBe('right');
       expect(state.conditionType).toBe('equality');
@@ -820,7 +846,8 @@ describe('MergeNode', () => {
         sqlExpression: '',
       });
 
-      expect(state.prevNodes.length).toBe(0);
+      expect(state.leftNode).toBeUndefined();
+      expect(state.rightNode).toBeUndefined();
     });
   });
 });

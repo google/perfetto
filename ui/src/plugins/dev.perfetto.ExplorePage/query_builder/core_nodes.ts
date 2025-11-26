@@ -106,7 +106,6 @@ export function registerCoreNodes() {
     factory: (state) => {
       const fullState: AddColumnsNodeState = {
         ...state,
-        prevNode: state.prevNode!,
         selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
         leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
         rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
@@ -129,7 +128,7 @@ export function registerCoreNodes() {
       }
       const fullState: IntervalIntersectNodeState = {
         ...state,
-        prevNodes: state.prevNodes ?? [],
+        inputNodes: [],
       };
       return new IntervalIntersectNode(fullState);
     },
@@ -144,7 +143,6 @@ export function registerCoreNodes() {
     factory: (state) => {
       const fullState: MergeNodeState = {
         ...state,
-        prevNodes: state.prevNodes ?? [],
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -180,7 +178,7 @@ export function registerCoreNodes() {
     factory: (state) => {
       const fullState: UnionNodeState = {
         ...state,
-        prevNodes: state.prevNodes ?? [],
+        inputNodes: [],
         selectedColumns: [],
       };
       const node = new UnionNode(fullState);

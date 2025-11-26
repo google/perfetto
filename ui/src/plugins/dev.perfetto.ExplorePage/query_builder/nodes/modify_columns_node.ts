@@ -18,8 +18,6 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  notifyNextNodes,
-  ModificationNode,
 } from '../../query_node';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Card, CardStack} from '../../../../widgets/card';
@@ -32,7 +30,7 @@ import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {DraggableItem} from '../widgets';
 
 export interface ModifyColumnsSerializedState {
-  prevNodeId?: string;
+  primaryInputId?: string;
   selectedColumns: {
     name: string;
     type: string;
@@ -43,38 +41,23 @@ export interface ModifyColumnsSerializedState {
 }
 
 export interface ModifyColumnsState extends QueryNodeState {
-  prevNode: QueryNode;
   selectedColumns: ColumnInfo[];
 }
 
-export class ModifyColumnsNode implements ModificationNode {
+export class ModifyColumnsNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kModifyColumns;
-  readonly prevNode: QueryNode;
+  primaryInput?: QueryNode;
   nextNodes: QueryNode[];
   readonly state: ModifyColumnsState;
 
   constructor(state: ModifyColumnsState) {
     this.nodeId = nextNodeId();
-    this.prevNode = state.prevNode;
     this.nextNodes = [];
 
     this.state = {
       ...state,
       selectedColumns: state.selectedColumns ?? [],
-    };
-
-    if (
-      this.state.selectedColumns.length === 0 &&
-      this.prevNode !== undefined
-    ) {
-      this.state.selectedColumns = newColumnInfoList(this.prevNode.finalCols);
-    }
-
-    const userOnChange = this.state.onchange;
-    this.state.onchange = () => {
-      notifyNextNodes(this);
-      userOnChange?.();
     };
   }
 
@@ -91,11 +74,11 @@ export class ModifyColumnsNode implements ModificationNode {
 
   onPrevNodesUpdated() {
     // This node assumes it has only one previous node.
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       return;
     }
 
-    const sourceCols = this.prevNode.finalCols;
+    const sourceCols = this.primaryInput.finalCols;
 
     const newSelectedColumns = newColumnInfoList(sourceCols);
 
@@ -118,7 +101,6 @@ export class ModifyColumnsNode implements ModificationNode {
   ): ModifyColumnsState {
     return {
       ...serializedState,
-      prevNode: undefined as unknown as QueryNode,
       selectedColumns: serializedState.selectedColumns.map((c) => ({
         name: c.name,
         type: c.type,
@@ -130,12 +112,12 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   resolveColumns() {
-    // Recover full column information from prevNode
-    if (this.prevNode === undefined) {
+    // Recover full column information from primaryInput
+    if (this.primaryInput === undefined) {
       return;
     }
 
-    const sourceCols = this.prevNode.finalCols ?? [];
+    const sourceCols = this.primaryInput.finalCols ?? [];
     this.state.selectedColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
       if (sourceCol) {
@@ -405,7 +387,7 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (this.prevNode === undefined) return undefined;
+    if (this.primaryInput === undefined) return undefined;
 
     // Build column specifications
     const columns: ColumnSpec[] = [];
@@ -420,7 +402,7 @@ export class ModifyColumnsNode implements ModificationNode {
 
     // Apply column selection
     return StructuredQueryBuilder.withSelectColumns(
-      this.prevNode,
+      this.primaryInput,
       columns,
       undefined,
       this.nodeId,
@@ -429,7 +411,7 @@ export class ModifyColumnsNode implements ModificationNode {
 
   serializeState(): ModifyColumnsSerializedState {
     return {
-      prevNodeId: this.prevNode?.nodeId,
+      primaryInputId: this.primaryInput?.nodeId,
       selectedColumns: this.state.selectedColumns.map((c) => ({
         name: c.name,
         type: c.type,

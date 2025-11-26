@@ -18,13 +18,12 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  SourceNode,
   nextNodeId,
 } from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
 
-export class TestNode implements SourceNode {
+export class TestNode implements QueryNode {
   readonly nodeId: string;
   readonly state: QueryNodeState;
   isDevNode = true;
