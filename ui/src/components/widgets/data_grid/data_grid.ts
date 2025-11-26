@@ -20,8 +20,9 @@ import {exists} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Box} from '../../../widgets/box';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
+import {EmptyState} from '../../../widgets/empty_state';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem, MenuTitle} from '../../../widgets/menu';
 import {Stack, StackAuto} from '../../../widgets/stack';
@@ -194,6 +195,7 @@ export interface DataGridAttrs {
    */
   readonly onFilterAdd?: OnFilterAdd;
   readonly onFilterRemove?: OnFilterRemove;
+  readonly clearFilters?: () => void;
 
   /**
    * Order of columns to display - can operate in controlled or uncontrolled
@@ -373,6 +375,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ? (index) => {
             const newFilters = this.filters.filter((_, i) => i !== index);
             this.filters = newFilters;
+          }
+        : noOp,
+      clearFilters = filters === this.filters
+        ? () => {
+            this.filters = [];
           }
         : noOp,
       columnOrder = this.columnOrder,
@@ -895,6 +902,26 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         onReady: (api) => {
           this.gridApi = api;
         },
+        emptyState:
+          rows?.totalRows === 0
+            ? m(
+                EmptyState,
+                {
+                  title:
+                    filters.length > 0
+                      ? 'No results match your filters'
+                      : 'No data available',
+                  fillHeight: true,
+                },
+                filters.length > 0 &&
+                  m(Button, {
+                    variant: ButtonVariant.Filled,
+                    icon: 'filter_alt_off',
+                    label: 'Clear filters',
+                    onclick: clearFilters,
+                  }),
+              )
+            : undefined,
       }),
     );
   }

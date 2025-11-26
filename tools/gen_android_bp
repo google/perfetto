@@ -306,6 +306,10 @@ additional_args = {
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
+    'trace_processor': [
+        ('whole_static_libs',
+         {'perfetto_src_trace_processor_demangle', 'sqlite_ext_percentile'}),
+    ],
     'trace_processor_shell': [
         ('strip', {
             'all': True
@@ -362,17 +366,17 @@ def enable_base_platform(module):
 
 
 def enable_gtest_and_gmock(module):
-  module.add_static_lib('libgmock')
-  module.add_static_lib('libgtest')
+  module.static_libs.add('libgmock')
+  module.static_libs.add('libgtest')
   if module.name != 'perfetto_gtest_logcat_printer':
     module.whole_static_libs.add('perfetto_gtest_logcat_printer')
 
 
 def enable_protobuf_full(module):
   if module.type == 'cc_binary_host':
-    module.add_static_lib('libprotobuf-cpp-full')
+    module.static_libs.add('libprotobuf-cpp-full')
   elif module.host_supported:
-    module.add_host_static_lib('libprotobuf-cpp-full')
+    module.host.static_libs.add('libprotobuf-cpp-full')
     module.android.shared_libs.add('libprotobuf-cpp-full')
   else:
     module.shared_libs.add('libprotobuf-cpp-full')
@@ -384,7 +388,7 @@ def enable_protobuf_lite(module):
 
 def enable_protoc_lib(module):
   if module.type == 'cc_binary_host':
-    module.add_static_lib('libprotoc')
+    module.static_libs.add('libprotoc')
   else:
     module.shared_libs.add('libprotoc')
 
@@ -395,11 +399,11 @@ def enable_libunwindstack(module):
     module.shared_libs.add('libprocinfo')
     module.shared_libs.add('libbase')
   else:
-    module.add_static_lib('libunwindstack')
-    module.add_static_lib('libprocinfo')
-    module.add_static_lib('libbase')
-    module.add_static_lib('liblzma')
-    module.add_static_lib('libdexfile_support')
+    module.static_libs.add('libunwindstack')
+    module.static_libs.add('libprocinfo')
+    module.static_libs.add('libbase')
+    module.static_libs.add('liblzma')
+    module.static_libs.add('libdexfile_support')
     module.runtime_libs.add('libdexfile')  # libdexfile_support dependency
     module.shared_libs.add('libz')  # libunwindstack dependency
 
@@ -411,41 +415,41 @@ def enable_libunwind(module):
 
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
-    module.add_static_lib('libsqlite_static_noicu')
-    module.add_static_lib('sqlite_ext_percentile')
+    module.static_libs.add('libsqlite_static_noicu')
+    module.static_libs.add('sqlite_ext_percentile')
   elif module.host_supported:
     # Copy what the sqlite3 command line tool does.
     module.android.shared_libs.add('libsqlite')
     module.android.shared_libs.add('libicu')
     module.android.shared_libs.add('liblog')
     module.android.shared_libs.add('libutils')
-    module.add_android_static_lib('sqlite_ext_percentile')
-    module.add_host_static_lib('libsqlite_static_noicu')
-    module.add_host_static_lib('sqlite_ext_percentile')
+    module.android.static_libs.add('sqlite_ext_percentile')
+    module.host.static_libs.add('libsqlite_static_noicu')
+    module.host.static_libs.add('sqlite_ext_percentile')
   else:
     module.shared_libs.add('libsqlite')
     module.shared_libs.add('libicu')
     module.shared_libs.add('liblog')
     module.shared_libs.add('libutils')
-    module.add_static_lib('sqlite_ext_percentile')
+    module.static_libs.add('sqlite_ext_percentile')
 
 
 def enable_zlib(module):
   if module.type == 'cc_binary_host':
-    module.add_static_lib('libz')
+    module.static_libs.add('libz')
   elif module.host_supported:
     module.android.shared_libs.add('libz')
-    module.add_host_static_lib('libz')
+    module.host.static_libs.add('libz')
   else:
     module.shared_libs.add('libz')
 
 
 def enable_expat(module):
   if module.type == 'cc_binary_host':
-    module.add_static_lib('libexpat')
+    module.static_libs.add('libexpat')
   elif module.host_supported:
     module.android.shared_libs.add('libexpat')
-    module.add_host_static_lib('libexpat')
+    module.host.static_libs.add('libexpat')
   else:
     module.shared_libs.add('libexpat')
 
@@ -459,10 +463,10 @@ def enable_bionic_libc_platform_headers_on_android(module):
 
 
 def enable_android_test_common(module):
-  module.add_static_lib('junit')
-  module.add_static_lib('truth')
-  module.add_static_lib('androidx.test.runner')
-  module.add_static_lib('androidx.test.ext.junit')
+  module.static_libs.add('junit')
+  module.static_libs.add('truth')
+  module.static_libs.add('androidx.test.runner')
+  module.static_libs.add('androidx.test.ext.junit')
 
 
 # Android equivalents for third-party libraries that the upstream project
@@ -736,32 +740,9 @@ class Module(object):
         return
       raise Exception('Adding Android static lib for host tool is unsupported')
     elif self.host_supported:
-      # The motivation for this change is b/169779783: cc_library_static do not
-      # correctly propogate their static_library deps. The suggested workaround
-      # is to use whole_static_libs.
-      # TODO(169779783): remove this workaround when b/169779783 is fixed.
-      if self.type == 'cc_library_static':
-        self.android.whole_static_libs.add(lib)
-      else:
-        self.android.static_libs.add(lib)
-    else:
-      self.add_static_lib(lib)
-
-  def add_static_lib(self, lib):
-    # See above for context.
-    # TODO(169779783): remove this workaround when b/169779783 is fixed.
-    if self.type == 'cc_library_static':
-      self.whole_static_libs.add(lib)
+      self.android.static_libs.add(lib)
     else:
       self.static_libs.add(lib)
-
-  def add_host_static_lib(self, lib):
-    # See above for context.
-    # TODO(169779783): remove this workaround when b/169779783 is fixed.
-    if self.type == 'cc_library_static':
-      self.host.static_libs.add(lib)
-    else:
-      self.host.whole_static_libs.add(lib)
 
   def add_android_shared_lib(self, lib):
     if self.type == 'cc_binary_host':
@@ -770,6 +751,21 @@ class Module(object):
       self.android.shared_libs.add(lib)
     else:
       self.shared_libs.add(lib)
+
+  def add_static_library_transitive_deps(self, dep_module):
+    # The motivation for this change is b/169779783: cc_library_static do not
+    # correctly propogate their static_library deps. So we need to do the
+    # propogation ourselves.
+    # TODO(169779783): remove this workaround when b/169779783 is fixed.
+    assert dep_module.type == 'cc_library_static'
+
+    self.static_libs.update(dep_module.static_libs)
+    self.android.static_libs.update(dep_module.android.static_libs)
+    self.host.static_libs.update(dep_module.host.static_libs)
+
+    self.shared_libs.update(dep_module.shared_libs)
+    self.android.shared_libs.update(dep_module.android.shared_libs)
+    self.host.shared_libs.update(dep_module.host.shared_libs)
 
   def _output_field(self, output, name, sort=True):
     value = getattr(self, name)
@@ -1222,7 +1218,7 @@ class AndroidJavaSDKModulesGenerator:
             target.android_bp_copy_java_target_jarjar)
         self.blueprint.add_module(java_copy_module)
 
-      module.add_static_lib(java_library_module_name)
+      module.static_libs.add(java_library_module_name)
     else:
       module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
 
@@ -1251,7 +1247,7 @@ class AndroidJavaSDKModulesGenerator:
     for dep in android_test_deps:
       assert (dep.custom_action_type == 'perfetto_android_library')
       create_modules_from_target(self.blueprint, self.gn, dep.name)
-      module.add_static_lib(self._bp_module_name_from_gn_target(dep))
+      module.static_libs.add(self._bp_module_name_from_gn_target(dep))
 
     module.jni_libs = self._collect_jni_lib_deps(android_test_deps)
 
@@ -1274,7 +1270,7 @@ class AndroidJavaSDKModulesGenerator:
         continue
       create_modules_from_target(self.blueprint, self.gn, dep.name)
       if not is_target_android_jni_lib(dep):
-        module.add_static_lib(self._bp_module_name_from_gn_target(dep))
+        module.static_libs.add(self._bp_module_name_from_gn_target(dep))
 
   def _bp_module_name_from_gn_target(self, target: GnParser.Target):
     module = create_modules_from_target(self.blueprint, self.gn, target.name)
@@ -1508,13 +1504,15 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     if dep_module.type == 'cc_library_shared':
       module.shared_libs.add(dep_module.name)
     elif dep_module.type == 'cc_library_static':
-      module.add_static_lib(dep_module.name)
+      module.static_libs.add(dep_module.name)
+      module.add_static_library_transitive_deps(dep_module)
     elif dep_module.type == 'cc_library':
       dep_gn_target = gn.get_target(dep_name)
       if dep_gn_target.type == 'shared_library':
         module.shared_libs.add(dep_module.name)
       elif dep_gn_target.type == 'static_library':
-        module.add_static_lib(dep_module.name)
+        module.static_libs.add(dep_module.name)
+        module.add_static_library_transitive_deps(dep_module)
       else:
         raise Error('Unknown gn type %s for cc_library dep %s' %
                     (dep_gn_target.type, dep_module.name))

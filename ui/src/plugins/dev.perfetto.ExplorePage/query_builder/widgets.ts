@@ -67,12 +67,8 @@ export class CardWithHeader implements m.ClassComponent<CardWithHeaderAttrs> {
     return m(
       Card,
       m(
-        'div',
-        {
-          style:
-            'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px',
-        },
-        m('h2.pf-columns-box-title', {style: 'margin: 0'}, title),
+        '.pf-exp-card-header',
+        m('h2.pf-exp-card-header__title', title),
         buttons,
       ),
       children,
@@ -121,6 +117,145 @@ export class Section implements m.ClassComponent<SectionAttrs> {
       '.pf-exp-section',
       m('.pf-exp-section-header', m('h2', title), headerContent),
       m('.pf-exp-section-content', children),
+    );
+  }
+}
+
+// Widget for displaying an item with icon, name, description, and action button
+// Used in lists of added columns, filters, etc.
+export interface ListItemAttrs {
+  icon: string;
+  name: string;
+  description: string;
+  actionLabel: string;
+  actionIcon?: string;
+  onAction: () => void;
+  onRemove?: () => void;
+  className?: string;
+}
+
+export class ListItem implements m.ClassComponent<ListItemAttrs> {
+  view({attrs}: m.Vnode<ListItemAttrs>) {
+    const {
+      icon,
+      name,
+      description,
+      actionLabel,
+      actionIcon,
+      onAction,
+      onRemove,
+    } = attrs;
+
+    return m(
+      '.pf-exp-list-item',
+      {className: attrs.className},
+      m(Icon, {icon}),
+      m(
+        '.pf-exp-list-item-info',
+        m('.pf-exp-list-item-name', name),
+        m('.pf-exp-list-item-description', description),
+      ),
+      m(
+        '.pf-exp-list-item-actions',
+        m(Button, {
+          label: actionLabel,
+          icon: actionIcon,
+          variant: ButtonVariant.Outlined,
+          compact: true,
+          onclick: onAction,
+        }),
+        onRemove &&
+          m(Button, {
+            icon: 'close',
+            compact: true,
+            onclick: onRemove,
+          }),
+      ),
+    );
+  }
+}
+
+// Widget for a horizontal row of action buttons
+export interface ActionButtonsAttrs {
+  buttons: Array<{
+    label: string;
+    icon?: string;
+    onclick: () => void;
+    active?: boolean;
+  }>;
+}
+
+export class ActionButtons implements m.ClassComponent<ActionButtonsAttrs> {
+  view({attrs}: m.Vnode<ActionButtonsAttrs>) {
+    return m(
+      '.pf-exp-action-buttons',
+      attrs.buttons.map((btn) =>
+        m(Button, {
+          label: btn.active ? `${btn.label} ✓` : btn.label,
+          icon: btn.icon,
+          variant: ButtonVariant.Outlined,
+          onclick: btn.onclick,
+        }),
+      ),
+    );
+  }
+}
+
+// Widget for a labeled form row with input
+// The children are placed inside the label for proper accessibility
+export interface FormRowAttrs {
+  label: string;
+}
+
+export class FormRow implements m.ClassComponent<FormRowAttrs> {
+  view({attrs, children}: m.CVnode<FormRowAttrs>) {
+    return m('label.pf-exp-form-row', m('span', attrs.label), children);
+  }
+}
+
+// Widget for inline label with any control (input, select, multiselect, etc.)
+// The children are placed inside the label for proper accessibility
+export interface LabeledControlAttrs {
+  label: string;
+}
+
+export class LabeledControl implements m.ClassComponent<LabeledControlAttrs> {
+  view({attrs, children}: m.CVnode<LabeledControlAttrs>) {
+    return m('label.pf-exp-labeled-control', m('span', attrs.label), children);
+  }
+}
+
+// Widget for a draggable list item with drag handle
+export interface DraggableItemAttrs {
+  index: number;
+  onReorder: (fromIndex: number, toIndex: number) => void;
+}
+
+export class DraggableItem implements m.ClassComponent<DraggableItemAttrs> {
+  view({attrs, children}: m.CVnode<DraggableItemAttrs>) {
+    const {index, onReorder} = attrs;
+
+    return m(
+      '.pf-exp-draggable-item',
+      {
+        draggable: true,
+        ondragstart: (e: DragEvent) => {
+          e.dataTransfer?.setData('text/plain', index.toString());
+        },
+        ondragover: (e: DragEvent) => {
+          e.preventDefault();
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          const from = parseInt(
+            e.dataTransfer?.getData('text/plain') ?? '0',
+            10,
+          );
+          onReorder(from, index);
+        },
+      },
+      m('span.pf-exp-drag-handle', '☰'),
+      children,
     );
   }
 }

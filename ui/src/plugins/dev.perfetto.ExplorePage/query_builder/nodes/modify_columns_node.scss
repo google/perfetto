@@ -261,6 +261,7 @@
 }
 
 // Add Columns Actions Section (for AddColumnsNode)
+// Note: Uses .pf-exp-action-buttons from widgets.scss for button layout
 .pf-add-columns-actions-section {
   display: flex;
   flex-direction: column;
@@ -271,90 +272,10 @@
   border-radius: 4px;
 }
 
-.pf-add-columns-actions-header {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--separator-color);
-}
-
-.pf-add-columns-actions-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--pf-text-color-primary);
-}
-
-.pf-add-columns-actions-subtitle {
-  font-size: 13px;
-  color: var(--pf-text-color-secondary);
-  font-style: italic;
-}
-
-.pf-add-columns-actions-buttons {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-
-  button {
-    justify-content: flex-start;
-  }
-}
-
 // Added Columns List (for AddColumnsNode)
-.pf-added-columns-empty {
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--pf-text-color-secondary);
-  font-style: italic;
-  background: var(--background-color);
-  border: 1px dashed var(--separator-color);
-  border-radius: 4px;
-}
-
+// Note: Uses .pf-exp-list-item, .pf-exp-empty-state from widgets.scss
 .pf-added-columns-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.pf-added-column-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--surface-color);
-  border: 1px solid var(--separator-color);
-  border-radius: 4px;
-  transition: all 0.15s ease-in-out;
-
-  &:hover {
-    background: var(--background-color);
-    border-color: var(--pf-primary-color);
-  }
-
-  &.pf-joined-source {
-    border-left: 4px solid var(--pf-primary-color);
-  }
-}
-
-.pf-added-column-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0; // Allow text truncation
-}
-
-.pf-added-column-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--pf-text-color-primary);
-  font-family: var(--pf-font-family-monospace);
-}
-
-.pf-added-column-description {
-  font-size: 12px;
-  color: var(--pf-text-color-secondary);
 }

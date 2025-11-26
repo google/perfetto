@@ -162,7 +162,35 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   private renderContent(attrs: DataExplorerAttrs): m.Children {
     const errors = findErrors(attrs.query, attrs.response);
 
-    // Show validation errors with centered warning icon
+    // Show execution errors first (e.g., when materialization fails due to
+    // invalid column names). These are stored separately from validation errors
+    // so they survive validate() calls during rendering.
+    if (attrs.node.state.issues?.executionError) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.executionError.message,
+        ),
+        m(Button, {
+          label: 'Retry',
+          icon: 'refresh',
+          intent: Intent.Primary,
+          onclick: () => {
+            // Clear the execution error and re-run the query
+            attrs.node.state.issues?.clearExecutionError();
+            attrs.onExecute();
+          },
+        }),
+      );
+    }
+
+    // Show validation errors (queryError is set by validate() methods).
+    // Only show if validation fails - validate() returns false when queryError is set.
     if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
       return m(
         '.pf-data-explorer-empty-state',
