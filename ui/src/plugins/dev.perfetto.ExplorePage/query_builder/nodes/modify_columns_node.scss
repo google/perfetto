@@ -95,6 +95,7 @@
     display: flex;
     flex-direction: column;
     padding: 12px 16px;
+    gap: 4px;
   }
 
   .pf-column {
@@ -134,6 +135,24 @@
 
   .pf-drag-handle:hover {
     opacity: 1 !important;
+  }
+
+  .pf-column-type {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--pf-text-color-secondary);
+    font-family: var(--pf-monospace-font);
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--background-color);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+
+    &:hover {
+      background: var(--separator-color);
+      color: var(--pf-text-color-primary);
+    }
   }
 
   .pf-exp-modify-columns-node-buttons {
@@ -179,6 +198,10 @@
 .pf-exp-node-details-card {
   padding: 4px;
   font-size: var(--pf-exp-font-size-sm);
+}
+
+.pf-exp-node-details-spacer {
+  height: 8px;
 }
 
 .pf-exp-if-component {

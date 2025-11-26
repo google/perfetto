@@ -116,6 +116,18 @@ const SIMPLE_TYPES: Record<string, SimpleType['kind']> = {
   argsetid: 'arg_set_id',
 };
 
+// List of all simple PerfettoSQL type kinds (excluding ID types).
+export const SIMPLE_TYPE_KINDS: SimpleType['kind'][] = [
+  'int',
+  'double',
+  'string',
+  'boolean',
+  'timestamp',
+  'duration',
+  'bytes',
+  'arg_set_id',
+];
+
 export function parsePerfettoSqlTypeFromString(args: {
   type: string;
   table: string;

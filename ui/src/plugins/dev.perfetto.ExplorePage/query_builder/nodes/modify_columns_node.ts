@@ -22,8 +22,14 @@ import {
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
+import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {TextInput} from '../../../../widgets/text_input';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {
+  SIMPLE_TYPE_KINDS,
+  isIdType,
+  perfettoSqlTypeToString,
+} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
@@ -172,6 +178,14 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   nodeDetails(): m.Child {
+    const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
+    const totalCols = this.state.selectedColumns.length;
+
+    // If all columns have been deselected, show a specific message.
+    if (selectedCols.length === 0) {
+      return m('.pf-exp-node-details-message', 'All columns deselected');
+    }
+
     // Determine the state of modifications.
     const hasUnselected = this.state.selectedColumns.some((c) => !c.checked);
     const hasAlias = this.state.selectedColumns.some((c) => c.alias);
@@ -179,66 +193,51 @@ export class ModifyColumnsNode implements QueryNode {
       return m('.pf-exp-node-details-message', 'Select all');
     }
 
-    const cards: m.Child[] = [];
+    // If there are too many selected columns, show a summary.
+    const maxColumnsToShow = 5;
+    if (selectedCols.length > maxColumnsToShow) {
+      const renamedCols = selectedCols.filter((c) => c.alias);
+      const summaryText = `${selectedCols.length} of ${totalCols} columns selected`;
 
-    // If columns have been unselected or aliased, list the selected ones.
-    if (hasUnselected || hasAlias) {
-      const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
-      if (selectedCols.length > 0) {
-        // If there are too many selected columns and some are unselected, show a summary.
-        const maxColumnsToShow = 5;
-        const shouldShowSummary =
-          hasUnselected && selectedCols.length > maxColumnsToShow;
-
-        if (shouldShowSummary) {
-          const renamedCols = selectedCols.filter((c) => c.alias);
-          const totalCols = this.state.selectedColumns.length;
-          const summaryText = `${selectedCols.length} of ${totalCols} columns selected`;
-
-          // Show up to 3 renamed columns explicitly even in summary mode
-          if (renamedCols.length > 0 && renamedCols.length <= 3) {
-            const renamedItems = renamedCols.map((c) =>
-              m('div', `${c.column.name} AS ${c.alias}`),
-            );
-            cards.push(
-              m(
-                Card,
-                {className: 'pf-exp-node-details-card'},
-                m('div', summaryText),
-                m('div', {style: 'height: 8px'}), // spacing
-                ...renamedItems,
-              ),
-            );
-          } else {
-            cards.push(
-              m(
-                Card,
-                {className: 'pf-exp-node-details-card'},
-                m('div', summaryText),
-              ),
-            );
-          }
-        } else {
-          const selectedItems = selectedCols.map((c) => {
-            if (c.alias) {
-              return m('div', `${c.column.name} AS ${c.alias}`);
-            } else {
-              return m('div', c.column.name);
-            }
-          });
-          cards.push(
-            m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
-          );
-        }
+      // Show up to 3 renamed columns explicitly even in summary mode.
+      if (renamedCols.length > 0 && renamedCols.length <= 3) {
+        const renamedItems = renamedCols.map((c) =>
+          m('div', `${c.column.name} AS ${c.alias}`),
+        );
+        return m(
+          CardStack,
+          m(
+            Card,
+            {className: 'pf-exp-node-details-card'},
+            m('div', summaryText),
+            m('.pf-exp-node-details-spacer'),
+            ...renamedItems,
+          ),
+        );
+      } else {
+        return m(
+          CardStack,
+          m(
+            Card,
+            {className: 'pf-exp-node-details-card'},
+            m('div', summaryText),
+          ),
+        );
       }
     }
 
-    // If all columns have been deselected, show a specific message.
-    if (cards.length === 0) {
-      return m('.pf-exp-node-details-message', 'All columns deselected');
-    }
-
-    return m(CardStack, cards);
+    // Otherwise, list all selected columns.
+    const selectedItems = selectedCols.map((c) => {
+      if (c.alias) {
+        return m('div', `${c.column.name} AS ${c.alias}`);
+      } else {
+        return m('div', c.column.name);
+      }
+    });
+    return m(
+      CardStack,
+      m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
+    );
   }
 
   nodeSpecificModify(): m.Child {
@@ -356,6 +355,63 @@ export class ModifyColumnsNode implements QueryNode {
         placeholder: 'alias',
         value: col.alias ? col.alias : '',
       }),
+      this.renderTypeSelector(col, index),
+    );
+  }
+
+  private renderTypeSelector(col: ColumnInfo, index: number): m.Child {
+    const currentType = col.type ?? 'UNKNOWN';
+    const originalType = col.column.type;
+
+    // Build the list of type options
+    const typeOptions: {label: string; value: string}[] = [];
+
+    // If the original type is an ID type, include it as an option
+    if (originalType !== undefined && isIdType(originalType)) {
+      const idTypeStr = perfettoSqlTypeToString(originalType);
+      typeOptions.push({label: idTypeStr, value: idTypeStr});
+    }
+
+    // Add all simple types
+    for (const type of SIMPLE_TYPE_KINDS) {
+      typeOptions.push({label: type.toUpperCase(), value: type.toUpperCase()});
+    }
+
+    const handleTypeChange = (newType: string) => {
+      const newSelectedColumns = [...this.state.selectedColumns];
+      const lowerType = newType.toLowerCase();
+
+      // Check if it's a simple type
+      const isSimple = SIMPLE_TYPE_KINDS.includes(
+        lowerType as (typeof SIMPLE_TYPE_KINDS)[number],
+      );
+
+      newSelectedColumns[index] = {
+        ...newSelectedColumns[index],
+        type: newType,
+        column: {
+          ...newSelectedColumns[index].column,
+          type: isSimple
+            ? {kind: lowerType as (typeof SIMPLE_TYPE_KINDS)[number]}
+            : originalType, // Keep original if it's an ID type
+        },
+      };
+      this.state.selectedColumns = newSelectedColumns;
+      this.state.onchange?.();
+    };
+
+    return m(
+      PopupMenu,
+      {
+        trigger: m('.pf-column-type', currentType),
+      },
+      typeOptions.map((opt) =>
+        m(MenuItem, {
+          label: opt.label,
+          active: currentType === opt.value,
+          onclick: () => handleTypeChange(opt.value),
+        }),
+      ),
     );
   }
 
