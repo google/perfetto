@@ -141,35 +141,6 @@
     gap: 8px;
   }
 
-  .pf-exp-switch-wrapper,
-  .pf-exp-if-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px;
-    margin: 4px 0;
-    background: var(--surface-color);
-    border: 1px solid var(--separator-color);
-    border-radius: 4px;
-  }
-
-  .pf-exp-switch-name-row,
-  .pf-exp-if-name-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid var(--separator-color);
-
-    label {
-      font-weight: 600;
-      font-size: var(--pf-exp-font-size-sm);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--pf-text-color-secondary);
-    }
-  }
-
   .pf-exp-switch-component {
     display: flex;
     flex-direction: column;
@@ -208,34 +179,6 @@
 .pf-exp-node-details-card {
   padding: 4px;
   font-size: var(--pf-exp-font-size-sm);
-}
-
-.pf-exp-switch-summary,
-.pf-exp-if-summary {
-  font-size: var(--pf-exp-font-size-sm);
-  padding: 2px 0;
-}
-
-.pf-exp-switch-keyword,
-.pf-exp-if-keyword {
-  font-weight: 600;
-  color: var(--pf-primary-color);
-}
-
-.pf-exp-column-name {
-  font-family: var(--pf-font-family-monospace);
-  font-weight: 500;
-}
-
-.pf-exp-as-keyword {
-  font-style: italic;
-  color: var(--pf-text-color-light);
-}
-
-.pf-exp-alias-name {
-  font-family: var(--pf-font-family-monospace);
-  font-weight: 500;
-  color: var(--pf-primary-color);
 }
 
 .pf-exp-if-component {
@@ -278,4 +221,35 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+// Glob toggle styling
+.pf-exp-switch-glob-toggle {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+// Join modal two-column layout
+.pf-join-modal-layout {
+  display: flex;
+  gap: 24px;
+  min-height: 300px;
+}
+
+// Wide modal for join configuration
+.pf-join-modal-wide {
+  min-width: 700px;
+}
+
+.pf-join-modal-controls {
+  flex: 0 0 300px;
+  min-width: 250px;
+}
+
+.pf-join-modal-info {
+  flex: 1;
+  border-left: 1px solid var(--separator-color);
+  padding-left: 24px;
+  overflow: auto;
+  max-height: 400px;
 }

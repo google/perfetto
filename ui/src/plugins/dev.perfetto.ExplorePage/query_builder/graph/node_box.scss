@@ -96,6 +96,12 @@
   flex: 1;
 }
 
+.pf-exp-node-box__details {
+  .pf-exp-column-name {
+    font-weight: 600;
+  }
+}
+
 .pf-exp-node-box__filters {
   margin-top: 0.5rem;
 }

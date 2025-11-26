@@ -17,6 +17,10 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Card} from '../../../widgets/card';
 import {TextInput} from '../../../widgets/text_input';
 import {Icon} from '../../../widgets/icon';
+import {TextParagraph} from '../../../widgets/text_paragraph';
+import {SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
+import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
+import {Callout} from '../../../widgets/callout';
 
 // Generic widget for a row with name input, validation, and remove button
 // Used by all "new column" types
@@ -256,6 +260,71 @@ export class DraggableItem implements m.ClassComponent<DraggableItemAttrs> {
       },
       m('span.pf-exp-drag-handle', '☰'),
       children,
+    );
+  }
+}
+
+// Widget for displaying a list of issues (errors or warnings) in a callout
+// Used for validation errors, duplicate column warnings, etc.
+export interface IssueListAttrs {
+  icon: 'error' | 'warning' | 'info';
+  title: string;
+  items: string[];
+}
+
+export class IssueList implements m.ClassComponent<IssueListAttrs> {
+  view({attrs}: m.Vnode<IssueListAttrs>) {
+    const {icon, title, items} = attrs;
+
+    if (items.length === 0) {
+      return null;
+    }
+
+    return m(
+      Callout,
+      {icon},
+      m('div', title),
+      m(
+        'ul.pf-exp-issue-list',
+        items.map((item) => m('li', item)),
+      ),
+    );
+  }
+}
+
+// Widget for displaying a SQL table's description and columns
+// Used in table source node info and join modal
+export interface TableDescriptionAttrs {
+  table: SqlTable;
+}
+
+export class TableDescription
+  implements m.ClassComponent<TableDescriptionAttrs>
+{
+  view({attrs}: m.Vnode<TableDescriptionAttrs>) {
+    const {table} = attrs;
+
+    return m(
+      '.pf-exp-table-description',
+      m(TextParagraph, {text: table.description}),
+      m(
+        'table.pf-table.pf-table-striped',
+        m(
+          'thead',
+          m('tr', m('th', 'Column'), m('th', 'Type'), m('th', 'Description')),
+        ),
+        m(
+          'tbody',
+          table.columns.map((col) => {
+            return m(
+              'tr',
+              m('td', col.name),
+              m('td', perfettoSqlTypeToString(col.type)),
+              m('td', col.description),
+            );
+          }),
+        ),
+      ),
     );
   }
 }

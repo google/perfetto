@@ -31,7 +31,7 @@ import {
   MultiSelectDiff,
 } from '../../../../widgets/multiselect';
 import {StructuredQueryBuilder} from '../structured_query_builder';
-import {LabeledControl} from '../widgets';
+import {LabeledControl, IssueList} from '../widgets';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -376,10 +376,9 @@ export class IntervalIntersectNode implements QueryNode {
       const columns = node.finalCols.map((c) => c.name);
       for (const col of columns) {
         if (!EXCLUDED_COLUMNS.has(col) && !partitionColumns.has(col)) {
-          if (!columnToInputs.has(col)) {
-            columnToInputs.set(col, []);
-          }
-          columnToInputs.get(col)!.push(i + 1); // +1 for user-friendly "Input 1, Input 2" labels
+          const inputs = columnToInputs.get(col) ?? [];
+          inputs.push(i + 1); // +1 for user-friendly "Input 1, Input 2" labels
+          columnToInputs.set(col, inputs);
         }
       }
     }
@@ -450,17 +449,11 @@ export class IntervalIntersectNode implements QueryNode {
     return m(
       '.pf-exp-query-operations',
       error && m(Callout, {icon: 'error'}, error.message),
-      duplicateWarnings.length > 0 &&
-        m(
-          Callout,
-          {icon: 'warning'},
-          m('div', 'Duplicate columns found:'),
-          m(
-            'ul',
-            {style: {marginTop: '4px', marginBottom: '0', paddingLeft: '20px'}},
-            duplicateWarnings.map((warning) => m('li', warning)),
-          ),
-        ),
+      m(IssueList, {
+        icon: 'warning',
+        title: 'Duplicate columns found:',
+        items: duplicateWarnings,
+      }),
       this.renderPartitionSelector(false),
       m(
         '.pf-exp-section',
@@ -472,16 +465,8 @@ export class IntervalIntersectNode implements QueryNode {
 
             return m(
               '.pf-exp-interval-node',
-              {
-                key: node.nodeId,
-                style: {
-                  display: 'flex',
-                  gap: '8px',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                },
-              },
-              m('span', {style: {flex: 1}}, `${label}: ${node.getTitle()}`),
+              {key: node.nodeId},
+              m('span', `${label}: ${node.getTitle()}`),
               m(Button, {
                 label: 'Filter unfinished intervals',
                 icon: filterEnabled ? 'check_box' : 'check_box_outline_blank',

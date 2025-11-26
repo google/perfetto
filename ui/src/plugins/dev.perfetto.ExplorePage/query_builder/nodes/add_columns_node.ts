@@ -22,8 +22,10 @@ import {
 import {ColumnInfo, columnInfoFromName} from '../column_info';
 import protos from '../../../../protos';
 import m from 'mithril';
-import {Card, CardStack} from '../../../../widgets/card';
-import {MultiselectInput} from '../../../../widgets/multiselect_input';
+import {
+  PopupMultiSelect,
+  MultiSelectDiff,
+} from '../../../../widgets/multiselect';
 import {Select} from '../../../../widgets/select';
 import {Button} from '../../../../widgets/button';
 import {TextInput} from '../../../../widgets/text_input';
@@ -36,9 +38,16 @@ import {
   JoinCondition,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {ColumnNameRow, ListItem, ActionButtons, FormRow} from '../widgets';
+import {
+  ListItem,
+  ActionButtons,
+  LabeledControl,
+  TableDescription,
+  IssueList,
+} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
+import {Form, FormLabel, FormSection} from '../../../../widgets/form';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -151,7 +160,6 @@ class SwitchComponent
       isStringColumn &&
         m(
           '.pf-exp-switch-glob-toggle',
-          {style: {marginTop: '8px', marginBottom: '8px'}},
           m(Switch, {
             label: 'Use glob matching',
             checked: column.useGlob ?? false,
@@ -411,8 +419,14 @@ export interface AddColumnsNodeState extends QueryNodeState {
   // Track which suggestions are expanded to show column selection
   expandedSuggestions?: Set<string>;
 
+  // Currently selected suggestion table (for single-selection UI)
+  selectedSuggestionTable?: string;
+
   // Map from column name to its alias (for renaming added columns)
   columnAliases?: Map<string, string>;
+
+  // Map from column name to its alias for suggestion mode (before applying)
+  suggestionAliases?: Map<string, string>;
 
   // Track if connection was made through guided suggestion
   isGuidedConnection?: boolean;
@@ -451,6 +465,7 @@ export class AddColumnsNode implements QueryNode {
     this.state.expandedSuggestions =
       this.state.expandedSuggestions ?? new Set();
     this.state.columnAliases = this.state.columnAliases ?? new Map();
+    this.state.suggestionAliases = this.state.suggestionAliases ?? new Map();
     this.state.computedColumns = this.state.computedColumns ?? [];
   }
 
@@ -595,18 +610,110 @@ export class AddColumnsNode implements QueryNode {
 
   // Get available columns for a suggested table
   getTableColumns(tableName: string): string[] {
-    if (!this.state.sqlModules) return [];
-
-    const table = this.state.sqlModules
-      .listTables()
-      .find((t) => t.name === tableName);
+    const table = this.getTable(tableName);
     if (!table) return [];
 
     return table.columns.map((c) => c.name);
   }
 
+  // Get full table info for a suggested table
+  private getTable(tableName: string) {
+    if (!this.state.sqlModules) return undefined;
+
+    return this.state.sqlModules.listTables().find((t) => t.name === tableName);
+  }
+
   getTitle(): string {
     return 'Add Columns';
+  }
+
+  // Check if the Apply button should be disabled in the join modal
+  private isApplyDisabled(): boolean {
+    // When no rightNode exists, require table and columns selection
+    if (!this.rightNode) {
+      const selectedTable = this.state.selectedSuggestionTable;
+      if (!selectedTable) return true;
+      const selectedColumns =
+        this.state.suggestionSelections?.get(selectedTable) ?? [];
+      if (selectedColumns.length === 0) return true;
+      // Also disable if there are duplicate column name errors
+      return this.getJoinColumnErrors(selectedColumns, true).length > 0;
+    }
+    // When rightNode exists, require columns to be selected
+    if (
+      !this.state.selectedColumns ||
+      this.state.selectedColumns.length === 0
+    ) {
+      return true;
+    }
+    // Also disable if there are duplicate column name errors
+    return (
+      this.getJoinColumnErrors(this.state.selectedColumns, false).length > 0
+    );
+  }
+
+  // Get errors for join columns (duplicates with source or between selected)
+  // Returns array of error messages for columns that have conflicts
+  private getJoinColumnErrors(
+    selectedColumns: string[],
+    useSuggestionAliases: boolean,
+  ): Array<{column: string; error: string}> {
+    const errors: Array<{column: string; error: string}> = [];
+    const aliasMap = useSuggestionAliases
+      ? this.state.suggestionAliases
+      : this.state.columnAliases;
+
+    // Get effective names (alias or original name) for all selected columns
+    const effectiveNames = new Map<string, string>();
+    for (const col of selectedColumns) {
+      const alias = aliasMap?.get(col);
+      effectiveNames.set(col, alias || col);
+    }
+
+    // Check each column against source columns
+    const sourceColNames = new Set(
+      this.sourceCols.map((c) => c.alias ?? c.column.name),
+    );
+    for (const col of selectedColumns) {
+      const effectiveName = effectiveNames.get(col) ?? col;
+      if (sourceColNames.has(effectiveName)) {
+        errors.push({
+          column: col,
+          error: `"${effectiveName}" already exists in source data`,
+        });
+      }
+    }
+
+    // Check for duplicates among selected columns
+    const seenNames = new Map<string, string>(); // effectiveName -> original column
+    for (const col of selectedColumns) {
+      const effectiveName = effectiveNames.get(col) ?? col;
+      const existingCol = seenNames.get(effectiveName);
+      if (existingCol && existingCol !== col) {
+        errors.push({
+          column: col,
+          error: `"${effectiveName}" conflicts with another selected column`,
+        });
+      } else {
+        seenNames.set(effectiveName, col);
+      }
+    }
+
+    return errors;
+  }
+
+  // Get error for a specific column (for UI display)
+  private getJoinColumnError(
+    colName: string,
+    selectedColumns: string[],
+    useSuggestionAliases: boolean,
+  ): string | undefined {
+    const errors = this.getJoinColumnErrors(
+      selectedColumns,
+      useSuggestionAliases,
+    );
+    const error = errors.find((e) => e.column === colName);
+    return error?.error;
   }
 
   nodeDetails(): m.Child {
@@ -626,7 +733,12 @@ export class AddColumnsNode implements QueryNode {
       for (const col of this.state.selectedColumns ?? []) {
         const alias = this.state.columnAliases?.get(col);
         const displayName = alias || col;
-        items.push(m('div', `${displayName}: column from input`));
+        items.push(
+          m('div', [
+            m('span.pf-exp-column-name', displayName),
+            ': column from input',
+          ]),
+        );
       }
     }
 
@@ -644,7 +756,9 @@ export class AddColumnsNode implements QueryNode {
         description = col.expression || '(empty)';
       }
 
-      items.push(m('div', `${name}: ${description}`));
+      items.push(
+        m('div', [m('span.pf-exp-column-name', name), `: ${description}`]),
+      );
     }
 
     return m('div', items);
@@ -663,6 +777,7 @@ export class AddColumnsNode implements QueryNode {
     showModal({
       title: 'Add Columns from Another Source',
       key: modalKey,
+      className: 'pf-join-modal-wide',
       content: () => {
         return m('div', this.renderGuidedMode());
       },
@@ -676,26 +791,41 @@ export class AddColumnsNode implements QueryNode {
         {
           text: 'Apply',
           primary: true,
+          disabled: () => this.isApplyDisabled(),
           action: () => {
-            // If there's no rightNode, connect the first suggestion with selections
-            if (!this.rightNode && this.state.suggestionSelections) {
+            // If there's no rightNode, connect the selected suggestion table
+            if (!this.rightNode && this.state.selectedSuggestionTable) {
               const suggestions = this.getJoinSuggestions();
-              for (const s of suggestions) {
-                const selectedColumns =
-                  this.state.suggestionSelections.get(s.suggestedTable) ?? [];
-                if (selectedColumns.length > 0) {
-                  // Found a suggestion with selections - connect it
-                  if (this.state.actions?.onAddAndConnectTable) {
-                    this.state.isGuidedConnection = true;
-                    this.state.actions.onAddAndConnectTable(
-                      s.suggestedTable,
-                      0,
-                    );
-                    this.state.leftColumn = s.colName;
-                    this.state.rightColumn = s.targetColumn;
-                    this.state.selectedColumns = [...selectedColumns];
+              const selectedSuggestion = suggestions.find(
+                (s) => s.suggestedTable === this.state.selectedSuggestionTable,
+              );
+              const selectedColumns =
+                this.state.suggestionSelections?.get(
+                  this.state.selectedSuggestionTable,
+                ) ?? [];
+
+              if (selectedSuggestion && selectedColumns.length > 0) {
+                if (this.state.actions?.onAddAndConnectTable) {
+                  this.state.isGuidedConnection = true;
+                  this.state.actions.onAddAndConnectTable(
+                    selectedSuggestion.suggestedTable,
+                    0,
+                  );
+                  this.state.leftColumn = selectedSuggestion.colName;
+                  this.state.rightColumn = selectedSuggestion.targetColumn;
+                  this.state.selectedColumns = [...selectedColumns];
+                  // Copy suggestion aliases to column aliases
+                  if (this.state.suggestionAliases) {
+                    if (!this.state.columnAliases) {
+                      this.state.columnAliases = new Map();
+                    }
+                    for (const col of selectedColumns) {
+                      const alias = this.state.suggestionAliases.get(col);
+                      if (alias) {
+                        this.state.columnAliases.set(col, alias);
+                      }
+                    }
                   }
-                  break;
                 }
               }
             }
@@ -999,465 +1129,407 @@ export class AddColumnsNode implements QueryNode {
     if (!this.rightNode) {
       const suggestions = this.getJoinSuggestions();
 
+      if (suggestions.length === 0) {
+        return m(
+          Form,
+          m(
+            'p',
+            'No JOINID columns found in your data. You can still connect any node to the left port.',
+          ),
+        );
+      }
+
+      // Find the currently selected suggestion (if any)
+      const selectedTable = this.state.selectedSuggestionTable;
+      const selectedSuggestion = suggestions.find(
+        (s) => s.suggestedTable === selectedTable,
+      );
+      const tableInfo = selectedTable
+        ? this.getTable(selectedTable)
+        : undefined;
+      const availableColumns = selectedTable
+        ? this.getTableColumns(selectedTable)
+        : [];
+      const selectedColumns = selectedTable
+        ? this.state.suggestionSelections?.get(selectedTable) ?? []
+        : [];
+
       return m(
-        'div',
+        '.pf-join-modal-layout',
+        // Left column: Form controls
         m(
-          Card,
-          m('h3', 'Join Suggestions'),
-          suggestions.length > 0
-            ? m(
-                'div',
-                {style: {display: 'flex', flexDirection: 'column', gap: '8px'}},
-                [
+          '.pf-join-modal-controls',
+          m(
+            Form,
+            // Step 1: Select which table to join
+            m(FormSection, {label: 'Select Table to Join'}, [
+              m(
+                Select,
+                {
+                  onchange: (e: Event) => {
+                    const value = (e.target as HTMLSelectElement).value;
+                    this.state.selectedSuggestionTable = value || undefined;
+                    m.redraw();
+                  },
+                },
+                m(
+                  'option',
+                  {value: '', selected: !selectedTable},
+                  'Choose a table',
+                ),
+                suggestions.map((s) =>
                   m(
-                    'p',
-                    {style: {marginBottom: '8px', color: '#888'}},
-                    'Based on your JOINID columns, you could join with:',
-                  ),
-                  suggestions.map((s) => {
-                    const availableColumns = this.getTableColumns(
-                      s.suggestedTable,
-                    );
-                    const selectedColumns =
-                      this.state.suggestionSelections?.get(s.suggestedTable) ??
-                      [];
-                    const isExpanded =
-                      this.state.expandedSuggestions?.has(s.suggestedTable) ??
-                      false;
-
-                    return m(
-                      'div',
-                      {
-                        style: {
-                          padding: '8px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                          borderRadius: '4px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '8px',
-                        },
-                      },
-                      [
-                        // Header row with table name and expand/collapse
-                        m(
-                          'div',
-                          {
-                            style: {
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              gap: '8px',
-                              cursor: 'pointer',
-                              userSelect: 'none',
-                            },
-                            onclick: (e: MouseEvent) => {
-                              // Don't toggle if clicking on the button
-                              if (
-                                (e.target as HTMLElement).closest('button') ||
-                                (e.target as HTMLElement).tagName === 'BUTTON'
-                              ) {
-                                return;
-                              }
-
-                              if (!this.state.expandedSuggestions) {
-                                this.state.expandedSuggestions = new Set();
-                              }
-                              if (isExpanded) {
-                                this.state.expandedSuggestions.delete(
-                                  s.suggestedTable,
-                                );
-                              } else {
-                                this.state.expandedSuggestions.add(
-                                  s.suggestedTable,
-                                );
-                              }
-                              m.redraw();
-                            },
-                          },
-                          [
-                            m(
-                              'span',
-                              {
-                                style: {
-                                  fontFamily: 'monospace',
-                                  fontSize: '12px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                },
-                              },
-                              [
-                                m(
-                                  'span',
-                                  {
-                                    style: {
-                                      fontSize: '16px',
-                                      lineHeight: '1',
-                                    },
-                                  },
-                                  isExpanded ? '▼' : '▶',
-                                ),
-                                m('strong', s.suggestedTable),
-                                ' table (using ',
-                                m('code', s.colName),
-                                ' = ',
-                                m('code', s.targetColumn),
-                                ')',
-                                selectedColumns.length > 0 &&
-                                  m(
-                                    'span',
-                                    {
-                                      style: {
-                                        marginLeft: '8px',
-                                        color: '#888',
-                                        fontSize: '11px',
-                                      },
-                                    },
-                                    `${selectedColumns.length} selected`,
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        // Column selection (only when expanded)
-                        isExpanded &&
-                          m(
-                            'div',
-                            {
-                              style: {
-                                marginTop: '4px',
-                                paddingTop: '8px',
-                                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                              },
-                            },
-                            [
-                              m(
-                                'div',
-                                {
-                                  style: {
-                                    marginBottom: '8px',
-                                    fontSize: '11px',
-                                    color: '#888',
-                                  },
-                                },
-                                `Select columns from ${s.suggestedTable} (${availableColumns.length} available):`,
-                              ),
-                              m(MultiselectInput, {
-                                options: availableColumns.map((col) => ({
-                                  key: col,
-                                  label: col,
-                                })),
-                                selectedOptions: selectedColumns,
-                                onOptionAdd: (key: string) => {
-                                  if (!this.state.suggestionSelections) {
-                                    this.state.suggestionSelections = new Map();
-                                  }
-                                  const current =
-                                    this.state.suggestionSelections.get(
-                                      s.suggestedTable,
-                                    ) ?? [];
-                                  this.state.suggestionSelections.set(
-                                    s.suggestedTable,
-                                    [...current, key],
-                                  );
-                                  m.redraw();
-                                },
-                                onOptionRemove: (key: string) => {
-                                  if (this.state.suggestionSelections) {
-                                    const current =
-                                      this.state.suggestionSelections.get(
-                                        s.suggestedTable,
-                                      ) ?? [];
-                                    this.state.suggestionSelections.set(
-                                      s.suggestedTable,
-                                      current.filter((c) => c !== key),
-                                    );
-                                    m.redraw();
-                                  }
-                                },
-                              }),
-                            ],
-                          ),
-                      ],
-                    );
-                  }),
-                  m(
-                    'p',
+                    'option',
                     {
-                      style: {
-                        marginTop: '8px',
-                        color: '#888',
-                        fontSize: '12px',
-                      },
+                      value: s.suggestedTable,
+                      selected: s.suggestedTable === selectedTable,
                     },
-                    'Connect a table node to the left port to add columns.',
+                    s.suggestedTable,
                   ),
-                ],
-              )
-            : m(
-                'p',
-                {style: {color: '#888'}},
-                'No JOINID columns found in your data. You can still connect any node to the left port.',
+                ),
               ),
+            ]),
+
+            // Step 2: Show join condition (only when table is selected)
+            selectedSuggestion &&
+              m(
+                LabeledControl,
+                {label: 'Join on:'},
+                m(
+                  'span',
+                  m('code', selectedSuggestion.colName),
+                  ' = ',
+                  m('code', selectedSuggestion.targetColumn),
+                ),
+              ),
+
+            // Step 3: Select columns (only when table is selected)
+            selectedSuggestion &&
+              m(
+                LabeledControl,
+                {label: 'Columns:'},
+                m(PopupMultiSelect, {
+                  label:
+                    selectedColumns.length > 0
+                      ? selectedColumns.join(', ')
+                      : 'Select columns to add',
+                  showNumSelected: false,
+                  compact: true,
+                  options: availableColumns.map((col) => ({
+                    id: col,
+                    name: col,
+                    checked: selectedColumns.includes(col),
+                  })),
+                  onChange: (diffs: MultiSelectDiff[]) => {
+                    if (!this.state.suggestionSelections) {
+                      this.state.suggestionSelections = new Map();
+                    }
+                    const current =
+                      this.state.suggestionSelections.get(selectedTable!) ?? [];
+                    let updated = [...current];
+                    for (const diff of diffs) {
+                      if (diff.checked) {
+                        if (!updated.includes(diff.id)) {
+                          updated.push(diff.id);
+                        }
+                      } else {
+                        updated = updated.filter((c) => c !== diff.id);
+                      }
+                    }
+                    this.state.suggestionSelections.set(
+                      selectedTable!,
+                      updated,
+                    );
+                    m.redraw();
+                  },
+                }),
+              ),
+
+            // Show hint when table is selected but no columns are selected
+            selectedSuggestion &&
+              selectedColumns.length === 0 &&
+              m(
+                Callout,
+                {icon: 'info'},
+                'Select at least one column to add from the joined table.',
+              ),
+
+            // Show alias inputs for selected columns (suggestion mode)
+            selectedSuggestion &&
+              selectedColumns.length > 0 &&
+              m(FormSection, {label: 'Column Aliases (optional)'}, [
+                m(FormLabel, 'Rename columns to avoid conflicts:'),
+                selectedColumns.map((colName) => {
+                  const error = this.getJoinColumnError(
+                    colName,
+                    selectedColumns,
+                    true,
+                  );
+                  return m(
+                    LabeledControl,
+                    {label: `${colName} →`},
+                    m(TextInput, {
+                      placeholder: error
+                        ? 'alias required'
+                        : 'alias (optional)',
+                      value: this.state.suggestionAliases?.get(colName) ?? '',
+                      oninput: (e: InputEvent) => {
+                        const target = e.target as HTMLInputElement;
+                        const alias = target.value.trim();
+                        if (!this.state.suggestionAliases) {
+                          this.state.suggestionAliases = new Map();
+                        }
+                        if (alias) {
+                          this.state.suggestionAliases.set(colName, alias);
+                        } else {
+                          this.state.suggestionAliases.delete(colName);
+                        }
+                        m.redraw();
+                      },
+                    }),
+                    error && m(Icon, {icon: 'error'}),
+                  );
+                }),
+              ]),
+
+            // Show error summary if there are conflicts
+            selectedSuggestion &&
+              selectedColumns.length > 0 &&
+              m(IssueList, {
+                icon: 'error',
+                title: 'Column name conflicts:',
+                items: this.getJoinColumnErrors(selectedColumns, true).map(
+                  (err) => err.error,
+                ),
+              }),
+          ),
         ),
+
+        // Right column: Table info panel (only when table is selected)
+        tableInfo &&
+          m('.pf-join-modal-info', m(TableDescription, {table: tableInfo})),
       );
     }
 
     const leftCols = this.sourceCols;
     const rightCols = this.rightCols;
 
-    return m('div', [
+    const selectedColumns = this.state.selectedColumns ?? [];
+    const noColumnsSelected = selectedColumns.length === 0;
+    const selectedColumnsLabel = noColumnsSelected
+      ? 'Select columns to add'
+      : selectedColumns.join(', ');
+
+    return m(
+      Form,
       m(
-        CardStack,
-        m(
-          Card,
-          m('h3', 'Select Columns to Add'),
-          m(MultiselectInput, {
-            options: rightCols.map((c) => ({
-              key: c.column.name,
-              label: c.column.name,
-            })),
-            selectedOptions: this.state.selectedColumns ?? [],
-            onOptionAdd: (key: string) => {
-              if (!this.state.selectedColumns) {
-                this.state.selectedColumns = [];
-              }
-              this.state.selectedColumns.push(key);
-              this.state.onchange?.();
-              m.redraw();
-            },
-            onOptionRemove: (key: string) => {
-              if (this.state.selectedColumns) {
+        LabeledControl,
+        {label: 'Columns:'},
+        m(PopupMultiSelect, {
+          label: selectedColumnsLabel,
+          showNumSelected: false,
+          compact: true,
+          options: rightCols.map((c) => ({
+            id: c.column.name,
+            name: c.column.name,
+            checked:
+              this.state.selectedColumns?.includes(c.column.name) ?? false,
+          })),
+          onChange: (diffs: MultiSelectDiff[]) => {
+            if (!this.state.selectedColumns) {
+              this.state.selectedColumns = [];
+            }
+            for (const diff of diffs) {
+              if (diff.checked) {
+                if (!this.state.selectedColumns.includes(diff.id)) {
+                  this.state.selectedColumns.push(diff.id);
+                }
+              } else {
                 this.state.selectedColumns = this.state.selectedColumns.filter(
-                  (c) => c !== key,
+                  (c) => c !== diff.id,
                 );
                 // Also remove the alias for this column
-                this.state.columnAliases?.delete(key);
-                this.state.onchange?.();
-                m.redraw();
+                this.state.columnAliases?.delete(diff.id);
               }
-            },
-          }),
-          // Show alias inputs for selected columns
-          this.state.selectedColumns && this.state.selectedColumns.length > 0
-            ? m(
-                'div',
-                {
-                  style: {
-                    paddingTop: '5px',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                  },
-                },
-                [
-                  m(
-                    'h4',
-                    {style: {marginBottom: '8px'}},
-                    'Column Aliases (optional)',
-                  ),
-                  m(
-                    'div',
-                    {
-                      style: {
-                        fontSize: '11px',
-                        color: '#888',
-                        marginBottom: '8px',
-                      },
-                    },
-                    'Rename columns by providing an alias:',
-                  ),
-                  this.state.selectedColumns.map((colName) =>
-                    m(
-                      FormRow,
-                      {label: colName},
-                      m('span', '→'),
-                      m(TextInput, {
-                        placeholder: 'alias (optional)',
-                        value: this.state.columnAliases?.get(colName) ?? '',
-                        oninput: (e: InputEvent) => {
-                          const target = e.target as HTMLInputElement;
-                          const alias = target.value.trim();
-                          if (!this.state.columnAliases) {
-                            this.state.columnAliases = new Map();
-                          }
-                          if (alias) {
-                            this.state.columnAliases.set(colName, alias);
-                          } else {
-                            this.state.columnAliases.delete(colName);
-                          }
-                          this.state.onchange?.();
-                        },
-                      }),
-                    ),
-                  ),
-                ],
-              )
-            : null,
-        ),
-        m(
-          Card,
-          m('h3', 'Join Condition'),
-          m(
-            FormRow,
-            {label: 'Base Column:'},
-            m(
-              Select,
-              {
-                onchange: (e: Event) => {
-                  const target = e.target as HTMLSelectElement;
-                  this.state.leftColumn = target.value;
-                  this.state.onchange?.();
-                },
-              },
-              m(
-                'option',
-                {disabled: true, selected: !this.state.leftColumn},
-                'Select column',
-              ),
-              leftCols.map((col) =>
-                m(
-                  'option',
-                  {
-                    value: col.column.name,
-                    selected: col.column.name === this.state.leftColumn,
-                  },
-                  col.column.name,
-                ),
-              ),
-            ),
-          ),
-          m(
-            FormRow,
-            {label: 'Connected Node Column:'},
-            m(
-              Select,
-              {
-                onchange: (e: Event) => {
-                  const target = e.target as HTMLSelectElement;
-                  this.state.rightColumn = target.value;
-                  this.state.onchange?.();
-                },
-              },
-              m(
-                'option',
-                {disabled: true, selected: !this.state.rightColumn},
-                'Select column',
-              ),
-              rightCols.map((col) =>
-                m(
-                  'option',
-                  {
-                    value: col.column.name,
-                    selected: col.column.name === this.state.rightColumn,
-                  },
-                  col.column.name,
-                ),
-              ),
-            ),
-          ),
-        ),
+            }
+            this.state.onchange?.();
+          },
+        }),
       ),
-    ]);
+      // Show hint when no columns are selected
+      noColumnsSelected &&
+        m(
+          Callout,
+          {icon: 'info'},
+          'Select at least one column to add from the joined source.',
+        ),
+      // Show alias inputs for selected columns
+      this.state.selectedColumns && this.state.selectedColumns.length > 0
+        ? m(FormSection, {label: 'Column Aliases (optional)'}, [
+            m(FormLabel, 'Rename columns to avoid conflicts:'),
+            this.state.selectedColumns.map((colName) => {
+              const error = this.getJoinColumnError(
+                colName,
+                this.state.selectedColumns!,
+                false,
+              );
+              return m(
+                LabeledControl,
+                {label: `${colName} →`},
+                m(TextInput, {
+                  placeholder: error ? 'alias required' : 'alias (optional)',
+                  value: this.state.columnAliases?.get(colName) ?? '',
+                  oninput: (e: InputEvent) => {
+                    const target = e.target as HTMLInputElement;
+                    const alias = target.value.trim();
+                    if (!this.state.columnAliases) {
+                      this.state.columnAliases = new Map();
+                    }
+                    if (alias) {
+                      this.state.columnAliases.set(colName, alias);
+                    } else {
+                      this.state.columnAliases.delete(colName);
+                    }
+                    this.state.onchange?.();
+                  },
+                }),
+                error && m(Icon, {icon: 'error'}),
+              );
+            }),
+          ])
+        : null,
+      // Show error summary if there are conflicts
+      this.state.selectedColumns &&
+        this.state.selectedColumns.length > 0 &&
+        m(IssueList, {
+          icon: 'error',
+          title: 'Column name conflicts:',
+          items: this.getJoinColumnErrors(
+            this.state.selectedColumns,
+            false,
+          ).map((err) => err.error),
+        }),
+      m(FormSection, {label: 'Join Condition'}, [
+        m(FormLabel, 'Base Column'),
+        m(
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              this.state.leftColumn = target.value;
+              this.state.onchange?.();
+            },
+          },
+          m(
+            'option',
+            {disabled: true, selected: !this.state.leftColumn},
+            'Select column',
+          ),
+          leftCols.map((col) =>
+            m(
+              'option',
+              {
+                value: col.column.name,
+                selected: col.column.name === this.state.leftColumn,
+              },
+              col.column.name,
+            ),
+          ),
+        ),
+        m(FormLabel, 'Connected Node Column'),
+        m(
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              this.state.rightColumn = target.value;
+              this.state.onchange?.();
+            },
+          },
+          m(
+            'option',
+            {disabled: true, selected: !this.state.rightColumn},
+            'Select column',
+          ),
+          rightCols.map((col) =>
+            m(
+              'option',
+              {
+                value: col.column.name,
+                selected: col.column.name === this.state.rightColumn,
+              },
+              col.column.name,
+            ),
+          ),
+        ),
+      ]),
+    );
   }
 
   private renderComputedColumn(col: NewColumn, nameError?: string): m.Child {
     if (col.type === 'switch') {
       return m(
-        '.pf-exp-switch-wrapper',
+        Form,
         nameError && m(Callout, {icon: 'error'}, nameError),
-        m(ColumnNameRow, {
-          label: 'New switch column name',
-          name: col.name,
-          isValid: this.isComputedColumnValid(col) && !nameError,
-          onNameChange: (name) => {
-            col.name = name;
-            redrawModal();
-          },
-          onRemove: () => {
-            // No-op in modal mode
-          },
-        }),
-        m(SwitchComponent, {
-          column: col,
-          columns: this.sourceCols,
-          onchange: () => {
-            // No-op in modal mode - changes are already in col
-          },
-        }),
+        m(FormSection, {label: 'Column Name'}, [
+          m(TextInput, {
+            placeholder: 'Enter column name',
+            value: col.name,
+            oninput: (e: Event) => {
+              col.name = (e.target as HTMLInputElement).value;
+              redrawModal();
+            },
+          }),
+        ]),
+        m(FormSection, {label: 'Switch Configuration'}, [
+          m(SwitchComponent, {
+            column: col,
+            columns: this.sourceCols,
+            onchange: () => {
+              // No-op in modal mode - changes are already in col
+            },
+          }),
+        ]),
       );
     }
 
     if (col.type === 'if') {
       return m(
-        '.pf-exp-if-wrapper',
+        Form,
         nameError && m(Callout, {icon: 'error'}, nameError),
-        m(ColumnNameRow, {
-          label: 'New if column name',
-          name: col.name,
-          isValid: this.isComputedColumnValid(col) && !nameError,
-          onNameChange: (name) => {
-            col.name = name;
-            redrawModal();
-          },
-          onRemove: () => {
-            // No-op in modal mode
-          },
-        }),
-        m(IfComponent, {
-          column: col,
-          onchange: () => {
-            // No-op in modal mode - changes are already in col
-          },
-        }),
+        m(FormSection, {label: 'Column Name'}, [
+          m(TextInput, {
+            placeholder: 'Enter column name',
+            value: col.name,
+            oninput: (e: Event) => {
+              col.name = (e.target as HTMLInputElement).value;
+              redrawModal();
+            },
+          }),
+        ]),
+        m(FormSection, {label: 'If Configuration'}, [
+          m(IfComponent, {
+            column: col,
+            onchange: () => {
+              // No-op in modal mode - changes are already in col
+            },
+          }),
+        ]),
       );
     }
 
     const isValid = this.isComputedColumnValid(col) && !nameError;
 
     return m(
-      'div',
-      {style: {display: 'flex', flexDirection: 'column', gap: '16px'}},
-      // Error callout for duplicate names
+      Form,
       nameError && m(Callout, {icon: 'error'}, nameError),
-      // Help text
       m(
-        'div',
-        {
-          style: {
-            padding: '12px',
-            background: 'var(--background-color)',
-            borderRadius: '4px',
-            fontSize: '13px',
-            color: 'var(--pf-text-color-secondary)',
-          },
-        },
-        m(
-          'div',
-          {style: {marginBottom: '8px'}},
-          'Create a computed column using any SQL expression.',
-        ),
-        m(
-          'div',
-          {style: {fontStyle: 'italic'}},
-          'Example: ',
-          m('code', 'dur / 1e6'),
-          ' to convert duration to milliseconds',
-        ),
+        'p',
+        'Create a computed column using any SQL expression. Example: ',
+        m('code', 'dur / 1e6'),
+        ' to convert duration to milliseconds.',
       ),
-      // Expression input
-      m(
-        'div',
-        {style: {display: 'flex', flexDirection: 'column', gap: '8px'}},
-        m(
-          'label',
-          {
-            style: {
-              fontSize: '14px',
-              fontWeight: 600,
-              color: 'var(--pf-text-color-primary)',
-            },
-          },
-          'SQL Expression',
-        ),
+      m(FormSection, {label: 'SQL Expression'}, [
         m(TextInput, {
           oninput: (e: Event) => {
             col.expression = (e.target as HTMLInputElement).value;
@@ -1466,22 +1538,8 @@ export class AddColumnsNode implements QueryNode {
             'Enter SQL expression (e.g., dur / 1e6, name || "_suffix")',
           value: col.expression,
         }),
-      ),
-      // Column name input
-      m(
-        'div',
-        {style: {display: 'flex', flexDirection: 'column', gap: '8px'}},
-        m(
-          'label',
-          {
-            style: {
-              fontSize: '14px',
-              fontWeight: 600,
-              color: 'var(--pf-text-color-primary)',
-            },
-          },
-          'Column Name',
-        ),
+      ]),
+      m(FormSection, {label: 'Column Name'}, [
         m(TextInput, {
           oninput: (e: Event) => {
             col.name = (e.target as HTMLInputElement).value;
@@ -1490,7 +1548,7 @@ export class AddColumnsNode implements QueryNode {
           placeholder: 'Enter column name (e.g., dur_ms)',
           value: col.name,
         }),
-      ),
+      ]),
       !isValid && m(Icon, {icon: 'warning'}),
     );
   }
@@ -1657,8 +1715,12 @@ export class AddColumnsNode implements QueryNode {
       expandedSuggestions: this.state.expandedSuggestions
         ? Array.from(this.state.expandedSuggestions)
         : undefined,
+      selectedSuggestionTable: this.state.selectedSuggestionTable,
       columnAliases: this.state.columnAliases
         ? Object.fromEntries(this.state.columnAliases)
+        : undefined,
+      suggestionAliases: this.state.suggestionAliases
+        ? Object.fromEntries(this.state.suggestionAliases)
         : undefined,
       isGuidedConnection: this.state.isGuidedConnection,
       comment: this.state.comment,
@@ -1713,6 +1775,20 @@ export class AddColumnsNode implements QueryNode {
           ? new Map(
               Object.entries(
                 serializedState.columnAliases as unknown as Record<
+                  string,
+                  string
+                >,
+              ),
+            )
+          : undefined,
+      suggestionAliases:
+        (serializedState.suggestionAliases as unknown as Record<
+          string,
+          string
+        >) !== undefined
+          ? new Map(
+              Object.entries(
+                serializedState.suggestionAliases as unknown as Record<
                   string,
                   string
                 >,
