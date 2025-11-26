@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/base/android_utils.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <sys/sendfile.h>
+#include <sys/system_properties.h>
 
 #include <cinttypes>
 
@@ -267,6 +269,103 @@ PerfettoCmd::UnlinkAndReturnPersistentTracesToUpload() {
   }
 
   return trace_fds;
+}
+
+void PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
+  // We must do as little work as possible before setting
+  // "perfetto.uploader_ready". The "traced" service will not start until this
+  // property is set to "1".
+  //
+  // A fallback mechanism exists in perfetto.rc to prevent indefinite wait:
+  // if this function crashes, hangs, or is never called, the property will
+  // automatically be set to "1" once "sys.boot_completed=1".
+  std::vector<base::ScopedFile> fds = UnlinkAndReturnPersistentTracesToUpload();
+
+  if (__system_property_set("perfetto.uploader_ready", "1") != 0) {
+    // This should never happens, but if it does we are in trouble. In this case
+    // just crash, we don't care about traces to be reported.
+    PERFETTO_FATAL("Failed to set property perfetto.uploader_ready");
+  }
+
+  // TODO(ktimofeev): move this wait to the body of
+  // 'android_internal::ReportTrace'
+  // '__system_property_wait' is available in '__ANDROID_API__ >= 26', so we
+  // have a simple loop here.
+  // We need to wait for the Android reporter service to be alive, so we sleep
+  // until the 'sys.boot_completed' is set by the system.
+  base::TimeSeconds seconds_since_boot = base::GetBootTimeS();
+  PERFETTO_LOG("ReportAllPersistentTraces, seconds_since_boot: %lld",
+               seconds_since_boot.count());
+
+  std::string prop_value;
+  for (int i = 0; i < 60; i++) {
+    prop_value = base::GetAndroidProp("sys.boot_completed");
+    if (prop_value == "1")
+      break;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  if (prop_value != "1") {
+    PERFETTO_LOG(
+        "ReportAllPersistentTraces, not booted after 60 "
+        "seconds, just returns");
+    return;
+  }
+  base::TimeSeconds seconds_since_boot_completed = base::GetBootTimeS();
+  PERFETTO_LOG("ReportAllPersistentTraces, slept for: %lld",
+               (seconds_since_boot_completed - seconds_since_boot).count());
+
+  for (base::ScopedFile& fd : fds) {
+    PERFETTO_LOG("ReportAllPersistentTraces, fd: %d", *fd);
+    std::optional<uint64_t> maybe_file_size = base::GetFileSize(*fd);
+    if (!maybe_file_size.has_value()) {
+      PERFETTO_PLOG("Can't get file size");
+      continue;
+    }
+    uint64_t file_size = maybe_file_size.value();
+    if (maybe_file_size == 0) {
+      PERFETTO_PLOG("file size == 0");
+      continue;
+    }
+    base::ScopedFile mmap_fd(dup(*fd));
+    if (!mmap_fd) {
+      PERFETTO_PLOG("Failed to dup fd for mmap");
+      continue;
+    }
+    base::ScopedMmap mmaped_file =
+        base::ScopedMmap::FromHandle(std::move(mmap_fd), file_size);
+    if (!mmaped_file.IsValid()) {
+      PERFETTO_PLOG("Failed to mmap");
+      continue;
+    }
+    std::optional<TraceConfig> trace_config =
+        ParseTraceConfigFromMmapedTrace(std::move(mmaped_file));
+    if (!trace_config.has_value()) {
+      PERFETTO_LOG("Not a perfetto trace");
+      continue;
+    }
+
+    // TODO(ktimofeev): remove
+    bool has_uuid = trace_config->has_trace_uuid_lsb() &&
+                    trace_config->has_trace_uuid_msb();
+    if (!has_uuid) {
+      PERFETTO_LOG("No uuid");
+      continue;
+    }
+
+    if (!trace_config->has_android_report_config()) {
+      PERFETTO_LOG("Not a android_report_config trace");
+      continue;
+    }
+
+    PERFETTO_LOG("ReportAllPersistentTrace: good persistent trace found: %s",
+                 trace_config->unique_session_name().c_str());
+
+    base::Uuid uuid(trace_config->trace_uuid_lsb(),
+                    trace_config->trace_uuid_msb());
+    ReportTraceToAndroidFramework(std::move(fd), file_size,
+                                  trace_config->android_report_config(), uuid,
+                                  trace_config->unique_session_name());
+  }
 }
 
 // static
