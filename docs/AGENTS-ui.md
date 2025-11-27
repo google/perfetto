@@ -232,8 +232,7 @@ Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongs
 ## Common Pitfalls to Avoid
 
 1. **Don't create new widgets without checking existing ones** - The widget library is comprehensive.
-2. **Don't use `window`** - Use `self` for compatibility with Web Workers.
-3. **Try to use the Trace object as much as possible** - Plumb the Trace object through the hierarchy and keep `AppImpl.instance.trace` as a last resort.
+2. **Try to use the Trace object as much as possible** - Plumb the Trace object through the hierarchy wherever needed.
 
 ## Code Review Pet Peeves and Style Preferences
 
@@ -257,21 +256,6 @@ function process(items: string[]): void { ... }
 
 // Good
 function process(items: ReadonlyArray<string>): void { ... }
-```
-
-**No nested ternaries - they're never the right option:**
-```typescript
-// Bad
-const result = a ? b : c ? d : e;
-
-// Good
-if (a) {
-  result = b;
-} else if (c) {
-  result = d;
-} else {
-  result = e;
-}
 ```
 
 **Use `classNames()` utility for building CSS class strings:**
