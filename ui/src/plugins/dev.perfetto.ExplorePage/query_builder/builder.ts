@@ -90,6 +90,7 @@ import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
 import {UIFilter} from './operations/filter';
 import {MaterializationService} from './materialization_service';
+import {ResizeHandle} from '../../../widgets/resize_handle';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -158,6 +159,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private dataSource?: DataGridDataSource;
   private drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
   private selectedView: SelectedView = SelectedView.kInfo;
+  private sidebarWidth: number = 500; // Default width in pixels
+  private readonly MIN_SIDEBAR_WIDTH = 250;
+  private readonly MAX_SIDEBAR_WIDTH = 800;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.trace = attrs.trace;
@@ -165,6 +169,17 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.materializationService = new MaterializationService(
       attrs.trace.engine,
     );
+  }
+
+  private handleSidebarResize(deltaPx: number) {
+    // Subtract delta because the handle is on the left edge of the sidebar
+    // Dragging left (negative delta) = narrower sidebar (positive change)
+    // Dragging right (positive delta) = wider sidebar (negative change)
+    this.sidebarWidth = Math.max(
+      this.MIN_SIDEBAR_WIDTH,
+      Math.min(this.MAX_SIDEBAR_WIDTH, this.sidebarWidth - deltaPx),
+    );
+    m.redraw();
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -396,7 +411,20 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }),
         ),
       ),
-      m('.pf-qb-explorer', explorer),
+      selectedNode &&
+        m(ResizeHandle, {
+          direction: 'horizontal',
+          onResize: (deltaPx) => this.handleSidebarResize(deltaPx),
+        }),
+      m(
+        '.pf-qb-explorer',
+        {
+          style: {
+            width: this.isExplorerCollapsed ? '0' : `${this.sidebarWidth}px`,
+          },
+        },
+        explorer,
+      ),
       selectedNode &&
         m(
           '.pf-qb-side-panel',
