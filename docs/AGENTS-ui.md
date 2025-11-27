@@ -33,7 +33,7 @@ When possible (if the API surface allows) feature functionality should be encaps
 - `core_plugins/` (e.g., `dev.perfetto.CoreCommands`, `dev.perfetto.Notes`) contain essential functionality. They cannot be disabled by users and are always active.
 - `plugins/` (e.g., `dev.perfetto.Sched`, `com.android.AndroidStartup`) are optional. Users can enable/disable them via feature flags. These are organized by reverse-DNS naming (e.g., `com.android.*`, `dev.perfetto.*`, `org.chromium.*`).
 - This distinction is mostly historical. These days in 90% of cases things can (and should) go only inside plugins/
-
+- Look at /docs/contributing/ui-plugins.md as it has extra useful content for plugin authors.
 
 ## Building and Running the UI
 
@@ -130,7 +130,7 @@ export class MyComponent implements m.ClassComponent<MyComponentAttrs> {
 
 **Mithril Rules:**
 
-- No need to call`m.redraw()` from within lifecycle hooks or handlers. Mithril automatically schedules redraws.
+- No need to call`m.redraw()` most of the times. We automatically schedules redraws: (1) in Mithril's DOM event handlers; (2) after trace processor queries complete. But NOT after manually registered JS event handlers.
 - Use `constructor` for initialization if no DOM access is needed, or `onCreate` if DOM is needed.
 - Prefer using the existing widget library (`ui/src/widgets/`) over creating new components.
 - Use `readonly` for attrs properties to prevent accidental mutation. We like things to be immutable.
@@ -153,6 +153,7 @@ The `ui/src/widgets/` directory contains reusable components. Always check here 
 - `Modal` - Modal dialogs
 - `TextInput`, `Select`, `Checkbox`, `Switch` - Form controls
 - `Tree` - Tree view component
+- `DataGrid` - Tabular data grid component
 - `Tabs` - Tabbed interface
 - `Spinner` - Loading indicator
 - `EmptyState` - Empty state placeholder
@@ -213,31 +214,11 @@ async onTraceLoad(trace: Trace): Promise<void> {
 }
 ```
 
-## Track Registration
+## Track creation
 
-Rarely you need to create a new Track from scrach. In most cases you can use higher level components in ui/src/components/tracks/. Look at those examples first.
-
-If you really need to create a track from scratch:
-
-```typescript
-async onTraceLoad(trace: Trace): Promise<void> {
-  const uri = '/my_plugin/my_track';
-
-  // Register the track definition
-  trace.tracks.registerTrack({
-    uri,
-    renderer: new MyTrackRenderer(trace, uri),
-    tags: {
-      kinds: ['my_track_kind'],
-    },
-  });
-
-  // Add to the workspace tree
-  const group = new TrackNode({name: 'My Group', isSummary: true});
-  group.addChildLast(new TrackNode({uri, name: 'My Track'}));
-  trace.workspace.addChildInOrder(group);
-}
-```
+Rarely you need to create a new Track from scrach.
+In most cases you can use higher level components in ui/src/components/tracks/, especially DatasetSliceTrack (examples in /docs/contributing/ui-plugins.md).
+Look at those examples first and keep creating a track via trace.tracks.registerTrack as a last-resort.
 
 ## CSS/SCSS Conventions
 
@@ -245,7 +226,7 @@ Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongs
 
 - Use the `pf-` prefix for all CSS classes (Perfetto namespace)
 - Follow BEM-like naming: `.pf-component`, `.pf-component__element`, `.pf-component--modifier`
-- Use CSS custom properties (variables) defined in `theme.scss` for colors
+- Use CSS custom properties (variables) defined in `theme_provider.scss` for colors
 - Support both light and dark themes using semantic color variables
 
 ## Common Pitfalls to Avoid
@@ -377,21 +358,6 @@ m('div', {
 
 ### Mithril-Specific Rules
 
-**Never call `m.redraw()` - it's almost never needed:**
-```typescript
-// Bad
-onclick: () => {
-  this.value = newValue;
-  m.redraw(); // Unnecessary!
-}
-
-// Good
-onclick: () => {
-  this.value = newValue;
-  // Mithril auto-redraws after event handlers
-}
-```
-
 **Don't use `oncreate`/lifecycle hooks for things that can be done in `view()`:**
 ```typescript
 // Bad
@@ -403,25 +369,6 @@ oncreate() {
 view() {
   const computedValue = expensiveComputation();
   return m('div', computedValue);
-}
-```
-
-**Components shouldn't cache parent data:**
-```typescript
-// Bad - component caches data from parent
-class FilterMenu {
-  private cachedOptions: string[] = [];
-  oninit({attrs}) {
-    this.cachedOptions = attrs.dataSource.getOptions();
-  }
-}
-
-// Good - let the data source handle caching
-class FilterMenu {
-  view({attrs}) {
-    const options = attrs.dataSource.getOptions(); // Data source caches internally
-    return m('div', options.map(o => m('option', o)));
-  }
 }
 ```
 
@@ -467,26 +414,6 @@ But don't touch years when editing existing files.
 
 // Good
 // Copyright (C) 2025 The Android Open Source Project
-```
-
-### Code Organization
-
-**Use WeakMap for trace-scoped data instead of modifying Trace API:**
-```typescript
-// Bad - adding properties to Trace
-interface Trace {
-  myPluginCache: Map<string, Data>; // Don't modify core types
-}
-
-// Good - use WeakMap keyed by trace
-const pluginCache = new WeakMap<Trace, Map<string, Data>>();
-
-function getCache(trace: Trace): Map<string, Data> {
-  if (!pluginCache.has(trace)) {
-    pluginCache.set(trace, new Map());
-  }
-  return pluginCache.get(trace)!;
-}
 ```
 
 ## Testing
