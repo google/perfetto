@@ -64,8 +64,7 @@ void SendRpcChunk(base::HttpServerConnection* conn,
 
 class Httpd : public base::HttpRequestHandler {
  public:
-  explicit Httpd(Rpc& rpc,
-                 size_t timeout_mins);
+  explicit Httpd(Rpc& rpc, size_t timeout_mins);
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
@@ -562,8 +561,8 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
   auto conn_to_id_it = conn_to_id_map.find(msg.conn);
-  if (conn_to_id_it == conn_to_id_map.end() || conn_to_id_it->second ==
-                                                  kDefaultTpUuid) {
+  if (conn_to_id_it == conn_to_id_map.end() ||
+      conn_to_id_it->second == kDefaultTpUuid) {
     // Connection not registered, which can happen if we are using an older
     // version of the UI. In this case we use the global RPC because there is no
     // UUID associated with it.
