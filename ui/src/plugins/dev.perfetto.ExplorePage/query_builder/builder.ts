@@ -329,6 +329,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 this.queryExecuted = false;
                 this.runQuery(selectedNode);
               },
+              onExportToTimeline: () => {
+                this.exportToTimeline(selectedNode);
+              },
             })
           : null,
       },
@@ -605,17 +608,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         // re-analysis for downstream nodes without marking this node as changed.
         // We don't need to resetQueryState() here as that would clear the results display.
       }
-
-      // Automatically show results in timeline tab (like query page does)
-      // Use the materialized table instead of re-running the original query
-      addQueryResultsTab(
-        this.trace,
-        {
-          query: `SELECT * FROM ${tableName}`,
-          title: 'Explore Query',
-        },
-        'explore_page',
-      );
     } catch (e) {
       // If we created a new materialization and it failed, clean it up
       if (createdNewMaterialization && tableName !== undefined) {
@@ -630,6 +622,25 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.isQueryRunning = false;
       m.redraw();
     }
+  }
+
+  private exportToTimeline(node: QueryNode) {
+    // Only export if we have a materialized table
+    const tableName = node.state.materializationTableName;
+    if (!tableName) {
+      console.warn('Cannot export to timeline: no materialized table');
+      return;
+    }
+
+    // Use the materialized table instead of re-running the original query
+    addQueryResultsTab(
+      this.trace,
+      {
+        query: `SELECT * FROM ${tableName}`,
+        title: 'Explore Query',
+      },
+      'explore_page',
+    );
   }
 
   private setNodeIssuesFromResponse(
