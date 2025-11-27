@@ -607,12 +607,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       }
 
       // Automatically show results in timeline tab (like query page does)
-      // Note: We don't pass prefetchedResponse because Explore page uses
-      // SQLDataSource with empty rows array. Let the tab fetch data itself.
+      // Use the materialized table instead of re-running the original query
       addQueryResultsTab(
         this.trace,
         {
-          query: this.query.sql,
+          query: `SELECT * FROM ${tableName}`,
           title: 'Explore Query',
         },
         'explore_page',
