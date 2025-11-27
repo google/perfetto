@@ -19,22 +19,24 @@ import {PivotTreeNode} from './pivot_tree_node';
 import {Button} from '../../../../widgets/button';
 import {Icons} from '../../../../base/semantic_icons';
 import {TableColumn, tableColumnId} from '../table/table_column';
-import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
-import {Anchor} from '../../../../widgets/anchor';
-import {renderColumnIcon, renderSortMenuItems} from '../table/table_header';
-import {SelectColumnMenu} from '../table/select_column_menu';
+import {MenuDivider, MenuItem} from '../../../../widgets/menu';
+import {SelectColumnMenu} from '../table/menus/select_column_menu';
 import {SqlColumn} from '../table/sql_column';
 import {buildSqlQuery} from '../table/query_builder';
 import {Aggregation, AGGREGATIONS} from './aggregations';
 import {aggregationId, pivotId} from './ids';
 import {
-  ColumnDescriptor,
-  CustomTable,
-  ReorderableColumns,
-} from '../../../../widgets/custom_table';
+  Grid,
+  GridCell,
+  GridColumn,
+  GridHeaderCell,
+  renderSortMenuItems,
+  SortDirection,
+} from '../../../../widgets/grid';
 
 export interface PivotTableAttrs {
   readonly state: PivotTableState;
+  readonly getSelectableColumns: () => TableColumn[];
   // Additional button to render at the end of each row. Typically used
   // for adding new filters.
   extraRowButton?(node: PivotTreeNode): m.Children;
@@ -44,201 +46,300 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   view({attrs}: m.CVnode<PivotTableAttrs>) {
     const state = attrs.state;
     const data = state.getData();
-    const pivotColumns: ColumnDescriptor<PivotTreeNode>[] = state
-      .getPivots()
-      .map((pivot, index) => ({
-        title: this.renderPivotColumnHeader(attrs, pivot, index),
-        render: (node) => {
-          if (node.isRoot()) {
-            return {
-              cell: 'Total values:',
-              className: 'total-values',
-              colspan: state.getPivots().length,
-            };
-          }
-          const status = node.getPivotDisplayStatus(index);
-          const value = node.getPivotValue(index);
-          return {
-            cell: [
-              (status === 'collapsed' || status === 'expanded') &&
-                m(Button, {
-                  icon:
-                    status === 'collapsed' ? Icons.ExpandDown : Icons.ExpandUp,
-                  onclick: () => (node.collapsed = !node.collapsed),
-                }),
-              // Show a non-clickable indicator that the value is auto-expanded.
-              status === 'auto_expanded' &&
-                m(Button, {
-                  icon: 'chevron_right',
-                  disabled: true,
-                }),
-              // Indent the expanded values to align them with the parent value
-              // even though they do not have the "expand/collapse" button.
-              status === 'pivoted_value' && m('span.indent'),
-              value !== undefined && state.getPivots()[index].renderCell(value),
-              // Show ellipsis for the last pivot if the node is collapsed to
-              // make it clear to the user that there are some values.
-              status === 'hidden_behind_collapsed' && '...',
-            ],
-          };
-        },
-      }));
-
-    const aggregationColumns: ColumnDescriptor<PivotTreeNode>[] = state
-      .getAggregations()
-      .map((agg, index) => ({
-        title: this.renderAggregationColumnHeader(attrs, agg, index),
-        render: (node) => ({
-          cell: agg.column.renderCell(node.getAggregationValue(index)),
-        }),
-      }));
-
+    const pivots = state.getPivots();
+    const aggregations = state.getAggregations();
     const extraRowButton = attrs.extraRowButton;
-    const extraButtonColumn: ReorderableColumns<PivotTreeNode> | undefined =
-      extraRowButton && {
-        columns: [
-          {
-            title: undefined,
-            render: (node) => ({
-              cell: extraRowButton(node),
-              className: 'action-button',
-            }),
-          },
-        ],
-        hasLeftBorder: false,
-      };
 
-    // Expand the tree to a list of rows to show.
+    // Expand the tree to a list of rows to show
     const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
 
+    // Build VirtualGrid columns
+    const columns: GridColumn[] = [
+      ...pivots.map((pivot, index) => {
+        const sorted = state.isSortedByPivot(pivot);
+        const columnKey = `pivot-${pivotId(pivot)}`;
+        const gridColumn: GridColumn = {
+          key: columnKey,
+          header: m(
+            GridHeaderCell,
+            {
+              sort: sorted,
+              onSort: (direction: SortDirection) =>
+                state.sortByPivot(pivot, direction),
+              menuItems: this.renderPivotColumnMenu(attrs, pivot, index),
+            },
+            pivotId(pivot),
+          ),
+          reorderable: {handle: 'pivot'},
+          thickRightBorder: index === pivots.length - 1,
+        };
+        return gridColumn;
+      }),
+      ...aggregations.map((agg, index) => {
+        const columnKey = `agg-${aggregationId(agg)}`;
+        const gridColumn: GridColumn = {
+          key: columnKey,
+          header: m(
+            GridHeaderCell,
+            {
+              sort: state.isSortedByAggregation(agg),
+              onSort: (direction: SortDirection) =>
+                state.sortByAggregation(agg, direction),
+              menuItems: this.renderAggregationColumnMenu(attrs, agg, index),
+            },
+            aggregationId(agg),
+          ),
+          reorderable: {handle: 'aggregation'},
+        };
+        return gridColumn;
+      }),
+    ];
+
+    if (extraRowButton) {
+      columns.push({
+        key: 'action-button',
+        minWidth: 0,
+        header: m(GridHeaderCell, ''),
+      });
+    }
+
+    // Build VirtualGrid rows
+    const rows = nodes.map((node) => {
+      const cellRow: m.Children[] = [];
+
+      // Handle pivot cells
+      if (node.isRoot()) {
+        // For root node, create a special "Total values" cell that spans all pivot columns
+        // We'll just put it in the first pivot column and leave others empty
+        cellRow.push(
+          m(
+            GridCell,
+            {
+              align: 'right',
+            },
+            m('.pf-pivot-table__total-values', 'Total values:'),
+          ),
+        );
+
+        // Leave other pivot columns empty for the root row
+        for (let i = 1; i < pivots.length; i++) {
+          cellRow.push(m(GridCell));
+        }
+      } else {
+        // Regular pivot cells
+        pivots.forEach((_, index) => {
+          const status = node.getPivotDisplayStatus(index);
+          const value = node.getPivotValue(index);
+          const renderedCell = (function () {
+            if (value === undefined) return undefined;
+            return state.getPivots()[index].renderCell(value);
+          })();
+          const content = [
+            (status === 'collapsed' || status === 'expanded') &&
+              m(Button, {
+                icon:
+                  status === 'collapsed' ? 'chevron_right' : Icons.ExpandDown,
+                onclick: () => {
+                  node.collapsed = !node.collapsed;
+                  m.redraw();
+                },
+                compact: true,
+              }),
+            status === 'auto_expanded' &&
+              m(Button, {
+                icon: 'chevron_right',
+                disabled: true,
+                compact: true,
+              }),
+            status === 'pivoted_value' &&
+              m('span.pf-pivot-table__cell--indent'),
+            renderedCell && renderedCell.content,
+            status === 'hidden_behind_collapsed' && '...',
+          ];
+          cellRow.push(
+            m(
+              GridCell,
+              {
+                align: renderedCell?.isNull
+                  ? 'center'
+                  : renderedCell?.isNumerical
+                    ? 'right'
+                    : 'left',
+                nullish: renderedCell?.isNull,
+              },
+              content,
+            ),
+          );
+        });
+      }
+
+      // Handle aggregation cells
+      aggregations.forEach((agg, index) => {
+        const renderedCell = agg.column.renderCell(
+          node.getAggregationValue(index),
+        );
+        cellRow.push(
+          m(
+            GridCell,
+            {
+              align: renderedCell?.isNull
+                ? 'center'
+                : renderedCell?.isNumerical
+                  ? 'right'
+                  : 'left',
+              nullish: renderedCell?.isNull,
+            },
+            renderedCell.content,
+          ),
+        );
+      });
+
+      // Handle extra row button
+      if (extraRowButton) {
+        cellRow.push(m(GridCell, {padding: false}, extraRowButton(node)));
+      }
+
+      return cellRow;
+    });
+
     return [
-      m(CustomTable<PivotTreeNode>, {
+      m(Grid, {
+        fillHeight: true,
         className: 'pf-pivot-table',
-        data: nodes,
-        columns: [
-          {
-            columns: pivotColumns,
-            reorder: (from, to) => state.movePivot(from, to),
-          },
-          {
-            columns: aggregationColumns,
-            reorder: (from, to) => state.moveAggregation(from, to),
-          },
-          extraButtonColumn,
-        ],
+        columns,
+        rowData: rows,
+        virtualization: {
+          rowHeightPx: 25,
+        },
+        onColumnReorder: (from, to, position) => {
+          if (typeof from === 'string' && typeof to === 'string') {
+            // Handle pivot column reordering
+            if (from.startsWith('pivot-') && to.startsWith('pivot-')) {
+              const fromIndex = pivots.findIndex(
+                (p) => `pivot-${pivotId(p)}` === from,
+              );
+              let toIndex = pivots.findIndex(
+                (p) => `pivot-${pivotId(p)}` === to,
+              );
+              if (position === 'after') {
+                toIndex++;
+              }
+              state.movePivot(fromIndex, toIndex);
+            }
+            // Handle aggregation column reordering
+            else if (from.startsWith('agg-') && to.startsWith('agg-')) {
+              const fromIndex = aggregations.findIndex(
+                (a) => `agg-${aggregationId(a)}` === from,
+              );
+              let toIndex = aggregations.findIndex(
+                (a) => `agg-${aggregationId(a)}` === to,
+              );
+              if (position === 'after') {
+                toIndex++;
+              }
+              state.moveAggregation(fromIndex, toIndex);
+            }
+          }
+        },
       }),
       data === undefined && m(Spinner),
     ];
   }
 
-  renderPivotColumnHeader(
+  renderPivotColumnMenu(
     attrs: PivotTableAttrs,
     pivot: TableColumn,
     index: number,
-  ) {
+  ): m.Children {
     const state = attrs.state;
     const sorted = state.isSortedByPivot(pivot);
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Anchor, {icon: renderColumnIcon(sorted)}, pivotId(pivot)),
-      },
-      [
-        // Sort by pivot.
-        renderSortMenuItems(sorted, (direction) =>
-          state.sortByPivot(pivot, direction),
-        ),
-        // Remove pivot: show only if there is more than one pivot (to avoid
-        // removing the last pivot).
-        state.getPivots().length > 1 &&
-          m(MenuItem, {
-            label: 'Remove',
-            icon: Icons.Delete,
-            onclick: () => state.removePivot(index),
-          }),
+    const menuItems: m.Children = [];
 
-        // End of "per-pivot" menu items. The following menu items are table-level
-        // operations (i.e. "add pivot").
-        m(MenuDivider),
+    menuItems.push(
+      // Sort by pivot.
+      renderSortMenuItems(sorted, (direction) =>
+        state.sortByPivot(pivot, direction),
+      ),
 
-        m(
-          MenuItem,
-          {
-            label: 'Add pivot',
-            icon: Icons.Add,
+      m(MenuDivider),
+
+      m(
+        MenuItem,
+        {
+          label: 'Add pivot',
+          icon: Icons.Add,
+        },
+        m(SelectColumnMenu, {
+          columns: attrs.getSelectableColumns().map((column) => ({
+            key: tableColumnId(column),
+            column,
+          })),
+          manager: {
+            filters: state.filters,
+            trace: state.trace,
+            getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+              buildSqlQuery({
+                table: state.table.name,
+                columns,
+                filters: state.filters.get(),
+              }),
           },
-          m(SelectColumnMenu, {
-            columns: state.table.columns.map((column) => ({
-              key: tableColumnId(column),
-              column,
-            })),
-            manager: {
-              filters: state.filters,
-              trace: state.trace,
-              getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-                buildSqlQuery({
-                  table: state.table.name,
-                  columns,
-                  filters: state.filters.get(),
-                }),
-            },
-            existingColumnIds: new Set(state.getPivots().map(pivotId)),
-            onColumnSelected: (column) => state.addPivot(column, index),
-          }),
-        ),
-      ],
+          existingColumnIds: new Set(state.getPivots().map(pivotId)),
+          onColumnSelected: (column) => state.addPivot(column, index),
+        }),
+      ),
+
+      m(MenuDivider),
+
+      // Remove pivot: show only if there is more than one pivot (to avoid
+      // removing the last pivot).
+      m(MenuItem, {
+        disabled: state.getPivots().length === 1,
+        label: 'Remove',
+        icon: Icons.Delete,
+        onclick: () => state.removePivot(index),
+      }),
     );
+    return menuItems;
   }
 
-  renderAggregationColumnHeader(
+  renderAggregationColumnMenu(
     attrs: PivotTableAttrs,
     agg: Aggregation,
     index: number,
-  ) {
+  ): m.Children {
     const state = attrs.state;
     const sorted = state.isSortedByAggregation(agg);
-    return m(
-      PopupMenu,
-      {
-        trigger: m(
-          Anchor,
-          {icon: renderColumnIcon(sorted)},
-          aggregationId(agg),
-        ),
-      },
-      [
-        // Sort by aggregation.
-        renderSortMenuItems(sorted, (direction) =>
-          state.sortByAggregation(agg, direction),
-        ),
-        // Remove aggregation.
-        // Do not remove count aggregation to ensure that there is always at least one aggregation.
-        agg.op !== 'count' &&
-          m(MenuItem, {
-            label: 'Remove',
-            icon: Icons.Delete,
-            onclick: () => state.removeAggregation(index),
-          }),
-        // Change aggregation operation.
-        // Do not change aggregation for count (as it's the only one which doesn't require a column).
-        agg.op !== 'count' &&
-          m(
-            MenuItem,
-            {
-              label: 'Change aggregation',
-              icon: Icons.Change,
-            },
-            AGGREGATIONS.filter((a) => a !== agg.op).map((a) =>
-              m(MenuItem, {
-                label: a,
-                onclick: () =>
-                  state.replaceAggregation(index, {
-                    op: a,
-                    column: agg.column,
-                  }),
-              }),
-            ),
+    const menuItems: m.Children = [];
+
+    menuItems.push(
+      // Sort by aggregation.
+      renderSortMenuItems(sorted, (direction) =>
+        state.sortByAggregation(agg, direction),
+      ),
+
+      // Change aggregation operation, add the same aggregation again, and remove
+      // aggregation are not available for the count aggregation.
+      agg.op !== 'count' && [
+        m(MenuDivider),
+        m(
+          MenuItem,
+          {
+            label: 'Change aggregation',
+            icon: Icons.Change,
+          },
+          AGGREGATIONS.filter((a) => a !== agg.op).map((a) =>
+            m(MenuItem, {
+              label: a,
+              onclick: () =>
+                state.replaceAggregation(index, {
+                  op: a,
+                  column: agg.column,
+                }),
+            }),
           ),
+        ),
+
         // Add the same aggregation again.
         // Designed to be used together with "change aggregation" to allow the user to add multiple
         // aggregations on the same column (e.g. MIN / MAX).
@@ -247,44 +348,50 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           icon: Icons.Copy,
           onclick: () => state.addAggregation(agg, index + 1),
         }),
-
-        // End of "per-pivot" menu items. The following menu items are table-level
-        // operations (i.e. "add pivot").
-        m(MenuDivider),
-
-        m(
-          MenuItem,
-          {
-            label: 'Add aggregation',
-            icon: Icons.Add,
-          },
-          m(SelectColumnMenu, {
-            columns: state.table.columns.map((column) => ({
-              key: tableColumnId(column),
-              column,
-            })),
-            manager: {
-              filters: state.filters,
-              trace: state.trace,
-              getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-                buildSqlQuery({
-                  table: state.table.name,
-                  columns,
-                  filters: state.filters.get(),
-                }),
-            },
-            columnMenu: (column) => ({
-              rightIcon: '',
-              children: AGGREGATIONS.map((agg) =>
-                m(MenuItem, {
-                  label: agg,
-                  onclick: () => state.addAggregation({op: agg, column}, index),
-                }),
-              ),
-            }),
-          }),
-        ),
+        m(MenuItem, {
+          label: 'Remove',
+          icon: Icons.Delete,
+          onclick: () => state.removeAggregation(index),
+        }),
       ],
+
+      // End of "per-pivot" menu items. The following menu items are table-level
+      // operations (i.e. "add pivot").
+      m(MenuDivider),
+
+      m(
+        MenuItem,
+        {
+          label: 'Add aggregation',
+          icon: Icons.Add,
+        },
+        m(SelectColumnMenu, {
+          columns: attrs.getSelectableColumns().map((column) => ({
+            key: tableColumnId(column),
+            column,
+          })),
+          manager: {
+            filters: state.filters,
+            trace: state.trace,
+            getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+              buildSqlQuery({
+                table: state.table.name,
+                columns,
+                filters: state.filters.get(),
+              }),
+          },
+          columnMenu: (column) => ({
+            rightIcon: Icons.ContextMenuAlt,
+            children: AGGREGATIONS.map((agg) =>
+              m(MenuItem, {
+                label: agg,
+                onclick: () => state.addAggregation({op: agg, column}, index),
+              }),
+            ),
+          }),
+        }),
+      ),
     );
+    return menuItems;
   }
 }

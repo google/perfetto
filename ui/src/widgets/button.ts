@@ -17,7 +17,6 @@ import {classNames} from '../base/classnames';
 import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Popup} from './popup';
-import {Spinner} from './spinner';
 import {assertUnreachable} from '../base/logging';
 
 export enum ButtonVariant {
@@ -61,6 +60,11 @@ interface CommonAttrs extends HTMLButtonAttrs {
   variant?: ButtonVariant;
   // Turns the button into a pill shape.
   rounded?: boolean;
+  // Makes the button shrink to fit inside it's container, rather than its width
+  // being defined by its content. Useful for when you have buttons with dynamic
+  // content that may change size, and you don't want the button to change size
+  // as that happens. Defaults to false.
+  shrink?: boolean;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -94,6 +98,8 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       intent = Intent.None,
       variant = ButtonVariant.Minimal,
       rounded,
+      shrink,
+      loading,
       ...htmlAttrs
     } = attrs;
 
@@ -108,6 +114,8 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       iconOnly && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
       rounded && 'pf-button--rounded',
+      shrink && 'pf-button--shrink',
+      loading && 'pf-button--loading',
       className,
     );
 
@@ -118,7 +126,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         className: classes,
       },
       this.renderIcon(attrs),
-      label || '\u200B', // Zero width space keeps button in-flow
+      m('span', {className: 'pf-button__label'}, label),
       rightIcon &&
         m(Icon, {
           className: 'pf-right-icon',
@@ -131,9 +139,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
   private renderIcon(attrs: ButtonAttrs): m.Children {
     const {icon, iconFilled} = attrs;
     const className = 'pf-left-icon';
-    if (attrs.loading) {
-      return m(Spinner, {className});
-    } else if (icon) {
+    if (icon) {
       return m(Icon, {className, icon, filled: iconFilled});
     } else {
       return undefined;

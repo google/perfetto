@@ -18,9 +18,10 @@ import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {StandardColumn, TimestampColumn} from './columns';
 
-const idColumn = new StandardColumn('id');
-const nameColumn = new StandardColumn('name');
-const tsColumn = new TimestampColumn('ts');
+const trace = createFakeTraceImpl({allowQueries: true});
+const idColumn = new StandardColumn('id', undefined);
+const nameColumn = new StandardColumn('name', undefined);
+const tsColumn = new TimestampColumn(trace, 'ts');
 
 const table: SqlTableDescription = {
   name: 'table',
@@ -29,7 +30,6 @@ const table: SqlTableDescription = {
 };
 
 test('sqlTableState: columnManupulation', () => {
-  const trace = createFakeTraceImpl({allowQueries: true});
   const state = new SqlTableState(trace, table);
 
   state.addColumn(tsColumn, 0);

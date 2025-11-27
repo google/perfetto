@@ -256,7 +256,8 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
                                      ThreadTrack::Current());
     }
-    return Track::FromPointer(std::forward<TrackEventName>(name), ptr, parent);
+    return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
+                                   parent);
   }
 
   template <class TrackEventName>
@@ -517,7 +518,8 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
   TrackRegistry();
   ~TrackRegistry();
 
-  static void InitializeInstance();
+  static void InitializeInstance(
+      std::optional<uint64_t> process_uuid = std::nullopt);
   static void ResetForTesting();
   static uint64_t ComputeProcessUuid();
   static TrackRegistry* Get() { return instance_; }

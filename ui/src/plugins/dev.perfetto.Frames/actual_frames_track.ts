@@ -18,7 +18,7 @@ import {ColorScheme} from '../../base/color_scheme';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
 // color named and defined based on Material Design color palettes
@@ -36,14 +36,16 @@ const LIGHT_GREEN_500 = makeColorScheme(new HSLColor('#C0D588'));
 const LIGHT_GREEN_100 = makeColorScheme(new HSLColor('#DCEDC8'));
 const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
 const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
+const WHITE_200 = makeColorScheme(new HSLColor('#F5F5F5'));
 
 export function createActualFramesTrack(
   trace: Trace,
   uri: string,
   maxDepth: number,
   trackIds: ReadonlyArray<number>,
+  useExperimentalJankForClassification: boolean,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
@@ -55,7 +57,10 @@ export function createActualFramesTrack(
         dur: LONG,
         jank_type: STR,
         jank_tag: STR_NULL,
+        jank_tag_experimental: STR_NULL,
         jank_severity_type: STR_NULL,
+        arg_set_id: NUM,
+        track_id: NUM,
       },
       filter: {
         col: 'track_id',
@@ -63,7 +68,12 @@ export function createActualFramesTrack(
       },
     }),
     colorizer: (row) => {
-      return getColorSchemeForJank(row.jank_tag, row.jank_severity_type);
+      return getColorSchemeForJank(
+        useExperimentalJankForClassification
+          ? row.jank_tag_experimental
+          : row.jank_tag,
+        row.jank_severity_type,
+      );
     },
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
@@ -88,6 +98,9 @@ function getColorSchemeForJank(
         return LIGHT_GREEN_100;
       case 'No Jank': // should not happen
         return GREEN_200;
+      case 'Non Animating': // should not happen
+      case 'Display not ON':
+        return WHITE_200;
       default:
         return PINK_200;
     }
@@ -104,6 +117,9 @@ function getColorSchemeForJank(
         return LIGHT_GREEN_500;
       case 'No Jank':
         return GREEN_500;
+      case 'Non Animating':
+      case 'Display not ON':
+        return WHITE_200;
       default:
         return PINK_500;
     }

@@ -1,0 +1,36 @@
+[package]
+edition = "2024"
+name = "perfetto-sdk-sys"
+version = "0.1.2"
+authors = ["David Reveman <dreveman@gmail.com>"]
+build = "build.rs"
+description = "Low-level FFI bindings for Perfetto"
+readme = "README.md"
+keywords = [
+    "tracing",
+    "perfetto",
+    "ffi",
+]
+categories = ["external-ffi-bindings"]
+license = "Apache-2.0"
+homepage = "https://www.perfetto.dev"
+repository = "https://github.com/google/perfetto"
+include = [
+    "build.rs",
+    "Cargo.toml",
+    "include/**",
+    "libperfetto_c/**",
+    "README.md",
+    "src/**",
+    "wrapper.h",
+]
+
+[features]
+default = ["vendored"]
+vendored = []
+
+[dependencies]
+
+[build-dependencies]
+bindgen = "0.71"
+cc = "1.1"

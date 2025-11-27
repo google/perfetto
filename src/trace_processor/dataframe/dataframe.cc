@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
+#include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -283,6 +284,14 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
     }));
   }
   return columns;
+}
+
+std::vector<std::string> Dataframe::QueryPlan::BytecodeToString() const {
+  std::vector<std::string> result;
+  for (const auto& instr : plan_.bytecode) {
+    result.push_back(impl::bytecode::ToString(instr));
+  }
+  return result;
 }
 
 }  // namespace perfetto::trace_processor::dataframe

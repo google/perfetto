@@ -16,12 +16,13 @@
 
 #include "src/profiling/symbolizer/filesystem.h"
 
+#include "perfetto/base/build_config.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #include <windows.h>
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
 
 bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
   std::vector<std::string> sub_dirs;
@@ -52,7 +53,6 @@ bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
   return true;
 }
 
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

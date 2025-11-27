@@ -21,23 +21,23 @@ from python.generators.diff_tests.testing import TestSuite
 
 class WindowManager(TestSuite):
 
-  def test_has_expected_rows(self):
+  def test_snapshot_has_expected_rows(self):
     return DiffTestBlueprint(
         trace=Path('windowmanager.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.winscope.windowmanager;
         SELECT
-          ts
+          ts, focused_display_id, has_invalid_elapsed_ts
         FROM
           android_windowmanager;
         """,
         out=Csv("""
-        "ts"
-        558296470731
-        558884171862
+        "ts","focused_display_id","has_invalid_elapsed_ts"
+        558296470731,0,0
+        558884171862,2,1
         """))
 
-  def test_has_expected_args(self):
+  def test_snapshot_has_expected_args(self):
     return DiffTestBlueprint(
         trace=Path('windowmanager.textproto'),
         query="""
@@ -52,7 +52,7 @@ class WindowManager(TestSuite):
         """,
         out=Csv("""
         "key","display_value"
-        "elapsed_realtime_nanos","558296470731"
+        "elapsed_realtime_nanos","123"
         "where","trace.enable"
         "window_manager_service.focused_app","com.google.android.apps.nexuslauncher/.NexusLauncherActivity"
         "window_manager_service.focused_window.hash_code","160447612"
@@ -64,15 +64,80 @@ class WindowManager(TestSuite):
         "window_manager_service.policy.keyguard_draw_complete","true"
         """))
 
-  def test_table_has_raw_protos(self):
+  def test_snapshot_has_raw_proto(self):
     return DiffTestBlueprint(
         trace=Path('windowmanager.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.winscope.windowmanager;
-        SELECT COUNT(*) FROM __intrinsic_windowmanager
+        SELECT COUNT(*) FROM android_windowmanager
         WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"
         2
+        """))
+
+  def test_windowcontainer_has_expected_rows(self):
+    return DiffTestBlueprint(
+        trace=Path('windowmanager.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.windowmanager;
+        SELECT COUNT(*)
+        FROM android_windowmanager_windowcontainer
+        WHERE snapshot_id = 0;
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        70
+        """))
+
+  def test_windowcontainer_has_expected_args(self):
+    return DiffTestBlueprint(
+        trace=Path('windowmanager.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.windowmanager;
+        SELECT args.key, args.display_value
+        FROM android_windowmanager_windowcontainer wc
+        INNER JOIN args ON wc.arg_set_id = args.arg_set_id
+        WHERE snapshot_id = 0 AND wc.id = 0;
+        """,
+        out=Csv("""
+        "key","display_value"
+        "window_container.configuration_container.full_configuration.window_configuration.windowing_mode","1"
+        "window_container.orientation","-2"
+        "window_container.visible","true"
+        "window_container.identifier.hash_code","64646999"
+        "window_container.identifier.user_id","-10000"
+        "window_container.identifier.title","WindowContainer"
+        "keyguard_controller.keyguard_per_display[0]","[NULL]"
+        "is_home_recents_component","true"
+        """))
+
+  def test_windowcontainer_has_rects(self):
+    return DiffTestBlueprint(
+        trace=Path('windowmanager.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.windowmanager;
+        INCLUDE PERFETTO MODULE android.winscope.rect;
+        SELECT x, y, w, h
+        FROM android_windowmanager_windowcontainer wc
+        INNER JOIN android_winscope_trace_rect tr ON wc.window_rect_id = tr.id
+        INNER JOIN android_winscope_rect r ON tr.rect_id = r.id
+        INNER JOIN android_winscope_transform t ON tr.transform_id = t.id
+        WHERE snapshot_id = 0;
+        """,
+        out=Csv("""
+        "x","y","w","h"
+        0.000000,0.000000,1080.000000,2400.000000
+        0.000000,0.000000,1080.000000,2400.000000
+        0.000000,0.000000,1080.000000,2400.000000
+        0.000000,0.000000,1080.000000,2400.000000
+        120.000000,2274.000000,840.000000,126.000000
+        0.000000,0.000000,1080.000000,128.000000
+        0.000000,0.000000,1080.000000,2400.000000
+        0.000000,2274.000000,1080.000000,126.000000
+        402.000000,848.000000,276.000000,704.000000
+        540.000000,1200.000000,0.000000,0.000000
+        0.000000,0.000000,1080.000000,128.000000
+        0.000000,2326.000000,1080.000000,74.000000
         """))

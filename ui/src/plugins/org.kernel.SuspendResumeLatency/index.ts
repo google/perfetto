@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
       uri,
       tags: {
         trackIds,
-        kind: SLICE_TRACK_KIND,
+        kinds: [SLICE_TRACK_KIND],
       },
       renderer: await createTraceProcessorSliceTrack({
         trace: ctx,
@@ -79,6 +79,6 @@ export default class implements PerfettoPlugin {
 
     // Display the track in the UI.
     const track = new TrackNode({uri, name: 'Suspend/Resume Latency'});
-    ctx.workspace.addChildInOrder(track);
+    ctx.defaultWorkspace.addChildInOrder(track);
   }
 }

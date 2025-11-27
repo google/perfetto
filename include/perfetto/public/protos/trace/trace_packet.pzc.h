@@ -31,6 +31,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemProperty);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidUserList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelockBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BatteryCounters);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BluetoothTraceEvent);
@@ -50,6 +51,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelCpuFrequencyEvent);
+PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelTaskRenameEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelTaskStateEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuCounterEvent);
@@ -550,6 +552,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   120);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
+                  perfetto_protos_GenericKernelProcessTree,
+                  generic_kernel_process_tree,
+                  122);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
                   perfetto_protos_CpuPerUidData,
                   cpu_per_uid_data,
                   119);
@@ -558,6 +565,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_EvdevEvent,
                   evdev_event,
                   121);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_AndroidUserList,
+                  user_list,
+                  123);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,

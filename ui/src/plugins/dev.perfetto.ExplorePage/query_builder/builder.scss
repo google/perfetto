@@ -12,79 +12,184 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../assets/theme";
-@import "./data_explorer.scss";
-@import "./graph.scss";
+@import "common";
+@import "./graph/graph.scss";
+@import "./empty_graph.scss";
 @import "./help.scss";
-@import "./node_box.scss";
+@import "./graph/node_box.scss";
 @import "./node_explorer.scss";
 @import "./operations/operation_component.scss";
-@import "./sources/slices_source.scss";
-@import "./sources/table_source.scss";
+@import "./nodes/sources/slices_source.scss";
+@import "./nodes/sources/table_source.scss";
+@import "./nodes/aggregation_node.scss";
+@import "./nodes/modify_columns_node.scss";
+@import "./table_list.scss";
+@import "./widgets.scss";
 
 .pf-query-builder-layout {
-  display: grid;
-  grid-template-columns: 50% 50%;
   height: 100%;
 
-  &.no-selection {
-    grid-template-rows: auto 1fr;
-  }
-
-  &.selection {
-    grid-template-rows: 50% 50%;
+  // SplitPanel's main section needs to have the grid layout
+  .pf-split-panel__main {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    overflow: hidden;
   }
 
   .pf-qb-node-graph {
     grid-column: 1;
-    grid-row: 1;
     overflow: auto;
+    position: relative;
   }
 
   .pf-qb-explorer {
     grid-column: 2;
-    grid-row: 1;
-    overflow: auto;
+    overflow: hidden;
+    width: 500px;
+    height: 100%;
+    transition:
+      width 0.3s ease,
+      border-left 0.3s ease;
   }
 
-  .pf-qb-viewer {
-    overflow: auto;
-  }
+  .pf-qb-side-panel {
+    grid-column: 3;
+    width: 60px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background-color: var(--pf-color-surface);
+    border-left: 1px solid var(--pf-color-border);
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-start;
 
-  &.selection-left {
-    .pf-qb-viewer {
-      grid-column: 1;
-      grid-row: 2;
+    .pf-button {
+      width: 100%;
+      height: 60px;
+      font-size: 20px;
+      box-shadow: none;
+      border: none;
+      border-radius: 0;
+      border-bottom: 1px solid var(--pf-color-border);
+      background-color: var(--pf-color-surface);
+
+      &:hover {
+        background-color: var(--pf-color-hover);
+      }
+
+      &.pf-active {
+        background-color: var(--pf-color-primary);
+        color: white;
+      }
     }
+  }
+
+  .pf-qb-floating-controls {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    .pf-button {
+      width: 60px;
+      height: 60px;
+      font-size: 28px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+      &:hover {
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        transform: scale(1.05);
+      }
+    }
+  }
+
+  .pf-qb-floating-controls-bottom {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .pf-button {
+      width: 40px;
+      height: 40px;
+      font-size: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+      &:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        transform: scale(1.05);
+      }
+    }
+  }
+
+  .pf-qb-floating-warning {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: var(--pf-color-danger);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+
+    &:hover {
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      transform: scale(1.05);
+    }
+
+    .pf-qb-warning-icon {
+      color: white;
+      font-size: 28px;
+    }
+  }
+
+  &.explorer-collapsed {
     .pf-qb-explorer {
-      grid-row: 1 / span 2;
+      width: 0;
+      border-left: none;
+      overflow: hidden;
     }
   }
+}
 
-  &.selection-right {
-    .pf-qb-viewer {
-      grid-column: 2;
-      grid-row: 2;
-    }
-    .pf-qb-node-graph {
-      grid-row: 1 / span 2;
-    }
-  }
+.pf-data-explorer-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+  padding: 2rem;
+}
 
-  &.selection-bottom {
-    .pf-qb-viewer {
-      grid-column: 1 / span 2;
-      grid-row: 2;
-    }
-  }
-  &.full-page {
-    .pf-qb-node-graph,
-    .pf-qb-explorer {
-      display: none;
-    }
-    .pf-qb-viewer {
-      grid-column: 1 / span 2;
-      grid-row: 1 / span 2;
-    }
+.pf-data-explorer-warning-icon {
+  color: var(--pf-color-warning);
+  font-size: 64px;
+}
+
+.pf-data-explorer-warning-message {
+  text-align: center;
+  max-width: 600px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pf-color-on-surface);
+}
+
+.pf-query-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+
+  .pf-query-stats-separator {
+    user-select: none;
   }
 }

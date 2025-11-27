@@ -16,28 +16,37 @@
 
 #include "perfetto/profiling/pprof_builder.h"
 
-#include "perfetto/base/build_config.h"
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <cxxabi.h>
-#endif
-
 #include <algorithm>
 #include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <map>
+#include <optional>
 #include <set>
+#include <string>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/traceconv/utils.h"
 
 #include "protos/third_party/pprof/profile.pbzero.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <cxxabi.h>
+#endif
 
 // Quick hint on navigating the file:
 // Conversions for both perf and heap profiles start with |TraceToPprof|.
@@ -108,21 +117,20 @@ struct Location {
 template <>
 struct std::hash<Function> {
   size_t operator()(const Function& loc) const {
-    return perfetto::base::FnvHasher::Combine(loc.name_id.raw_id(),
-                                              loc.system_name_id.raw_id(),
-                                              loc.filename_id.raw_id());
+    return perfetto::base::MurmurHashCombine(loc.name_id, loc.system_name_id,
+                                             loc.filename_id);
   }
 };
 
 template <>
 struct std::hash<Location> {
   size_t operator()(const Location& loc) const {
-    perfetto::base::FnvHasher hasher;
-    hasher.Update(loc.mapping_id);
-    hasher.Update(loc.single_function_id);
+    perfetto::base::MurmurHashCombiner hasher;
+    hasher.Combine(loc.mapping_id);
+    hasher.Combine(loc.single_function_id);
     for (auto line : loc.inlined_functions) {
-      hasher.Update(line.function_id);
-      hasher.Update(line.line_no);
+      hasher.Combine(line.function_id);
+      hasher.Combine(line.line_no);
     }
     return static_cast<size_t>(hasher.digest());
   }
@@ -139,7 +147,7 @@ uint64_t ToPprofId(int64_t id) {
   return static_cast<uint64_t>(id) + 1;
 }
 
-std::string AsCsvString(std::vector<uint64_t> vals) {
+std::string AsCsvString(const std::vector<uint64_t>& vals) {
   std::string ret;
   for (size_t i = 0; i < vals.size(); i++) {
     if (i != 0) {

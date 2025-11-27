@@ -22,7 +22,7 @@ let page: Page;
 
 test.beforeAll(async ({browser}, _testInfo) => {
   // This trace is quite large, bump the timeout up a little
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
   await pth.openTraceFile('ui-funcgraph.pftrace');
@@ -47,7 +47,10 @@ test('thread funcgraph', async () => {
   const grp = pth.locateTrack('iperf 3442');
   await grp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(grp);
-  const funcgraph = pth.locateTrack('iperf 3442/Funcgraph (3450)', grp);
+  const funcgraph = pth.locateTrack(
+    'iperf 3442/Funcgraph (3450) (funcgraph)',
+    grp,
+  );
   await funcgraph.scrollIntoViewIfNeeded();
   await pth.waitForIdleAndScreenshot('thread_funcgraph.png');
 });

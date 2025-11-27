@@ -17,18 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_STACK_PROFILE_SEQUENCE_STATE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_STACK_PROFILE_SEQUENCE_STATE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
+class DummyMemoryMapping;
 class TraceProcessorContext;
 class VirtualMemoryMapping;
 
@@ -43,19 +45,23 @@ class StackProfileSequenceState final
 
   // Returns `nullptr`if non could be found.
   VirtualMemoryMapping* FindOrInsertMapping(uint64_t iid);
-  std::optional<CallsiteId> FindOrInsertCallstack(UniquePid upid, uint64_t iid);
+  std::optional<CallsiteId> FindOrInsertCallstack(std::optional<UniquePid> upid,
+                                                  uint64_t iid);
 
  private:
   std::optional<base::StringView> LookupInternedBuildId(uint64_t iid);
   std::optional<base::StringView> LookupInternedMappingPath(uint64_t iid);
   std::optional<base::StringView> LookupInternedFunctionName(uint64_t iid);
+  std::optional<base::StringView> LookupInternedSourcePath(uint64_t iid);
 
   // Returns `nullptr`if non could be found.
   VirtualMemoryMapping* FindOrInsertMappingImpl(std::optional<UniquePid> upid,
                                                 uint64_t iid);
-  std::optional<FrameId> FindOrInsertFrame(UniquePid upid, uint64_t iid);
+  std::optional<FrameId> FindOrInsertFrame(std::optional<UniquePid> upid,
+                                           uint64_t iid);
 
   TraceProcessorContext* const context_;
+  DummyMemoryMapping* dummy_mapping_for_interned_frames_ = nullptr;
 
   struct OptionalUniquePidAndIid {
     std::optional<UniquePid> upid;
@@ -65,43 +71,26 @@ class StackProfileSequenceState final
       return upid == o.upid && iid == o.iid;
     }
 
-    struct Hasher {
-      size_t operator()(const OptionalUniquePidAndIid& o) const {
-        base::FnvHasher h;
-        h.Update(o.iid);
-        if (o.upid) {
-          h.Update(*o.upid);
-        }
-        return static_cast<size_t>(h.digest());
-      }
-    };
-  };
-
-  struct UniquePidAndIid {
-    UniquePid upid;
-    uint64_t iid;
-
-    bool operator==(const UniquePidAndIid& o) const {
-      return upid == o.upid && iid == o.iid;
+    template <typename H>
+    friend H PerfettoHashValue(H h, const OptionalUniquePidAndIid& o) {
+      return H::Combine(std::move(h), o.iid, o.upid);
     }
-
-    struct Hasher {
-      size_t operator()(const UniquePidAndIid& o) const {
-        return static_cast<size_t>(base::FnvHasher::Combine(o.upid, o.iid));
-      }
-    };
   };
+
   base::FlatHashMap<OptionalUniquePidAndIid,
                     VirtualMemoryMapping*,
-                    OptionalUniquePidAndIid::Hasher>
+                    base::MurmurHash<OptionalUniquePidAndIid>>
       cached_mappings_;
-  base::FlatHashMap<UniquePidAndIid, FrameId, UniquePidAndIid::Hasher>
+  base::FlatHashMap<OptionalUniquePidAndIid,
+                    FrameId,
+                    base::MurmurHash<OptionalUniquePidAndIid>>
       cached_frames_;
-  base::FlatHashMap<UniquePidAndIid, CallsiteId, UniquePidAndIid::Hasher>
+  base::FlatHashMap<OptionalUniquePidAndIid,
+                    CallsiteId,
+                    base::MurmurHash<OptionalUniquePidAndIid>>
       cached_callstacks_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_STACK_PROFILE_SEQUENCE_STATE_H_

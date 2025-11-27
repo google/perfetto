@@ -47,6 +47,33 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   ~TraceProcessor() override;
 
   // =================================================================
+  // |        Trace loading related functionality starts here         |
+  // =================================================================
+
+  // The entry point to push trace data into the processor. The trace format
+  // will be automatically discovered on the first push call. It is possible
+  // to make queries between two pushes.
+  // Returns the Ok status if parsing has been succeeding so far, and Error
+  // status if some unrecoverable error happened. If this happens, the
+  // TraceProcessor will ignore the following Parse() requests, drop data on the
+  // floor and return errors forever.
+  base::Status Parse(TraceBlobView) override = 0;
+
+  // Shorthand for Parse(TraceBlobView(TraceBlob(TakeOwnership(buf, size))).
+  // For compatibility with older API clients.
+  base::Status Parse(std::unique_ptr<uint8_t[]> buf, size_t size);
+
+  // Forces all data in the trace to be pushed to tables without buffering data
+  // in sorting queues. This is useful if queries need to be performed to
+  // compute post-processing data (e.g. deobfuscation, symbolization etc) which
+  // will be appended to the trace in a future call to Parse.
+  void Flush() override = 0;
+
+  // Calls Flush and finishes all of the actions required for parsing the trace.
+  // Calling this function multiple times is undefined behaviour.
+  base::Status NotifyEndOfFile() override = 0;
+
+  // =================================================================
   // |        PerfettoSQL related functionality starts here          |
   // =================================================================
 
@@ -146,7 +173,7 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // if you pass binaries these are used to decode ETM traces.
   // Registering the same file twice will return an error.
   virtual base::Status RegisterFileContent(const std::string& path,
-                                           TraceBlobView content) = 0;
+                                           TraceBlob content) = 0;
 
   // Interrupts the current query. Typically used by Ctrl-C handler.
   virtual void InterruptQuery() = 0;

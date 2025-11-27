@@ -96,8 +96,21 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
           if not line.startswith(' D')
       ]
 
+      # Find the merge-base between merge_base and HEAD to avoid picking up
+      # other changes if merge_base has moved on.
+      try:
+        merge_base_result = run_command(
+            ['git', 'merge-base', merge_base, 'HEAD'])
+        merge_base_commit = merge_base_result.stdout.strip()
+      except Exception as _:
+        # On the CI, the merge base cannot be found for PRs from external
+        # contributors since we do a shallow clone. In that case, use the
+        # `merge_base` directly.
+        merge_base_commit = merge_base
+
       diff_result = run_command([
-          'git', 'diff', '--name-only', '--diff-filter=crd', merge_base, 'HEAD'
+          'git', 'diff', '--name-only', '--diff-filter=crd', merge_base_commit,
+          'HEAD'
       ])
       diff_files = diff_result.stdout.splitlines()
 
@@ -250,6 +263,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
           '*.jpg',
           '*/test/data/*',
           'Makefile',
+          'rules',
           '*.descriptor',
       ])
 
@@ -675,7 +689,7 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
     return []
 
   try:
-    run_command([sys.executable, tool], cwd=REPO_ROOT)
+    run_command([sys.executable, tool, '--check-includes'], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
   except subprocess.CalledProcessError:
@@ -881,17 +895,23 @@ def CheckUiRatchet(changed_files: List[str]) -> List[str]:
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--merge-base', default='origin/main')
+  parser.add_argument('--merge-base', default=None)
   parser.add_argument(
       '--skip-formatters',
       default='',
       help='Comma-separated list of code formatters to skip')
   # The pre-push hook passes extra cmdline arguments like 'origin git@...'.
-  # Accept and ignore positional args.
-  args, _ = parser.parse_known_args()
+  args, positional_args = parser.parse_known_args()
 
-  # 1. Determine files to check
+  # 1. Determine files to check.
   merge_base = args.merge_base
+  if merge_base is None:
+    remote = 'origin'
+    if not sys.stdin.isatty() and len(positional_args) > 1:
+      remote = positional_args[0]  # Get the remote fromt the git hook cmdline.
+    merge_base = subprocess.check_output(
+        ['git', 'merge-base', 'HEAD', remote + '/main'], text=True).strip()
+
   changed_files = get_changed_files(merge_base)
 
   if not changed_files:
@@ -918,7 +938,7 @@ def main():
       (CheckMergedTraceConfigProto, [changed_files]),
       (CheckProtoEventList, [changed_files, merge_base]),  # Needs merge_base
       (CheckBannedCpp, [changed_files]),
-      (CheckSqlModules, [changed_files]),
+      (CheckSqlModules, [changed_files]),  # Includes --check-includes
       (CheckSqlMetrics, [changed_files]),
       (CheckTestData, [changed_files
                       ]),  # Doesn't need specific files list but pass anyway

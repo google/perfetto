@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {sqliteString} from '../../../../base/string_utils';
 import {Duration, Time} from '../../../../base/time';
+import {Trace} from '../../../../public/trace';
 import {SqlValue, STR} from '../../../../trace_processor/query_result';
 import {
   asSchedSqlId,
@@ -23,9 +24,7 @@ import {
   asUpid,
   asUtid,
 } from '../../../sql_utils/core_types';
-import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
-import {PopupMenu} from '../../../../widgets/menu';
 import {DurationWidget} from '../../duration';
 import {showProcessDetailsMenuItem} from '../../process';
 import {SchedRef} from '../../sched';
@@ -33,16 +32,23 @@ import {SliceRef} from '../../slice';
 import {showThreadDetailsMenuItem} from '../../thread';
 import {ThreadStateRef} from '../../thread_state';
 import {Timestamp} from '../../timestamp';
-import {TableColumn, TableManager} from './table_column';
+import {RenderedCell, TableColumn, TableManager} from './table_column';
 import {
   getStandardContextMenuItems,
   renderStandardCell,
 } from './render_cell_utils';
 import {SqlColumn, sqlColumnId, SqlExpression} from './sql_column';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../../../trace_processor/perfetto_sql_type';
+import {parseJsonWithBigints} from '../../../../base/json_utils';
 
 function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   return renderError(
-    `Wrong type for ${type} column ${sqlColumnId(name)}: bigint expected, ${typeof value} found`,
+    `Wrong type for ${type} column ${sqlColumnId(
+      name,
+    )}: bigint expected, ${typeof value} found`,
   );
 }
 
@@ -66,10 +72,11 @@ export interface IdColumnParams {
 export class StandardColumn implements TableColumn {
   constructor(
     public readonly column: SqlColumn,
+    public readonly type: PerfettoSqlType | undefined,
     private params?: StandardColumnParams,
   ) {}
 
-  renderCell(value: SqlValue, tableManager?: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager?: TableManager) {
     return renderStandardCell(value, this.column, tableManager);
   }
 
@@ -79,28 +86,43 @@ export class StandardColumn implements TableColumn {
 }
 
 export class TimestampColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  public readonly type = PerfettoSqlTypes.TIMESTAMP;
 
-  renderCell(value: SqlValue, tableManager?: TableManager): m.Children {
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
+
+  renderCell(value: SqlValue, tableManager?: TableManager) {
     if (typeof value === 'number') {
       value = BigInt(Math.round(value));
     }
     if (typeof value !== 'bigint') {
       return renderStandardCell(value, this.column, tableManager);
     }
-    return m(Timestamp, {
-      ts: Time.fromRaw(value),
-      extraMenuItems:
+    return {
+      content: m(Timestamp, {
+        trace: this.trace,
+        ts: Time.fromRaw(value),
+      }),
+      menu: [
         tableManager &&
-        getStandardContextMenuItems(value, this.column, tableManager),
-    });
+          getStandardContextMenuItems(value, this.column, tableManager),
+      ],
+      isNumerical: true,
+    };
   }
 }
 
 export class DurationColumn implements TableColumn {
-  constructor(public column: SqlColumn) {}
+  public readonly type = PerfettoSqlTypes.DURATION;
 
-  renderCell(value: SqlValue, tableManager?: TableManager): m.Children {
+  constructor(
+    public readonly trace: Trace,
+    public column: SqlColumn,
+  ) {}
+
+  renderCell(value: SqlValue, tableManager?: TableManager) {
     if (typeof value === 'number') {
       value = BigInt(Math.round(value));
     }
@@ -108,43 +130,70 @@ export class DurationColumn implements TableColumn {
       return renderStandardCell(value, this.column, tableManager);
     }
 
-    return m(DurationWidget, {
-      dur: Duration.fromRaw(value),
-      extraMenuItems:
+    return {
+      content: m(DurationWidget, {
+        trace: this.trace,
+        dur: Duration.fromRaw(value),
+      }),
+      menu: [
         tableManager &&
-        getStandardContextMenuItems(value, this.column, tableManager),
-    });
+          getStandardContextMenuItems(value, this.column, tableManager),
+      ],
+      isNumerical: true,
+    };
   }
 }
 
 export class SliceIdColumn implements TableColumn {
+  public readonly type: PerfettoSqlType;
+
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
-  ) {}
+  ) {
+    this.type = {
+      kind: params?.type === 'id' ? 'id' : 'joinid',
+      source: {table: 'slice', column: 'id'},
+    };
+  }
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  renderCell(value: SqlValue, manager?: TableManager): RenderedCell {
     const id = value;
 
     if (!manager || id === null) {
       return renderStandardCell(id, this.column, manager);
     }
 
-    return m(SliceRef, {
-      id: asSliceSqlId(Number(id)),
-      name: `${id}`,
-      switchToCurrentSelectionTab: false,
-    });
+    return {
+      content: m(SliceRef, {
+        trace: this.trace,
+        id: asSliceSqlId(Number(id)),
+        name: `${id}`,
+        switchToCurrentSelectionTab: false,
+      }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
+      isNumerical: true,
+    };
   }
 
   listDerivedColumns() {
     if (this.params?.type === 'id') return undefined;
     return async () =>
       new Map<string, TableColumn>([
-        ['ts', new TimestampColumn(this.getChildColumn('ts'))],
-        ['dur', new DurationColumn(this.getChildColumn('dur'))],
-        ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['parent_id', new SliceIdColumn(this.getChildColumn('parent_id'))],
+        ['ts', new TimestampColumn(this.trace, this.getChildColumn('ts'))],
+        ['dur', new DurationColumn(this.trace, this.getChildColumn('dur'))],
+        [
+          'name',
+          new StandardColumn(
+            this.getChildColumn('name'),
+            PerfettoSqlTypes.STRING,
+          ),
+        ],
+        [
+          'parent_id',
+          new SliceIdColumn(this.trace, this.getChildColumn('parent_id')),
+        ],
       ]);
   }
 
@@ -160,50 +209,88 @@ export class SliceIdColumn implements TableColumn {
 }
 
 export class SchedIdColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  public readonly type: PerfettoSqlType = {
+    kind: 'joinid',
+    source: {table: 'sched', column: 'id'},
+  };
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
+
+  renderCell(value: SqlValue, manager?: TableManager) {
     const id = value;
 
     if (!manager || id === null) {
       return renderStandardCell(id, this.column, manager);
     }
-    if (typeof id !== 'bigint') return wrongTypeError('id', this.column, id);
+    if (typeof id !== 'bigint') {
+      return {content: wrongTypeError('id', this.column, id)};
+    }
 
-    return m(SchedRef, {
-      id: asSchedSqlId(Number(id)),
-      name: `${id}`,
-      switchToCurrentSelectionTab: false,
-    });
+    return {
+      content: m(SchedRef, {
+        trace: this.trace,
+        id: asSchedSqlId(Number(id)),
+        name: `${id}`,
+        switchToCurrentSelectionTab: false,
+      }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
+      isNumerical: true,
+    };
   }
 }
 
 export class ThreadStateIdColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  public readonly type: PerfettoSqlType = {
+    kind: 'joinid',
+    source: {table: 'thread_state', column: 'id'},
+  };
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
+
+  renderCell(value: SqlValue, manager?: TableManager) {
     const id = value;
 
     if (!manager || id === null) {
       return renderStandardCell(id, this.column, manager);
     }
-    if (typeof id !== 'bigint') return wrongTypeError('id', this.column, id);
+    if (typeof id !== 'bigint') {
+      return {content: wrongTypeError('id', this.column, id)};
+    }
 
-    return m(ThreadStateRef, {
-      id: asThreadStateSqlId(Number(id)),
-      name: `${id}`,
-      switchToCurrentSelectionTab: false,
-    });
+    return {
+      content: m(ThreadStateRef, {
+        trace: this.trace,
+        id: asThreadStateSqlId(Number(id)),
+        name: `${id}`,
+        switchToCurrentSelectionTab: false,
+      }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
+      isNumerical: true,
+    };
   }
 }
 
 export class ThreadIdColumn implements TableColumn {
+  public readonly type: PerfettoSqlType;
+
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
-  ) {}
+  ) {
+    this.type = {
+      kind: params?.type === 'id' ? 'id' : 'joinid',
+      source: {table: 'thread', column: 'id'},
+    };
+  }
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  renderCell(value: SqlValue, manager?: TableManager) {
     const utid = value;
 
     if (!manager || utid === null) {
@@ -216,29 +303,46 @@ export class ThreadIdColumn implements TableColumn {
       );
     }
 
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Anchor, `${utid}`),
-      },
-
-      showThreadDetailsMenuItem(asUtid(Number(utid))),
-      getStandardContextMenuItems(utid, this.column, manager),
-    );
+    return {
+      content: `${utid}`,
+      menu: [
+        showThreadDetailsMenuItem(this.trace, asUtid(Number(utid))),
+        getStandardContextMenuItems(utid, this.column, manager),
+      ],
+      isNumerical: true,
+    };
   }
 
   listDerivedColumns() {
     if (this.params?.type === 'id') return undefined;
     return async () =>
       new Map<string, TableColumn>([
-        ['tid', new StandardColumn(this.getChildColumn('tid'))],
-        ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['start_ts', new TimestampColumn(this.getChildColumn('start_ts'))],
-        ['end_ts', new TimestampColumn(this.getChildColumn('end_ts'))],
-        ['upid', new ProcessIdColumn(this.getChildColumn('upid'))],
+        [
+          'tid',
+          new StandardColumn(this.getChildColumn('tid'), PerfettoSqlTypes.INT),
+        ],
+        [
+          'name',
+          new StandardColumn(
+            this.getChildColumn('name'),
+            PerfettoSqlTypes.STRING,
+          ),
+        ],
+        [
+          'start_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('start_ts')),
+        ],
+        [
+          'end_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('end_ts')),
+        ],
+        ['upid', new ProcessIdColumn(this.trace, this.getChildColumn('upid'))],
         [
           'is_main_thread',
-          new StandardColumn(this.getChildColumn('is_main_thread')),
+          new StandardColumn(
+            this.getChildColumn('is_main_thread'),
+            PerfettoSqlTypes.BOOLEAN,
+          ),
         ],
       ]);
   }
@@ -246,8 +350,8 @@ export class ThreadIdColumn implements TableColumn {
   initialColumns(): TableColumn[] {
     return [
       this,
-      new StandardColumn(this.getChildColumn('tid')),
-      new StandardColumn(this.getChildColumn('name')),
+      new StandardColumn(this.getChildColumn('tid'), PerfettoSqlTypes.INT),
+      new StandardColumn(this.getChildColumn('name'), PerfettoSqlTypes.STRING),
     ];
   }
 
@@ -265,12 +369,20 @@ export class ThreadIdColumn implements TableColumn {
 }
 
 export class ProcessIdColumn implements TableColumn {
+  public readonly type: PerfettoSqlType;
+
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
-  ) {}
+  ) {
+    this.type = {
+      kind: params?.type === 'id' ? 'id' : 'joinid',
+      source: {table: 'process', column: 'id'},
+    };
+  }
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  renderCell(value: SqlValue, manager?: TableManager) {
     const upid = value;
 
     if (!manager || upid === null) {
@@ -283,32 +395,49 @@ export class ProcessIdColumn implements TableColumn {
       );
     }
 
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Anchor, `${upid}`),
-      },
-
-      showProcessDetailsMenuItem(asUpid(Number(upid))),
-      getStandardContextMenuItems(upid, this.column, manager),
-    );
+    return {
+      content: `${upid}`,
+      menu: [
+        showProcessDetailsMenuItem(this.trace, asUpid(Number(upid))),
+        getStandardContextMenuItems(upid, this.column, manager),
+      ],
+      isNumerical: true,
+    };
   }
 
   listDerivedColumns() {
     if (this.params?.type === 'id') return undefined;
     return async () =>
       new Map<string, TableColumn>([
-        ['pid', new StandardColumn(this.getChildColumn('pid'))],
-        ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['start_ts', new TimestampColumn(this.getChildColumn('start_ts'))],
-        ['end_ts', new TimestampColumn(this.getChildColumn('end_ts'))],
+        [
+          'pid',
+          new StandardColumn(this.getChildColumn('pid'), PerfettoSqlTypes.INT),
+        ],
+        [
+          'name',
+          new StandardColumn(
+            this.getChildColumn('name'),
+            PerfettoSqlTypes.STRING,
+          ),
+        ],
+        [
+          'start_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('start_ts')),
+        ],
+        [
+          'end_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('end_ts')),
+        ],
         [
           'parent_upid',
-          new ProcessIdColumn(this.getChildColumn('parent_upid')),
+          new ProcessIdColumn(this.trace, this.getChildColumn('parent_upid')),
         ],
         [
           'is_main_thread',
-          new StandardColumn(this.getChildColumn('is_main_thread')),
+          new StandardColumn(
+            this.getChildColumn('is_main_thread'),
+            PerfettoSqlTypes.BOOLEAN,
+          ),
         ],
       ]);
   }
@@ -316,8 +445,8 @@ export class ProcessIdColumn implements TableColumn {
   initialColumns(): TableColumn[] {
     return [
       this,
-      new StandardColumn(this.getChildColumn('pid')),
-      new StandardColumn(this.getChildColumn('name')),
+      new StandardColumn(this.getChildColumn('pid'), PerfettoSqlTypes.INT),
+      new StandardColumn(this.getChildColumn('name'), PerfettoSqlTypes.STRING),
     ];
   }
 
@@ -334,8 +463,10 @@ export class ProcessIdColumn implements TableColumn {
   }
 }
 
-class ArgColumn implements TableColumn<{type: SqlColumn}> {
+class ArgColumn implements TableColumn {
   public readonly column: SqlColumn;
+  public readonly display: SqlColumn;
+  public readonly type: PerfettoSqlType | undefined = undefined;
   private id: string;
 
   constructor(
@@ -352,14 +483,34 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
       ],
       this.id,
     );
-  }
-
-  supportingColumns() {
-    return {type: this.getRawColumn('value_type')};
+    this.display = new SqlExpression(
+      (cols: string[]) => `json_object(
+          'id', ${cols[0]},
+          'int_value', ${cols[1]},
+          'real_value', ${cols[2]},
+          'string_value', ${cols[3]},
+          'display_value', ${cols[4]}
+      )`,
+      (
+        [
+          'id',
+          'int_value',
+          'real_value',
+          'string_value',
+          'display_value',
+        ] as const
+      ).map((c) => this.getRawColumn(c)),
+    );
   }
 
   private getRawColumn(
-    type: 'string_value' | 'int_value' | 'real_value' | 'id' | 'value_type',
+    type:
+      | 'string_value'
+      | 'int_value'
+      | 'real_value'
+      | 'id'
+      | 'type'
+      | 'display_value',
   ): SqlColumn {
     return {
       column: type,
@@ -374,48 +525,49 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
     };
   }
 
-  renderCell(
-    value: SqlValue,
-    tableManager?: TableManager,
-    values?: {type: SqlValue},
-  ): m.Children {
-    // If the value is NULL, then filters can check for id column for better performance.
-    if (value === null) {
-      return renderStandardCell(
-        value,
-        this.getRawColumn('value_type'),
-        tableManager,
-      );
+  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell {
+    if (tableManager === undefined) {
+      return renderStandardCell(value, this.column, tableManager);
     }
-    if (values?.type === 'int') {
+    if (typeof value !== 'string') {
+      return {
+        content: renderError(
+          `Wrong type: expected string, ${typeof value} found`,
+        ),
+      };
+    }
+    const argValue = parseJsonWithBigints(value);
+    if (argValue['id'] === null) {
+      return renderStandardCell(null, this.getRawColumn('id'), tableManager);
+    }
+    if (argValue['int_value'] !== null) {
       return renderStandardCell(
-        value,
+        argValue['int_value'],
         this.getRawColumn('int_value'),
         tableManager,
       );
-    }
-    if (values?.type === 'string') {
+    } else if (argValue['real_value'] !== null) {
       return renderStandardCell(
-        value,
+        argValue['real_value'],
+        this.getRawColumn('real_value'),
+        tableManager,
+      );
+    } else {
+      return renderStandardCell(
+        argValue['string_value'],
         this.getRawColumn('string_value'),
         tableManager,
       );
     }
-    if (values?.type === 'real') {
-      return renderStandardCell(
-        value,
-        this.getRawColumn('real_value'),
-        tableManager,
-      );
-    }
-    return renderStandardCell(value, this.column, tableManager);
   }
 }
 
 export class ArgSetIdColumn implements TableColumn {
+  public readonly type = PerfettoSqlTypes.ARG_SET_ID;
+
   constructor(public readonly column: SqlColumn) {}
 
-  renderCell(value: SqlValue, tableManager: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager: TableManager) {
     return renderStandardCell(value, this.column, tableManager);
   }
 

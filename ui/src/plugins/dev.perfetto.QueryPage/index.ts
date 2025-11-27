@@ -97,7 +97,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       text: 'Query (SQL)',
       href: '#!/query',
       icon: 'database',
-      sortOrder: 1,
+      sortOrder: 20,
     });
 
     if (QueryPagePlugin.addQueryPageMiniFlag.get()) {
@@ -167,7 +167,7 @@ class QueryPageMini implements m.ClassComponent<QueryPageMiniAttrs> {
             trace: attrs.trace,
             query: attrs.executedQuery,
             resp: attrs.queryResult,
-            fillParent: false,
+            fillHeight: false,
           }),
     );
   }

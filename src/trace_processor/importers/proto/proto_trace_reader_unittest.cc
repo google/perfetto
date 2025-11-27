@@ -29,10 +29,13 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -51,7 +54,12 @@ class ProtoTraceReaderTest : public ::testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, 0x1001);
-    context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
+    context_.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&context_, 1);
+    context_.clock_tracker = std::make_unique<ClockTracker>(
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kDefault);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();

@@ -106,6 +106,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "memory_per_process"
           row {
             values: {
               double_value: 37351104642.0
@@ -154,6 +155,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "memory_per_process"
           row {
             values: {
               double_value: 37351104642.0
@@ -203,6 +205,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "preamble_view_metric"
           row {
             values: {
               double_value: 37351104642.0
@@ -252,6 +255,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "preamble_view_metric"   
           row {
             values: {
               double_value: 37351104642.0
@@ -278,6 +282,164 @@ class SummaryMetricsV2(TestSuite):
               sql: "CREATE PERFETTO VIEW sl AS SELECT id, ts FROM slice; SELECT id, ts FROM sl LIMIT 2"
                 column_names: "id"
                 column_names: "ts"
+              }
+            }
+          }
+        """))
+
+  def test_sql_no_columns_specified(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=MetricV2SpecTextproto('''
+          id: "memory_per_process"
+          dimensions: "id"
+          value: "ts"
+          query: {
+            id: "sql_source"
+            sql {
+              sql: "SELECT id, ts FROM slice limit 2"
+            }
+          }
+        '''),
+        out=Csv("""
+          bundle_id: "memory_per_process"
+          row {
+            values {
+              double_value: 37351104642.0
+            }
+            dimension {
+              int64_value: 0
+            }
+          }
+          row {
+            values {
+              double_value: 37351520078.0
+            }
+            dimension {
+              int64_value: 1
+            }
+          }
+          specs {
+            id: "memory_per_process"
+            dimensions: "id"
+            value: "ts"
+            query {
+              id: "sql_source"
+              sql {
+                sql: "SELECT id, ts FROM slice limit 2"
+              }
+            }
+          }
+"""))
+
+  def test_column_transformation(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=MetricV2SpecTextproto('''
+          id: "max_duration_ms"
+          dimensions: "slice_name"
+          dimensions: "thread_name"
+          value: "max_dur_ms"
+          query: {
+            inner_query: {
+              sql: {
+                sql: "SELECT s.name, s.dur, t.name as thread_name FROM slice s JOIN thread_track tt ON s.track_id = tt.id JOIN thread t ON tt.utid = t.utid WHERE s.name = 'binder transaction'"
+              }
+              select_columns {
+                column_name_or_expression: "name"
+                alias: "slice_name"
+              }
+              select_columns {
+                column_name_or_expression: "thread_name"
+              }
+              select_columns {
+                column_name_or_expression: "dur / 1000"
+                alias: "dur_ms"
+              }
+            }
+            group_by: {
+              column_names: "slice_name"
+              column_names: "thread_name"
+              aggregates: {
+                column_name: "dur_ms"
+                op: MAX
+                result_column_name: "max_dur_ms"
+              }
+            }
+          }
+        '''),
+        out=Path('column_transformation.out'))
+
+  def test_percentile_metric_v2(self):
+    return DiffTestBlueprint(
+        trace=Path('synth_simple_slices.py'),
+        query=MetricV2SpecTextproto('''
+              id: "p99_duration"
+              dimensions_specs {
+                name: "slice_name"
+                type: STRING
+              }
+              value: "p99_dur"
+              query {
+                simple_slices {
+                  slice_name_glob: "*"
+                }
+                group_by {
+                  column_names: "slice_name"
+                  aggregates {
+                    column_name: "dur"
+                    op: PERCENTILE
+                    result_column_name: "p99_dur"
+                    percentile: 99
+                  }
+                }
+              }
+        '''),
+        out=Csv("""
+          bundle_id: "p99_duration"
+          row {
+            values {
+              double_value: 99.1
+            }
+            dimension {
+              string_value: "ProcessSliceNoThread"
+            }
+          }
+          row {
+            values {
+              double_value: 298.1
+            }
+            dimension {
+              string_value: "ThreadSlice1"
+            }
+          }
+          row {
+            values {
+              double_value: 197.1
+            }
+            dimension {
+              string_value: "ThreadSlice2"
+            }
+          }
+          specs {
+            id: "p99_duration"
+            dimensions_specs {
+              name: "slice_name"
+              type: STRING
+            }
+            value: "p99_dur"
+            query {
+              simple_slices {
+                slice_name_glob: "*"
+              }
+              group_by {
+                column_names: "slice_name"
+                aggregates {
+                  column_name: "dur"
+                  op: PERCENTILE
+                  result_column_name: "p99_dur"
+                  percentile: 99
+                }
               }
             }
           }

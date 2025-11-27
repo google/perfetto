@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/http/http_server.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_task_runner.h"
@@ -650,8 +651,7 @@ void Httpd::CleanUpInactiveInstances() {
 
 }  // namespace
 
-void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
-                      bool is_preloaded_eof,
+void RunHttpRPCServer(Rpc& rpc,
                       const std::string& listen_ip,
                       const std::string& port_number,
                       const std::vector<std::string>& additional_cors_origins,

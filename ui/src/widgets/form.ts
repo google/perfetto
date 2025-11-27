@@ -36,13 +36,18 @@ export interface FormAttrs extends HTMLAttrs {
 
   // Action to take when the form is submitted either by the enter key or
   // the submit button.
-  onSubmit?: () => void;
+  onSubmit?: (e: Event) => void;
 
   // Action to take when the form is cancelled.
   onCancel?: () => void;
 
   // Prevent default form action on submit. Defaults to true.
   preventDefault?: boolean;
+
+  // Custom validation function. If provided, it will be called in addition to
+  // the native HTML form validation. The submit button will be disabled if
+  // this function returns false.
+  validation?: () => boolean;
 }
 
 // A simple wrapper around a <form> element providing some opinionated default
@@ -53,8 +58,8 @@ export interface FormAttrs extends HTMLAttrs {
 export class Form implements m.ClassComponent<FormAttrs> {
   view({attrs, children}: m.CVnode<FormAttrs>) {
     const {
-      submitIcon = undefined,
-      submitLabel = 'Submit',
+      submitIcon,
+      submitLabel,
       cancelLabel,
       resetLabel,
       onSubmit = () => {},
@@ -66,37 +71,64 @@ export class Form implements m.ClassComponent<FormAttrs> {
       'form.pf-form',
       htmlAttrs,
       children,
-      m(
-        '.pf-form-button-bar',
-        m(Button, {
-          type: 'submit',
-          label: submitLabel,
-          rightIcon: submitIcon,
-          className: Popup.DISMISS_POPUP_GROUP_CLASS,
-          intent: Intent.Primary,
-          variant: ButtonVariant.Filled,
-          onclick: (e: Event) => {
-            preventDefault && e.preventDefault();
-            onSubmit();
-          },
-        }),
-        // This cancel button just closes the popup if we are inside one.
-        cancelLabel &&
-          m(Button, {
-            type: 'button',
-            label: cancelLabel,
-            variant: ButtonVariant.Filled,
-            className: Popup.DISMISS_POPUP_GROUP_CLASS,
-          }),
-        // This reset button just clears the form.
-        resetLabel &&
-          m(Button, {
-            label: resetLabel,
-            variant: ButtonVariant.Filled,
-            type: 'reset',
-          }),
-      ),
+      (submitLabel || cancelLabel || resetLabel) &&
+        m(
+          '.pf-form__button-bar',
+          submitLabel &&
+            m(Button, {
+              type: 'submit',
+              label: submitLabel,
+              rightIcon: submitIcon,
+              className: Popup.DISMISS_POPUP_GROUP_CLASS,
+              intent: Intent.Primary,
+              variant: ButtonVariant.Filled,
+              onclick: (e: Event) => {
+                preventDefault && e.preventDefault();
+                onSubmit(e);
+              },
+            }),
+          // This cancel button just closes the popup if we are inside one.
+          cancelLabel &&
+            m(Button, {
+              type: 'button',
+              label: cancelLabel,
+              variant: ButtonVariant.Filled,
+              className: Popup.DISMISS_POPUP_GROUP_CLASS,
+            }),
+          // This reset button just clears the form.
+          resetLabel &&
+            m(Button, {
+              label: resetLabel,
+              variant: ButtonVariant.Filled,
+              type: 'reset',
+            }),
+        ),
     );
+  }
+
+  oncreate(vnode: m.VnodeDOM<FormAttrs, this>) {
+    this.maybeDisableSubmitButton(vnode.attrs.validation, vnode.dom);
+  }
+
+  onupdate(vnode: m.VnodeDOM<FormAttrs, this>) {
+    this.maybeDisableSubmitButton(vnode.attrs.validation, vnode.dom);
+  }
+
+  private maybeDisableSubmitButton(
+    validation: (() => boolean) | undefined,
+    dom: Element,
+  ) {
+    // Work out if the form is valid and enable/disable the submit button.
+    const formElement = dom as HTMLFormElement;
+    const submitButton = formElement.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement | null;
+    if (submitButton) {
+      // Check both native HTML validation and custom validation function
+      const nativeValid = formElement.checkValidity();
+      const customValid = validation ? validation() : true;
+      submitButton.disabled = !nativeValid || !customValid;
+    }
   }
 }
 
@@ -111,6 +143,22 @@ export class Form implements m.ClassComponent<FormAttrs> {
 // or by referencing the input's "id" tag with a "for" tag.
 export class FormLabel implements m.ClassComponent<HTMLLabelAttrs> {
   view({attrs, children}: m.CVnode<HTMLLabelAttrs>) {
-    return m('label.pf-form-label', attrs, children);
+    return m('label.pf-form__label', attrs, children);
+  }
+}
+
+export interface FormSectionAttrs extends HTMLLabelAttrs {
+  readonly label: string;
+}
+
+export class FormSection implements m.ClassComponent<FormSectionAttrs> {
+  view({attrs, children}: m.CVnode<FormSectionAttrs>) {
+    const {label, ...rest} = attrs;
+    return m(
+      '.pf-form__section',
+      rest,
+      m('.pf-form__section-label', label),
+      children,
+    );
   }
 }

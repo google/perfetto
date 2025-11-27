@@ -224,15 +224,16 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id,
       name,
-      callback: async (pids?: string) => {
-        if (pids === undefined) {
-          pids =
-            prompt(
-              `Enter up to ${MAX_AGGREGATED_PIDS} process pids, separated by commas`,
-              'e.g. 1234, 5678',
-            ) || '';
-          if (!pids) return;
-        }
+      callback: async (pidsArg) => {
+        // Use the PIDs argument if provided, otherwise prompt.
+        const pids =
+          typeof pidsArg === 'string'
+            ? pidsArg
+            : await ctx.omnibox.prompt(
+                `Enter up to ${MAX_AGGREGATED_PIDS} process pids, separated by commas (e.g. 1234, 5678)`,
+              );
+
+        if (!pids) return;
 
         const pidList = pids
           .split(',')
@@ -297,7 +298,7 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.registerMemoryCommand(
       ctx,
-      'dev.perfetto.PixelMemory#ShowTotalMemory',
+      'com.google.ShowPixelTotalMemory',
       'Add tracks: show process total memory',
       'COALESCE(rss_and_swap, 0) + COALESCE(gpu_memory, 0)',
       '_rss_anon_file_swap_shmem_gpu',
@@ -305,7 +306,7 @@ export default class implements PerfettoPlugin {
 
     this.registerMemoryCommand(
       ctx,
-      'dev.perfetto.PixelMemory#ShowRssAnonShmemSwapGpuMemory',
+      'com.google.ShowPixelRssAnonShmemSwapGpuMemory',
       'Add tracks: show process total memory (excluding file RSS)',
       'COALESCE(anon_rss_and_swap, 0) + COALESCE(shmem_rss, 0) + ' +
         'COALESCE(gpu_memory, 0)',

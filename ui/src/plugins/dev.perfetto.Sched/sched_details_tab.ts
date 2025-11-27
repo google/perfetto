@@ -34,13 +34,12 @@ import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {ThreadDesc, ThreadMap} from '../dev.perfetto.Thread/threads';
-import {assetSrc} from '../../base/assets';
 
 const MIN_NORMAL_SCHED_PRIORITY = 100;
 
 function getDisplayName(
   name: string | undefined,
-  id: number | undefined,
+  id: bigint | number | undefined,
 ): string | undefined {
   if (name === undefined) {
     return id === undefined ? undefined : `${id}`;
@@ -106,14 +105,23 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
     ) {
       return null;
     }
+
+    const svgString = `
+      <svg class="pf-sched-latency__background" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="200" height="300">
+        <line x1="40" y1="20" x2="40" y2="280" stroke="currentColor" stroke-width="3"/>
+        <polygon points="40,65 50,80 40,95 30,80" fill="currentColor"/>
+        <line x1="40" y1="200" x2="180" y2="200" stroke="currentColor" stroke-width="3"/>
+        <polygon points="40,200 52,193 52,207" fill="currentColor"/>
+        <polygon points="180,200 168,193 168,207" fill="currentColor"/>
+      </svg>
+    `;
+
     return m(
       Section,
       {title: 'Scheduling Latency'},
       m(
         '.pf-sched-latency',
-        m('img.pf-sched-latency__background', {
-          src: assetSrc('assets/scheduling_latency.png'),
-        }),
+        m.trust(svgString),
         this.renderWakeupText(data),
         this.renderDisplayLatencyText(data),
       ),
@@ -137,7 +145,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
       m(
         '',
         `Wakeup @ `,
-        m(Timestamp, {ts: data.wakeup?.wakeupTs}),
+        m(Timestamp, {trace: this.trace, ts: data.wakeup?.wakeupTs}),
         ` on CPU ${data.wakeup.wakerCpu} by`,
       ),
       m('', `P: ${threadInfo.procName} [${threadInfo.pid}]`),
@@ -153,7 +161,11 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
     const latency = data.sched.ts - data.wakeup?.wakeupTs;
     return m(
       '.pf-sched-latency__latency-text',
-      m('', `Scheduling latency: `, m(DurationWidget, {dur: latency})),
+      m(
+        '',
+        `Scheduling latency: `,
+        m(DurationWidget, {trace: this.trace, dur: latency}),
+      ),
       m(
         '.pf-sched-latency__explanation',
         `This is the interval from when the task became eligible to run
@@ -225,11 +237,11 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
       }),
       m(TreeNode, {
         left: 'Start time',
-        right: m(Timestamp, {ts: data.sched.ts}),
+        right: m(Timestamp, {trace: this.trace, ts: data.sched.ts}),
       }),
       m(TreeNode, {
         left: 'Duration',
-        right: m(DurationWidget, {dur: data.sched.dur}),
+        right: m(DurationWidget, {trace: this.trace, dur: data.sched.dur}),
       }),
       m(TreeNode, {
         left: 'Priority',

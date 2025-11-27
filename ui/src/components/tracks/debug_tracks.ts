@@ -16,13 +16,13 @@ import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, UNKNOWN} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
   sqlValueToReadableString,
   sqlValueToSqliteString,
 } from '../../trace_processor/sql_utils';
-import {DatasetSliceTrack} from './dataset_slice_track';
+import {SliceTrack} from './slice_track';
 import {
   RAW_PREFIX,
   DebugSliceTrackDetailsPanel,
@@ -31,7 +31,24 @@ import {
   CounterColumnMapping,
   SqlTableCounterTrack,
 } from './query_counter_track';
-import {SliceColumnMapping, SqlDataSource} from './query_slice_track';
+import {getColorForSlice} from '../colorizer';
+
+export interface SqlDataSource {
+  // SQL source selecting the necessary data.
+  readonly sqlSource: string;
+
+  // Optional: Rename columns from the query result.
+  // If omitted, original column names from the query are used instead.
+  // The caller is responsible for ensuring that the number of items in this
+  // list matches the number of columns returned by sqlSource.
+  readonly columns?: ReadonlyArray<string>;
+}
+
+export interface SliceColumnMapping {
+  readonly ts: string;
+  readonly dur: string;
+  readonly name: string;
+}
 
 let trackCounter = 0; // For reproducible ids.
 
@@ -44,9 +61,10 @@ export interface DebugSliceTrackArgs {
   readonly data: SqlDataSource;
   readonly title?: string;
   readonly columns?: Partial<SliceColumnMapping>;
-  readonly argColumns?: ReadonlyArray<string>;
+  readonly rawColumns?: ReadonlyArray<string>;
   readonly pivotOn?: string;
   readonly argSetIdColumn?: string;
+  readonly colorColumn?: string;
 }
 
 /**
@@ -68,12 +86,15 @@ export interface DebugSliceTrackArgs {
  * the value appended.
  * @param args.columns - Optional: The columns names to use for the various
  * essential column names.
- * @param args.argColumns - Optional: A list of columns which are passed to the
- * details panel.
+ * @param args.rawColumns - Optional: A list of columns to be displayed in the
+ * 'Raw columns' section of the details panel.
  * @param args.pivotOn - Optional: The name of a column on which to pivot. If
  * provided, we will create N tracks, one for each distinct value of the pivotOn
  * column. Each track will only show the slices which have the corresponding
  * value in their pivotOn column.
+ * @param args.colorColumn - Optional: The name of a column to use for coloring
+ * slices. If provided, slices will be colored based on the value in this column.
+ * If omitted, slices are colored based on their name.
  */
 export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
   const tableId = getUniqueTrackCounter();
@@ -87,9 +108,10 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
     tableName,
     args.data,
     args.columns,
-    args.argColumns,
+    args.rawColumns,
     args.pivotOn,
     args.argSetIdColumn,
+    args.colorColumn,
   );
 
   if (args.pivotOn) {
@@ -99,6 +121,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
       titleBase,
       uriBase,
       args.pivotOn,
+      args.colorColumn,
     );
   } else {
     addSingleSliceTrack(
@@ -107,6 +130,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
       titleBase,
       uriBase,
       args.argSetIdColumn,
+      args.colorColumn,
     );
   }
 }
@@ -116,10 +140,28 @@ async function createTableForSliceTrack(
   tableName: string,
   data: SqlDataSource,
   columns: Partial<SliceColumnMapping> = {},
-  argColumns?: ReadonlyArray<string>,
+  rawColumns?: ReadonlyArray<string>,
   pivotCol?: string,
   argSetIdColumn?: string,
+  colorCol?: string,
 ) {
+  if (rawColumns === undefined) {
+    // Find the raw columns list from the query if not provided.
+    // TODO(stevegolton): Potential performance improvement to be obtained from
+    // using the prepare statement API rather than a LIMIT 0 query.
+    const query = `
+      WITH data AS (
+        ${data.sqlSource}
+      )
+      SELECT *
+      FROM data
+      LIMIT 0
+    `;
+
+    const result = await engine.query(query);
+    rawColumns = result.columns();
+  }
+
   const {ts = 'ts', dur = 'dur', name = 'name'} = columns;
 
   // If the view has clashing names (e.g. "name" coming from joining two
@@ -133,9 +175,10 @@ async function createTableForSliceTrack(
     `${ts} as ts`,
     `ifnull(cast(${dur} as int), -1) as dur`,
     `printf('%s', ${name}) as name`,
-    argColumns && argColumns.map((c) => `${c} as ${RAW_PREFIX}${c}`),
+    rawColumns.map((c) => `${c} as ${RAW_PREFIX}${c}`),
     pivotCol && `${pivotCol} as pivot`,
     argSetIdColumn && `${argSetIdColumn} as arg_set_id`,
+    colorCol && `${colorCol} as color`,
   ]
     .flat() // Convert to flattened list
     .filter(Boolean) // Remove falsy values
@@ -165,6 +208,7 @@ async function addPivotedSliceTracks(
   titleBase: string,
   uriBase: string,
   pivotColName: string,
+  colorCol?: string,
 ) {
   const result = await trace.engine.query(`
     SELECT DISTINCT pivot
@@ -178,24 +222,29 @@ async function addPivotedSliceTracks(
     const pivotValue = iter.get('pivot');
     const name = `${titleBase}: ${pivotColName} = ${sqlValueToReadableString(pivotValue)}`;
 
+    const schema = {
+      id: NUM,
+      ts: LONG,
+      dur: LONG,
+      name: STR,
+      ...(colorCol && {color: UNKNOWN}),
+    };
+
     trace.tracks.registerTrack({
       uri,
-      renderer: new DatasetSliceTrack({
+      renderer: SliceTrack.create({
         trace,
         uri,
         dataset: new SourceDataset({
-          schema: {
-            id: NUM,
-            ts: LONG,
-            dur: LONG,
-            name: STR,
-          },
+          schema,
           src: tableName,
           filter: {
             col: 'pivot',
             eq: pivotValue,
           },
         }),
+        colorizer: (row) =>
+          getColorForSlice(sqlValueToReadableString(row.color) ?? row.name),
         detailsPanel: (row) => {
           return new DebugSliceTrackDetailsPanel(trace, tableName, row.id);
         },
@@ -203,7 +252,7 @@ async function addPivotedSliceTracks(
     });
 
     const trackNode = new TrackNode({uri, name, removable: true});
-    trace.workspace.pinnedTracksNode.addChildLast(trackNode);
+    trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
   }
 }
 
@@ -213,21 +262,27 @@ function addSingleSliceTrack(
   name: string,
   uri: string,
   argSetIdCol?: string,
+  colorCol?: string,
 ) {
+  const schema = {
+    id: NUM,
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+    ...(colorCol && {color: UNKNOWN}),
+  };
+
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({
-        schema: {
-          id: NUM,
-          ts: LONG,
-          dur: LONG,
-          name: STR,
-        },
+        schema,
         src: tableName,
       }),
+      colorizer: (row) =>
+        getColorForSlice(sqlValueToReadableString(row.color) ?? row.name),
       detailsPanel: (row) => {
         return new DebugSliceTrackDetailsPanel(
           trace,
@@ -240,7 +295,7 @@ function addSingleSliceTrack(
   });
 
   const trackNode = new TrackNode({uri, name, removable: true});
-  trace.workspace.pinnedTracksNode.addChildLast(trackNode);
+  trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
 }
 
 export interface DebugCounterTrackArgs {
@@ -364,7 +419,7 @@ async function addPivotedCounterTracks(
     });
 
     const trackNode = new TrackNode({uri, name, removable: true});
-    trace.workspace.pinnedTracksNode.addChildLast(trackNode);
+    trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
   }
 }
 
@@ -380,5 +435,5 @@ function addSingleCounterTrack(
   });
 
   const trackNode = new TrackNode({uri, name, removable: true});
-  trace.workspace.pinnedTracksNode.addChildLast(trackNode);
+  trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
 }

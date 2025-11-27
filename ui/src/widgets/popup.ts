@@ -62,7 +62,11 @@ export interface PopupAttrs {
   // Defaults to true.
   closeOnOutsideClick?: boolean;
   // Controls whether the popup is open or not.
-  // If omitted, the popup operates in uncontrolled mode.
+  // When provided, the popup operates in controlled mode and will not
+  // automatically toggle on trigger clicks. The parent component must
+  // handle opening the popup (e.g., via the trigger's onclick handler).
+  // When omitted, the popup operates in uncontrolled mode and
+  // automatically toggles when the trigger is clicked.
   isOpen?: boolean;
   // Called when the popup isOpen state should be changed in controlled mode.
   onChange?: OnChangeCallback;
@@ -99,6 +103,13 @@ export interface PopupAttrs {
   // content that should not be constrained by a maximum width.
   // Defaults to false.
   fitContent?: boolean;
+  // If true, the popup will appear when the trigger is on right clicked rather
+  // than when it's left clicked.
+  isContextMenu?: boolean;
+  // If true, position the popup at the cursor location rather than the trigger
+  // element. When omitted with isContextMenu=true, defaults to true. When omitted
+  // with isContextMenu=false, defaults to false.
+  positionAtCursor?: boolean;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -113,6 +124,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private onChange: OnChangeCallback = () => {};
   private closeOnEscape?: boolean;
   private closeOnOutsideClick?: boolean;
+  private relativeMouseX?: number; // Relative to trigger element
+  private relativeMouseY?: number; // Relative to trigger element
 
   private static readonly TRIGGER_REF = 'trigger';
   private static readonly POPUP_REF = 'popup';
@@ -128,14 +141,19 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       onChange = () => {},
       closeOnEscape = true,
       closeOnOutsideClick = true,
+      isContextMenu = false,
     } = attrs;
 
+    // Detect if we're in controlled mode (parent provides isOpen prop)
+    const isControlled = attrs.isOpen !== undefined;
+
+    this.isOpen = isOpen;
     this.onChange = onChange;
     this.closeOnEscape = closeOnEscape;
     this.closeOnOutsideClick = closeOnOutsideClick;
 
     return [
-      this.renderTrigger(trigger, isOpen),
+      this.renderTrigger(trigger, isOpen, isControlled, isContextMenu),
       isOpen && this.renderPopup(attrs, children),
     ];
   }
@@ -144,21 +162,66 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     trigger: m.Vnode<any, any>,
     isOpen: boolean,
+    isControlled: boolean,
+    isContextMenu: boolean,
   ): m.Children {
-    trigger.attrs = {
+    const baseAttrs = {
       ...trigger.attrs,
       ref: Popup.TRIGGER_REF,
-      onclick: (e: MouseEvent) => {
-        this.togglePopup();
-        e.preventDefault();
-      },
       active: isOpen,
     };
+
+    // In controlled mode, don't override the trigger's onclick.
+    // Let the parent handle opening/closing via the isOpen prop.
+    if (!isControlled) {
+      if (isContextMenu) {
+        // For context menus, right-click opens at cursor, left-click closes
+        baseAttrs.oncontextmenu = (e: MouseEvent) => {
+          if (this.triggerElement) {
+            const rect = this.triggerElement.getBoundingClientRect();
+            this.relativeMouseX = e.clientX - rect.left;
+            this.relativeMouseY = e.clientY - rect.top;
+          }
+          // Always open on context menu (re-open at new position if already open)
+          if (!this.isOpen) {
+            this.isOpen = true;
+            this.onChange(true);
+          } else {
+            // Already open - need to recreate popper at new position
+            if (this.popper) {
+              this.popper.destroy();
+              this.popper = undefined;
+            }
+            // Force recreation on next update
+            m.redraw();
+          }
+          e.preventDefault();
+        };
+        // Left click closes context menu if open
+        baseAttrs.onclick = (e: MouseEvent) => {
+          if (this.isOpen) {
+            this.closePopup();
+            e.preventDefault();
+          }
+        };
+      } else {
+        baseAttrs.onclick = (e: MouseEvent) => {
+          if (this.triggerElement) {
+            const rect = this.triggerElement.getBoundingClientRect();
+            this.relativeMouseX = e.clientX - rect.left;
+            this.relativeMouseY = e.clientY - rect.top;
+          }
+          this.togglePopup();
+          e.preventDefault();
+        };
+      }
+    }
+
+    trigger.attrs = baseAttrs;
     return trigger;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private renderPopup(attrs: PopupAttrs, children: any): m.Children {
+  private renderPopup(attrs: PopupAttrs, children: m.Children): m.Children {
     const {
       className,
       showArrow = true,
@@ -254,6 +317,33 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     this.triggerElement = undefined;
   }
 
+  // Creates a virtual element positioned at relative coordinates within the trigger
+  private createRelativeVirtualElement(
+    trigger: Element,
+    relativeX: number,
+    relativeY: number,
+  ) {
+    return {
+      getBoundingClientRect: () => {
+        const triggerRect = trigger.getBoundingClientRect();
+        const absoluteX = triggerRect.left + relativeX;
+        const absoluteY = triggerRect.top + relativeY;
+
+        return {
+          width: 0,
+          height: 0,
+          top: absoluteY,
+          right: absoluteX,
+          bottom: absoluteY,
+          left: absoluteX,
+          x: absoluteX,
+          y: absoluteY,
+          toJSON: () => {},
+        };
+      },
+    };
+  }
+
   private createOrUpdatePopper(attrs: PopupAttrs) {
     const {
       position = PopupPosition.Auto,
@@ -261,7 +351,12 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       matchWidth = false,
       offset = 0,
       edgeOffset = 0,
+      positionAtCursor: explicitPositionAtCursor,
+      isContextMenu = false,
     } = attrs;
+
+    // Smart default: context menus default to cursor positioning
+    const positionAtCursor = explicitPositionAtCursor ?? isContextMenu;
 
     let matchWidthModifier: Modifier<'sameWidth', {}>[];
     if (matchWidth) {
@@ -283,6 +378,48 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     } else {
       matchWidthModifier = [];
     }
+
+    // Custom modifier to hide popup when trigger is not visible. This can be
+    // due to the trigger or one of its ancestors having display:none.
+    const hideOnInvisible: Modifier<'hideOnInvisible', {}> = {
+      name: 'hideOnInvisible',
+      enabled: true,
+      phase: 'main',
+      fn({state}) {
+        const reference = state.elements.reference;
+        if (!(reference instanceof HTMLElement)) {
+          return;
+        }
+
+        // Check if checkVisibility is supported
+        if (typeof reference.checkVisibility === 'function') {
+          const isVisible = reference.checkVisibility();
+
+          if (!isVisible) {
+            // Hide the popper by setting display to none
+            state.elements.popper.style.display = 'none';
+          } else {
+            // Show the popper
+            state.elements.popper.style.display = '';
+          }
+        } else {
+          // Fallback for browsers that don't support checkVisibility()
+          // Use intersection observer or other visibility checks
+          const rect = reference.getBoundingClientRect();
+          const isVisible =
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <=
+              (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <=
+              (window.innerWidth || document.documentElement.clientWidth) &&
+            window.getComputedStyle(reference).visibility !== 'hidden' &&
+            window.getComputedStyle(reference).display !== 'none';
+
+          state.elements.popper.style.display = isVisible ? '' : 'none';
+        }
+      },
+    };
 
     const options: Partial<OptionsGeneric<ExtendedModifiers>> = {
       placement: position,
@@ -307,6 +444,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         // Don't let the arrow reach the end of the popup, which looks odd when
         // the popup has rounded corners
         {name: 'arrow', options: {padding: 2}},
+        hideOnInvisible,
         ...matchWidthModifier,
       ],
     };
@@ -315,8 +453,20 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       this.popper.setOptions(options);
     } else {
       if (this.popupElement && this.triggerElement) {
+        // Use virtual element at relative cursor position if available
+        const referenceElement =
+          positionAtCursor &&
+          this.relativeMouseX !== undefined &&
+          this.relativeMouseY !== undefined
+            ? this.createRelativeVirtualElement(
+                this.triggerElement,
+                this.relativeMouseX,
+                this.relativeMouseY,
+              )
+            : this.triggerElement;
+
         this.popper = createPopper<ExtendedModifiers>(
-          this.triggerElement,
+          referenceElement,
           this.popupElement,
           options,
         );

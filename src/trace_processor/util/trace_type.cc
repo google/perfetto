@@ -24,12 +24,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/pprof/profile.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -46,6 +48,8 @@ constexpr char kArtHprofStreamingMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
 constexpr char kTarPosixMagic[] = {'u', 's', 't', 'a', 'r', '\0'};
 constexpr char kTarGnuMagic[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
 constexpr size_t kTarMagicOffset = 257;
+constexpr char kSimpleperfMagic[] = {'S', 'I', 'M', 'P', 'L',
+                                     'E', 'P', 'E', 'R', 'F'};
 
 constexpr uint8_t kTracePacketTag =
     protozero::proto_utils::MakeTagLengthDelimited(
@@ -105,6 +109,57 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   return tag == kModuleSymbolsTag;
 }
 
+bool IsPprofProfile(const uint8_t* data, size_t size) {
+  using perfetto::third_party::perftools::profiles::pbzero::Profile;
+  using protozero::proto_utils::ProtoWireType;
+  // Minimum size to parse a protobuf tag and small varint
+  constexpr size_t kMinPprofSize = 10;
+  if (size < kMinPprofSize) {
+    return false;
+  }
+
+  bool has_core_pprof_field = false;
+  protozero::ProtoDecoder decoder(data, size);
+  for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
+    switch (fld.id()) {
+      case Profile::kSampleFieldNumber:
+      case Profile::kMappingFieldNumber:
+      case Profile::kLocationFieldNumber:
+      case Profile::kFunctionFieldNumber:
+      case Profile::kStringTableFieldNumber:
+        has_core_pprof_field = true;
+        [[fallthrough]];
+      case Profile::kSampleTypeFieldNumber:
+      case Profile::kPeriodTypeFieldNumber:
+        if (fld.type() != ProtoWireType::kLengthDelimited) {
+          return false;
+        }
+        break;
+      case Profile::kCommentFieldNumber:
+        if (fld.type() != ProtoWireType::kLengthDelimited &&
+            fld.type() != ProtoWireType::kVarInt) {
+          return false;
+        }
+        break;
+      case Profile::kDropFramesFieldNumber:
+      case Profile::kKeepFramesFieldNumber:
+        has_core_pprof_field = true;
+        [[fallthrough]];
+      case Profile::kTimeNanosFieldNumber:
+      case Profile::kDurationNanosFieldNumber:
+      case Profile::kPeriodFieldNumber:
+      case Profile::kDefaultSampleTypeFieldNumber:
+        if (fld.type() != ProtoWireType::kVarInt) {
+          return false;
+        }
+        break;
+      default:
+        return false;
+    }
+  }
+  return has_core_pprof_field;
+}
+
 }  // namespace
 
 const char* TraceTypeToString(TraceType trace_type) {
@@ -129,6 +184,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "zip";
     case kPerfDataTraceType:
       return "perf";
+    case kPprofTraceType:
+      return "pprof";
     case kInstrumentsXmlTraceType:
       return "instruments_xml";
     case kAndroidLogcatTraceType:
@@ -145,6 +202,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "art_hprof";
     case kPerfTextTraceType:
       return "perf_text";
+    case kSimpleperfProtoTraceType:
+      return "simpleperf_proto";
     case kUnknownTraceType:
       return "unknown";
     case kTarTraceType:
@@ -172,6 +231,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (MatchesMagic(data, size, kPerfMagic)) {
     return kPerfDataTraceType;
+  }
+  if (MatchesMagic(data, size, kSimpleperfMagic)) {
+    return kSimpleperfProtoTraceType;
   }
 
   if (MatchesMagic(data, size, kZipMagic)) {
@@ -234,6 +296,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::Contains(start, "TRACE:\n"))
     return kSystraceTraceType;
 
+  // Traces obtained from trace-cmd report.
+  if (base::StartsWith(start, "cpus="))
+    return kSystraceTraceType;
+
   // Ninja's build log (.ninja_log).
   if (base::StartsWith(start, "# ninja log"))
     return kNinjaLogTraceType;
@@ -252,6 +318,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (IsProtoTraceWithSymbols(data, size))
     return kSymbolsTraceType;
+
+  if (IsPprofProfile(data, size))
+    return kPprofTraceType;
 
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;

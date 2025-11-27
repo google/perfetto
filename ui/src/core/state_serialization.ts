@@ -16,7 +16,7 @@ import {
   SERIALIZED_STATE_VERSION,
   APP_STATE_SCHEMA,
   SerializedNote,
-  SerializedPluginState,
+  SerializedStoreState,
   SerializedSelection,
   SerializedAppState,
 } from './state_serialization_schema';
@@ -96,16 +96,17 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
     });
   }
 
-  const plugins = new Array<SerializedPluginState>();
-  const pluginsStore = trace.getPluginStoreForSerialization();
+  const store = new Array<SerializedStoreState>();
+  const traceStore = trace.store;
 
-  for (const [id, pluginState] of Object.entries(pluginsStore)) {
-    plugins.push({id, state: pluginState});
+  for (const [id, pluginState] of Object.entries(traceStore.state)) {
+    store.push({id, state: pluginState});
   }
 
   return {
     version: SERIALIZED_STATE_VERSION,
-    pinnedTracks: trace.workspace.pinnedTracks
+    // Only store pinned tracks from the default workspace
+    pinnedTracks: trace.defaultWorkspace.pinnedTracks
       .map((t) => t.uri)
       .filter((uri) => uri !== undefined),
     viewport: {
@@ -114,7 +115,7 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
     },
     notes,
     selection,
-    plugins,
+    store,
   };
 }
 
@@ -150,9 +151,8 @@ export function deserializeAppStatePhase1(
   appState: SerializedAppState,
   trace: TraceImpl,
 ): void {
-  // Restore the plugin state.
-  trace.getPluginStoreForSerialization().edit((draft) => {
-    for (const p of appState.plugins ?? []) {
+  trace.store.edit((draft) => {
+    for (const p of appState.store ?? []) {
       draft[p.id] = p.state ?? {};
     }
   });
@@ -174,9 +174,9 @@ export function deserializeAppStatePhase2(
     );
   }
 
-  // Restore the pinned tracks, if they exist.
+  // Restore the pinned tracks for the default workspace, if they exist.
   for (const uri of appState.pinnedTracks) {
-    const track = trace.workspace.getTrackByUri(uri);
+    const track = trace.defaultWorkspace.getTrackByUri(uri);
     if (track) {
       track.pin();
     }

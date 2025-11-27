@@ -28,6 +28,7 @@ import {raf} from '../../../core/raf_scheduler';
 import {Button, ButtonBar} from '../../../widgets/button';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {assertDefined} from '../../../base/logging';
+import {uuidv4} from '../../../base/uuid';
 
 interface Data {
   // Raw data from the query.
@@ -44,6 +45,8 @@ interface Data {
 }
 
 export class SqlBarChartState {
+  public readonly uuid: string;
+
   private data?: Data;
   private limiter = new AsyncLimiter();
 
@@ -55,6 +58,7 @@ export class SqlBarChartState {
       readonly column: SqlColumn;
     },
   ) {
+    this.uuid = uuidv4();
     this.reload();
     args.filters.addObserver(() => this.reload());
   }

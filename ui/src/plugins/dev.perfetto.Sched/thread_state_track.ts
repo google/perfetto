@@ -14,7 +14,7 @@
 
 import {HSLColor} from '../../base/color';
 import {ColorScheme} from '../../base/color_scheme';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
@@ -36,7 +36,7 @@ export function createThreadStateTrack(
   uri: string,
   utid: number,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
@@ -45,7 +45,7 @@ export function createThreadStateTrack(
         ts: LONG,
         dur: LONG,
         layer: NUM,
-        cpu: NUM_NULL,
+        ucpu: NUM_NULL,
         utid: NUM,
         state: STR,
         depth: NUM,
@@ -55,7 +55,7 @@ export function createThreadStateTrack(
           id,
           ts,
           dur,
-          cpu,
+          ucpu,
           utid,
           sched_state_io_to_human_readable_string(state, io_wait) AS state,
           -- Move sleeping and idle slices to the back layer, others on top
@@ -76,9 +76,9 @@ export function createThreadStateTrack(
       sliceHeight: 12,
       titleSizePx: 10,
     },
-    sliceName: (row) => row.state,
+    sliceName: (row) => row.state || '[Unknown]',
     colorizer: (row): ColorScheme => {
-      const colorForState = colorForThreadState(row.state);
+      const colorForState = colorForThreadState(row.state || '[Unknown]');
       if (row.state.includes('Sleeping') || row.state.includes('Idle')) {
         // For sleeping/idle slices, return a transparent color scheme with
         // transparent text + a subtle gray variant displayed when hovering the

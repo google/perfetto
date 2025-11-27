@@ -14,6 +14,11 @@
 
 import {z} from 'zod';
 
+// Args are parsed by the Router into strings or booleans only.
+// E.g. ?hideSidebar=true&url=a?b?c -> {hideSidebar: true, url: 'a?b?c'}
+const argSchema = z.union([z.string(), z.boolean()]);
+export type RouteArg = z.infer<typeof argSchema>;
+
 // We use .catch(undefined) on every field below to make sure that passing an
 // invalid value doesn't invalidate the other keys which might be valid.
 // Zod default behaviour is atomic: either everything validates correctly or
@@ -66,10 +71,14 @@ export const ROUTE_SCHEMA = z
     query: z.string().optional().catch(undefined),
     visStart: z.string().optional().catch(undefined),
     visEnd: z.string().optional().catch(undefined),
+
+    // Startup commands to execute on trace load (JSON-encoded array)
+    startupCommands: z.string().optional().catch(undefined),
   })
 
   // Allow arbitrary values to pass through, these may be forwarded to plugins.
-  .catchall(z.union([z.number(), z.string(), z.boolean()]))
+  .catchall(argSchema)
+
   // default({}) ensures at compile-time that every entry is either optional or
   // has a default value.
   .default({});

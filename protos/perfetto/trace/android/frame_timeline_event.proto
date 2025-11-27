@@ -43,6 +43,9 @@ message FrameTimelineEvent {
     JANK_UNKNOWN = 256;
     JANK_SF_STUFFING = 512;
     JANK_DROPPED = 1024;
+    JANK_NON_ANIMATING = 2048;
+    JANK_APP_RESYNCED_JITTER = 4096;
+    JANK_DISPLAY_NOT_ON = 8192;
   };
 
   // Specifies the severity of a jank.
@@ -130,6 +133,15 @@ message FrameTimelineEvent {
     optional PredictionType prediction_type = 10;
     optional bool is_buffer = 11;
     optional JankSeverityType jank_severity_type = 12;
+    optional float present_delay_millis = 13;
+    optional float vsync_resynced_jitter_millis = 14;
+    optional float jank_severity_score = 15;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 16;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 17;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -176,6 +188,15 @@ message FrameTimelineEvent {
     optional int32 jank_type = 7;
     optional PredictionType prediction_type = 8;
     optional JankSeverityType jank_severity_type = 9;
+
+    optional float present_delay_millis = 10;
+    optional float jank_severity_score = 11;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 12;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 13;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding

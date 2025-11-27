@@ -17,9 +17,11 @@ import {ThreadStateSqlId} from '../sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {ThreadState} from '../sql_utils/thread_state';
-import {AppImpl} from '../../core/app_impl';
+import {Trace} from '../../public/trace';
 
 interface ThreadStateRefAttrs {
+  readonly trace: Trace;
+
   id: ThreadStateSqlId;
   // If not present, a placeholder name will be used.
   name?: string;
@@ -37,8 +39,7 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          // TODO(primiano): the Trace object should be properly injected here.
-          AppImpl.instance.trace?.selection.selectSqlEvent(
+          vnode.attrs.trace.selection.selectSqlEvent(
             'thread_state',
             vnode.attrs.id,
             {
@@ -54,10 +55,11 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
   }
 }
 
-export function threadStateRef(state: ThreadState): m.Child {
+export function threadStateRef(trace: Trace, state: ThreadState): m.Child {
   if (state.thread === undefined) return null;
 
   return m(ThreadStateRef, {
+    trace,
     id: state.id,
   });
 }

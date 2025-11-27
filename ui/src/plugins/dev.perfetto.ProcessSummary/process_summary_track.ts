@@ -30,7 +30,7 @@ import {
   createVirtualTable,
 } from '../../trace_processor/sql_utils';
 
-export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
+export const PROCESS_SUMMARY_TRACK_KIND = 'ProcessSummaryTrack';
 
 interface Data extends TrackData {
   starts: BigInt64Array;
@@ -38,7 +38,7 @@ interface Data extends TrackData {
 }
 
 export interface Config {
-  pidForColor: number;
+  pidForColor: number | bigint;
   upid: number | null;
   utid: number | null;
 }

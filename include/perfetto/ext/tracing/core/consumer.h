@@ -55,7 +55,7 @@ class PERFETTO_EXPORT_COMPONENT Consumer {
   // Called back by the Service (or transport layer) after invoking
   // TracingService::ConsumerEndpoint::ReadBuffers(). This function can be
   // called more than once. Each invocation can carry one or more
-  // TracePacket(s). Upon the last call, |has_more| is set to true (i.e.
+  // TracePacket(s). Upon the last call, |has_more| is set to false (i.e.
   // |has_more| is a !EOF).
   virtual void OnTraceData(std::vector<TracePacket>, bool has_more) = 0;
 
@@ -86,6 +86,7 @@ class PERFETTO_EXPORT_COMPONENT Consumer {
     bool success;
     std::string error;
     base::Uuid uuid;  // UUID of the cloned session.
+    bool was_write_into_file;
   };
   virtual void OnSessionCloned(const OnSessionClonedArgs&);
 };

@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE linux.cpu.utilization.general;
 
-INCLUDE PERFETTO MODULE time.conversion;
-
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE slices.with_context;
@@ -74,6 +72,9 @@ LEFT JOIN intersected
   ON slice_id = ts.id AND ts.dur = intersected.dur;
 
 -- CPU cycles per each slice in interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_thread_slice_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,

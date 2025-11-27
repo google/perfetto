@@ -14,6 +14,7 @@
 
 import {
   LONG,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
@@ -22,7 +23,7 @@ import {
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
@@ -39,7 +40,7 @@ export default class implements PerfettoPlugin {
 
     const it = results.iter({
       upid: NUM_NULL,
-      pid: NUM_NULL,
+      pid: LONG_NULL,
       name: STR_NULL,
     });
 
@@ -60,7 +61,7 @@ export default class implements PerfettoPlugin {
       const uri = `dev.perfetto.GpuByProcess#${upid}`;
       ctx.tracks.registerTrack({
         uri,
-        renderer: new DatasetSliceTrack({
+        renderer: SliceTrack.create({
           trace: ctx,
           uri,
           dataset: new SourceDataset({
@@ -85,7 +86,7 @@ export default class implements PerfettoPlugin {
         uri,
         name: `GPU ${processName}`,
       });
-      ctx.workspace.addChildInOrder(track);
+      ctx.defaultWorkspace.addChildInOrder(track);
     }
   }
 }

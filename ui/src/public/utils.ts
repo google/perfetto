@@ -14,7 +14,6 @@
 
 import {TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
-import {maybeMachineLabel} from '../base/multi_machine_trace';
 import {Trace} from './trace';
 
 export function getTrackName(
@@ -22,9 +21,9 @@ export function getTrackName(
     name: string | null;
     utid: number | null;
     processName: string | null;
-    pid: number | null;
+    pid: number | bigint | null;
     threadName: string | null;
-    tid: number | null;
+    tid: number | bigint | null;
     upid: number | null;
     userName: string | null;
     uid: number | null;
@@ -131,4 +130,9 @@ export async function getTimeSpanOfSelectionOrVisibleWindow(
   } else {
     return trace.timeline.visibleWindow.toTimeSpan();
   }
+}
+
+export function maybeMachineLabel(machine?: number): string {
+  const m = machine ?? 0;
+  return m > 0 ? ` (machine ${m})` : '';
 }

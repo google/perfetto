@@ -62,7 +62,7 @@ using ColType = dataframe::AdhocDataframeBuilder::ColumnType;
 struct MultiIndexInterval {
   uint64_t start;
   uint64_t end;
-  std::vector<int64_t> idx_in_table;
+  std::array<int64_t, kIdCols> idx_in_table;
 };
 
 ColType FromSqlValueTypeToBuilderType(SqlValue::Type type) {
@@ -150,9 +150,8 @@ base::StatusOr<uint32_t> PushPartition(
     MultiIndexInterval m_int;
     m_int.start = interval.start;
     m_int.end = interval.end;
-    m_int.idx_in_table.resize(tables_count);
     m_int.idx_in_table[idx_of_smallest_part] = interval.id;
-    last_results.push_back(m_int);
+    last_results.push_back(std::move(m_int));
   }
 
   // Create an interval tree on all tables except the smallest - the first one.
@@ -316,9 +315,11 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
 
     // For each partition insert into table.
     uint32_t rows = 0;
+    std::vector<Partition*> cur_partition_in_table;
+    cur_partition_in_table.reserve(tabc);
     for (auto p_it = p_intervals->GetIterator(); p_it; ++p_it) {
-      std::vector<Partition*> cur_partition_in_table;
       bool all_have_p = true;
+      cur_partition_in_table.clear();
 
       // From each table get all vectors of intervals.
       for (uint32_t i = 0; i < tabc; i++) {
@@ -357,7 +358,7 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
 
 base::Status RegisterIntervalIntersectFunctions(PerfettoSqlEngine& engine,
                                                 StringPool* pool) {
-  return engine.RegisterSqliteFunction<IntervalIntersect>(
+  return engine.RegisterFunction<IntervalIntersect>(
       std::make_unique<IntervalIntersect::UserData>(
           IntervalIntersect::UserData{&engine, pool}));
 }

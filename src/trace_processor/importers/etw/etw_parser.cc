@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/etw/etw_parser.h"
+
 #include <cstdint>
 #include <limits>
 
@@ -27,6 +28,8 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -41,8 +44,28 @@ namespace {
 
 using protozero::ConstBytes;
 
+constexpr uint32_t kAnonymizedThreadId = uint32_t(-1);
+
+constexpr uint8_t kEtwThreadStateWaiting = 5;
+constexpr uint8_t kEtwWaitReasonPageIn = 2;
+constexpr uint8_t kEtwWaitReasonWrExecutive = 7;
+constexpr uint8_t kEtwWaitReasonWrRundown = 36;
+
+bool IsIoWait(uint8_t reason) {
+  // Reasons starting with "Wr" are for alertable waits, which are mostly for
+  // I/O. We also include "PageIn" which is a non-alertable I/O wait.
+  // See: https://learn.microsoft.com/en-us/windows/win32/etw/cswitch
+  return reason == kEtwWaitReasonPageIn ||
+         (reason >= kEtwWaitReasonWrExecutive &&
+          reason <= kEtwWaitReasonWrRundown);
+}
+
 }  // namespace
-EtwParser::EtwParser(TraceProcessorContext* context) : context_(context) {}
+
+EtwParser::EtwParser(TraceProcessorContext* context)
+    : context_(context),
+      anonymized_process_string_id_(
+          context->storage->InternString("Anonymized Process")) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
                                       int64_t ts,
@@ -59,6 +82,10 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
     ParseReadyThread(ts, decoder.thread_id(), decoder.ready_thread());
   }
 
+  if (decoder.has_mem_info()) {
+    ParseMemInfo(ts, decoder.mem_info());
+  }
+
   return base::OkStatus();
 }
 
@@ -70,11 +97,27 @@ void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
   // thread_id might be erased for privacy/security concerns, in this case, use
   // a dummy id since 0 means idle.
   uint32_t old_thread_id =
-      cs.has_old_thread_id() ? cs.old_thread_id() : uint32_t(-1);
+      cs.has_old_thread_id() ? cs.old_thread_id() : kAnonymizedThreadId;
   uint32_t new_thread_id =
-      cs.has_new_thread_id() ? cs.new_thread_id() : uint32_t(-1);
+      cs.has_new_thread_id() ? cs.new_thread_id() : kAnonymizedThreadId;
+
+  if (old_thread_id == kAnonymizedThreadId ||
+      new_thread_id == kAnonymizedThreadId) {
+    context_->process_tracker->UpdateThreadName(
+        context_->process_tracker->GetOrCreateThread(kAnonymizedThreadId),
+        anonymized_process_string_id_, ThreadNamePriority::kEtwTrace);
+  }
+
+  // Extract the wait reason. If not present in the trace, default to 0
+  // (Executive).
+  uint8_t old_thread_wait_reason =
+      cs.has_old_thread_wait_reason_int()
+          ? static_cast<uint8_t>(cs.old_thread_wait_reason_int())
+          : 0;
+
   PushSchedSwitch(cpu, timestamp, old_thread_id, old_thread_state,
-                  new_thread_id, cs.new_thread_priority());
+                  old_thread_wait_reason, new_thread_id,
+                  cs.new_thread_priority());
 }
 
 void EtwParser::ParseReadyThread(int64_t timestamp,
@@ -89,10 +132,109 @@ void EtwParser::ParseReadyThread(int64_t timestamp,
       timestamp, wakee_utid, waker_utid);
 }
 
+void EtwParser::ParseMemInfo(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::MemInfoEtwEvent::Decoder meminfo(blob);
+  static constexpr auto kEtwMeminfoBlueprint = tracks::CounterBlueprint(
+      "etw_meminfo", tracks::StaticUnitBlueprint("pages"),
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("counter_type")),
+      tracks::FnNameBlueprint([](base::StringView type) {
+        return base::StackString<255>("%.*s Page Count", int(type.size()),
+                                      type.data());
+      }));
+
+  TrackId zero_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Zero"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.zero_page_count()),
+      zero_page_count_track_id);
+
+  TrackId free_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Free"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.free_page_count()),
+      free_page_count_track_id);
+
+  TrackId modified_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Modified"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.modified_page_count()),
+      modified_page_count_track_id);
+
+  TrackId modified_no_write_page_count_track_id =
+      context_->track_tracker->InternTrack(
+          kEtwMeminfoBlueprint, tracks::Dimensions("ModifiedNoWrite"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.modified_no_write_page_count()),
+      modified_no_write_page_count_track_id);
+
+  TrackId bad_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Bad"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.bad_page_count()),
+      bad_page_count_track_id);
+
+  TrackId modified_page_count_page_file_track_id =
+      context_->track_tracker->InternTrack(
+          kEtwMeminfoBlueprint, tracks::Dimensions("ModifiedPageFile"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.modified_page_count_page_file()),
+      modified_page_count_page_file_track_id);
+
+  TrackId paged_pool_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("PagedPool"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.paged_pool_page_count()),
+      paged_pool_page_count_track_id);
+
+  TrackId non_paged_pool_page_count_track_id =
+      context_->track_tracker->InternTrack(kEtwMeminfoBlueprint,
+                                           tracks::Dimensions("NonPagedPool"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.non_paged_pool_page_count()),
+      non_paged_pool_page_count_track_id);
+
+  TrackId mdl_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Mdl"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.mdl_page_count()),
+      mdl_page_count_track_id);
+
+  TrackId commit_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Commit"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.commit_page_count()),
+      commit_page_count_track_id);
+
+  auto standby_page_count_iterator = meminfo.standby_page_counts();
+  for (int i = 0; standby_page_count_iterator;
+       ++i, ++standby_page_count_iterator) {
+    const std::string name = "Standby Pri-" + std::to_string(i);
+    TrackId standby_page_count_track_id = context_->track_tracker->InternTrack(
+        kEtwMeminfoBlueprint, tracks::Dimensions(base::StringView(name)));
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(*standby_page_count_iterator),
+        standby_page_count_track_id);
+  }
+
+  auto repurposed_page_count_iterator = meminfo.repurposed_page_counts();
+  for (int i = 0; repurposed_page_count_iterator;
+       ++i, ++repurposed_page_count_iterator) {
+    const std::string name = "Repurposed Pri-" + std::to_string(i);
+    TrackId repurposed_page_count_track_id =
+        context_->track_tracker->InternTrack(
+            kEtwMeminfoBlueprint, tracks::Dimensions(base::StringView(name)));
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(*repurposed_page_count_iterator),
+        repurposed_page_count_track_id);
+  }
+}
+
 void EtwParser::PushSchedSwitch(uint32_t cpu,
                                 int64_t ts,
                                 uint32_t prev_tid,
                                 int32_t prev_state,
+                                uint8_t prev_wait_reason,
                                 uint32_t next_tid,
                                 int32_t next_prio) {
   UniqueTid next_utid = context_->process_tracker->GetOrCreateThread(next_tid);
@@ -130,25 +272,84 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
   // Update the ThreadState table.
   ThreadStateTracker::GetOrCreate(context_)->PushSchedSwitchEvent(
       ts, cpu, prev_utid, prev_state_string_id, next_utid);
+
+  // If the previous thread just entered a "Waiting" state, we can add
+  // the reason for it.
+  if (prev_state == kEtwThreadStateWaiting) {
+    StringId wait_reason_string_id = WaitReasonToStringId(prev_wait_reason);
+
+    ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
+        prev_utid, IsIoWait(prev_wait_reason), wait_reason_string_id);
+  }
 }
 
 StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   const auto state = static_cast<uint8_t>(task_state_int);
   // Mapping for the different Etw states with their string description.
-  std::map<uint8_t, base::StringView> etw_states_map = {
-      {0x00, "Initialized"},     // INITIALIZED
-      {0x01, "R"},               // READY
-      {0x02, "Running"},         // RUNNING
-      {0x03, "Stand By"},        // STANDBY
-      {0x04, "T"},               // TERMINATED
-      {0x05, "Waiting"},         // WAITING
-      {0x06, "Transition"},      // TRANSITION
-      {0x07, "Deferred Ready"},  // DEFERRED_READY
+  static constexpr std::string_view etw_states[] = {
+      "Initialized",    // 0x00
+      "Ready",          // 0x01
+      "Running",        // 0x02
+      "Standby",        // 0x03
+      "Terminated",     // 0x04
+      "Waiting",        // 0x05
+      "Transition",     // 0x06
+      "DeferredReady",  // 0x07
   };
 
-  return etw_states_map.find(state) != etw_states_map.end()
-             ? context_->storage->InternString(etw_states_map[state])
-             : kNullStringId;
+  if (state >= std::size(etw_states)) {
+    return kNullStringId;
+  }
+  return context_->storage->InternString(etw_states[state]);
+}
+
+// Translates a Windows ETW wait reason enum to a string.
+// See: https://learn.microsoft.com/en-us/windows/win32/etw/cswitch
+StringId EtwParser::WaitReasonToStringId(uint8_t reason) {
+  static constexpr std::string_view wait_reason_map[] = {
+      "Executive",         // 0x00
+      "FreePage",          // 0x01
+      "PageIn",            // 0x02
+      "PoolAllocation",    // 0x03
+      "DelayExecution",    // 0x04
+      "Suspended",         // 0x05
+      "UserRequest",       // 0x06
+      "WrExecutive",       // 0x07
+      "WrFreePage",        // 0x08
+      "WrPageIn",          // 0x09
+      "WrPoolAllocation",  // 0x0A
+      "WrDelayExecution",  // 0x0B
+      "WrSuspended",       // 0x0C
+      "WrUserRequest",     // 0x0D
+      "WrEventPair",       // 0x0E
+      "WrQueue",           // 0x0F
+      "WrLpcReceive",      // 0x10
+      "WrLpcReply",        // 0x11
+      "WrVirtualMemory",   // 0x12
+      "WrPageOut",         // 0x13
+      "WrRendezvous",      // 0x14
+      "WrKeyedEvent",      // 0x15
+      "WrTerminated",      // 0x16
+      "WrProcessInSwap",   // 0x17
+      "WrCpuRateControl",  // 0x18
+      "WrCalloutStack",    // 0x19
+      "WrKernel",          // 0x1A
+      "WrResource",        // 0x1B
+      "WrPushLock",        // 0x1C
+      "WrMutex",           // 0x1D
+      "WrQuantumEnd",      // 0x1E
+      "WrDispatchInt",     // 0x1F
+      "WrPreempted",       // 0x20
+      "WrYieldExecution",  // 0x21
+      "WrFastMutex",       // 0x22
+      "WrGuardedMutex",    // 0x23
+      "WrRundown",         // 0x24
+  };
+
+  if (reason >= std::size(wait_reason_map)) {
+    return kNullStringId;
+  }
+  return context_->storage->InternString(wait_reason_map[reason]);
 }
 
 }  // namespace trace_processor

@@ -111,6 +111,7 @@ default_targets = [
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/tools/proto_filter:proto_filter',
     '//src/tools/proto_merger:proto_merger',
+    '//src/trace_processor:trace_processor_shell_lib',
     '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
 ] + public_targets + allowlist_public_targets
@@ -645,6 +646,10 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
   py_label.deps = [':' + sources_label.name]
   py_label.comment = sources_label.comment
 
+  dart_label = BazelLabel(name + '_dart_proto', 'perfetto_dart_proto_library')
+  dart_label.deps = [':' + sources_label.name]
+  dart_label.comment = sources_label.comment
+
   visibility = desc['visibility']
   if visibility:
     sources_label.visibility = visibility
@@ -652,6 +657,7 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
     java_label.visibility = visibility
     java_lite_label.visibility = visibility
     py_label.visibility = visibility
+    dart_label.visibility = visibility
 
   return [
       sources_label,
@@ -659,6 +665,7 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
       java_label,
       java_lite_label,
       py_label,
+      dart_label,
   ]
 
 
@@ -666,9 +673,7 @@ def gen_cc_proto_descriptor(target: GnParser.Target):
   label = BazelLabel(
       get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
   label.comment = target.name
-  label.deps += [
-      ':' + get_bazel_label_name(x.name) for x in target.proto_deps()
-  ]
+  label.deps += [':' + get_bazel_label_name(x.name) for x in target.deps]
   label.deps += [
       gn_utils.label_to_path(src)
       for src in target.inputs
@@ -773,6 +778,16 @@ def gen_perfetto_android_instrumentation_test(target: GnParser.Target):
   return [label]
 
 
+def gen_protozero_descriptor_diff(target: GnParser.Target):
+  label = BazelLabel(
+      get_bazel_label_name(target.name), 'perfetto_protozero_descriptor_diff')
+  label.comment = target.name
+  label.minuend = get_bazel_label_name(target.minuend_descriptor)
+  label.subtrahend = get_bazel_label_name(target.subtrahend_descriptor)
+  label.outs += target.outputs
+  return [label]
+
+
 def gen_target_helper(gn_target: GnParser.Target,
                       win_target: GnParser.Target = None):
   if gn_target.type == 'proto_library':
@@ -794,6 +809,8 @@ def gen_target_helper(gn_target: GnParser.Target,
       return gen_perfetto_android_binary(gn_target)
     if gn_target.custom_action_type == 'perfetto_android_instrumentation_test':
       return gen_perfetto_android_instrumentation_test(gn_target)
+    if gn_target.custom_action_type == 'protozero_descriptor_diff':
+      return gen_protozero_descriptor_diff(gn_target)
     return []
   elif gn_target.type == 'group':
     return []
@@ -996,6 +1013,7 @@ load(
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
     "perfetto_cc_tp_tables",
+    "perfetto_dart_proto_library",
     "perfetto_filegroup",
     "perfetto_genrule",
     "perfetto_go_proto_library",
@@ -1011,6 +1029,7 @@ load(
     "perfetto_android_jni_library",
     "perfetto_android_library",
     "perfetto_android_instrumentation_test",
+    "perfetto_protozero_descriptor_diff",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])

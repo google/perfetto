@@ -206,18 +206,20 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
 // plugin etc.
 export interface QueryErrorInfo {
   query: string;
+  tag?: string; // The EngineProxy tag.
 }
 
 export class QueryError extends Error {
-  readonly query: string;
+  readonly queryErrorInfo: QueryErrorInfo;
 
   constructor(message: string, info: QueryErrorInfo) {
     super(message);
-    this.query = info.query;
+    this.queryErrorInfo = info;
   }
 
   toString() {
-    return `${super.toString()}\nQuery:\n${this.query}`;
+    const info = this.queryErrorInfo;
+    return `${super.toString()}\nEngineTag: ${info.tag}\nQuery:\n${info.query}`;
   }
 }
 
@@ -388,7 +390,7 @@ export interface QueryResult {
 }
 
 // Interface exposed to engine.ts to pump in the data as new row batches arrive.
-export interface WritableQueryResult extends QueryResult {
+export interface WritableQueryResult {
   // |resBytes| is a proto-encoded trace_processor.QueryResult message.
   //  The overall flow looks as follows:
   // - The user calls engine.query('select ...') and gets a QueryResult back.
@@ -401,6 +403,10 @@ export interface WritableQueryResult extends QueryResult {
   //   queryResult.waitAllRows()), this call will awake them (if this is the
   //   last batch).
   appendResultBatch(resBytes: Uint8Array): void;
+
+  // If true all rows have been fetched. If false, more appendResultBatch()
+  // calls are expected.
+  isComplete(): boolean;
 }
 
 // The actual implementation, which bridges together the reader side and the

@@ -1,7 +1,7 @@
 # Converting from Perfetto to other trace formats
 
-Perfetto's native protobuf based format can be converted to other trace formats.
-This doc is a quick guide to how that works.
+Perfetto's native protobuf trace format can be converted to other formats using
+the `traceconv` utility.
 
 ![](/docs/images/traceconv-summary.png)
 
@@ -15,11 +15,11 @@ The supported output formats are:
 - `text` - protobuf text format: a text based representation of protos
 - `json` - Chrome JSON format: the format used by chrome://tracing
 - `systrace`: the ftrace text format used by Android systrace
-- `profile` : pprof-like format. Either for traces with with native heap
-  profiler dumps or callstack sampling (note however callstacks requires the
-  `--perf` flag).
+- `profile` : aggregated profile in the [pprof](https://github.com/google/pprof)
+  format. Supports allocator profiles (heapprofd), perf profiles, and android
+  java heap graphs.
 
-## Setup
+## Usage
 
 To use the latest binaries:
 
@@ -36,31 +36,6 @@ curl -LO https://raw.githubusercontent.com/google/perfetto/<tag>/tools/traceconv
 chmod +x traceconv
 ./traceconv [text|json|systrace|profile] [input proto file] [output file]
 ```
-
-## Converting to systrace text format
-
-`./traceconv systrace [input proto file] [output systrace file]`
-
-## Converting to Chrome Tracing JSON format
-
-`./traceconv json [input proto file] [output json file]`
-
-## Converting to pprof profile.
-
-This extract all samples from the trace, and outputs a proto that is compatible
-with pprof.
-
-If you are extracting heaps profiles like heapprofd you can use the following:
-
-`~/traceconv profile [input proto file] [output file]`
-
-However if you are using callstack sampling like traced_perf then use the
-following instead:
-
-`~/traceconv profile [input proto file] [output file] --perf`
-
-Note for `--perf` the output is one pprof file per process sampled in the trace.
-You can use pprof to merge them together if desired.
 
 ## Opening in the legacy systrace UI
 

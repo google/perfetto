@@ -36,7 +36,6 @@ namespace {
 
 using ::testing::_;
 using ::testing::InSequence;
-using ::testing::Invoke;
 
 class SchedEventTrackerTest : public ::testing::Test {
  public:
@@ -135,8 +134,7 @@ TEST_F(SchedEventTrackerTest, UpdateThreadMatch) {
                                  prio, prev_state,
                                  /*tid=*/1, kCommProc2, prio);
 
-  context.process_tracker->SetProcessMetadata(2, std::nullopt, "test",
-                                              base::StringView());
+  context.process_tracker->GetOrCreateProcess(2);
   context.process_tracker->UpdateThread(4, 2);
 
   ASSERT_EQ(context.storage->thread_table()[1].tid(), 4u);

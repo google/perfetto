@@ -13,10 +13,11 @@
 // limitations under the License.
 
 import {Time} from '../../base/time';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {FlamegraphState} from '../../widgets/flamegraph';
 import {
   HeapProfileFlamegraphDetailsPanel,
   profileType,
@@ -28,8 +29,10 @@ export function createHeapProfileTrack(
   tableName: string,
   upid: number,
   heapProfileIsIncomplete: boolean,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
@@ -53,6 +56,8 @@ export function createHeapProfileTrack(
         upid,
         type,
         ts,
+        detailsPanelState,
+        onDetailsPanelStateChange,
       );
     },
     tooltip: (slice) => slice.row.type,

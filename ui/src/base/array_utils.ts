@@ -69,3 +69,11 @@ export function moveArrayItem<T>(array: T[], from: number, to: number) {
   }
   array.splice(to, 0, value);
 }
+
+// If all values in the array are the same, returns that value. Otherwise
+// returns undefined. If the array is empty, returns undefined.
+export function valueIfAllEqual<T>(arr: ReadonlyArray<T>): T | undefined {
+  if (arr.length === 0) return undefined;
+  if (arr.every((val) => val === arr[0])) return arr[0];
+  return undefined;
+}

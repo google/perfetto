@@ -28,7 +28,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/sys_types.h"
 
 namespace perfetto {
 namespace base {
@@ -63,12 +63,17 @@ ssize_t Read(int fd, void* dst, size_t dst_size);
 //   succeeds, and returns the number of bytes written.
 ssize_t WriteAll(int fd, const void* buf, size_t count);
 
+// Copies all data from |fd_in| to |fd_out|. Saves the offset of |fd_in|,
+// rewinds it to the beginning, copies the content, and restores the offset.
+// |fd_in| can't be a pipe, socket of FIFO.
+base::Status CopyFileContents(int fd_in, int fd_out);
+
 ssize_t WriteAllHandle(PlatformHandle, const void* buf, size_t count);
 
 ScopedFile OpenFile(const std::string& path,
                     int flags,
                     FileOpenMode = kFileModeInvalid);
-ScopedFstream OpenFstream(const char* path, const char* mode);
+ScopedFstream OpenFstream(const std::string& path, const std::string& mode);
 
 // This is an alias for close(). It's to avoid leaking windows.h in headers.
 // Exported because ScopedFile is used in the /include/ext API by Chromium
@@ -90,6 +95,30 @@ bool FileExists(const std::string& path);
 // only the last one (foo.pb.gz => .gz). Returns empty string if there is no
 // extension.
 std::string GetFileExtension(const std::string& filename);
+
+// Returns the basename component of a path (the final component after the last
+// directory separator). Behaves like man 2 basename, but works with both '/'
+// and '\' separators for cross-platform compatibility.
+// Examples:
+//   Basename("/usr/bin/ls") => "ls"
+//   Basename("/usr/bin/") => "bin"
+//   Basename("/") => "/"
+//   Basename("foo") => "foo"
+//   Basename("") => "."
+//   Basename("C:\\Windows\\System32") => "System32"
+std::string Basename(const std::string& path);
+
+// Returns the directory component of a path (everything up to but not
+// including the final component). Behaves like man 2 dirname, but works with
+// both '/' and '\' separators for cross-platform compatibility.
+// Examples:
+//   Dirname("/usr/bin/ls") => "/usr/bin"
+//   Dirname("/usr/bin") => "/usr"
+//   Dirname("/") => "/"
+//   Dirname("foo") => "."
+//   Dirname("") => "."
+//   Dirname("C:\\Windows\\System32") => "C:\\Windows"
+std::string Dirname(const std::string& path);
 
 // Puts the path to all files under |dir_path| in |output|, recursively walking
 // subdirectories. File paths are relative to |dir_path|. Only files are

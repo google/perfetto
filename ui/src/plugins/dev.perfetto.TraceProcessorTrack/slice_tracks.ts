@@ -12,17 +12,64 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {StandardGroup} from '../dev.perfetto.StandardGroups';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
 
 export interface SliceTrackGroupSchema {
   name: string;
   expanded?: true;
 }
 
+type DescriptionRenderer = () => m.Children;
+
 interface SliceTrackTypeSchema {
-  type: string;
-  group: string | SliceTrackGroupSchema | undefined;
-  topLevelGroup: 'PROCESS' | 'THREAD' | StandardGroup | undefined;
+  readonly type: string;
+  readonly group: string | SliceTrackGroupSchema | undefined;
+  readonly topLevelGroup: 'PROCESS' | 'THREAD' | StandardGroup | undefined;
+
+  /**
+   * Optional function to customize the display name of the track.
+   *
+   * This function is called during track registration to transform the raw
+   * track name into a more user-friendly display name.
+   *
+   * @param trackName - The name of the track as inferred by the UI.
+   * @returns The transformed display name to show in the UI.
+   *
+   * @example
+   * ```typescript
+   * displayName: (name) =>`${name} (Custom)`
+   * ```
+   */
+  readonly displayName?: (trackName: string) => string;
+
+  /**
+   * Optional function to provide a rich description renderer for the track.
+   *
+   * This function is called during track registration to generate custom
+   * descriptive content that will be displayed to users. The function receives
+   * the track name as input and returns a Mithril render function that produces
+   * the actual description content.
+   *
+   * If the track has a description in the trace, that will be used
+   * automatically so you don't need to define one here.
+   *
+   * @param trackDetails.name - The raw name of the track from the trace.
+   * @param trackDetails.description - The description from the trace, if
+   * available.
+   * @returns A Mithril render function that produces the description content
+   *
+   * @example
+   * ```typescript
+   * description: ({name}) => () => m('span', `Custom description for ${name}`)
+   * ```
+   */
+  readonly description?: (trackDetails: {
+    readonly name?: string;
+    readonly description?: string;
+  }) => DescriptionRenderer | undefined;
 }
 
 export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
@@ -250,10 +297,53 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     type: 'thread_execution',
     topLevelGroup: 'THREAD',
     group: undefined,
+    description: () => {
+      return () =>
+        m(
+          'p',
+          `Shows general thread execution instrumentation from various sources
+           (e.g. atrace, track event, syscall) all appearing on a single
+           timeline.`,
+        );
+    },
   },
   {
     type: 'thread_funcgraph',
     topLevelGroup: 'THREAD',
     group: undefined,
+    displayName: (trackName) => `${trackName} (funcgraph)`,
+  },
+  {
+    type: 'art_method_tracing',
+    topLevelGroup: 'THREAD',
+    group: undefined,
+    displayName: (trackName) => `${trackName} (ART)`,
+    description: ({description}) => {
+      return () =>
+        m('div', [
+          m(
+            'p',
+            description ??
+              'Shows ART (Android Runtime) method entry and exit events.',
+          ),
+          m(
+            'p',
+            `These represent Java/Kotlin method calls traced at the runtime
+             level. Due to the performace impact of method tracing, it's very
+             likely the performance shown here is signifcantly different to
+             performance when method tracing is turned off.`,
+          ),
+          m('br'),
+          m(
+            Anchor,
+            {
+              href: 'https://developer.android.com/reference/android/os/Debug#startMethodTracing()',
+              target: '_blank',
+              icon: Icons.ExternalLink,
+            },
+            'Documentation',
+          ),
+        ]);
+    },
   },
 ];

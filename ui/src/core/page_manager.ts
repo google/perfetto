@@ -15,11 +15,11 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {Registry} from '../base/registry';
-import {PageHandler} from '../public/page';
+import {PageHandler, PageManager} from '../public/page';
 import {Router} from './router';
 import {Gate} from '../base/mithril_utils';
 
-export class PageManagerImpl {
+export class PageManagerImpl implements PageManager {
   private readonly registry = new Registry<PageHandler>((x) => x.route);
   private readonly previousPages = new Map<
     string,
@@ -30,7 +30,6 @@ export class PageManagerImpl {
     assertTrue(/^\/\w*$/.exec(pageHandler.route) !== null);
     // The pluginId is injected by the proxy in AppImpl / TraceImpl. If this is
     // undefined somebody (tests) managed to call this method without proxy.
-    assertExists(pageHandler.pluginId);
     return this.registry.register(pageHandler);
   }
 
@@ -46,7 +45,7 @@ export class PageManagerImpl {
     // avoid calling their view functions. This makes sure DOM state such as
     // scrolling position is retained between page flips, which can be handy
     // when quickly switching between pages that have long scrolling content
-    // such as the viewer page.
+    // such as the timeline page.
     return Array.from(this.previousPages.entries())
       .map(([key, {page, subpage}]) => {
         const maybeRenderedPage = this.renderPageForRoute(page, subpage);

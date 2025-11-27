@@ -16,6 +16,8 @@
 
 #include "src/traceconv/trace_to_profile.h"
 
+#include <cerrno>
+#include <cinttypes>
 #include <random>
 #include <string>
 #include <vector>
@@ -28,8 +30,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/temp_file.h"
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/profiling/pprof_builder.h"
 #include "src/profiling/symbolizer/symbolizer.h"
 
@@ -37,10 +37,9 @@ namespace {
 constexpr const char* kDefaultTmp = "/tmp";
 
 std::string GetTemp() {
-  const char* tmp = nullptr;
-  if ((tmp = getenv("TMPDIR")))
+  if (auto tmp = getenv("TMPDIR"); tmp)
     return tmp;
-  if ((tmp = getenv("TEMP")))
+  if (auto tmp = getenv("TEMP"); tmp)
     return tmp;
   return kDefaultTmp;
 }
@@ -56,19 +55,9 @@ uint64_t ToConversionFlags(bool annotate_frames) {
                                    : ConversionFlags::kNone);
 }
 
-std::string GetRandomString(size_t n) {
-  std::random_device r;
-  auto rng = std::default_random_engine(r());
-  std::string result(n, ' ');
-  for (size_t i = 0; i < n; ++i) {
-    result[i] = 'a' + (rng() % ('z' - 'a'));
-  }
-  return result;
-}
-
 void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
   std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::LocalSymbolizerOrDie(profiling::GetPerfettoBinaryPath(),
+      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(), {},
                                       getenv("PERFETTO_SYMBOLIZER_MODE"));
   if (!symbolizer)
     return;
@@ -91,39 +80,144 @@ void MaybeDeobfuscate(trace_processor::TraceProcessor* tp) {
   tp->Flush();
 }
 
-int TraceToProfile(
-    std::istream* input,
-    std::ostream* output,
-    uint64_t pid,
-    std::vector<uint64_t> timestamps,
-    ConversionMode conversion_mode,
-    uint64_t conversion_flags,
-    std::string dirname_prefix,
-    std::function<std::string(const SerializedProfile&)> filename_fn) {
-  std::vector<SerializedProfile> profiles;
+std::string GetRandomString(size_t n) {
+  std::random_device r;
+  auto rng = std::default_random_engine(r());
+  std::string result(n, ' ');
+  for (size_t i = 0; i < n; ++i) {
+    result[i] = 'a' + (rng() % ('z' - 'a'));
+  }
+  return result;
+}
+
+// Creates the destination directory.
+// If |output_dir| is not empty, it is used as the destination directory.
+// Otherwise, a random temporary directory is created using
+// |fallback_dirname_prefix|.
+std::string GetDestinationDirectory(
+    const std::string& output_dir,
+    const std::string& fallback_dirname_prefix) {
+  std::string dst_dir;
+  if (!output_dir.empty()) {
+    dst_dir = output_dir;
+  } else {
+    dst_dir = GetTemp() + "/" + fallback_dirname_prefix +
+              base::GetTimeFmt("%y%m%d%H%M%S") + GetRandomString(5);
+  }
+  if (!base::Mkdir(dst_dir) && errno != EEXIST) {
+    PERFETTO_FATAL("Failed to create output directory %s", dst_dir.c_str());
+  }
+  return dst_dir;
+}
+
+std::optional<ConversionMode> DetectConversionMode(
+    trace_processor::TraceProcessor* tp) {
+  auto it = tp->ExecuteQuery(R"(
+  SELECT
+    EXISTS (SELECT 1 FROM heap_profile_allocation LIMIT 1),
+    EXISTS (SELECT 1 FROM perf_sample LIMIT 1),
+    EXISTS (SELECT 1 FROM __intrinsic_heap_graph_object LIMIT 1)
+  )");
+  PERFETTO_CHECK(it.Next());
+
+  int64_t alloc_present = it.Get(0).AsLong();
+  int64_t perf_present = it.Get(1).AsLong();
+  int64_t graph_present = it.Get(2).AsLong();
+
+  int64_t count = alloc_present + perf_present + graph_present;
+  if (count == 0) {
+    PERFETTO_LOG("No profiles found.");
+    return std::nullopt;
+  } else if (count > 1) {
+    std::string err_msg =
+        "More than one type of profile found in the trace, pass an explicit "
+        "disambiguation flag:\n";
+    if (alloc_present)
+      err_msg += "  --alloc: allocator profile\n";
+    if (perf_present)
+      err_msg += "  --perf: perf profile\n";
+    if (graph_present)
+      err_msg += "  --java-heap: java heap graph\n";
+
+    PERFETTO_ELOG("%s", err_msg.c_str());
+    return std::nullopt;
+  }
+  return alloc_present  ? ConversionMode::kHeapProfile
+         : perf_present ? ConversionMode::kPerfProfile
+                        : ConversionMode::kJavaHeapProfile;
+}
+
+}  // namespace
+
+int TraceToProfile(std::istream* input,
+                   uint64_t pid,
+                   const std::vector<uint64_t>& timestamps,
+                   bool annotate_frames,
+                   const std::string& output_dir,
+                   std::optional<ConversionMode> explicit_mode) {
+  // Pre-parse trace.
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
-
   if (!ReadTraceUnfinalized(tp.get(), input))
     return -1;
   tp->Flush();
+
+  // Detect type of profile.
+  std::optional<ConversionMode> mode = explicit_mode.has_value()
+                                           ? explicit_mode
+                                           : DetectConversionMode(tp.get());
+
+  if (!mode.has_value()) {
+    return -1;
+  }
+
+  int file_idx = 0;
+  std::function<std::string(const SerializedProfile&)> filename_fn;
+  std::string dir_prefix;
+  switch (*mode) {
+    case ConversionMode::kHeapProfile:
+      filename_fn = [&file_idx](const SerializedProfile& profile) {
+        return "heap_dump." + std::to_string(++file_idx) + "." +
+               std::to_string(profile.pid) + "." + profile.heap_name + ".pb";
+      };
+      dir_prefix = "heap_profile-";
+      break;
+    case ConversionMode::kPerfProfile:
+      filename_fn = [&file_idx](const SerializedProfile& profile) {
+        return "profile." + std::to_string(++file_idx) + ".pid." +
+               std::to_string(profile.pid) + ".pb";
+      };
+      dir_prefix = "perf_profile-";
+      break;
+    case ConversionMode::kJavaHeapProfile:
+      filename_fn = [&file_idx](const SerializedProfile& profile) {
+        return "java_heap_dump." + std::to_string(++file_idx) + "." +
+               std::to_string(profile.pid) + ".pb";
+      };
+      dir_prefix = "heap_profile-";
+      break;
+  }
+
+  // Add symbolisation and deobfuscation packets.
   MaybeSymbolize(tp.get());
   MaybeDeobfuscate(tp.get());
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return -1;
   }
-  TraceToPprof(tp.get(), &profiles, conversion_mode, conversion_flags, pid,
-               timestamps);
+
+  // Generate profiles.
+  std::vector<SerializedProfile> profiles;
+  TraceToPprof(tp.get(), &profiles, *mode, ToConversionFlags(annotate_frames),
+               pid, timestamps);
   if (profiles.empty()) {
     return 0;
   }
 
-  std::string temp_dir = GetTemp() + "/" + dirname_prefix +
-                         base::GetTimeFmt("%y%m%d%H%M%S") + GetRandomString(5);
-  PERFETTO_CHECK(base::Mkdir(temp_dir));
+  // Write profiles to files.
+  std::string dst_dir = GetDestinationDirectory(output_dir, dir_prefix);
   for (const auto& profile : profiles) {
-    std::string filename = temp_dir + "/" + filename_fn(profile);
+    std::string filename = dst_dir + "/" + filename_fn(profile);
     base::ScopedFile fd(base::OpenFile(filename, O_CREAT | O_WRONLY, 0700));
     if (!fd)
       PERFETTO_FATAL("Failed to open %s", filename.c_str());
@@ -131,58 +225,9 @@ int TraceToProfile(
                                   profile.serialized.size()) ==
                    static_cast<ssize_t>(profile.serialized.size()));
   }
-  *output << "Wrote profiles to " << temp_dir << std::endl;
+  PERFETTO_LOG("Wrote profiles to %s", dst_dir.c_str());
   return 0;
 }
 
-}  // namespace
-
-int TraceToHeapProfile(std::istream* input,
-                       std::ostream* output,
-                       uint64_t pid,
-                       std::vector<uint64_t> timestamps,
-                       bool annotate_frames) {
-  int file_idx = 0;
-  auto filename_fn = [&file_idx](const SerializedProfile& profile) {
-    return "heap_dump." + std::to_string(++file_idx) + "." +
-           std::to_string(profile.pid) + "." + profile.heap_name + ".pb";
-  };
-
-  return TraceToProfile(
-      input, output, pid, timestamps, ConversionMode::kHeapProfile,
-      ToConversionFlags(annotate_frames), "heap_profile-", filename_fn);
-}
-
-int TraceToPerfProfile(std::istream* input,
-                       std::ostream* output,
-                       uint64_t pid,
-                       std::vector<uint64_t> timestamps,
-                       bool annotate_frames) {
-  int file_idx = 0;
-  auto filename_fn = [&file_idx](const SerializedProfile& profile) {
-    return "profile." + std::to_string(++file_idx) + ".pid." +
-           std::to_string(profile.pid) + ".pb";
-  };
-
-  return TraceToProfile(
-      input, output, pid, timestamps, ConversionMode::kPerfProfile,
-      ToConversionFlags(annotate_frames), "perf_profile-", filename_fn);
-}
-
-int TraceToJavaHeapProfile(std::istream* input,
-                           std::ostream* output,
-                           const uint64_t pid,
-                           const std::vector<uint64_t>& timestamps,
-                           const bool annotate_frames) {
-  int file_idx = 0;
-  auto filename_fn = [&file_idx](const SerializedProfile& profile) {
-    return "java_heap_dump." + std::to_string(++file_idx) + "." +
-           std::to_string(profile.pid) + ".pb";
-  };
-
-  return TraceToProfile(
-      input, output, pid, timestamps, ConversionMode::kJavaHeapProfile,
-      ToConversionFlags(annotate_frames), "heap_profile-", filename_fn);
-}
 }  // namespace trace_to_text
 }  // namespace perfetto

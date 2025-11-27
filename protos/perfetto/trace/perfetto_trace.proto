@@ -46,6 +46,7 @@ message GpuCounterDescriptor {
     // Includes counters relating to caching and bandwidth.
     MEMORY = 5;
     COMPUTE = 6;
+    RAY_TRACING = 7;
   }
 
   message GpuCounterSpec {
@@ -873,6 +874,44 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/user_list_config.proto
+
+// Data source that lists details (such as version code) about users on an
+// Android device.
+message AndroidUserListConfig {
+  // An allowlist of user type strings, used to control the granularity of
+  // user type information emitted in the trace. Exact, case-sensitive string
+  // matching is used.
+  //
+  // Any user type read from the device that is NOT present in the
+  // effective allowlist will have its type reported as
+  // "android.os.usertype.FILTERED".
+  //
+  // The effective allowlist is determined as follows:
+  //
+  // 1. If this 'user_type_filter' field is provided and non-empty:
+  //    This list itself is the effective allowlist.
+  //    Example TraceConfig:
+  //    --------------------
+  //    data_sources {
+  //        config {
+  //            name: "android.user_list"
+  //            target_buffer: 0
+  //            user_list_config {
+  //              # Only report these specific types, others become FILTERED.
+  //              user_type_filter: "android.os.usertype.full.SYSTEM"
+  //              user_type_filter: "android.os.usertype.system.HEADLESS"
+  //            }
+  //        }
+  //    }
+  //
+  //
+  // Note: This field does not support regular expressions.
+  repeated string user_type_filter = 1;
+}
+
+// End of protos/perfetto/config/android/user_list_config.proto
+
 // Begin of protos/perfetto/config/android/windowmanager_config.proto
 
 // Custom configuration for the "android.windowmanager" data source.
@@ -1017,7 +1056,10 @@ message EtwConfig {
   repeated string scheduler_provider_events = 2;
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
+  // Provides events relating to file I/O.
+  repeated string file_provider_events = 4;
 }
+
 // End of protos/perfetto/config/etw/etw_config.proto
 
 // Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
@@ -1031,7 +1073,7 @@ message FrozenFtraceConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 34
+// Next id: 38
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1168,6 +1210,11 @@ message FtraceConfig {
   // If true, use self-describing proto messages when writing events not known
   // at compile time (aka generic events). Each event bundle will have a set of
   // serialised proto descriptors for events within that bundle.
+  //
+  // Default if unset:
+  // * v53+: true
+  // * before v53: false
+  //
   // Added in: perfetto v50.
   optional bool denser_generic_event_encoding = 32;
 
@@ -1284,6 +1331,83 @@ message FtraceConfig {
   // For perfetto developer use. If true and on a debuggable android build,
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
+
+  // =================================================
+  // Exclusive single-tenant features: HERE BE DRAGONS
+  // =================================================
+  // The features below are considered "advanced" and require an exclusive
+  // tracing session (as of Android 25Q3+ and Perfetto v52).
+  //
+  // These features directly manipulate the kernel's global ftrace state and
+  // are incompatible with concurrent ftrace sessions. They are only enabled
+  // if included in the *first* ftrace data source configured. Subsequent
+  // ftrace data sources (even those not using advanced features) will be
+  // rejected while a session with these features is active.
+  //
+  // To run the session in exclusive mode, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+
+  // Filter ftrace events by Thread ID (TID).
+  // This writes the TIDs to `/sys/kernel/tracing/set_event_pid`.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  repeated uint32 tids_to_trace = 35;
+
+  // Tracefs options to set directly in the tracefs instance. This is a very
+  // niche feature since almost all of the options deal with formatting textual
+  // output (the /trace file), which perfetto doesn't use.
+  //
+  // The options with a known use-case:
+  // * event-fork: when using `tids_to_trace` above, the kernel will
+  //   automatically add newly spawned descendant threads to the set of TIDs.
+  //
+  // Full list of options is available at
+  // https://docs.kernel.org/trace/ftrace.html#trace-options.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  message TracefsOption {
+    enum State {
+      STATE_UNKNOWN = 0;
+      STATE_ENABLED = 1;
+      STATE_DISABLED = 2;
+    }
+    // The name of the tracefs option as found in tracefs/trace_options (without
+    // the "no" prefix).
+    optional string name = 1;
+    optional State state = 2;
+  }
+  repeated TracefsOption tracefs_options = 36;
+
+  // This mask restricts tracing to a specific set of CPUs using a
+  // comma-separated hex mask. Each hex number (up to 8 digits) represents a
+  // 32-bit chunk of the CPU mask.
+  //
+  // The chunks are ordered from high CPUs to low CPUs (left to right):
+  //    - Rightmost chunk: CPUs 0-31
+  //    - 2nd chunk from right: CPUs 32-63
+  //    - ...and so on.
+  //
+  // Example (assuming NR_CPUS=128, requiring 4 chunks):
+  // The full mask would be in the format: "chunk3,chunk2,chunk1,chunk0"
+  // where chunk3 maps to CPUs 96-127, chunk2 to 64-95, chunk1 to 32-63, and
+  // chunk0 to 0-31.
+  //    - "ffffffff,0,0,0": Enables CPUs 96-127 only.
+  //    - "f,ff": Enables CPUs 0-7 (from "ff") and CPUs 32-35 (from "f").
+  //
+  // Note: This is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional string tracing_cpumask = 37;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
@@ -1530,6 +1654,12 @@ message ProcessStatsConfig {
   // spent running in user/kernel mode (utime/stime in /proc/pid/stat).
   // Introduced in: perfetto v44.
   optional bool record_process_runtime = 12;
+
+  // If true obtain per-process dmabuf resident set size from
+  // /proc/pid/dmabuf_rss.
+  // This feature is not in upstream linux, and is available only on some
+  // Android kernels.
+  optional bool record_process_dmabuf_rss = 13;
 
   // WARNING: unmaintained and deprecated. If true this will resolve file
   // descriptors for each process so these can be mapped to their actual device
@@ -1814,7 +1944,7 @@ message PerfEvents {
   // The primary event to count. If recording multiple events, this
   // counter is the "group leader".
   // Commented from the perspective of its use in |PerfEventConfig|.
-  // Next id: 12
+  // Next id: 13
   message Timebase {
     // How often to snapshot the counter, along with any follower events and
     // any additional sampled data such as callstacks.
@@ -1862,6 +1992,12 @@ message PerfEvents {
       Tracepoint tracepoint = 3;
       RawEvent raw_event = 5;
     }
+
+    // Optional modifiers for the event. Modelled after the perftool's
+    // https://man7.org/linux/man-pages/man1/perf-list.1.html#EVENT_MODIFIERS
+    // Currently supported: count scoping such as :u, :k, :uk, ...
+    // Modifiers can differ between the timebase and followers.
+    repeated EventModifier modifiers = 12;
 
     // If set, samples will be timestamped with the given clock.
     // If unset, the clock is chosen by the implementation.
@@ -1962,18 +2098,31 @@ message PerfEvents {
     PERF_CLOCK_MONOTONIC_RAW = 3;
     PERF_CLOCK_BOOTTIME = 4;
   }
+
+  enum EventModifier {
+    UNKNOWN_EVENT_MODIFIER = 0;
+    // count only while in userspace
+    EVENT_MODIFIER_COUNT_USERSPACE = 1;
+    // count only while in kernel
+    EVENT_MODIFIER_COUNT_KERNEL = 2;
+    // count only while in hypervisor
+    EVENT_MODIFIER_COUNT_HYPERVISOR = 3;
+  }
 }
 
 // Additional events associated with a leader.
-// Configuration is similar to Timebase event. Because data acquisition is
-// driven by the leader there is no option to configure the clock or the
-// frequency.
+// See https://man7.org/linux/man-pages/man1/perf-list.1.html#LEADER_SAMPLING
 message FollowerEvent {
   oneof event {
     PerfEvents.Counter counter = 1;
     PerfEvents.Tracepoint tracepoint = 2;
     PerfEvents.RawEvent raw_event = 3;
   }
+  // Modifiers can differ between the timebase and followers.
+  repeated PerfEvents.EventModifier modifiers = 5;
+  // Optional arbitrary name for the event, to identify it in the parsed
+  // trace. Does *not* affect the profiling itself. If unset, the trace
+  // parser will choose a suitable name.
   optional string name = 4;
 }
 
@@ -3848,6 +3997,13 @@ message TrackEventConfig {
   // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
 
+  // When enable_thread_time_sampling is true, and this is specified, thread
+  // time is sampled only if the elapsed wall time >
+  // `thread_time_subsampling_ns`. Otherwise, thread time is considered nil.
+  // Effectively, this means thread time will have a leeway of
+  // `thread_time_subsampling_ns` and won't be emitted for shorter events.
+  optional uint64 thread_time_subsampling_ns = 10;
+
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
   // When true, event_names wrapped in perfetto::DynamicString will be filtered
   // out.
@@ -3859,7 +4015,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 138
+// Next id: 139
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4059,6 +4215,9 @@ message DataSourceConfig {
   // Data source name: android.cpu_per_uid
   optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
 
+  // Data source name: android.user_list
+  optional AndroidUserListConfig user_list_config = 138 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -4084,7 +4243,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 42.
+// Next id: 44.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4820,6 +4979,35 @@ message TraceConfig {
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
   optional uint32 exclusive_prio = 41;
+
+  // If true && |write_into_file|, do NOT flush buffers when periodically write
+  // them into file.
+  //
+  // By default, if |write_into_file| is set, each time we periodically write
+  // buffers into file, we first issue a Flush() to all data source, forcing
+  // them to commit their data into the tracing service. This helps us to always
+  // write latest data to the file.
+  //
+  // Before this flag was introduced, the default behavior was NOT to flush
+  // buffers when periodically write them into file. If true this flag
+  // returns the old default behavior.
+  //
+  // Introduced in: perfetto v53.
+  // Supported on: Android 25Q4+.
+  optional bool no_flush_before_write_into_file = 42;
+
+  // When true, data sources in remote producers (machines connected via
+  // traced_relay) will be matched by default. When false (the default), data
+  // sources only match the host machine. In either case, an explicit
+  // |DataSource.machine_name_filter| takes priority.
+  //
+  // NB: perfetto versions before v54 do not have this option and match across
+  // machines by default. To be compatible across this version boundary, either
+  // set this field to true, or set an explicit machine_name_filter on all data
+  // sources.
+  //
+  // Introduced in: perfetto v54.
+  optional bool trace_all_machines = 43;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -5497,6 +5685,9 @@ message FrameTimelineEvent {
     JANK_UNKNOWN = 256;
     JANK_SF_STUFFING = 512;
     JANK_DROPPED = 1024;
+    JANK_NON_ANIMATING = 2048;
+    JANK_APP_RESYNCED_JITTER = 4096;
+    JANK_DISPLAY_NOT_ON = 8192;
   };
 
   // Specifies the severity of a jank.
@@ -5584,6 +5775,15 @@ message FrameTimelineEvent {
     optional PredictionType prediction_type = 10;
     optional bool is_buffer = 11;
     optional JankSeverityType jank_severity_type = 12;
+    optional float present_delay_millis = 13;
+    optional float vsync_resynced_jitter_millis = 14;
+    optional float jank_severity_score = 15;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 16;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 17;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -5630,6 +5830,15 @@ message FrameTimelineEvent {
     optional int32 jank_type = 7;
     optional PredictionType prediction_type = 8;
     optional JankSeverityType jank_severity_type = 9;
+
+    optional float present_delay_millis = 10;
+    optional float jank_severity_score = 11;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 12;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 13;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding
@@ -6082,10 +6291,18 @@ message InputWindowInfoProto {
 
 message BlurRegion {
   optional uint32 blur_radius = 1;
-  optional uint32 corner_radius_tl = 2;
-  optional uint32 corner_radius_tr = 3;
-  optional uint32 corner_radius_bl = 4;
-  optional float corner_radius_br = 5;
+  optional uint32 corner_radius_tl = 2 [deprecated = true];
+  optional uint32 corner_radius_tr = 3 [deprecated = true];
+  optional uint32 corner_radius_bl = 4 [deprecated = true];
+  optional float corner_radius_br = 5 [deprecated = true];
+  optional float corner_radius_tlx = 11;
+  optional float corner_radius_tly = 12;
+  optional float corner_radius_trx = 13;
+  optional float corner_radius_try = 14;
+  optional float corner_radius_blx = 15;
+  optional float corner_radius_bly = 16;
+  optional float corner_radius_brx = 17;
+  optional float corner_radius_bry = 18;
   optional float alpha = 6;
   optional int32 left = 7;
   optional int32 top = 8;
@@ -6103,6 +6320,21 @@ enum TrustedOverlay {
   DISABLED = 1;
   ENABLED = 2;
 };
+message BoxShadowSettings {
+  message BoxShadowParams {
+    optional float blur_radius = 1;
+    optional float spread_radius = 2;
+    optional int32 color = 3;
+    optional float offset_x = 4;
+    optional float offset_y = 5;
+  }
+  repeated BoxShadowParams box_shadows = 1;
+}
+
+message BorderSettings {
+  optional float stroke_width = 1;
+  optional int32 color = 2;
+}
 // End of protos/perfetto/trace/android/surfaceflinger_common.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -6336,6 +6568,15 @@ message LayerProto {
 
   // Priority value of the layer set by the system.
   optional int32 system_content_priority = 64;
+
+  // Settings which specify how shadows should be drawn for a layer.
+  optional BoxShadowSettings box_shadow_settings = 65;
+
+  // Settings which specify how an outline should be drawn for a layer.
+  optional BorderSettings border_settings = 66;
+
+  // "True" corner radii of the layer computed by SurfaceFlinger.
+  optional CornerRadiiProto effective_radii = 67;
 }
 
 message PositionProto {
@@ -6535,6 +6776,8 @@ message LayerState {
     eDropInputModeChanged = 0x8000;
     eClientDrawnCornerRadiusChanged = 0x00010000;
     eSystemContentPriorityChanged = 0x00020000;
+    eBoxShadowSettingsChanged = 0x00040000;
+    eBorderSettingsChanged = 0x00080000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -6677,6 +6920,10 @@ message LayerState {
   optional CornerRadii client_drawn_corner_radii = 46;
 
   optional int32 system_content_priority = 47;
+
+  optional BoxShadowSettings box_shadow_settings = 48;
+
+  optional BorderSettings border_settings = 49;
 }
 
 message DisplayState {
@@ -6700,6 +6947,23 @@ message DisplayState {
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_transactions.proto
+
+// Begin of protos/perfetto/trace/android/user_list.proto
+
+message AndroidUserList {
+  message UserInfo {
+    // eg. android.os.usertype.full.SYSTEM, android.os.usertype.full.SECONDARY
+    optional string type = 1;
+    optional int32 uid = 2;
+  }
+
+  repeated UserInfo users = 1;
+
+  // Error number
+  optional int32 error = 2;
+}
+
+// End of protos/perfetto/trace/android/user_list.proto
 
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
@@ -7478,6 +7742,65 @@ message MemInfoEtwEvent {
   optional uint64 commit_page_count = 13;
 }
 
+// Proto definition based on the `FileIo_Create` class definition.
+message FileIoCreateEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint32 ttid = 3;
+  optional uint32 create_options = 4;
+  optional uint32 file_attributes = 5;
+  optional uint32 share_access = 6;
+  optional string open_path = 7;
+}
+
+// Proto definition based on the `FileIo_DirEnum` class definition.
+message FileIoDirEnumEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint32 ttid = 4;
+  optional uint32 length = 5;
+  optional uint32 info_class = 6;
+  optional uint32 file_index = 7;
+  optional string file_name = 8;
+}
+
+// Proto definition based on the `FileIo_Info` class definition.
+message FileIoInfoEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
+  optional uint32 ttid = 5;
+  optional uint32 info_class = 6;
+}
+
+// Proto definition based on the `FileIo_ReadWrite` class definition.
+message FileIoReadWriteEtwEvent {
+  optional uint64 offset = 1;
+  optional uint64 irp_ptr = 2;
+  optional uint64 file_object = 3;
+  optional uint64 file_key = 4;
+  optional uint32 ttid = 5;
+  optional uint32 io_size = 6;
+  optional uint32 io_flags = 7;
+}
+
+// Proto definition based on the `FileIo_SimpleOp` class definition.
+message FileIoSimpleOpEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint32 ttid = 4;
+}
+
+// Proto definition based on the `FileIo_OpEnd` class definition.
+message FileIoOpEndEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 extra_info = 2;
+  optional uint32 nt_status = 3;
+}
+
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
@@ -7491,6 +7814,12 @@ message EtwTraceEvent {
     CSwitchEtwEvent c_switch = 2;
     ReadyThreadEtwEvent ready_thread = 3;
     MemInfoEtwEvent mem_info = 6;
+    FileIoCreateEtwEvent file_io_create = 7;
+    FileIoDirEnumEtwEvent file_io_dir_enum = 8;
+    FileIoInfoEtwEvent file_io_info = 9;
+    FileIoReadWriteEtwEvent file_io_read_write = 10;
+    FileIoSimpleOpEtwEvent file_io_simple_op = 11;
+    FileIoOpEndEtwEvent file_io_op_end = 12;
   }
 }
 
@@ -9732,6 +10061,18 @@ message FuncgraphExitFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/ftrace.proto
 
+// Begin of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
+message FwtpPerfettoCounterFtraceEvent {
+  optional uint64 timestamp = 1;
+  optional uint32 track_id = 2;
+  optional string category = 3;
+  optional string name = 4;
+  optional uint32 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
 // Begin of protos/perfetto/trace/ftrace/g2d.proto
 
 message G2dTracingMarkWriteFtraceEvent {
@@ -9822,6 +10163,40 @@ message DrmRunJobFtraceEvent {
 }
 message DrmSchedProcessJobFtraceEvent {
   optional uint64 fence = 1;
+}
+message DrmSchedJobAddDepFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+  optional uint64 ctx = 3;
+  optional uint64 seqno = 4;
+}
+message DrmSchedJobDoneFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+}
+message DrmSchedJobQueueFtraceEvent {
+  optional string name = 1;
+  optional uint32 job_count = 2;
+  optional int32 hw_job_count = 3;
+  optional string dev = 4;
+  optional uint64 fence_context = 5;
+  optional uint64 fence_seqno = 6;
+  optional uint64 client_id = 7;
+}
+message DrmSchedJobRunFtraceEvent {
+  optional string name = 1;
+  optional uint32 job_count = 2;
+  optional int32 hw_job_count = 3;
+  optional string dev = 4;
+  optional uint64 fence_context = 5;
+  optional uint64 fence_seqno = 6;
+  optional uint64 client_id = 7;
+}
+message DrmSchedJobUnschedulableFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+  optional uint64 ctx = 3;
+  optional uint64 seqno = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
@@ -10984,6 +11359,8 @@ message PixelMmKswapdWakeFtraceEvent {
 message PixelMmKswapdDoneFtraceEvent {
   optional uint64 delta_nr_scanned = 1;
   optional uint64 delta_nr_reclaimed = 2;
+  optional uint64 delta_nr_allocated = 3;
+  optional uint64 duration_ns = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/pixel_mm.proto
@@ -11253,6 +11630,47 @@ message ScmCallStartFtraceEvent {
 message ScmCallEndFtraceEvent {}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
+
+// Begin of protos/perfetto/trace/ftrace/scsi.proto
+
+message ScsiDispatchCmdErrorFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 rtn = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+}
+message ScsiDispatchCmdTimeoutFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 result = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+  optional uint32 sense_key = 14;
+  optional uint32 asc = 15;
+  optional uint32 ascq = 16;
+}
+message ScsiEhWakeupFtraceEvent {
+  optional uint32 host_no = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/scsi.proto
 
 // Begin of protos/perfetto/trace/ftrace/sde.proto
 
@@ -11848,6 +12266,7 @@ message MmShrinkSlabEndFtraceEvent {
 
 message WorkqueueActivateWorkFtraceEvent {
   optional uint64 work = 1;
+  optional uint64 function = 2;
 }
 message WorkqueueExecuteEndFtraceEvent {
   optional uint64 work = 1;
@@ -11860,9 +12279,9 @@ message WorkqueueExecuteStartFtraceEvent {
 message WorkqueueQueueWorkFtraceEvent {
   optional uint64 work = 1;
   optional uint64 function = 2;
-  optional uint64 workqueue = 3;
-  optional uint32 req_cpu = 4;
-  optional uint32 cpu = 5;
+  optional int32 req_cpu = 4;
+  optional int32 cpu = 5;
+  optional string workqueue = 6;
 }
 
 // End of protos/perfetto/trace/ftrace/workqueue.proto
@@ -12508,6 +12927,15 @@ message FtraceEvent {
     HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
         589;
     HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
+    DrmSchedJobAddDepFtraceEvent drm_sched_job_add_dep = 591;
+    DrmSchedJobDoneFtraceEvent drm_sched_job_done = 592;
+    DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
+    DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
+    DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
+    FwtpPerfettoCounterFtraceEvent fwtp_perfetto_counter = 596;
+    ScsiDispatchCmdErrorFtraceEvent scsi_dispatch_cmd_error = 597;
+    ScsiDispatchCmdTimeoutFtraceEvent scsi_dispatch_cmd_timeout = 598;
+    ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
   }
 }
 
@@ -12601,6 +13029,9 @@ message FtraceStats {
   // Atrace errors (even non-fatal ones) are reported here. A typical example is
   // one or more atrace categories not available on the device.
   optional string atrace_errors = 5;
+
+  // Error message due to exclusivity violation of a single-tenant feature.
+  optional string exclusive_feature_error = 13;
 
   // Ftrace events requested by the config but not present on device.
   repeated string unknown_ftrace_events = 6;
@@ -12781,7 +13212,10 @@ message FtraceEventBundle {
   message GenericEventDescriptor {
     // submessage id within FtraceEvent described by |event_descriptor|.
     optional int32 field_id = 1;
-    // serialised DescriptorProto
+    // optional: the event's group, e.g. "sched" for "sched/sched_switch".
+    // The event name itself is in |event_descriptor.name|.
+    optional string group_name = 3;
+    // serialised DescriptorProto.
     optional bytes event_descriptor = 2;
   }
   repeated GenericEventDescriptor generic_event_descriptors = 11;
@@ -12875,6 +13309,51 @@ message GenericKernelTaskRenameEvent {
   optional string comm = 2;
 }
 
+// Metadata about the processes and threads in the trace.
+// The main goal of this proto is to provide a generic kernel
+// implementation a mechanism to outline its process structure.
+message GenericKernelProcessTree {
+  // Representation of a thread.
+  message Thread {
+    // Thread id.
+    optional int64 tid = 1;
+
+    // Id of the parent process.
+    optional int64 pid = 2;
+
+    // The command name of the thread.
+    optional string comm = 3;
+
+    // True if thread is the main thread.
+    optional bool is_main_thread = 4;
+  }
+
+  // Representation of a process.
+  message Process {
+    // Process id.
+    optional int64 pid = 1;
+
+    // Parent process id.
+    optional int64 ppid = 2;
+
+    // The command line of the process.
+    // If the cmdline has spaces in it, then we use the characters from
+    // position 0 to the first instance of the space char (' ') as the name
+    // of the process. If no spaces are present, then the entire cmdline is
+    // used as the name.
+    optional string cmdline = 3;
+  }
+
+  // List of processes and threads in the kernel. These lists are incremental
+  // and not exhaustive. A process and its threads might show up separately in
+  // different ProcessTree messages. A thread might not show up at all, if
+  // no sched switch activity was detected, for instance:
+  // #0 { processes: [{pid: 10, ...}], threads: [{tid: 11, pid: 10}] }
+  // #1 { threads: [{tid: 12, pid: 10}] }
+  // #2 { processes: [{pid: 20, ...}], threads: [{tid: 13, pid: 10}] }
+  repeated Process processes = 1;
+  repeated Thread threads = 2;
+}
 
 // End of protos/perfetto/trace/generic_kernel/generic_task.proto
 
@@ -13193,7 +13672,10 @@ message VulkanMemoryEvent {
 // previous InternedData message with same sequence ID should be used.
 // TODO(fmayer): Move to the intern tables to a common location.
 message InternedString {
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
+
+  // The actual string.
   optional bytes str = 2;
 }
 
@@ -13234,9 +13716,11 @@ message ModuleSymbols {
 
 message Mapping {
   // Interning key.
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
 
   // Interning key.
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 build_id = 2;
 
   // The linker may create multiple memory mappings for the same shared
@@ -13270,6 +13754,18 @@ message Mapping {
   optional uint64 start_offset = 3;
   optional uint64 start = 4;
   optional uint64 end = 5;
+
+  // Libunwindstack-specific concept, not to be confused with bionic linker's
+  // notion of load_bias. Needed to correct relative pc addresses (as produced
+  // by libunwindstack) when doing offline resymbolisation.
+  //
+  // For an executable ELF PT_LOAD segment, this is:
+  //   p_vaddr - p_offset
+  //
+  // Where p_offset means that the code is at that offset into the ELF file on
+  // disk. While p_vaddr is the offset at which the code gets *mapped*, relative
+  // to where the linker loads the ELF into the address space. For most ELFs,
+  // the two values are identical and therefore load_bias is zero.
   optional uint64 load_bias = 6;
 
   // E.g. ["system", "lib64", "libc.so"]
@@ -13278,18 +13774,46 @@ message Mapping {
 }
 
 message Frame {
-  // Interning key
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
 
   // E.g. "fopen"
   // id of string.
   optional uint64 function_name_id = 2;
 
+  // The mapping in which this frame's instruction pointer resides.
+  // iid of Mapping.iid.
+  //
+  // If set (non-zero), rel_pc MUST also be set. If mapping_id is 0 (not set),
+  // this frame has no associated memory mapping (e.g., symbolized frames
+  // without address information).
+  //
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 mapping_id = 3;
+
+  // Instruction pointer relative to the start of the mapping.
+  // MUST be set if mapping_id is set (non-zero). Ignored if mapping_id is 0.
   optional uint64 rel_pc = 4;
+
+  // Source file path for this frame.
+  // This is typically set during online symbolization when symbol information
+  // is available at trace collection time. If not set, source file paths may be
+  // added later via offline symbolization (see ModuleSymbols).
+  //
+  // Starts from 1, 0 is the same as "not set".
+  //
+  // iid of InternedData.source_paths.
+  optional uint64 source_path_iid = 5;
+
+  // Line number in the source file for this frame.
+  // This is typically set during online symbolization when symbol information
+  // is available at trace collection time. If not set, line numbers may be
+  // added later via offline symbolization (see ModuleSymbols).
+  optional uint32 line_number = 6;
 }
 
 message Callstack {
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
   // Frames of this callstack. Bottom frame first.
   repeated uint64 frame_ids = 2;
@@ -14257,7 +14781,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 55.
+// Next reserved id: 13 (up to 15). Next id: 57.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -14426,13 +14950,75 @@ message TrackEvent {
     uint64 correlation_id_str_iid = 54;
   }
 
+  // Callstack associated with this event. This captures the program stack at
+  // the time the event occurred, useful for understanding what code path led
+  // to the event.
+  //
+  // Two variants are supported:
+  // - callstack: Inline callstack data (simpler when trace size is not a
+  //   concern or callstacks are unique)
+  // - callstack_iid: Reference to an interned Callstack in InternedData
+  //   (efficient for repeated callstacks)
+  //
+  // Only one of these fields should be set.
+  oneof callstack_field {
+    // Inline callstack data. Use this for simplicity when interning is not
+    // needed (e.g., for unique callstacks or when trace size is not critical).
+    Callstack callstack = 55;
+
+    // Reference to interned Callstack (see InternedData.callstacks).
+    // This is the efficient option when callstacks are repeated.
+    //
+    // Note: iids *always* start from 1. A value of 0 is considered "not set".
+    uint64 callstack_iid = 56;
+  }
+
+  // Inline callstack for TrackEvents when interning is not needed.
+  // This is a simplified version of the profiling Callstack/Frame messages,
+  // designed for cases where trace size is not critical or callstacks are
+  // unique.
+  //
+  // Use this for simple callstacks with function names and source locations.
+  // For binary/library information (mappings, build IDs, relative PCs), use
+  // interned callstacks via callstack_iid instead.
+  message Callstack {
+    // Frame within an inline callstack.
+    message Frame {
+      // Function name, e.g., "malloc" or "std::vector<int>::push_back"
+      optional string function_name = 1;
+
+      // Optional: Source file path, e.g., "/src/foo.cc"
+      optional string source_file = 2;
+
+      // Optional: Line number in the source file
+      optional uint32 line_number = 3;
+    }
+
+    // Frames of this callstack, ordered from bottom (outermost) to top
+    // (innermost). For example, if main() calls foo() which calls bar(), the
+    // frames would be: [main, foo, bar]
+    repeated Frame frames = 1;
+  }
+
+  // Debug annotations associated with this event. These are arbitrary key-value
+  // pairs that can be used to attach additional information to the event.
+  // See DebugAnnotation message for details on supported value types.
+  //
+  // For example, debug annotations can be used to attach a URL or resource
+  // identifier to a network request event. Arrays, dictionaries and full
+  // nested structures (e.g. arrays of dictionaries of dictionaries)
+  // are supported.
+  repeated DebugAnnotation debug_annotations = 4;
+
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
   // ---------------------------------------------------------------------------
-
-  // Unstable key/value annotations shown in the trace viewer but not intended
-  // for metrics use.
-  repeated DebugAnnotation debug_annotations = 4;
+  //
+  // NOTE: The fields below this point are NOT part of the stable public API.
+  // They are primarily intended for internal use by Chrome and Android. These
+  // fields may change or be removed without notice. For custom/synthetic
+  // traces, prefer using the fields above (name, categories, type, flows,
+  // correlation_id, callstack, etc.) along with custom debug_annotations.
 
   // Typed event arguments:
   optional TaskExecution task_execution = 5;
@@ -15175,6 +15761,12 @@ message PowerRails {
   }
 
   repeated EnergyData energy_data = 2;
+
+  // A unique session id that can be used to match energy data to sets of
+  // descriptors. The indices used by rail descriptors and energy data packets
+  // are meant to be unique to a given session uuid. When multiple data sources
+  // are running in parallel, each data source should use a unique id.
+  optional uint64 session_uuid = 3;
 }
 
 // End of protos/perfetto/trace/power/power_rails.proto
@@ -15813,6 +16405,9 @@ message ProcessStats {
     // /proc/pid/stat. Recorded if record_process_runtime config option is set.
     // Resolution of "clock ticks", usually 10ms.
     optional uint64 runtime_kernel_mode = 22;
+
+    // The total size of all dmabufs referenced by a process via FDs or VMAs.
+    optional uint64 dmabuf_rss_kb = 24;
   }
   repeated Process processes = 1;
 
@@ -16374,52 +16969,11 @@ message ThreadDescriptor {
 //
 // Next id: 6.
 message ChromeProcessDescriptor {
-  // See chromium's content::ProcessType.
-  enum ProcessType {
-    PROCESS_UNSPECIFIED = 0;
-    PROCESS_BROWSER = 1;
-    PROCESS_RENDERER = 2;
-    PROCESS_UTILITY = 3;
-    PROCESS_ZYGOTE = 4;
-    PROCESS_SANDBOX_HELPER = 5;
-    PROCESS_GPU = 6;
-    PROCESS_PPAPI_PLUGIN = 7;
-    PROCESS_PPAPI_BROKER = 8;
-    PROCESS_SERVICE_NETWORK = 9;
-    PROCESS_SERVICE_TRACING = 10;
-    PROCESS_SERVICE_STORAGE = 11;
-    PROCESS_SERVICE_AUDIO = 12;
-    PROCESS_SERVICE_DATA_DECODER = 13;
-    PROCESS_SERVICE_UTIL_WIN = 14;
-    PROCESS_SERVICE_PROXY_RESOLVER = 15;
-    PROCESS_SERVICE_CDM = 16;
-    PROCESS_SERVICE_VIDEO_CAPTURE = 17;
-    PROCESS_SERVICE_UNZIPPER = 18;
-    PROCESS_SERVICE_MIRRORING = 19;
-    PROCESS_SERVICE_FILEPATCHER = 20;
-    PROCESS_SERVICE_TTS = 21;
-    PROCESS_SERVICE_PRINTING = 22;
-    PROCESS_SERVICE_QUARANTINE = 23;
-    PROCESS_SERVICE_CROS_LOCALSEARCH = 24;
-    PROCESS_SERVICE_CROS_ASSISTANT_AUDIO_DECODER = 25;
-    PROCESS_SERVICE_FILEUTIL = 26;
-    PROCESS_SERVICE_PRINTCOMPOSITOR = 27;
-    PROCESS_SERVICE_PAINTPREVIEW = 28;
-    PROCESS_SERVICE_SPEECHRECOGNITION = 29;
-    PROCESS_SERVICE_XRDEVICE = 30;
-    PROCESS_SERVICE_READICON = 31;
-    PROCESS_SERVICE_LANGUAGEDETECTION = 32;
-    PROCESS_SERVICE_SHARING = 33;
-    PROCESS_SERVICE_MEDIAPARSER = 34;
-    PROCESS_SERVICE_QRCODEGENERATOR = 35;
-    PROCESS_SERVICE_PROFILEIMPORT = 36;
-    PROCESS_SERVICE_IME = 37;
-    PROCESS_SERVICE_RECORDING = 38;
-    PROCESS_SERVICE_SHAPEDETECTION = 39;
-    PROCESS_RENDERER_EXTENSION = 40;
-    PROCESS_SERVICE_MEDIA_FOUNDATION = 41;
-  }
-  optional ProcessType process_type = 1;
+  // This is a chrome_enums::ProcessType from
+  // //protos/third_party/chromium/chrome_enums.proto. The enum definition can't
+  // be imported here because of a dependency loop.
+  optional int32 process_type = 1;
+
   optional int32 process_priority = 2;
 
   // To support old UI. New UI should determine default sorting by process_type.
@@ -16453,64 +17007,10 @@ message ChromeProcessDescriptor {
 //
 // Next id: 3.
 message ChromeThreadDescriptor {
-  enum ThreadType {
-    THREAD_UNSPECIFIED = 0;
-
-    THREAD_MAIN = 1;
-    THREAD_IO = 2;
-
-    THREAD_POOL_BG_WORKER = 3;
-    THREAD_POOL_FG_WORKER = 4;
-    THREAD_POOL_FG_BLOCKING = 5;
-    THREAD_POOL_BG_BLOCKING = 6;
-    THREAD_POOL_SERVICE = 7;
-
-    THREAD_COMPOSITOR = 8;
-    THREAD_VIZ_COMPOSITOR = 9;
-    THREAD_COMPOSITOR_WORKER = 10;
-
-    THREAD_SERVICE_WORKER = 11;
-    THREAD_NETWORK_SERVICE = 12;
-
-    THREAD_CHILD_IO = 13;
-    THREAD_BROWSER_IO = 14;
-
-    THREAD_BROWSER_MAIN = 15;
-    THREAD_RENDERER_MAIN = 16;
-    THREAD_UTILITY_MAIN = 17;
-    THREAD_GPU_MAIN = 18;
-
-    THREAD_CACHE_BLOCKFILE = 19;
-    THREAD_MEDIA = 20;
-    THREAD_AUDIO_OUTPUTDEVICE = 21;
-    THREAD_AUDIO_INPUTDEVICE = 22;
-    THREAD_GPU_MEMORY = 23;
-    THREAD_GPU_VSYNC = 24;
-    THREAD_DXA_VIDEODECODER = 25;
-    THREAD_BROWSER_WATCHDOG = 26;
-    THREAD_WEBRTC_NETWORK = 27;
-    THREAD_WINDOW_OWNER = 28;
-    THREAD_WEBRTC_SIGNALING = 29;
-    THREAD_WEBRTC_WORKER = 30;
-    THREAD_PPAPI_MAIN = 31;
-    THREAD_GPU_WATCHDOG = 32;
-    THREAD_SWAPPER = 33;
-    THREAD_GAMEPAD_POLLING = 34;
-    THREAD_WEBCRYPTO = 35;
-    THREAD_DATABASE = 36;
-    THREAD_PROXYRESOLVER = 37;
-    THREAD_DEVTOOLSADB = 38;
-    THREAD_NETWORKCONFIGWATCHER = 39;
-    THREAD_WASAPI_RENDER = 40;
-    THREAD_LOADER_LOCK_SAMPLER = 41;
-
-    THREAD_MEMORY_INFRA = 50;
-    THREAD_SAMPLING_PROFILER = 51;
-
-    THREAD_COMPOSITOR_GPU = 52;
-  };
-
-  optional ThreadType thread_type = 1;
+  // This is a chrome_enums::ThreadType from
+  // //protos/third_party/chromium/chrome_enums.proto. The enum definition can't
+  // be imported here because of a dependency loop.
+  optional int32 thread_type = 1;
 
   // To support old UI. New UI should determine default sorting by thread_type.
   optional int32 legacy_sort_index = 2;
@@ -17060,7 +17560,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 122.
+// Next id: 124.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -17211,10 +17711,13 @@ message TracePacket {
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
     GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
     GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
+    GenericKernelProcessTree generic_kernel_process_tree = 122;
 
     CpuPerUidData cpu_per_uid_data = 119;
 
     EvdevEvent evdev_event = 121;
+
+    AndroidUserList user_list = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

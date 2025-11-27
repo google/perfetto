@@ -58,10 +58,13 @@ export function renderDetails(
             label: 'Slices with the same name',
             onclick: () => {
               extensions.addLegacySqlTableTab(trace, {
-                table: assertExists(getSqlTableDescription('slice')),
+                table: assertExists(getSqlTableDescription(trace, 'slice')),
                 filters: [
                   {
-                    op: (cols) => `${cols[0]} = ${sqliteString(slice.name)}`,
+                    op: (cols) =>
+                      slice.name === undefined
+                        ? `${cols[0]} IS NULL`
+                        : `${cols[0]} = ${sqliteString(slice.name)}`,
                     columns: ['name'],
                   },
                 ],
@@ -79,7 +82,7 @@ export function renderDetails(
       }),
       m(TreeNode, {
         left: 'Start time',
-        right: m(Timestamp, {ts: slice.ts}),
+        right: m(Timestamp, {trace, ts: slice.ts}),
       }),
       exists(slice.absTime) &&
         m(TreeNode, {left: 'Absolute Time', right: slice.absTime}),
@@ -87,25 +90,26 @@ export function renderDetails(
         TreeNode,
         {
           left: 'Duration',
-          right: m(DurationWidget, {dur: slice.dur}),
+          right: m(DurationWidget, {trace, dur: slice.dur}),
         },
         exists(durationBreakdown) &&
           slice.dur > 0 &&
           m(BreakdownByThreadStateTreeNode, {
+            trace,
             data: durationBreakdown,
             dur: slice.dur,
           }),
       ),
-      renderThreadDuration(slice),
+      renderThreadDuration(trace, slice),
       slice.thread &&
         m(TreeNode, {
           left: 'Thread',
-          right: renderThreadRef(slice.thread),
+          right: renderThreadRef(trace, slice.thread),
         }),
       slice.process &&
         m(TreeNode, {
           left: 'Process',
-          right: renderProcessRef(slice.process),
+          right: renderProcessRef(trace, slice.process),
         }),
       slice.process &&
         exists(slice.process.uid) &&
@@ -133,7 +137,7 @@ export function renderDetails(
   );
 }
 
-function renderThreadDuration(sliceInfo: SliceDetails) {
+function renderThreadDuration(trace: Trace, sliceInfo: SliceDetails) {
   if (exists(sliceInfo.threadTs) && exists(sliceInfo.threadDur)) {
     // If we have valid thread duration, also display a percentage of
     // |threadDur| compared to |dur|.
@@ -143,7 +147,7 @@ function renderThreadDuration(sliceInfo: SliceDetails) {
     return m(TreeNode, {
       left: 'Thread duration',
       right: [
-        m(DurationWidget, {dur: sliceInfo.threadDur}),
+        m(DurationWidget, {trace, dur: sliceInfo.threadDur}),
         threadDurFractionSuffix,
       ],
     });

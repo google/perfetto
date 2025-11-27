@@ -37,9 +37,9 @@
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_parser.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor::gecko_importer {
 namespace {
@@ -155,13 +155,13 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
                     context_->storage->InternString(t["name"].asCString())}});
         added_metadata = true;
       }
-      ASSIGN_OR_RETURN(
-          int64_t converted,
-          context_->clock_tracker->ToTraceTime(
-              protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts));
-      stream_->Push(converted,
-                    GeckoEvent{GeckoEvent::StackSample{
-                        t["tid"].asUInt(), callsites[stack_idx].id}});
+      std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
+          protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts);
+      if (converted) {
+        stream_->Push(*converted,
+                      GeckoEvent{GeckoEvent::StackSample{
+                          t["tid"].asUInt(), callsites[stack_idx].id}});
+      }
     }
   }
   return base::OkStatus();

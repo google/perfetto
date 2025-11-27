@@ -13,111 +13,160 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  FilterDefinition,
-  FilterValue,
-} from '../../../../components/widgets/data_grid/common';
 import {Button} from '../../../../widgets/button';
+import {Checkbox} from '../../../../widgets/checkbox';
 import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
+import {Icon} from '../../../../widgets/icon';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Stack} from '../../../../widgets/stack';
+import {Icons} from '../../../../base/semantic_icons';
+import {showModal, closeModal} from '../../../../widgets/modal';
+import {Form, FormLabel} from '../../../../widgets/form';
 
-// Partial representation of FilterDefinition used in the UI.
-export interface UIFilter {
-  readonly column?: string;
-  readonly op?: FilterValue['op'] | 'is null' | 'is not null';
-  readonly value?: SqlValue;
+interface FilterValue {
+  readonly column: string;
+  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob';
+  readonly value: SqlValue;
+  enabled?: boolean; // Default true - controls if filter is active
 }
+
+interface FilterNull {
+  readonly column: string;
+  readonly op: 'is null' | 'is not null';
+  enabled?: boolean; // Default true - controls if filter is active
+}
+
+export type UIFilter = FilterValue | FilterNull;
 
 /**
  * Attributes for the FilterOperation component.
  */
 export interface FilterAttrs {
   readonly sourceCols: ColumnInfo[];
-  readonly filters: ReadonlyArray<FilterDefinition>;
-  readonly onFiltersChanged?: (
-    filters: ReadonlyArray<FilterDefinition>,
-  ) => void;
+  readonly filters?: ReadonlyArray<UIFilter>;
+  readonly filterOperator?: 'AND' | 'OR';
+  readonly onFiltersChanged?: (filters: ReadonlyArray<UIFilter>) => void;
+  readonly onFilterOperatorChanged?: (operator: 'AND' | 'OR') => void;
   readonly onchange?: () => void;
+  readonly onEdit?: (filter: UIFilter) => void; // Right-click edit callback
 }
 
 export class FilterOperation implements m.ClassComponent<FilterAttrs> {
   private error?: string;
   private uiFilters: UIFilter[] = [];
-  private editingFilter?: UIFilter;
 
   oncreate({attrs}: m.Vnode<FilterAttrs>) {
-    this.uiFilters = [...attrs.filters];
+    this.uiFilters = [...(attrs.filters ?? [])];
   }
 
   onbeforeupdate({attrs}: m.Vnode<FilterAttrs>) {
-    // If we are not in editing mode, sync with the parent.
-    if (this.editingFilter === undefined) {
-      this.uiFilters = [...attrs.filters];
-    }
+    // Sync with parent state
+    this.uiFilters = [...(attrs.filters ?? [])];
   }
 
-  private setFilters(
-    nextFilters: UIFilter[],
-    attrs: FilterAttrs,
-    editing?: UIFilter,
-  ) {
+  private setFilters(nextFilters: UIFilter[], attrs: FilterAttrs) {
     this.uiFilters = nextFilters;
-    this.editingFilter = editing;
-
-    // Only notify the parent of "stable" changes, i.e. when not editing.
-    if (this.editingFilter === undefined) {
-      attrs.onFiltersChanged?.(this.uiFilters.filter(isFilterDefinitionValid));
-    }
+    attrs.onFiltersChanged?.(this.uiFilters);
     attrs.onchange?.();
     m.redraw();
+  }
+
+  private renderFilterChip(filter: UIFilter, attrs: FilterAttrs): m.Child {
+    const isEnabled = filter.enabled !== false; // Default to true
+    const label = `${filter.column} ${filter.op} ${'value' in filter ? filter.value : ''}`;
+
+    return m(
+      'div',
+      {
+        className: 'pf-filter-chip-container',
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          opacity: isEnabled ? 1 : 0.5,
+        },
+        onmousedown: (e: MouseEvent) => {
+          // Stop propagation to prevent node undocking when interacting with filters
+          e.stopPropagation();
+        },
+        oncontextmenu: attrs.onEdit
+          ? (e: MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              attrs.onEdit!(filter);
+            }
+          : undefined,
+      },
+      m(Checkbox, {
+        checked: isEnabled,
+        onclick: (e: MouseEvent) => {
+          e.stopPropagation();
+        },
+        onmousedown: (e: MouseEvent) => {
+          e.stopPropagation();
+        },
+        onmouseup: (e: MouseEvent) => {
+          e.stopPropagation();
+        },
+        onchange: () => {
+          const nextFilters = this.uiFilters.map((f) =>
+            f === filter ? {...f, enabled: !isEnabled} : f,
+          );
+          this.setFilters(nextFilters, attrs);
+        },
+      }),
+      m(Chip, {
+        label,
+        rounded: true,
+        removable: true,
+        intent: isEnabled ? Intent.Primary : Intent.None,
+        onRemove: () => {
+          const nextFilters = this.uiFilters.filter((f) => f !== filter);
+          this.setFilters(nextFilters, attrs);
+        },
+      }),
+      // Edit icon - always visible in nodeSpecificModify
+      attrs.onEdit &&
+        m(Icon, {
+          'icon': Icons.Edit,
+          'style': {cursor: 'pointer', marginLeft: '2px'},
+          'onclick': (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            attrs.onEdit!(filter);
+          },
+          // Add aria-label for accessibility
+          'aria-label': 'Edit filter',
+          'role': 'button',
+          'tabindex': 0,
+        }),
+    );
   }
 
   view({attrs}: m.CVnode<FilterAttrs>) {
     const {sourceCols} = attrs;
 
-    const editor =
-      this.editingFilter === undefined
-        ? undefined
-        : m(FilterEditor, {
-            filter: this.editingFilter,
-            sourceCols,
-            onUpdate: (newFilter) => {
-              const index = this.uiFilters.indexOf(this.editingFilter!);
-              const nextFilters = this.uiFilters.map((f, i) =>
-                i === index ? newFilter : f,
-              );
-              this.setFilters(nextFilters, attrs, newFilter);
-            },
-            onRemove: () => {
-              const nextFilters = this.uiFilters.filter(
-                (f) => f !== this.editingFilter,
-              );
-              this.setFilters(nextFilters, attrs, undefined);
-            },
-            onDone: () => {
-              this.setFilters(this.uiFilters, attrs, undefined);
-            },
-          });
-
     return m('.pf-exp-query-operations', [
-      m('.pf-exp-section', [
+      // Header section with filter input
+      m(
+        '.pf-exp-filters-header',
         m(
-          '.pf-exp-filters-header',
-          m('h2.pf-exp-filters-title', 'Filters'),
+          '.pf-exp-filters-input-row',
+          m('label.pf-exp-filters-label', 'Type the filter '),
           m(TextInput, {
             placeholder: 'e.g. ts > 1000',
+            disabled: sourceCols.length === 0,
             onkeydown: (e: KeyboardEvent) => {
               const target = e.target as HTMLInputElement;
               if (e.key === 'Enter') {
                 const text = target.value;
                 if (text.length > 0) {
-                  const filter = fromString(text, sourceCols);
+                  const filter = parseFilterFromText(text, sourceCols);
                   if (!isFilterDefinitionValid(filter)) {
                     if (filter.column === undefined) {
                       this.error = `Column not found in "${text}"`;
@@ -137,161 +186,67 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           }),
         ),
-        this.error && m('.pf-exp-error-message', this.error),
+      ),
+      this.error && m('.pf-exp-error-message', this.error),
+      // Filters list
+      m(
+        '.pf-filters-container',
         m(
           Stack,
-          {orientation: 'horizontal'},
-          this.uiFilters.map((filter) => {
-            const isComplete = isFilterDefinitionValid(filter);
-            const label = isComplete
-              ? `${filter.column} ${filter.op} ${
-                  'value' in filter ? filter.value : ''
-                }`
-              : 'New Filter';
-
-            return m(Chip, {
-              label,
-              rounded: true,
-              intent: isComplete ? Intent.Primary : Intent.None,
-              onclick: () => {
-                // When we start editing a chip, we remove all other invalid
-                // filters from the list.
-                const nextFilters = this.uiFilters.filter(
-                  (f) => f === filter || isFilterDefinitionValid(f),
-                );
-                this.setFilters(nextFilters, attrs, filter);
-              },
-            });
-          }),
+          {orientation: 'vertical'},
+          this.uiFilters.map((filter) => this.renderFilterChip(filter, attrs)),
           m(Button, {
             icon: 'add',
+            label: 'Add Filter',
             rounded: true,
             intent: Intent.Primary,
+            disabled: attrs.sourceCols.length === 0,
+            title:
+              attrs.sourceCols.length === 0
+                ? 'No columns available to filter on'
+                : undefined,
             onclick: () => {
-              if (
-                this.editingFilter !== undefined &&
-                !isFilterDefinitionValid(this.editingFilter)
-              ) {
-                const nextFilters = this.uiFilters.filter(
-                  (f) => f !== this.editingFilter,
-                );
-                this.setFilters(nextFilters, attrs, undefined);
-              } else {
-                const newFilter = {};
-                const nextFilters = [...this.uiFilters, newFilter];
-                this.setFilters(nextFilters, attrs, newFilter);
+              // Check if there are any columns available
+              if (attrs.sourceCols.length === 0) {
+                showModal({
+                  title: 'Cannot add filter',
+                  content: m(
+                    'div',
+                    m('p', 'No columns are available to filter on.'),
+                    m(
+                      'p',
+                      'Please select a table or add columns before adding filters.',
+                    ),
+                  ),
+                });
+                return;
               }
-            },
-          }),
-        ),
-        editor && m('.pf-exp-filter-editor-box', editor),
-      ]),
-    ]);
-  }
-}
 
-interface FilterEditorAttrs {
-  readonly filter: UIFilter;
-  readonly sourceCols: ColumnInfo[];
-  readonly onUpdate: (filter: UIFilter) => void;
-  readonly onRemove: () => void;
-  readonly onDone: () => void;
-}
+              // Clear any previous errors
+              this.error = undefined;
 
-// A component which allows the user to edit a single filter.
-class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
-  view({attrs}: m.CVnode<FilterEditorAttrs>): m.Children {
-    const {filter, sourceCols, onUpdate, onRemove, onDone} = attrs;
-
-    const {column, op} = filter;
-    const opObject = ALL_FILTER_OPS.find((o) => o.displayName === op);
-    const valueRequired = isValueRequired(opObject);
-    const isValid = isFilterDefinitionValid(filter);
-    const colOptions = sourceCols
-      .filter((c) => c.checked)
-      .map(({name}) => {
-        return m('option', {value: name, selected: name === column}, name);
-      });
-
-    const opOptions = ALL_FILTER_OPS.map((op) => {
-      return m(
-        'option',
-        {
-          value: op.key,
-          selected: op.displayName === filter.op,
-        },
-        op.displayName,
-      );
-    });
-
-    return m(
-      '.pf-exp-filter-editor',
-      {className: isValid ? 'is-valid' : 'is-invalid'},
-      [
-        m(
-          Select,
-          {
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              onUpdate({...filter, column: target.value});
-            },
-          },
-          m(
-            'option',
-            {disabled: true, selected: column === undefined},
-            'Column',
-          ),
-          colOptions,
-        ),
-        m(
-          Select,
-          {
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              const newOp = ALL_FILTER_OPS.find(
-                (op) => op.key === target.value,
-              );
-              const newFilter: UIFilter = {
-                ...filter,
-                op: newOp?.displayName as UIFilter['op'],
+              // Start with first column and "is not null" operator
+              const defaultColumn = attrs.sourceCols[0].name;
+              const newFilter: Partial<UIFilter> = {
+                column: defaultColumn,
+                op: 'is not null',
               };
-              if (newOp && !isValueRequired(newOp)) {
-                delete (newFilter as {value?: SqlValue}).value;
-              }
-              onUpdate(newFilter);
-            },
-          },
-          m('option', {disabled: true, selected: op === undefined}, 'Operator'),
-          opOptions,
-        ),
-        valueRequired &&
-          m(TextInput, {
-            placeholder: 'Value',
-            value: 'value' in filter ? String(filter.value) : '',
-            oninput: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              const value = parseFilterValue(target.value);
-              const {value: _value, ...rest} = filter;
-              if (value !== undefined) {
-                onUpdate({...rest, value});
-              } else {
-                onUpdate(rest);
-              }
+
+              // showFilterEditModal now accepts Partial<UIFilter>
+              showFilterEditModal(
+                newFilter,
+                attrs.sourceCols,
+                (createdFilter) => {
+                  const nextFilters = [...this.uiFilters, createdFilter];
+                  this.uiFilters = nextFilters;
+                  this.setFilters(nextFilters, attrs);
+                },
+              );
             },
           }),
-        m(Button, {
-          className: 'pf-exp-delete-button',
-          icon: 'delete',
-          onclick: onRemove,
-        }),
-        m(Button, {
-          label: 'Done',
-          className: 'is-primary',
-          disabled: !isValid,
-          onclick: onDone,
-        }),
-      ],
-    );
+        ),
+      ),
+    ]);
   }
 }
 
@@ -302,8 +257,8 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
  * @returns True if the filter is valid.
  */
 export function isFilterDefinitionValid(
-  filter: UIFilter,
-): filter is FilterDefinition & UIFilter {
+  filter: Partial<UIFilter>,
+): filter is UIFilter {
   const {column, op} = filter;
 
   if (column === undefined || op === undefined) {
@@ -320,16 +275,29 @@ export function isFilterDefinitionValid(
     if (!('value' in filter) || filter.value === undefined) {
       return false;
     }
+    // Also reject empty string values
+    if (typeof filter.value === 'string' && filter.value.trim() === '') {
+      return false;
+    }
   }
 
   return true;
 }
 
-// Tries to parse a filter from a raw string. This is a best-effort parser
-// for simple filters and does not support complex values with spaces or quotes.
-// TODO(mayzner): Improve this parser to handle more complex cases, such as
-// quoted strings, escaped characters, or operators within values.
-function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
+/**
+ * Parses a filter from a text string like "dur > 1000" or "name glob '*render*'".
+ * Returns a Partial<UIFilter> that can be validated with isFilterDefinitionValid.
+ *
+ * This is a best-effort parser for simple filters. Supports:
+ * - Comparison operators: =, !=, <, <=, >, >=
+ * - Null operators: is null, is not null
+ * - Pattern matching: glob
+ * - Quoted string values: "value" or 'value'
+ */
+export function parseFilterFromText(
+  text: string,
+  sourceCols: ColumnInfo[],
+): Partial<UIFilter> {
   // Sort operators by length descending to match "is not null" before "is
   // null".
   const ops = ALL_FILTER_OPS.slice().sort(
@@ -389,7 +357,7 @@ function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
     };
   }
 
-  const result: UIFilter = {
+  const result: Partial<UIFilter> = {
     column: col.name,
     op: op.displayName as UIFilter['op'],
   };
@@ -424,7 +392,7 @@ export interface FilterOp {
   readonly proto: protos.PerfettoSqlStructuredQuery.Filter.Operator;
 }
 
-function isValueRequired(op?: FilterOp): boolean {
+export function isValueRequired(op?: FilterOp): boolean {
   return op !== undefined && op.key !== 'IS_NULL' && op.key !== 'IS_NOT_NULL';
 }
 
@@ -432,7 +400,7 @@ function isValueRequired(op?: FilterOp): boolean {
 // numbers.
 // If all values can be parsed as numbers, it returns a number array.
 // Otherwise, it returns a string array.
-function parseFilterValue(text: string): SqlValue | undefined {
+export function parseFilterValue(text: string): SqlValue | undefined {
   const value = text.trim();
   if (value === '') return undefined;
 
@@ -493,3 +461,435 @@ export const ALL_FILTER_OPS: FilterOp[] = [
   ),
   op('GLOB', 'glob', protos.PerfettoSqlStructuredQuery.Filter.Operator.GLOB),
 ];
+
+/**
+ * Opens a modal to edit a filter. This provides a unified editing experience
+ * across both nodeDetails and nodeSpecificModify.
+ *
+ * @param filter - The filter to edit (can be partial for new filters)
+ * @param sourceCols - Available columns for filtering
+ * @param onSave - Callback when filter is saved (only called with valid filters)
+ * @param onDelete - Optional callback when filter is deleted
+ */
+export function showFilterEditModal(
+  filter: Partial<UIFilter>,
+  sourceCols: ColumnInfo[],
+  onSave: (editedFilter: UIFilter) => void,
+  onDelete?: () => void,
+): void {
+  // Check if there are any columns available
+  if (sourceCols.length === 0) {
+    // Show user-facing error instead of silent failure
+    showModal({
+      title: 'Cannot edit filter',
+      content: m(
+        'div',
+        m('p', 'No columns are available to filter on.'),
+        m('p', 'Please select a table or add columns before editing filters.'),
+      ),
+    });
+    return;
+  }
+
+  // Ensure we start with a valid partial filter
+  let editedFilter: Partial<UIFilter> = {...filter};
+  const modalKey = 'edit-filter-modal';
+
+  showModal({
+    key: modalKey,
+    title: 'Edit Filter',
+    content: () => {
+      const opObject = ALL_FILTER_OPS.find(
+        (o) => o.displayName === editedFilter.op,
+      );
+      const valueRequired = isValueRequired(opObject);
+
+      const colOptions = sourceCols.map((col) => {
+        return m(
+          'option',
+          {value: col.name, selected: col.name === editedFilter.column},
+          col.name,
+        );
+      });
+
+      const opOptions = ALL_FILTER_OPS.map((op) => {
+        return m(
+          'option',
+          {
+            value: op.key,
+            selected: op.displayName === editedFilter.op,
+          },
+          op.displayName,
+        );
+      });
+
+      return m(
+        Form,
+        {
+          submitLabel: 'Save',
+          cancelLabel: 'Cancel',
+          validation: () => isFilterDefinitionValid(editedFilter),
+          onSubmit: () => {
+            if (isFilterDefinitionValid(editedFilter)) {
+              onSave(editedFilter);
+              closeModal(modalKey);
+            }
+          },
+          onCancel: () => closeModal(modalKey),
+        },
+        m(FormLabel, 'Column'),
+        m(
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              editedFilter = {...editedFilter, column: target.value};
+              m.redraw();
+            },
+          },
+          colOptions,
+        ),
+        m(FormLabel, 'Operator'),
+        m(
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              const newOp = ALL_FILTER_OPS.find(
+                (op) => op.key === target.value,
+              );
+              if (newOp) {
+                // Construct the correct filter type based on whether value is required
+                if (isValueRequired(newOp)) {
+                  // FilterValue type - ensure value exists
+                  editedFilter = {
+                    column: editedFilter.column,
+                    op: newOp.displayName as FilterValue['op'],
+                    value: 'value' in editedFilter ? editedFilter.value : '',
+                    enabled: editedFilter.enabled,
+                  };
+                } else {
+                  // FilterNull type - no value property
+                  editedFilter = {
+                    column: editedFilter.column,
+                    op: newOp.displayName as FilterNull['op'],
+                    enabled: editedFilter.enabled,
+                  };
+                }
+                m.redraw();
+              }
+            },
+          },
+          opOptions,
+        ),
+        valueRequired && m(FormLabel, 'Value'),
+        valueRequired &&
+          m(TextInput, {
+            placeholder: 'Enter filter value',
+            value: 'value' in editedFilter ? String(editedFilter.value) : '',
+            required: true,
+            oninput: (e: Event) => {
+              const target = e.target as HTMLInputElement;
+              const parsed = parseFilterValue(target.value);
+              // Always update value to allow free editing (including clearing)
+              // Use parsed value if available, otherwise raw input
+              // Since valueRequired is true, we're working with a FilterValue type
+              editedFilter = {
+                column: editedFilter.column,
+                op: editedFilter.op as FilterValue['op'],
+                value: parsed ?? target.value,
+                enabled: editedFilter.enabled,
+              };
+              m.redraw();
+            },
+          }),
+        onDelete &&
+          m(Button, {
+            label: 'Delete filter',
+            icon: 'delete',
+            onclick: () => {
+              onDelete();
+              closeModal(modalKey);
+            },
+          }),
+      );
+    },
+  });
+}
+
+// ============================================================================
+// Proto Generation
+// ============================================================================
+
+export function createFiltersProto(
+  filters: UIFilter[] | undefined,
+  sourceCols: ColumnInfo[],
+): protos.PerfettoSqlStructuredQuery.Filter[] | undefined {
+  if (filters === undefined || filters.length === 0) {
+    return undefined;
+  }
+
+  // Filter out disabled filters (enabled defaults to true if not set)
+  const enabledFilters = filters.filter((f) => f.enabled !== false);
+  if (enabledFilters.length === 0) {
+    return undefined;
+  }
+
+  const protoFilters: protos.PerfettoSqlStructuredQuery.Filter[] =
+    enabledFilters.map(
+      (f: UIFilter): protos.PerfettoSqlStructuredQuery.Filter => {
+        const result = new protos.PerfettoSqlStructuredQuery.Filter();
+        result.columnName = f.column;
+
+        const op = ALL_FILTER_OPS.find((o) => o.displayName === f.op);
+        if (op === undefined) {
+          // Should be handled by validation before this.
+          throw new Error(`Unknown filter operator: ${f.op}`);
+        }
+        result.op = op.proto;
+
+        if ('value' in f) {
+          const value = f.value;
+          const col = sourceCols.find((c) => c.name === f.column);
+          if (typeof value === 'string') {
+            result.stringRhs = [value];
+          } else if (typeof value === 'number' || typeof value === 'bigint') {
+            if (col && (col.type === 'long' || col.type === 'int')) {
+              result.int64Rhs = [Number(value)];
+            } else {
+              result.doubleRhs = [Number(value)];
+            }
+          }
+          // Not handling Uint8Array here. The original FilterToProto also didn't seem to.
+        }
+        return result;
+      },
+    );
+  return protoFilters;
+}
+
+export function createExperimentalFiltersProto(
+  filters: UIFilter[] | undefined,
+  sourceCols: ColumnInfo[],
+  operator?: 'AND' | 'OR',
+): protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup | undefined {
+  if (filters === undefined || filters.length === 0) {
+    return undefined;
+  }
+
+  const protoFilters = createFiltersProto(filters, sourceCols);
+  if (!protoFilters) {
+    return undefined;
+  }
+
+  const filterGroup =
+    new protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup();
+
+  // Use the provided operator, defaulting to AND for backward compatibility
+  const op = operator ?? 'AND';
+  filterGroup.op =
+    op === 'OR'
+      ? protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.OR
+      : protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.AND;
+
+  filterGroup.filters = protoFilters;
+
+  return filterGroup;
+}
+
+/**
+ * Helper to render FilterOperation with standard wiring for any node.
+ * This avoids repeating the same pattern in every node type.
+ */
+export function renderFilterOperation(
+  filters: UIFilter[] | undefined,
+  filterOperator: 'AND' | 'OR' | undefined,
+  sourceCols: ColumnInfo[],
+  onFiltersChanged: (filters: ReadonlyArray<UIFilter>) => void,
+  onFilterOperatorChanged: (operator: 'AND' | 'OR') => void,
+  onEdit?: (filter: UIFilter) => void,
+): m.Child {
+  return m(FilterOperation, {
+    filters,
+    filterOperator,
+    sourceCols,
+    onFiltersChanged,
+    onFilterOperatorChanged,
+    onEdit,
+  });
+}
+
+/**
+ * Helper to format a single filter as a readable string.
+ */
+function formatSingleFilter(filter: UIFilter): string {
+  if ('value' in filter) {
+    // FilterValue
+    const valueStr =
+      typeof filter.value === 'string'
+        ? `"${filter.value}"`
+        : String(filter.value);
+    return `${filter.column} ${filter.op} ${valueStr}`;
+  } else {
+    // FilterNull
+    return `${filter.column} ${filter.op}`;
+  }
+}
+
+/**
+ * Helper to create a toggle callback for filter enable/disable in nodeDetails.
+ */
+function createFilterToggleCallback(state: {
+  filters?: UIFilter[];
+  onchange?: () => void;
+}): (filter: UIFilter) => void {
+  return (filter: UIFilter) => {
+    if (state.filters) {
+      state.filters = [...state.filters].map((f) =>
+        f === filter ? {...f, enabled: f.enabled !== false ? false : true} : f,
+      );
+      state.onchange?.();
+      m.redraw();
+    }
+  };
+}
+
+/**
+ * Helper to format filter details for nodeDetails display.
+ * Returns interactive chips that can be clicked to toggle enabled/disabled state.
+ *
+ * Pass the node state to enable interactive toggling, or omit for read-only display.
+ */
+export function formatFilterDetails(
+  filters: UIFilter[] | undefined,
+  filterOperator: 'AND' | 'OR' | undefined,
+  state?: {filters?: UIFilter[]; onchange?: () => void},
+  onRemove?: (filter: UIFilter) => void,
+  compact?: boolean,
+  onEdit?: (filter: UIFilter) => void,
+): m.Child | undefined {
+  if (!filters || filters.length === 0) {
+    return undefined;
+  }
+
+  // Create default onRemove handler if state is provided but onRemove is not
+  const effectiveOnRemove =
+    onRemove ??
+    (state
+      ? (filter: UIFilter) => {
+          state.filters = (state.filters ?? []).filter((f) => f !== filter);
+          state.onchange?.();
+        }
+      : undefined);
+
+  const count = filters.length;
+  const enabledCount = filters.filter((f) => f.enabled !== false).length;
+  const operator = filterOperator ?? 'AND';
+  const onFilterToggle = state ? createFilterToggleCallback(state) : undefined;
+
+  // Helper to render a filter chip
+  const renderFilterChip = (filter: UIFilter) => {
+    const isEnabled = filter.enabled !== false;
+    const label = formatSingleFilter(filter);
+    const classNames = [
+      'pf-filter-chip-wrapper',
+      !isEnabled && 'pf-filter-chip-wrapper--disabled',
+      compact && 'pf-filter-chip-wrapper--compact',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return m(
+      'span',
+      {
+        className: classNames,
+        style: {
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+        },
+      },
+      m(Chip, {
+        label,
+        rounded: true,
+        removable: !!effectiveOnRemove,
+        intent: isEnabled ? Intent.Primary : Intent.None,
+        onclick: onFilterToggle
+          ? (e: MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onFilterToggle(filter);
+            }
+          : undefined,
+        onRemove: effectiveOnRemove
+          ? () => effectiveOnRemove(filter)
+          : undefined,
+        style: {cursor: 'pointer'},
+        oncontextmenu: onEdit
+          ? (e: MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onEdit(filter);
+            }
+          : undefined,
+      }),
+    );
+  };
+
+  // For 4 or fewer filters
+  if (count <= 4) {
+    // For OR filters, show chips in visual boundary without summary text
+    if (operator === 'OR') {
+      const orChipsClass = compact
+        ? '.pf-filter-chips.pf-filter-chips--no-count.pf-filter-chips--compact'
+        : '.pf-filter-chips.pf-filter-chips--no-count';
+
+      return m(
+        '.pf-filter-or-group',
+        m('.pf-filter-or-badge', 'OR'),
+        m(
+          orChipsClass,
+          filters.map((filter) => renderFilterChip(filter)),
+        ),
+      );
+    }
+    // For AND filters, just show chips
+    const filterChipsClass = compact
+      ? '.pf-filter-chips.pf-filter-chips--compact'
+      : '.pf-filter-chips';
+
+    return m(
+      '.pf-filter-container',
+      m(
+        filterChipsClass,
+        filters.map((filter) => renderFilterChip(filter)),
+      ),
+    );
+  }
+
+  // For more than 4 filters with AND operator, show summary only
+  if (operator === 'AND') {
+    return m(
+      '.pf-filter-container',
+      m(
+        '.pf-filter-and-header',
+        m('.pf-filter-operator-badge', 'AND'),
+        enabledCount === count
+          ? `${count} filters`
+          : `${enabledCount} of ${count} enabled`,
+      ),
+    );
+  }
+
+  // For more than 4 filters with OR operator, show summary only
+  return m(
+    '.pf-filter-container',
+    m(
+      '.pf-filter-and-header',
+      m('.pf-filter-operator-badge', 'OR'),
+      enabledCount === count
+        ? `${count} filters`
+        : `${enabledCount} of ${count} enabled`,
+    ),
+  );
+}

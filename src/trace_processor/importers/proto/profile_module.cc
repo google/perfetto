@@ -131,9 +131,9 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // the current timestamp of the packet sequence.
   auto packet_ts =
       sequence_state->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
-  base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
+  std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
       protos::pbzero::BUILTIN_CLOCK_MONOTONIC, packet_ts);
-  if (trace_ts.ok())
+  if (trace_ts)
     packet_ts = *trace_ts;
 
   // Increment the sequence's timestamp by all deltas.
@@ -338,13 +338,11 @@ void ProfileModule::ParseProfilePacket(
   for (auto it = packet.process_dumps(); it; ++it) {
     protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(*it);
 
-    base::StatusOr<int64_t> maybe_timestamp =
+    std::optional<int64_t> maybe_timestamp =
         context_->clock_tracker->ToTraceTime(
             protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
             static_cast<int64_t>(entry.timestamp()));
-
-    // ToTraceTime() increments the clock_sync_failure error stat in this case.
-    if (!maybe_timestamp.ok())
+    if (!maybe_timestamp)
       continue;
 
     int64_t timestamp = *maybe_timestamp;
@@ -436,7 +434,10 @@ void ProfileModule::ParseProfilePacket(
 
 void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
   protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
-  BuildId build_id = BuildId::FromRaw(module_symbols.build_id());
+  std::optional<BuildId> build_id;
+  if (module_symbols.build_id().size > 0) {
+    build_id = BuildId::FromRaw(module_symbols.build_id());
+  }
 
   auto mappings =
       context_->mapping_tracker->FindMappings(module_symbols.path(), build_id);

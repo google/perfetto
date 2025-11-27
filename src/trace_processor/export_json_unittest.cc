@@ -99,6 +99,8 @@ class ExportJsonTest : public ::testing::Test {
     context_.process_track_translation_table.reset(
         new ProcessTrackTranslationTable(context_.storage.get()));
     context_.track_compressor.reset(new TrackCompressor(&context_));
+    context_.track_group_idx_state =
+        std::make_unique<TrackCompressorGroupIdxState>();
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,
@@ -155,7 +157,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   // The thread_slice table is a sub table of slice.
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u),
+      {kTimestamp, kDuration, track, cat_id, name_id, 0, SliceId(0u),
        std::nullopt, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
 
@@ -200,7 +202,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u),
+      {kTimestamp, kDuration, track, cat_id, name_id, 0, SliceId(0u),
        std::nullopt, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
 
@@ -263,7 +265,7 @@ TEST_F(ExportJsonTest, SystemEventsIgnored) {
   StringId cat_id = kNullStringId;
   StringId name_id = context_.storage->InternString("name");
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track, cat_id, name_id, 0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -462,7 +464,7 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track, cat_id, name_id, 0});
 
   StringId arg_key_id = context_.storage->InternString(
       base::StringView("task.posted_from.file_name"));
@@ -503,10 +505,10 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
   StringId cat_id = storage->InternString(base::StringView(kCategory));
   StringId name_id = storage->InternString(base::StringView(kName));
   SliceId id1 = storage->mutable_slice_table()
-                    ->Insert({0, 0, track, cat_id, name_id, 0, 0, 0})
+                    ->Insert({0, 0, track, cat_id, name_id, 0})
                     .id;
   SliceId id2 = storage->mutable_slice_table()
-                    ->Insert({100, 0, track, cat_id, name_id, 0, 0, 0})
+                    ->Insert({100, 0, track, cat_id, name_id, 0})
                     .id;
 
   storage->mutable_flow_table()->Insert({id1, id2, 0});
@@ -555,7 +557,7 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track, cat_id, name_id, 0});
 
   StringId arg_flat_key_id = context_.storage->InternString(
       base::StringView("debug.draw_duration_ms"));
@@ -604,7 +606,7 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track, cat_id, name_id, 0});
 
   StringId arg_key0_id =
       context_.storage->InternString(base::StringView("arg0"));
@@ -649,7 +651,7 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track, cat_id, name_id, 0});
 
   StringId arg_flat_key_id =
       context_.storage->InternString(base::StringView("a.b"));
@@ -697,7 +699,7 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track, cat_id, name_id, 0});
 
   StringId arg_flat_key_id =
       context_.storage->InternString(base::StringView("a"));
@@ -745,7 +747,7 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track, cat_id, name_id, 0});
 
   StringId arg_key_id = context_.storage->InternString(base::StringView("a"));
   StringId arg_value_id =
@@ -791,7 +793,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, 0, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, 0, track, cat_id, name_id, 0});
 
   // Global track.
   TrackEventTracker track_event_tracker(&context_);
@@ -799,7 +801,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
       TrackEventTracker::kDefaultDescriptorTrackUuid, kNullStringId,
       std::nullopt);
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp2, 0, track2, cat_id, name_id, 0, 0, 0});
+      {kTimestamp2, 0, track2, cat_id, name_id, 0});
 
   // Async event track.
   TrackEventTracker::DescriptorTrackReservation reservation;
@@ -808,7 +810,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
   TrackId track3 = *track_event_tracker.InternDescriptorTrackInstant(
       1234, kNullStringId, std::nullopt);
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp3, 0, track3, cat_id, name_id, 0, 0, 0});
+      {kTimestamp3, 0, track3, cat_id, name_id, 0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -853,7 +855,7 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, 0, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, 0, track, cat_id, name_id, 0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -921,15 +923,15 @@ TEST_F(ExportJsonTest, DuplicatePidAndTid) {
       context_.storage->InternString(base::StringView("name2b"));
 
   context_.storage->mutable_slice_table()->Insert(
-      {10000, 0, track1a, cat_id, name1a_id, 0, 0, 0});
+      {10000, 0, track1a, cat_id, name1a_id, 0});
   context_.storage->mutable_slice_table()->Insert(
-      {20000, 1000, track1b, cat_id, name1b_id, 0, 0, 0});
+      {20000, 1000, track1b, cat_id, name1b_id, 0});
   context_.storage->mutable_slice_table()->Insert(
-      {30000, 0, track1c, cat_id, name1c_id, 0, 0, 0});
+      {30000, 0, track1c, cat_id, name1c_id, 0});
   context_.storage->mutable_slice_table()->Insert(
-      {40000, 0, track2a, cat_id, name2a_id, 0, 0, 0});
+      {40000, 0, track2a, cat_id, name2a_id, 0});
   context_.storage->mutable_slice_table()->Insert(
-      {50000, 1000, track2b, cat_id, name2b_id, 0, 0, 0});
+      {50000, 1000, track2b, cat_id, name2b_id, 0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -1010,7 +1012,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
       /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
 
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView(kArgName));
   GlobalArgsTracker::Arg arg;
@@ -1030,14 +1032,14 @@ TEST_F(ExportJsonTest, AsyncEvents) {
 
   // Child event with same timestamps as first one.
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name2_id, 0, 0, 0});
+      {kTimestamp, kDuration, track, cat_id, name2_id, 0});
   ArgSetId args2 =
       context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
   slice[1].set_arg_set_id(args2);
 
   // Another overlapping async event on a different track.
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp3, kDuration3, track2, cat_id, name3_id, 0, 0, 0});
+      {kTimestamp3, kDuration3, track2, cat_id, name3_id, 0});
   source_id_arg.value = Variadic::Integer(kSourceId2);
   ArgSetId args3 =
       context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
@@ -1170,7 +1172,7 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
       /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
 
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, kDuration, track, cat_id, name_id, 0});
   std::vector<Arg> args1;
   arg_inserter("arg1", "value1", args1);
   arg_inserter("legacy_event.phase", "S", args1);
@@ -1187,7 +1189,7 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
 
   // Step event with first event as parent.
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp2, kDuration2, track, cat_id, name2_id, 0, 0, 0});
+      {kTimestamp2, kDuration2, track, cat_id, name2_id, 0});
   std::vector<Arg> step_args;
   arg_inserter("arg2", "value2", step_args);
   arg_inserter("legacy_event.phase", "T", step_args);
@@ -1198,7 +1200,7 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
 
   // Another overlapping async event on a different track.
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp3, kDuration3, track2, cat_id, name3_id, 0, 0, 0});
+      {kTimestamp3, kDuration3, track2, cat_id, name3_id, 0});
   std::vector<Arg> args3;
   arg_inserter("legacy_event.phase", "S", args3);
   source_id_arg.value = Variadic::Integer(kSourceId2);
@@ -1299,7 +1301,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
 
   auto* slices = context_.storage->mutable_slice_table();
   auto id_and_row =
-      slices->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      slices->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
   GlobalArgsTracker::Arg source_id_arg;
@@ -1362,7 +1364,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
       /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
 
   auto slice_id_and_row = context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
   GlobalArgsTracker::Arg source_id_arg;
@@ -1414,7 +1416,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
       TrackCompressor::AsyncSliceType::kInstant);
 
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, 0, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, 0, track, cat_id, name_id, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView("arg_name"));
   GlobalArgsTracker::Arg arg;
@@ -1588,116 +1590,6 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
   EXPECT_EQ(result["systemTraceEvents"].asString(), kLegacyFtraceData);
 }
 
-TEST_F(ExportJsonTest, CpuProfileEvent) {
-  const uint32_t kProcessID = 100;
-  const uint32_t kThreadID = 200;
-  const int64_t kTimestamp = 10000000;
-  const int32_t kProcessPriority = 42;
-
-  TraceStorage* storage = context_.storage.get();
-
-  UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
-  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
-
-  auto& tt = *context_.storage->mutable_thread_table();
-  tt[utid].set_upid(upid);
-
-  auto* mappings = storage->mutable_stack_profile_mapping_table();
-  auto& frames = *storage->mutable_stack_profile_frame_table();
-  auto* callsites = storage->mutable_stack_profile_callsite_table();
-
-  auto module_1 =
-      mappings->Insert({storage->InternString("foo_module_id"), 0, 0, 0, 0, 0,
-                        storage->InternString("foo_module_name")});
-
-  auto module_2 =
-      mappings->Insert({storage->InternString("bar_module_id"), 0, 0, 0, 0, 0,
-                        storage->InternString("bar_module_name")});
-
-  // TODO(140860736): Once we support null values for
-  // stack_profile_frame.symbol_set_id remove this hack
-  storage->mutable_symbol_table()->Insert({0, kNullStringId, kNullStringId, 0});
-
-  auto frame_1 = frames.Insert({/*in_name=*/kNullStringId, module_1.id, 0x42});
-
-  uint32_t symbol_set_id = storage->symbol_table().row_count();
-  storage->mutable_symbol_table()->Insert(
-      {symbol_set_id, storage->InternString("foo_func"),
-       storage->InternString("foo_file"), 66});
-  frames[frame_1.row].set_symbol_set_id(symbol_set_id);
-
-  auto frame_2 =
-      frames.Insert({/*in_name=*/kNullStringId, module_2.id, 0x4242});
-
-  symbol_set_id = storage->symbol_table().row_count();
-  storage->mutable_symbol_table()->Insert(
-      {symbol_set_id, storage->InternString("bar_func"),
-       storage->InternString("bar_file"), 77});
-  frames[frame_2.row].set_symbol_set_id(symbol_set_id);
-
-  auto frame_callsite_1 = callsites->Insert({0, std::nullopt, frame_1.id});
-
-  auto frame_callsite_2 =
-      callsites->Insert({1, frame_callsite_1.id, frame_2.id});
-
-  storage->mutable_cpu_profile_stack_sample_table()->Insert(
-      {kTimestamp, frame_callsite_2.id, utid, kProcessPriority});
-
-  storage->mutable_cpu_profile_stack_sample_table()->Insert(
-      {kTimestamp + 10000, frame_callsite_1.id, utid, kProcessPriority});
-
-  storage->mutable_cpu_profile_stack_sample_table()->Insert(
-      {kTimestamp + 20000, frame_callsite_1.id, utid, kProcessPriority});
-
-  base::TempFile temp_file = base::TempFile::Create();
-  FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(storage, output);
-
-  EXPECT_TRUE(status.ok());
-
-  Json::Value result = ToJsonValue(ReadFile(output));
-
-  // The first sample should generate only a single instant event;
-  // the two following samples should also generate an additional [b, e] pair
-  // (the async duration event).
-  EXPECT_EQ(result["traceEvents"].size(), 5u);
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "n");
-  EXPECT_EQ(event["id"].asString(), "0x1");
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(event["cat"].asString(), "disabled-by-default-cpu_profiler");
-  EXPECT_EQ(event["name"].asString(), "StackCpuSampling");
-  EXPECT_EQ(event["s"].asString(), "t");
-  EXPECT_EQ(event["args"]["frames"].asString(),
-            "foo_func - foo_module_name [foo_module_id]\nbar_func - "
-            "bar_module_name [bar_module_id]\n");
-  EXPECT_EQ(event["args"]["process_priority"].asInt(), kProcessPriority);
-
-  event = result["traceEvents"][1];
-  EXPECT_EQ(event["ph"].asString(), "n");
-  EXPECT_EQ(event["id"].asString(), "0x2");
-  EXPECT_EQ(event["ts"].asInt64(), (kTimestamp + 10000) / 1000);
-
-  event = result["traceEvents"][2];
-  EXPECT_EQ(event["ph"].asString(), "n");
-  EXPECT_EQ(event["id"].asString(), "0x2");
-  EXPECT_EQ(event["ts"].asInt64(), (kTimestamp + 20000) / 1000);
-  Json::String second_callstack_ = event["args"]["frames"].asString();
-  EXPECT_EQ(second_callstack_, "foo_func - foo_module_name [foo_module_id]\n");
-
-  event = result["traceEvents"][3];
-  EXPECT_EQ(event["ph"].asString(), "b");
-  EXPECT_EQ(event["id"].asString(), "0x2");
-  EXPECT_EQ(event["ts"].asInt64(), (kTimestamp + 10000) / 1000 - 1);
-  EXPECT_EQ(event["args"]["frames"].asString(), second_callstack_);
-
-  event = result["traceEvents"][4];
-  EXPECT_EQ(event["ph"].asString(), "e");
-  EXPECT_EQ(event["id"].asString(), "0x2");
-  EXPECT_EQ(event["ts"].asInt64(), (kTimestamp + 20000) / 1000);
-}
-
 TEST_F(ExportJsonTest, ArgumentFilter) {
   UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track = context_.track_tracker->InternThreadTrack(utid);
@@ -1716,7 +1608,7 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
   {
     ArgsTracker args_tracker(&context_);
     for (auto& name_id : name_ids) {
-      auto id = slices->Insert({0, 0, track, cat_id, name_id, 0, 0, 0}).id;
+      auto id = slices->Insert({0, 0, track, cat_id, name_id, 0}).id;
       slice_inserters.emplace_back(args_tracker.AddArgsTo(id));
     }
 
@@ -1820,9 +1712,9 @@ TEST_F(ExportJsonTest, LabelFilter) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp1, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp1, kDuration, track, cat_id, name_id, 0});
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp2, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp2, kDuration, track, cat_id, name_id, 0});
 
   auto label_filter = [](const char* label_name) {
     return strcmp(label_name, "traceEvents") == 0;
@@ -1898,7 +1790,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
       context_.storage->InternString("is_peak_rss_resettable");
   {
     ArgsTracker args_tracker(&context_);
-    args_tracker.AddArgsTo(upid).AddArg(
+    args_tracker.AddArgsToProcess(upid).AddArg(
         is_peak_rss_resettable_id, Variadic::Boolean(kIsPeakRssResettable));
   }
 

@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
@@ -47,7 +48,6 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
-#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -76,7 +76,6 @@ using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IgnoreResult;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::InvokeArgument;
 using ::testing::NiceMock;
 using ::testing::Pointwise;
@@ -107,14 +106,6 @@ class MockProcessTracker : public ProcessTracker {
  public:
   explicit MockProcessTracker(TraceProcessorContext* context)
       : ProcessTracker(context) {}
-
-  MOCK_METHOD(UniquePid,
-              SetProcessMetadata,
-              (int64_t pid,
-               std::optional<int64_t> ppid,
-               base::StringView process_name,
-               base::StringView cmdline),
-              (override));
 
   MOCK_METHOD(void,
               UpdateThreadName,
@@ -182,6 +173,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&context_, 1);
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker =
@@ -199,7 +192,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
+    context_.clock_tracker = std::make_unique<ClockTracker>(
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     clock_ = context_.clock_tracker.get();
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(

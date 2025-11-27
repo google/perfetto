@@ -50,7 +50,7 @@ void ChromeSystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       using ProcessStats = protos::pbzero::ProcessStats;
       if (fld.id() == ProcessStats::Process::kIsPeakRssResettableFieldNumber) {
         UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-        context_->process_tracker->AddArgsTo(upid).AddArg(
+        context_->process_tracker->AddArgsToProcess(upid).AddArg(
             is_peak_rss_resettable_id_, Variadic::Boolean(fld.as_bool()));
         continue;
       }

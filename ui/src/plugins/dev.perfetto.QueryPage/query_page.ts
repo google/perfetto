@@ -12,22 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-TODO(stevegolton):
-- Add debug track button....
-*/
-
 import m from 'mithril';
 import {findRef, toHTMLElement} from '../../base/dom_utils';
-import {download} from '../../base/download_utils';
-import {stringifyJsonWithBigints} from '../../base/json_utils';
 import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
-import {
-  formatAsDelimited,
-  formatAsMarkdownTable,
-  QueryResponse,
-} from '../../components/query_table/queries';
+import {QueryResponse} from '../../components/query_table/queries';
 import {DataGridDataSource} from '../../components/widgets/data_grid/common';
 import {DataGrid} from '../../components/widgets/data_grid/data_grid';
 import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
@@ -39,43 +28,21 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {Icon} from '../../widgets/icon';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
+import {Anchor} from '../../widgets/anchor';
 
-class CopyHelper {
-  private _copied = false;
-  private timeoutId: ReturnType<typeof setTimeout> | undefined;
-  private readonly timeout: number;
-
-  constructor(timeout = 2000) {
-    this.timeout = timeout;
-  }
-
-  get copied(): boolean {
-    return this._copied;
-  }
-
-  async copy(text: string) {
-    await navigator.clipboard.writeText(text);
-    this._copied = true;
-    m.redraw();
-
-    clearTimeout(this.timeoutId);
-    this.timeoutId = setTimeout(() => {
-      this._copied = false;
-      m.redraw();
-    }, this.timeout);
-  }
-}
+const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
 export interface QueryPageAttrs {
   readonly trace: Trace;
   readonly editorText: string;
   readonly executedQuery?: string;
   readonly queryResult?: QueryResponse;
+
   onEditorContentUpdate?(content: string): void;
+
   onExecute?(query: string): void;
 }
 
@@ -83,7 +50,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private dataSource?: DataGridDataSource;
   private editorHeight: number = 0;
   private editorElement?: HTMLElement;
-  private dataGridCopyHelper = new CopyHelper();
 
   oncreate({dom}: m.VnodeDOM<QueryPageAttrs>) {
     this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
@@ -120,11 +86,24 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           }),
           m(
             Stack,
-            {orientation: 'horizontal', className: 'pf-query-page__hotkeys'},
+            {
+              orientation: 'horizontal',
+              className: 'pf-query-page__hotkeys',
+            },
             'or press',
             m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
           ),
           m(StackAuto), // The spacer pushes the following buttons to the right.
+          attrs.trace.isInternalUser &&
+            m(Button, {
+              icon: 'wand_stars',
+              title:
+                'Generate SQL queries with the Perfetto SQL Agent! Give feedback: go/perfetto-llm-bug',
+              label: 'Generate SQL Queries with AI',
+              onclick: () => {
+                window.open('http://go/perfetto-sql-agent', '_blank');
+              },
+            }),
           m(CopyToClipboardButton, {
             textToCopy: attrs.editorText,
             title: 'Copy query to clipboard',
@@ -132,6 +111,43 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           }),
         ]),
       ]),
+      this.shouldDisplayPerfettoSqlAgentBanner(attrs) &&
+        m(
+          Box,
+          m(
+            Callout,
+            {
+              icon: 'wand_stars',
+              dismissible: true,
+              onDismiss: () => {
+                this.hidePerfettoSqlAgentBanner();
+              },
+            },
+            [
+              'Try out the ',
+              m(
+                Anchor,
+                {
+                  href: 'http://go/perfetto-sql-agent',
+                  target: '_blank',
+                  icon: Icons.ExternalLink,
+                },
+                'Perfetto SQL Agent',
+              ),
+              ' to generate SQL queries and ',
+              m(
+                Anchor,
+                {
+                  href: 'http://go/perfetto-llm-user-guide#report-issues',
+                  target: '_blank',
+                  icon: Icons.ExternalLink,
+                },
+                'give feedback',
+              ),
+              '!',
+            ],
+          ),
+        ),
       attrs.editorText.includes('"') &&
         m(
           Box,
@@ -199,132 +215,29 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           className: 'pf-query-page__results',
           data: dataSource,
           columns: queryResult.columns.map((c) => ({name: c})),
+          showExportButtons: true,
           toolbarItemsLeft: m(
-            'span.pf-query-page__elapsed-time',
-            {title: `This query returned in ${queryTimeString}`},
-            [m(Icon, {icon: 'timer'}), ' ', queryTimeString],
+            'span.pf-query-page__results-summary',
+            `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
           ),
-          toolbarItemsRight: [
-            this.renderCopyButton(queryResult),
-            this.renderDownloadButton(queryResult),
-          ],
+          toolbarItemsRight: m(CopyToClipboardButton, {
+            textToCopy: queryResult.query,
+            title: 'Copy executed query to clipboard',
+            label: 'Copy Query',
+          }),
         }),
       ];
     }
   }
 
-  private renderCopyButton(resp: QueryResponse) {
-    const helper = this.dataGridCopyHelper;
-    const label = helper.copied ? 'Copied' : 'Copy';
-    const icon = helper.copied ? Icons.Check : Icons.Copy;
-    const intent = helper.copied ? Intent.Success : Intent.None;
-
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Button, {
-          icon,
-          intent,
-          title: 'Copy results to clipboard',
-          label,
-        }),
-      },
-      [
-        m(MenuItem, {
-          label: 'TSV',
-          onclick: async () => {
-            const content = formatAsDelimited(resp);
-            await helper.copy(content);
-          },
-        }),
-        m(MenuItem, {
-          label: 'Markdown',
-          onclick: async () => {
-            const content = formatAsMarkdownTable(resp);
-            await helper.copy(content);
-          },
-        }),
-        m(MenuItem, {
-          label: 'JSON',
-          onclick: async () => {
-            const content = stringifyJsonWithBigints(resp.rows);
-            await helper.copy(content);
-          },
-        }),
-      ],
+  private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {
+    return (
+      attrs.trace.isInternalUser &&
+      localStorage.getItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY) !== 'true'
     );
   }
 
-  private renderDownloadButton(resp: QueryResponse) {
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Button, {
-          icon: Icons.Download,
-          title: 'Download data',
-          label: 'Download',
-        }),
-      },
-      [
-        m(MenuItem, {
-          label: 'TSV',
-          onclick: () => {
-            const content = formatAsDelimited(resp);
-            download({
-              content,
-              mimeType: 'text/tab-separated-values',
-              fileName: 'query_result.tsv',
-            });
-          },
-        }),
-        m(MenuItem, {
-          label: 'Markdown',
-          onclick: () => {
-            const content = formatAsMarkdownTable(resp);
-            download({
-              content,
-              mimeType: 'text/markdown',
-              fileName: 'query_result.md',
-            });
-          },
-        }),
-        m(MenuItem, {
-          label: 'JSON',
-          onclick: () => {
-            const content = stringifyJsonWithBigints(resp.rows, 2);
-            download({
-              content,
-              mimeType: 'text/json',
-              fileName: 'query_result.json',
-            });
-          },
-        }),
-      ],
-    );
+  private hidePerfettoSqlAgentBanner() {
+    localStorage.setItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY, 'true');
   }
-}
-
-interface CopyToClipboardButtonAttrs {
-  readonly textToCopy: string;
-  readonly title?: string;
-  readonly label?: string;
-}
-
-function CopyToClipboardButton() {
-  const helper = new CopyHelper();
-
-  return {
-    view({attrs}: m.Vnode<CopyToClipboardButtonAttrs>): m.Children {
-      const label = helper.copied ? 'Copied' : attrs.label;
-      return m(Button, {
-        title: attrs.title ?? 'Copy to clipboard',
-        icon: helper.copied ? Icons.Check : Icons.Copy,
-        intent: helper.copied ? Intent.Success : Intent.None,
-        label,
-        onclick: async () => {
-          await helper.copy(attrs.textToCopy);
-        },
-      });
-    },
-  };
 }

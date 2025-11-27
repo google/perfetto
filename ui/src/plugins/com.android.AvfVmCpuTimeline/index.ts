@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -36,13 +36,13 @@ export default class implements PerfettoPlugin {
       await this.createTargetVmTrack(ctx, defaultTargetId);
 
       ctx.commands.registerCommand({
-        id: `${ctx.pluginId}#SelectAvfVmUtid`,
+        id: `com.android.SelectAvfVmUtid`,
         name: 'Select Avf VM utid to add track',
         callback: async () => {
           if (this.validTargets.size === 0) {
             alert('Available ValidTargets set exhausted! Do Refresh...');
           } else {
-            const utid = await this.selectValidTarget();
+            const utid = await this.selectValidTarget(ctx);
             await this.createTargetVmTrack(ctx, utid);
           }
         },
@@ -76,7 +76,7 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      renderer: new DatasetSliceTrack({
+      renderer: SliceTrack.create({
         trace: ctx,
         uri,
         dataset: new SourceDataset({
@@ -103,7 +103,7 @@ export default class implements PerfettoPlugin {
     });
 
     const trackNode = new TrackNode({uri, name, sortOrder: -90});
-    ctx.workspace.addChildInOrder(trackNode);
+    ctx.defaultWorkspace.addChildInOrder(trackNode);
   }
 
   async findValidTargets(engine: Engine) {
@@ -132,9 +132,9 @@ export default class implements PerfettoPlugin {
     }
   }
 
-  async selectValidTarget(): Promise<number> {
-    const input = prompt(this.prepareSelectMessage());
-    if (input !== null) {
+  async selectValidTarget(ctx: Trace): Promise<number> {
+    const input = await ctx.omnibox.prompt(this.prepareSelectMessage());
+    if (input !== undefined) {
       const checkId = Number(input);
       if (!isNaN(checkId) && this.validTargets.has(checkId)) {
         return checkId;

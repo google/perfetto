@@ -66,10 +66,11 @@ source_set("export_json") {
     "../base",
     "containers",
     "importers/common",
-    "importers/json:minimal",
     "storage",
     "tables",
     "types",
+    "util:args_utils",
+    "util:json_parser",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
 }
@@ -115,7 +116,6 @@ source_set("storage_minimal") {
   sources = [
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
-    "trace_blob.cc",
     "trace_processor_context.cc",
     "trace_processor_storage.cc",
     "trace_processor_storage_impl.cc",
@@ -140,6 +140,7 @@ source_set("storage_minimal") {
     "storage",
     "tables",
     "types",
+    "util:blob",
     "util:descriptors",
     "util:gzip",
     "util:proto_to_args_parser",
@@ -181,12 +182,13 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/etw:full",
       "importers/ftrace:full",
       "importers/fuchsia:full",
-      "importers/json:minimal",
       "importers/ninja",
       "importers/perf",
       "importers/perf_text",
+      "importers/pprof",
       "importers/proto:full",
       "importers/proto:minimal",
+      "importers/simpleperf_proto",
       "importers/systrace:full",
       "metrics",
       "perfetto_sql/engine",
@@ -201,7 +203,9 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_summary",
       "trace_summary:gen_cc_trace_summary_descriptor",
       "types",
+      "util:clock",
       "util:gzip",
+      "util:json_parser",
       "util:protozero_to_json",
       "util:protozero_to_text",
       "util:regex",
@@ -231,11 +235,15 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
   }
 
-  executable("trace_processor_shell") {
+  # Library target for the trace processor shell.
+  # Allows embedders (e.g. Google3) to customize the shell executable's
+  # interaction with the environment.
+  static_library("trace_processor_shell_lib") {
     deps = [
       ":lib",
       "../../gn:default_deps",
       "../../gn:protobuf_full",
+      "../../include/perfetto/ext/trace_processor:trace_processor_shell",
       "../../protos/perfetto/trace_processor:zero",
       "../../src/profiling:deobfuscator",
       "../../src/profiling/symbolizer",
@@ -243,6 +251,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../base:version",
       "metrics",
+      "rpc",
       "rpc:stdiod",
       "sqlite",
       "util:stdlib",
@@ -253,7 +262,17 @@ if (enable_perfetto_trace_processor_sqlite) {
     if (enable_perfetto_trace_processor_httpd) {
       deps += [ "rpc:httpd" ]
     }
+    public_deps =
+        [ "../../include/perfetto/ext/trace_processor:trace_processor_shell" ]
     sources = [ "trace_processor_shell.cc" ]
+  }
+
+  executable("trace_processor_shell") {
+    deps = [
+      ":trace_processor_shell_lib",
+      "../../gn:default_deps",
+    ]
+    sources = [ "trace_processor_shell_main.cc" ]
     if ((perfetto_build_standalone || build_with_chromium) &&
         !is_perfetto_build_generator) {
       data_deps = [
@@ -264,6 +283,7 @@ if (enable_perfetto_trace_processor_sqlite) {
         "../../protos/perfetto/trace_processor:stack_descriptor",
         "../../protos/perfetto/trace_summary:descriptor",
         "../../protos/third_party/pprof:descriptor",
+        "../../protos/third_party/simpleperf:descriptor",
       ]
       if (enable_perfetto_llvm_symbolizer) {
         data_deps += [ "../profiling/symbolizer:llvm_symbolizer_wrapper" ]
@@ -403,6 +423,7 @@ if (enable_perfetto_trace_processor_json) {
       "../../gn:gtest_and_gmock",
       "../../gn:gtest_main",
       "../../gn:jsoncpp",
+      "../../include/perfetto/ext/base",
       "../base:test_support",
     ]
   }

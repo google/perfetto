@@ -33,6 +33,7 @@
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/sys_types.h"
@@ -95,7 +96,6 @@ using ::testing::Eq;
 using ::testing::ExplainMatchResult;
 using ::testing::HasSubstr;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
@@ -141,6 +141,13 @@ AssertionResult HasTriggerModeInternal(
 
 MATCHER_P(HasTriggerMode, mode, "") {
   return HasTriggerModeInternal(arg, mode);
+}
+
+MATCHER_P(HasLifecycleField, field, "") {
+  return ExplainMatchResult(
+      Contains(Property(&protos::gen::TracePacket::service_event,
+                        Property(field, Eq(true)))),
+      arg, result_listener);
 }
 
 MATCHER_P(LowerCase,
@@ -207,6 +214,27 @@ std::vector<std::string> GetReceivedTriggers(
   return triggers;
 }
 
+std::vector<std::string> GetForTestingStrings(
+    const std::vector<protos::gen::TracePacket>& trace) {
+  std::vector<std::string> strings;
+  for (const protos::gen::TracePacket& packet : trace) {
+    if (packet.has_for_testing()) {
+      strings.push_back(packet.for_testing().str());
+    }
+  }
+  return strings;
+}
+
+bool ParseNotEmptyTraceFromFile(base::TempFile& trace_file,
+                                protos::gen::Trace& out) {
+  std::string trace_str;
+  if (!base::ReadFile(trace_file.path(), &trace_str))
+    return false;
+  if (trace_str.empty())
+    return false;
+  return out.ParseFromString(trace_str);
+}
+
 class MockClock : public tracing_service::Clock {
  public:
   ~MockClock() override = default;
@@ -233,21 +261,21 @@ class TracingServiceImplTest : public testing::Test {
     auto mock_clock = std::make_unique<NiceMock<MockClock>>();
     mock_clock_ = mock_clock.get();
     deps.clock = std::move(mock_clock);
-    ON_CALL(*mock_clock_, GetBootTimeNs).WillByDefault(Invoke([&] {
+    ON_CALL(*mock_clock_, GetBootTimeNs).WillByDefault([&] {
       return real_clock_.GetBootTimeNs() + mock_clock_displacement_;
-    }));
-    ON_CALL(*mock_clock_, GetWallTimeNs).WillByDefault(Invoke([&] {
+    });
+    ON_CALL(*mock_clock_, GetWallTimeNs).WillByDefault([&] {
       return real_clock_.GetWallTimeNs() + mock_clock_displacement_;
-    }));
+    });
 
     auto mock_random = std::make_unique<NiceMock<MockRandom>>();
     mock_random_ = mock_random.get();
     deps.random = std::move(mock_random);
     real_random_ = std::make_unique<tracing_service::RandomImpl>(
         real_clock_.GetWallTimeMs().count());
-    ON_CALL(*mock_random_, GetValue).WillByDefault(Invoke([&] {
+    ON_CALL(*mock_random_, GetValue).WillByDefault([&] {
       return real_random_->GetValue();
-    }));
+    });
 
     svc = std::make_unique<TracingServiceImpl>(
         std::move(shm_factory), &task_runner, std::move(deps), init_opts);
@@ -807,8 +835,8 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerMultipleTraces) {
   FlushFlags flush_flags(FlushFlags::Initiator::kTraced,
                          FlushFlags::Reason::kTraceStop);
   EXPECT_CALL(*producer, Flush(_, _, _, flush_flags))
-      .WillOnce(Invoke(flush_correct_writer))
-      .WillOnce(Invoke(flush_correct_writer));
+      .WillOnce(flush_correct_writer)
+      .WillOnce(flush_correct_writer);
 
   auto checkpoint_name = "on_tracing_disabled_consumer_1_and_2";
   auto on_tracing_disabled = task_runner.CreateCheckpoint(checkpoint_name);
@@ -1678,6 +1706,107 @@ TEST_F(TracingServiceImplTest, MachineNameFilterWithHostExternalName) {
   base::UnsetEnv("PERFETTO_MACHINE_NAME");
 }
 
+TEST_F(TracingServiceImplTest, MachineFilterDefault) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer_host = CreateMockProducer();
+  producer_host->Connect(svc.get(), "producer_host");
+  producer_host->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer_m2 = CreateMockProducer();
+  producer_m2->Connect(svc.get(), "producer_m2", /*uid=*/42, /*pid=*/1025,
+                       /*machine_id=*/1234, "machine2");
+  producer_m2->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer_m3 = CreateMockProducer();
+  producer_m3->Connect(svc.get(), "producer_m3", /*uid=*/42, /*pid=*/1025,
+                       /*machine_id=*/5678, "machine3");
+  producer_m3->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+
+  //
+  // No machine_name_filter, only the host machine producer should match
+  // (default changed in perfetto v54).
+  //
+
+  consumer->EnableTracing(trace_config);
+
+  producer_host->WaitForTracingSetup();
+  producer_host->WaitForDataSourceSetup("data_source");
+  producer_host->WaitForDataSourceStart("data_source");
+
+  // Remote producers should not be started
+  EXPECT_CALL(*producer_m2, OnConnect()).Times(0);
+  EXPECT_CALL(*producer_m3, OnConnect()).Times(0);
+
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer_m2.get());
+  Mock::VerifyAndClearExpectations(producer_m3.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer_host->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, MachineFilterDefaultOverride) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer_host = CreateMockProducer();
+  producer_host->Connect(svc.get(), "producer_host");
+  producer_host->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer_m2 = CreateMockProducer();
+  producer_m2->Connect(svc.get(), "producer_m2", /*uid=*/42, /*pid=*/1025,
+                       /*machine_id=*/1234, "machine2");
+  producer_m2->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer_m3 = CreateMockProducer();
+  producer_m3->Connect(svc.get(), "producer_m3", /*uid=*/42, /*pid=*/1025,
+                       /*machine_id=*/5678, "machine3");
+  producer_m3->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  trace_config.set_trace_all_machines(true);
+
+  //
+  // Expect all producers to match due to |trace_all_machines: true|.
+  //
+
+  consumer->EnableTracing(trace_config);
+
+  producer_host->WaitForTracingSetup();
+  producer_host->WaitForDataSourceSetup("data_source");
+  producer_m2->WaitForTracingSetup();
+  producer_m2->WaitForDataSourceSetup("data_source");
+  producer_m3->WaitForTracingSetup();
+  producer_m3->WaitForDataSourceSetup("data_source");
+
+  producer_host->WaitForDataSourceStart("data_source");
+  producer_m2->WaitForDataSourceStart("data_source");
+  producer_m3->WaitForDataSourceStart("data_source");
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer_host->WaitForDataSourceStop("data_source");
+  producer_m2->WaitForDataSourceStop("data_source");
+  producer_m3->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
 TEST_F(TracingServiceImplTest, ProducerNameFilterChange) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -2091,9 +2220,8 @@ TEST_F(TracingServiceImplTest, CloneSessionWithCompression) {
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
   EXPECT_CALL(*consumer2, OnSessionCloned(_))
-      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs&) {
-        clone_done();
-      }));
+      .WillOnce(
+          [clone_done](const Consumer::OnSessionClonedArgs&) { clone_done(); });
   consumer2->CloneSession(1);
   // CloneSession() will implicitly issue a flush. Linearize with that.
   FlushFlags expected_flags(FlushFlags::Initiator::kTraced,
@@ -2250,6 +2378,460 @@ TEST_F(TracingServiceImplTest, WriteIntoFileWithPath) {
               Contains(Property(
                   &protos::gen::TracePacket::for_testing,
                   Property(&protos::gen::TestEvent::str, Eq("payload")))));
+}
+
+TEST_F(TracingServiceImplTest, FlushBeforeWriteIntoFile) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10000);  // 10s
+  // Flush before write into file is turned on by default.
+
+  auto write_into_file_session_file = base::TempFile::Create();
+  consumer->EnableTracing(
+      trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload #1");
+  }
+  // Don't manually flush writer, keep data in the producer buffer.
+
+  producer->ExpectFlush(writer.get());
+  AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
+
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(
+        ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()),
+                ElementsAre("payload #1"));
+  }
+}
+
+TEST_F(TracingServiceImplTest, NoFlushBeforeWriteIntoFile) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10000);  // 10s
+  trace_config.set_no_flush_before_write_into_file(true);
+
+  auto write_into_file_session_file = base::TempFile::Create();
+  consumer->EnableTracing(
+      trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload #1");
+  }
+  // Don't manually flush writer, keep data in the producer buffer.
+
+  AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
+
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(
+        ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()), IsEmpty());
+  }
+}
+
+TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
+  if (!PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER)) {
+    GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
+  }
+
+  auto write_into_file_session_file = base::TempFile::Create();
+  auto cloned_session_file = base::TempFile::Create();
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(100000);  // 100s
+
+  consumer->EnableTracing(
+      trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload #1");
+  }
+  // Don't flush, keep data in the producer buffer.
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+      .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
+        ASSERT_TRUE(args.success);
+        ASSERT_TRUE(args.error.empty());
+        clone_done();
+      });
+  ConsumerEndpoint::CloneSessionArgs clone_args;
+  clone_args.tsid = GetLastTracingSessionId(consumer.get());
+  clone_args.output_file_fd = base::ScopedFile(dup(cloned_session_file.fd()));
+  clone_consumer->endpoint()->CloneSession(std::move(clone_args));
+  producer->ExpectFlush(writer.get());
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  // Assert that clone doesn't trigger 'write_into_file' session to write it
+  // buffers to file.
+  ASSERT_EQ(base::GetFileSize(write_into_file_session_file.path()).value_or(-1),
+            0ul);
+
+  // ReadBuffers returns single service event, all the data is already written
+  // into the file.
+  auto clone_consumer_buffers = clone_consumer->ReadBuffers();
+  EXPECT_EQ(clone_consumer_buffers.size(), 1ul);
+  EXPECT_THAT(
+      clone_consumer_buffers,
+      HasLifecycleField(
+          &protos::gen::TracingServiceEvent::read_tracing_buffers_completed));
+
+  // Verify the content of the cloned session output file.
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()),
+                ElementsAre("payload #1"));
+  }
+
+  // Write more data to the 'write_into_file' session after the clone.
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload #2");
+  }
+  writer->Flush();
+  writer.reset();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(
+        ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()),
+                ElementsAre("payload #1", "payload #2"));
+  }
+}
+
+TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
+  if (!PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER)) {
+    GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
+  }
+
+  auto write_into_file_session_file = base::TempFile::Create();
+  auto cloned_session_file = base::TempFile::Create();
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(100000);  // 100s
+
+  consumer->EnableTracing(
+      trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload #1");
+  }
+  writer->Flush();
+
+  // Advance timer, traced should write the data to the 'write_into_file'
+  // session output file.
+  // ReadBuffersIntoFile() will implicitly issue a flush.
+  producer->ExpectFlush(writer.get());
+  AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
+
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload #2");
+  }
+  writer->Flush();
+
+  // At this moment we have only 'payload #1' written into file.
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(
+        ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()),
+                ElementsAre("payload #1"));
+  }
+
+  // Now do the clone, cloned session should contains data both from the
+  // 'write_into_file' session output file and the session buffers.
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+      .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
+        ASSERT_TRUE(args.success);
+        ASSERT_TRUE(args.error.empty());
+        clone_done();
+      });
+  ConsumerEndpoint::CloneSessionArgs clone_args;
+  clone_args.tsid = GetLastTracingSessionId(consumer.get());
+  clone_args.output_file_fd = base::ScopedFile(dup(cloned_session_file.fd()));
+  clone_consumer->endpoint()->CloneSession(std::move(clone_args));
+  producer->ExpectFlush(writer.get());
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  // ReadBuffers returns single service event, all the data is already written
+  // into the file.
+  auto clone_consumer_buffers = clone_consumer->ReadBuffers();
+  EXPECT_EQ(clone_consumer_buffers.size(), 1ul);
+  EXPECT_THAT(
+      clone_consumer_buffers,
+      HasLifecycleField(
+          &protos::gen::TracingServiceEvent::read_tracing_buffers_completed));
+
+  // Verify the content of the cloned session output file.
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()),
+                ElementsAre("payload #1", "payload #2"));
+  }
+  clone_consumer->FreeBuffers();
+
+  writer.reset();
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(
+        ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()),
+                ElementsAre("payload #1", "payload #2"));
+  }
+}
+
+// In this test we check that all the lifecycle events that we expect to have in
+// the regular clone session are also present in the cloned 'write_into_file'
+// session. This is test is needed, because we have a slightly different code
+// path when we clone the 'write_into_file' session.
+TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionLifecycleEvents) {
+  if (!PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER)) {
+    GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
+  }
+
+  using TracingServiceEvent = protos::gen::TracingServiceEvent;
+  std::unique_ptr<MockProducer> producer;
+  std::unique_ptr<MockConsumer> consumer;
+  std::unique_ptr<MockConsumer> clone_consumer;
+  std::unique_ptr<TraceWriter> writer;
+
+  base::TempFile write_into_file_session_file = base::TempFile::Create();
+  base::TempFile cloned_session_file = base::TempFile::Create();
+
+  auto create_trace_config_fn = []() {
+    TraceConfig trace_config;
+    trace_config.add_buffers()->set_size_kb(128);
+    trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+    return trace_config;
+  };
+
+  auto clone_session_fn = [&](base::ScopedFile clone_fd = base::ScopedFile()) {
+    static int i = 0;
+    auto checkpoint_name = "on_clone_done_" + std::to_string(i++);
+    auto clone_done = task_runner.CreateCheckpoint(checkpoint_name);
+    EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+        .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
+          ASSERT_TRUE(args.success);
+          ASSERT_TRUE(args.error.empty());
+          clone_done();
+        });
+    ConsumerEndpoint::CloneSessionArgs clone_args;
+    clone_args.tsid = GetLastTracingSessionId(consumer.get());
+    clone_args.output_file_fd = std::move(clone_fd);
+    clone_consumer->endpoint()->CloneSession(std::move(clone_args));
+    producer->ExpectFlush(writer.get());
+    task_runner.RunUntilCheckpoint(checkpoint_name);
+  };
+
+  auto shutdown_producer_and_consumers_fn = [&]() {
+    writer.reset();
+    clone_consumer->FreeBuffers();
+    consumer->FreeBuffers();
+    producer->WaitForDataSourceStop("data_source");
+    clone_consumer.reset();
+    consumer.reset();
+    producer.reset();
+  };
+
+  auto assert_packets_fn =
+      [&](const std::vector<protos::gen::TracePacket>& packets) {
+        EXPECT_THAT(GetForTestingStrings(packets), ElementsAre("payload"));
+        EXPECT_THAT(packets, Contains(Property(
+                                 &protos::gen::TracePacket::has_trace_config,
+                                 Eq(true))));
+        EXPECT_THAT(packets,
+                    HasLifecycleField(&TracingServiceEvent::tracing_started));
+        EXPECT_THAT(
+            packets,
+            HasLifecycleField(&TracingServiceEvent::all_data_sources_started));
+        EXPECT_THAT(packets,
+                    HasLifecycleField(&TracingServiceEvent::clone_started));
+        EXPECT_THAT(packets,
+                    HasLifecycleField(&TracingServiceEvent::flush_started));
+        EXPECT_THAT(packets,
+                    HasLifecycleField(&TracingServiceEvent::has_buffer_cloned));
+        EXPECT_THAT(
+            packets,
+            Contains(Property(
+                &protos::gen::TracePacket::trace_stats,
+                Property(&protos::gen::TraceStats::final_flush_outcome,
+                         Eq(protos::gen::TraceStats::FINAL_FLUSH_SUCCEEDED)))));
+      };
+
+  // Clone the regular session.
+  {
+    producer = CreateMockProducer();
+    producer->Connect(svc.get(), "mock_producer");
+    producer->RegisterDataSource("data_source");
+
+    consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    TraceConfig trace_config = create_trace_config_fn();
+    consumer->EnableTracing(trace_config);
+
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("data_source");
+    producer->WaitForDataSourceStart("data_source");
+
+    clone_consumer = CreateMockConsumer();
+    clone_consumer->Connect(svc.get());
+
+    writer = producer->CreateTraceWriter("data_source");
+    {
+      auto tp = writer->NewTracePacket();
+      tp->set_for_testing()->set_str("payload");
+    }
+
+    clone_session_fn();
+
+    const auto& packets = clone_consumer->ReadBuffers();
+    assert_packets_fn(packets);
+
+    shutdown_producer_and_consumers_fn();
+  }
+
+  // Clone the 'write_into_file' session.
+  {
+    producer = CreateMockProducer();
+    producer->Connect(svc.get(), "mock_producer_1");
+    producer->RegisterDataSource("data_source");
+
+    consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    TraceConfig trace_config = create_trace_config_fn();
+    trace_config.set_write_into_file(true);
+    consumer->EnableTracing(
+        trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
+
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("data_source");
+    producer->WaitForDataSourceStart("data_source");
+
+    clone_consumer = CreateMockConsumer();
+    clone_consumer->Connect(svc.get());
+
+    writer = producer->CreateTraceWriter("data_source");
+    {
+      auto tp = writer->NewTracePacket();
+      tp->set_for_testing()->set_str("payload");
+    }
+
+    clone_session_fn(base::ScopedFile(dup(cloned_session_file.fd())));
+
+    // ReadBuffers returns single service event, all the data is already written
+    // into the file.
+    auto clone_consumer_buffers = clone_consumer->ReadBuffers();
+    EXPECT_EQ(clone_consumer_buffers.size(), 1ul);
+    EXPECT_THAT(
+        clone_consumer_buffers,
+        HasLifecycleField(
+            &protos::gen::TracingServiceEvent::read_tracing_buffers_completed));
+
+    {
+      // Verify the content of the cloned session output file.
+      protos::gen::Trace trace;
+      ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_session_file, trace));
+      assert_packets_fn(trace.packet());
+    }
+
+    shutdown_producer_and_consumers_fn();
+    {
+      // Just in case, also verify that 'write_into_file' session write the
+      // payload to the file when stopped.
+      protos::gen::Trace trace;
+      ASSERT_TRUE(
+          ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+      EXPECT_THAT(GetForTestingStrings(trace.packet()), ElementsAre("payload"));
+    }
+  }
 }
 
 TEST_F(TracingServiceImplTest, WriteIntoFileFilterMultipleChunks) {
@@ -2592,10 +3174,9 @@ TEST_F(TracingServiceImplTest, PeriodicFlush) {
   FlushFlags flush_flags(FlushFlags::Initiator::kTraced,
                          FlushFlags::Reason::kPeriodic);
   EXPECT_CALL(*producer, Flush(_, _, _, flush_flags))
-      .WillRepeatedly(Invoke([&producer, &writer, &flushes_seen, checkpoint](
-                                 FlushRequestID flush_req_id,
-                                 const DataSourceInstanceID*, size_t,
-                                 FlushFlags) {
+      .WillRepeatedly([&producer, &writer, &flushes_seen, checkpoint](
+                          FlushRequestID flush_req_id,
+                          const DataSourceInstanceID*, size_t, FlushFlags) {
         {
           auto tp = writer->NewTracePacket();
           char payload[32];
@@ -2606,7 +3187,7 @@ TEST_F(TracingServiceImplTest, PeriodicFlush) {
         producer->endpoint()->NotifyFlushComplete(flush_req_id);
         if (++flushes_seen == kNumFlushes)
           checkpoint();
-      }));
+      });
   task_runner.RunUntilCheckpoint("all_flushes_done");
 
   consumer->DisableTracing();
@@ -2716,9 +3297,9 @@ TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
       task_runner.CreateCheckpoint("clears_received");
   std::vector<std::vector<DataSourceInstanceID>> clears_seen;
   EXPECT_CALL(*producer, ClearIncrementalState(_, _))
-      .WillRepeatedly(Invoke([&clears_seen, &checkpoint](
-                                 const DataSourceInstanceID* data_source_ids,
-                                 size_t num_data_sources) {
+      .WillRepeatedly([&clears_seen, &checkpoint](
+                          const DataSourceInstanceID* data_source_ids,
+                          size_t num_data_sources) {
         std::vector<DataSourceInstanceID> ds_ids;
         for (size_t i = 0; i < num_data_sources; i++) {
           ds_ids.push_back(*data_source_ids++);
@@ -2726,7 +3307,7 @@ TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
         clears_seen.push_back(ds_ids);
         if (clears_seen.size() >= kNumClears)
           checkpoint();
-      }));
+      });
   task_runner.RunUntilCheckpoint("clears_received");
 
   consumer->DisableTracing();
@@ -2952,6 +3533,8 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
     if (i % (100 / kNumMarkers) == 0) {
       writer->Flush();
       // The snapshot will happen every 100ms
+      // Each ReadBuffersIntoFile() will implicitly issue a flush.
+      producer->ExpectFlush(writer.get());
       AdvanceTimeAndRunUntilIdle(100);
     }
   }
@@ -3190,16 +3773,16 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
 
   auto flush_request = consumer->Flush();
   EXPECT_CALL(*producer, Flush)
-      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
-                           const DataSourceInstanceID*, size_t, FlushFlags) {
+      .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                    size_t, FlushFlags) {
         writer->Flush();
         producer->endpoint()->NotifyFlushComplete(flush_req_id);
-      }));
+      });
   EXPECT_CALL(*producer2, Flush)
-      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
-                           const DataSourceInstanceID*, size_t, FlushFlags) {
+      .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                    size_t, FlushFlags) {
         producer2->endpoint()->NotifyFlushComplete(flush_req_id);
-      }));
+      });
   ASSERT_TRUE(flush_request.WaitForReply());
 
   // Try to write to the wrong buffer.
@@ -3212,16 +3795,16 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
 
   flush_request = consumer->Flush();
   EXPECT_CALL(*producer, Flush)
-      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
-                           const DataSourceInstanceID*, size_t, FlushFlags) {
+      .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                    size_t, FlushFlags) {
         writer->Flush();
         producer->endpoint()->NotifyFlushComplete(flush_req_id);
-      }));
+      });
   EXPECT_CALL(*producer2, Flush)
-      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
-                           const DataSourceInstanceID*, size_t, FlushFlags) {
+      .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                    size_t, FlushFlags) {
         producer2->endpoint()->NotifyFlushComplete(flush_req_id);
-      }));
+      });
 
   ASSERT_TRUE(flush_request.WaitForReply());
 
@@ -3582,10 +4165,10 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
     auto flush_request = consumer_->Flush();
 
     EXPECT_CALL(*producer_, Flush)
-        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
-                             const DataSourceInstanceID*, size_t, FlushFlags) {
+        .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                      size_t, FlushFlags) {
           arbiter_->NotifyFlushComplete(flush_req_id);
-        }));
+        });
     if (flush_request.WaitForReply()) {
       return consumer_->ReadBuffers();
     }
@@ -3912,14 +4495,14 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   auto on_observable_events =
       task_runner.CreateCheckpoint("on_observable_events");
   EXPECT_CALL(*consumer, OnObservableEvents)
-      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+      .WillOnce([on_observable_events](const ObservableEvents& events) {
         ObservableEvents::DataSourceInstanceStateChange change;
         change.set_producer_name("mock_producer");
         change.set_data_source_name("data_source");
         change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
         EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
         on_observable_events();
-      }));
+      });
 
   consumer->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
 
@@ -3928,14 +4511,14 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   // Disabling should cause an instance state change to STOPPED.
   on_observable_events = task_runner.CreateCheckpoint("on_observable_events_2");
   EXPECT_CALL(*consumer, OnObservableEvents)
-      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+      .WillOnce([on_observable_events](const ObservableEvents& events) {
         ObservableEvents::DataSourceInstanceStateChange change;
         change.set_producer_name("mock_producer");
         change.set_data_source_name("data_source");
         change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
         EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
         on_observable_events();
-      }));
+      });
   consumer->DisableTracing();
 
   producer->WaitForDataSourceStop("data_source");
@@ -3949,14 +4532,14 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   // its initial state STOPPED.
   on_observable_events = task_runner.CreateCheckpoint("on_observable_events_3");
   EXPECT_CALL(*consumer, OnObservableEvents)
-      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+      .WillOnce([on_observable_events](const ObservableEvents& events) {
         ObservableEvents::DataSourceInstanceStateChange change;
         change.set_producer_name("mock_producer");
         change.set_data_source_name("data_source");
         change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
         EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
         on_observable_events();
-      }));
+      });
 
   trace_config.set_deferred_start(true);
   consumer->EnableTracing(trace_config);
@@ -3967,14 +4550,14 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   // Should move the instance into STARTED state and thus cause an event.
   on_observable_events = task_runner.CreateCheckpoint("on_observable_events_4");
   EXPECT_CALL(*consumer, OnObservableEvents)
-      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+      .WillOnce([on_observable_events](const ObservableEvents& events) {
         ObservableEvents::DataSourceInstanceStateChange change;
         change.set_producer_name("mock_producer");
         change.set_data_source_name("data_source");
         change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
         EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
         on_observable_events();
-      }));
+      });
   consumer->StartTracing();
 
   producer->WaitForDataSourceStart("data_source");
@@ -4415,7 +4998,7 @@ TEST_F(TracingServiceImplTest, LifecycleEventsCloneStarted) {
     flush_req_id = req_id;
     flush_requested();
   };
-  EXPECT_CALL(*producer, Flush(_, _, _, _)).WillOnce(Invoke(producer_flush_cb));
+  EXPECT_CALL(*producer, Flush(_, _, _, _)).WillOnce(producer_flush_cb);
 
   consumer2->CloneSession(GetLastTracingSessionId(consumer.get()));
   task_runner.RunUntilCheckpoint("flush_requested");
@@ -4425,11 +5008,11 @@ TEST_F(TracingServiceImplTest, LifecycleEventsCloneStarted) {
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
   EXPECT_CALL(*consumer2, OnSessionCloned(_))
-      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
+      .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
         ASSERT_TRUE(args.success);
         ASSERT_TRUE(args.error.empty());
         clone_done();
-      }));
+      });
 
   // Notify the tracing service that the flush is complete.
   producer->endpoint()->NotifyFlushComplete(flush_req_id);
@@ -4977,7 +5560,7 @@ TEST_F(TracingServiceImplTest, CloneSession) {
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
   base::Uuid clone_uuid;
   EXPECT_CALL(*consumer2, OnSessionCloned(_))
-      .WillOnce(Invoke(
+      .WillOnce(
           [clone_done, &clone_uuid](const Consumer::OnSessionClonedArgs& args) {
             ASSERT_TRUE(args.success);
             ASSERT_TRUE(args.error.empty());
@@ -4988,7 +5571,7 @@ TEST_F(TracingServiceImplTest, CloneSession) {
             ASSERT_NE(args.uuid.msb(), 3737);
             clone_uuid = args.uuid;
             clone_done();
-          }));
+          });
   consumer2->CloneSession(1);
   // CloneSession() will implicitly issue a flush. Linearize with that.
   producer->ExpectFlush({writers[0].get(), writers[1].get()});
@@ -5064,11 +5647,11 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidDenied) {
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
   EXPECT_CALL(*consumer2, OnSessionCloned(_))
-      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
+      .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
         clone_done();
         ASSERT_FALSE(args.success);
         ASSERT_TRUE(base::Contains(args.error, "session from another UID"));
-      }));
+      });
   consumer2->CloneSession(1);
   task_runner.RunUntilCheckpoint("clone_done");
 }
@@ -5120,10 +5703,10 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
   EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
-      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
+      .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
         clone_done();
         ASSERT_TRUE(args.success);
-      }));
+      });
 
   FlushFlags flush_flags2(FlushFlags::Initiator::kTraced,
                           FlushFlags::Reason::kTraceClone,
@@ -5211,19 +5794,19 @@ TEST_F(TracingServiceImplTest, TransferOnClone) {
     EXPECT_CALL(
         *producer,
         Flush(_, Pointee(producer->GetDataSourceInstanceId("ds_1")), 1, _))
-        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
-                             const DataSourceInstanceID*, size_t, FlushFlags) {
+        .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                      size_t, FlushFlags) {
           writers[0]->Flush();
           producer->endpoint()->NotifyFlushComplete(flush_req_id);
-        }));
+        });
     EXPECT_CALL(
         *producer,
         Flush(_, Pointee(producer->GetDataSourceInstanceId("ds_2")), 1, _))
-        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
-                             const DataSourceInstanceID*, size_t, FlushFlags) {
+        .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                      size_t, FlushFlags) {
           writers[1]->Flush();
           producer->endpoint()->NotifyFlushComplete(flush_req_id);
-        }));
+        });
     task_runner.RunUntilCheckpoint(clone_checkpoint_name);
 
     auto packets = clone_consumer->ReadBuffers();
@@ -5314,12 +5897,12 @@ TEST_F(TracingServiceImplTest, ClearBeforeClone) {
   FlushFlags flush_flags(FlushFlags::Initiator::kTraced,
                          FlushFlags::Reason::kTraceClone);
   EXPECT_CALL(*producer, Flush(_, _, _, flush_flags))
-      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
-                           const DataSourceInstanceID*, size_t, FlushFlags) {
+      .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                    size_t, FlushFlags) {
         writer->NewTracePacket()->set_for_testing()->set_str("after_clone");
         writer->Flush(
             [&] { producer->endpoint()->NotifyFlushComplete(flush_req_id); });
-      }));
+      });
 
   task_runner.RunUntilCheckpoint("clone_done");
 
@@ -5471,11 +6054,11 @@ TEST_F(TracingServiceImplTest, CloneMainSessionGoesAwayDuringFlush) {
   auto clone_done = task_runner.CreateCheckpoint(clone_done_name);
   EXPECT_CALL(*clone_consumer, OnSessionCloned)
       .Times(1)
-      .WillOnce(Invoke([&](const Consumer::OnSessionClonedArgs& args) {
+      .WillOnce([&](const Consumer::OnSessionClonedArgs& args) {
         EXPECT_FALSE(args.success);
         EXPECT_THAT(args.error, HasSubstr("Original session ended"));
         clone_done();
-      }));
+      });
   clone_consumer->CloneSession(1);
 
   std::string producer1_flush_checkpoint_name = "producer1_flush_requested";
@@ -5673,15 +6256,14 @@ TEST_F(TracingServiceImplTest, CloneSessionByName) {
   {
     auto clone_done = task_runner.CreateCheckpoint("clone_done");
     EXPECT_CALL(*consumer2, OnSessionCloned(_))
-        .WillOnce(
-            Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
-              ASSERT_TRUE(args.success);
-              ASSERT_TRUE(args.error.empty());
-              clone_done();
-            }));
+        .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
+          ASSERT_TRUE(args.success);
+          ASSERT_TRUE(args.error.empty());
+          clone_done();
+        });
     ConsumerEndpoint::CloneSessionArgs args;
     args.unique_session_name = "my_unique_session_name";
-    consumer2->endpoint()->CloneSession(args);
+    consumer2->endpoint()->CloneSession(std::move(args));
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());
     task_runner.RunUntilCheckpoint("clone_done");
@@ -5719,28 +6301,26 @@ TEST_F(TracingServiceImplTest, CloneSessionByName) {
 
     auto clone_failed = task_runner.CreateCheckpoint("clone_failed");
     EXPECT_CALL(*consumer3, OnSessionCloned(_))
-        .WillOnce(
-            Invoke([clone_failed](const Consumer::OnSessionClonedArgs& args) {
-              EXPECT_FALSE(args.success);
-              EXPECT_THAT(args.error, HasSubstr("Tracing session not found"));
-              clone_failed();
-            }));
+        .WillOnce([clone_failed](const Consumer::OnSessionClonedArgs& args) {
+          EXPECT_FALSE(args.success);
+          EXPECT_THAT(args.error, HasSubstr("Tracing session not found"));
+          clone_failed();
+        });
     ConsumerEndpoint::CloneSessionArgs args_f;
     args_f.unique_session_name = "my_unique_session_name";
-    consumer3->endpoint()->CloneSession(args_f);
+    consumer3->endpoint()->CloneSession(std::move(args_f));
     task_runner.RunUntilCheckpoint("clone_failed");
 
     // But it should be possible to clone that by id.
     auto clone_success = task_runner.CreateCheckpoint("clone_success");
     EXPECT_CALL(*consumer3, OnSessionCloned(_))
-        .WillOnce(
-            Invoke([clone_success](const Consumer::OnSessionClonedArgs& args) {
-              EXPECT_TRUE(args.success);
-              clone_success();
-            }));
+        .WillOnce([clone_success](const Consumer::OnSessionClonedArgs& args) {
+          EXPECT_TRUE(args.success);
+          clone_success();
+        });
     ConsumerEndpoint::CloneSessionArgs args_s;
     args_s.tsid = GetLastTracingSessionId(consumer3.get());
-    consumer3->endpoint()->CloneSession(args_s);
+    consumer3->endpoint()->CloneSession(std::move(args_s));
     task_runner.RunUntilCheckpoint("clone_success");
   }
 }
@@ -5827,12 +6407,11 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
   {
     auto clone_done = task_runner.CreateCheckpoint("clone_done");
     EXPECT_CALL(*consumer2, OnSessionCloned(_))
-        .WillOnce(
-            Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
-              ASSERT_TRUE(args.success);
-              ASSERT_TRUE(args.error.empty());
-              clone_done();
-            }));
+        .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
+          ASSERT_TRUE(args.success);
+          ASSERT_TRUE(args.error.empty());
+          clone_done();
+        });
     ConsumerEndpoint::CloneSessionArgs args;
     args.tsid = GetLastTracingSessionId(consumer2.get());
     args.clone_trigger_name = kCloneTriggerName;
@@ -5840,7 +6419,7 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
     args.clone_trigger_trusted_producer_uid = kCloneTriggerProducerUid;
     args.clone_trigger_boot_time_ns = kCloneTriggerTimestamp;
     args.clone_trigger_delay_ms = kCloneTriggerDelayMs;
-    consumer2->endpoint()->CloneSession(args);
+    consumer2->endpoint()->CloneSession(std::move(args));
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());
     task_runner.RunUntilCheckpoint("clone_done");
@@ -5889,6 +6468,62 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
       cloned_packets,
       Not(Contains(Property(
           &protos::gen::TracePacket::has_clone_snapshot_trigger, Eq(true)))));
+}
+
+TEST_F(TracingServiceImplTest, CloneWithFileDescriptorNoWriteIntoFile) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+  writer->Flush();
+
+  base::TempFile cloned_session_file = base::TempFile::Create();
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+      .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
+        ASSERT_TRUE(args.success);
+        ASSERT_TRUE(args.error.empty());
+        clone_done();
+      });
+  ConsumerEndpoint::CloneSessionArgs clone_args;
+  clone_args.tsid = GetLastTracingSessionId(consumer.get());
+  clone_args.output_file_fd = base::ScopedFile(dup(cloned_session_file.fd()));
+  clone_consumer->endpoint()->CloneSession(std::move(clone_args));
+  producer->ExpectFlush(writer.get());
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  // Assert traced doesn't write buffers to the file descriptor if session to
+  // clone is not the 'write_into_file' session.
+  EXPECT_EQ(base::GetFileSize(cloned_session_file.path()).value_or(-1), 0ul);
+  auto clone_consumer_buffers = clone_consumer->ReadBuffers();
+  EXPECT_THAT(GetForTestingStrings(clone_consumer_buffers),
+              ElementsAre("payload"));
+
+  auto consumer_buffers = consumer->ReadBuffers();
+  EXPECT_THAT(GetForTestingStrings(consumer_buffers), ElementsAre("payload"));
 }
 
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
@@ -6033,9 +6668,8 @@ TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
   EXPECT_CALL(*consumer2, OnSessionCloned(_))
-      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs&) {
-        clone_done();
-      }));
+      .WillOnce(
+          [clone_done](const Consumer::OnSessionClonedArgs&) { clone_done(); });
   consumer2->CloneSession(1);
   // CloneSession() will implicitly issue a flush. Linearize with that.
   producer->ExpectFlush(std::vector<TraceWriter*>{writer.get()});
@@ -6107,7 +6741,7 @@ TEST_F(TracingServiceImplTest, ConsumerDisconnectionRacesFlushAndDisable) {
     // empty `tracing_sessions_` map.
     task_runner.PostTask([&]() { consumer.reset(); });
   };
-  EXPECT_CALL(*producer, Flush(_, _, _, _)).WillOnce(Invoke(producer_flush_cb));
+  EXPECT_CALL(*producer, Flush(_, _, _, _)).WillOnce(producer_flush_cb);
 
   // Cause the tracing session to stop. Note that
   // TracingServiceImpl::FlushAndDisableTracing() is also called when
@@ -6388,7 +7022,7 @@ TEST_F(TracingServiceImplTest, DetachAttach) {
 
   std::string on_detach_name = "on_detach";
   auto on_detach = task_runner.CreateCheckpoint(on_detach_name);
-  EXPECT_CALL(*consumer, OnDetach(Eq(true))).WillOnce(Invoke(on_detach));
+  EXPECT_CALL(*consumer, OnDetach(Eq(true))).WillOnce(on_detach);
 
   consumer->Detach("mykey");
 
@@ -6417,10 +7051,10 @@ TEST_F(TracingServiceImplTest, DetachAttach) {
   std::string on_attach_name = "on_attach";
   auto on_attach = task_runner.CreateCheckpoint(on_attach_name);
   EXPECT_CALL(*consumer, OnAttach(Eq(true), _))
-      .WillOnce(Invoke([&](bool, const TraceConfig& cfg) {
+      .WillOnce([&](bool, const TraceConfig& cfg) {
         attached_config = cfg;
         on_attach();
-      }));
+      });
 
   consumer->Attach("mykey");
 
@@ -6461,7 +7095,7 @@ TEST_F(TracingServiceImplTest, DetachDurationTimeoutFreeBuffers) {
 
   std::string on_detach_name = "on_detach";
   auto on_detach = task_runner.CreateCheckpoint(on_detach_name);
-  EXPECT_CALL(*consumer, OnDetach(Eq(true))).WillOnce(Invoke(on_detach));
+  EXPECT_CALL(*consumer, OnDetach(Eq(true))).WillOnce(on_detach);
 
   consumer->Detach("mykey");
 
@@ -6571,7 +7205,7 @@ TEST_F(TracingServiceImplTest, FlushTimeoutEventsEmitted) {
   std::string producer_flush1_checkpoint_name = "producer_flush1_requested";
   auto flush1_requested =
       task_runner.CreateCheckpoint(producer_flush1_checkpoint_name);
-  EXPECT_CALL(*producer, Flush).WillOnce(Invoke(flush1_requested));
+  EXPECT_CALL(*producer, Flush).WillOnce(flush1_requested);
   consumer->Flush(5000, FlushFlags(FlushFlags::Initiator::kTraced,
                                    FlushFlags::Reason::kTraceStop));
 

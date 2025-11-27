@@ -15,22 +15,72 @@
 @import "../theme";
 
 .pf-form {
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
 
-  .pf-form-button-bar {
-    grid-column: span 2;
-    margin-top: 6px;
+  &__button-bar {
     display: flex;
     justify-content: right;
     flex-direction: row-reverse;
-    align-items: center;
-    gap: 2px;
+    align-items: baseline;
+    gap: 4px;
   }
 
-  .pf-form-label {
-    font-weight: bolder;
+  &__label {
+    margin-bottom: 6px;
+    font-size: smaller;
+    font-weight: 500;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__section {
+    border: 1px solid var(--pf-color-border);
+    display: flex;
+    flex-direction: column;
+    border-radius: 4px;
+    padding-inline: 8px;
+    padding-top: 16px;
+    position: relative;
+    margin-block: 8px;
+
+    &-label {
+      position: absolute;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.7em;
+      margin-bottom: 8px;
+      top: -0.5em;
+      left: 4px;
+      background: var(--pf-color-background);
+      color: var(--pf-color-text-muted);
+      padding: 0 2px;
+    }
+  }
+
+  // Styles for common input elements
+  .pf-checkbox,
+  .pf-switch {
+    margin-bottom: 6px;
+  }
+
+  .pf-select,
+  .pf-text-input {
+    margin-bottom: 8px;
+  }
+
+  .pf-select:invalid {
+    border-bottom-color: var(--pf-color-danger);
+    &:active,
+    &:focus {
+      box-shadow: 0 1px 0 0 var(--pf-color-danger);
+    }
+  }
+
+  .pf-text-input:has(input:invalid) {
+    border-bottom-color: var(--pf-color-danger);
+    &:has(input:focus) {
+      box-shadow: 0 1px 0 0 var(--pf-color-danger);
+    }
   }
 }
 

@@ -16,6 +16,8 @@
 name: Perfetto CI [ui]
 on:
   workflow_call:
+permissions:
+  pull-requests: write
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
@@ -30,6 +32,7 @@ jobs:
     env:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-ui
+      PERFETTO_GCS_DST: perfetto-ci-artifacts/gh-${{ github.run_id }}-ui
       CI: 1
     steps:
       - uses: actions/checkout@v4
@@ -40,13 +43,6 @@ jobs:
         if: ${{ github.base_ref != '' }}
         shell: bash
         run: git fetch origin ${{ github.base_ref }} --depth=1
-
-      - name: Setup artifacts
-        shell: bash
-        run: |
-          PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
-          echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
-          mkdir -p $PERFETTO_ARTIFACTS_DIR
 
       - uses: ./.github/actions/install-build-deps
         with:
@@ -65,7 +61,52 @@ jobs:
         shell: bash
         run: |
           ui/build --out out/ui
-          cp -a out/ui/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
+
+      - name: Upload UI build to GCS
+        shell: bash
+        run: |
+          gcloud storage cp --no-user-output-enabled --recursive "out/ui/ui/dist" "gs://$PERFETTO_GCS_DST/ui"
+          echo "UI_BUILD_URL=https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html" >> $GITHUB_ENV
+
+      - name: Comment PR with UI build link
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const uiBuildUrl = process.env.UI_BUILD_URL;
+
+            if (uiBuildUrl && context.issue.number) {
+              // Unique marker to identify our comment
+              const marker = "<!-- perfetto-ui-build-comment -->";
+              const body = `${marker}\n### 🎨 Perfetto UI Build\n\n✅ UI build is ready: ${uiBuildUrl}`;
+
+              // Get existing comments
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+
+              // Find the bot's previous comment
+              const botComment = comments.find(c => c.body.includes(marker));
+
+              // Update existing or create new
+              if (botComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: body
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: body
+                });
+              }
+            }
 
       - name: Print ccache stats
         shell: bash
@@ -101,25 +142,27 @@ jobs:
       - name: Upload artifacts to GCS
         if: ${{ always() }}
         env:
-          GCS_PATH: gs://perfetto-ci-artifacts
+          UI_TEST_ARTIFACTS: out/ui/ui-test-artifacts
         shell: bash
         run: |
-          if [ -d out/ui/ui-test-artifacts ]; then
-            cp -a out/ui/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"
+          if [[ ! -d "$UI_TEST_ARTIFACTS" || -n "$(find $UI_TEST_ARTIFACTS -maxdepth 0 -empty)" ]]; then
+            echo "Directory '$UI_TEST_ARTIFACTS' is empty. Did one of the previous steps fail?"
+            # Don't fail the step if there is nothing to upload.
+            exit 0
           fi
-          
+
           # '--no-user-output-enabled' prevents the `cp` from printing the names
           # of all copied files to stdout.
-          gcloud storage cp --no-user-output-enabled --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID"
-          
+          gcloud storage cp --no-user-output-enabled --recursive "$UI_TEST_ARTIFACTS" "gs://$PERFETTO_GCS_DST/ui-test-artifacts"
+
           echo "UI integration test report with screnshots:"
-          echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui-test-artifacts/index.html"
+          echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/index.html"
           echo ""
           echo "To download locally the changed screenshots run:"
           echo "tools/download_changed_screenshots.py $PERFETTO_CI_JOB_ID"
           echo ""
           echo "Perfetto UI build for this CL"
-          echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
+          echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html"
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'

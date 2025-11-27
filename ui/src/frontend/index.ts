@@ -24,18 +24,23 @@ import {addErrorHandler, reportError} from '../base/logging';
 import {featureFlags} from '../core/feature_flags';
 import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
-import {initWasm} from '../trace_processor/wasm_engine_proxy';
+import {warmupWasmWorker} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
-import {globals} from './globals';
+import {tryLoadIsInternalUserScript} from './is_internal_user_script_loader';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
-import {CheckHttpRpcConnection} from './rpc_http_dialog';
+import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
-import {renderViewerPage} from './viewer_page/viewer_page';
+import {
+  DEFAULT_TRACK_MIN_HEIGHT_PX,
+  MINIMUM_TRACK_MIN_HEIGHT_PX,
+  TRACK_MIN_HEIGHT_SETTING,
+} from './timeline_page/track_view';
+import {renderTimelinePage} from './timeline_page/timeline_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
@@ -59,6 +64,52 @@ import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {timezoneOffsetMap} from '../base/time';
 import {ThemeProvider} from './theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
+import {JsonSettingsEditor} from '../components/json_settings_editor';
+import {
+  CommandInvocation,
+  commandInvocationArraySchema,
+} from '../core/command_manager';
+import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
+import {sleepMs} from '../base/utils';
+
+// =============================================================================
+// UI INITIALIZATION STAGES
+// =============================================================================
+//
+// This file orchestrates the Perfetto UI startup through three main stages:
+//
+//   Time ───────────────────────────────────────────────────────────────────>
+//
+//   [Module Load]
+//        │
+//        ├─► main() ───────────────────────────────────────────────────────┐
+//        │    ├─ Setup CSP                                                 │
+//        │    ├─ Init settings & app                                       │
+//        │    ├─ Start CSS load (async) ──────┐                            │
+//        │    ├─ Setup error handlers          │                           │
+//        │    └─ Register window.onload ───────┼──────────┐                │
+//        │                                     │          │                │
+//        │    [User sees blank/loading page]   │          │                │
+//        │                                     ↓          │                │
+//        │                                 CSS loaded     |                │
+//        │                                     │          │                │
+//        │                        onCssLoaded() ◄──────┘  │                │
+//        │                          ├─ Mount Mithril UI   │                │
+//        │                          ├─ Register routes    │                │
+//        │                          ├─ Init plugins       │                │
+//        │                          └─ Check RPC          │                │
+//        │                                                │                │
+//        │    [User sees interactive UI]                  │                │
+//        │                                                ↓                │
+//        │                          All resources loaded (fonts, images)   │
+//        │                                                │                │
+//        │                        onWindowLoaded() ◄──────┘                │
+//        │                          ├─ Warmup Wasm (engine_bundle.js)      │
+//        │                          └─ Install service worker              │
+//        │                                                                 │
+//        └─────────────────────────────────────────────────────────────────┘
+//
+// =============================================================================
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -136,7 +187,6 @@ function setupContentSecurityPolicy() {
       'https://*.googleapis.com',
     ],
     'style-src': [`'self'`, `'unsafe-inline'`],
-    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
@@ -184,12 +234,76 @@ function main() {
     defaultValue: DurationPrecision.Full,
   });
 
+  const analyticsSetting = settingsManager.register({
+    id: 'analyticsEnable',
+    name: 'Enable UI telemetry',
+    description: `
+      This setting controls whether the Perfetto UI logs coarse-grained
+      information about your usage of the UI and any errors encountered. This
+      information helps us understand how the UI is being used and allows us to
+      better prioritise features and fix bugs. If this option is disabled,
+      no information will be logged.
+
+      Note: even if this option is enabled, information about the *contents* of
+      traces is *not* logged.
+
+      Note: this setting only has an effect on the ui.perfetto.dev and localhost
+      origins: all other origins do not log telemetry even if this option is
+      enabled.
+    `,
+    schema: z.boolean(),
+    defaultValue: true,
+    requiresReload: true,
+  });
+
+  const startupCommandsEditor = new JsonSettingsEditor<CommandInvocation[]>({
+    schema: commandInvocationArraySchema,
+  });
+
+  const startupCommandsSetting = settingsManager.register({
+    id: 'startupCommands',
+    name: 'Startup Commands',
+    description: `
+      Commands to run automatically after a trace loads and any saved state is
+      restored. These commands execute as if a user manually invoked them after
+      the trace is fully ready, making them ideal for automating common
+      post-load actions like running queries, expanding tracks, or setting up
+      custom views.
+    `,
+    schema: commandInvocationArraySchema,
+    defaultValue: [],
+    render: (setting) => startupCommandsEditor.render(setting),
+  });
+
+  const enforceStartupCommandAllowlistSetting = settingsManager.register({
+    id: 'enforceStartupCommandAllowlist',
+    name: 'Enforce Startup Command Allowlist',
+    description: `
+      When enabled, only commands in the predefined allowlist can be executed
+      as startup commands. When disabled, all startup commands will be
+      executed without filtering.
+
+      The command allowlist encodes the set of commands which Perfetto UI
+      maintainers expect to maintain backwards compatibility for the forseeable\
+      future.
+
+      WARNING: if this setting is disabled, any command outside the allowlist
+      has *no* backwards compatibility guarantees and is can change without
+      warning at any time.
+    `,
+    schema: z.boolean(),
+    defaultValue: true,
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
     timestampFormatSetting,
     durationPrecisionSetting,
     timezoneOverrideSetting,
+    analyticsSetting,
+    startupCommandsSetting,
+    enforceStartupCommandAllowlistSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
@@ -204,21 +318,20 @@ function main() {
   if (favicon instanceof HTMLLinkElement) {
     favicon.href = assetSrc('assets/favicon.png');
   }
+  document.body.classList.add('pf-fonts-loading');
+  document.head.append(css);
+
+  Promise.race([document.fonts.ready, sleepMs(15000)]).then(() => {
+    document.body.classList.remove('pf-fonts-loading');
+  });
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
-  function initAnalyticsOnScriptLoad() {
-    AppImpl.instance.analytics.initialize(globals.isInternalUser);
-  }
-  const script = document.createElement('script');
-  script.src =
-    'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
-  script.async = true;
-  script.onerror = () => initAnalyticsOnScriptLoad();
-  script.onload = () => initAnalyticsOnScriptLoad();
-  setTimeout(() => initAnalyticsOnScriptLoad(), 5000);
-
-  document.head.append(script, css);
+  const app = AppImpl.instance;
+  tryLoadIsInternalUserScript(app).then(() => {
+    app.analytics.initialize(app.isInternalUser);
+    app.notifyOnExtrasLoadingCompleted();
+  });
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);
@@ -227,9 +340,6 @@ function main() {
   // Add Error handlers for JS error and for uncaught exceptions in promises.
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
-
-  initWasm();
-  AppImpl.instance.serviceWorkerController.install();
 
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
@@ -245,13 +355,16 @@ function main() {
 
   cssLoadPromise.then(() => onCssLoaded());
 
-  if (AppImpl.instance.testingMode) {
-    document.body.classList.add('testing');
-  }
-
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
     return new IdleDetector().waitForPerfettoIdle(ms);
   };
+
+  // Keep at the end. Potentially it calls into the next stage (onWindowLoaded).
+  if (document.readyState === 'complete') {
+    onWindowLoaded();
+  } else {
+    window.addEventListener('load', () => onWindowLoaded());
+  }
 }
 
 function onCssLoaded() {
@@ -261,22 +374,31 @@ function onCssLoaded() {
 
   const pages = AppImpl.instance.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
-  pages.registerPage({route: '/viewer', render: () => renderViewerPage()});
+  pages.registerPage({route: '/viewer', render: () => renderTimelinePage()});
   const router = new Router();
   router.onRouteChanged = routeChange;
 
   const themeSetting = AppImpl.instance.settings.register({
     id: 'theme',
-    name: '[Experimental] UI Theme',
-    description: 'Warning: Dark mode is not fully supported yet.',
+    name: 'UI Theme',
+    description: 'Changes the color palette used throughout the UI.',
     schema: z.enum(['dark', 'light']),
     defaultValue: 'light',
+  } as const);
+
+  AppImpl.instance.settings.register({
+    id: TRACK_MIN_HEIGHT_SETTING,
+    name: 'Track Height',
+    description:
+      'Minimum height of tracks in the trace viewer page, in pixels.',
+    schema: z.number().int().min(MINIMUM_TRACK_MIN_HEIGHT_PX),
+    defaultValue: DEFAULT_TRACK_MIN_HEIGHT_PX,
   });
 
   // Add command to toggle the theme.
   AppImpl.instance.commands.registerCommand({
-    id: 'toggleTheme',
-    name: '[Experimental] Toggle UI Theme',
+    id: 'dev.perfetto.ToggleTheme',
+    name: 'Toggle UI Theme (Dark/Light)',
     callback: () => {
       const currentTheme = themeSetting.get();
       themeSetting.set(currentTheme === 'dark' ? 'light' : 'dark');
@@ -285,12 +407,55 @@ function onCssLoaded() {
 
   // Mount the main mithril component. This also forces a sync render pass.
   raf.mount(document.body, {
-    view: () =>
-      m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
-        m(OverlayContainer, {fillParent: true}, [
-          m(UiMain, {key: themeSetting.get()}),
-        ]),
-      ]),
+    view: () => {
+      const app = AppImpl.instance;
+      const commands = app.commands;
+      const hotkeys: HotkeyConfig[] = [];
+      for (const {id, defaultHotkey} of commands.commands) {
+        if (defaultHotkey) {
+          hotkeys.push({
+            callback: () => commands.runCommand(id),
+            hotkey: defaultHotkey,
+          });
+        }
+      }
+
+      // Add a dummy binding to prevent Mod+P from opening the print dialog.
+      // Firstly, there is no reason to print the UI. Secondly, plugins might
+      // register a Mod+P hotkey later at trace load time. It would be confusing
+      // if this hotkey sometimes does what you want, but sometimes shows the
+      // print dialog.
+      hotkeys.push({
+        hotkey: 'Mod+P',
+        callback: () => {},
+      });
+
+      const currentTraceId = app.trace?.engine.engineId ?? 'no-trace';
+
+      // Trace data is cached inside many components on the tree. To avoid
+      // issues with stale data when reloading a trace, we force-remount the
+      // entire tree whenever the trace changes by using the trace ID as part of
+      // the key. We also know that UIMain reloads the theme CSS variables on
+      // mount, so include the theme in the key so that changing the theme also
+      // forces a remount.
+      const uiMainKey = `${currentTraceId}-${themeSetting.get()}`;
+
+      return m(ThemeProvider, {theme: themeSetting.get()}, [
+        m(
+          HotkeyContext,
+          {
+            hotkeys,
+            fillHeight: true,
+            // When embedded, hotkeys should be scoped to the context element to
+            // avoid interfering with the parent page. In standalone mode,
+            // document-level binding provides better UX (e.g., PGUP/PGDN scroll
+            // behavior).
+            focusable: false,
+          },
+          m(OverlayContainer, {fillHeight: true}, m(UiMain, {key: uiMainKey})),
+        ),
+      ]);
+    },
   });
 
   if (
@@ -309,7 +474,7 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   maybeChangeRpcPortFromFragment();
-  CheckHttpRpcConnection().then(() => {
+  checkHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
     if (!AppImpl.instance.embeddedMode) {
       installFileDropHandler();
@@ -332,11 +497,19 @@ function onCssLoaded() {
 
   // Initialize plugins, now that we are ready to go.
   const pluginManager = AppImpl.instance.plugins;
-  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
-  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
+  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
-  pluginManager.activatePlugins(overrides);
+  pluginManager.activatePlugins(AppImpl.instance, overrides);
+}
+
+// This function is called only later after all the sub-resources (fonts,
+// images) have been loaded.
+function onWindowLoaded() {
+  // These two functions cause large network fetches and are not load bearing.
+  AppImpl.instance.serviceWorkerController.install();
+  warmupWasmWorker();
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.

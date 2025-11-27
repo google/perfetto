@@ -254,7 +254,7 @@ class Trace(object):
     binder_transaction.debug_id = transaction_id
     binder_transaction.to_proc = reply_pid
     binder_transaction.to_thread = reply_tid
-    binder_transaction.reply = False
+    binder_transaction.reply = 0
 
     # Binder reply start
     ftrace = self.__add_ftrace_event(reply_ts_start, reply_tid)
@@ -267,7 +267,7 @@ class Trace(object):
     reply_binder_transaction.debug_id = reply_id
     reply_binder_transaction.to_proc = pid
     reply_binder_transaction.to_thread = tid
-    reply_binder_transaction.reply = True
+    reply_binder_transaction.reply = 1
 
     # Binder transaction finish
     ftrace = self.__add_ftrace_event(ts_end, tid)
@@ -530,23 +530,6 @@ class Trace(object):
       packet.track_descriptor.process.process_name = process_name
     return packet
 
-  def add_chrome_process_track_descriptor(
-      self,
-      process_track,
-      pid=None,
-      process_type=None,
-      host_app_package_name="org.chromium.chrome"):
-    if process_type is None:
-      process_type = self.prototypes.ChromeProcessDescriptor \
-        .ProcessType \
-        .PROCESS_RENDERER
-
-    packet = self.add_process_track_descriptor(process_track, pid=pid)
-    chrome_process = packet.track_descriptor.chrome_process
-    chrome_process.process_type = process_type
-    chrome_process.host_app_package_name = host_app_package_name
-    return packet
-
   def add_thread_track_descriptor(self,
                                   process_track,
                                   thread_track,
@@ -563,27 +546,6 @@ class Trace(object):
       packet.track_descriptor.thread.tid = tid
     if thread_name is not None:
       packet.track_descriptor.thread.thread_name = thread_name
-    return packet
-
-  def add_chrome_thread_track_descriptor(self,
-                                         process_track,
-                                         thread_track,
-                                         trusted_packet_sequence_id=None,
-                                         pid=None,
-                                         tid=None,
-                                         thread_type=None):
-    if thread_type is None:
-      thread_type = self.prototypes.ThreadDescriptor \
-        .ChromeThreadType \
-        .CHROME_THREAD_TYPE_UNSPECIFIED
-
-    packet = self.add_thread_track_descriptor(
-        process_track,
-        thread_track,
-        trusted_packet_sequence_id=trusted_packet_sequence_id,
-        pid=pid,
-        tid=tid)
-    packet.track_descriptor.thread.chrome_thread_type = thread_type
     return packet
 
   def add_trace_packet_defaults(self,
@@ -607,31 +569,6 @@ class Trace(object):
       .BuiltinCounterType \
       .COUNTER_THREAD_TIME_NS
     return packet
-
-  def add_chrome_thread_with_cpu_counter(self,
-                                         process_track,
-                                         thread_track,
-                                         trusted_packet_sequence_id=None,
-                                         counter_track=None,
-                                         pid=None,
-                                         tid=None,
-                                         thread_type=None):
-    self.add_chrome_thread_track_descriptor(
-        process_track,
-        thread_track,
-        trusted_packet_sequence_id=trusted_packet_sequence_id,
-        pid=pid,
-        tid=tid,
-        thread_type=thread_type)
-    self.add_trace_packet_defaults(
-        trusted_packet_sequence_id=trusted_packet_sequence_id,
-        counter_track=counter_track,
-        thread_track=thread_track)
-
-    self.add_counter_track_descriptor(
-        trusted_packet_sequence_id=trusted_packet_sequence_id,
-        counter_track=counter_track,
-        thread_track=thread_track)
 
   def add_track_event_slice_begin(self,
                                   name,
@@ -873,6 +810,11 @@ def create_trace():
         setattr(res, desc.name, desc.number)
       return res
 
+  ChromeEnums = namedtuple('ChromeEnums', [
+      'ProcessType',
+      'ThreadType',
+  ])
+
   ChromeLatencyInfo = namedtuple('ChromeLatencyInfo', [
       'ComponentType',
       'Step',
@@ -880,6 +822,7 @@ def create_trace():
 
   Prototypes = namedtuple('Prototypes', [
       'TrackEvent',
+      'ChromeEnums',
       'ChromeRAILMode',
       'ChromeLatencyInfo',
       'ChromeProcessDescriptor',
@@ -899,6 +842,14 @@ def create_trace():
   prototypes = Prototypes(
       TrackEvent=get_message_class(
           pool, pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
+      ChromeEnums=ChromeEnums(
+          ProcessType=EnumPrototype.from_descriptor(
+              pool.FindEnumTypeByName(
+                  'perfetto.protos.chrome_enums.ProcessType')),
+          ThreadType=EnumPrototype.from_descriptor(
+              pool.FindEnumTypeByName(
+                  'perfetto.protos.chrome_enums.ThreadType')),
+      ),
       ChromeRAILMode=EnumPrototype.from_descriptor(
           pool.FindEnumTypeByName('perfetto.protos.ChromeRAILMode')),
       ChromeLatencyInfo=chrome_latency_info_prototypes,

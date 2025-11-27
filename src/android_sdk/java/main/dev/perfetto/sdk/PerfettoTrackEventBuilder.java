@@ -386,7 +386,7 @@ public final class PerfettoTrackEventBuilder {
   }
 
   /** Adds the events to a named track instead of the thread track where the event occurred. */
-  public PerfettoTrackEventBuilder usingNamedTrack(long parentUuid, String name) {
+  public PerfettoTrackEventBuilder usingNamedTrack(long id, String name, long parentUuid) {
     if (!mIsCategoryEnabled) {
       return this;
     }
@@ -396,7 +396,7 @@ public final class PerfettoTrackEventBuilder {
 
     NamedTrack track = mObjectsCache.mNamedTrackCache.get(name.hashCode());
     if (track == null || !track.getName().equals(name)) {
-      track = new NamedTrack(name, parentUuid, mNativeMemoryCleaner);
+      track = new NamedTrack(id, name, parentUuid, mNativeMemoryCleaner);
       mObjectsCache.mNamedTrackCache.put(name.hashCode(), track);
     }
     addPerfettoPointerToExtra(track);
@@ -407,22 +407,22 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped named track instead of the thread track where the event
    * occurred.
    */
-  public PerfettoTrackEventBuilder usingProcessNamedTrack(String name) {
+  public PerfettoTrackEventBuilder usingProcessNamedTrack(long id, String name) {
     if (!mIsCategoryEnabled) {
       return this;
     }
-    return usingNamedTrack(PerfettoTrace.getProcessTrackUuid(), name);
+    return usingNamedTrack(id, name, PerfettoTrace.getProcessTrackUuid());
   }
 
   /**
    * Adds the events to a thread scoped named track instead of the thread track where the event
    * occurred.
    */
-  public PerfettoTrackEventBuilder usingThreadNamedTrack(long tid, String name) {
+  public PerfettoTrackEventBuilder usingThreadNamedTrack(long id, String name, long tid) {
     if (!mIsCategoryEnabled) {
       return this;
     }
-    return usingNamedTrack(PerfettoTrace.getThreadTrackUuid(tid), name);
+    return usingNamedTrack(id, name, PerfettoTrace.getThreadTrackUuid(tid));
   }
 
   /** Adds the events to a counter track instead. This is required for setting counter values. */

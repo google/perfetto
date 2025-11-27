@@ -104,23 +104,23 @@ PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
 void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
   SymbolTracker::Dso dso;
   switch (file.type()) {
-    case DsoType::DSO_KERNEL:
+    case DsoType::DSO_KERNEL: {
       InsertSymbols(file, context_->symbol_tracker->kernel_symbols());
       return;
-
+    }
     case DsoType::DSO_ELF_FILE: {
       ElfFile::Decoder elf(file.elf_file());
       dso.load_bias = file.min_vaddr() - elf.file_offset_of_min_vaddr();
       break;
     }
-
     case DsoType::DSO_KERNEL_MODULE: {
       KernelModule::Decoder module(file.kernel_module());
       dso.load_bias = file.min_vaddr() - module.memory_offset_of_min_vaddr();
       break;
     }
-
-    case DsoType::DSO_DEX_FILE:
+    case DsoType::DSO_DEX_FILE: {
+      break;
+    }
     case DsoType::DSO_SYMBOL_MAP_FILE:
     case DsoType::DSO_UNKNOWN_FILE:
     default:
@@ -143,6 +143,19 @@ void PerfTracker::CreateKernelMemoryMapping(int64_t trace_ts,
   if (IsBpfMapping(params) &&
       params.memory_range.size() == std::numeric_limits<uint64_t>::max()) {
     return;
+  }
+
+  // Linux perf synthesises special MMAP/MMAP2 records for the kernel image.
+  // In particular, the KASLR address of _text is stored in the `pgoff` field.
+  // This needs special treatment since the kernel ELF is not in fact
+  // 0xffffff... in size. See:
+  // * https://elixir.bootlin.com/linux/v6.16/source/tools/perf/util/synthetic-events.c#L1156
+  // * https://lore.kernel.org/lkml/20201214105457.543111-1-jolsa@kernel.org
+  //
+  // TODO(lalitm): we are not correctly handling guest kernels, add support for
+  // that once we have some real traces with those present.
+  if (base::StartsWith(params.name, "[kernel.kallsyms]")) {
+    params.exact_offset = 0;
   }
   AddMapping(
       trace_ts, std::nullopt,

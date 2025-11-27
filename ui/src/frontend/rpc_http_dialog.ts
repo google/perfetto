@@ -131,7 +131,7 @@ Trace processor RPC API: ${tpStatus.apiVersion}
 // trying to load a new trace. We do this ahead of time just to have a
 // consistent UX (i.e. so that the user can tell if the RPC is working without
 // having to open a trace).
-export async function CheckHttpRpcConnection(): Promise<void> {
+export async function checkHttpRpcConnection(): Promise<void> {
   const state = await HttpRpcEngine.checkConnection();
   AppImpl.instance.httpRpc.httpRpcAvailable = state.connected;
   if (!state.connected) {

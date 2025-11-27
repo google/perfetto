@@ -116,6 +116,9 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
   auto* storage = context_->trace_processor_context_->storage.get();
   tables::SurfaceFlingerLayersSnapshotTable::Row snapshot;
   snapshot.ts = timestamp;
+  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(blob);
+  snapshot.has_invalid_elapsed_ts =
+      snapshot_decoder.elapsed_realtime_nanos() == 0;
   snapshot.base64_proto_id = storage->mutable_string_pool()
                                  ->InternString(base::StringView(
                                      base::Base64Encode(blob.data, blob.size)))
@@ -215,26 +218,13 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
     layer.parent = layer_decoder.parent();
   }
 
-  auto has_corner_radii = false;
-  if (layer_decoder.has_corner_radii()) {
-    protos::pbzero::CornerRadiiProto::Decoder corner_radii(
-        layer_decoder.corner_radii());
-    if (corner_radii.tl() > 0 || corner_radii.tr() > 0 ||
-        corner_radii.bl() > 0 || corner_radii.br() > 0) {
-      has_corner_radii = true;
-      layer.corner_radius_tl = static_cast<double>(corner_radii.tl());
-      layer.corner_radius_tr = static_cast<double>(corner_radii.tr());
-      layer.corner_radius_bl = static_cast<double>(corner_radii.bl());
-      layer.corner_radius_br = static_cast<double>(corner_radii.br());
-    }
-  }
-  if (!has_corner_radii && layer_decoder.has_corner_radius()) {
-    auto radius = static_cast<double>(layer_decoder.corner_radius());
-    layer.corner_radius_tl = radius;
-    layer.corner_radius_tr = radius;
-    layer.corner_radius_bl = radius;
-    layer.corner_radius_br = radius;
-  }
+  auto corner_radii =
+      surfaceflinger_layers::layer::GetCornerRadii(layer_decoder);
+  layer.corner_radius_tl = corner_radii.tl;
+  layer.corner_radius_tr = corner_radii.tr;
+  layer.corner_radius_bl = corner_radii.bl;
+  layer.corner_radius_br = corner_radii.br;
+
   if (layer_decoder.has_hwc_composition_type()) {
     layer.hwc_composition_type = layer_decoder.hwc_composition_type();
   }

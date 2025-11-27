@@ -45,7 +45,7 @@ export class PivotTableTab implements AreaSelectionTab {
     ) {
       this.previousSelection = selection;
       this.trackIds = selection.tracks
-        .filter((track) => track.tags?.kind == SLICE_TRACK_KIND)
+        .filter((track) => track.tags?.kinds?.includes(SLICE_TRACK_KIND))
         .flatMap((track) => track.tags?.trackIds ?? []);
       this.getOrCreateState().filters.setFilters([
         {
@@ -66,12 +66,15 @@ export class PivotTableTab implements AreaSelectionTab {
       isLoading: state?.getData() === undefined,
       content: m(PivotTable, {
         state,
+        getSelectableColumns: () => state.table.columns,
         extraRowButton: (node) =>
           m(Button, {
             icon: Icons.GoTo,
             onclick: () => {
               extensions.addLegacySqlTableTab(this.trace, {
-                table: assertExists(getSqlTableDescription('slice')),
+                table: assertExists(
+                  getSqlTableDescription(this.trace, 'slice'),
+                ),
                 filters: [
                   ...(state?.filters.get() ?? []),
                   ...node.getFilters(),
@@ -85,7 +88,9 @@ export class PivotTableTab implements AreaSelectionTab {
 
   private getOrCreateState(): PivotTableState {
     if (this.state !== undefined) return this.state;
-    const sliceTable = assertExists(getSqlTableDescription('slice'));
+    const sliceTable = assertExists(
+      getSqlTableDescription(this.trace, 'slice'),
+    );
     const name = assertExists(
       sliceTable.columns.find((c) => c.column === 'name'),
     );

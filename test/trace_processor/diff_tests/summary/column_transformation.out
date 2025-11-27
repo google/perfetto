@@ -1,0 +1,2806 @@
+bundle_id: "max_duration_ms"
+row {
+values {
+double_value: 54300.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "-Executor] idle"
+}
+}
+row {
+values {
+double_value: 17112.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: ".android.as.oss"
+}
+}
+row {
+values {
+double_value: 28663.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: ".android.dialer"
+}
+}
+row {
+values {
+double_value: 40474.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: ".apps.wallpaper"
+}
+}
+row {
+values {
+double_value: 25880.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: ".apps.wellbeing"
+}
+}
+row {
+values {
+double_value: 109863.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: ".gms.persistent"
+}
+}
+row {
+values {
+double_value: 21549.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: ".google.ar.core"
+}
+}
+row {
+values {
+double_value: 1524.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: ".vorbis.decoder"
+}
+}
+row {
+values {
+double_value: 487.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ANRGuard-Thread"
+}
+}
+row {
+values {
+double_value: 50648.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ActivityManager"
+}
+}
+row {
+values {
+double_value: 541848.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AsyncTask #1"
+}
+}
+row {
+values {
+double_value: 78334.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AsyncTask #2"
+}
+}
+row {
+values {
+double_value: 955.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AsyncTask #3"
+}
+}
+row {
+values {
+double_value: 11914.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AsyncTask #4"
+}
+}
+row {
+values {
+double_value: 1348.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AudioOut_15"
+}
+}
+row {
+values {
+double_value: 1415.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AudioOut_25"
+}
+}
+row {
+values {
+double_value: 363.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AudioOut_2D"
+}
+}
+row {
+values {
+double_value: 1730.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AudioOut_3D"
+}
+}
+row {
+values {
+double_value: 1176.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AudioOut_45"
+}
+}
+row {
+values {
+double_value: 146.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AudioOut_4D"
+}
+}
+row {
+values {
+double_value: 809.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AudioOut_D"
+}
+}
+row {
+values {
+double_value: 524.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "AudioService"
+}
+}
+row {
+values {
+double_value: 2255.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BACKGROUND_0"
+}
+}
+row {
+values {
+double_value: 4536.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BACKGROUND_1"
+}
+}
+row {
+values {
+double_value: 6856.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BACKGROUND_2"
+}
+}
+row {
+values {
+double_value: 231.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BACKGROUND_5"
+}
+}
+row {
+values {
+double_value: 65.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BACKGROUND_6"
+}
+}
+row {
+values {
+double_value: 51894.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BG Thread #0"
+}
+}
+row {
+values {
+double_value: 139573.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BG Thread #1"
+}
+}
+row {
+values {
+double_value: 97463.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BG Thread #2"
+}
+}
+row {
+values {
+double_value: 83745.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BG Thread #3"
+}
+}
+row {
+values {
+double_value: 1604.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BackgroundExecu"
+}
+}
+row {
+values {
+double_value: 64711.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Blocking Thread"
+}
+}
+row {
+values {
+double_value: 12633.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "BroadcastRunnin"
+}
+}
+row {
+values {
+double_value: 2343.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "CellularDataRat"
+}
+}
+row {
+values {
+double_value: 4670.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "CodecLooper"
+}
+}
+row {
+values {
+double_value: 60407.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ConnectivityThr"
+}
+}
+row {
+values {
+double_value: 33100.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Crashlytics Exc"
+}
+}
+row {
+values {
+double_value: 20315.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "CronetInit"
+}
+}
+row {
+values {
+double_value: 2567.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "DefaultDispatch"
+}
+}
+row {
+values {
+double_value: 1283.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "EuiccConnector"
+}
+}
+row {
+values {
+double_value: 50879.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "EuiccService #1"
+}
+}
+row {
+values {
+double_value: 6913.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "EventBus0"
+}
+}
+row {
+values {
+double_value: 639.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ExoPlayer:Frame"
+}
+}
+row {
+values {
+double_value: 169229.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Firebase Backgr"
+}
+}
+row {
+values {
+double_value: 5579.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Firebase-Messag"
+}
+}
+row {
+values {
+double_value: 9107.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "FlpThread"
+}
+}
+row {
+values {
+double_value: 2697.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "GAC_Executor[0]"
+}
+}
+row {
+values {
+double_value: 436150.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "GoogleApiHandle"
+}
+}
+row {
+values {
+double_value: 869.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "HwBinder:1171_2"
+}
+}
+row {
+values {
+double_value: 654.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "HwBinder:1171_5"
+}
+}
+row {
+values {
+double_value: 197.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "HwBinder:1171_6"
+}
+}
+row {
+values {
+double_value: 152.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "HwBinder:1171_7"
+}
+}
+row {
+values {
+double_value: 873.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "HwBinder:1171_8"
+}
+}
+row {
+values {
+double_value: 1913.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "HwBinder:3689_1"
+}
+}
+row {
+values {
+double_value: 292.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "InputProcessor"
+}
+}
+row {
+values {
+double_value: 11255.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "JibeServiceInit"
+}
+}
+row {
+values {
+double_value: 18018.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Lite Thread #0"
+}
+}
+row {
+values {
+double_value: 64227.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Lite Thread #1"
+}
+}
+row {
+values {
+double_value: 21008.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Lite Thread #2"
+}
+}
+row {
+values {
+double_value: 10083.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Lite Thread #3"
+}
+}
+row {
+values {
+double_value: 70807.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Lite Thread #4"
+}
+}
+row {
+values {
+double_value: 147569.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "LockSettingsSer"
+}
+}
+row {
+values {
+double_value: 517440.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Measurement Wor"
+}
+}
+row {
+values {
+double_value: 52809.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "MediaCodec_loop"
+}
+}
+row {
+values {
+double_value: 19785.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ModemODPMPoller"
+}
+}
+row {
+values {
+double_value: 48742.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "NDK MediaCodec_"
+}
+}
+row {
+values {
+double_value: 4937.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "OSEManager"
+}
+}
+row {
+values {
+double_value: 77832.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Primes-1"
+}
+}
+row {
+values {
+double_value: 25532.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Primes-nativecr"
+}
+}
+row {
+values {
+double_value: 327.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ProcessStablePh"
+}
+}
+row {
+values {
+double_value: 6639.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "RebindLoop"
+}
+}
+row {
+values {
+double_value: 49541.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "RenderThread"
+}
+}
+row {
+values {
+double_value: 11406.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "RestartDetector"
+}
+}
+row {
+values {
+double_value: 2819.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "RollbackManager"
+}
+}
+row {
+values {
+double_value: 428.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "SAViewCapture"
+}
+}
+row {
+values {
+double_value: 42690.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "SMSVC"
+}
+}
+row {
+values {
+double_value: 108730.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ScionFrontendAp"
+}
+}
+row {
+values {
+double_value: 49842.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "SoundDecoder_1"
+}
+}
+row {
+values {
+double_value: 56794.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "SoundDecoder_2"
+}
+}
+row {
+values {
+double_value: 1921.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "SplitCompatBack"
+}
+}
+row {
+values {
+double_value: 526.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "StateService"
+}
+}
+row {
+values {
+double_value: 732807.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "StorageManagerS"
+}
+}
+row {
+values {
+double_value: 28874.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "SyncAdapterThre"
+}
+}
+row {
+values {
+double_value: 23205.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "SysUiBg"
+}
+}
+row {
+values {
+double_value: 2108.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "SysUiLng"
+}
+}
+row {
+values {
+double_value: 81483.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "TaskThumbnailIc"
+}
+}
+row {
+values {
+double_value: 409170.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Thread-20"
+}
+}
+row {
+values {
+double_value: 5032.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Thread-29"
+}
+}
+row {
+values {
+double_value: 253.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Thread-3"
+}
+}
+row {
+values {
+double_value: 46516.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Thread-5"
+}
+}
+row {
+values {
+double_value: 5922.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "UiThreadHelper"
+}
+}
+row {
+values {
+double_value: 149.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "UsfTransport"
+}
+}
+row {
+values {
+double_value: 398.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ViewPool-init"
+}
+}
+row {
+values {
+double_value: 6256.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "VolumeDialogCon"
+}
+}
+row {
+values {
+double_value: 66269.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "VpnManagerServi"
+}
+}
+row {
+values {
+double_value: 7069.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "WM.task-1"
+}
+}
+row {
+values {
+double_value: 12060.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "WellbeingHandle"
+}
+}
+row {
+values {
+double_value: 57991.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "WifiHandlerThre"
+}
+}
+row {
+values {
+double_value: 93056.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "Worker-1"
+}
+}
+row {
+values {
+double_value: 2012.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "android.anim"
+}
+}
+row {
+values {
+double_value: 147471.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "android.bg"
+}
+}
+row {
+values {
+double_value: 86336.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "android.fg"
+}
+}
+row {
+values {
+double_value: 44278.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "android.hardwar"
+}
+}
+row {
+values {
+double_value: 14260.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "android.youtube"
+}
+}
+row {
+values {
+double_value: 693082.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "apexd"
+}
+}
+row {
+values {
+double_value: 60241.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "apps.dreamliner"
+}
+}
+row {
+values {
+double_value: 831.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "arch_disk_io_0"
+}
+}
+row {
+values {
+double_value: 14555.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "audioserver"
+}
+}
+row {
+values {
+double_value: 6634.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1114_3"
+}
+}
+row {
+values {
+double_value: 28133.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1114_4"
+}
+}
+row {
+values {
+double_value: 2496.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1120_2"
+}
+}
+row {
+values {
+double_value: 49775.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1120_3"
+}
+}
+row {
+values {
+double_value: 35070.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_1"
+}
+}
+row {
+values {
+double_value: 1608.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_10"
+}
+}
+row {
+values {
+double_value: 14962.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_4"
+}
+}
+row {
+values {
+double_value: 2696.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_5"
+}
+}
+row {
+values {
+double_value: 226.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_6"
+}
+}
+row {
+values {
+double_value: 876.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_7"
+}
+}
+row {
+values {
+double_value: 44546.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_8"
+}
+}
+row {
+values {
+double_value: 1122.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_9"
+}
+}
+row {
+values {
+double_value: 5963.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_A"
+}
+}
+row {
+values {
+double_value: 42766.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_B"
+}
+}
+row {
+values {
+double_value: 3447.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_C"
+}
+}
+row {
+values {
+double_value: 689.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1442_D"
+}
+}
+row {
+values {
+double_value: 2606.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1772_2"
+}
+}
+row {
+values {
+double_value: 1112.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1982_1"
+}
+}
+row {
+values {
+double_value: 82.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1982_2"
+}
+}
+row {
+values {
+double_value: 833.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:1982_5"
+}
+}
+row {
+values {
+double_value: 5813.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2251_1"
+}
+}
+row {
+values {
+double_value: 2561.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2301_4"
+}
+}
+row {
+values {
+double_value: 1064.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2353_2"
+}
+}
+row {
+values {
+double_value: 13249.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2353_3"
+}
+}
+row {
+values {
+double_value: 30701.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2448_3"
+}
+}
+row {
+values {
+double_value: 962.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2448_5"
+}
+}
+row {
+values {
+double_value: 20589.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2448_7"
+}
+}
+row {
+values {
+double_value: 1330.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2448_D"
+}
+}
+row {
+values {
+double_value: 2654.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2475_1"
+}
+}
+row {
+values {
+double_value: 159.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2475_2"
+}
+}
+row {
+values {
+double_value: 2123.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2523_3"
+}
+}
+row {
+values {
+double_value: 5920.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2666_1"
+}
+}
+row {
+values {
+double_value: 157099.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2666_2"
+}
+}
+row {
+values {
+double_value: 40457.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2666_3"
+}
+}
+row {
+values {
+double_value: 168388.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2666_5"
+}
+}
+row {
+values {
+double_value: 225972.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2666_6"
+}
+}
+row {
+values {
+double_value: 107472.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2666_7"
+}
+}
+row {
+values {
+double_value: 10366.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:2909_5"
+}
+}
+row {
+values {
+double_value: 11105.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3040_1"
+}
+}
+row {
+values {
+double_value: 155833.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3040_2"
+}
+}
+row {
+values {
+double_value: 33626.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3040_4"
+}
+}
+row {
+values {
+double_value: 9842.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3040_5"
+}
+}
+row {
+values {
+double_value: 12498.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3260_4"
+}
+}
+row {
+values {
+double_value: 9572.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3279_1"
+}
+}
+row {
+values {
+double_value: 2737.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3857_3"
+}
+}
+row {
+values {
+double_value: 106.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3857_4"
+}
+}
+row {
+values {
+double_value: 1698.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:3863_4"
+}
+}
+row {
+values {
+double_value: 717284.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:524_2"
+}
+}
+row {
+values {
+double_value: 3278.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:550_2"
+}
+}
+row {
+values {
+double_value: 9986.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:550_4"
+}
+}
+row {
+values {
+double_value: 312.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:567_1"
+}
+}
+row {
+values {
+double_value: 203.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:567_2"
+}
+}
+row {
+values {
+double_value: 483.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:567_4"
+}
+}
+row {
+values {
+double_value: 2149.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:881_5"
+}
+}
+row {
+values {
+double_value: 2990.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:935_2"
+}
+}
+row {
+values {
+double_value: 45051.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:972_1"
+}
+}
+row {
+values {
+double_value: 32445.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:972_2"
+}
+}
+row {
+values {
+double_value: 20521.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "binder:972_5"
+}
+}
+row {
+values {
+double_value: 37684.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "brella-pds-0"
+}
+}
+row {
+values {
+double_value: 960.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "citadeld"
+}
+}
+row {
+values {
+double_value: 13385.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "com.amazon.mp3"
+}
+}
+row {
+values {
+double_value: 51200.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "com.android.nfc"
+}
+}
+row {
+values {
+double_value: 50896.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "crime.securesms"
+}
+}
+row {
+values {
+double_value: 14690.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "d.process.acore"
+}
+}
+row {
+values {
+double_value: 23157.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "droid.bluetooth"
+}
+}
+row {
+values {
+double_value: 68319.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "droid.deskclock"
+}
+}
+row {
+values {
+double_value: 14381.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "e.android.euicc"
+}
+}
+row {
+values {
+double_value: 50834.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "e.android.libby"
+}
+}
+row {
+values {
+double_value: 9618.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "e.android.music"
+}
+}
+row {
+values {
+double_value: 36445.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "earchbox:search"
+}
+}
+row {
+values {
+double_value: 48968.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "elockcontroller"
+}
+}
+row {
+values {
+double_value: 2570.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "equicksearchbox"
+}
+}
+row {
+values {
+double_value: 634.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "fg"
+}
+}
+row {
+values {
+double_value: 73570.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "gatekeeperd"
+}
+}
+row {
+values {
+double_value: 26748.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "gle.android.gms"
+}
+}
+row {
+values {
+double_value: 54742.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "gle.android.ims"
+}
+}
+row {
+values {
+double_value: 24461.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "hbox:interactor"
+}
+}
+row {
+values {
+double_value: 100453.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "highpool[4]"
+}
+}
+row {
+values {
+double_value: 13216.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "highpool[5]"
+}
+}
+row {
+values {
+double_value: 17594.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "highpool[6]"
+}
+}
+row {
+values {
+double_value: 593302.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "highpool[7]"
+}
+}
+row {
+values {
+double_value: 18116.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "highpool[8]"
+}
+}
+row {
+values {
+double_value: 3376.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "hwuiTask0"
+}
+}
+row {
+values {
+double_value: 2571.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "hwuiTask1"
+}
+}
+row {
+values {
+double_value: 638.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ice] processing"
+}
+}
+row {
+values {
+double_value: 61614.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "id.printspooler"
+}
+}
+row {
+values {
+double_value: 51010.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "launcher-loader"
+}
+}
+row {
+values {
+double_value: 20569.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "le.android.keep"
+}
+}
+row {
+values {
+double_value: 14719.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "linkist.android"
+}
+}
+row {
+values {
+double_value: 3749.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "llpaper.recents"
+}
+}
+row {
+values {
+double_value: 4176.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "lowpool[4]"
+}
+}
+row {
+values {
+double_value: 42873.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "m.android.phone"
+}
+}
+row {
+values {
+double_value: 14039.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "m.spotify.music"
+}
+}
+row {
+values {
+double_value: 53559.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "malpowermanager"
+}
+}
+row {
+values {
+double_value: 128.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "mediaCloser"
+}
+}
+row {
+values {
+double_value: 13866.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "mediametrics"
+}
+}
+row {
+values {
+double_value: 58343.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ndroid.calendar"
+}
+}
+row {
+values {
+double_value: 49683.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ndroid.keychain"
+}
+}
+row {
+values {
+double_value: 45660.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ndroid.settings"
+}
+}
+row {
+values {
+double_value: 37564.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ndroid.systemui"
+}
+}
+row {
+values {
+double_value: 24660.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "ogle.android.as"
+}
+}
+row {
+values {
+double_value: 404.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "oid.grilservice"
+}
+}
+row {
+values {
+double_value: 37907.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "oid.pixellogger"
+}
+}
+row {
+values {
+double_value: 36022.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "patreon.android"
+}
+}
+row {
+values {
+double_value: 103361.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pcs-fl-0"
+}
+}
+row {
+values {
+double_value: 315.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pixelstats-vend"
+}
+}
+row {
+values {
+double_value: 1882.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "plugin"
+}
+}
+row {
+values {
+double_value: 440.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-11-thread-"
+}
+}
+row {
+values {
+double_value: 3871.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-13-thread-"
+}
+}
+row {
+values {
+double_value: 13022.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-2-thread-1"
+}
+}
+row {
+values {
+double_value: 0.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-2-thread-2"
+}
+}
+row {
+values {
+double_value: 216566.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-3-thread-1"
+}
+}
+row {
+values {
+double_value: 214859.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-3-thread-2"
+}
+}
+row {
+values {
+double_value: 28343.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-4-thread-1"
+}
+}
+row {
+values {
+double_value: 12362.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-4-thread-2"
+}
+}
+row {
+values {
+double_value: 20430.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-4-thread-4"
+}
+}
+row {
+values {
+double_value: 37276.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-4-thread-5"
+}
+}
+row {
+values {
+double_value: 13765.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-4-thread-6"
+}
+}
+row {
+values {
+double_value: 16970.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-4-thread-8"
+}
+}
+row {
+values {
+double_value: 17831.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-5-thread-1"
+}
+}
+row {
+values {
+double_value: 12948.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-6-thread-1"
+}
+}
+row {
+values {
+double_value: 218.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-82-thread-"
+}
+}
+row {
+values {
+double_value: 33078.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-83-thread-"
+}
+}
+row {
+values {
+double_value: 44750.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "pool-96-thread-"
+}
+}
+row {
+values {
+double_value: 34868.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "re-initialized>"
+}
+}
+row {
+values {
+double_value: 68258.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "rg.videolan.vlc"
+}
+}
+row {
+values {
+double_value: 10456.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "roid.apps.books"
+}
+}
+row {
+values {
+double_value: 20954.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "roid.apps.scone"
+}
+}
+row {
+values {
+double_value: 33407.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "roid.repairmode"
+}
+}
+row {
+values {
+double_value: 19884.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "rs.media.module"
+}
+}
+row {
+values {
+double_value: 8013.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "rviceImpl.Euicc"
+}
+}
+row {
+values {
+double_value: 36282.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "s.messaging:rcs"
+}
+}
+row {
+values {
+double_value: 11027.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "s.nexuslauncher"
+}
+}
+row {
+values {
+double_value: 42795.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "s.work.clouddpc"
+}
+}
+row {
+values {
+double_value: 40214.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "s.youtube.music"
+}
+}
+row {
+values {
+double_value: 6521.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "surfaceflinger"
+}
+}
+row {
+values {
+double_value: 926.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "sync-0-0"
+}
+}
+row {
+values {
+double_value: 19752.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "sync-0-1"
+}
+}
+row {
+values {
+double_value: 653.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "system_server"
+}
+}
+row {
+values {
+double_value: 54072.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "viders.calendar"
+}
+}
+row {
+values {
+double_value: 5431.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "wmshell.anim"
+}
+}
+row {
+values {
+double_value: 7975.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "wmshell.main"
+}
+}
+row {
+values {
+double_value: 43279.0
+}
+dimension {
+string_value: "binder transaction"
+}
+dimension {
+string_value: "yt-critical Thr"
+}
+}
+specs {
+id: "max_duration_ms"
+dimensions: "slice_name"
+dimensions: "thread_name"
+value: "max_dur_ms"
+query {
+  inner_query {
+    sql {
+      sql: "SELECT s.name, s.dur, t.name as thread_name FROM slice s JOIN thread_track tt ON s.track_id = tt.id JOIN thread t ON tt.utid = t.utid WHERE s.name = \'binder transaction\'"
+    }
+    select_columns {
+      alias: "slice_name"
+      column_name_or_expression: "name"
+    }
+    select_columns {
+      column_name_or_expression: "thread_name"
+    }
+    select_columns {
+      alias: "dur_ms"
+      column_name_or_expression: "dur / 1000"
+    }
+  }
+  group_by {
+    column_names: "slice_name"
+    column_names: "thread_name"
+    aggregates {
+      column_name: "dur_ms"
+      op: MAX
+      result_column_name: "max_dur_ms"
+    }
+  }
+}
+}

@@ -13,11 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonBar, ButtonVariant} from '../../../../widgets/button';
-import {Intent} from '../../../../widgets/common';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
 import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
 import {SqlValue} from '../../../../trace_processor/query_result';
+import {GridFilterChip, GridFilterBar} from '../../data_grid/data_grid';
 
 // A filter which can be applied to the table.
 export interface Filter {
@@ -111,18 +110,15 @@ export function areFiltersEqual(
 }
 
 export function renderFilters(filters: Filters): m.Children {
-  return m(
-    ButtonBar,
-    filters.get().map((filter) =>
-      m(Button, {
-        label: filterTitle(filter),
-        icon: 'close',
-        intent: Intent.Primary,
-        variant: ButtonVariant.Filled,
-        onclick: () => filters.removeFilter(filter),
-      }),
-    ),
-  );
+  return m(GridFilterBar, [
+    filters.get().map((filter) => {
+      const filterText = filterTitle(filter);
+      return m(GridFilterChip, {
+        content: filterText,
+        onRemove: () => filters.removeFilter(filter),
+      });
+    }),
+  ]);
 }
 
 export class StandardFilters {

@@ -32,13 +32,15 @@ class SymbolTracker {
  public:
   // DSO = Dynamic Shared Object.
   struct Dso {
-    uint64_t load_bias;
+    uint64_t load_bias = 0;
     AddressRangeMap<std::string> symbols;
     bool symbols_are_absolute = false;
   };
 
   explicit SymbolTracker(TraceProcessorContext* context);
   ~SymbolTracker();
+
+  void NotifyEndOfFile();
 
   AddressRangeMap<std::string>& kernel_symbols() { return kernel_symbols_; }
   base::FlatHashMap<StringId, Dso>& dsos() { return dsos_; }

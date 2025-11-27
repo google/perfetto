@@ -19,7 +19,7 @@ export async function runQueryForMcp(
   engine: Engine,
   query: string,
 ): Promise<string> {
-  const result = await engine.query(query, 'PerfettoMcp');
+  const result = await engine.query(query);
   return resultToJson(result);
 }
 
@@ -27,6 +27,12 @@ export async function resultToJson(result: QueryResult): Promise<string> {
   const columns = result.columns();
   const rows: unknown[] = [];
   for (const it = result.iter({}); it.valid(); it.next()) {
+    if (rows.length > 5000) {
+      throw new Error(
+        'Query returned too many results, max 5000 rows. Results should be aggregates rather than raw data.',
+      );
+    }
+
     const row: {[key: string]: SqlValue} = {};
     for (const name of columns) {
       let value = it.get(name);

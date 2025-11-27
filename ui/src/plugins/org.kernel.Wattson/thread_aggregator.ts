@@ -27,7 +27,7 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
   probe(area: AreaSelection): Aggregation | undefined {
     const selectedCpus: number[] = [];
     for (const trackInfo of area.tracks) {
-      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+      if (trackInfo?.tags?.kinds?.includes(CPU_SLICE_TRACK_KIND)) {
         exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
       }
     }
@@ -110,9 +110,9 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
             GROUP BY utid
           ),
           secondary AS (
-            SELECT utid,
-              ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
-                AS percent_of_total_energy
+            SELECT
+              utid,
+              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
             FROM base
             GROUP BY utid
           )

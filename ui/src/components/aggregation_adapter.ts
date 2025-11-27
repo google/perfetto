@@ -35,6 +35,8 @@ import {
   createPerfettoTable,
   DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
+import {DataGridApi} from './widgets/data_grid/data_grid';
+import {DataGridExportButton} from './widgets/data_grid/export_buttons';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -87,6 +89,7 @@ export interface AggregationPanelAttrs {
   readonly sorting: Sorting;
   readonly columns: ReadonlyArray<ColumnDef>;
   readonly barChartData?: ReadonlyArray<BarChartData>;
+  readonly onReady?: (api: DataGridApi) => void;
 }
 
 // Define a type for the expected props of the panel components so that a
@@ -129,7 +132,7 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
   kind?: string,
 ): Dataset<T> | undefined {
   const datasets = tracks
-    .filter((t) => kind === undefined || t.tags?.kind === kind)
+    .filter((t) => kind === undefined || t.tags?.kinds?.includes(kind))
     .map((t) => t.renderer.getDataset?.())
     .filter(exists)
     .filter((d) => d.implements(spec));
@@ -226,8 +229,9 @@ export function createAggregationTab(
   const limiter = new AsyncLimiter();
   let currentSelection: AreaSelection | undefined;
   let aggregation: Aggregation | undefined;
-  let barChartData: ReadonlyArray<BarChartData> | undefined;
-  let dataSource: DataGridDataSource | undefined;
+  let data: AggregationData | undefined;
+  let dataSource: SQLDataSource | undefined;
+  let dataGridApi: DataGridApi | undefined;
 
   return {
     id: aggregator.id,
@@ -238,15 +242,20 @@ export function createAggregationTab(
         currentSelection === undefined ||
         !areaSelectionsEqual(selection, currentSelection)
       ) {
+        // Every time the selection changes, probe the aggregator to see if it
+        // supports this selection.
         currentSelection = selection;
         aggregation = aggregator.probe(selection);
 
         // Kick off a new load of the data
         limiter.schedule(async () => {
+          // Clear previous data to prevent queries against a stale or partially
+          // updated table/view while `prepareData` is running.
+          dataSource = undefined;
+          data = undefined;
           if (aggregation) {
-            const data = await aggregation?.prepareData(trace.engine);
+            data = await aggregation?.prepareData(trace.engine);
             dataSource = new SQLDataSource(trace.engine, data.tableName);
-            barChartData = data.barChartData;
           }
         });
       }
@@ -280,8 +289,12 @@ export function createAggregationTab(
           dataSource,
           columns: aggregator.getColumnDefinitions(),
           sorting: aggregator.getDefaultSorting(),
-          barChartData,
+          barChartData: data?.barChartData,
+          onReady: (api: DataGridApi) => {
+            dataGridApi = api;
+          },
         }),
+        buttons: dataGridApi && m(DataGridExportButton, {api: dataGridApi}),
       };
     },
   };

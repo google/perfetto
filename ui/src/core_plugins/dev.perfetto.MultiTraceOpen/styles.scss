@@ -1,0 +1,153 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../../assets/theme.scss";
+
+.pf-multi-trace-modal {
+  &__description-panel {
+    border-bottom: 1px solid var(--pf-color-border);
+    margin-bottom: 0px;
+    padding-bottom: 0px;
+  }
+
+  &__tabs {
+    margin-bottom: 16px;
+  }
+
+  &__description-content {
+    padding: 0 8px;
+    width: 550px;
+    box-sizing: border-box;
+
+    .pf-text-paragraph {
+      padding-top: 0;
+      padding-bottom: 16px;
+      font-size: 0.9em;
+      color: var(--pf-color-text-secondary);
+      line-height: 1.4;
+    }
+  }
+
+  &__list-panel {
+    border: none;
+    overflow-y: auto;
+    width: 550px;
+    max-height: 700px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  &__card {
+    padding: 16px;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__name {
+    color: var(--pf-color-text);
+    font-size: 0.95em;
+    font-weight: 600;
+  }
+
+  &__size,
+  &__status,
+  &__format {
+    color: var(--pf-color-text-secondary);
+    font-size: 0.9em;
+  }
+
+  &__size strong,
+  &__format strong {
+    font-weight: 600;
+  }
+
+  &__actions {
+    min-width: 50px;
+  }
+
+  &__status {
+    &::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 6px;
+      border-radius: 50%;
+      background-color: var(--pf-color-border);
+    }
+
+    &--analyzed::before {
+      background-color: var(--pf-color-success);
+    }
+
+    &--analyzing::before {
+      display: none;
+    }
+
+    &--error::before {
+      background-color: var(--pf-color-danger);
+    }
+  }
+
+  &__status-wrapper {
+    align-items: center;
+  }
+
+  &__add-card {
+    border: 1px dashed var(--pf-color-border);
+    background-color: var(--pf-color-background-secondary);
+    cursor: pointer;
+    padding: 8px;
+    color: var(--pf-color-text-secondary);
+    font-family: var(--pf-font);
+    font-size: 0.9em;
+    font-weight: bold;
+    align-items: center;
+
+    &:hover {
+      background: color_hover(var(--pf-color-background-secondary));
+    }
+  }
+
+  &__footer {
+    border-top: 1px solid var(--pf-color-border);
+    padding-top: 8px;
+    margin-top: 0px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__footer-error {
+    flex: 0 0 auto;
+    font-family: var(--pf-font);
+    word-wrap: break-word;
+    white-space: normal;
+    max-width: 450px;
+  }
+
+  &__footer-spacer {
+    flex: 1;
+  }
+}
+
+.pf-multi-trace-modal-override {
+  main {
+    margin-top: 16px;
+  }
+  padding: 16px;
+  overflow-y: hidden;
+  max-width: none;
+  max-height: none;
+}

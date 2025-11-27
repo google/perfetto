@@ -74,7 +74,7 @@ protos::gen::TrackDescriptor ProcessTrack::Serialize() const {
           std::string(splitter.cur_token(), splitter.cur_token_size()));
     }
   }
-  // TODO(skyostil): Record command line on Windows and Mac.
+  // TODO(skyostil): Record command line on Windows, FreeBSD and Mac.
 #endif
   return desc;
 }
@@ -213,11 +213,15 @@ TrackRegistry::TrackRegistry() = default;
 TrackRegistry::~TrackRegistry() = default;
 
 // static
-void TrackRegistry::InitializeInstance() {
+void TrackRegistry::InitializeInstance(std::optional<uint64_t> process_uuid) {
   if (instance_)
     return;
   instance_ = new TrackRegistry();
-  Track::process_uuid = ComputeProcessUuid();
+  if (process_uuid) {
+    Track::process_uuid = *process_uuid;
+  } else {
+    Track::process_uuid = ComputeProcessUuid();
+  }
 }
 
 // static

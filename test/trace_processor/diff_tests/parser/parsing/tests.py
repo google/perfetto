@@ -417,7 +417,13 @@ class Parsing(TestSuite):
   def test_android_log_counts(self):
     return DiffTestBlueprint(
         trace=DataPath('android_log.pb'),
-        query=Path('android_log_counts_test.sql'),
+        query="""SELECT count(*) AS cnt FROM android_logs UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE prio = 3 UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE prio > 4 UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE tag = 'screen_toggled' UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE tag GLOB '*_pss' UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE msg GLOB '*i2c?write*' OR msg GLOB '*I2C?Write*' UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE ts >= 1510113924391 AND ts < 1512610021879;""",
         out=Csv("""
         "cnt"
         2249
@@ -1662,25 +1668,25 @@ class Parsing(TestSuite):
         out=Csv("""
         "ts","cpu","utid","machine_id"
         5230311628979,0,1,1
-        5230315517287,0,11,1
+        5230315517287,0,50,1
         5230315524649,0,1,1
-        5230315676788,0,10,1
+        5230315676788,0,49,1
         5230315684911,0,1,1
-        5230319663217,0,10,1
+        5230319663217,0,49,1
         5230319684310,0,1,1
-        5230323692459,0,10,1
-        5230323726976,0,11,1
+        5230323692459,0,49,1
+        5230323726976,0,50,1
         5230323764556,0,1,1
-        5230327702466,0,10,1
+        5230327702466,0,49,1
         5230327736100,0,1,1
-        5230331761483,0,10,1
-        5230331800905,0,11,1
+        5230331761483,0,49,1
+        5230331800905,0,50,1
         5230331837332,0,1,1
-        5230421799455,0,10,1
+        5230421799455,0,49,1
         5230421810047,0,1,1
-        5230422048874,0,1306,"[NULL]"
-        5230422153284,0,1306,"[NULL]"
-        5230425693562,0,10,1
+        5230422048874,0,1305,"[NULL]"
+        5230422153284,0,1305,"[NULL]"
+        5230425693562,0,49,1
         """))
 
   # Kernel idle tasks created by /sbin/init should be filtered.

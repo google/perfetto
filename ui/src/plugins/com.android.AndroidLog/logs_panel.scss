@@ -1,0 +1,52 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@function log-level-color($color, $mix) {
+  @return color-mix(in srgb, $color, var(--pf-color-text) $mix);
+}
+
+.pf-logs-panel {
+  font-size: 11px;
+  font-family: var(--pf-font-monospace);
+
+  &__row {
+    &--debug {
+      color: log-level-color(hsl(155, 79%, 51%), 30%);
+    }
+
+    &--verbose {
+      color: log-level-color(hsl(88, 81%, 48%), 30%);
+    }
+
+    &--info {
+      color: var(--pf-color-text);
+    }
+
+    &--warn {
+      color: log-level-color(hsl(45, 73%, 50%), 20%);
+    }
+
+    &--error {
+      color: log-level-color(hsl(4, 100%, 50%), 20%);
+    }
+
+    &--fatal {
+      color: log-level-color(hsl(291, 100%, 50%), 20%);
+    }
+
+    &--highlighted {
+      background: var(--pf-color-highlight);
+    }
+  }
+}

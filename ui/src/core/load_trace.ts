@@ -15,7 +15,6 @@
 import {assertExists, assertTrue} from '../base/logging';
 import {time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
-import {Cpu} from '../base/multi_machine_trace';
 import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
@@ -36,8 +35,8 @@ import {
   TraceFileStream,
   TraceHttpStream,
   TraceMultipleFilesStream,
-  TraceStream,
 } from '../core/trace_stream';
+import {TraceStream} from '../public/stream';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
@@ -48,6 +47,9 @@ import {TraceImpl} from './trace_impl';
 import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
+import {base64Decode} from '../base/string_utils';
+import {parseUrlCommands} from './command_manager';
+import {isStartupCommandAllowed} from './startup_command_allowlist';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -89,6 +91,13 @@ const FTRACE_DROP_UNTIL_FLAG = featureFlags.register({
   description:
     'Drop ftrace events until all per-cpu data streams are known to be valid',
   defaultValue: true,
+});
+const FORCE_FULL_SORT_FLAG = featureFlags.register({
+  id: 'forceFullSort',
+  name: 'Force full sort',
+  description:
+    'Forces the trace processor into performing a full sort ignoring any windowing logic',
+  defaultValue: false,
 });
 
 // TODO(stevegolton): Move this into some global "SQL extensions" file and
@@ -134,6 +143,12 @@ async function createEngine(
   if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
     useRpc = (await HttpRpcEngine.checkConnection()).connected;
   }
+  const descriptorBlobs: Uint8Array[] = [];
+  if (app.extraParsingDescriptors.length > 0) {
+    for (const b64Str of app.extraParsingDescriptors) {
+      descriptorBlobs.push(base64Decode(b64Str));
+    }
+  }
   let engine;
   if (useRpc) {
     console.log('Opening trace using native accelerator over HTTP+RPC');
@@ -150,6 +165,8 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
+      extraParsingDescriptors: descriptorBlobs,
+      forceFullSort: FORCE_FULL_SORT_FLAG.get(),
     });
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
@@ -173,6 +190,8 @@ async function loadTraceIntoEngine(
     traceStream = new TraceBufferStream(traceSource.buffer);
   } else if (traceSource.type === 'URL') {
     traceStream = new TraceHttpStream(traceSource.url);
+  } else if (traceSource.type === 'STREAM') {
+    traceStream = traceSource.stream;
   } else if (traceSource.type === 'HTTP_RPC') {
     traceStream = undefined;
   } else if (traceSource.type === 'MULTIPLE_FILES') {
@@ -212,8 +231,8 @@ async function loadTraceIntoEngine(
     await engine.registerSqlPackages(p);
   }
 
-  const traceDetails = await getTraceInfo(engine, traceSource);
-  const trace = TraceImpl.createInstanceForCore(app, engine, traceDetails);
+  const traceDetails = await getTraceInfo(engine, app, traceSource);
+  const trace = new TraceImpl(app, engine, traceDetails);
   app.setActiveTrace(trace);
 
   const visibleTimeSpan = await computeVisibleTime(
@@ -275,6 +294,61 @@ async function loadTraceIntoEngine(
     // TODO(primiano): this can probably be removed once we refactor tracks
     // to be URI based and can deal with non-existing URIs.
     deserializeAppStatePhase2(serializedAppState, trace);
+  }
+
+  // Execute startup commands as the final step - simulates user actions
+  // after the trace is fully loaded and any saved state has been restored.
+  // This ensures startup commands see the complete, final state of the trace.
+
+  // CRITICAL ORDER: URL commands MUST execute before settings commands!
+  // This ordering has subtle but important implications:
+  // - URL commands are trace-specific and should establish initial state
+  // - Settings commands are user preferences that should override URL defaults
+  // - Changing this order could break trace sharing and user customization
+  // DO NOT REORDER without understanding the full impact!
+  const urlCommands =
+    parseUrlCommands(app.initialRouteArgs.startupCommands) ?? [];
+  const settingsCommands = app.startupCommandsSetting.get();
+
+  // Combine URL and settings commands - runtime allowlist checking will handle filtering
+  const allStartupCommands = [...urlCommands, ...settingsCommands];
+  const enforceAllowlist = app.enforceStartupCommandAllowlistSetting.get();
+
+  if (allStartupCommands.length > 0) {
+    updateStatus(app, 'Running startup commands');
+    using _ = trace.omnibox.disablePrompts();
+
+    // Execute startup commands in trace context after everything is ready.
+    // This simulates user actions taken after trace load is complete,
+    // including any saved app state restoration. At this point:
+    // - All plugins have loaded and registered their commands
+    // - Trace data is fully accessible
+    // - UI state has been restored from any saved workspace
+    // - Commands can safely query trace data and modify UI state
+
+    // Set allowlist checking during startup if enforcement enabled
+    if (enforceAllowlist) {
+      app.commands.setAllowlistCheck(isStartupCommandAllowed);
+    }
+
+    try {
+      for (const command of allStartupCommands) {
+        try {
+          // Execute through proxy to access both global and trace-specific
+          // commands.
+          await app.commands.runCommand(command.id, ...command.args);
+        } catch (error) {
+          // TODO(stevegolton): Add a mechanism to notify users of startup
+          // command errors. This will involve creating a notification UX
+          // similar to VSCode where there are popups on the bottom right
+          // of the UI.
+          console.warn(`Startup command ${command.id} failed:`, error);
+        }
+      }
+    } finally {
+      // Always restore default (allow all) behavior when done
+      app.commands.setAllowlistCheck(() => true);
+    }
   }
 
   return trace;
@@ -362,6 +436,7 @@ async function computeVisibleTime(
 
 async function getTraceInfo(
   engine: Engine,
+  app: AppImpl,
   traceSource: TraceSource,
 ): Promise<TraceInfoImpl> {
   const traceTime = await getTraceTimeBounds(engine);
@@ -457,6 +532,7 @@ async function getTraceInfo(
   // trace_uuid can be missing from the TP tables if the trace is empty or in
   // other similar edge cases.
   const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({uuid: STR}).uuid : '';
+  updateStatus(app, 'Caching trace...');
   const cached = await cacheTrace(traceSource, uuid);
 
   const downloadable =
@@ -470,7 +546,6 @@ async function getTraceInfo(
     traceUrl,
     tzOffMin,
     unixOffset,
-    cpus: await getCpus(engine),
     importErrors: await getTraceErrors(engine),
     source: traceSource,
     traceType,
@@ -499,22 +574,6 @@ async function getTraceTimeBounds(engine: Engine): Promise<TimeSpan> {
     endTs: LONG,
   });
   return new TimeSpan(Time.fromRaw(bounds.startTs), Time.fromRaw(bounds.endTs));
-}
-
-// TODO(hjd): When streaming must invalidate this somehow.
-async function getCpus(engine: Engine): Promise<Cpu[]> {
-  const cpus: Cpu[] = [];
-  const queryRes = await engine.query(
-    `select ucpu, cpu, ifnull(machine_id, 0) as machine from cpu`,
-  );
-  for (
-    const it = queryRes.iter({ucpu: NUM, cpu: NUM, machine: NUM});
-    it.valid();
-    it.next()
-  ) {
-    cpus.push(new Cpu(it.ucpu, it.cpu, it.machine));
-  }
-  return cpus;
 }
 
 async function getTraceErrors(engine: Engine): Promise<number> {

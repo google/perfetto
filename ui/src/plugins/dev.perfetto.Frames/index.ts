@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -24,15 +26,29 @@ import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   FrameSelectionAggregator,
 } from './frame_selection_aggregator';
+import {Setting} from '../../public/settings';
+import {z} from 'zod';
 
 // Build a standardized URI for a frames track
-function makeUri(upid: number, kind: 'expected_frames' | 'actual_frames') {
+function makeUri(upid: number, kind: string) {
   return `/process_${upid}/${kind}`;
 }
 
-export default class implements PerfettoPlugin {
+export default class FramesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Frames';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
+  static showExperimentalJankClassification: Setting<boolean>;
+
+  static onActivate(app: App): void {
+    FramesPlugin.showExperimentalJankClassification = app.settings.register({
+      id: `${FramesPlugin.id}#showExperimentalJankClassification`,
+      name: 'show experimental jank classification track (alpha)',
+      description: 'Use alternative method to classify jank. Not recommented.',
+      schema: z.boolean(),
+      defaultValue: false,
+      requiresReload: true,
+    });
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
@@ -79,6 +95,7 @@ export default class implements PerfettoPlugin {
         uri,
         renderer: createExpectedFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
+          kinds: [SLICE_TRACK_KIND],
           trackIds,
           upid,
         },
@@ -120,31 +137,67 @@ export default class implements PerfettoPlugin {
       trackIds: STR,
       maxDepth: NUM,
     });
+
     for (; it.valid(); it.next()) {
       const upid = it.upid;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const maxDepth = it.maxDepth;
-
-      const uri = makeUri(upid, 'actual_frames');
-      ctx.tracks.registerTrack({
-        uri,
-        renderer: createActualFramesTrack(ctx, uri, maxDepth, trackIds),
-        tags: {
-          upid,
-          trackIds,
-          kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
-        },
-      });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForProcess(upid);
-      const track = new TrackNode({
-        uri,
-        name: 'Actual Timeline',
-        sortOrder: -50,
+
+      // Standard actual frames track
+      const standardUri = makeUri(upid, 'actual_frames');
+      ctx.tracks.registerTrack({
+        uri: standardUri,
+        renderer: createActualFramesTrack(
+          ctx,
+          standardUri,
+          maxDepth,
+          trackIds,
+          false,
+        ),
+        tags: {
+          upid,
+          trackIds,
+          kinds: [SLICE_TRACK_KIND, ACTUAL_FRAMES_SLICE_TRACK_KIND],
+        },
       });
-      group?.addChildInOrder(track);
+      group?.addChildInOrder(
+        new TrackNode({
+          uri: standardUri,
+          name: 'Actual Timeline',
+          sortOrder: -50,
+        }),
+      );
+
+      // Experimental jank classification track (if enabled)
+      if (FramesPlugin.showExperimentalJankClassification.get()) {
+        const experimentalUri = makeUri(upid, 'actual_frames_experimental');
+        ctx.tracks.registerTrack({
+          uri: experimentalUri,
+          renderer: createActualFramesTrack(
+            ctx,
+            experimentalUri,
+            maxDepth,
+            trackIds,
+            true,
+          ),
+          tags: {
+            upid,
+            trackIds,
+            kinds: [SLICE_TRACK_KIND],
+          },
+        });
+        group?.addChildInOrder(
+          new TrackNode({
+            uri: experimentalUri,
+            name: 'Actual Timeline (Experimental)',
+            sortOrder: -49,
+          }),
+        );
+      }
     }
   }
 }

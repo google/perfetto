@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {maybeMachineLabel} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {maybeMachineLabel} from '../../public/utils';
 
 function stripPathFromExecutable(path: string) {
   if (path[0] === '/') {
@@ -26,7 +26,10 @@ function stripPathFromExecutable(path: string) {
   }
 }
 
-function getThreadDisplayName(threadName: string | undefined, tid: number) {
+function getThreadDisplayName(
+  threadName: string | undefined,
+  tid: bigint | number,
+) {
   if (threadName) {
     return `${stripPathFromExecutable(threadName)} ${tid}`;
   } else {
@@ -128,7 +131,7 @@ export default class implements PerfettoPlugin {
       sortOrder: 50,
       isSummary: true,
     });
-    this.ctx.workspace.addChildInOrder(kernelThreadsGroup);
+    this.ctx.defaultWorkspace.addChildInOrder(kernelThreadsGroup);
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
@@ -168,6 +171,7 @@ export default class implements PerfettoPlugin {
               arg_set_id = process.arg_set_id and
               flat_key = 'chrome.process_label'
           ) chromeProcessLabels,
+          ifnull(extract_arg(process.arg_set_id, 'process_sort_index_hint'), 0) as processSortIndexHint,
           case process.name
             when 'Browser' then 3
             when 'Gpu' then 2
@@ -187,6 +191,7 @@ export default class implements PerfettoPlugin {
           slice_count as sliceCount,
           perf_sample_count as perfSampleCount,
           instruments_sample_count as instrumentsSampleCount,
+          ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as threadSortIndexHint,
           ifnull(machine_id, 0) as machine
         from _thread_available_info_summary
         join thread using (utid)
@@ -202,6 +207,7 @@ export default class implements PerfettoPlugin {
           machine
         from processGroups
         order by
+          processSortIndexHint asc,
           chromeProcessRank desc,
           heapProfileAllocationCount desc,
           heapGraphObjectCount desc,
@@ -223,6 +229,7 @@ export default class implements PerfettoPlugin {
           machine
         from threadGroups
         order by
+          threadSortIndexHint asc,
           perfSampleCount desc,
           instrumentsSampleCount desc,
           sumRunningDur desc,
@@ -271,7 +278,7 @@ export default class implements PerfettoPlugin {
         });
 
         // Re-insert the child node to sort it
-        this.ctx.workspace.addChildInOrder(group);
+        this.ctx.defaultWorkspace.addChildInOrder(group);
         this.processGroups.set(uid, group);
       } else {
         // Ignore kernel process groups
@@ -288,7 +295,7 @@ export default class implements PerfettoPlugin {
         });
 
         // Re-insert the child node to sort it
-        this.ctx.workspace.addChildInOrder(group);
+        this.ctx.defaultWorkspace.addChildInOrder(group);
         this.threadGroups.set(uid, group);
       }
     }
@@ -337,7 +344,7 @@ export default class implements PerfettoPlugin {
 
     const it = result.iter({
       utid: NUM,
-      tid: NUM,
+      tid: LONG,
       upid: NUM,
       threadName: STR_NULL,
     });

@@ -21,8 +21,7 @@ executable("trace_redactor") {
   deps = [
     ":trace_redaction",
     "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/base",
+    "../base",
   ]
 }
 
@@ -32,6 +31,8 @@ source_set("trace_redaction") {
     "add_synth_threads_to_process_trees.h",
     "broadphase_packet_filter.cc",
     "broadphase_packet_filter.h",
+    "collect_clocks.cc",
+    "collect_clocks.h",
     "collect_frame_cookies.cc",
     "collect_frame_cookies.h",
     "collect_system_info.cc",
@@ -57,12 +58,16 @@ source_set("trace_redaction") {
     "proto_util.h",
     "prune_package_list.cc",
     "prune_package_list.h",
+    "prune_perf_events.cc",
+    "prune_perf_events.h",
     "redact_ftrace_events.cc",
     "redact_ftrace_events.h",
     "redact_process_events.cc",
     "redact_process_events.h",
     "redact_sched_events.cc",
     "redact_sched_events.h",
+    "redactor_clock_converter.cc",
+    "redactor_clock_converter.h",
     "reduce_threads_in_process_trees.cc",
     "reduce_threads_in_process_trees.h",
     "scrub_process_stats.cc",
@@ -76,16 +81,18 @@ source_set("trace_redaction") {
   ]
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/base",
     "../../include/perfetto/protozero:protozero",
-    "../../include/perfetto/trace_processor:storage",
+    "../../include/perfetto/trace_processor:util",
     "../../protos/perfetto/common:zero",
+    "../../protos/perfetto/trace:minimal_zero",
     "../../protos/perfetto/trace:non_minimal_zero",
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
+    "../../protos/perfetto/trace/profiling:zero",
     "../../protos/perfetto/trace/ps:zero",
-    "../trace_processor:storage_minimal",
+    "../base",
+    "../trace_processor/util:blob",
+    "../trace_processor/util:clock",
   ]
 }
 
@@ -98,6 +105,7 @@ source_set("integrationtests") {
     "filter_task_rename_integrationtest.cc",
     "process_thread_timeline_integrationtest.cc",
     "prune_package_list_integrationtest.cc",
+    "prune_perf_events_integrationtest.cc",
     "redact_sched_events_integrationtest.cc",
     "reduce_threads_in_process_trees_integrationtest.cc",
     "scrub_process_stats_integrationtest.cc",
@@ -109,7 +117,6 @@ source_set("integrationtests") {
     ":trace_redaction",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../include/perfetto/ext/base",
     "../../include/perfetto/trace_processor:trace_processor",
     "../../protos/perfetto/trace:non_minimal_cpp",
     "../../protos/perfetto/trace:non_minimal_zero",
@@ -117,6 +124,7 @@ source_set("integrationtests") {
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:zero",
+    "../base",
     "../base:test_support",
   ]
 }
@@ -125,6 +133,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "broadphase_packet_filter_unittest.cc",
+    "collect_clocks_unittest.cc",
     "collect_frame_cookies_unittest.cc",
     "collect_system_info_unittest.cc",
     "collect_timeline_events_unittest.cc",
@@ -141,11 +150,12 @@ perfetto_unittest_source_set("unittests") {
     ":trace_redaction",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../include/perfetto/ext/base:base",
     "../../include/perfetto/protozero:protozero",
     "../../protos/perfetto/common:cpp",
+    "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config:zero",
+    "../../protos/perfetto/trace:minimal_cpp",
     "../../protos/perfetto/trace:non_minimal_cpp",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:cpp",
@@ -154,6 +164,7 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:cpp",
     "../../protos/perfetto/trace/ps:zero",
+    "../base",
     "../base:test_support",
   ]
 }

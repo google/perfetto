@@ -20,11 +20,10 @@ import {SortDirection} from '../../../../base/comparison_utils';
 import {assertTrue} from '../../../../base/logging';
 import {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
-import {runQueryForQueryTable} from '../../../query_table/queries';
-import {AsyncLimiter} from '../../../../base/async_limiter';
 import {areFiltersEqual, Filter, Filters} from './filters';
 import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
 import {moveArrayItem} from '../../../../base/array_utils';
+import {uuidv4} from '../../../../base/uuid';
 
 const ROW_LIMIT = 100;
 
@@ -56,9 +55,9 @@ interface RowCount {
 
 export class SqlTableState {
   public readonly filters: Filters;
+  public readonly uuid: string;
 
   private readonly additionalImports: string[];
-  private readonly asyncLimiter = new AsyncLimiter();
 
   // Columns currently displayed to the user. All potential columns can be found `this.table.columns`.
   private columns: TableColumn[];
@@ -70,8 +69,6 @@ export class SqlTableState {
   private request: Request;
   private data?: Data;
   private rowCount?: RowCount;
-
-  private _nonPaginatedData?: Data;
 
   constructor(
     readonly trace: Trace,
@@ -88,6 +85,7 @@ export class SqlTableState {
     },
   ) {
     this.additionalImports = args?.imports || [];
+    this.uuid = uuidv4();
 
     this.filters = args?.filters || new Filters();
     this.filters.addObserver(() => this.reload());
@@ -113,14 +111,6 @@ export class SqlTableState {
 
     this.request = this.buildRequest();
     this.reload();
-  }
-
-  get nonPaginatedData() {
-    if (this._nonPaginatedData === undefined) {
-      this.getNonPaginatedData();
-    }
-
-    return this._nonPaginatedData;
   }
 
   clone(): SqlTableState {
@@ -159,46 +149,16 @@ export class SqlTableState {
   }
 
   // We need column names to pass to the debug track creation logic.
-  private buildSqlSelectStatement(): {
+  private buildSqlSelectStatement(mode: 'display' | 'data'): {
     selectStatement: string;
     columns: {[key: string]: string};
   } {
-    const columns: {[key: string]: SqlColumn} = {};
-    // A set of columnIds for quick lookup.
-    const sqlColumnIds: Set<string> = new Set();
-    // We want to use the shortest posible name for each column, but we also need to mindful of potential collisions.
-    // To avoid collisions, we append a number to the column name if there are multiple columns with the same name.
-    const columnNameCount: {[key: string]: number} = {};
-
-    const tableColumns: {
-      column: SqlColumn;
-      name: string;
-      alias: string;
-    }[] = [];
-
-    for (const column of this.columns) {
-      // If TableColumn has an alias, use it. Otherwise, use the column name.
-      const name = tableColumnAlias(column);
-      if (!(name in columnNameCount)) {
-        columnNameCount[name] = 0;
-      }
-
-      // Note: this can break if the user specifies a column which ends with `__<number>`.
-      // We intentionally use two underscores to avoid collisions and will fix it down the line if it turns out to be a problem.
-      const alias = `${name}__${++columnNameCount[name]}`;
-      tableColumns.push({column: column.column, name, alias});
-    }
-
-    for (const column of tableColumns) {
-      const sqlColumn = column.column;
-      // If we have only one column with this name, we don't need to disambiguate it.
-      if (columnNameCount[column.name] === 1) {
-        columns[column.name] = sqlColumn;
-      } else {
-        columns[column.alias] = sqlColumn;
-      }
-      sqlColumnIds.add(sqlColumnId(sqlColumn));
-    }
+    const columns: {[key: string]: SqlColumn} = Object.fromEntries(
+      this.columns.map((c) => [
+        tableColumnAlias(c),
+        mode === 'data' ? c.column : c.display ?? c.column,
+      ]),
+    );
 
     return {
       selectStatement: this.getSqlQuery(columns),
@@ -215,12 +175,8 @@ export class SqlTableState {
     return `
       ${this.getSQLImports()}
 
-      ${this.buildSqlSelectStatement().selectStatement}
+      ${this.buildSqlSelectStatement('data').selectStatement}
     `;
-  }
-
-  getPaginatedSQLQuery(): Request {
-    return this.request;
   }
 
   canGoForward(): boolean {
@@ -264,7 +220,7 @@ export class SqlTableState {
   }
 
   private buildRequest(): Request {
-    const {selectStatement, columns} = this.buildSqlSelectStatement();
+    const {selectStatement, columns} = this.buildSqlSelectStatement('display');
     // We fetch one more row to determine if we can go forward.
     const query = `
       ${this.getSQLImports()}
@@ -330,22 +286,6 @@ export class SqlTableState {
     raf.scheduleFullRedraw();
   }
 
-  private async getNonPaginatedData() {
-    this.asyncLimiter.schedule(async () => {
-      const queryRes = await runQueryForQueryTable(
-        this.getNonPaginatedSQLQuery(),
-        this.trace.engine,
-      );
-
-      this._nonPaginatedData = {
-        rows: queryRes.rows,
-        error: queryRes.error,
-      };
-
-      raf.scheduleFullRedraw();
-    });
-  }
-
   getTotalRowCount(): number | undefined {
     return this.rowCount?.count;
   }
@@ -405,20 +345,41 @@ export class SqlTableState {
   hideColumnAtIndex(index: number) {
     const column = this.columns[index];
     this.columns.splice(index, 1);
-    // We can only filter by the visibile columns to avoid confusing the user,
+    this.willRemoveColumn(column);
+    // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
+    this.reload({offset: 'keep'});
+  }
+
+  replaceColumnAtIndex(index: number, column: TableColumn) {
+    this.willRemoveColumn(this.columns[index]);
+    this.columns[index] = column;
+    this.reload({offset: 'keep'});
+  }
+
+  private willRemoveColumn(column: TableColumn) {
+    // We can only filter by the visible columns to avoid confusing the user,
     // so we remove order by clauses that refer to the hidden column.
     this.orderBy = this.orderBy.filter(
       (c) => tableColumnId(c.column) !== tableColumnId(column),
     );
-    // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
-    this.reload({offset: 'keep'});
   }
 
   moveColumn(fromIndex: number, toIndex: number) {
     moveArrayItem(this.columns, fromIndex, toIndex);
   }
 
-  getSelectedColumns(): TableColumn[] {
+  getSelectedColumns(): readonly TableColumn[] {
     return this.columns;
   }
+}
+
+export function getSelectableColumns(state: SqlTableState): TableColumn[] {
+  const columns = [...state.getSelectedColumns()];
+  const existingColumnIds = new Set<string>(columns.map(tableColumnId));
+  columns.concat(
+    state.config.columns.filter(
+      (c) => !existingColumnIds.has(tableColumnId(c)),
+    ),
+  );
+  return columns;
 }

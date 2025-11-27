@@ -144,16 +144,22 @@ struct FtraceEventAndFieldId {
 // TODO(lalitm): going through this array is O(n) on a hot-path (see
 // ParseTypedFtraceToRaw). Consider changing this if we end up adding a lot of
 // events here.
-constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 7>{
+constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 9>{
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
         protos::pbzero::SchedBlockedReasonFtraceEvent::kCallerFieldNumber},
     FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
+        protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber},
+    FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kWorkqueueActivateWorkFieldNumber,
+        protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
+    FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kWorkqueueExecuteStartFieldNumber,
         protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
-        protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
-        protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber},
+        protos::pbzero::FtraceEvent::kWorkqueueExecuteEndFieldNumber,
+        protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kFuncgraphEntryFieldNumber,
         protos::pbzero::FuncgraphEntryFtraceEvent::kFuncFieldNumber},
@@ -740,6 +746,11 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
         storage->IncrementStats(stats::ftrace_setup_errors, 1);
         error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
       }
+      if (evt.exclusive_feature_error().size > 0) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace exclusive feature error: " +
+                     evt.exclusive_feature_error().ToStdString();
+      }
       if (!error_str.empty()) {
         auto error_str_id = storage->InternString(base::StringView(error_str));
         context_->metadata_tracker->AppendMetadata(
@@ -1207,7 +1218,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kDmaFenceEmitFieldNumber:
       case FtraceEvent::kDmaFenceSignaledFieldNumber:
       case FtraceEvent::kDmaFenceWaitStartFieldNumber:
-      case FtraceEvent::kDmaFenceWaitEndFieldNumber: {
+      case FtraceEvent::kDmaFenceWaitEndFieldNumber:
+      case FtraceEvent::kDrmSchedJobDoneFieldNumber:
+      case FtraceEvent::kDrmSchedJobQueueFieldNumber:
+      case FtraceEvent::kDrmSchedJobRunFieldNumber: {
         drm_tracker_.ParseDrm(ts, fld.id(), pid, fld_bytes);
         break;
       }
@@ -1622,7 +1636,7 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  protozero::ProtoDecoder decoder(blob);
+  ProtoDecoder decoder(blob);
 
   // Special handling for events matching a convention - derive track/counter
   // tracks for them automatically (no perfetto code changes needed).
@@ -2483,11 +2497,14 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // If the process is a fork, start a new process.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
-    proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm,
-                                  ThreadNamePriority::kFtrace);
+    auto upid =
+        proc_tracker->StartNewProcess(timestamp, std::nullopt, new_tid,
+                                      new_comm, ThreadNamePriority::kFtrace);
 
     auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
     auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
+
+    proc_tracker->AssociateCreatedProcessToParentThread(upid, source_utid);
 
     ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
         timestamp, new_utid, source_utid);
@@ -2500,7 +2517,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   auto new_utid = proc_tracker->StartNewThread(timestamp, new_tid);
   proc_tracker->UpdateThreadName(new_utid, new_comm,
                                  ThreadNamePriority::kFtrace);
-  proc_tracker->AssociateThreads(source_utid, new_utid);
+  proc_tracker->AssociateThreads(source_utid, new_utid,
+                                 /*associate_main_threads*/ true);
 
   ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
       timestamp, new_utid, source_utid);
@@ -3271,27 +3289,13 @@ void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
                                            protozero::ConstBytes blob) {
   protos::pbzero::CpuFrequencyLimitsFtraceEvent::Decoder evt(blob);
 
-  static constexpr auto kMaxBlueprint = tracks::CounterBlueprint(
-      "cpu_max_frequency_limit", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
-      }));
-
   TrackId max_track = context_->track_tracker->InternTrack(
-      kMaxBlueprint, tracks::Dimensions(evt.cpu_id()));
+      tracks::kCpuMaxFrequencyLimitBlueprint, tracks::Dimensions(evt.cpu_id()));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.max_freq()), max_track);
 
-  static constexpr auto kMinBlueprint = tracks::CounterBlueprint(
-      "cpu_min_frequency_limit", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
-      }));
-
   TrackId min_track = context_->track_tracker->InternTrack(
-      kMinBlueprint, tracks::Dimensions(evt.cpu_id()));
+      tracks::kCpuMinFrequencyLimitBlueprint, tracks::Dimensions(evt.cpu_id()));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.min_freq()), min_track);
 }

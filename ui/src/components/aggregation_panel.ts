@@ -19,24 +19,26 @@ import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
 import {ColumnDefinition, DataGridDataSource} from './widgets/data_grid/common';
-import {DataGrid, renderCell} from './widgets/data_grid/data_grid';
+import {DataGrid, renderCell, DataGridApi} from './widgets/data_grid/data_grid';
+import {defaultValueFormatter} from './widgets/data_grid/export_utils';
 
 export interface AggregationPanelAttrs {
   readonly dataSource: DataGridDataSource;
   readonly sorting: Sorting;
   readonly columns: ReadonlyArray<ColumnDef>;
   readonly barChartData?: ReadonlyArray<BarChartData>;
+  readonly onReady?: (api: DataGridApi) => void;
 }
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    const {dataSource, sorting, columns, barChartData} = attrs;
+    const {dataSource, sorting, columns, barChartData, onReady} = attrs;
 
     return m(Stack, {fillHeight: true, spacing: 'none'}, [
       barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
-      m(StackAuto, this.renderTable(dataSource, sorting, columns)),
+      m(StackAuto, this.renderTable(dataSource, sorting, columns, onReady)),
     ]);
   }
 
@@ -44,8 +46,10 @@ export class AggregationPanel
     dataSource: DataGridDataSource,
     sorting: Sorting,
     columns: ReadonlyArray<ColumnDef>,
+    onReady?: (api: DataGridApi) => void,
   ) {
     const columnsById = new Map(columns.map((c) => [c.columnId, c]));
+
     return m(DataGrid, {
       fillHeight: true,
       showResetButton: false,
@@ -58,9 +62,14 @@ export class AggregationPanel
       }),
       data: dataSource,
       initialSorting: sorting,
+      onReady,
       cellRenderer: (value: SqlValue, columnName: string) => {
         const formatHint = columnsById.get(columnName)?.formatHint;
         return this.renderCell(value, columnName, formatHint);
+      },
+      valueFormatter: (value: SqlValue, columnName: string) => {
+        const formatHint = columnsById.get(columnName)?.formatHint;
+        return valueFormatter(value, formatHint);
       },
     });
   }
@@ -89,11 +98,21 @@ export class AggregationPanel
 
   private renderCell(value: SqlValue, colName: string, formatHint?: string) {
     if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
-      return m('span.pf-data-grid__cell--number', Duration.humanise(value));
-    } else if (formatHint === 'PERCENT') {
-      return m('span.pf-data-grid__cell--number', `${value}%`);
+      return Duration.humanise(value);
+    } else if (formatHint === 'PERCENT' && typeof value === 'number') {
+      return `${(value * 100).toFixed(2)}%`;
     } else {
       return renderCell(value, colName);
     }
+  }
+}
+
+function valueFormatter(value: SqlValue, formatHint?: string): string {
+  if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+    return Duration.humanise(value);
+  } else if (formatHint === 'PERCENT' && typeof value === 'number') {
+    return `${(value * 100).toFixed(2)}%`;
+  } else {
+    return defaultValueFormatter(value);
   }
 }

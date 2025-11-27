@@ -1,0 +1,146 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1001
+    name: "Callstack Track"
+    thread {
+      pid: 42
+      tid: 4242
+      thread_name: "CallstackThread"
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  interned_data {
+    mapping_paths {
+      iid: 1
+      str: "/bin/callstack_demo"
+    }
+    build_ids {
+      iid: 1
+      str: "buildid"
+    }
+    function_names {
+      iid: 1
+      str: "FuncA"
+    }
+    function_names {
+      iid: 2
+      str: "FuncB"
+    }
+    frames {
+      iid: 1
+      function_name_id: 1
+      mapping_id: 1
+      rel_pc: 16
+    }
+    frames {
+      iid: 2
+      function_name_id: 2
+      mapping_id: 1
+      rel_pc: 32
+    }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+      frame_ids: 2
+    }
+    mappings {
+      iid: 1
+      path_string_ids: 1
+      build_id: 1
+      start: 4096
+      end: 8192
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 10
+  track_event {
+    track_uuid: 1001
+    type: 1  # TYPE_SLICE_BEGIN
+    name: "Inline Slice 1"
+    callstack {
+      frames {
+        function_name: "InlineMain"
+        source_file: "main.cc"
+        line_number: 10
+      }
+      frames {
+        function_name: "InlineLeaf"
+        source_file: "leaf.cc"
+        line_number: 42
+      }
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 30
+  track_event {
+    track_uuid: 1001
+    type: 2  # TYPE_SLICE_END
+    name: "Inline Slice 1"
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 40
+  track_event {
+    track_uuid: 1001
+    type: 1  # TYPE_SLICE_BEGIN
+    name: "Inline Slice 2"
+    callstack {
+      frames {
+        function_name: "InlineMain"
+        source_file: "main.cc"
+        line_number: 10
+      }
+      frames {
+        function_name: "InlineLeaf"
+        source_file: "leaf.cc"
+        line_number: 42
+      }
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 70
+  track_event {
+    track_uuid: 1001
+    type: 2  # TYPE_SLICE_END
+    name: "Inline Slice 2"
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_event {
+    track_uuid: 1001
+    type: 1  # TYPE_SLICE_BEGIN
+    name: "Interned Slice"
+    callstack_iid: 1
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 140
+  track_event {
+    track_uuid: 1001
+    type: 2  # TYPE_SLICE_END
+    name: "Interned Slice"
+    callstack_iid: 1
+  }
+}

@@ -35,15 +35,18 @@ namespace perfetto::trace_processor::tracks {
 
 // Creates a blueprint for a slice track.
 // See TrackTracker::InternTrack for usage of this function.
-template <typename NB = NameBlueprintT::Auto, typename... D>
+template <typename NB = NameBlueprintT::Auto,
+          typename DeB = DescriptionBlueprintT::None,
+          typename... D>
 constexpr auto SliceBlueprint(const char type[],
                               DimensionBlueprintsT<D...> dimensions = {},
-                              NB name = NB{}) {
+                              NB name = NB{},
+                              DeB description = DeB{}) {
   static_assert(sizeof...(D) < 8, "At most 8 dimensions are supported");
   auto dims_array = std::apply(
       [](auto&&... x) { return std::array<DimensionBlueprintBase, 8>{x...}; },
       dimensions);
-  return BlueprintT<NB, UnitBlueprintT::Unknown, D...>{
+  return BlueprintT<NB, UnitBlueprintT::Unknown, DeB, D...>{
       {
           "slice",
           type,
@@ -52,6 +55,7 @@ constexpr auto SliceBlueprint(const char type[],
       },
       name,
       UnitBlueprintT::Unknown{},
+      description,
   };
 }
 
@@ -59,16 +63,18 @@ constexpr auto SliceBlueprint(const char type[],
 // See TrackTracker::InternTrack for usage on this function.
 template <typename NB = NameBlueprintT::Auto,
           typename UB = UnitBlueprintT::Unknown,
+          typename DeB = DescriptionBlueprintT::None,
           typename... D>
 constexpr auto CounterBlueprint(const char type[],
                                 UB unit,
                                 DimensionBlueprintsT<D...> dimensions = {},
-                                NB name = NB{}) {
+                                NB name = NB{},
+                                DeB description = DeB{}) {
   static_assert(sizeof...(D) < 8, "At most 8 dimensions are supported");
   auto dims_array = std::apply(
       [](auto&&... x) { return std::array<DimensionBlueprintBase, 8>{x...}; },
       dimensions);
-  return BlueprintT<NB, UB, D...>{
+  return BlueprintT<NB, UB, DeB, D...>{
       {
           "counter",
           type,
@@ -77,6 +83,7 @@ constexpr auto CounterBlueprint(const char type[],
       },
       name,
       unit,
+      description,
   };
 }
 
@@ -151,6 +158,30 @@ constexpr auto UnknownUnitBlueprint() {
   return UnitBlueprintT::Unknown{};
 }
 
+// Indicates that the track has no description.
+constexpr auto NoDescriptionBlueprint() {
+  return DescriptionBlueprintT::None{};
+}
+
+// Indicates that the description of this track is given by a static string.
+constexpr auto StaticDescriptionBlueprint(const char description[]) {
+  return DescriptionBlueprintT::Static{description};
+}
+
+// Indicates the description of this track is dynamic and will be provided at
+// InternTrack time.
+constexpr auto DynamicDescriptionBlueprint() {
+  return DescriptionBlueprintT::Dynamic{};
+}
+
+// Indicates the description of the track is a function which accepts as input
+// the dimensions of the track and returns a base::StackString containing the
+// results of transforming the dimensions.
+template <typename F>
+constexpr auto FnDescriptionBlueprint(F fn) {
+  return DescriptionBlueprintT::Fn<F>{{}, fn};
+}
+
 // End of blueprint functions.
 
 // Start of InternTrack helper functions.
@@ -180,6 +211,17 @@ constexpr std::nullptr_t BlueprintUnit() {
 // Indicates that the unit of the track should be `id`. Only valid if
 // `DynamicUnitBlueprint()` was passed when creating the blueprint.
 constexpr StringPool::Id DynamicUnit(StringPool::Id id) {
+  return id;
+}
+
+// Indicates that the description of the track was provided in the blueprint.
+constexpr std::nullptr_t BlueprintDescription() {
+  return nullptr;
+}
+
+// Indicates that the description of the track should be `id`. Only valid if
+// `DynamicDescriptionBlueprint()` was passed when creating the blueprint.
+constexpr StringPool::Id DynamicDescription(StringPool::Id id) {
   return id;
 }
 

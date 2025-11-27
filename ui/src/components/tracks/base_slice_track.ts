@@ -20,14 +20,16 @@ import {VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/logging';
 import {clamp, floatEqual} from '../../base/math_utils';
 import {cropText} from '../../base/string_utils';
+import {HighPrecisionTime} from '../../base/high_precision_time';
 import {Time, time} from '../../base/time';
-import {exists} from '../../base/utils';
+import {TimeScale} from '../../base/time_scale';
 import {uuidv4Sql} from '../../base/uuid';
 import {featureFlags} from '../../core/feature_flags';
 import {raf} from '../../core/raf_scheduler';
 import {Trace} from '../../public/trace';
 import {
   Slice,
+  SnapPoint,
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,
@@ -109,15 +111,6 @@ function filterVisibleSlices<S extends Slice>(
   // The last visible slice is simpler, since the slices are sorted
   // by timestamp you can binary search for the last slice such
   // that slice.start <= end.
-
-  // One specific edge case that will come up often is when:
-  // For all slice in slices: slice.startNsQ > end (e.g. all slices are
-  // to the right).
-  // Since the slices are sorted by startS we can check this easily:
-  const maybeFirstSlice: S | undefined = slices[0];
-  if (exists(maybeFirstSlice) && maybeFirstSlice.startNs > end) {
-    return [];
-  }
 
   return slices.filter((slice) => slice.startNs <= end && slice.endNs >= start);
 }
@@ -430,7 +423,13 @@ export abstract class BaseSliceTrack<
     await this.maybeRequestData(rawSlicesKey);
   }
 
-  render({ctx, size, visibleWindow, timescale}: TrackRenderContext): void {
+  render({
+    ctx,
+    size,
+    visibleWindow,
+    timescale,
+    colors,
+  }: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
 
@@ -648,9 +647,8 @@ export abstract class BaseSliceTrack<
 
       // Draw a thicker border around the selected slice (or chevron).
       const slice = discoveredSelection;
-      const color = slice.colorScheme;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      ctx.strokeStyle = color.base.setHSL({s: 100, l: 10}).cssString;
+      ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
       ctx.beginPath();
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;
@@ -984,6 +982,68 @@ export abstract class BaseSliceTrack<
       top,
       bottom: top + this.sliceLayout.sliceHeight,
     };
+  }
+
+  getSnapPoint(
+    targetTime: time,
+    thresholdPx: number,
+    timescale: TimeScale,
+  ): SnapPoint | undefined {
+    // Convert pixel threshold to time duration (in nanoseconds as number)
+    const thresholdNs = timescale.pxToDuration(thresholdPx);
+
+    // Use HighPrecisionTime to handle time arithmetic with fractional nanoseconds
+    const hpTargetTime = new HighPrecisionTime(targetTime);
+    const hpSearchStart = hpTargetTime.addNumber(-thresholdNs);
+    const hpSearchEnd = hpTargetTime.addNumber(thresholdNs);
+
+    // Convert back to time for comparisons
+    const searchStart = hpSearchStart.toTime();
+    const searchEnd = hpSearchEnd.toTime();
+
+    let closestSnap: SnapPoint | undefined = undefined;
+    let closestDistNs = thresholdNs;
+
+    // Helper function to check a boundary
+    const checkBoundary = (boundaryTime: time) => {
+      // Skip if outside search window
+      if (boundaryTime < searchStart || boundaryTime > searchEnd) {
+        return;
+      }
+
+      // Calculate distance using HighPrecisionTime for accuracy
+      const hpBoundary = new HighPrecisionTime(boundaryTime);
+      const distNs = Math.abs(hpTargetTime.sub(hpBoundary).toNumber());
+
+      if (distNs < closestDistNs) {
+        closestSnap = {
+          time: boundaryTime,
+        };
+        closestDistNs = distNs;
+      }
+    };
+
+    // Check regular slices
+    for (const slice of this.slices) {
+      // Check start boundary using precise timestamp
+      checkBoundary(slice.ts);
+
+      // Check end boundary (if non-zero duration)
+      if (slice.dur > 0n) {
+        const endTime = Time.add(slice.ts, slice.dur);
+        checkBoundary(endTime);
+      }
+    }
+
+    // Check incomplete slices
+    for (const slice of this.incomplete) {
+      // Use precise timestamp for incomplete slices too
+      checkBoundary(slice.ts);
+
+      // Incomplete slices have dur = -1, so we don't check end
+    }
+
+    return closestSnap;
   }
 
   protected get engine() {

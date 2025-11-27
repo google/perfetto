@@ -25,7 +25,7 @@ export class CounterSelectionAggregator implements Aggregator {
   probe(area: AreaSelection): Aggregation | undefined {
     const trackIds: (string | number)[] = [];
     for (const trackInfo of area.tracks) {
-      if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
+      if (trackInfo?.tags?.kinds?.includes(COUNTER_TRACK_KIND)) {
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
       }
     }

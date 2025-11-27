@@ -65,10 +65,12 @@ action("gen_buildflags") {
   }
 
   # We need local symbolization to run diff tests in chrome.
-  if (enable_perfetto_tools ||
-      (enable_perfetto_trace_processor && build_with_chromium)) {
+  if (enable_perfetto_trace_processor &&
+      (perfetto_build_standalone || build_with_chromium) &&
+      !perfetto_build_with_android) {
     perfetto_local_symbolizer =
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX() || " +
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_FREEBSD() || " +
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_MAC() ||" +
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_WIN()"
   } else {
@@ -106,6 +108,8 @@ action("gen_buildflags") {
     "PERFETTO_SYSTEM_CONSUMER=$enable_perfetto_system_consumer",
     "PERFETTO_THREAD_SAFETY_ANNOTATIONS=$perfetto_thread_safety_annotations",
     "PERFETTO_ENABLE_WINSCOPE=$enable_perfetto_winscope",
+    "PERFETTO_ENABLE_RT_MUTEX=$enable_perfetto_rt_mutex",
+    "PERFETTO_ENABLE_LOCKFREE_TASKRUNNER=$enable_perfetto_lockfree_taskrunner",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -226,10 +230,11 @@ protobuf_full_deps_allowlist = [
   "../src/ipc/protoc_plugin:*",
   "../src/protozero/protoc_plugin:*",
   "../src/protozero/filtering:filter_util",
-  "../src/trace_processor:trace_processor_shell",
+  "../src/trace_processor:trace_processor_shell_lib",
   "../src/protozero/filtering:filter_util",
   "../tools/*",
   "../src/tools/*",
+  "../contrib/rust-sdk/tools/*",
 ]
 
 group("protoc") {

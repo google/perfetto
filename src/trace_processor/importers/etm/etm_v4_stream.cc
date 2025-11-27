@@ -17,7 +17,7 @@
 #include "src/trace_processor/importers/etm/etm_v4_stream.h"
 
 #include <cstdint>
-#include <memory>
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -26,11 +26,19 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #include "src/trace_processor/importers/etm/frame_decoder.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
 #include "src/trace_processor/importers/etm/storage_handle.h"
+#include "src/trace_processor/importers/perf/aux_record.h"
+#include "src/trace_processor/importers/perf/itrace_start_record.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/util.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/etm_tables_py.h"
 
 namespace perfetto::trace_processor::etm {
 namespace {
@@ -125,9 +133,8 @@ base::Status EtmV4Stream::OnItraceStartRecord(
     perf_importer::ItraceStartRecord start) {
   std::optional<int64_t> start_ts;
   if (start.time().has_value()) {
-    ASSIGN_OR_RETURN(start_ts, context_->clock_tracker->ToTraceTime(
-                                   start.attr->clock_id(),
-                                   static_cast<int64_t>(*start.time())));
+    start_ts = context_->clock_tracker->ToTraceTime(
+        start.attr->clock_id(), static_cast<int64_t>(*start.time()));
   }
   if (session_.has_value()) {
     EndSession();
@@ -139,9 +146,21 @@ base::Status EtmV4Stream::OnItraceStartRecord(
 void EtmV4Stream::StartSession(std::optional<int64_t> start_ts) {
   PERFETTO_CHECK(stream_active_);
   PERFETTO_CHECK(!session_.has_value());
-  session_.emplace(context_->storage->mutable_etm_v4_session_table()
-                       ->Insert({config_id_, start_ts})
-                       .id);
+  auto session_id = context_->storage->mutable_etm_v4_session_table()
+                        ->Insert({config_id_, start_ts})
+                        .id;
+  session_.emplace(session_id);
+
+  if (start_ts) {
+    static constexpr auto kETMSessionBlueprint =
+        tracks::CounterBlueprint("etm_session", tracks::UnknownUnitBlueprint(),
+                                 tracks::DimensionBlueprints(),
+                                 tracks::StaticNameBlueprint("ETMSession"));
+    TrackId track_id =
+        context_->track_tracker->InternTrack(kETMSessionBlueprint);
+    context_->event_tracker->PushCounter(
+        start_ts.value(), static_cast<double>(session_id.value), track_id);
+  }
 }
 
 void EtmV4Stream::AddChunk(TraceBlobView chunk) {

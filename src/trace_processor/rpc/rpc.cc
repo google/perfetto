@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,13 +38,11 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
-#include "protos/perfetto/trace_summary/file.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -100,22 +99,32 @@ void Response::Send(Rpc::RpcResponseFunction send_fn) {
 }  // namespace
 
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
-         bool has_preloaded_eof)
-    : trace_processor_(std::move(preloaded_instance)),
+         bool has_preloaded_eof,
+         Config default_config,
+         std::function<void(TraceProcessor*)> on_trace_processor_created)
+    : default_config_(default_config),
+      on_trace_processor_created_(std::move(on_trace_processor_created)),
+      current_config_(std::move(default_config)),
+      trace_processor_(std::move(preloaded_instance)),
       eof_(trace_processor_ ? has_preloaded_eof : false) {
   if (!trace_processor_) {
-    ResetTraceProcessorInternal(Config());
+    ResetTraceProcessorInternal(default_config_);
   }
 }
 
-Rpc::Rpc() : Rpc(nullptr, false) {}
+Rpc::Rpc() : Rpc(nullptr, false, Config(), {}) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
-  trace_processor_config_ = config;
-  trace_processor_ = TraceProcessor::CreateInstance(config);
+  current_config_ = config;
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
+
+  trace_processor_ = TraceProcessor::CreateInstance(config);
+  if (on_trace_processor_created_) {
+    on_trace_processor_created_(trace_processor_.get());
+  }
+
   // Deliberately not resetting the RPC channel state (rxbuf_, {tx,rx}_seq_id_).
   // This is invoked from the same client to clear the current trace state
   // before loading a new one. The IPC channel is orthogonal to that and the
@@ -386,6 +395,9 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         for (const std::string& p : r.preambles) {
           query_res->add_preambles(p);
         }
+        for (const std::string& c : r.columns) {
+          query_res->add_columns(c);
+        }
       }
       resp.Send(rpc_response_fn_);
       break;
@@ -418,7 +430,7 @@ base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   if (eof_) {
     // Reset the trace processor state if another trace has been previously
     // loaded. Use the same TraceProcessor Config.
-    ResetTraceProcessorInternal(trace_processor_config_);
+    ResetTraceProcessorInternal(current_config_);
   }
 
   eof_ = false;
@@ -447,7 +459,7 @@ base::Status Rpc::NotifyEndOfFile() {
 void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
   protos::pbzero::ResetTraceProcessorArgs::Decoder reset_trace_processor_args(
       args, len);
-  Config config;
+  Config config = default_config_;
   if (reset_trace_processor_args.has_drop_track_event_data_before()) {
     config.drop_track_event_data_before =
         reset_trace_processor_args.drop_track_event_data_before() ==
@@ -481,6 +493,20 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
     case Args::ParsingMode::TOKENIZE_AND_SORT:
       config.parsing_mode = ParsingMode::kTokenizeAndSort;
       break;
+  }
+  switch (reset_trace_processor_args.sorting_mode()) {
+    case Args::SortingMode::DEFAULT_HEURISTICS:
+      config.sorting_mode = SortingMode::kDefaultHeuristics;
+      break;
+    case Args::SortingMode::FORCE_FULL_SORT:
+      config.sorting_mode = SortingMode::kForceFullSort;
+      break;
+  }
+  for (auto it = reset_trace_processor_args.extra_parsing_descriptors(); it;
+       ++it) {
+    protozero::ConstBytes bytes = it->as_bytes();
+    config.extra_parsing_descriptors.emplace_back(
+        reinterpret_cast<const char*>(bytes.data), bytes.size);
   }
   ResetTraceProcessorInternal(config);
 }

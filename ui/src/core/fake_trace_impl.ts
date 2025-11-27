@@ -21,6 +21,7 @@ import {SettingsManagerImpl} from './settings_manager';
 import {TraceImpl} from './trace_impl';
 import {TraceInfoImpl} from './trace_info_impl';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {commandInvocationArraySchema} from './command_manager';
 
 export interface FakeTraceImplArgs {
   // If true suppresses exceptions when trying to issue a query. This is to
@@ -60,6 +61,27 @@ export function initializeAppImplForTesting(): AppImpl {
         schema: z.enum(['dummy']),
         defaultValue: 'dummy',
       }),
+      analyticsSetting: settingsManager.register({
+        id: 'analyticsEnable',
+        name: 'Enable UI Telemetry',
+        description: '',
+        schema: z.boolean(),
+        defaultValue: true,
+      }),
+      startupCommandsSetting: settingsManager.register({
+        id: 'startupCommands',
+        name: 'Startup Commands',
+        description: '',
+        schema: commandInvocationArraySchema,
+        defaultValue: [],
+      }),
+      enforceStartupCommandAllowlistSetting: settingsManager.register({
+        id: 'enforceStartupCommandAllowlist',
+        name: 'Enforce Startup Command Allowlist',
+        description: '',
+        schema: z.boolean(),
+        defaultValue: true,
+      }),
     });
   }
   return AppImpl.instance;
@@ -76,7 +98,6 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     end: Time.fromSeconds(10),
     unixOffset: Time.ZERO,
     tzOffMin: 0,
-    cpus: [],
     importErrors: 0,
     traceType: 'proto',
     hasFtrace: false,
@@ -85,7 +106,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     downloadable: false,
   };
   AppImpl.instance.closeCurrentTrace();
-  const trace = TraceImpl.createInstanceForCore(
+  const trace = new TraceImpl(
     AppImpl.instance,
     new FakeEngine(args.allowQueries ?? false),
     fakeTraceInfo,

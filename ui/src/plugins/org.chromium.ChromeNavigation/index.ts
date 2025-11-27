@@ -48,10 +48,10 @@ export default class implements PerfettoPlugin {
     // so they can easily be inspected without scrolling through a lot of
     // vertical space.
     trace.commands.registerCommand({
-      id: 'org.chromium.ChromeNavigation#PinNavigationTracks',
+      id: 'org.chromium.PinNavigationTracks',
       name: 'Chrome Navigation: Pin relevant tracks',
       callback: () => {
-        trace.workspace.flatTracks
+        trace.currentWorkspace.flatTracks
           .filter((t) => PIN_TRACK_NAME_PATTERNS.some((p) => t.name.match(p)))
           .forEach((t) => t.pin());
       },
@@ -65,7 +65,7 @@ export default class implements PerfettoPlugin {
     // their parent tracks, so we can have the collapsable process/thread
     // tracks and keep the UI consistent.
     trace.commands.registerCommand({
-      id: 'org.chromium.ChromeNavigation#CreateWorkspaceWithTracks',
+      id: 'org.chromium.CreateWorkspaceWithTracks',
       name: `Chrome Navigation: Go to "${NAVIGATION_WORKSPACE_NAME}" workspace`,
       defaultHotkey: 'Shift+N',
       callback: () => {
@@ -81,7 +81,7 @@ export default class implements PerfettoPlugin {
         }
 
         // Find all tracks that we want to be visible.
-        trace.workspace.flatTracks
+        trace.currentWorkspace.flatTracks
           .filter((t) =>
             INTERESTING_TRACKS_NAME_PATTERNS.some((p) => t.name.match(p)),
           )
@@ -112,7 +112,7 @@ export default class implements PerfettoPlugin {
 
         // Create the workspace and add all the relevant tracks to it.
         ws = trace.workspaces.createEmptyWorkspace(NAVIGATION_WORKSPACE_NAME);
-        for (const track of trace.workspace.children) {
+        for (const track of trace.currentWorkspace.children) {
           const maybeTrack = visit(track);
           if (maybeTrack !== undefined) {
             ws.addChildInOrder(maybeTrack);

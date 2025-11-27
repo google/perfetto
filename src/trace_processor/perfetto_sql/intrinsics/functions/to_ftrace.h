@@ -23,11 +23,9 @@
 #include <optional>
 #include <vector>
 
-#include "perfetto/base/status.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/string_writer.h"
-#include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -46,7 +44,7 @@ class SystraceSerializer {
   using StringIdMap =
       base::FlatHashMap<StringId, std::vector<std::optional<uint32_t>>>;
 
-  void SerializePrefix(uint32_t raw_row, base::StringWriter* writer);
+  void SerializePrefix(uint32_t raw_row, base::FixedStringWriter* writer);
 
   StringIdMap proto_id_to_arg_index_by_event_;
   const TraceStorage* storage_ = nullptr;
@@ -54,19 +52,18 @@ class SystraceSerializer {
   tables::ArgTable::ConstCursor cursor_;
 };
 
-struct ToFtrace : public LegacySqlFunction {
-  struct Context {
-    explicit Context(TraceProcessorContext* ctx)
+struct ToFtrace : public sqlite::Function<ToFtrace> {
+  struct UserData {
+    explicit UserData(TraceProcessorContext* ctx)
         : storage(ctx->storage.get()), serializer(ctx) {}
     const TraceStorage* storage;
     SystraceSerializer serializer;
   };
 
-  static base::Status Run(Context*,
-                          size_t argc,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors& destructors);
+  static constexpr char kName[] = "TO_FTRACE";
+  static constexpr int kArgCount = 1;
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 
 }  // namespace perfetto::trace_processor

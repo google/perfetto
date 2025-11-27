@@ -26,7 +26,10 @@ package perfetto.protos;
 // previous InternedData message with same sequence ID should be used.
 // TODO(fmayer): Move to the intern tables to a common location.
 message InternedString {
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
+
+  // The actual string.
   optional bytes str = 2;
 }
 
@@ -67,9 +70,11 @@ message ModuleSymbols {
 
 message Mapping {
   // Interning key.
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
 
   // Interning key.
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 build_id = 2;
 
   // The linker may create multiple memory mappings for the same shared
@@ -103,6 +108,18 @@ message Mapping {
   optional uint64 start_offset = 3;
   optional uint64 start = 4;
   optional uint64 end = 5;
+
+  // Libunwindstack-specific concept, not to be confused with bionic linker's
+  // notion of load_bias. Needed to correct relative pc addresses (as produced
+  // by libunwindstack) when doing offline resymbolisation.
+  //
+  // For an executable ELF PT_LOAD segment, this is:
+  //   p_vaddr - p_offset
+  //
+  // Where p_offset means that the code is at that offset into the ELF file on
+  // disk. While p_vaddr is the offset at which the code gets *mapped*, relative
+  // to where the linker loads the ELF into the address space. For most ELFs,
+  // the two values are identical and therefore load_bias is zero.
   optional uint64 load_bias = 6;
 
   // E.g. ["system", "lib64", "libc.so"]
@@ -111,18 +128,46 @@ message Mapping {
 }
 
 message Frame {
-  // Interning key
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
 
   // E.g. "fopen"
   // id of string.
   optional uint64 function_name_id = 2;
 
+  // The mapping in which this frame's instruction pointer resides.
+  // iid of Mapping.iid.
+  //
+  // If set (non-zero), rel_pc MUST also be set. If mapping_id is 0 (not set),
+  // this frame has no associated memory mapping (e.g., symbolized frames
+  // without address information).
+  //
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 mapping_id = 3;
+
+  // Instruction pointer relative to the start of the mapping.
+  // MUST be set if mapping_id is set (non-zero). Ignored if mapping_id is 0.
   optional uint64 rel_pc = 4;
+
+  // Source file path for this frame.
+  // This is typically set during online symbolization when symbol information
+  // is available at trace collection time. If not set, source file paths may be
+  // added later via offline symbolization (see ModuleSymbols).
+  //
+  // Starts from 1, 0 is the same as "not set".
+  //
+  // iid of InternedData.source_paths.
+  optional uint64 source_path_iid = 5;
+
+  // Line number in the source file for this frame.
+  // This is typically set during online symbolization when symbol information
+  // is available at trace collection time. If not set, line numbers may be
+  // added later via offline symbolization (see ModuleSymbols).
+  optional uint32 line_number = 6;
 }
 
 message Callstack {
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
   // Frames of this callstack. Bottom frame first.
   repeated uint64 frame_ids = 2;

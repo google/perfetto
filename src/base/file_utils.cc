@@ -48,6 +48,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_SET_FILE_PERMISSIONS
 #include <fcntl.h>
@@ -68,7 +69,7 @@ int CloseFindHandle(HANDLE h) {
   return FindClose(h) ? 0 : -1;
 }
 
-std::optional<std::wstring> ToUtf16(const std::string str) {
+std::optional<std::wstring> ToUtf16(const std::string& str) {
   int len = MultiByteToWideChar(CP_UTF8, 0, str.data(),
                                 static_cast<int>(str.size()), nullptr, 0);
   if (len < 0) {
@@ -188,6 +189,49 @@ ssize_t WriteAll(int fd, const void* buf, size_t count) {
   return static_cast<ssize_t>(written);
 }
 
+base::Status CopyFileContents(int fd_in, int fd_out) {
+  off_t original_offset = lseek(fd_in, 0, SEEK_CUR);
+  if (original_offset == -1) {
+    return base::ErrStatus(
+        "Can't get offset in 'fd_in', lseek error: %s (errno: %d)",
+        strerror(errno), errno);
+  }
+
+  if (lseek(fd_in, 0, SEEK_SET) == -1) {
+    return base::ErrStatus(
+        "Can't change the offset in 'fd_in', lseek error: %s (errno: %d)",
+        strerror(errno), errno);
+  }
+
+  auto restore_offset_on_exit = OnScopeExit([fd_in, original_offset] {
+    // 'lseek' should never fail here, but if it fails, we crash, to prevent
+    // possible data loss/overwrite in the 'fd_in'.
+    PERFETTO_CHECK(lseek(fd_in, original_offset, SEEK_SET) >= 0);
+  });
+
+  // Use bigger buffer when copy files.
+  constexpr size_t kCopyFileBufSize = 32 * 1024;  // 32KB.
+  static_assert(kCopyFileBufSize > kBufSize);
+  // Don't allocate that much memory on stack.
+  std::vector<char> buffer(kCopyFileBufSize);
+  for (;;) {
+    ssize_t bytes_read = Read(fd_in, buffer.data(), buffer.size());
+    if (bytes_read == 0)
+      break;
+    if (bytes_read < 0) {
+      return base::ErrStatus("Read failed: %s (errno: %d)", strerror(errno),
+                             errno);
+    }
+    ssize_t written =
+        WriteAll(fd_out, buffer.data(), static_cast<size_t>(bytes_read));
+    if (written != bytes_read) {
+      return base::ErrStatus("Write failed: %s (errno: %d)", strerror(errno),
+                             errno);
+    }
+  }
+  return base::OkStatus();
+}
+
 ssize_t WriteAllHandle(PlatformHandle h, const void* buf, size_t count) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   DWORD wsize = 0;
@@ -247,19 +291,33 @@ ScopedFile OpenFile(const std::string& path, int flags, FileOpenMode mode) {
   return fd;
 }
 
-ScopedFstream OpenFstream(const char* path, const char* mode) {
+ScopedFstream OpenFstream(const std::string& path, const std::string& mode) {
   ScopedFstream file;
-// On Windows fopen interprets filename using the ANSI or OEM codepage but
-// sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
-// filename correctly we use _wfopen and a UTF-16 string on windows.
+  // On Windows fopen interprets filename using the ANSI or OEM codepage but
+  // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
+  // filename correctly we use _wfopen and a UTF-16 string on windows.
+  //
+  // On Windows fopen also open files in the text mode by default, but we want
+  // to open them in the binary mode, to avoid silly EOL translations (and to be
+  // consistent with base::OpenFile). So we check the mode first and append 'b'
+  // mode only when it makes sense.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  std::string s_mode(mode);
+  // Windows supports non-standard mode extension that sets encoding in text
+  // mode. If you need to open a FILE* in text mode, use the fopen API directly.
+  bool is_text_mode = Contains(s_mode, "ccs=") || Contains(s_mode, "t");
+  PERFETTO_CHECK(!is_text_mode);
+  bool is_binary_mode = Contains(s_mode, 'b');
+  if (!is_binary_mode)
+    s_mode += 'b';
+
   auto w_path = ToUtf16(path);
-  auto w_mode = ToUtf16(mode);
+  auto w_mode = ToUtf16(s_mode);
   if (w_path && w_mode) {
     file.reset(_wfopen(w_path->c_str(), w_mode->c_str()));
   }
 #else
-  file.reset(fopen(path, mode));
+  file.reset(fopen(path.c_str(), mode.c_str()));
 #endif
   return file;
 }
@@ -362,6 +420,77 @@ std::string GetFileExtension(const std::string& filename) {
   return filename.substr(ext_idx);
 }
 
+std::string Basename(const std::string& path) {
+  // Handle empty path
+  if (path.empty())
+    return ".";
+
+  // Make a copy to work with
+  std::string p = path;
+
+  // Strip trailing slashes (both / and \)
+  while (p.size() > 1 && (p.back() == '/' || p.back() == '\\')) {
+    p.pop_back();
+  }
+
+  // If the path is now empty or just a single slash, return it
+  if (p.empty() || p == "/" || p == "\\")
+    return p.empty() ? "/" : p;
+
+  // Find the last directory separator (either / or \)
+  size_t last_sep = p.find_last_of("/\\");
+
+  if (last_sep == std::string::npos) {
+    // No separator found, the whole path is the basename
+    return p;
+  }
+
+  // Return everything after the last separator
+  return p.substr(last_sep + 1);
+}
+
+std::string Dirname(const std::string& path) {
+  // Handle empty path
+  if (path.empty())
+    return ".";
+
+  // Make a copy to work with
+  std::string p = path;
+
+  // Strip trailing slashes (both / and \)
+  while (p.size() > 1 && (p.back() == '/' || p.back() == '\\')) {
+    p.pop_back();
+  }
+
+  // If the path is now just a single slash, return it
+  if (p == "/" || p == "\\")
+    return p;
+
+  // Find the last directory separator (either / or \)
+  size_t last_sep = p.find_last_of("/\\");
+
+  if (last_sep == std::string::npos) {
+    // No separator found, return "."
+    return ".";
+  }
+
+  // If the separator is at position 0, return the root
+  if (last_sep == 0)
+    return p.substr(0, 1);  // Return "/" or "\"
+
+  // Strip trailing slashes from the dirname part
+  while (last_sep > 0 && (p[last_sep - 1] == '/' || p[last_sep - 1] == '\\')) {
+    --last_sep;
+  }
+
+  // If we've consumed all characters, return the root
+  if (last_sep == 0)
+    return p.substr(0, 1);
+
+  // Return everything up to (but not including) the last separator
+  return p.substr(0, last_sep);
+}
+
 base::Status SetFilePermissions(const std::string& file_path,
                                 const std::string& group_name_or_id,
                                 const std::string& mode_bits) {
@@ -415,8 +544,8 @@ std::optional<uint64_t> GetFileSize(const std::string& file_path) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // This does not use base::OpenFile to avoid getting an exclusive lock.
   base::ScopedPlatformHandle fd(
-      CreateFileA(file_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+      CreateFileA(file_path.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ,
+                  nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
 #else
   base::ScopedFile fd(base::OpenFile(file_path, O_RDONLY | O_CLOEXEC));
 #endif

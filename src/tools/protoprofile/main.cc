@@ -14,24 +14,30 @@
  * limitations under the License.
  */
 
+#include <fcntl.h>
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
-#include "perfetto/protozero/proto_decoder.h"
-#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_profiler.h"
 
 #include "protos/third_party/pprof/profile.pbzero.h"
 
-namespace perfetto {
-namespace protoprofile {
+namespace perfetto::protoprofile {
 namespace {
 
 class PprofProfileComputer {
@@ -54,7 +60,7 @@ class PprofProfileComputer {
 };
 
 int PprofProfileComputer::InternString(const std::string& s) {
-  auto val = string_to_id_.Find(s);
+  auto* val = string_to_id_.Find(s);
   if (val) {
     return *val;
   }
@@ -65,7 +71,7 @@ int PprofProfileComputer::InternString(const std::string& s) {
 }
 
 int PprofProfileComputer::InternLocation(const std::string& s) {
-  auto val = locations_.Find(s);
+  auto* val = locations_.Find(s);
   if (val) {
     return *val;
   }
@@ -87,7 +93,7 @@ std::string PprofProfileComputer::Compute(
   using PathToSamplesMap = std::unordered_map<
       trace_processor::util::SizeProfileComputer::FieldPath,
       std::vector<size_t>,
-      trace_processor::util::SizeProfileComputer::FieldPathHasher>;
+      base::MurmurHash<trace_processor::util::SizeProfileComputer::FieldPath>>;
   PathToSamplesMap field_path_to_samples;
   for (auto sample = computer.GetNext(); sample; sample = computer.GetNext()) {
     field_path_to_samples[computer.GetPath()].push_back(*sample);
@@ -119,7 +125,7 @@ std::string PprofProfileComputer::Compute(
   // For each unique field path we've seen write out the stats:
   for (auto& entry : field_path_to_samples) {
     std::vector<std::string> field_path;
-    for (const auto& field : entry.first) {
+    for (const auto& field : entry.first.fields) {
       if (field.has_field_name())
         field_path.push_back(field.field_name());
       field_path.push_back(field.type_name());
@@ -224,8 +230,7 @@ int Main(int argc, const char** argv) {
 }
 
 }  // namespace
-}  // namespace protoprofile
-}  // namespace perfetto
+}  // namespace perfetto::protoprofile
 
 int main(int argc, const char** argv) {
   return perfetto::protoprofile::Main(argc, argv);

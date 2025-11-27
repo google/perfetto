@@ -109,7 +109,7 @@ def Main():
   with open(tmp_file, 'w') as f:
     with contextlib.redirect_stdout(f):
       print_tables()
-  os.rename(tmp_file, dst_file)
+  os.replace(tmp_file, dst_file)
 
   print('Running clang-format (might fail if depot_tools isn\'t in the PATH)')
   os.system('clang-format -i ' + dst_file)

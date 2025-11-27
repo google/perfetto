@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_parser.h"
+#include "src/trace_processor/importers/proto/winscope/windowmanager_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
@@ -64,7 +65,6 @@ class WinscopeModule : public ProtoImporterModule {
                                           protozero::ConstBytes blob);
   void ParseInputMethodServiceData(int64_t timestamp,
                                    protozero::ConstBytes blob);
-  void ParseWindowManagerData(int64_t timestamp, protozero::ConstBytes blob);
 
   winscope::WinscopeContext context_;
   util::ProtoToArgsParser args_parser_;
@@ -74,7 +74,8 @@ class WinscopeModule : public ProtoImporterModule {
   ShellTransitionsParser shell_transitions_parser_;
   ProtoLogParser protolog_parser_;
   AndroidInputEventParser android_input_event_parser_;
-  ViewCaptureParser viewcapture_parser_;
+  winscope::ViewCaptureParser viewcapture_parser_;
+  winscope::WindowManagerParser windowmanager_parser_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -42,23 +42,26 @@ import {
   StandardColumn,
   TimestampColumn,
 } from '../../components/widgets/sql/table/columns';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 
 function createPluginSliceIdColumn(
   trace: Trace,
   trackUri: string,
   name: string,
 ): TableColumn {
-  const col = new StandardColumn(name);
+  const col = new StandardColumn(name, undefined);
   col.renderCell = (value: SqlValue, tableManager: TableManager) => {
     if (value === null || typeof value !== 'bigint') {
       return renderStandardCell(value, name, tableManager);
     }
-    return renderSliceRef({
-      trace: trace,
-      id: Number(value),
-      trackUri: trackUri,
-      title: `${value}`,
-    });
+    return {
+      content: renderSliceRef({
+        trace: trace,
+        id: Number(value),
+        trackUri: trackUri,
+        title: `${value}`,
+      }),
+    };
   };
   return col;
 }
@@ -69,11 +72,11 @@ function createScrollTimelineTableColumns(
 ): TableColumn[] {
   return [
     createPluginSliceIdColumn(trace, trackUri, 'id'),
-    new StandardColumn('scroll_update_id'),
-    new TimestampColumn('ts'),
-    new DurationColumn('dur'),
-    new StandardColumn('name'),
-    new StandardColumn('classification'),
+    new StandardColumn('scroll_update_id', PerfettoSqlTypes.INT),
+    new TimestampColumn(trace, 'ts'),
+    new DurationColumn(trace, 'dur'),
+    new StandardColumn('name', PerfettoSqlTypes.STRING),
+    new StandardColumn('classification', PerfettoSqlTypes.STRING),
   ];
 }
 
@@ -204,11 +207,14 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         }),
         m(TreeNode, {
           left: 'Start time',
-          right: m(Timestamp, {ts: this.sliceData.ts}),
+          right: m(Timestamp, {trace: this.trace, ts: this.sliceData.ts}),
         }),
         m(TreeNode, {
           left: 'Duration',
-          right: m(DurationWidget, {dur: this.sliceData.dur}),
+          right: m(DurationWidget, {
+            trace: this.trace,
+            dur: this.sliceData.dur,
+          }),
         }),
         m(TreeNode, {
           left: 'SQL ID',
@@ -247,7 +253,10 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
           right:
             this.scrollData.vsyncInterval === undefined
               ? `${this.scrollData.vsyncInterval}`
-              : m(DurationWidget, {dur: this.scrollData.vsyncInterval}),
+              : m(DurationWidget, {
+                  trace: this.trace,
+                  dur: this.scrollData.vsyncInterval,
+                }),
         }),
         m(TreeNode, {
           left: 'Is presented',

@@ -131,52 +131,6 @@ class Tables(TestSuite):
         query=Metric('trace_metadata'),
         out=Path('trace_metadata.json.out'))
 
-  # Processes as a metric
-  def test_android_task_names(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          process_tree {
-            processes {
-              pid: 1
-              ppid: 0
-              cmdline: "init"
-              uid: 0
-            }
-            processes {
-              pid: 2
-              ppid: 1
-              cmdline: "com.google.android.gm:process"
-              uid: 10001
-            }
-          }
-        }
-        packet {
-          packages_list {
-            packages {
-              name: "com.google.android.gm"
-              uid: 10001
-            }
-          }
-        }
-        """),
-        query=Metric('android_task_names'),
-        out=TextProto(r"""
-        android_task_names {
-          process {
-            pid: 1
-            process_name: "init"
-            uid: 0
-          }
-          process {
-            pid: 2
-            process_name: "com.google.android.gm:process"
-            uid: 10001
-            uid_package_name: "com.google.android.gm"
-          }
-        }
-        """))
-
   # Ftrace stats imports in metadata and stats tables
   def test_ftrace_setup_errors(self):
     return DiffTestBlueprint(
@@ -388,6 +342,65 @@ class Tables(TestSuite):
           1,1,2,57,"[NULL]"
         """))
 
+  def test_flow_direction_corrected_by_timestamp(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+          packet {
+            timestamp: 50
+            track_event {
+              name: "Slice A"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 10
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 100
+            track_event {
+              name: "Slice B"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 20
+              flow_ids: 42
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 200
+            track_event {
+              name: "Slice B"
+              type: TYPE_SLICE_END
+              track_uuid: 20
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 400
+            track_event {
+              name: "Slice A"
+              type: TYPE_SLICE_END
+              track_uuid: 10
+              flow_ids: 42
+            }
+            trusted_packet_sequence_id: 123
+          }
+        """),
+        query="""
+        SELECT 
+          s_out.name as name_out,
+          s_out.ts as ts_out,
+          s_in.name as name_in,
+          s_in.ts as ts_in,
+          f.trace_id
+        FROM flow f
+        JOIN slice s_out ON f.slice_out = s_out.id  
+        JOIN slice s_in ON f.slice_in = s_in.id
+        ORDER BY f.id;
+        """,
+        out=Csv("""
+          "name_out","ts_out","name_in","ts_in","trace_id"
+          "Slice A",50,"Slice B",100,42
+        """))
+
   def test_clock_snapshot_table_multiplier(self):
     return DiffTestBlueprint(
         trace=TextProto("""
@@ -527,4 +540,25 @@ class Tables(TestSuite):
         "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version"
         0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]"
         1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33
+        """))
+
+  # user list table
+  def test_android_user_list(self):
+    return DiffTestBlueprint(
+        trace=DataPath('trace_user_list.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.user_list;
+
+
+        SELECT
+          android_user_id,
+          type
+        FROM android_user_list
+        ORDER BY android_user_id;
+        """,
+        out=Csv("""
+        "android_user_id","type"
+        0,"android.os.usertype.system.HEADLESS" 
+        10,"android.os.usertype.full.SECONDARY" 
+        11,"android.os.usertype.full.GUEST"
         """))

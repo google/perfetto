@@ -40,16 +40,19 @@ export class Icons {
   static readonly Star = 'star';
   static readonly ChangeTab = 'tab';
   static readonly Crashed = 'warning';
-  static readonly Chart = 'bar_chart';
   static readonly Change = 'change_circle';
   static readonly GoTo = 'arrow_forward';
   static readonly ContextMenuAlt = 'more_vert';
+  static readonly Info = 'info';
   static readonly Warning = 'warning';
   static readonly Help = 'help';
   static readonly Download = 'download';
   static readonly Check = 'check';
   static readonly Search = 'search';
   static readonly Save = 'save';
+  static readonly Undo = 'undo';
+  static readonly Redo = 'redo';
+  static readonly NoData = 'search_off';
 
   // Page control
   static readonly NextPage = 'chevron_right';
@@ -63,6 +66,17 @@ export class Icons {
   static readonly ResetState = 'restart_alt';
   static readonly Remove = 'clear';
 
+  // Data analysis
+  static readonly Analyze = 'analytics';
+  static readonly Chart = 'bar_chart';
+  static readonly Pivot = 'pivot_table_chart';
+  static readonly ApplyFunction = 'function';
+
   static readonly Play = 'play_arrow';
   static readonly Edit = 'edit';
+  static readonly DragHandle = 'drag_indicator';
+
+  // Platform icons
+  static readonly Android = 'android';
+  static readonly Web = 'language';
 }
