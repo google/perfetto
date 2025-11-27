@@ -112,13 +112,14 @@ bindAppDur
 
 intent_dur (R	intentDur
 	total_dur (RtotalDur
-Ë
-6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"ÿ
+÷
+6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"«
 AndroidProcessMetadata
 name (	Rname
 uid (Ruid&
 android_user_id
- (RandroidUserIdI
+ (RandroidUserId*
+android_user_type (RandroidUserTypeI
 package (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackage
 pid	 (Rpid$
 is_kernel_task (RisKernelTaskv
