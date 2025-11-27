@@ -50,9 +50,8 @@ export function registerCoreNodes() {
   });
 
   nodeRegistry.register('table', {
-    name: 'Perfetto Table',
-    description:
-      'Query and explore data from any table in the Perfetto standard library.',
+    name: 'Table',
+    description: 'Query and explore data from any table in your trace.',
     icon: 'table_chart',
     hotkey: 't',
     type: 'source',
@@ -70,7 +69,7 @@ export function registerCoreNodes() {
   });
 
   nodeRegistry.register('sql', {
-    name: 'Query Node',
+    name: 'Query',
     description:
       'Start with a custom SQL query to act as a source for further exploration.',
     icon: 'code',
