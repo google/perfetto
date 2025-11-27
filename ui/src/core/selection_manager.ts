@@ -284,7 +284,7 @@ export class SelectionManagerImpl implements SelectionManager {
       });
 
       const datasets = values.map(([dataset]) => dataset);
-      const union = UnionDataset.create(datasets).optimize();
+      const union = UnionDataset.create(datasets);
 
       // Make sure to include the filter value in the schema.
       const schema = {...union.schema, [colName]: UNKNOWN};

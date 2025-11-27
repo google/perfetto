@@ -766,6 +766,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       async getSearchFilter(searchTerm) {
         return {
           where: `name GLOB ${escapeSearchQuery(searchTerm)}`,
+          columns: {name: STR_NULL},
         };
       },
     });
@@ -810,6 +811,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             OR
             args.key GLOB ${searchLiteral}
           `,
+          columns: {arg_set_id: NUM_NULL},
         };
       },
     });
