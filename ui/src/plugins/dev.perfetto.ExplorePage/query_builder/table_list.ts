@@ -86,7 +86,7 @@ class SearchBar
     placeholder?: string;
   }>) {
     return m('input[type=text].pf-search', {
-      placeholder: attrs.placeholder ?? 'Search Perfetto SQL tables...',
+      placeholder: attrs.placeholder ?? 'Search tables...',
       oninput: (e: Event) => {
         attrs.onQueryChange((e.target as HTMLInputElement).value);
       },
