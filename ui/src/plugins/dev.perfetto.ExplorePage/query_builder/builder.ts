@@ -61,6 +61,8 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
+import {Card} from '../../../widgets/card';
+import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {NUM} from '../../../trace_processor/query_result';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
@@ -71,7 +73,6 @@ import {
   queryToRun,
   hashNodeQuery,
 } from '../query_node';
-import {ExplorePageHelp} from './help';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
@@ -83,7 +84,6 @@ import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
 import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
-import {TableSourceNode} from './nodes/sources/table_source';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
@@ -91,6 +91,7 @@ import {NodeIssues} from './node_issues';
 import {UIFilter} from './operations/filter';
 import {MaterializationService} from './materialization_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
+import {nodeRegistry} from './node_registry';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -182,15 +183,51 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     m.redraw();
   }
 
+  private renderSourceCards(attrs: BuilderAttrs): m.Children {
+    const sourceNodes = nodeRegistry
+      .list()
+      .filter(([_id, node]) => node.type === 'source')
+      .map(([id, node]) => {
+        const name = node.name ?? 'Unnamed Source';
+        const description = node.description ?? '';
+        const icon = node.icon ?? '';
+        const hotkey =
+          node.hotkey && typeof node.hotkey === 'string'
+            ? node.hotkey.toUpperCase()
+            : undefined;
+
+        return m(
+          Card,
+          {
+            'interactive': true,
+            'onclick': () => attrs.onAddSourceNode(id),
+            'tabindex': 0,
+            'role': 'button',
+            'aria-label': `Add ${name} source`,
+            'className': 'pf-source-card',
+            'onkeydown': (e: KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                attrs.onAddSourceNode(id);
+              }
+            },
+          },
+          m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', name)),
+          m('p', description),
+          hotkey ? m('.pf-source-card-hotkey', m(Keycap, hotkey)) : null,
+        );
+      });
+
+    if (sourceNodes.length === 0) {
+      return m('p', 'No source nodes available');
+    }
+
+    return sourceNodes;
+  }
+
   view({attrs}: m.CVnode<BuilderAttrs>) {
-    const {
-      trace,
-      rootNodes,
-      onNodeSelected,
-      selectedNode,
-      onClearAllNodes,
-      sqlModules,
-    } = attrs;
+    const {trace, rootNodes, onNodeSelected, selectedNode, onClearAllNodes} =
+      attrs;
 
     if (selectedNode && selectedNode !== this.previousSelectedNode) {
       this.resetQueryState();
@@ -286,23 +323,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             this.selectedView = view;
           },
         })
-      : m(ExplorePageHelp, {
-          sqlModules,
-          onTableClick: (tableName: string) => {
-            const {onRootNodeCreated} = attrs;
-            const sqlTable = sqlModules.getTable(tableName);
-            if (!sqlTable) return;
-
-            const newNode = new TableSourceNode({
-              trace,
-              sqlModules,
-              sqlTable,
-              filters: [],
-            });
-            newNode.state.autoExecute = true;
-            onRootNodeCreated(newNode);
-          },
-        });
+      : m('.pf-unselected-explorer', this.renderSourceCards(attrs));
 
     return m(
       SplitPanel,
@@ -419,11 +440,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }),
         ),
       ),
-      selectedNode &&
-        m(ResizeHandle, {
-          direction: 'horizontal',
-          onResize: (deltaPx) => this.handleSidebarResize(deltaPx),
-        }),
+      m(ResizeHandle, {
+        direction: 'horizontal',
+        onResize: (deltaPx) => this.handleSidebarResize(deltaPx),
+      }),
       m(
         '.pf-qb-explorer',
         {
@@ -433,9 +453,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         },
         explorer,
       ),
-      selectedNode &&
-        m(
-          '.pf-qb-side-panel',
+      m(
+        '.pf-qb-side-panel',
+        selectedNode &&
           m(Button, {
             icon: Icons.Info,
             title: 'Info',
@@ -456,27 +476,29 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
+        selectedNode &&
           selectedNode.nodeSpecificModify() != null &&
-            m(Button, {
-              icon: Icons.Edit,
-              title: 'Edit',
-              className:
+          m(Button, {
+            icon: Icons.Edit,
+            title: 'Edit',
+            className:
+              this.selectedView === SelectedView.kModify &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
                 this.selectedView === SelectedView.kModify &&
                 !this.isExplorerCollapsed
-                  ? 'pf-active'
-                  : '',
-              onclick: () => {
-                if (
-                  this.selectedView === SelectedView.kModify &&
-                  !this.isExplorerCollapsed
-                ) {
-                  this.isExplorerCollapsed = true;
-                } else {
-                  this.selectedView = SelectedView.kModify;
-                  this.isExplorerCollapsed = false;
-                }
-              },
-            }),
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kModify;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+        selectedNode &&
           m(Button, {
             icon: 'code',
             title: 'Result',
@@ -497,6 +519,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
+        selectedNode &&
           m(Button, {
             icon: 'comment',
             title: 'Comment',
@@ -518,7 +541,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
-        ),
+      ),
     );
   }
 
