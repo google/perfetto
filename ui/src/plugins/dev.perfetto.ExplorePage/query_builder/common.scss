@@ -24,6 +24,7 @@
   font-size: 1em;
   transition: border-color 0.2s ease-in-out;
   background: var(--pf-color-background);
+  color: inherit;
 
   &:focus {
     border-color: var(--pf-color-primary);
