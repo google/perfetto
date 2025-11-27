@@ -41,6 +41,7 @@
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/text_format.h>
 
+#include "src/trace_processor/rpc/rpc.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"

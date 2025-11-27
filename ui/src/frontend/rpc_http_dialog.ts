@@ -346,8 +346,8 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             return aHasTab ? 1 : -1;
           }
 
-          const aId = a.instanceUuid ?? "";
-          const bId = b.instanceUuid ?? "";
+          const aId = a.instanceUuid ?? '';
+          const bId = b.instanceUuid ?? '';
           return aId.localeCompare(bId);
         });
 
