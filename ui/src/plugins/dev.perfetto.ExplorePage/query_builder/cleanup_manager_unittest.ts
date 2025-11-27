@@ -264,4 +264,90 @@ describe('CleanupManager', () => {
       expect(cleanupNodesSpy).toHaveBeenCalledWith(nodes);
     });
   });
+
+  describe('dispose pattern', () => {
+    function createDisposableNode(
+      id: string,
+    ): QueryNode & {dispose: () => void} {
+      const baseNode = createTestNode(id, false);
+      const disposable = baseNode as QueryNode & {dispose: () => void};
+      disposable.dispose = jest.fn();
+      return disposable;
+    }
+
+    it('should call dispose on disposable nodes', async () => {
+      const disposableNode = createDisposableNode('1');
+
+      await cleanupManager.cleanupNode(disposableNode);
+
+      expect(disposableNode.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not throw if node is not disposable', async () => {
+      const normalNode = createTestNode('1', false);
+
+      await expect(
+        cleanupManager.cleanupNode(normalNode),
+      ).resolves.not.toThrow();
+    });
+
+    it('should call dispose before SQL cleanup', async () => {
+      const disposableNode = createDisposableNode('1');
+      disposableNode.state.materialized = true;
+      disposableNode.state.materializationTableName = '_exp_materialized_1';
+
+      const callOrder: string[] = [];
+      (disposableNode.dispose as jest.Mock).mockImplementation(() => {
+        callOrder.push('dispose');
+      });
+      mockMaterializationService.dropMaterialization.mockImplementation(() => {
+        callOrder.push('dropMaterialization');
+        return Promise.resolve();
+      });
+
+      await cleanupManager.cleanupNode(disposableNode);
+
+      expect(callOrder).toEqual(['dispose', 'dropMaterialization']);
+    });
+
+    it('should continue cleanup even if dispose throws', async () => {
+      const disposableNode = createDisposableNode('1');
+      disposableNode.state.materialized = true;
+      (disposableNode.dispose as jest.Mock).mockImplementation(() => {
+        throw new Error('Dispose failed');
+      });
+
+      await expect(
+        cleanupManager.cleanupNode(disposableNode),
+      ).resolves.not.toThrow();
+
+      expect(disposableNode.dispose).toHaveBeenCalled();
+      expect(
+        mockMaterializationService.dropMaterialization,
+      ).toHaveBeenCalledWith(disposableNode);
+    });
+
+    it('should handle multiple disposable nodes', async () => {
+      const node1 = createDisposableNode('1');
+      const node2 = createDisposableNode('2');
+      const node3 = createTestNode('3', false); // Not disposable
+
+      await cleanupManager.cleanupNodes([node1, node2, node3]);
+
+      expect(node1.dispose).toHaveBeenCalledTimes(1);
+      expect(node2.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle dispose on node without materialization', async () => {
+      const disposableNode = createDisposableNode('1');
+      disposableNode.state.materialized = false;
+
+      await cleanupManager.cleanupNode(disposableNode);
+
+      expect(disposableNode.dispose).toHaveBeenCalledTimes(1);
+      expect(
+        mockMaterializationService.dropMaterialization,
+      ).not.toHaveBeenCalled();
+    });
+  });
 });

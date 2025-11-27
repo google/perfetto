@@ -32,6 +32,7 @@ export enum NodeType {
   kTable,
   kSimpleSlices,
   kSqlSource,
+  kTimeRangeSource,
 
   // Single node operations
   kAggregation,

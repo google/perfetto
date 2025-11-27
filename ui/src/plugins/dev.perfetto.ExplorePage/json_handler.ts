@@ -28,6 +28,10 @@ import {
   SqlSourceSerializedState,
 } from './query_builder/nodes/sources/sql_source';
 import {
+  TimeRangeSourceNode,
+  TimeRangeSourceSerializedState,
+} from './query_builder/nodes/sources/timerange_source';
+import {
   AggregationNode,
   AggregationSerializedState,
 } from './query_builder/nodes/aggregation_node';
@@ -65,6 +69,7 @@ type SerializedNodeState =
   | TableSourceSerializedState
   | SlicesSourceSerializedState
   | SqlSourceSerializedState
+  | TimeRangeSourceSerializedState
   | AggregationSerializedState
   | ModifyColumnsSerializedState
   | IntervalIntersectSerializedState
@@ -182,6 +187,13 @@ function createNodeInstance(
         ...(state as SqlSourceSerializedState),
         trace,
       });
+    case NodeType.kTimeRangeSource:
+      return new TimeRangeSourceNode(
+        TimeRangeSourceNode.deserializeState(
+          trace,
+          state as TimeRangeSourceSerializedState,
+        ),
+      );
     case NodeType.kAggregation:
       return new AggregationNode(
         AggregationNode.deserializeState(state as AggregationSerializedState),

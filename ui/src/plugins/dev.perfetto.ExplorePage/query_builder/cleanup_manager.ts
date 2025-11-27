@@ -19,7 +19,8 @@ import {MaterializationService} from './materialization_service';
  * Centralized manager for resource cleanup in the Explore Page.
  *
  * Responsibilities:
- * - Tracks all materialized tables
+ * - Cleans up JavaScript resources (intervals, subscriptions) via dispose()
+ * - Cleans up SQL resources (materialized tables)
  * - Provides cleanup on component unmount
  * - Coordinates cleanup between multiple cleanup operations
  * - Prevents orphaned resources
@@ -32,11 +33,35 @@ export class CleanupManager {
   }
 
   /**
+   * Type guard to check if a node implements the dispose pattern.
+   */
+  private isDisposable(
+    node: QueryNode,
+  ): node is QueryNode & {dispose: () => void} {
+    return 'dispose' in node && typeof node.dispose === 'function';
+  }
+
+  /**
    * Cleans up a single node's resources.
+   * Handles both synchronous (JS) and asynchronous (SQL) cleanup.
    *
    * @param node The node to clean up
    */
   async cleanupNode(node: QueryNode): Promise<void> {
+    // First: Synchronous cleanup (intervals, subscriptions, etc.)
+    if (this.isDisposable(node)) {
+      try {
+        node.dispose();
+      } catch (e) {
+        console.error(
+          `Failed to dispose resources for node ${node.nodeId}:`,
+          e,
+        );
+        // Continue - don't block cleanup on individual failures
+      }
+    }
+
+    // Second: Asynchronous cleanup (materialized tables)
     if (node.state.materialized === true) {
       try {
         await this.materializationService.dropMaterialization(node);
@@ -56,6 +81,22 @@ export class CleanupManager {
    * @param nodes The nodes to clean up
    */
   async cleanupNodes(nodes: QueryNode[]): Promise<void> {
+    // First: Synchronous cleanup (dispose) for all nodes
+    for (const node of nodes) {
+      if (this.isDisposable(node)) {
+        try {
+          node.dispose();
+        } catch (e) {
+          console.error(
+            `Failed to dispose resources for node ${node.nodeId}:`,
+            e,
+          );
+          // Continue - don't block cleanup on individual failures
+        }
+      }
+    }
+
+    // Second: Asynchronous cleanup (materialized tables) in parallel
     const materialized = nodes.filter(
       (node) => node.state.materialized === true,
     );
