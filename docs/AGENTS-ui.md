@@ -213,16 +213,6 @@ async onTraceLoad(trace: Trace): Promise<void> {
 }
 ```
 
-**Query Result Types:**
-- `NUM` - number (required)
-- `NUM_NULL` - number | null
-- `STR` - string (required)
-- `STR_NULL` - string | null
-- `LONG` - bigint (required)
-- `LONG_NULL` - bigint | null
-- `BLOB` - Uint8Array (required)
-- `BLOB_NULL` - Uint8Array | null
-
 ## Track Registration
 
 Rarely you need to create a new Track from scrach. In most cases you can use higher level components in ui/src/components/tracks/. Look at those examples first.
@@ -480,20 +470,6 @@ But don't touch years when editing existing files.
 ```
 
 ### Code Organization
-
-**Don't expose internal implementation details:**
-```typescript
-// Bad - exposing internal tag
-interface Engine {
-  tag: string; // Internal detail, shouldn't be public
-  query(sql: string): Promise<QueryResult>;
-}
-
-// Good - only expose what's needed
-interface Engine {
-  query(sql: string): Promise<QueryResult>;
-}
-```
 
 **Use WeakMap for trace-scoped data instead of modifying Trace API:**
 ```typescript
