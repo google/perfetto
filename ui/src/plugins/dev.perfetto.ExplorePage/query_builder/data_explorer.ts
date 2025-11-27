@@ -48,6 +48,7 @@ export interface DataExplorerAttrs {
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
+  readonly onExportToTimeline?: () => void;
   readonly onchange?: () => void;
   readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
 }
@@ -130,6 +131,19 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           ])
         : null;
 
+    const exportButton =
+      attrs.onExportToTimeline &&
+      attrs.response &&
+      !attrs.isQueryRunning &&
+      attrs.node.state.materialized
+        ? m(Button, {
+            label: 'Export to Timeline',
+            icon: 'open_in_new',
+            onclick: () => attrs.onExportToTimeline?.(),
+            title: 'Export query results to timeline tab',
+          })
+        : null;
+
     const positionMenu = m(
       PopupMenu,
       {
@@ -155,6 +169,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       materializationIndicator,
       materializationIndicator !== null ? separator() : null,
       autoExecuteSwitch,
+      exportButton,
       positionMenu,
     ];
   }

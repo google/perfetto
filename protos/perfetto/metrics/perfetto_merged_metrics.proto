@@ -129,7 +129,7 @@ message AndroidProcessMetadata {
 
   // Type of Android user running this process (applicable to multi-user
   // android)
-  optional int64 android_user_type = 12;
+  optional string android_user_type = 12;
 
   // Package metadata from Android package list.
   message Package {

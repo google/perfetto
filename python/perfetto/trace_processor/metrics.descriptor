@@ -119,7 +119,7 @@ intent_dur (R	intentDur
 uid (Ruid&
 android_user_id
  (RandroidUserId*
-android_user_type (RandroidUserTypeI
+android_user_type (	RandroidUserTypeI
 package (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackage
 pid	 (Rpid$
 is_kernel_task (RisKernelTaskv
