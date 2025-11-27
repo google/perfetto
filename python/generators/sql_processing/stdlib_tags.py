@@ -20,6 +20,8 @@ and searching stdlib modules. Tags use a nested structure with ":" separators,
 e.g., "power:battery" means both "power" and "power:battery" tags are enabled.
 """
 
+from typing import Optional
+
 # Valid tags that can be used for categorizing modules.
 # Tags should be short, descriptive, and help users find modules for their problems.
 # Use nested tags (with :) for important subcategories that users would search for.
@@ -485,7 +487,7 @@ TABLE_IMPORTANCE = {
 }
 
 
-def get_table_importance(table_name: str) -> str | None:
+def get_table_importance(table_name: str) -> Optional[str]:
   """Get the importance level of a table.
 
   Args:
