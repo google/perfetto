@@ -19,6 +19,8 @@ $border-2: 1px solid var(--pf-color-border-secondary);
 $border-3: 2px solid var(--pf-color-border);
 $inline-padding: 0.5em;
 $block-padding: 0.3em;
+$indent-size: 16px;
+$indent-guide-offset: 12px;
 
 .pf-grid-header-cell {
   display: flex;
@@ -73,17 +75,32 @@ $block-padding: 0.3em;
 .pf-grid-cell {
   display: flex;
   flex-direction: row;
+  align-items: baseline;
+  overflow: hidden;
   --pf-cell-padding-block: 0;
   --pf-cell-padding-inline: 0;
+  --pf-grid-cell-indent: 0;
 
   &__menu-button {
     // Eliminate the extra space between the menu button and the cell content added by the content padding.
     margin-left: calc(-1 * var(--pf-cell-padding-inline));
   }
 
+  &__indent {
+    flex-shrink: 0;
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+    margin-right: calc(var(--pf-cell-padding-inline) * -1);
+
+    &--leaf {
+      visibility: hidden;
+    }
+  }
+
   &__content {
     flex: 1 1 auto;
-
     padding: var(--pf-cell-padding-block) var(--pf-cell-padding-inline);
     align-items: baseline;
     overflow: hidden;
@@ -97,15 +114,14 @@ $block-padding: 0.3em;
   }
 
   &--align-right {
-    // Move the menu button to the left when right-aligned.
-    flex-direction: row-reverse;
-
     .pf-grid-cell__menu-button {
       margin-left: 0;
       margin-right: calc(-1 * var(--pf-cell-padding-inline));
+      order: 2;
     }
 
     .pf-grid-cell__content {
+      order: 3;
       text-align: right;
     }
   }

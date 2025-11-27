@@ -154,6 +154,9 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly padding?: boolean;
   readonly wrap?: boolean;
   readonly label?: string;
+  readonly indent?: number;
+  readonly chevron?: 'expanded' | 'collapsed' | 'leaf';
+  readonly onChevronClick?: () => void;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -165,8 +168,44 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       className,
       padding = true,
       wrap,
+      indent,
+      chevron,
+      onChevronClick,
       ...htmlAttrs
     } = attrs;
+
+    const renderChevron = () => {
+      if (chevron === undefined) return undefined;
+
+      const icon = chevron === 'expanded' ? Icons.ExpandDown : Icons.GoForward;
+      const ariaLabel = chevron === 'expanded' ? 'Collapse row' : 'Expand row';
+
+      return m(Button, {
+        className: classNames(
+          'pf-grid-cell__chevron',
+          chevron === 'leaf' && 'pf-grid-cell__chevron--leaf',
+        ),
+        icon,
+        rounded: true,
+        ariaLabel,
+        onclick: (e: MouseEvent) => {
+          if (onChevronClick) {
+            onChevronClick();
+            e.stopPropagation();
+          }
+        },
+      });
+    };
+
+    const renderIndent = () => {
+      if (indent === undefined || indent === 0) return undefined;
+
+      return m('.pf-grid-cell__indent', {
+        style: {
+          width: `${indent * 16}px`,
+        },
+      });
+    };
 
     return m(
       '.pf-grid-cell',
@@ -174,13 +213,15 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
         ...htmlAttrs,
         className: classNames(
           className,
-          align === 'right' && 'pf-grid-cell--align-right',
+          align === 'right' && !chevron && 'pf-grid-cell--align-right',
           padding && 'pf-grid-cell--padded',
           nullish && 'pf-grid-cell--nullish',
           wrap && 'pf-grid-cell--wrap',
         ),
         role: 'cell',
       },
+      renderIndent(),
+      renderChevron(),
       m('.pf-grid-cell__content', children),
       Boolean(menuItems) &&
         m(
