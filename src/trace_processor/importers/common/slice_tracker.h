@@ -167,8 +167,6 @@ class SliceTracker {
                                                        StringId name,
                                                        StringId category);
 
-  int64_t GetStackHash(const SlicesStack&);
-
   void StackPop(TrackId track_id);
   void StackPush(TrackId track_id, tables::SliceTable::RowReference);
 

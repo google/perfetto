@@ -17,7 +17,6 @@ import {classNames} from '../base/classnames';
 import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Popup} from './popup';
-import {Spinner} from './spinner';
 import {assertUnreachable} from '../base/logging';
 
 export enum ButtonVariant {
@@ -100,6 +99,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       variant = ButtonVariant.Minimal,
       rounded,
       shrink,
+      loading,
       ...htmlAttrs
     } = attrs;
 
@@ -115,6 +115,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
       rounded && 'pf-button--rounded',
       shrink && 'pf-button--shrink',
+      loading && 'pf-button--loading',
       className,
     );
 
@@ -138,9 +139,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
   private renderIcon(attrs: ButtonAttrs): m.Children {
     const {icon, iconFilled} = attrs;
     const className = 'pf-left-icon';
-    if (attrs.loading) {
-      return m(Spinner, {className});
-    } else if (icon) {
+    if (icon) {
       return m(Icon, {className, icon, filled: iconFilled});
     } else {
       return undefined;

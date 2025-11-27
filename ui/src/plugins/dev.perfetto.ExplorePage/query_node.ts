@@ -100,6 +100,8 @@ export interface QueryNodeState {
   // Materialization state
   materialized?: boolean;
   materializationTableName?: string;
+  // Hash of the query that was materialized (for detecting query changes)
+  materializedQueryHash?: string;
 }
 
 export interface BaseNode {
@@ -234,6 +236,25 @@ export function queryToRun(query?: Query): string {
   parts.push(query.sql);
 
   return parts.join('\n');
+}
+
+/**
+ * Computes a hash of a node's structured query for comparison.
+ * Used to detect if a query has changed and materialization needs to be redone.
+ *
+ * Uses the structured query protobuf directly - no engine analysis needed.
+ * This allows detecting query changes before any SQL execution.
+ */
+export function hashNodeQuery(node: QueryNode): string | undefined {
+  const sq = node.getStructuredQuery();
+  if (sq === undefined) {
+    return undefined;
+  }
+
+  // JSON.stringify on the protobuf object gives us a stable representation
+  // of all the query structure (filters, aggregations, joins, etc.).
+  // Protobuf objects have stable field ordering, making this deterministic.
+  return JSON.stringify(sq);
 }
 
 export async function analyzeNode(

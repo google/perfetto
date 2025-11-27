@@ -224,14 +224,16 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id,
       name,
-      callback: async (pids?: string) => {
-        if (pids === undefined) {
-          const rawPids = await ctx.omnibox.prompt(
-            `Enter up to ${MAX_AGGREGATED_PIDS} process pids, separated by commas (e.g. 1234, 5678)`,
-          );
-          if (rawPids === undefined) return;
-          pids = rawPids;
-        }
+      callback: async (pidsArg) => {
+        // Use the PIDs argument if provided, otherwise prompt.
+        const pids =
+          typeof pidsArg === 'string'
+            ? pidsArg
+            : await ctx.omnibox.prompt(
+                `Enter up to ${MAX_AGGREGATED_PIDS} process pids, separated by commas (e.g. 1234, 5678)`,
+              );
+
+        if (!pids) return;
 
         const pidList = pids
           .split(',')

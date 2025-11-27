@@ -23,6 +23,8 @@
 @import "./nodes/sources/table_source.scss";
 @import "./nodes/aggregation_node.scss";
 @import "./nodes/modify_columns_node.scss";
+@import "./table_list.scss";
+@import "./widgets.scss";
 
 .pf-query-builder-layout {
   height: 100%;
@@ -178,4 +180,16 @@
   font-size: 14px;
   line-height: 1.5;
   color: var(--pf-color-on-surface);
+}
+
+.pf-query-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+
+  .pf-query-stats-separator {
+    user-select: none;
+  }
 }

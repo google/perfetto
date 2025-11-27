@@ -19,6 +19,10 @@ INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
+INCLUDE PERFETTO MODULE wattson.device_infos;
+
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 CREATE PERFETTO TABLE _unioned_wattson_estimates_mw AS
 SELECT
   ts,

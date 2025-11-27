@@ -19,7 +19,7 @@ export async function runQueryForMcp(
   engine: Engine,
   query: string,
 ): Promise<string> {
-  const result = await engine.query(query, 'PerfettoMcp');
+  const result = await engine.query(query);
   return resultToJson(result);
 }
 

@@ -38,10 +38,6 @@ CREATE PERFETTO VIEW android_statsd_atoms (
   name STRING,
   -- The depth of the slice in the current stack of slices.
   depth LONG,
-  -- A unique identifier obtained from the names of all slices in this stack. This is rarely useful and kept around only for legacy reasons.
-  stack_id LONG,
-  -- The stack_id for the parent of this slice. Rarely useful.
-  parent_stack_id LONG,
   -- The id of the parent (i.e. immediate ancestor) slice for this slice.
   parent_id LONG,
   -- The thread timestamp at the start of the slice. This column will only be populated if thread timestamp collection is enabled with track_event.
@@ -60,8 +56,6 @@ SELECT
   slice.category AS category,
   slice.name AS name,
   slice.depth AS depth,
-  slice.stack_id AS stack_id,
-  slice.parent_stack_id AS parent_stack_id,
   slice.parent_id AS parent_id,
   slice.thread_ts AS thread_ts,
   slice.thread_dur AS thread_dur

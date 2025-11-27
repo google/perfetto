@@ -27,3 +27,23 @@ export function stringifyJsonWithBigints(
     space,
   );
 }
+
+// Typescript bindings do not pass `context` to the reviver, so this helper works around that.
+function parseJson(
+  text: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  reviver?: (key: string, value: any, context: {source: string}) => any,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return JSON.parse(text, reviver as (key: string, value: any) => any);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function parseJsonWithBigints(text: string): any {
+  return parseJson(text, (_, value, context) => {
+    if (typeof value === 'number' && Number.isInteger(value)) {
+      return BigInt(context.source);
+    }
+    return value;
+  });
+}

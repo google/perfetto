@@ -70,15 +70,7 @@ bool GetAncestors(const T& table,
 }  // namespace
 
 Ancestor::SliceCursor::SliceCursor(Type type, TraceStorage* storage)
-    : type_(type),
-      storage_(storage),
-      table_(storage->mutable_string_pool()),
-      stack_cursor_(storage->slice_table().CreateCursor({dataframe::FilterSpec{
-          tables::SliceTable::ColumnIndex::stack_id,
-          0,
-          dataframe::Eq{},
-          std::nullopt,
-      }})) {}
+    : type_(type), storage_(storage), table_(storage->mutable_string_pool()) {}
 
 bool Ancestor::SliceCursor::Run(const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.size() == 1);
@@ -101,21 +93,6 @@ bool Ancestor::SliceCursor::Run(const std::vector<SqlValue>& arguments) {
       if (!GetAncestors(slice_table, SliceId(id), ancestors_, status_)) {
         return false;
       }
-      break;
-    }
-    case Type::kSliceByStack: {
-      // Find the all slice ids that have the stack id and find all the
-      // ancestors of the slice ids.
-      stack_cursor_.SetFilterValueUnchecked(0, arguments[0].long_value);
-      stack_cursor_.Execute();
-      for (; !stack_cursor_.Eof(); stack_cursor_.Next()) {
-        if (!GetAncestors(slice_table, stack_cursor_.id(), ancestors_,
-                          status_)) {
-          return false;
-        }
-      }
-      // Sort to keep the slices in timestamp order.
-      std::sort(ancestors_.begin(), ancestors_.end());
       break;
     }
     case Type::kStackProfileCallsite:
@@ -182,7 +159,6 @@ Ancestor::Ancestor(Type type, TraceStorage* storage)
 std::unique_ptr<StaticTableFunction::Cursor> Ancestor::MakeCursor() {
   switch (type_) {
     case Type::kSlice:
-    case Type::kSliceByStack:
       return std::make_unique<SliceCursor>(type_, storage_);
     case Type::kStackProfileCallsite:
       return std::make_unique<StackProfileCursor>(storage_);
@@ -193,7 +169,6 @@ std::unique_ptr<StaticTableFunction::Cursor> Ancestor::MakeCursor() {
 dataframe::DataframeSpec Ancestor::CreateSpec() {
   switch (type_) {
     case Type::kSlice:
-    case Type::kSliceByStack:
       return tables::SliceSubsetTable::kSpec.ToUntypedDataframeSpec();
     case Type::kStackProfileCallsite:
       return tables::AncestorStackProfileCallsiteTable::kSpec
@@ -206,8 +181,6 @@ std::string Ancestor::TableName() {
   switch (type_) {
     case Type::kSlice:
       return "ancestor_slice";
-    case Type::kSliceByStack:
-      return "ancestor_slice_by_stack";
     case Type::kStackProfileCallsite:
       return "experimental_ancestor_stack_profile_callsite";
   }

@@ -44,6 +44,7 @@ import {
   AggregationSpec,
 } from '../structured_query_builder';
 import {isColumnValidForAggregation} from '../utils';
+import {LabeledControl} from '../widgets';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -222,16 +223,8 @@ export class AggregationNode implements ModificationNode {
 
     const details: m.Child[] = [
       m(
-        '.pf-group-by-selector',
-        {
-          style: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: this.state.aggregations.length > 0 ? '8px' : '0',
-          },
-        },
-        m('label', 'Group by:'),
+        LabeledControl,
+        {label: 'Group by:'},
         m(PopupMultiSelect, {
           label,
           options: groupByOptions,
@@ -837,8 +830,8 @@ class AggregationOperationComponent
           : 'None';
 
       return m(
-        '.pf-exp-multi-select-container',
-        m('label', 'GROUP BY columns'),
+        LabeledControl,
+        {label: 'GROUP BY columns:'},
         m(PopupMultiSelect, {
           label,
           options: groupByOptions,

@@ -100,5 +100,8 @@
     --pf-sidebar-on-surface-muted: var(--pf-color-text-muted);
     --pf-sidebar-border: var(--pf-color-border);
     --pf-sidebar-border-secondary: var(--pf-color-border-secondary);
+
+    // Some images are designed for light mode, so invert them for dark mode.
+    --pf-img-filter: invert(1) hue-rotate(180deg) saturate(70%);
   }
 }

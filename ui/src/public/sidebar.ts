@@ -14,17 +14,13 @@
 
 // For now sections are fixed and cannot be extended by plugins.
 export const SIDEBAR_SECTIONS = {
-  navigation: {
-    title: 'Navigation',
-    summary: 'Open or record a new trace',
-  },
   current_trace: {
     title: 'Current Trace',
     summary: 'Actions on the current trace',
   },
-  example_traces: {
-    title: 'Example Traces',
-    summary: 'Open an example trace',
+  trace_files: {
+    title: 'New Trace',
+    summary: 'Open or record a new trace',
   },
   settings: {
     title: 'Settings',

@@ -17,7 +17,6 @@
 #ifndef SRC_TRACECONV_TRACE_TO_BUNDLE_H_
 #define SRC_TRACECONV_TRACE_TO_BUNDLE_H_
 
-#include <iostream>
 #include <string>
 #include <vector>
 

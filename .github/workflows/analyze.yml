@@ -27,7 +27,7 @@ on:
       - dev/**/*
 
 permissions:
-  pull-requests: read
+  pull-requests: write # Required for UI build PR comment
 
 # If a new commit is pushed, cancel previous jobs for the same PR / branch.
 concurrency:

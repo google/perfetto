@@ -25,6 +25,16 @@ import {TrackNode} from './workspace';
 import {CanvasColors} from './canvas_colors';
 import {z} from 'zod';
 
+/**
+ * Represents a snap point for the snap-to-boundaries feature.
+ * When dragging selection boundaries, the cursor can snap to these points
+ * to enable precise measurement of time intervals.
+ */
+export interface SnapPoint {
+  /** The timestamp to snap to */
+  time: time;
+}
+
 export interface TrackFilterCriteria {
   readonly name: string;
 
@@ -307,6 +317,25 @@ export interface TrackRenderer {
   // Optional: Returns tooltip content if available. If the return value is
   // falsy, no tooltip is rendered.
   renderTooltip?(): m.Children;
+
+  /**
+   * Optional: Find the nearest snap point to the given time.
+   * Returns undefined if no snap point is within threshold.
+   *
+   * This method is used by the snap-to-boundaries feature to enable precise
+   * measurement of time intervals. When dragging selection boundaries, the
+   * cursor can snap to these points.
+   *
+   * @param targetTime - Target time to snap from
+   * @param thresholdPx - Maximum pixel distance to snap
+   * @param timescale - For converting between time and pixels
+   * @returns The nearest snap point, or undefined if none within threshold
+   */
+  getSnapPoint?(
+    targetTime: time,
+    thresholdPx: number,
+    timescale: TimeScale,
+  ): SnapPoint | undefined;
 }
 
 // An set of key/value pairs describing a given track. These are used for

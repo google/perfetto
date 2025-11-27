@@ -21,22 +21,17 @@ import {time} from '../base/time';
  */
 export interface ScrollToArgs {
   // Given a start and end timestamp (in ns), move the viewport to center this
-  //  range and zoom if necessary:
-  //  - If [viewPercentage] is specified, the viewport will be zoomed so that
-  //    the given time range takes up this percentage of the viewport.
-  //  The following scenarios assume [viewPercentage] is undefined.
-  //  - If the new range is more than 50% of the viewport, zoom out to a level
-  //  where
-  //    the range is 1/5 of the viewport.
-  //  - If the new range is already centered, update the zoom level for the
-  //  viewport
-  //    to cover 1/5 of the viewport.
-  //  - Otherwise, preserve the zoom range.
-  //
+  // range and control zoom behavior via the [behavior] parameter:
+  //  - 'pan' (default): Just pan to center the range without changing zoom.
+  //  - 'focus': Smart zoom that centers and zooms to fit the selection:
+  //    - For instant events (duration = 0), zoom in by 99.8%.
+  //    - For events with duration, make them fill 80% of the viewport.
+  //  - {viewPercentage: number}: Explicitly zoom so the range fills this
+  //    percentage of the viewport (0.0 < viewPercentage <= 1.0).
   time?: {
     start: time;
     end?: time;
-    viewPercentage?: number;
+    behavior?: 'pan' | 'focus' | {viewPercentage: number};
   };
   // Find the track with a given uri in the current workspace and scroll it into
   // view. Iftrack is nested inside a track group, scroll to that track group

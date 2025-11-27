@@ -21,6 +21,8 @@ INCLUDE PERFETTO MODULE slices.hierarchy;
 
 INCLUDE PERFETTO MODULE slices.with_context;
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 -- Maps slice names with common prefixes to a static string key.
 -- Returns NULL if there's no mapping.
 CREATE PERFETTO FUNCTION _normalize_android_string(
