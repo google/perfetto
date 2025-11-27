@@ -42,7 +42,7 @@ export class HttpRpcEngine extends EngineBase {
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
 
-  constructor(id: string, traceProcessorUuid: string) {
+  constructor(id: string, traceProcessorUuid: string|undefined) {
     super();
     this.id = id;
     this.traceProcessorUuid = traceProcessorUuid;
@@ -51,7 +51,7 @@ export class HttpRpcEngine extends EngineBase {
   private connect() {
     if (this.websocket !== undefined || this.disposed) return;
 
-    if (!this.traceProcessorUuid) {
+    if (this.traceProcessorUuid === undefined) {
       // If This is a new session, create a new UUID beforehand.
       this.traceProcessorUuid = uuidv4Sql();
     }

@@ -79,7 +79,7 @@ export class AppImpl implements App {
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
-    selectedTraceProcessorUuid: '', // Store the selected ID here
+    selectedTraceProcessorUuid: undefined as string | undefined, // Store the selected ID here
   };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().

@@ -64,8 +64,7 @@ void SendRpcChunk(base::HttpServerConnection* conn,
 
 class Httpd : public base::HttpRequestHandler {
  public:
-  explicit Httpd(std::unique_ptr<TraceProcessor>,
-                 bool is_preloaded_eof,
+  explicit Httpd(Rpc& rpc,
                  size_t timeout_mins);
   ~Httpd() override;
   void Run(const std::string& listen_ip,
@@ -167,7 +166,7 @@ class Httpd : public base::HttpRequestHandler {
 
   // global rpc for older uis that don't have the rpc map and for opening files
   // via trace_processor_shell
-  Rpc global_trace_processor_rpc_;
+  Rpc& global_trace_processor_rpc_;
   base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
   std::mutex websocket_rpc_mutex_;
@@ -201,10 +200,9 @@ void SendRpcChunk(base::HttpServerConnection* conn,
   }
 }
 
-Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
-             bool is_preloaded_eof,
+Httpd::Httpd(Rpc& rpc,
              size_t timeout_mins)
-    : global_trace_processor_rpc_(Rpc(std::move(preloaded_instance), is_preloaded_eof)),  // Create empty global RPC
+    : global_trace_processor_rpc_(rpc),  // Create empty global RPC
       http_srv_(&task_runner_, this),
       tp_timeout_mins_(timeout_mins) {}
 Httpd::~Httpd() = default;
@@ -656,7 +654,7 @@ void RunHttpRPCServer(Rpc& rpc,
                       const std::string& port_number,
                       const std::vector<std::string>& additional_cors_origins,
                       size_t timeout_mins) {
-  Httpd srv(std::move(preloaded_instance), is_preloaded_eof, timeout_mins);
+  Httpd srv(rpc, timeout_mins);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
