@@ -17,7 +17,7 @@ import {time} from '../base/time';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {WorkspaceManager} from '../public/workspace';
 import {raf} from './raf_scheduler';
-import {TimelineImpl} from './timeline';
+import {TimelineImpl, MIN_DURATION} from './timeline';
 import {TrackManagerImpl} from './track_manager';
 
 // A helper class to help jumping to tracks and time ranges.
@@ -108,7 +108,11 @@ export class ScrollHelper {
       // pixels to calculate a precise zoom level (e.g., make 1px at current
       // scale fill 80% of viewport), but plumbing viewport width through to
       // ScrollHelper is architecturally difficult right now.
-      const newDuration = visible.duration * 0.002;
+      const newRawDuration = visible.duration * 0.002;
+      // Ensure centering even when the new duration is less than the minimum
+      // timeline duration.
+      const newDuration =
+        newRawDuration < MIN_DURATION ? MIN_DURATION : newRawDuration;
       const halfDuration = newDuration / 2;
       const newStart = aoi.start.subNumber(halfDuration);
       const newWindow = new HighPrecisionTimeSpan(newStart, newDuration);

@@ -21,7 +21,7 @@ import {DurationPrecision, Timeline, TimestampFormat} from '../public/timeline';
 import {TraceInfo} from '../public/trace_info';
 import {Setting} from '../public/settings';
 
-const MIN_DURATION = 10;
+export const MIN_DURATION = 10;
 
 /**
  * State that is shared between several frontend components, but not the
