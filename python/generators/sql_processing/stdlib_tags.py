@@ -20,6 +20,8 @@ and searching stdlib modules. Tags use a nested structure with ":" separators,
 e.g., "power:battery" means both "power" and "power:battery" tags are enabled.
 """
 
+from typing import Optional
+
 # Valid tags that can be used for categorizing modules.
 # Tags should be short, descriptive, and help users find modules for their problems.
 # Use nested tags (with :) for important subcategories that users would search for.
@@ -445,3 +447,53 @@ def _validate_tags():
 
 # Run validation on module import
 _validate_tags()
+
+# Table importance levels for documentation.
+# Importance levels help users discover the most relevant tables for their use case.
+# Levels:
+#   'high': Most commonly used, fundamental tables for trace analysis
+#   'mid': Important for specific use cases, moderately common
+#   'low': Specialized or advanced tables, less frequently needed
+#   None/absent: Normal importance (default)
+TABLE_IMPORTANCE = {
+    # HIGH IMPORTANCE - Core timestamped tables, fundamental for most analyses
+    'thread_state':
+        'high',  # CPU scheduling: what threads ran when and for how long
+    'counter': 'high',  # Time-series metrics: memory, battery, custom counters
+    'thread_or_process_slice':
+        'high',  # Unified slice table for thread and process slices
+
+    # HIGH IMPORTANCE - Android UI performance analysis
+    'android_frames': 'high',  # Frame rendering timeline for jank analysis
+    'android_jank_cujs':
+        'high',  # Completed user journeys with jank classifications
+
+    # HIGH IMPORTANCE - Android app startup performance
+    'android_startups': 'high',  # App launch events with timing breakdowns
+
+    # HIGH IMPORTANCE - Android inter-process communication
+    'android_binder_txns': 'high',  # Binder transactions for IPC analysis
+
+    # MID IMPORTANCE - Android system monitoring and diagnostics
+    'android_anrs': 'mid',  # Application Not Responding events and diagnostics
+    'android_battery_charge': 'mid',  # Battery charge level tracking over time
+    'android_charging_states': 'mid',  # Device charging state transitions
+
+    # LOW IMPORTANCE - Raw/specialized tables, less frequently needed
+    'slices':
+        'low',  # Raw slice table, prefer thread_or_process_slice for most use cases
+    'sched_slice':
+        'low',  # Raw scheduling slice table, prefer thread_state for most use cases
+}
+
+
+def get_table_importance(table_name: str) -> Optional[str]:
+  """Get the importance level of a table.
+
+  Args:
+    table_name: Name of the table/view
+
+  Returns:
+    The importance level ('high', 'mid', 'low') or None for normal importance
+  """
+  return TABLE_IMPORTANCE.get(table_name)
