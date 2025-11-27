@@ -61,10 +61,34 @@
     text-decoration: none;
     display: block;
 
+    .pf-table-card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+
     .table-name {
       font-weight: 500;
       color: var(--pf-color-primary);
-      margin-bottom: 0.25rem;
+    }
+
+    .pf-importance-chip {
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+
+    .pf-importance-high {
+      background-color: #d32f2f; // Red - Important
+    }
+
+    .pf-importance-mid {
+      background-color: var(--pf-color-primary); // Primary blue - Recommended
+    }
+
+    .pf-importance-low {
+      background-color: #757575; // Gray - Low
     }
 
     .table-description {
