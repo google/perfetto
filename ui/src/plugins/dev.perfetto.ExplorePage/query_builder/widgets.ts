@@ -21,6 +21,7 @@ import {TextParagraph} from '../../../widgets/text_paragraph';
 import {SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
 
 // Generic widget for a row with name input, validation, and remove button
 // Used by all "new column" types
@@ -125,15 +126,21 @@ export class Section implements m.ClassComponent<SectionAttrs> {
   }
 }
 
-// Widget for displaying an item with icon, name, description, and action button
+// Action button definition for ListItem
+export interface ListItemAction {
+  label?: string;
+  icon: string;
+  title?: string;
+  onclick: () => void;
+}
+
+// Widget for displaying an item with icon, name, description, and action button(s)
 // Used in lists of added columns, filters, etc.
 export interface ListItemAttrs {
   icon: string;
   name: string;
   description: string;
-  actionLabel: string;
-  actionIcon?: string;
-  onAction: () => void;
+  actions?: ListItemAction[];
   onRemove?: () => void;
   className?: string;
   onclick?: (event: MouseEvent) => void;
@@ -141,16 +148,7 @@ export interface ListItemAttrs {
 
 export class ListItem implements m.ClassComponent<ListItemAttrs> {
   view({attrs}: m.Vnode<ListItemAttrs>) {
-    const {
-      icon,
-      name,
-      description,
-      actionLabel,
-      actionIcon,
-      onAction,
-      onRemove,
-      onclick,
-    } = attrs;
+    const {icon, name, description, actions, onRemove, onclick} = attrs;
 
     return m(
       '.pf-exp-list-item',
@@ -162,7 +160,8 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
         onkeydown: (e: KeyboardEvent) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onAction();
+            // Trigger first action on Enter/Space
+            actions?.[0]?.onclick();
           } else if (e.key === 'Delete' || e.key === 'Backspace') {
             if (onRemove) {
               e.preventDefault();
@@ -177,24 +176,42 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
         m('.pf-exp-list-item-name', name),
         m('.pf-exp-list-item-description', description),
       ),
-      m(
-        '.pf-exp-list-item-actions',
-        m(Button, {
-          label: actionLabel,
-          icon: actionIcon,
-          variant: ButtonVariant.Outlined,
-          compact: true,
-          onclick: onAction,
-        }),
-        onRemove &&
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: onRemove,
-            title: 'Remove item',
-          }),
-      ),
+      m('.pf-exp-list-item-actions', this.renderButtons(attrs)),
     );
+  }
+
+  private renderButtons(attrs: ListItemAttrs): m.Children {
+    const buttons: m.Children = [];
+
+    // Render action buttons
+    if (attrs.actions) {
+      for (const action of attrs.actions) {
+        buttons.push(
+          m(Button, {
+            label: action.label,
+            icon: action.icon,
+            title: action.title,
+            variant: ButtonVariant.Outlined,
+            compact: true,
+            onclick: action.onclick,
+          }),
+        );
+      }
+    }
+
+    // Remove button
+    if (attrs.onRemove) {
+      buttons.push(
+        m(Button, {
+          icon: 'close',
+          compact: true,
+          onclick: attrs.onRemove,
+          title: 'Remove item',
+        }),
+      );
+    }
+
+    return buttons;
   }
 }
 
@@ -299,9 +316,17 @@ export class IssueList implements m.ClassComponent<IssueListAttrs> {
       return null;
     }
 
+    // Map icon to Intent for proper styling
+    const intentMap: Record<string, Intent> = {
+      error: Intent.Danger,
+      warning: Intent.Warning,
+      info: Intent.Primary,
+    };
+    const intent = intentMap[icon] ?? Intent.None;
+
     return m(
       Callout,
-      {icon},
+      {icon, intent},
       m('div', title),
       m(
         'ul.pf-exp-issue-list',

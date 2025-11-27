@@ -262,9 +262,13 @@ export class FilterNode implements QueryNode {
           icon: 'code',
           name: 'WHERE clause',
           description: this.truncateSql(this.state.sqlExpression ?? ''),
-          actionLabel: 'Edit',
-          actionIcon: 'edit',
-          onAction: () => this.showSqlExpressionModal(),
+          actions: [
+            {
+              label: 'Edit',
+              icon: 'edit',
+              onclick: () => this.showSqlExpressionModal(),
+            },
+          ],
           onRemove: () => {
             this.state.sqlExpression = '';
             this.state.filterMode = 'structured';
@@ -292,9 +296,13 @@ export class FilterNode implements QueryNode {
           icon: isEnabled ? 'filter_alt' : 'filter_alt_off',
           name: filter.column,
           description: filterDescription,
-          actionLabel: 'Edit',
-          actionIcon: 'edit',
-          onAction: () => this.handleFilterEdit(filter),
+          actions: [
+            {
+              label: 'Edit',
+              icon: 'edit',
+              onclick: () => this.handleFilterEdit(filter),
+            },
+          ],
           onRemove: () => this.removeFilter(index),
           className: classNames(!isEnabled && 'pf-filter-disabled'),
           onclick: (e: MouseEvent) => {
