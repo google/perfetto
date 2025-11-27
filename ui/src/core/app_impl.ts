@@ -224,7 +224,7 @@ export class AppImpl implements App {
   openTraceFromHttpRpc(traceProcessorUuid?: string): void {
     this.openTrace({
       type: 'HTTP_RPC',
-      traceProcessorUuid: traceProcessorUuid ?? '',
+      traceProcessorUuid: traceProcessorUuid ?? undefined,
     });
   }
 
