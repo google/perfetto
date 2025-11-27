@@ -249,19 +249,7 @@ async onTraceLoad(trace: Trace): Promise<void> {
 }
 ```
 
-## Architectural Patterns from Code Reviews
-
-These patterns are enforced during code review:
-
-1. **Separation of concerns**: Components should not be "too interested" in parent state. If a component needs many props from its parent, consider making it a render function within the parent instead.
-
-2. **Cache placement**: Caches should live in data sources, not in presentation/coordination layers like DataGrid. The presentation layer should be stateless with respect to cached data.
-
-3. **API encapsulation**: Don't expose internal implementation details. For example, `EngineProxy.tag` should not be public if only internal code needs it.
-
-4. **Fixed heights for async content**: When rendering content that loads asynchronously (like filter menus), use fixed heights to prevent layout flickering.
-
-### CSS/SCSS Conventions
+## CSS/SCSS Conventions
 
 Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongside components.
 
@@ -270,17 +258,17 @@ Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongs
 - Use CSS custom properties (variables) defined in `theme.scss` for colors
 - Support both light and dark themes using semantic color variables
 
-### Common Pitfalls to Avoid
+## Common Pitfalls to Avoid
 
 1. **Don't create new widgets without checking existing ones** - The widget library is comprehensive.
 2. **Don't use `window`** - Use `self` for compatibility with Web Workers.
 3. **Try to use the Trace object as much as possible** - Plumb the Trace object through the hierarchy and keep `AppImpl.instance.trace` as a last resort.
 
-### Code Review Pet Peeves and Style Preferences
+## Code Review Pet Peeves and Style Preferences
 
 The following patterns are consistently enforced during code review. Adhering to these will significantly speed up the review process.
 
-#### TypeScript/JavaScript Style
+### TypeScript/JavaScript Style
 
 **Prefer `undefined` over `null`:**
 ```typescript
@@ -347,7 +335,7 @@ const trace_processor_id = 123;
 const traceProcessorId = 123;
 ```
 
-#### CSS/SCSS Style
+### CSS/SCSS Style
 
 **Never use inline styles - use stylesheets:**
 ```typescript
@@ -397,7 +385,7 @@ m('div', {
 // .pf-my-element:hover { background: var(--pf-color-hover); }
 ```
 
-#### Mithril-Specific Rules
+### Mithril-Specific Rules
 
 **Never call `m.redraw()` - it's almost never needed:**
 ```typescript
@@ -447,7 +435,7 @@ class FilterMenu {
 }
 ```
 
-#### Widget Usage
+### Widget Usage
 
 **Use the `Anchor` widget for links:**
 ```typescript
@@ -461,16 +449,7 @@ m('a', {href: 'https://example.com', target: '_blank'}, 'Link')
 m(Anchor, {href: 'https://example.com', icon: Icons.ExternalLink}, 'Link')
 ```
 
-**Popups should be scrollable with fixed heights for async content:**
-```typescript
-// Bad - height changes as content loads, causing flicker
-m(Popup, m('.filter-options', this.loadingOptions ? m(Spinner) : this.options.map(...)))
-
-// Good - fixed height container
-m(Popup, m('.filter-options', {style: {height: '200px', overflow: 'auto'}}, ...))
-```
-
-#### Naming Conventions
+### Naming Conventions
 
 **Settings/flags should use reverse-DNS format:**
 ```typescript
@@ -500,7 +479,7 @@ But don't touch years when editing existing files.
 // Copyright (C) 2025 The Android Open Source Project
 ```
 
-#### Code Organization
+### Code Organization
 
 **Don't expose internal implementation details:**
 ```typescript
@@ -534,7 +513,7 @@ function getCache(trace: Trace): Map<string, Data> {
 }
 ```
 
-#### Testing
+## Testing
 
 **Use Zod for parsing objects of unknown types:**
 ```typescript
