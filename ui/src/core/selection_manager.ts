@@ -34,7 +34,7 @@ import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
 import {showModal} from '../widgets/modal';
 import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
-import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
+import {UnionDataset, SourceDataset} from '../trace_processor/dataset';
 import {Track} from '../public/track';
 
 interface SelectionDetailsPanel {
@@ -284,7 +284,7 @@ export class SelectionManagerImpl implements SelectionManager {
       });
 
       const datasets = values.map(([dataset]) => dataset);
-      const union = new UnionDataset(datasets).optimize();
+      const union = UnionDataset.create(datasets).optimize();
 
       // Make sure to include the filter value in the schema.
       const schema = {...union.schema, [colName]: UNKNOWN};
