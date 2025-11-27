@@ -148,7 +148,7 @@ m(Gate, {open: this.isVisible}, m(ExpensiveComponent));
 The `ui/src/widgets/` directory contains reusable components. Always check here before creating new UI elements:
 
 - `Button`, `ButtonBar`, `ButtonGroup` - Various button styles
-- `Menu`, `MenuItem`, `MenuDivider` - Dropdown menus
+- `PopupMenu`, `Menu`, `MenuItem`, `MenuDivider` - Dropdown menus
 - `Popup` - Floating popup containers
 - `Modal` - Modal dialogs
 - `TextInput`, `Select`, `Checkbox`, `Switch` - Form controls
@@ -343,31 +343,18 @@ m('.pf-my-component', 'content') // with styles in .scss file
 }
 ```
 
-**Use CSS `:hover` pseudo-element, not JavaScript hover handlers:**
-```typescript
-// Bad
-m('div', {
-  onmouseenter: () => this.hovered = true,
-  onmouseleave: () => this.hovered = false,
-  class: this.hovered ? 'hovered' : '',
-})
-
-// Good - use CSS :hover in stylesheet
-// .pf-my-element:hover { background: var(--pf-color-hover); }
-```
-
 ### Mithril-Specific Rules
 
 **Don't use `oncreate`/lifecycle hooks for things that can be done in `view()`:**
 ```typescript
-// Bad
+// Bad - splitting code across lifecycle methods hurts readability.
 oncreate() {
-  this.computedValue = expensiveComputation();
+  this.computedValue = inexpensiveComputation();
 }
 
-// Good - compute in view or use lazy initialization
+// Good - compute in view. If expensive initialize in the constructor.
 view() {
-  const computedValue = expensiveComputation();
+  const computedValue = inexpensiveComputation();
   return m('div', computedValue);
 }
 ```
