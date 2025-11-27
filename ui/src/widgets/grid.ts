@@ -68,20 +68,27 @@ export interface GridHeaderCellAttrs extends m.Attributes {
 
 export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
   view({attrs, children}: m.Vnode<GridHeaderCellAttrs>) {
-    const {sort, onSort, menuItems, subContent, ...htmlAttrs} = attrs;
+    const {
+      sort,
+      onSort,
+      menuItems,
+      subContent,
+      hintSortDirection,
+      ...htmlAttrs
+    } = attrs;
 
     const renderSortButton = () => {
       if (!onSort) return undefined;
 
       const nextDirection: SortDirection = (() => {
-        if (!sort) return attrs.hintSortDirection || 'ASC';
+        if (!sort) return hintSortDirection || 'ASC';
         if (sort === 'ASC') return 'DESC';
         if (sort === 'DESC') return 'ASC';
         return 'ASC';
       })();
 
       const sortIconDirection: SortDirection | undefined = (() => {
-        if (!sort) return attrs.hintSortDirection;
+        if (!sort) return hintSortDirection;
         return sort;
       })();
 
@@ -121,6 +128,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       '.pf-grid-header-cell',
       {
         ...htmlAttrs,
+        role: 'columnheader',
       },
       [
         m(
@@ -145,6 +153,7 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly nullish?: boolean;
   readonly padding?: boolean;
   readonly wrap?: boolean;
+  readonly label?: string;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -170,6 +179,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
           nullish && 'pf-grid-cell--nullish',
           wrap && 'pf-grid-cell--wrap',
         ),
+        role: 'cell',
       },
       m('.pf-grid-cell__content', children),
       Boolean(menuItems) &&
@@ -1006,7 +1016,6 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         'style': {
           width: `var(--pf-grid-col-${columnId})`,
         },
-        'role': 'cell',
         'data-column-id': columnId,
         'className': classNames(
           thickRightBorder && 'pf-grid__cell-container--border-right-thick',
@@ -1104,8 +1113,6 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     return m(
       '.pf-grid__cell-container',
       {
-        'role': 'columnheader',
-        'ariaLabel': column.key,
         'data-column-id': columnId,
         'key': column.key,
         'style': {
