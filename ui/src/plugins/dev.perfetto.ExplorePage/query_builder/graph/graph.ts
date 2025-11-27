@@ -61,6 +61,7 @@ import {EmptyGraph} from '../empty_graph';
 import {nodeRegistry} from '../node_registry';
 import {NodeBox} from './node_box';
 import {buildCategorizedMenuItems} from './menu_utils';
+import {getAllNodes, findNodeById} from '../graph_utils';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -119,42 +120,8 @@ export interface GraphAttrs {
 // UTILITY FUNCTIONS
 // ========================================
 
-// Traverses the graph using BFS with cycle detection (visited set prevents infinite loops)
-export function getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
-  const allNodes: QueryNode[] = [];
-  const visited = new Set<string>();
-
-  for (const root of rootNodes) {
-    const queue: QueryNode[] = [root];
-
-    while (queue.length > 0) {
-      const curr = queue.shift();
-      if (!curr) continue;
-
-      if (visited.has(curr.nodeId)) {
-        continue;
-      }
-
-      visited.add(curr.nodeId);
-      allNodes.push(curr);
-
-      for (const child of curr.nextNodes) {
-        if (child !== undefined && !visited.has(child.nodeId)) {
-          queue.push(child);
-        }
-      }
-    }
-  }
-  return allNodes;
-}
-
-function findQueryNode(
-  nodeId: string,
-  rootNodes: QueryNode[],
-): QueryNode | undefined {
-  const allNodes = getAllNodes(rootNodes);
-  return allNodes.find((n) => n.nodeId === nodeId);
-}
+// Alias for consistency with existing code in this file
+const findQueryNode = findNodeById;
 
 // A node is "docked" if it has no layout (rendered as part of parent's chain via 'next' property)
 function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {

@@ -33,7 +33,9 @@ import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
 import {MaterializationService} from './query_builder/materialization_service';
+import {CleanupManager} from './query_builder/cleanup_manager';
 import {HistoryManager} from './history_manager';
+import {getAllNodes} from './query_builder/graph_utils';
 
 registerCoreNodes();
 
@@ -57,6 +59,7 @@ interface ExplorePageAttrs {
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private materializationService?: MaterializationService;
+  private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
 
@@ -342,29 +345,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   async handleClearAllNodes(attrs: ExplorePageAttrs) {
-    // Clean up materialized tables for all nodes
-    if (this.materializationService !== undefined) {
-      const allNodes = this.getAllNodes(attrs.state.rootNodes);
-      const materialized = allNodes.filter(
-        (node) => node.state.materialized === true,
-      );
-
-      // Drop all materializations in parallel
-      const results = await Promise.allSettled(
-        materialized.map((node) =>
-          this.materializationService!.dropMaterialization(node),
-        ),
-      );
-
-      // Log any failures but don't block the clear operation
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          console.error(
-            `Failed to drop materialization for node ${materialized[index].nodeId}:`,
-            result.reason,
-          );
-        }
-      });
+    // Clean up materialized tables for all nodes using CleanupManager
+    if (this.cleanupManager !== undefined) {
+      const allNodes = getAllNodes(attrs.state.rootNodes);
+      await this.cleanupManager.cleanupNodes(allNodes);
     }
 
     attrs.onStateUpdate((currentState) => ({
@@ -372,35 +356,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       rootNodes: [],
       selectedNode: undefined,
     }));
-  }
-
-  private getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
-    const allNodes: QueryNode[] = [];
-    const visited = new Set<string>();
-    const queue = [...rootNodes];
-
-    while (queue.length > 0) {
-      const node = queue.shift()!;
-      if (visited.has(node.nodeId)) {
-        continue;
-      }
-      visited.add(node.nodeId);
-      allNodes.push(node);
-
-      // Traverse forward edges
-      queue.push(...node.nextNodes);
-
-      // Traverse backward edges
-      if ('primaryInput' in node && node.primaryInput) {
-        queue.push(node.primaryInput);
-      } else if ('secondaryInputs' in node && node.secondaryInputs) {
-        for (const inputNode of node.secondaryInputs.connections.values()) {
-          queue.push(inputNode);
-        }
-      }
-    }
-
-    return allNodes;
   }
 
   handleDuplicateNode(attrs: ExplorePageAttrs, node: QueryNode) {
@@ -464,20 +419,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   async handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
     const {state, onStateUpdate} = attrs;
 
-    // Clean up materialized table if it exists
-    if (
-      this.materializationService !== undefined &&
-      node.state.materialized === true
-    ) {
-      try {
-        await this.materializationService.dropMaterialization(node);
-      } catch (e) {
-        console.error(
-          `Failed to drop materialization for node ${node.nodeId}:`,
-          e,
-        );
-        // Continue with node deletion even if materialization cleanup fails
-      }
+    // Clean up materialized table if it exists using CleanupManager
+    if (this.cleanupManager !== undefined) {
+      await this.cleanupManager.cleanupNode(node);
     }
 
     let newRootNodes = state.rootNodes.filter((n) => n !== node);
@@ -725,9 +669,17 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Ensure all nodes have actions initialized (e.g., nodes from imported state)
     // This is efficient - only processes nodes not yet initialized
-    const allNodes = this.getAllNodes(state.rootNodes);
+    const allNodes = getAllNodes(state.rootNodes);
     for (const node of allNodes) {
       this.ensureNodeActions(wrappedAttrs, node);
+    }
+
+    // Initialize services if not already done
+    if (this.materializationService === undefined) {
+      this.materializationService = new MaterializationService(
+        attrs.trace.engine,
+      );
+      this.cleanupManager = new CleanupManager(this.materializationService);
     }
 
     return m(
@@ -735,19 +687,21 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       {
         onkeydown: (e: KeyboardEvent) => this.handleKeyDown(e, wrappedAttrs),
         oncreate: (vnode) => {
-          // Initialize materialization service
-          if (this.materializationService === undefined) {
-            this.materializationService = new MaterializationService(
-              attrs.trace.engine,
-            );
-          }
           (vnode.dom as HTMLElement).focus();
+        },
+        onremove: async () => {
+          // Clean up all materialized tables when component is destroyed
+          if (this.cleanupManager !== undefined) {
+            const allNodes = getAllNodes(state.rootNodes);
+            await this.cleanupManager.cleanupAll(allNodes);
+          }
         },
         tabindex: 0,
       },
       m(Builder, {
         trace,
         sqlModules,
+        materializationService: this.materializationService,
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,

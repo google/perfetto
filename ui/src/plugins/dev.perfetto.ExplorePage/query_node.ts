@@ -20,6 +20,7 @@ import {UIFilter} from './query_builder/operations/filter';
 import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
+import {stringifyJsonWithBigints} from '../../base/json_utils';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {
@@ -250,6 +251,9 @@ export function queryToRun(query?: Query): string {
  *
  * Uses the structured query protobuf directly - no engine analysis needed.
  * This allows detecting query changes before any SQL execution.
+ *
+ * This function is relatively expensive (stringifyJsonWithBigints on entire query tree).
+ * MaterializationService caches results to avoid recomputation.
  */
 export function hashNodeQuery(node: QueryNode): string | undefined {
   const sq = node.getStructuredQuery();
@@ -257,10 +261,11 @@ export function hashNodeQuery(node: QueryNode): string | undefined {
     return undefined;
   }
 
-  // JSON.stringify on the protobuf object gives us a stable representation
+  // stringifyJsonWithBigints on the protobuf object gives us a stable representation
   // of all the query structure (filters, aggregations, joins, etc.).
   // Protobuf objects have stable field ordering, making this deterministic.
-  return JSON.stringify(sq);
+  // Uses bigint-safe stringify to handle bigint values correctly.
+  return stringifyJsonWithBigints(sq);
 }
 
 export async function analyzeNode(
@@ -299,21 +304,15 @@ export async function analyzeNode(
   return sql;
 }
 
+/**
+ * Marks a node's operation as changed.
+ * This indicates the node needs re-validation and re-execution.
+ *
+ * Note: Does not propagate to children or invalidate caches.
+ * Use MaterializationService.invalidateNode() for invalidation with propagation.
+ */
 export function setOperationChanged(node: QueryNode) {
-  let curr: QueryNode | undefined = node;
-  const queue: QueryNode[] = [];
-  while (curr) {
-    if (curr.state.hasOperationChanged) {
-      // Already marked as changed, skip this branch
-      curr = queue.shift();
-      continue;
-    }
-    curr.state.hasOperationChanged = true;
-    curr.nextNodes.forEach((child) => {
-      queue.push(child);
-    });
-    curr = queue.shift();
-  }
+  node.state.hasOperationChanged = true;
 }
 
 export function isAQuery(

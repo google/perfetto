@@ -94,6 +94,7 @@ import {MaterializationService} from './materialization_service';
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
+  readonly materializationService: MaterializationService;
 
   readonly devMode?: boolean;
 
@@ -162,9 +163,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.trace = attrs.trace;
     this.queryService = new QueryService(attrs.trace.engine);
-    this.materializationService = new MaterializationService(
-      attrs.trace.engine,
-    );
+    // Use the shared MaterializationService from parent
+    this.materializationService = attrs.materializationService;
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -237,8 +237,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             const shouldAutoExecute = selectedNode.state.autoExecute ?? true;
             // Don't execute if validation fails (e.g., duplicate column names)
             if (isAQuery(this.query) && selectedNode.validate()) {
-              // Check if we have an existing materialized table for this exact query
+              // Compute and cache hash after successful analysis
               const currentQueryHash = hashNodeQuery(selectedNode);
+              if (currentQueryHash !== undefined) {
+                attrs.materializationService.setCachedQueryHash(
+                  selectedNode,
+                  currentQueryHash,
+                );
+              }
+
+              // Check if we have an existing materialized table for this exact query
               const hasMatchingMaterialization = this.canReuseMaterialization(
                 selectedNode,
                 currentQueryHash,
@@ -537,7 +545,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const queryStartMs = performance.now();
     let tableName: string | undefined;
     let createdNewMaterialization = false;
-    const currentQueryHash = hashNodeQuery(node);
+    // Use cached hash - it was already computed during analysis
+    const currentQueryHash =
+      this.materializationService.getCachedQueryHash(node);
 
     // If we can't get a hash, something is wrong with the node
     if (currentQueryHash === undefined) {
