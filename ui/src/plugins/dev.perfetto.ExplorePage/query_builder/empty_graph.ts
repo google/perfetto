@@ -74,7 +74,7 @@ export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
 
     return m(
       '.pf-exp-node-graph-add-button-container.pf-empty-graph-hero',
-      m('h2.pf-empty-graph-hero__title', 'Explore your trace data'),
+      m('h2.pf-empty-graph-hero__title', 'Explore trace data'),
       m(
         'p.pf-empty-graph-hero__subtitle',
         'Build and execute SQL queries on your trace data using a visual ' +
