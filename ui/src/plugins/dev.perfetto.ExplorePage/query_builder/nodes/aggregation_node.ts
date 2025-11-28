@@ -46,7 +46,7 @@ import {
 } from '../structured_query_builder';
 import {isColumnValidForAggregation} from '../utils';
 import {LabeledControl, ListItem} from '../widgets';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {EmptyState} from '../../../../widgets/empty_state';
 
 export interface AggregationSerializedState {
@@ -224,7 +224,7 @@ export class AggregationNode implements QueryNode {
     return 'Aggregation';
   }
 
-  nodeDetails?(): m.Child | undefined {
+  nodeDetails(): NodeDetailsAttrs {
     const groupByOptions: MultiSelectOption[] = this.state.groupByColumns.map(
       (col) => ({
         id: col.name,
@@ -285,7 +285,9 @@ export class AggregationNode implements QueryNode {
       details.push(m('div', agg));
     });
 
-    return m('.pf-aggregation-node-details', details);
+    return {
+      content: m('.pf-aggregation-node-details', details),
+    };
   }
 
   nodeSpecificModify(): NodeModifyAttrs {

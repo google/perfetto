@@ -55,7 +55,8 @@ import {
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 import {Form, FormLabel, FormSection} from '../../../../widgets/form';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -751,14 +752,16 @@ export class AddColumnsNode implements QueryNode {
     return error?.error;
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
     const hasConnectedNode = this.rightNode !== undefined;
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
     const hasSelectedColumns =
       this.state.selectedColumns && this.state.selectedColumns.length > 0;
 
     if (!hasSelectedColumns && !hasComputedColumns) {
-      return m('.pf-exp-node-details-message', 'No columns added');
+      return {
+        content: NodeDetailsMessage('No columns added'),
+      };
     }
 
     const items: m.Child[] = [];
@@ -768,12 +771,7 @@ export class AddColumnsNode implements QueryNode {
       for (const col of this.state.selectedColumns ?? []) {
         const alias = this.state.columnAliases?.get(col);
         const displayName = alias || col;
-        items.push(
-          m('div', [
-            m('span.pf-exp-column-name', displayName),
-            ': column from input',
-          ]),
-        );
+        items.push(m('div', [ColumnName(displayName), ': column from input']));
       }
     }
 
@@ -791,12 +789,12 @@ export class AddColumnsNode implements QueryNode {
         description = col.expression || '(empty)';
       }
 
-      items.push(
-        m('div', [m('span.pf-exp-column-name', name), `: ${description}`]),
-      );
+      items.push(m('div', [ColumnName(name), `: ${description}`]));
     }
 
-    return m('div', items);
+    return {
+      content: m('div', items),
+    };
   }
 
   nodeSpecificModify(): NodeModifyAttrs {

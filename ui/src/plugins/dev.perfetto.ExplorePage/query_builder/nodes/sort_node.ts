@@ -33,6 +33,7 @@ import {
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {LabeledControl, DraggableItem} from '../widgets';
+import {NodeDetailsAttrs} from '../node_explorer_types';
 
 export interface SortCriterion {
   colName: string;
@@ -84,7 +85,7 @@ export class SortNode implements QueryNode {
     return 'Sort';
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
     if (!this.state.sortCriteria) {
       this.state.sortCriteria = [];
     }
@@ -116,76 +117,78 @@ export class SortNode implements QueryNode {
       m.redraw();
     };
 
-    return m('div', [
-      m(
-        LabeledControl,
-        {
-          label: 'Sort by:',
-        },
-        m(PopupMultiSelect, {
-          label,
-          options: sortOptions,
-          showNumSelected: false,
-          compact: true,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            if (!this.state.sortCriteria) {
-              this.state.sortCriteria = [];
-            }
-            for (const diff of diffs) {
-              if (diff.checked) {
-                // Add column if not already present
-                if (
-                  !this.state.sortCriteria.some((c) => c.colName === diff.id)
-                ) {
-                  this.state.sortCriteria.push({
-                    colName: diff.id,
-                    direction: 'ASC',
-                  });
-                }
-              } else {
-                // Remove column
-                this.state.sortCriteria = this.state.sortCriteria.filter(
-                  (c) => c.colName !== diff.id,
-                );
-              }
-            }
-            this.sortCols = this.resolveSortCols();
-            this.state.onchange?.();
+    return {
+      content: m('div', [
+        m(
+          LabeledControl,
+          {
+            label: 'Sort by:',
           },
-        }),
-        this.state.sortCriteria.length > 0 &&
-          m(Button, {
-            icon: 'edit',
-            minimal: true,
-            onclick: () => {
-              this.showEditControls = !this.showEditControls;
-              m.redraw();
+          m(PopupMultiSelect, {
+            label,
+            options: sortOptions,
+            showNumSelected: false,
+            compact: true,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              if (!this.state.sortCriteria) {
+                this.state.sortCriteria = [];
+              }
+              for (const diff of diffs) {
+                if (diff.checked) {
+                  // Add column if not already present
+                  if (
+                    !this.state.sortCriteria.some((c) => c.colName === diff.id)
+                  ) {
+                    this.state.sortCriteria.push({
+                      colName: diff.id,
+                      direction: 'ASC',
+                    });
+                  }
+                } else {
+                  // Remove column
+                  this.state.sortCriteria = this.state.sortCriteria.filter(
+                    (c) => c.colName !== diff.id,
+                  );
+                }
+              }
+              this.sortCols = this.resolveSortCols();
+              this.state.onchange?.();
             },
           }),
-      ),
-      this.showEditControls &&
-        this.state.sortCriteria?.map((criterion, index) =>
-          m(
-            DraggableItem,
-            {
-              index,
-              onReorder: handleReorder,
-            },
-            m('span', criterion.colName),
+          this.state.sortCriteria.length > 0 &&
             m(Button, {
-              label: criterion.direction,
+              icon: 'edit',
+              minimal: true,
               onclick: () => {
-                if (this.state.sortCriteria) {
-                  this.state.sortCriteria[index].direction =
-                    criterion.direction === 'ASC' ? 'DESC' : 'ASC';
-                  this.state.onchange?.();
-                  m.redraw();
-                }
+                this.showEditControls = !this.showEditControls;
+                m.redraw();
               },
             }),
-          ),
         ),
-    ]);
+        this.showEditControls &&
+          this.state.sortCriteria?.map((criterion, index) =>
+            m(
+              DraggableItem,
+              {
+                index,
+                onReorder: handleReorder,
+              },
+              m('span', criterion.colName),
+              m(Button, {
+                label: criterion.direction,
+                onclick: () => {
+                  if (this.state.sortCriteria) {
+                    this.state.sortCriteria[index].direction =
+                      criterion.direction === 'ASC' ? 'DESC' : 'ASC';
+                    this.state.onchange?.();
+                    m.redraw();
+                  }
+                },
+              }),
+            ),
+          ),
+      ]),
+    };
   }
 
   nodeSpecificModify(): m.Child {

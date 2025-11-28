@@ -34,7 +34,8 @@ import {
 } from '../../../../widgets/multiselect';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {LabeledControl, IssueList, ListItem} from '../widgets';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeTitle} from '../node_styling_widgets';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -398,8 +399,10 @@ export class IntervalIntersectNode implements QueryNode {
     );
   }
 
-  nodeDetails(): m.Child {
-    return this.renderPartitionSelector(true);
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
+    };
   }
 
   private cleanupPartitionColumns(): void {
