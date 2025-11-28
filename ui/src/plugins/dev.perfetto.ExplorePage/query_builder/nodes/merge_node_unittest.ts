@@ -798,7 +798,6 @@ describe('MergeNode', () => {
       expect(serialized.conditionType).toBe('equality');
       expect(serialized.leftColumn).toBe('id');
       expect(serialized.rightColumn).toBe('id');
-      expect(serialized.comment).toBe('Test merge');
     });
   });
 

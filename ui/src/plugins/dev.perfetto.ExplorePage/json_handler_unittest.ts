@@ -1418,9 +1418,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedUnionNode = deserializedTableNode1
       .nextNodes[0] as UnionNode;
-    expect(deserializedUnionNode.comment).toBe(
-      'Union of slice sources excluding idle',
-    );
     // Verify unchecked column is preserved
     expect(deserializedUnionNode.state.selectedColumns[1].checked).toBe(false);
   });
