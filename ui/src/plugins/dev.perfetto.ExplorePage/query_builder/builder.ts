@@ -92,6 +92,7 @@ import {UIFilter} from './operations/filter';
 import {MaterializationService} from './materialization_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
+import {getAllDownstreamNodes} from './graph_utils';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -326,6 +327,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             this.isAnalyzing = isAnalyzing;
           },
           onchange: () => {
+            // When a node's state changes, notify all downstream nodes
+            // to update their columns and UI. This ensures that when e.g.
+            // a column is renamed in ModifyColumnsNode, the AggregationNode
+            // sees the new column name.
+            const downstreamNodes = getAllDownstreamNodes(selectedNode);
+            for (const node of downstreamNodes) {
+              // Skip the node itself (it's included in downstream nodes)
+              if (node.nodeId === selectedNode.nodeId) continue;
+              node.onPrevNodesUpdated?.();
+            }
             attrs.onNodeStateChange?.();
           },
           isCollapsed: this.isExplorerCollapsed,
