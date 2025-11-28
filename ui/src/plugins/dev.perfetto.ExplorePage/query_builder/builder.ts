@@ -243,6 +243,17 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         this.selectedView = SelectedView.kInfo;
       }
     }
+
+    // When transitioning to unselected state with collapsed explorer, reappear at minimum size
+    if (
+      !selectedNode &&
+      this.previousSelectedNode &&
+      this.isExplorerCollapsed
+    ) {
+      this.isExplorerCollapsed = false;
+      this.sidebarWidth = this.MIN_SIDEBAR_WIDTH;
+    }
+
     this.previousSelectedNode = selectedNode;
 
     const layoutClasses =
