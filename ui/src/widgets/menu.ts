@@ -60,6 +60,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
     const {
       rightIcon = 'chevron_right',
       closePopupOnClick = false,
+      onChange,
       ...rest
     } = attrs;
 
@@ -72,7 +73,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
           closePopupOnClick,
           ...rest,
         }),
-        onChange: attrs.onChange,
+        onChange,
         showArrow: false,
         createNewGroup: false,
         edgeOffset: 5, // Adjust for popup padding & border.
