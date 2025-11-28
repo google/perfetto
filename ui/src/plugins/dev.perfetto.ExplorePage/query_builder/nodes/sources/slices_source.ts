@@ -67,9 +67,7 @@ export class SlicesSourceNode implements QueryNode {
   }
 
   serializeState(): SlicesSourceSerializedState {
-    return {
-      comment: this.state.comment,
-    };
+    return {};
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

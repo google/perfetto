@@ -18,8 +18,6 @@ import {classNames} from '../../../../base/classnames';
 import {PopupMenu} from '../../../../widgets/menu';
 import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
-import {Callout} from '../../../../widgets/callout';
-import {Intent} from '../../../../widgets/common';
 import {nodeRegistry} from '../node_registry';
 import {buildCategorizedMenuItems} from './menu_utils';
 
@@ -78,8 +76,6 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
           class: classNames(NodeType[node.type]),
         },
         shouldShowTitle && m('span.pf-exp-node-box__title', node.getTitle()),
-        node.state.comment &&
-          m(Callout, {intent: Intent.None}, node.state.comment),
         m('.pf-exp-node-box__details', node.nodeDetails?.()),
       ),
       m(
