@@ -40,9 +40,9 @@ interface TableWithModule {
 function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
   switch (importance) {
     case 'high':
-      return 'Important';
+      return 'Very frequent';
     case 'mid':
-      return 'Recommended';
+      return 'Frequent';
     case 'low':
       return 'Low';
   }
@@ -195,32 +195,64 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       module.tables.map((table) => ({table, moduleName: module.includeKey})),
     );
 
-    const finder = new FuzzyFinder(allTables, (item) => item.table.name);
-    const fuzzyResults = finder.find(attrs.searchQuery);
+    // Search by table name first
+    const titleFinder = new FuzzyFinder(allTables, (item) => item.table.name);
+    const titleResults = titleFinder.find(attrs.searchQuery);
 
-    // Group fuzzy results by importance level to ensure:
-    // - High importance tables always appear first
-    // - Low importance tables always appear last
-    // - Within each level, fuzzy finder's natural sorting applies
-    const highImportance = fuzzyResults.filter(
-      (r) => r.item.table.importance === 'high',
-    );
-    const midImportance = fuzzyResults.filter(
-      (r) => r.item.table.importance === 'mid',
-    );
-    const normalImportance = fuzzyResults.filter(
-      (r) => r.item.table.importance === undefined,
-    );
-    const lowImportance = fuzzyResults.filter(
-      (r) => r.item.table.importance === 'low',
+    // Create a set of table names that matched by title to avoid duplicates
+    const titleMatchedNames = new Set(
+      titleResults.map((r) => r.item.table.name),
     );
 
-    const sortedFuzzyResults = [
-      ...highImportance,
-      ...midImportance,
-      ...normalImportance,
-      ...lowImportance,
-    ];
+    // Search by column names for tables that didn't match by title
+    const columnResults: Array<{
+      item: TableWithModule;
+      segments: FuzzySegment[];
+    }> = [];
+
+    if (attrs.searchQuery.trim() !== '') {
+      for (const tableWithModule of allTables) {
+        // Skip tables that already matched by title
+        if (titleMatchedNames.has(tableWithModule.table.name)) {
+          continue;
+        }
+
+        // Search in column names
+        const columnNames = tableWithModule.table.columns
+          .map((col) => col.name)
+          .join(' ');
+        const columnFinder = new FuzzyFinder([columnNames], (name) => name);
+        const matches = columnFinder.find(attrs.searchQuery);
+
+        if (matches.length > 0) {
+          // Use the table name segments (non-highlighted) for display
+          columnResults.push({
+            item: tableWithModule,
+            segments: [{matching: false, value: tableWithModule.table.name}],
+          });
+        }
+      }
+    }
+
+    // Helper function to group results by importance
+    const groupByImportance = (
+      results: Array<{item: TableWithModule; segments: FuzzySegment[]}>,
+    ) => {
+      const high = results.filter((r) => r.item.table.importance === 'high');
+      const mid = results.filter((r) => r.item.table.importance === 'mid');
+      const normal = results.filter(
+        (r) => r.item.table.importance === undefined,
+      );
+      const low = results.filter((r) => r.item.table.importance === 'low');
+      return [...high, ...mid, ...normal, ...low];
+    };
+
+    // Combine results: title matches first (sorted by importance),
+    // then column matches (sorted by importance)
+    const sortedTitleResults = groupByImportance(titleResults);
+    const sortedColumnResults = groupByImportance(columnResults);
+
+    const sortedFuzzyResults = [...sortedTitleResults, ...sortedColumnResults];
 
     const tableCards = sortedFuzzyResults.map(({item, segments}) =>
       m(TableCard, {
