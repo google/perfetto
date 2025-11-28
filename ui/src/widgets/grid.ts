@@ -559,6 +559,10 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     const tempDiv = document.createElement('div');
     tempDiv.appendChild(fragment);
 
+    // Remove all button elements to exclude them from the copy
+    const buttons = tempDiv.querySelectorAll('button');
+    buttons.forEach((button) => button.remove());
+
     // Find all rows in the cloned content
     const rows = Array.from(
       tempDiv.querySelectorAll('.pf-grid__row'),
