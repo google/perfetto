@@ -47,7 +47,6 @@ enum SelectedView {
   kInfo = 0,
   kModify = 1,
   kResult = 2,
-  kComment = 3,
 }
 
 export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
@@ -280,16 +279,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
               ? m(CodeSnippet, {text: textproto, language: 'textproto'})
               : m('div', textproto),
         ]),
-      selectedView === SelectedView.kComment &&
-        m('textarea.pf-exp-node-explorer__comment', {
-          'aria-label': 'Comment',
-          'placeholder': 'Add a comment...',
-          'oninput': (e: InputEvent) => {
-            if (!e.target) return;
-            node.state.comment = (e.target as HTMLTextAreaElement).value;
-          },
-          'value': node.state.comment,
-        }),
     );
   }
 

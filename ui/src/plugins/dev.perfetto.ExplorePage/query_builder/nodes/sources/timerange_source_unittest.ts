@@ -265,18 +265,16 @@ describe('TimeRangeSourceNode', () => {
       expect(serialized.isDynamic).toBe(false);
     });
 
-    it('should serialize comment if present', () => {
+    it('should serialize state', () => {
       const node = new TimeRangeSourceNode({
         trace: createMockTrace(),
         start: Time.fromRaw(100n),
         end: Time.fromRaw(500n),
         isDynamic: false,
-        comment: 'Test comment',
       });
 
       const serialized = node.serializeState();
-
-      expect(serialized.comment).toBe('Test comment');
+      expect(serialized).toBeDefined();
     });
   });
 
@@ -344,20 +342,18 @@ describe('TimeRangeSourceNode', () => {
       expect(state.isDynamic).toBe(false);
     });
 
-    it('should deserialize comment if present', () => {
+    it('should deserialize state', () => {
       const serialized: TimeRangeSourceSerializedState = {
         start: '100',
         end: '500',
         isDynamic: false,
-        comment: 'Test comment',
       };
 
       const state = TimeRangeSourceNode.deserializeState(
         createMockTrace(),
         serialized,
       );
-
-      expect(state.comment).toBe('Test comment');
+      expect(state).toBeDefined();
     });
 
     it('should preserve trace reference', () => {
@@ -391,18 +387,16 @@ describe('TimeRangeSourceNode', () => {
       expect(clonedNode.nodeId).not.toBe(originalNode.nodeId);
     });
 
-    it('should clone with comment', () => {
+    it('should clone successfully', () => {
       const originalNode = new TimeRangeSourceNode({
         trace: createMockTrace(),
         start: Time.fromRaw(100n),
         end: Time.fromRaw(500n),
         isDynamic: false,
-        comment: 'Original comment',
       });
 
       const clonedNode = originalNode.clone() as TimeRangeSourceNode;
-
-      expect(clonedNode.state.comment).toBe('Original comment');
+      expect(clonedNode).toBeDefined();
     });
   });
 
@@ -483,7 +477,6 @@ describe('TimeRangeSourceNode', () => {
         start: Time.fromRaw(12345n),
         end: Time.fromRaw(67890n),
         isDynamic: true,
-        comment: 'Round-trip test',
       });
 
       const serialized = originalNode.serializeState();
@@ -496,7 +489,6 @@ describe('TimeRangeSourceNode', () => {
       expect(newNode.state.start).toEqual(originalNode.state.start);
       expect(newNode.state.end).toEqual(originalNode.state.end);
       expect(newNode.state.isDynamic).toBe(originalNode.state.isDynamic);
-      expect(newNode.state.comment).toBe(originalNode.state.comment);
     });
   });
 

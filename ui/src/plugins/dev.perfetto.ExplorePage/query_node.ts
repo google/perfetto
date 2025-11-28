@@ -83,7 +83,6 @@ export interface SecondaryInputSpec {
 
 // All information required to create a new node.
 export interface QueryNodeState {
-  comment?: string;
   trace?: Trace;
   sqlModules?: SqlModules;
   sqlTable?: SqlTable;

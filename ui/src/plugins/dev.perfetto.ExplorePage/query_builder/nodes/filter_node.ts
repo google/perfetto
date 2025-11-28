@@ -589,7 +589,6 @@ export class FilterNode implements QueryNode {
       filterOperator: this.state.filterOperator,
       filterMode: this.state.filterMode,
       sqlExpression: this.state.sqlExpression,
-      comment: this.state.comment,
     };
   }
 

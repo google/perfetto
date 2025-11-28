@@ -476,7 +476,6 @@ export class ModifyColumnsNode implements QueryNode {
         checked: c.checked,
         alias: c.alias,
       })),
-      comment: this.state.comment,
     };
   }
 }

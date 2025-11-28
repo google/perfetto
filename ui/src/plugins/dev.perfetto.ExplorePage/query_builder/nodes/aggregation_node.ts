@@ -722,7 +722,6 @@ export class AggregationNode implements QueryNode {
         isValid: a.isValid,
         isEditing: a.isEditing,
       })),
-      comment: this.state.comment,
     };
   }
 

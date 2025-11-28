@@ -112,7 +112,6 @@ export class SqlSourceNode implements QueryNode {
   serializeState(): SqlSourceSerializedState {
     return {
       sql: this.state.sql,
-      comment: this.state.comment,
     };
   }
 

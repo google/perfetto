@@ -508,7 +508,6 @@ export class MergeNode implements QueryNode {
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
       sqlExpression: this.state.sqlExpression,
-      comment: this.state.comment,
     };
   }
 

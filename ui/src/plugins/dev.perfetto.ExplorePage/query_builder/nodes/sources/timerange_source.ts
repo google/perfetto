@@ -113,7 +113,6 @@ export class TimeRangeSourceNode implements QueryNode {
       end: this.state.end,
       isDynamic: false, // Clone always creates a static snapshot
       trace: this.state.trace,
-      comment: this.state.comment,
       onchange: this.state.onchange,
     };
     return new TimeRangeSourceNode(stateCopy);
@@ -128,7 +127,6 @@ export class TimeRangeSourceNode implements QueryNode {
       start: this.state.start?.toString(),
       end: this.state.end?.toString(),
       isDynamic: this.state.isDynamic,
-      comment: this.state.comment,
     };
   }
 
@@ -143,7 +141,6 @@ export class TimeRangeSourceNode implements QueryNode {
         : undefined,
       end: serialized.end ? Time.fromRaw(BigInt(serialized.end)) : undefined,
       isDynamic: serialized.isDynamic ?? false,
-      comment: serialized.comment,
     };
   }
 
