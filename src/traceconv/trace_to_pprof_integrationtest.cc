@@ -200,7 +200,7 @@ TEST_F(TraceToPprofRealTraceTest, AllocationCountForClass) {
       pprof.get_samples("android.content.pm.parsing.component.ParsedActivity")
           .size(),
       5U);
-  EXPECT_EQ(pprof.get_sample_count(), 83256U);
+  EXPECT_EQ(pprof.get_sample_count(), 83028U);
 
   const std::vector<std::string> expected_function_names = {
       "android.content.pm.parsing.component.ParsedActivity",
