@@ -804,9 +804,9 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
           "'persist_trace_after_reboot'.");
       return 1;
     }
-    // PerfettoCmd assumes |trace_out_path_| is the active output file owned by
+    // PerfettoCmd assumes 'trace_out_path_' is the active output file owned by
     // this process. When perfetto_cmd stops it automatically removes the file
-    // if '!trace_out_path_.empty() && bytes_written_ == 0'.
+    // if '!trace_out_path_.empty()' and 'bytes_written_ == 0'.
     // We use a separate field for the persistent trace file to prevent it from
     // being automatically removed when perfetto_cmd stops.
     persistent_trace_out_path_ = std::string(kAndroidPersistentStateDir) + "/" +
