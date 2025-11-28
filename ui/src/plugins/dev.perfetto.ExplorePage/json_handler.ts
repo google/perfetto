@@ -181,7 +181,7 @@ function createNodeInstance(
         ),
       );
     case NodeType.kSimpleSlices:
-      return new SlicesSourceNode(state as SlicesSourceSerializedState);
+      return new SlicesSourceNode({});
     case NodeType.kSqlSource:
       return new SqlSourceNode({
         ...(state as SqlSourceSerializedState),
@@ -233,7 +233,6 @@ function createNodeInstance(
         leftColumn: mergeState.leftColumn ?? '',
         rightColumn: mergeState.rightColumn ?? '',
         sqlExpression: mergeState.sqlExpression ?? '',
-        comment: mergeState.comment,
       });
     case NodeType.kUnion:
       const unionState = state as UnionSerializedState;
@@ -241,7 +240,6 @@ function createNodeInstance(
         inputNodes: [],
         selectedColumns: unionState.selectedColumns,
       });
-      unionNode.comment = unionState.comment;
       return unionNode;
     default:
       throw new Error(`Unknown node type: ${serializedNode.type}`);

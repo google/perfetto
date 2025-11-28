@@ -202,7 +202,6 @@ export class LimitAndOffsetNode implements QueryNode {
       primaryInputId: this.primaryInput?.nodeId,
       limit: this.state.limit,
       offset: this.state.offset,
-      comment: this.state.comment,
     };
   }
 

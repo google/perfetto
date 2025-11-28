@@ -281,7 +281,6 @@ export class SortNode implements QueryNode {
       primaryInputId: this.primaryInput?.nodeId,
       sortColNames: this.state.sortColNames,
       sortCriteria: this.state.sortCriteria,
-      comment: this.state.comment,
     };
   }
 

@@ -277,7 +277,6 @@ describe('JSON serialization/deserialization', () => {
       inputNodes: [tableNode1, tableNode2, tableNode3],
       partitionColumns: ['name'],
       filterNegativeDur: [true, false, true],
-      comment: 'Intersect intervals partitioned by name',
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
@@ -345,11 +344,6 @@ describe('JSON serialization/deserialization', () => {
     );
     expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[2]).toBe(
       true,
-    );
-
-    // Verify comment
-    expect(deserializedIntervalIntersectNode.state.comment).toBe(
-      'Intersect intervals partitioned by name',
     );
   });
 
@@ -1057,7 +1051,6 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
       filterOperator: 'AND',
-      comment: 'Filter by name and duration',
     });
     addConnection(tableNode, filterNode);
 
@@ -1096,9 +1089,6 @@ describe('JSON serialization/deserialization', () => {
 
     // Verify filter operator
     expect(deserializedNode.state.filterOperator).toBe('AND');
-
-    // Verify comment
-    expect(deserializedNode.state.comment).toBe('Filter by name and duration');
 
     // Verify primaryInput connection
     expect(deserializedNode.primaryInput?.nodeId).toBe(
@@ -1343,7 +1333,6 @@ describe('JSON serialization/deserialization', () => {
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
-      comment: 'Join on matching names with duration filter',
     });
     tableNode1.nextNodes.push(mergeNode);
     tableNode2.nextNodes.push(mergeNode);
@@ -1372,9 +1361,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedMergeNode = deserializedTableNode1
       .nextNodes[0] as MergeNode;
-    expect(deserializedMergeNode.state.comment).toBe(
-      'Join on matching names with duration filter',
-    );
     expect(deserializedMergeNode.nextNodes.length).toBe(1);
     const deserializedFilterNode = deserializedMergeNode
       .nextNodes[0] as FilterNode;
@@ -1432,9 +1418,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedUnionNode = deserializedTableNode1
       .nextNodes[0] as UnionNode;
-    expect(deserializedUnionNode.comment).toBe(
-      'Union of slice sources excluding idle',
-    );
     // Verify unchecked column is preserved
     expect(deserializedUnionNode.state.selectedColumns[1].checked).toBe(false);
   });

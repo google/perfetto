@@ -145,7 +145,6 @@ enum SelectedView {
   kInfo = 0,
   kModify = 1,
   kResult = 2,
-  kComment = 3,
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -537,28 +536,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 this.isExplorerCollapsed = true;
               } else {
                 this.selectedView = SelectedView.kResult;
-                this.isExplorerCollapsed = false;
-              }
-            },
-          }),
-        selectedNode &&
-          m(Button, {
-            icon: 'comment',
-            title: 'Comment',
-            iconFilled: !!selectedNode.state.comment,
-            className:
-              this.selectedView === SelectedView.kComment &&
-              !this.isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
-                this.selectedView === SelectedView.kComment &&
-                !this.isExplorerCollapsed
-              ) {
-                this.isExplorerCollapsed = true;
-              } else {
-                this.selectedView = SelectedView.kComment;
                 this.isExplorerCollapsed = false;
               }
             },
