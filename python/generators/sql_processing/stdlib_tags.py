@@ -459,6 +459,9 @@ TABLE_IMPORTANCE = {
     # HIGH IMPORTANCE - Core timestamped tables, fundamental for most analyses
     'thread_state':
         'high',  # CPU scheduling: what threads ran when and for how long
+    'sched': 'high',  # Kernel scheduling events table
+    'thread': 'high',  # Thread metadata and information
+    'process': 'high',  # Process metadata and information
     'counter': 'high',  # Time-series metrics: memory, battery, custom counters
     'thread_or_process_slice':
         'high',  # Unified slice table for thread and process slices
