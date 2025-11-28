@@ -27,7 +27,7 @@ import {
   MultiSelectDiff,
 } from '../../../../widgets/multiselect';
 import {Select} from '../../../../widgets/select';
-import {Button} from '../../../../widgets/button';
+import {Button, ButtonVariant} from '../../../../widgets/button';
 import {TextInput} from '../../../../widgets/text_input';
 import {showModal, redrawModal} from '../../../../widgets/modal';
 import {Switch} from '../../../../widgets/switch';
@@ -40,7 +40,6 @@ import {
 import {setValidationError} from '../node_issues';
 import {
   ListItem,
-  ActionButtons,
   LabeledControl,
   TableDescription,
   IssueList,
@@ -48,6 +47,7 @@ import {
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 import {Form, FormLabel, FormSection} from '../../../../widgets/form';
+import {NodeModifyAttrs} from '../node_explorer_types';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -764,11 +764,50 @@ export class AddColumnsNode implements QueryNode {
     return m('div', items);
   }
 
-  nodeSpecificModify(): m.Child {
-    return m('div', [
-      this.renderAddColumnsButtons(),
-      this.renderAddedColumnsList(),
-    ]);
+  nodeSpecificModify(): NodeModifyAttrs {
+    const hasConnectedNode = this.rightNode !== undefined;
+
+    // Build sections
+    const sections: NodeModifyAttrs['sections'] = [
+      {
+        content: m(
+          '.pf-exp-action-buttons',
+          m(Button, {
+            label: 'From another source',
+            icon: 'table_chart',
+            onclick: () => this.showJoinModal(),
+            variant: hasConnectedNode
+              ? ButtonVariant.Filled
+              : ButtonVariant.Outlined,
+          }),
+          m(Button, {
+            label: 'Expression',
+            icon: 'functions',
+            onclick: () => this.showExpressionModal(),
+            variant: ButtonVariant.Outlined,
+          }),
+          m(Button, {
+            label: 'Switch',
+            icon: 'alt_route',
+            onclick: () => this.showSwitchModal(),
+            variant: ButtonVariant.Outlined,
+          }),
+          m(Button, {
+            label: 'If',
+            icon: 'help_outline',
+            onclick: () => this.showIfModal(),
+            variant: ButtonVariant.Outlined,
+          }),
+        ),
+      },
+      {
+        content: this.renderAddedColumnsList(),
+      },
+    ];
+
+    return {
+      sections,
+    };
   }
 
   private showJoinModal() {
@@ -1013,39 +1052,6 @@ export class AddColumnsNode implements QueryNode {
         },
       ],
     });
-  }
-
-  private renderAddColumnsButtons(): m.Child {
-    const hasConnectedNode = this.rightNode !== undefined;
-
-    return m(
-      '.pf-add-columns-actions-section',
-      m(ActionButtons, {
-        buttons: [
-          {
-            label: 'From another source',
-            icon: 'table_chart',
-            active: hasConnectedNode,
-            onclick: () => this.showJoinModal(),
-          },
-          {
-            label: 'Expression',
-            icon: 'functions',
-            onclick: () => this.showExpressionModal(),
-          },
-          {
-            label: 'Switch',
-            icon: 'alt_route',
-            onclick: () => this.showSwitchModal(),
-          },
-          {
-            label: 'If',
-            icon: 'help_outline',
-            onclick: () => this.showIfModal(),
-          },
-        ],
-      }),
-    );
   }
 
   private renderAddedColumnsList(): m.Child {

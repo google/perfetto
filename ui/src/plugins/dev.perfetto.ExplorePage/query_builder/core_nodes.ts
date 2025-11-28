@@ -50,6 +50,7 @@ export function registerCoreNodes() {
     icon: 'bar_chart',
     hotkey: 's',
     type: 'source',
+    showOnLandingPage: true,
     factory: (state) => new SlicesSourceNode(state),
   });
 
@@ -59,6 +60,7 @@ export function registerCoreNodes() {
     icon: 'table_chart',
     hotkey: 't',
     type: 'source',
+    showOnLandingPage: true,
     preCreate: async ({sqlModules}) => {
       const selection = await modalForTableSelection(sqlModules);
       if (selection) {
@@ -79,6 +81,7 @@ export function registerCoreNodes() {
     icon: 'code',
     hotkey: 'q',
     type: 'source',
+    showOnLandingPage: true,
     factory: (state) => new SqlSourceNode(state as SqlSourceState),
   });
 

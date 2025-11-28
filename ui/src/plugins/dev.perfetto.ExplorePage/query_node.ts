@@ -137,7 +137,10 @@ export interface QueryNode {
 
   validate(): boolean;
   getTitle(): string;
-  nodeSpecificModify(): m.Child;
+  // Returns either NodeModifyAttrs (new structured pattern) or m.Child (legacy pattern)
+  // NodeModifyAttrs allows nodes to declaratively specify sections and corner buttons,
+  // while m.Child allows direct rendering for backwards compatibility
+  nodeSpecificModify(): unknown;
   nodeDetails?(): m.Child | undefined;
   nodeInfo(): m.Children;
   clone(): QueryNode;

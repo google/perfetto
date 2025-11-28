@@ -186,7 +186,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
     const sourceNodes = nodeRegistry
       .list()
-      .filter(([_id, node]) => node.type === 'source')
+      .filter(([_id, node]) => node.showOnLandingPage === true)
       .map(([id, node]) => {
         const name = node.name ?? 'Unnamed Source';
         const description = node.description ?? '';

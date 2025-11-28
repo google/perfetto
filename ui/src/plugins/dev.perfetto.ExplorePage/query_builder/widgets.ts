@@ -395,3 +395,27 @@ export class AdvancedModeChangeButton
     });
   }
 }
+
+// Widget for equal-width items with responsive stacking
+// Items are displayed inline with equal width when there's space,
+// and stack vertically when the container is too narrow
+export interface EqualWidthRowAttrs {
+  separator?: string; // Optional separator text between items
+}
+
+export class EqualWidthRow implements m.ClassComponent<EqualWidthRowAttrs> {
+  view({attrs, children}: m.CVnode<EqualWidthRowAttrs>) {
+    const items = Array.isArray(children) ? children : [children];
+    const {separator} = attrs;
+
+    return m(
+      '.pf-exp-equal-width-row',
+      items.map((item, index) => [
+        m('.pf-exp-equal-width-row__item', item),
+        separator && index < items.length - 1
+          ? m('.pf-exp-equal-width-row__separator', separator)
+          : null,
+      ]),
+    );
+  }
+}
