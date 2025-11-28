@@ -99,10 +99,8 @@ export class ScrollHelper {
     const visible = this.timeline.visibleWindow;
     const aoi = HighPrecisionTimeSpan.fromTime(start, end);
     const fillPercentage = 0.8; // Make selection fill 80% of viewport
-
     let newRawDuration;
     let centerPoint;
-
     // Handle instant events (duration = 0) specially
     if (aoi.duration === 0) {
       // For instant events, zoom in by 99.8% (new duration = 0.2% of current)
@@ -118,7 +116,6 @@ export class ScrollHelper {
       newRawDuration = aoi.duration / fillPercentage;
       centerPoint = aoi.midpoint;
     }
-
     // Ensure centering even when the new duration is less than the minimum
     // timeline duration.
     const newDuration = Math.max(newRawDuration, MIN_DURATION);
