@@ -20,13 +20,9 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 message JavaHeapStats {
-  message HeapRoots {
-    optional string root_type = 1;
-    optional string type_name = 2;
-    optional int64 obj_count = 3;
-  }
+  reserved 7;
 
-  // Next id: 12
+  // Next id: 13
   message Sample {
     optional int64 ts = 1;
     // Size of the Java heap in bytes
@@ -42,9 +38,8 @@ message JavaHeapStats {
     optional int64 reachable_obj_count = 5;
     // Sum of anonymous RSS + swap pages in bytes.
     optional int64 anon_rss_and_swap_size = 6;
+    optional int64 dmabuf_rss_size = 12;
 
-    // ART root objects
-    repeated HeapRoots roots = 7;
     // OOM adjustment score
     optional int64 oom_score_adj = 10;
     // Process uptime in millis at the time of the heap dump
