@@ -169,7 +169,6 @@ export class TableSourceNode implements QueryNode {
   serializeState(): TableSourceSerializedState {
     return {
       sqlTable: this.state.sqlTable?.name,
-      comment: this.state.comment,
     };
   }
 

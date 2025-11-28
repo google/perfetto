@@ -679,7 +679,6 @@ export class IntervalIntersectNode implements QueryNode {
       intervalNodes: this.inputNodesList
         .filter((n): n is QueryNode => n !== undefined)
         .map((n) => n.nodeId),
-      comment: this.state.comment,
       filterNegativeDur: this.state.filterNegativeDur,
       partitionColumns: this.state.partitionColumns,
     };

@@ -1737,7 +1737,6 @@ export class AddColumnsNode implements QueryNode {
         ? Object.fromEntries(this.state.suggestionAliases)
         : undefined,
       isGuidedConnection: this.state.isGuidedConnection,
-      comment: this.state.comment,
       autoExecute: this.state.autoExecute,
       computedColumns: this.state.computedColumns?.map((c) => ({
         expression: c.expression,

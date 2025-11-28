@@ -787,7 +787,6 @@ describe('MergeNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
-        comment: 'Test merge',
       });
 
       const serialized = mergeNode.serializeState();
