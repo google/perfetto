@@ -246,8 +246,11 @@ export class SearchManagerImpl implements SearchManager {
           track_id as sourceId,
           0 as utid
         from slice
-        join args using(arg_set_id)
-        where string_value glob ${searchLiteral} or key glob ${searchLiteral}
+        join (
+          select arg_set_id from args where display_value glob ${searchLiteral}
+          union
+          select arg_set_id from args where key glob ${searchLiteral}
+        ) using(arg_set_id)
       )
       union all
       select

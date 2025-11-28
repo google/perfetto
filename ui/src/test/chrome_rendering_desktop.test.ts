@@ -45,3 +45,11 @@ test('slice with flows', async () => {
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('slice_with_flows.png');
 });
+
+test('search int arg', async () => {
+  await pth.searchSlice('5292083664613144124');
+  await pth.resetFocus();
+  await page.keyboard.press('f');
+  await pth.waitForPerfettoIdle();
+  await pth.waitForIdleAndScreenshot('search_int_arg.png');
+});
