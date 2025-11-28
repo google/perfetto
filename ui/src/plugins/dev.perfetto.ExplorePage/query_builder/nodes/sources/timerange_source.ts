@@ -23,7 +23,7 @@ import {
 import {ColumnInfo, columnInfoFromName} from '../../column_info';
 import {time, TimeSpan, Time} from '../../../../../base/time';
 import {Trace} from '../../../../../public/trace';
-import {Button} from '../../../../../widgets/button';
+import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {TextInput} from '../../../../../widgets/text_input';
 import {Switch} from '../../../../../widgets/switch';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
@@ -32,6 +32,7 @@ import {ListItem} from '../../widgets';
 import {showModal} from '../../../../../widgets/modal';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
+import {NodeModifyAttrs} from '../../node_explorer_types';
 
 // Poll interval for dynamic mode selection updates (in milliseconds)
 const SELECTION_POLL_INTERVAL_MS = 200;
@@ -359,7 +360,7 @@ export class TimeRangeSourceNode implements QueryNode {
     });
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
     const isDynamic = this.state.isDynamic ?? false;
     const isValid = this.validate();
     const dur =
@@ -368,83 +369,91 @@ export class TimeRangeSourceNode implements QueryNode {
         : 0n;
     const error = this.state.issues?.queryError;
 
-    return m(
-      'div',
-      // Error message
-      error && m(Callout, {icon: 'error'}, error.message),
-      // Dynamic mode helper text
-      isDynamic &&
-        m(
+    const sections: NodeModifyAttrs['sections'] = [];
+
+    // Error message section
+    if (error) {
+      sections.push({
+        content: m(Callout, {icon: 'error'}, error.message),
+      });
+    }
+
+    // Dynamic mode helper text section
+    if (isDynamic) {
+      sections.push({
+        content: m(
           '.pf-timerange-dynamic-info',
           'Dynamic mode: Your timeline selection will automatically update this node. Go back to the timeline and select a time range to see it here.',
         ),
-      // Mode selection section with header
-      m(
-        '.pf-timerange-mode-section',
-        m('h3.pf-timerange-section-title', 'Mode'),
-        m(
-          '.pf-timerange-mode-row',
-          m(Switch, {
-            checked: isDynamic,
-            label: isDynamic ? 'Dynamic (syncs with selection)' : 'Static',
-            onchange: () => this.toggleDynamicMode(),
+      });
+    }
+
+    // Mode selection section
+    sections.push({
+      content: m(
+        '.pf-timerange-mode-row',
+        m(Switch, {
+          checked: isDynamic,
+          label: isDynamic ? 'Dynamic (syncs with selection)' : 'Static',
+          onchange: () => this.toggleDynamicMode(),
+        }),
+        !isDynamic &&
+          m(Button, {
+            label: 'Update from Selection',
+            onclick: () => this.updateFromSelection(),
+            variant: ButtonVariant.Outlined,
           }),
-          !isDynamic &&
-            m(Button, {
-              label: 'Update from Selection',
-              onclick: () => this.updateFromSelection(),
-            }),
-        ),
       ),
-      // Time values section with header
-      m(
-        '.pf-timerange-values-section',
-        m('h3.pf-timerange-section-title', 'Time Values'),
-        m(
-          '.pf-timerange-list',
+    });
+
+    // Time values section
+    sections.push({
+      content: m(
+        '.pf-timerange-list',
+        m(ListItem, {
+          icon: 'start',
+          name: 'Start (ns)',
+          description: this.state.start?.toString() ?? 'Not set',
+          actions: !isDynamic
+            ? [
+                {
+                  icon: 'edit',
+                  onclick: () => this.showEditStartModal(),
+                },
+              ]
+            : undefined,
+        }),
+        m(ListItem, {
+          icon: 'stop',
+          name: 'End (ns)',
+          description: this.state.end?.toString() ?? 'Not set',
+          actions: !isDynamic
+            ? [
+                {
+                  icon: 'edit',
+                  onclick: () => this.showEditEndModal(),
+                },
+              ]
+            : undefined,
+        }),
+        isValid &&
           m(ListItem, {
-            icon: 'start',
-            name: 'Start (ns)',
-            description: this.state.start?.toString() ?? 'Not set',
+            icon: 'timelapse',
+            name: 'Duration (ns)',
+            description: dur.toString(),
             actions: !isDynamic
               ? [
                   {
                     icon: 'edit',
-                    onclick: () => this.showEditStartModal(),
+                    onclick: () => this.showEditDurationModal(),
                   },
                 ]
               : undefined,
           }),
-          m(ListItem, {
-            icon: 'stop',
-            name: 'End (ns)',
-            description: this.state.end?.toString() ?? 'Not set',
-            actions: !isDynamic
-              ? [
-                  {
-                    icon: 'edit',
-                    onclick: () => this.showEditEndModal(),
-                  },
-                ]
-              : undefined,
-          }),
-          isValid &&
-            m(ListItem, {
-              icon: 'timelapse',
-              name: 'Duration (ns)',
-              description: dur.toString(),
-              actions: !isDynamic
-                ? [
-                    {
-                      icon: 'edit',
-                      onclick: () => this.showEditDurationModal(),
-                    },
-                  ]
-                : undefined,
-            }),
-        ),
       ),
-    );
+    });
+
+    return {sections};
   }
 
   nodeInfo(): m.Children {
