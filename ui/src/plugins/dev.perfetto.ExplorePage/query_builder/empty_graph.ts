@@ -61,7 +61,11 @@ export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
   view({attrs}: m.CVnode<EmptyGraphAttrs>) {
     const sourceNodes = nodeRegistry
       .list()
-      .filter(([_id, node]) => node.type === 'source')
+      .filter(
+        ([_id, node]) =>
+          node.type === 'source' &&
+          (node.showOnLandingPage === undefined || node.showOnLandingPage),
+      )
       .map(([id, node]) => {
         return m(SourceCard, {
           title: node.name,

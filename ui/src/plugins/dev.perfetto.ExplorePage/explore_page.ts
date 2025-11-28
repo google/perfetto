@@ -419,7 +419,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   async handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
     const {state, onStateUpdate} = attrs;
 
-    // Clean up materialized table if it exists using CleanupManager
+    // Clean up all node resources (both JS and SQL) using CleanupManager
     if (this.cleanupManager !== undefined) {
       await this.cleanupManager.cleanupNode(node);
     }
