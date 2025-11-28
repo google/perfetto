@@ -54,6 +54,7 @@ import {renderTextParagraph} from './demos/text_paragraph_demo';
 import {renderTooltip} from './demos/tooltip_demo';
 import {renderTrackShell} from './demos/track_shell_demo';
 import {renderTree} from './demos/tree_demo';
+import {renderTreeGrid} from './demos/tree_grid_demo';
 import {renderTreeTable} from './demos/treetable_demo';
 import {renderVegaView} from './demos/vega_view_demo';
 import {renderVirtualCanvas} from './demos/virtual_canvas_demo';
@@ -104,6 +105,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'tooltip', label: 'Tooltip', view: renderTooltip},
   {id: 'trackshell', label: 'TrackShell', view: renderTrackShell},
   {id: 'tree', label: 'Tree', view: renderTree},
+  {id: 'treegrid', label: 'TreeGrid', view: renderTreeGrid},
   {id: 'treetable', label: 'TreeTable', view: renderTreeTable},
   {id: 'vegaview', label: 'VegaView', view: renderVegaView},
   {id: 'virtualcanvas', label: 'VirtualCanvas', view: renderVirtualCanvas},
