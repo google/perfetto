@@ -61,7 +61,11 @@ export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
   view({attrs}: m.CVnode<EmptyGraphAttrs>) {
     const sourceNodes = nodeRegistry
       .list()
-      .filter(([_id, node]) => node.type === 'source')
+      .filter(
+        ([_id, node]) =>
+          node.type === 'source' &&
+          (node.showOnLandingPage === undefined || node.showOnLandingPage),
+      )
       .map(([id, node]) => {
         return m(SourceCard, {
           title: node.name,
@@ -74,15 +78,15 @@ export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
 
     return m(
       '.pf-exp-node-graph-add-button-container.pf-empty-graph-hero',
-      m('h2.pf-empty-graph-hero__title', 'Welcome to the Explore Page'),
+      m('h2.pf-empty-graph-hero__title', 'Explore trace data'),
       m(
         'p.pf-empty-graph-hero__subtitle',
         'Build and execute SQL queries on your trace data using a visual ' +
-          'node-based editor. Get started by adding a source node below.',
+          'node-based editor. Get started by adding first node below.',
       ),
       m('.pf-exp-node-graph-add-buttons', sourceNodes),
       m(Button, {
-        label: 'Import from json',
+        label: 'Import from JSON',
         onclick: attrs.onImport,
         variant: ButtonVariant.Filled,
         icon: 'file_upload',

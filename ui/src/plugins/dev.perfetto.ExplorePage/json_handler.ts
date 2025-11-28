@@ -14,6 +14,7 @@
 
 import {ExplorePageState} from './explore_page';
 import {QueryNode, NodeType, singleNodeOperation} from './query_node';
+import {getAllNodes as getAllNodesUtil} from './query_builder/graph_utils';
 import {
   TableSourceNode,
   TableSourceSerializedState,
@@ -26,6 +27,10 @@ import {
   SqlSourceNode,
   SqlSourceSerializedState,
 } from './query_builder/nodes/sources/sql_source';
+import {
+  TimeRangeSourceNode,
+  TimeRangeSourceSerializedState,
+} from './query_builder/nodes/sources/timerange_source';
 import {
   AggregationNode,
   AggregationSerializedState,
@@ -64,6 +69,7 @@ type SerializedNodeState =
   | TableSourceSerializedState
   | SlicesSourceSerializedState
   | SqlSourceSerializedState
+  | TimeRangeSourceSerializedState
   | AggregationSerializedState
   | ModifyColumnsSerializedState
   | IntervalIntersectSerializedState
@@ -112,14 +118,11 @@ function serializeNode(node: QueryNode): SerializedNode {
 }
 
 export function serializeState(state: ExplorePageState): string {
+  // Use utility function to get all nodes (bidirectional traversal)
+  const allNodesArray = getAllNodesUtil(state.rootNodes);
   const allNodes = new Map<string, QueryNode>();
-  const queue = [...state.rootNodes];
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    if (!allNodes.has(node.nodeId)) {
-      allNodes.set(node.nodeId, node);
-      queue.push(...node.nextNodes);
-    }
+  for (const node of allNodesArray) {
+    allNodes.set(node.nodeId, node);
   }
 
   const serializedNodes = Array.from(allNodes.values()).map(serializeNode);
@@ -184,6 +187,13 @@ function createNodeInstance(
         ...(state as SqlSourceSerializedState),
         trace,
       });
+    case NodeType.kTimeRangeSource:
+      return new TimeRangeSourceNode(
+        TimeRangeSourceNode.deserializeState(
+          trace,
+          state as TimeRangeSourceSerializedState,
+        ),
+      );
     case NodeType.kAggregation:
       return new AggregationNode(
         AggregationNode.deserializeState(state as AggregationSerializedState),

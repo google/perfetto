@@ -48,23 +48,6 @@ function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
   }
 }
 
-// Helper function to get the sort priority for importance levels.
-// Lower numbers = higher priority (sorted first).
-function getImportancePriority(
-  importance: 'high' | 'mid' | 'low' | undefined,
-): number {
-  switch (importance) {
-    case 'high':
-      return 0;
-    case 'mid':
-      return 1;
-    case 'low':
-      return 3;
-    default:
-      return 2; // Normal importance (undefined)
-  }
-}
-
 // Renders a search input bar.
 // This component is responsible for handling user input for searching
 // and communicating the query back to the parent component.
@@ -86,7 +69,7 @@ class SearchBar
     placeholder?: string;
   }>) {
     return m('input[type=text].pf-search', {
-      placeholder: attrs.placeholder ?? 'Search Perfetto SQL tables...',
+      placeholder: attrs.placeholder ?? 'Search tables...',
       oninput: (e: Event) => {
         attrs.onQueryChange((e.target as HTMLInputElement).value);
       },
@@ -184,28 +167,62 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       );
     }
 
+    // Compute which tags should be disabled
+    // A tag should be disabled if selecting it (in addition to current tags) would result in 0 tables
+    const disabledTags = new Set<string>();
+    if (this.selectedTags.size > 0) {
+      for (const tag of allTags) {
+        if (!this.selectedTags.has(tag)) {
+          // Check if adding this tag to selected tags would result in any modules
+          const wouldHaveModules = allModules.some((module) => {
+            // Module must have all currently selected tags AND this tag
+            const hasAllSelectedTags = Array.from(this.selectedTags).every(
+              (selectedTag) => module.tags.includes(selectedTag),
+            );
+            const hasThisTag = module.tags.includes(tag);
+            const hasTables = module.tables.length > 0;
+            return hasAllSelectedTags && hasThisTag && hasTables;
+          });
+
+          if (!wouldHaveModules) {
+            disabledTags.add(tag);
+          }
+        }
+      }
+    }
+
     const allTables: TableWithModule[] = filteredModules.flatMap((module) =>
       module.tables.map((table) => ({table, moduleName: module.includeKey})),
     );
 
-    // Sort tables by importance level (high > mid > normal > low), then alphabetically
-    allTables.sort((a, b) => {
-      const priorityA = getImportancePriority(a.table.importance);
-      const priorityB = getImportancePriority(b.table.importance);
-
-      // Sort by importance priority first
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-
-      // Within the same importance level, sort alphabetically
-      return a.table.name.localeCompare(b.table.name);
-    });
-
     const finder = new FuzzyFinder(allTables, (item) => item.table.name);
     const fuzzyResults = finder.find(attrs.searchQuery);
 
-    const tableCards = fuzzyResults.map(({item, segments}) =>
+    // Group fuzzy results by importance level to ensure:
+    // - High importance tables always appear first
+    // - Low importance tables always appear last
+    // - Within each level, fuzzy finder's natural sorting applies
+    const highImportance = fuzzyResults.filter(
+      (r) => r.item.table.importance === 'high',
+    );
+    const midImportance = fuzzyResults.filter(
+      (r) => r.item.table.importance === 'mid',
+    );
+    const normalImportance = fuzzyResults.filter(
+      (r) => r.item.table.importance === undefined,
+    );
+    const lowImportance = fuzzyResults.filter(
+      (r) => r.item.table.importance === 'low',
+    );
+
+    const sortedFuzzyResults = [
+      ...highImportance,
+      ...midImportance,
+      ...normalImportance,
+      ...lowImportance,
+    ];
+
+    const tableCards = sortedFuzzyResults.map(({item, segments}) =>
       m(TableCard, {
         tableWithModule: item,
         segments,
@@ -223,6 +240,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
               '.pf-tag-filter-chips',
               allTags.map((tag) => {
                 const isSelected = this.selectedTags.has(tag);
+                const isDisabled = disabledTags.has(tag);
                 return m(Chip, {
                   label: tag,
                   rounded: true,
@@ -231,7 +249,11 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
                     'pf-tag-chip',
                     isSelected && 'pf-tag-chip-selected',
                   ),
+                  disabled: isDisabled,
                   onclick: () => {
+                    if (isDisabled) {
+                      return;
+                    }
                     if (isSelected) {
                       this.selectedTags.delete(tag);
                     } else {

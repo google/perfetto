@@ -68,20 +68,27 @@ export interface GridHeaderCellAttrs extends m.Attributes {
 
 export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
   view({attrs, children}: m.Vnode<GridHeaderCellAttrs>) {
-    const {sort, onSort, menuItems, subContent, ...htmlAttrs} = attrs;
+    const {
+      sort,
+      onSort,
+      menuItems,
+      subContent,
+      hintSortDirection,
+      ...htmlAttrs
+    } = attrs;
 
     const renderSortButton = () => {
       if (!onSort) return undefined;
 
       const nextDirection: SortDirection = (() => {
-        if (!sort) return attrs.hintSortDirection || 'ASC';
+        if (!sort) return hintSortDirection || 'ASC';
         if (sort === 'ASC') return 'DESC';
         if (sort === 'DESC') return 'ASC';
         return 'ASC';
       })();
 
       const sortIconDirection: SortDirection | undefined = (() => {
-        if (!sort) return attrs.hintSortDirection;
+        if (!sort) return hintSortDirection;
         return sort;
       })();
 
@@ -107,8 +114,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            className:
-              'pf-visible-on-hover pf-grid-header-cell__menu-button pf-grid--no-measure',
+            className: 'pf-visible-on-hover pf-grid-header-cell__menu-button',
             icon: Icons.ContextMenuAlt,
             rounded: true,
             ariaLabel: 'Column menu',
@@ -122,6 +128,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       '.pf-grid-header-cell',
       {
         ...htmlAttrs,
+        role: 'columnheader',
       },
       [
         m(
@@ -146,6 +153,7 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly nullish?: boolean;
   readonly padding?: boolean;
   readonly wrap?: boolean;
+  readonly label?: string;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -157,37 +165,38 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       className,
       padding = true,
       wrap,
-      ...rest
+      ...htmlAttrs
     } = attrs;
 
-    const cell = m(
+    return m(
       '.pf-grid-cell',
       {
-        ...rest,
+        ...htmlAttrs,
         className: classNames(
           className,
-          align && `pf-grid-cell--align-${align}`,
+          align === 'right' && 'pf-grid-cell--align-right',
           padding && 'pf-grid-cell--padded',
           nullish && 'pf-grid-cell--nullish',
           wrap && 'pf-grid-cell--wrap',
         ),
+        role: 'cell',
       },
-      children,
+      m('.pf-grid-cell__content', children),
+      Boolean(menuItems) &&
+        m(
+          PopupMenu,
+          {
+            trigger: m(Button, {
+              className: 'pf-visible-on-hover pf-grid-cell__menu-button',
+              icon: Icons.ContextMenuAlt,
+              rounded: true,
+              ariaLabel: 'Cell menu',
+            }),
+            position: PopupPosition.Bottom,
+          },
+          menuItems,
+        ),
     );
-
-    if (Boolean(menuItems)) {
-      return m(
-        PopupMenu,
-        {
-          trigger: cell,
-          isContextMenu: true,
-          position: PopupPosition.Bottom,
-        },
-        menuItems,
-      );
-    } else {
-      return cell;
-    }
   }
 }
 
@@ -550,6 +559,10 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     const tempDiv = document.createElement('div');
     tempDiv.appendChild(fragment);
 
+    // Remove all button elements to exclude them from the copy
+    const buttons = tempDiv.querySelectorAll('button');
+    buttons.forEach((button) => button.remove());
+
     // Find all rows in the cloned content
     const rows = Array.from(
       tempDiv.querySelectorAll('.pf-grid__row'),
@@ -857,13 +870,13 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     const gridClone = gridDom.cloneNode(true) as HTMLElement;
     gridDom.appendChild(gridClone);
 
-    // Hide any elements that are not part of the measurement - these are
-    // elements with class .pf-grid--no-measure
-    const noMeasureElements = gridClone.querySelectorAll(
-      '.pf-grid--no-measure',
+    // Show any elements that are normally visible only on hover - this takes
+    // into account the menu buttons, sort buttons, etc.
+    const invisibleElements = gridClone.querySelectorAll(
+      '.pf-visible-on-hover',
     );
-    noMeasureElements.forEach((el) => {
-      (el as HTMLElement).style.display = 'none';
+    invisibleElements.forEach((el) => {
+      (el as HTMLElement).style.display = 'block';
     });
 
     // Now read the actual widths (this will cause a reflow)
@@ -1007,7 +1020,6 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         'style': {
           width: `var(--pf-grid-col-${columnId})`,
         },
-        'role': 'cell',
         'data-column-id': columnId,
         'className': classNames(
           thickRightBorder && 'pf-grid__cell-container--border-right-thick',
@@ -1105,8 +1117,6 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     return m(
       '.pf-grid__cell-container',
       {
-        'role': 'columnheader',
-        'ariaLabel': column.key,
         'data-column-id': columnId,
         'key': column.key,
         'style': {
