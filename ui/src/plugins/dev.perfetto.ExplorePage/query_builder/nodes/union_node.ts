@@ -28,6 +28,7 @@ import {NodeIssues} from '../node_issues';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder} from '../structured_query_builder';
+import {NodeModifyAttrs} from '../node_explorer_types';
 
 export interface UnionSerializedState {
   unionNodes: string[];
@@ -229,27 +230,33 @@ export class UnionNode implements QueryNode {
     return m(CardStack, cards);
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
     const error = this.state.issues?.queryError;
 
-    return m(
-      '.pf-exp-query-operations',
-      error && m(Callout, {icon: 'error'}, error.message),
-      m(
-        CardStack,
-        m(
-          Card,
-          m('h2.pf-columns-box-title', 'Selected Columns'),
-          m(
-            'div.pf-column-list',
-            this.state.selectedColumns.map((col, index) =>
-              this.renderSelectedColumn(col, index),
-            ),
-          ),
+    const sections: NodeModifyAttrs['sections'] = [];
+
+    // Add error if present
+    if (error) {
+      sections.push({
+        content: m(Callout, {icon: 'error'}, error.message),
+      });
+    }
+
+    // Selected columns section
+    sections.push({
+      title: 'Selected Columns',
+      content: m(
+        'div.pf-column-list',
+        this.state.selectedColumns.map((col, index) =>
+          this.renderSelectedColumn(col, index),
         ),
       ),
-    );
+    });
+
+    return {
+      sections,
+    };
   }
 
   private renderSelectedColumn(col: ColumnInfo, index: number): m.Child {

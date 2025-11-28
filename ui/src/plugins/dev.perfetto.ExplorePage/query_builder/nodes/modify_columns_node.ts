@@ -34,6 +34,7 @@ import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {DraggableItem} from '../widgets';
+import {NodeModifyAttrs} from '../node_explorer_types';
 
 export interface ModifyColumnsSerializedState {
   primaryInputId?: string;
@@ -244,75 +245,73 @@ export class ModifyColumnsNode implements QueryNode {
     );
   }
 
-  nodeSpecificModify(): m.Child {
-    return m(
-      'div.pf-modify-columns-node',
-      this.renderHeader(),
-      this.renderColumnList(),
-    );
-  }
-
-  private renderHeader(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
     const selectedCount = this.state.selectedColumns.filter(
       (col) => col.checked,
     ).length;
     const totalCount = this.state.selectedColumns.length;
 
-    return m(
-      '.pf-modify-columns-header',
-      m('.pf-modify-columns-title', 'Select and Rename Columns'),
-      m(
-        '.pf-modify-columns-actions',
-        m(
-          '.pf-modify-columns-stats',
-          `${selectedCount} / ${totalCount} selected`,
+    // Build sections
+    const sections: NodeModifyAttrs['sections'] = [
+      {
+        title: `Select and Rename Columns (${selectedCount} / ${totalCount} selected)`,
+        content: m(
+          '.pf-modify-columns-content',
+          m(
+            '.pf-modify-columns-actions',
+            m(Button, {
+              label: 'Select All',
+              onclick: () => {
+                this.state.selectedColumns = this.state.selectedColumns.map(
+                  (col) => ({
+                    ...col,
+                    checked: true,
+                  }),
+                );
+                this.state.onchange?.();
+              },
+              variant: ButtonVariant.Outlined,
+              compact: true,
+            }),
+            m(Button, {
+              label: 'Deselect All',
+              onclick: () => {
+                this.state.selectedColumns = this.state.selectedColumns.map(
+                  (col) => ({
+                    ...col,
+                    checked: false,
+                  }),
+                );
+                this.state.onchange?.();
+              },
+              variant: ButtonVariant.Outlined,
+              compact: true,
+            }),
+          ),
+          this.renderColumnList(),
         ),
-        m(
-          '.pf-modify-columns-buttons',
-          m(Button, {
-            label: 'Select All',
-            variant: ButtonVariant.Outlined,
-            compact: true,
-            onclick: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: true,
-                }),
-              );
-              this.state.onchange?.();
-            },
-          }),
-          m(Button, {
-            label: 'Deselect All',
-            variant: ButtonVariant.Outlined,
-            compact: true,
-            onclick: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: false,
-                }),
-              );
-              this.state.onchange?.();
-            },
-          }),
-        ),
-      ),
-    );
+      },
+    ];
+
+    return {
+      sections,
+    };
   }
 
   private renderColumnList(): m.Child {
     return m(
-      '.pf-column-list-container',
+      '.pf-modify-columns-node',
       m(
-        '.pf-column-list-help',
-        'Check columns to include, add aliases to rename, and drag to reorder',
-      ),
-      m(
-        '.pf-column-list',
-        this.state.selectedColumns.map((col, index) =>
-          this.renderSelectedColumn(col, index),
+        '.pf-column-list-container',
+        m(
+          '.pf-column-list-help',
+          'Check columns to include, add aliases to rename, and drag to reorder',
+        ),
+        m(
+          '.pf-column-list',
+          this.state.selectedColumns.map((col, index) =>
+            this.renderSelectedColumn(col, index),
+          ),
         ),
       ),
     );

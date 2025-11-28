@@ -25,7 +25,7 @@ import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {Card, CardStack} from '../../../../widgets/card';
+import {Card} from '../../../../widgets/card';
 import {TextInput} from '../../../../widgets/text_input';
 import {TabStrip} from '../../../../widgets/tabs';
 import {Select} from '../../../../widgets/select';
@@ -35,6 +35,7 @@ import {
   JoinCondition,
 } from '../structured_query_builder';
 import {FormRow} from '../widgets';
+import {NodeModifyAttrs} from '../node_explorer_types';
 
 export interface MergeSerializedState {
   leftNodeId: string;
@@ -298,7 +299,7 @@ export class MergeNode implements QueryNode {
     );
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
     const error = this.state.issues?.queryError;
 
@@ -306,130 +307,142 @@ export class MergeNode implements QueryNode {
     const leftCols = this.leftNode?.finalCols ?? [];
     const rightCols = this.rightNode?.finalCols ?? [];
 
-    return m(
-      '.pf-exp-query-operations',
-      error && m(Callout, {icon: 'error'}, error.message),
-      m(
-        CardStack,
+    const sections: NodeModifyAttrs['sections'] = [];
+
+    // Add error if present
+    if (error) {
+      sections.push({
+        content: m(Callout, {icon: 'error'}, error.message),
+      });
+    }
+
+    // Query aliases section
+    sections.push({
+      title: 'Query Aliases',
+      content: [
         m(
-          Card,
-          m(
-            FormRow,
-            {label: 'Left Alias:'},
-            m(TextInput, {
-              value: this.state.leftQueryAlias,
-              placeholder: 'e.g., left, t1, base',
-              oninput: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                this.state.leftQueryAlias = target.value;
-                this.state.onchange?.();
-              },
-            }),
-          ),
-          m(
-            FormRow,
-            {label: 'Right Alias:'},
-            m(TextInput, {
-              value: this.state.rightQueryAlias,
-              placeholder: 'e.g., right, t2, other',
-              oninput: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                this.state.rightQueryAlias = target.value;
-                this.state.onchange?.();
-              },
-            }),
-          ),
-        ),
-        m(
-          Card,
-          m(TabStrip, {
-            tabs: [
-              {key: 'equality', title: 'Equality'},
-              {key: 'freeform', title: 'Freeform SQL'},
-            ],
-            currentTabKey: this.state.conditionType,
-            onTabChange: (key: string) => {
-              this.state.conditionType = key as 'equality' | 'freeform';
+          FormRow,
+          {label: 'Left Alias:'},
+          m(TextInput, {
+            value: this.state.leftQueryAlias,
+            placeholder: 'e.g., left, t1, base',
+            oninput: (e: Event) => {
+              const target = e.target as HTMLInputElement;
+              this.state.leftQueryAlias = target.value;
               this.state.onchange?.();
             },
           }),
-          m(
-            'div',
-            {style: {paddingTop: '10px'}},
-            this.state.conditionType === 'equality'
-              ? [
-                  m(
-                    FormRow,
-                    {label: 'Left Column:'},
-                    m(
-                      Select,
-                      {
-                        onchange: (e: Event) => {
-                          const target = e.target as HTMLSelectElement;
-                          this.state.leftColumn = target.value;
-                          this.state.onchange?.();
-                        },
-                      },
-                      m(
-                        'option',
-                        {disabled: true, selected: !this.state.leftColumn},
-                        'Select column',
-                      ),
-                      leftCols.map((col) =>
-                        m(
-                          'option',
-                          {
-                            value: col.column.name,
-                            selected: col.column.name === this.state.leftColumn,
-                          },
-                          col.column.name,
-                        ),
-                      ),
-                    ),
-                  ),
-                  m(
-                    FormRow,
-                    {label: 'Right Column:'},
-                    m(
-                      Select,
-                      {
-                        onchange: (e: Event) => {
-                          const target = e.target as HTMLSelectElement;
-                          this.state.rightColumn = target.value;
-                          this.state.onchange?.();
-                        },
-                      },
-                      m(
-                        'option',
-                        {disabled: true, selected: !this.state.rightColumn},
-                        'Select column',
-                      ),
-                      rightCols.map((col) =>
-                        m(
-                          'option',
-                          {
-                            value: col.column.name,
-                            selected:
-                              col.column.name === this.state.rightColumn,
-                          },
-                          col.column.name,
-                        ),
-                      ),
-                    ),
-                  ),
-                ]
-              : m(Editor, {
-                  text: this.state.sqlExpression,
-                  language: 'perfetto-sql',
-                  onUpdate: (text: string) => {
-                    this.state.sqlExpression = text;
-                    this.state.onchange?.();
-                  },
-                }),
-          ),
         ),
-      ),
-    );
+        m(
+          FormRow,
+          {label: 'Right Alias:'},
+          m(TextInput, {
+            value: this.state.rightQueryAlias,
+            placeholder: 'e.g., right, t2, other',
+            oninput: (e: Event) => {
+              const target = e.target as HTMLInputElement;
+              this.state.rightQueryAlias = target.value;
+              this.state.onchange?.();
+            },
+          }),
+        ),
+      ],
+    });
+
+    // Join condition section
+    sections.push({
+      title: 'Join Condition',
+      content: [
+        m(TabStrip, {
+          tabs: [
+            {key: 'equality', title: 'Equality'},
+            {key: 'freeform', title: 'Freeform SQL'},
+          ],
+          currentTabKey: this.state.conditionType,
+          onTabChange: (key: string) => {
+            this.state.conditionType = key as 'equality' | 'freeform';
+            this.state.onchange?.();
+          },
+        }),
+        m(
+          'div',
+          {style: {paddingTop: '10px'}},
+          this.state.conditionType === 'equality'
+            ? [
+                m(
+                  FormRow,
+                  {label: 'Left Column:'},
+                  m(
+                    Select,
+                    {
+                      onchange: (e: Event) => {
+                        const target = e.target as HTMLSelectElement;
+                        this.state.leftColumn = target.value;
+                        this.state.onchange?.();
+                      },
+                    },
+                    m(
+                      'option',
+                      {disabled: true, selected: !this.state.leftColumn},
+                      'Select column',
+                    ),
+                    leftCols.map((col) =>
+                      m(
+                        'option',
+                        {
+                          value: col.column.name,
+                          selected: col.column.name === this.state.leftColumn,
+                        },
+                        col.column.name,
+                      ),
+                    ),
+                  ),
+                ),
+                m(
+                  FormRow,
+                  {label: 'Right Column:'},
+                  m(
+                    Select,
+                    {
+                      onchange: (e: Event) => {
+                        const target = e.target as HTMLSelectElement;
+                        this.state.rightColumn = target.value;
+                        this.state.onchange?.();
+                      },
+                    },
+                    m(
+                      'option',
+                      {disabled: true, selected: !this.state.rightColumn},
+                      'Select column',
+                    ),
+                    rightCols.map((col) =>
+                      m(
+                        'option',
+                        {
+                          value: col.column.name,
+                          selected: col.column.name === this.state.rightColumn,
+                        },
+                        col.column.name,
+                      ),
+                    ),
+                  ),
+                ),
+              ]
+            : m(Editor, {
+                text: this.state.sqlExpression,
+                language: 'perfetto-sql',
+                onUpdate: (text: string) => {
+                  this.state.sqlExpression = text;
+                  this.state.onchange?.();
+                },
+              }),
+        ),
+      ],
+    });
+
+    return {
+      sections,
+    };
   }
 
   clone(): QueryNode {

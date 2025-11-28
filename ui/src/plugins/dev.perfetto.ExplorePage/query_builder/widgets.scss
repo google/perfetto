@@ -171,6 +171,7 @@
   align-items: center;
   flex-wrap: nowrap;
   gap: 8px;
+  margin: 0; // Prevent margin stacking with section gaps
 
   span {
     font-weight: 500;
@@ -196,6 +197,7 @@
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   cursor: grab;
+  flex-wrap: wrap;
 
   &:hover {
     background: var(--pf-color-background);
@@ -205,6 +207,12 @@
     cursor: grab;
     color: var(--pf-color-text-muted);
     user-select: none;
+    flex-shrink: 0;
+  }
+
+  // Ensure checkbox doesn't grow
+  .pf-checkbox {
+    flex-shrink: 0;
   }
 }
 
@@ -247,4 +255,42 @@
     text-decoration-style: dotted;
     text-underline-offset: 2px;
   }
+}
+
+// Equal width row widget - responsive layout for equal-width items
+.pf-exp-equal-width-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: stretch;
+
+  // When container is narrow (< 500px), stack vertically
+  @container (max-width: 500px) {
+    flex-direction: column;
+
+    .pf-exp-equal-width-row__separator {
+      display: none; // Hide separator in vertical mode
+    }
+  }
+}
+
+.pf-exp-equal-width-row__item {
+  flex: 1 1 0; // Equal width, can grow and shrink
+  min-width: 0; // Allow items to shrink below content size
+  display: flex;
+  align-items: stretch;
+
+  // Make child elements fill the container
+  > * {
+    flex: 1;
+  }
+}
+
+.pf-exp-equal-width-row__separator {
+  display: flex;
+  align-items: center;
+  color: var(--pf-color-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  user-select: none;
 }
