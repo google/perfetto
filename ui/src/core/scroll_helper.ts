@@ -100,6 +100,9 @@ export class ScrollHelper {
     const aoi = HighPrecisionTimeSpan.fromTime(start, end);
     const fillPercentage = 0.8; // Make selection fill 80% of viewport
 
+    let newRawDuration;
+    let centerPoint;
+
     // Handle instant events (duration = 0) specially
     if (aoi.duration === 0) {
       // For instant events, zoom in by 99.8% (new duration = 0.2% of current)
@@ -108,21 +111,21 @@ export class ScrollHelper {
       // pixels to calculate a precise zoom level (e.g., make 1px at current
       // scale fill 80% of viewport), but plumbing viewport width through to
       // ScrollHelper is architecturally difficult right now.
-      const newRawDuration = visible.duration * 0.002;
-      // Ensure centering even when the new duration is less than the minimum
-      // timeline duration.
-      const newDuration =
-        newRawDuration < MIN_DURATION ? MIN_DURATION : newRawDuration;
-      const halfDuration = newDuration / 2;
-      const newStart = aoi.start.subNumber(halfDuration);
-      const newWindow = new HighPrecisionTimeSpan(newStart, newDuration);
-      this.timeline.updateVisibleTimeHP(newWindow);
+      newRawDuration = visible.duration * 0.002;
+      centerPoint = aoi.start;
     } else {
       // For events with duration, make them fill 80% of the viewport
-      const paddingPercentage = 1.0 - fillPercentage;
-      const halfPaddingTime = (aoi.duration * paddingPercentage) / 2;
-      this.timeline.updateVisibleTimeHP(aoi.pad(halfPaddingTime));
+      newRawDuration = aoi.duration / fillPercentage;
+      centerPoint = aoi.midpoint;
     }
+
+    // Ensure centering even when the new duration is less than the minimum
+    // timeline duration.
+    const newDuration = Math.max(newRawDuration, MIN_DURATION);
+    const halfDuration = newDuration / 2;
+    const newStart = centerPoint.subNumber(halfDuration);
+    const newWindow = new HighPrecisionTimeSpan(newStart, newDuration);
+    this.timeline.updateVisibleTimeHP(newWindow);
   }
 
   private verticalScrollToTrack(trackUri: string, openGroup: boolean) {
