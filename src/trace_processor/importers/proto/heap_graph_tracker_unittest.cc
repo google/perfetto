@@ -439,6 +439,142 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   EXPECT_THAT(counts, UnorderedElementsAre(1, 1));
 }
 
+TEST(HeapGraphTrackerTest, ShortestPathStability) {
+  // Root -> ParentA (Class A) -> Child
+  // Root -> ParentB (Class B) -> Child
+  // We want to see Child attributed to ParentA if A < B alphabetically.
+
+  constexpr uint64_t kSeqId = 1;
+  constexpr UniquePid kPid = 1;
+  constexpr int64_t kTimestamp = 1;
+
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  context.process_tracker.reset(new ProcessTracker(&context));
+  context.process_tracker->GetOrCreateProcess(kPid);
+
+  HeapGraphTracker tracker(context.storage.get());
+
+  constexpr uint64_t kField = 1;
+  constexpr uint64_t kLocation = 0;
+
+  constexpr uint64_t kRoot = 1;
+  constexpr uint64_t kParentA = 3;  // ID 3, but Class A
+  constexpr uint64_t kParentB = 2;  // ID 2, but Class B
+  constexpr uint64_t kChild = 4;
+
+  auto field = base::StringView("foo");
+  StringPool::Id root_class = context.storage->InternString("RootClass");
+  StringPool::Id a_class = context.storage->InternString("A_Parent");
+  StringPool::Id b_class = context.storage->InternString("B_Parent");
+  StringPool::Id child_class = context.storage->InternString("ChildClass");
+
+  tracker.AddInternedFieldName(kSeqId, kField, field);
+  tracker.AddInternedLocationName(kSeqId, kLocation,
+                                  context.storage->InternString("location"));
+
+  tracker.AddInternedType(kSeqId, kRoot, root_class, kLocation, 0, {}, 0, 0,
+                          false, protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(kSeqId, kParentA, a_class, kLocation, 0, {}, 0, 0,
+                          false, protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(kSeqId, kParentB, b_class, kLocation, 0, {}, 0, 0,
+                          false, protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(kSeqId, kChild, child_class, kLocation, 0, {}, 0, 0,
+                          false, protos::pbzero::HeapGraphType::KIND_NORMAL);
+
+  // Object 1: Root
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = 1;
+    obj.self_size = 1;
+    obj.type_id = kRoot;
+    obj.field_name_ids = {kField, kField};
+    obj.referred_objects = {2, 3};  // ParentB, ParentA
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+  // Object 2: ParentB
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = 2;
+    obj.self_size = 100;
+    obj.type_id = kParentB;
+    obj.field_name_ids = {kField};
+    obj.referred_objects = {4};  // Child
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+  // Object 3: ParentA
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = 3;
+    obj.self_size = 10;
+    obj.type_id = kParentA;
+    obj.field_name_ids = {kField};
+    obj.referred_objects = {4};  // Child
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+  // Object 4: Child
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = 4;
+    obj.self_size = 1000;
+    obj.type_id = kChild;
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+
+  HeapGraphTracker::SourceRoot root;
+  root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
+  root.object_ids.emplace_back(1);
+  root.object_ids.emplace_back(2);  // ParentB is also a root
+  root.object_ids.emplace_back(3);  // ParentA is also a root
+  tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
+
+  tracker.FinalizeAllProfiles();
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> flame =
+      tracker.BuildFlamegraph(kPid, kTimestamp);
+  ASSERT_NE(flame, nullptr);
+
+  // Check that Child (size 1000) is under ParentA (A_Parent) and not ParentB
+  // (B_Parent).
+  // Flamegraph structure:
+  // Root (size 1)
+  //   A_Parent (size 10)
+  //     ChildClass (size 1000)
+  //   B_Parent (size 100)
+
+  bool found_child_under_a = false;
+  bool found_child_under_b = false;
+
+  for (auto it = flame->IterateRows(); it; ++it) {
+    auto name = context.storage->string_pool().Get(it.name());
+    auto parent_id = it.parent_id();
+    if (name == "ChildClass") {
+      ASSERT_TRUE(parent_id.has_value());
+      // To get the parent name, we need to find the parent row.
+      // Since we don't have an easy way to lookup by ID on the flame table
+      // without building an index, and we know the parent is likely before the
+      // child, we can just iterate again or store names.
+      // For simplicity in this test, let's just iterate and find the parent
+      // name by its ID.
+      std::optional<std::string> parent_name;
+      for (auto pit = flame->IterateRows(); pit; ++pit) {
+        if (pit.id().value == parent_id->value) {
+          parent_name =
+              context.storage->string_pool().Get(pit.name()).ToStdString();
+          break;
+        }
+      }
+      ASSERT_TRUE(parent_name.has_value());
+      if (*parent_name == "A_Parent [ROOT_UNKNOWN]") {
+        found_child_under_a = true;
+      } else if (*parent_name == "B_Parent [ROOT_UNKNOWN]") {
+        found_child_under_b = true;
+      }
+    }
+  }
+  EXPECT_TRUE(found_child_under_a);
+  EXPECT_FALSE(found_child_under_b);
+}
+
 constexpr char kArray[] = "X[]";
 constexpr char kDoubleArray[] = "X[][]";
 constexpr char kNoArray[] = "X";
