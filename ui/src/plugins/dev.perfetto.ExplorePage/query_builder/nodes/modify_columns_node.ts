@@ -102,9 +102,8 @@ export class ModifyColumnsNode implements QueryNode {
 
     this.state.selectedColumns = newSelectedColumns;
 
-    // Trigger UI update and notify next nodes of the change
+    // Trigger downstream update (handled by builder's onchange callback)
     this.state.onchange?.();
-    m.redraw();
   }
 
   static deserializeState(
