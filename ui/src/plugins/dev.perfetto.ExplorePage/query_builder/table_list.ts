@@ -20,6 +20,10 @@ import {EmptyState} from '../../../widgets/empty_state';
 import {Chip} from '../../../widgets/chip';
 import {classNames} from '../../../base/classnames';
 import {Intent} from '../../../widgets/common';
+import markdownit from 'markdown-it';
+
+// Create a markdown renderer instance
+const md = markdownit();
 
 // Attributes for the main TableList component.
 export interface TableListAttrs {
@@ -162,7 +166,8 @@ class TableCard
             }),
         ),
         packageName === 'prelude' ? null : m('.table-module', moduleName),
-        table.description && m('.table-description', table.description),
+        table.description &&
+          m('.table-description', m.trust(md.render(table.description))),
       ),
     );
   }
