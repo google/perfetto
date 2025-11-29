@@ -120,7 +120,8 @@ class TracingServiceImpl : public TracingService {
     void CommitData(const CommitDataRequest&, CommitDataCallback) override;
     void SetupSharedMemory(std::unique_ptr<SharedMemory>,
                            size_t page_size_bytes,
-                           bool provided_by_producer);
+                           bool provided_by_producer,
+                           SharedMemoryABI::ShmemMode shmem_mode);
     std::unique_ptr<TraceWriter> CreateTraceWriter(
         BufferID,
         BufferExhaustedPolicy) override;
@@ -154,6 +155,8 @@ class TracingServiceImpl : public TracingService {
         return it->second;
       return std::nullopt;
     }
+
+    bool IsShmemEmulated() { return shmem_abi_.is_shmem_emulated(); }
 
     bool IsAndroidProcessFrozen();
     uid_t uid() const { return client_identity_.uid(); }

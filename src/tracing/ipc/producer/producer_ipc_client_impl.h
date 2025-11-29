@@ -124,6 +124,13 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
   std::unique_ptr<protos::gen::ProducerPortProxy> producer_port_;
 
+  // Maps registered TraceWriter IDs to their target buffers as registered
+  // by the producer. When using shmem emulation, the producer internally
+  // needs the mapping of writer to buffer in order to do producer-side
+  // SMB scraping as it cannot rely on the map stored in the tracing
+  // service.
+  std::map<WriterID, BufferID> writers_;
+
   std::unique_ptr<SharedMemory> shared_memory_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
