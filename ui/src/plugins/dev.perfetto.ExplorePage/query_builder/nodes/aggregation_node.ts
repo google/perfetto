@@ -23,8 +23,13 @@ import protos from '../../../../protos';
 import {
   ColumnInfo,
   columnInfoFromName,
+  columnInfoFromSqlColumn,
   newColumnInfoList,
 } from '../column_info';
+import {
+  PerfettoSqlTypes,
+  PerfettoSqlType,
+} from '../../../../trace_processor/perfetto_sql_type';
 import {
   PopupMultiSelect,
   MultiSelectOption,
@@ -86,8 +91,13 @@ export class AggregationNode implements QueryNode {
     }
     const selected = this.state.groupByColumns.filter((c) => c.checked);
     for (const agg of this.state.aggregations) {
+      const resultType = getAggregationResultType(agg);
+      const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
       selected.push(
-        columnInfoFromName(agg.newColumnName ?? placeholderNewColumnName(agg)),
+        columnInfoFromSqlColumn({
+          name: resultName,
+          type: resultType,
+        }),
       );
     }
     return newColumnInfoList(selected, true);
@@ -859,6 +869,40 @@ function stringToAggregateOp(
     ];
   }
   throw new Error(`Invalid AggregateOp '${s}'`);
+}
+
+// Helper function to determine the result type of an aggregation operation
+function getAggregationResultType(agg: Aggregation): PerfettoSqlType {
+  if (!agg.aggregationOp) {
+    return PerfettoSqlTypes.INT; // Default fallback
+  }
+
+  switch (agg.aggregationOp) {
+    case 'COUNT':
+    case 'COUNT_ALL':
+      return PerfettoSqlTypes.INT;
+
+    case 'SUM':
+    case 'MIN':
+    case 'MAX':
+      // Preserve the input column type for SUM, MIN, MAX
+      if (!agg.column?.column.type) {
+        console.warn(
+          `${agg.aggregationOp} aggregation missing column type information, defaulting to INT`,
+        );
+      }
+      return agg.column?.column.type ?? PerfettoSqlTypes.INT;
+
+    case 'MEAN':
+    case 'MEDIAN':
+    case 'DURATION_WEIGHTED_MEAN':
+    case 'PERCENTILE':
+      // These operations always return DOUBLE
+      return PerfettoSqlTypes.DOUBLE;
+
+    default:
+      return PerfettoSqlTypes.INT; // Default fallback
+  }
 }
 
 const AGGREGATION_OPS = [

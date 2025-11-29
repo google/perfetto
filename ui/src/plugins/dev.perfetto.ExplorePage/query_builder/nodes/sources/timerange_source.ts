@@ -20,8 +20,9 @@ import {
   nextNodeId,
   createFinalColumns,
 } from '../../../query_node';
-import {ColumnInfo, columnInfoFromName} from '../../column_info';
+import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import {time, TimeSpan, Time} from '../../../../../base/time';
+import {PerfettoSqlTypes} from '../../../../../trace_processor/perfetto_sql_type';
 import {Trace} from '../../../../../public/trace';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {TextInput} from '../../../../../widgets/text_input';
@@ -68,9 +69,9 @@ export class TimeRangeSourceNode implements QueryNode {
 
     // Initialize columns: id, ts, dur
     this.finalCols = createFinalColumns([
-      columnInfoFromName('id'),
-      columnInfoFromName('ts'),
-      columnInfoFromName('dur'),
+      columnInfoFromSqlColumn({name: 'id', type: PerfettoSqlTypes.INT}),
+      columnInfoFromSqlColumn({name: 'ts', type: PerfettoSqlTypes.TIMESTAMP}),
+      columnInfoFromSqlColumn({name: 'dur', type: PerfettoSqlTypes.DURATION}),
     ]);
 
     // If dynamic mode is enabled, subscribe to selection changes
