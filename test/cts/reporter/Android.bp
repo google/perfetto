@@ -57,3 +57,27 @@ cc_test {
     "perfetto_defaults",
   ],
 }
+
+java_test_host {
+    name: "CtsPerfettoReporterRebootTestCases",
+    team: "trendy_team_perfetto",
+    srcs: [
+        "src/android/perfetto/cts/test/PerfettoReporterRebootTest.java",
+    ],
+    libs: [
+        "cts-tradefed",
+        "tradefed",
+        "compatibility-host-util",
+        "perfetto_trace_java_protos",
+        "perfetto_config_java_protos",
+    ],
+    device_common_data: [
+        ":CtsPerfettoReporterApp",
+    ],
+    test_config: "ReporterRebootHostTest.xml",
+    test_suites: [
+        "cts",
+        "vts10",
+        "general-tests",
+    ],
+}

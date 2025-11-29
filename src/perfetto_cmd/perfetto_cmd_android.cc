@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/base/android_utils.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <sys/sendfile.h>
+#include <sys/system_properties.h>
 
 #include <cinttypes>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -86,44 +89,72 @@ void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
                              cfg.privacy_level()));
 }
 
-void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
-  PERFETTO_CHECK(report_to_android_framework_);
-  PERFETTO_CHECK(trace_out_stream_);
+base::Status PerfettoCmd::ReportTraceToAndroidFramework(
+    base::ScopedFile trace_fd,
+    uint64_t trace_size,
+    const protos::gen::TraceConfig_AndroidReportConfig& report_config,
+    const base::Uuid& uuid,
+    const std::string& unique_session_name) {
+  if (!trace_fd) {
+    return base::ErrStatus("Invalid trace_fd");
+  }
 
-  const auto& cfg = trace_config_->android_report_config();
-  PERFETTO_CHECK(!cfg.reporter_service_package().empty());
-  PERFETTO_CHECK(!cfg.skip_report());
+  if (report_config.reporter_service_class().empty() ||
+      report_config.reporter_service_package().empty()) {
+    return base::ErrStatus("Invalid 'android_report_config'");
+  }
+  if (!report_config.skip_report()) {
+    return base::ErrStatus(
+        "'android_report_config.skip_report()' should be false");
+  }
 
-  if (bytes_written_ == 0) {
+  if (trace_size == 0) {
     LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportEmptyTrace);
     PERFETTO_LOG("Skipping reporting trace to Android. Empty trace.");
-    return;
+    return base::OkStatus();
   }
 
   LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportBegin);
-  base::StackString<128> self_fd("/proc/self/fd/%d",
-                                 fileno(*trace_out_stream_));
+  base::StackString<128> self_fd("/proc/self/fd/%d", *trace_fd);
   base::ScopedFile fd(base::OpenFile(self_fd.c_str(), O_RDONLY | O_CLOEXEC));
   if (!fd) {
-    PERFETTO_FATAL("Failed to dup fd when reporting to Android");
+    return base::ErrStatus(
+        "Failed to dup fd when reporting to Android: %s (errno: %d)",
+        strerror(errno), errno);
   }
 
-  base::Uuid uuid(uuid_);
   PERFETTO_LAZY_LOAD(android_internal::ReportTrace, report_fn);
-  PERFETTO_CHECK(report_fn(cfg.reporter_service_package().c_str(),
-                           cfg.reporter_service_class().c_str(), fd.release(),
-                           uuid.lsb(), uuid.msb(),
-                           cfg.use_pipe_in_framework_for_testing()));
+  bool report_ok = report_fn(report_config.reporter_service_package().c_str(),
+                             report_config.reporter_service_class().c_str(),
+                             fd.release(), uuid.lsb(), uuid.msb(),
+                             report_config.use_pipe_in_framework_for_testing());
+
+  if (!report_ok) {
+    return base::ErrStatus("Failed in 'android_internal::ReportTrace'");
+  }
 
   // Skip the trace-uuid link for traces that are too small. Realistically those
   // traces contain only a marker (e.g. seized_for_bugreport, or the trace
   // expired without triggers). Those are useless and introduce only noise.
-  if (bytes_written_ > 4096) {
+  if (trace_size > 4096) {
     PERFETTO_LOG("go/trace-uuid/%s name=\"%s\" size=%" PRIu64,
-                 uuid.ToPrettyString().c_str(),
-                 trace_config_->unique_session_name().c_str(), bytes_written_);
+                 uuid.ToPrettyString().c_str(), unique_session_name.c_str(),
+                 trace_size);
   }
   LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportHandoff);
+  return base::OkStatus();
+}
+
+void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash(
+    base::ScopedFile trace_fd,
+    uint64_t trace_size) {
+  base::Uuid uuid(uuid_);
+  base::Status status = ReportTraceToAndroidFramework(
+      std::move(trace_fd), trace_size, trace_config_->android_report_config(),
+      uuid, trace_config_->unique_session_name());
+  if (!status.ok()) {
+    PERFETTO_FATAL("ReportTraceToAndroidFramework: %s", status.c_message());
+  }
 }
 
 // Open a staging file (unlinking the previous instance), copy the trace
@@ -199,6 +230,142 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
   if (!fd)
     PERFETTO_PLOG("Could not create a temporary trace file in %s", kStateDir);
   return fd;
+}
+
+// static
+std::vector<base::ScopedFile>
+PerfettoCmd::UnlinkAndReturnPersistentTracesToUpload() {
+  base::ScopedDir dir = base::ScopedDir(opendir(kAndroidPersistentStateDir));
+  if (!dir) {
+    PERFETTO_PLOG("Failed to open directory %s", kAndroidPersistentStateDir);
+    return {};
+  }
+
+  std::vector<std::string> trace_paths;
+  struct dirent* entry;
+  while ((entry = readdir(*dir)) != nullptr) {
+    PERFETTO_LOG(
+        "UnlinkAndGetAllTracesToUpload, entry->d_name: %s, entry->d_type: %d",
+        entry->d_name, entry->d_type);
+    if (entry->d_type != DT_REG)
+      continue;
+
+    std::string path =
+        std::string(kAndroidPersistentStateDir) + "/" + entry->d_name;
+    trace_paths.push_back(path);
+  }
+
+  std::vector<base::ScopedFile> trace_fds;
+  for (std::string& path : trace_paths) {
+    base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
+    if (!fd) {
+      PERFETTO_PLOG("Failed to open file %s", path.c_str());
+      continue;
+    }
+    trace_fds.emplace_back(std::move(fd));
+    if (unlink(path.c_str()) != 0) {
+      PERFETTO_PLOG("Failed to unlink file %s", path.c_str());
+    }
+  }
+
+  return trace_fds;
+}
+
+void PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
+  // We must do as little work as possible before setting
+  // "perfetto.uploader_ready". The "traced" service will not start until this
+  // property is set to "1".
+  //
+  // A fallback mechanism exists in perfetto.rc to prevent indefinite wait:
+  // if this function crashes, hangs, or is never called, the property will
+  // automatically be set to "1" once "sys.boot_completed=1".
+  std::vector<base::ScopedFile> fds = UnlinkAndReturnPersistentTracesToUpload();
+
+  if (__system_property_set("perfetto.uploader_ready", "1") != 0) {
+    // This should never happens, but if it does we are in trouble. In this case
+    // just crash, we don't care about traces to be reported.
+    PERFETTO_FATAL("Failed to set property perfetto.uploader_ready");
+  }
+
+  // TODO(ktimofeev): move this wait to the body of
+  // 'android_internal::ReportTrace'
+  // '__system_property_wait' is available in '__ANDROID_API__ >= 26', so we
+  // have a simple loop here.
+  // We need to wait for the Android reporter service to be alive, so we sleep
+  // until the 'sys.boot_completed' is set by the system.
+  base::TimeSeconds seconds_since_boot = base::GetBootTimeS();
+  PERFETTO_LOG("ReportAllPersistentTraces, seconds_since_boot: %lld",
+               seconds_since_boot.count());
+
+  std::string prop_value;
+  for (int i = 0; i < 60; i++) {
+    prop_value = base::GetAndroidProp("sys.boot_completed");
+    if (prop_value == "1")
+      break;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  if (prop_value != "1") {
+    PERFETTO_LOG(
+        "ReportAllPersistentTraces, not booted after 60 "
+        "seconds, just returns");
+    return;
+  }
+  base::TimeSeconds seconds_since_boot_completed = base::GetBootTimeS();
+  PERFETTO_LOG("ReportAllPersistentTraces, slept for: %lld",
+               (seconds_since_boot_completed - seconds_since_boot).count());
+
+  for (base::ScopedFile& fd : fds) {
+    PERFETTO_LOG("ReportAllPersistentTraces, fd: %d", *fd);
+    std::optional<uint64_t> maybe_file_size = base::GetFileSize(*fd);
+    if (!maybe_file_size.has_value()) {
+      PERFETTO_PLOG("Can't get file size");
+      continue;
+    }
+    uint64_t file_size = maybe_file_size.value();
+    if (maybe_file_size == 0) {
+      PERFETTO_PLOG("file size == 0");
+      continue;
+    }
+    base::ScopedFile mmap_fd(dup(*fd));
+    if (!mmap_fd) {
+      PERFETTO_PLOG("Failed to dup fd for mmap");
+      continue;
+    }
+    base::ScopedMmap mmaped_file =
+        base::ScopedMmap::FromHandle(std::move(mmap_fd), file_size);
+    if (!mmaped_file.IsValid()) {
+      PERFETTO_PLOG("Failed to mmap");
+      continue;
+    }
+    std::optional<TraceConfig> trace_config =
+        ParseTraceConfigFromMmapedTrace(std::move(mmaped_file));
+    if (!trace_config.has_value()) {
+      PERFETTO_LOG("Not a perfetto trace");
+      continue;
+    }
+
+    // TODO(ktimofeev): remove
+    bool has_uuid = trace_config->has_trace_uuid_lsb() &&
+                    trace_config->has_trace_uuid_msb();
+    if (!has_uuid) {
+      PERFETTO_LOG("No uuid");
+      continue;
+    }
+
+    if (!trace_config->has_android_report_config()) {
+      PERFETTO_LOG("Not a android_report_config trace");
+      continue;
+    }
+
+    PERFETTO_LOG("ReportAllPersistentTrace: good persistent trace found: %s",
+                 trace_config->unique_session_name().c_str());
+
+    base::Uuid uuid(trace_config->trace_uuid_lsb(),
+                    trace_config->trace_uuid_msb());
+    ReportTraceToAndroidFramework(std::move(fd), file_size,
+                                  trace_config->android_report_config(), uuid,
+                                  trace_config->unique_session_name());
+  }
 }
 
 // static
