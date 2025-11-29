@@ -31,5 +31,9 @@ executable("tracebox") {
   if (enable_perfetto_traced_perf) {
     deps += [ "../profiling/perf:traced_perf_main" ]
   }
-  sources = [ "tracebox.cc" ]
+  sources = [
+    "tracebox.cc",
+    "tracebox_ctl.cc",
+    "tracebox_ctl.h",
+  ]
 }
