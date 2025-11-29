@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {QueryNode} from '../query_node';
-import {MaterializationService} from './materialization_service';
+import {QueryExecutionService} from './query_execution_service';
 
 /**
  * Centralized manager for resource cleanup in the Explore Page.
@@ -26,10 +26,10 @@ import {MaterializationService} from './materialization_service';
  * - Prevents orphaned resources
  */
 export class CleanupManager {
-  private materializationService: MaterializationService;
+  private queryExecutionService: QueryExecutionService;
 
-  constructor(materializationService: MaterializationService) {
-    this.materializationService = materializationService;
+  constructor(queryExecutionService: QueryExecutionService) {
+    this.queryExecutionService = queryExecutionService;
   }
 
   /**
@@ -64,7 +64,7 @@ export class CleanupManager {
     // Second: Asynchronous cleanup (materialized tables)
     if (node.state.materialized === true) {
       try {
-        await this.materializationService.dropMaterialization(node);
+        await this.queryExecutionService.dropMaterialization(node);
       } catch (e) {
         console.error(
           `Failed to drop materialization for node ${node.nodeId}:`,
@@ -73,6 +73,9 @@ export class CleanupManager {
         // Continue - don't block cleanup on individual failures
       }
     }
+
+    // Third: Clean up cached query hash to prevent memory leak
+    this.queryExecutionService.deleteNodeHash(node);
   }
 
   /**
@@ -101,26 +104,29 @@ export class CleanupManager {
       (node) => node.state.materialized === true,
     );
 
-    if (materialized.length === 0) {
-      return;
+    if (materialized.length > 0) {
+      // Drop all materializations in parallel
+      const results = await Promise.allSettled(
+        materialized.map((node) =>
+          this.queryExecutionService.dropMaterialization(node),
+        ),
+      );
+
+      // Log failures but don't throw - cleanup should be best-effort
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(
+            `Failed to drop materialization for node ${materialized[index].nodeId}:`,
+            result.reason,
+          );
+        }
+      });
     }
 
-    // Drop all materializations in parallel
-    const results = await Promise.allSettled(
-      materialized.map((node) =>
-        this.materializationService.dropMaterialization(node),
-      ),
-    );
-
-    // Log failures but don't throw - cleanup should be best-effort
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(
-          `Failed to drop materialization for node ${materialized[index].nodeId}:`,
-          result.reason,
-        );
-      }
-    });
+    // Third: Clean up cached query hashes for all nodes to prevent memory leak
+    for (const node of nodes) {
+      this.queryExecutionService.deleteNodeHash(node);
+    }
   }
 
   /**

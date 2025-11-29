@@ -259,7 +259,7 @@ export function queryToRun(query?: Query): string {
  * This allows detecting query changes before any SQL execution.
  *
  * This function is relatively expensive (stringifyJsonWithBigints on entire query tree).
- * MaterializationService caches results to avoid recomputation.
+ * QueryExecutionService caches results to avoid recomputation.
  */
 export function hashNodeQuery(node: QueryNode): string | undefined {
   const sq = node.getStructuredQuery();
@@ -315,7 +315,7 @@ export async function analyzeNode(
  * This indicates the node needs re-validation and re-execution.
  *
  * Note: Does not propagate to children or invalidate caches.
- * Use MaterializationService.invalidateNode() for invalidation with propagation.
+ * Use QueryExecutionService.invalidateNode() for invalidation with propagation.
  */
 export function setOperationChanged(node: QueryNode) {
   node.state.hasOperationChanged = true;
