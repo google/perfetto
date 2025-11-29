@@ -25,15 +25,10 @@ import ThreadPlugin from '../dev.perfetto.Thread';
 import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 import {uuidv4Sql} from '../../base/uuid';
 import {
-  Config as ProcessSchedulingTrackConfig,
-  PROCESS_SCHEDULING_TRACK_KIND,
-  ProcessSchedulingTrack,
-} from './process_scheduling_track';
-import {
-  Config as ProcessSummaryTrackConfig,
-  PROCESS_SUMMARY_TRACK_KIND,
-  ProcessSummaryTrack,
-} from './process_summary_track';
+  Config as SliceTrackSummaryConfig,
+  SLICE_TRACK_SUMMARY_KIND,
+  SliceTrackSummary,
+} from './slice_track_summary';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
@@ -47,7 +42,8 @@ export default class implements PerfettoPlugin {
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
-    // Makes the queries in `ProcessSchedulingTrack` significantly faster.
+    // Makes the queries in `SliceTrackSummary` significantly faster when using
+    // scheduling data.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
     await createPerfettoIndex({
@@ -55,12 +51,13 @@ export default class implements PerfettoPlugin {
       name: `__process_scheduling_${uuidv4Sql()}`,
       on: `__intrinsic_sched_slice(utid)`,
     });
-    // Makes the queries in `ProcessSummaryTrack` significantly faster.
+    // Makes the queries in `SliceTrackSummary` significantly faster when using
+    // slice data.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
     await createPerfettoIndex({
       engine: ctx.engine,
-      name: `__process_summary_${uuidv4Sql()}`,
+      name: `__slice_track_summary_${uuidv4Sql()}`,
       on: `__intrinsic_slice(track_id)`,
     });
 
@@ -171,39 +168,28 @@ export default class implements PerfettoPlugin {
       // for additional details.
       isBootImageProfiling && chips.push('boot image profiling');
 
-      if (hasSched) {
-        const config: ProcessSchedulingTrackConfig = {
-          pidForColor,
-          upid,
-          utid,
-        };
+      const config: SliceTrackSummaryConfig = {
+        pidForColor,
+        upid,
+        utid,
+      };
 
-        ctx.tracks.registerTrack({
+      ctx.tracks.registerTrack({
+        uri,
+        tags: {
+          kinds: [SLICE_TRACK_SUMMARY_KIND],
+        },
+        chips,
+        renderer: new SliceTrackSummary(
+          ctx,
           uri,
-          tags: {
-            kinds: [PROCESS_SCHEDULING_TRACK_KIND],
-          },
-          chips,
-          renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
-          subtitle,
-        });
-      } else {
-        const config: ProcessSummaryTrackConfig = {
-          pidForColor,
-          upid,
-          utid,
-        };
-
-        ctx.tracks.registerTrack({
-          uri,
-          tags: {
-            kinds: [PROCESS_SUMMARY_TRACK_KIND],
-          },
-          chips,
-          renderer: new ProcessSummaryTrack(ctx.engine, config),
-          subtitle,
-        });
-      }
+          config,
+          cpuCount,
+          threads,
+          hasSched,
+        ),
+        subtitle,
+      });
     }
   }
 
@@ -246,7 +232,14 @@ export default class implements PerfettoPlugin {
       return;
     }
 
-    const config: ProcessSummaryTrackConfig = {
+    // Get CPU count for kernel thread summary
+    const cpuCountResult = await engine.query(`
+      SELECT COUNT(*) as cpu_count FROM cpu WHERE IFNULL(machine_id, 0) = 0
+    `);
+    const cpuCount = cpuCountResult.firstRow({cpu_count: NUM}).cpu_count;
+
+    const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
+    const config: SliceTrackSummaryConfig = {
       pidForColor: 2,
       upid: it.upid,
       utid: it.utid,
@@ -255,9 +248,16 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri: '/kernel',
       tags: {
-        kinds: [PROCESS_SUMMARY_TRACK_KIND],
+        kinds: [SLICE_TRACK_SUMMARY_KIND],
       },
-      renderer: new ProcessSummaryTrack(ctx.engine, config),
+      renderer: new SliceTrackSummary(
+        ctx,
+        '/kernel',
+        config,
+        cpuCount,
+        threads,
+        false,
+      ),
     });
   }
 }
