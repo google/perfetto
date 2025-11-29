@@ -19,7 +19,15 @@ import {
   NodeType,
   getSecondaryInput,
 } from '../../query_node';
-import {ColumnInfo, columnInfoFromName} from '../column_info';
+import {
+  ColumnInfo,
+  columnInfoFromName,
+  columnInfoFromSqlColumn,
+} from '../column_info';
+import {
+  PerfettoSqlTypes,
+  parsePerfettoSqlTypeFromString,
+} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import m from 'mithril';
 import {
@@ -504,7 +512,16 @@ export class AddColumnsNode implements QueryNode {
       const newCols =
         this.state.selectedColumns?.map((c) => {
           const alias = this.state.columnAliases?.get(c);
-          // If an alias is provided, use it as the column name
+          // Find the column in rightCols to preserve type information
+          const sourceCol = this.rightCols.find((col) => col.name === c);
+          if (sourceCol) {
+            // Preserve type information from the source column
+            return columnInfoFromSqlColumn({
+              name: alias ?? c,
+              type: sourceCol.column.type,
+            });
+          }
+          // Fallback if column not found (shouldn't happen in valid state)
           return columnInfoFromName(alias ?? c);
         }) ?? [];
       cols = [...cols, ...newCols];
@@ -517,18 +534,36 @@ export class AddColumnsNode implements QueryNode {
         .map((col) => {
           // Use stored sqlType if available (from deserialization)
           if (col.sqlType) {
-            return columnInfoFromName(col.name);
+            // Parse the stored type string and use it
+            const parsedType = parsePerfettoSqlTypeFromString({
+              type: col.sqlType,
+            });
+            if (!parsedType.ok) {
+              console.warn(
+                `Failed to parse stored type '${col.sqlType}' for column '${col.name}', defaulting to INT`,
+              );
+            }
+            return columnInfoFromSqlColumn({
+              name: col.name,
+              type: parsedType.ok ? parsedType.value : PerfettoSqlTypes.INT,
+            });
           }
           // Try to preserve type information if the expression is a simple column reference
           const sourceCol = this.sourceCols.find(
             (c) => c.column.name === col.expression,
           );
-          if (sourceCol) {
+          if (sourceCol && sourceCol.column.type) {
             col.sqlType = sourceCol.type;
-            return columnInfoFromName(col.name);
+            return columnInfoFromSqlColumn({
+              name: col.name,
+              type: sourceCol.column.type,
+            });
           }
-          // For complex expressions, use 'NA' as type
-          return columnInfoFromName(col.name, true);
+          // For complex expressions, we can't infer the type, use INT as default
+          return columnInfoFromSqlColumn({
+            name: col.name,
+            type: PerfettoSqlTypes.INT,
+          });
         }) ?? [];
 
     return [...cols, ...computedCols];

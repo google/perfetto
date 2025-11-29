@@ -438,6 +438,23 @@ describe('TimeRangeSourceNode', () => {
       expect(node.finalCols[1].name).toBe('ts');
       expect(node.finalCols[2].name).toBe('dur');
     });
+
+    it('should have correct column types', () => {
+      const node = new TimeRangeSourceNode({
+        trace: createMockTrace(),
+        start: Time.fromRaw(100n),
+        end: Time.fromRaw(500n),
+        isDynamic: false,
+      });
+
+      expect(node.finalCols.length).toBe(3);
+      expect(node.finalCols[0].name).toBe('id');
+      expect(node.finalCols[0].type).toBe('INT');
+      expect(node.finalCols[1].name).toBe('ts');
+      expect(node.finalCols[1].type).toBe('TIMESTAMP');
+      expect(node.finalCols[2].name).toBe('dur');
+      expect(node.finalCols[2].type).toBe('DURATION');
+    });
   });
 
   describe('edge cases', () => {
