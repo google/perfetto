@@ -761,6 +761,7 @@ struct CommandLineOptions {
   std::string metric_v1_names;
   std::string metric_v1_output;
   std::vector<std::string> raw_metric_v1_extensions;
+  size_t tp_timeout_mins = 24 * 60;  // 24 hours
 };
 
 void PrintUsage(char** argv) {
@@ -786,6 +787,8 @@ Behavioural:
  -i, --interactive                    Starts interactive mode even after
                                       executing some other commands (-q, -Q,
                                       --run-metrics, --summary).
+ --trace-processor-timeout-mins MINS  Specifies the timeout in minutes before the
+                                      trace processor thread to expire. Default is 1 day.
 
 Parsing:
  --full-sort                          Forces the trace processor into performing
@@ -936,6 +939,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_HTTP_IP,
     OPT_HTTP_ADDITIONAL_CORS_ORIGINS,
     OPT_STDIOD,
+    OPT_TP_TIMEOUT_MINS,
 
     OPT_FORCE_FULL_SORT,
     OPT_NO_FTRACE_RAW,
@@ -1021,6 +1025,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
+      {"trace-processor-timeout-mins", required_argument, nullptr,
+       OPT_TP_TIMEOUT_MINS},
 
       {nullptr, 0, nullptr, 0}};
 
@@ -1213,6 +1219,16 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_SUMMARY_FORMAT) {
       command_line_options.summary_output = optarg;
+      continue;
+    }
+
+    if (option == OPT_TP_TIMEOUT_MINS) {
+      auto timeout_opt = base::StringToInt32(optarg);
+      if (!timeout_opt.has_value() || timeout_opt.value() < 0) {
+        PERFETTO_ELOG("Invalid timeout value: %s", optarg);
+        exit(1);
+      }
+      command_line_options.tp_timeout_mins = static_cast<size_t>(*timeout_opt);
       continue;
     }
 
@@ -2144,7 +2160,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
         /*rpc=*/rpc,
         /*listen_ip=*/options.listen_ip,
         /*port_number=*/options.port_number,
-        /*additional_cors_origins=*/options.additional_cors_origins);
+        /*additional_cors_origins=*/options.additional_cors_origins,
+        /*timeout_mins=*/options.tp_timeout_mins);
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");

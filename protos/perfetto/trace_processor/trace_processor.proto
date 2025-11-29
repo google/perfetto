@@ -110,6 +110,7 @@ message TraceProcessorRpc {
     TPM_REGISTER_SQL_PACKAGE = 13;
     TPM_ANALYZE_STRUCTURED_QUERY = 14;
     TPM_SUMMARIZE_TRACE = 15;
+    TPM_SET_TRACE_TITLE = 16;
   }
 
   oneof type {
@@ -147,6 +148,8 @@ message TraceProcessorRpc {
     AnalyzeStructuredQueryArgs analyze_structured_query_args = 109;
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryArgs trace_summary_args = 110;
+    // For TPM_SET_TRACE_TITLE.
+    SetTraceTitleArgs set_trace_title_args = 111;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -257,9 +260,10 @@ message StatusArgs {}
 
 // Output for the /status endpoint.
 message StatusResult {
-  // If present and not empty, a trace is already loaded already. This happens
-  // when using the HTTP+RPC mode nad passing a trace file to the shell, via
-  // trace_processor_shell -D trace_file.pftrace .
+  // If present and not empty, a trace is already loaded already in one or more
+  // trace processors. This happens when using the HTTP+RPC mode and passing a
+  // trace file to the shell, via trace_processor_shell -D trace_file.pftrace .
+  // or opening a trace processor in a separate tab.
   optional string loaded_trace_name = 1;
 
   // Typically something like "v11.0.123", but could be just "v11" or "unknown",
@@ -279,6 +283,11 @@ message StatusResult {
   // but you should not attempt to parse it as the format may change
   // without warning.
   optional string version_code = 4;
+
+  optional uint32 instance_id = 5;
+  optional uint64 inactivity_ns = 6;
+  optional bool is_attached = 7;
+  optional string instance_uuid = 8;
 }
 
 // Input for the /compute_metric endpoint.
@@ -364,6 +373,10 @@ message ResetTraceProcessorArgs {
   repeated bytes extra_parsing_descriptors = 7;
 }
 
+message SetTraceTitleArgs {
+  required string title = 1;
+}
+
 message RegisterSqlPackageArgs {
   message Module {
     optional string name = 1;
@@ -420,4 +433,14 @@ message TraceSummaryResult {
     string textproto_summary = 2;
   }
   optional string error = 3;
+}
+
+message RpcStatus {
+  // For legacy reasons, this returns the loaded trace name of the first
+  // instance (if any)
+  optional string loaded_trace_name = 1;
+  optional string human_readable_version = 2;
+  optional int32 api_version = 3;
+  optional string version_code = 4;
+  repeated StatusResult instances = 5;
 }

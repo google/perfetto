@@ -16,12 +16,14 @@ import protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists, reportError} from '../base/logging';
 import {EngineBase} from '../trace_processor/engine';
+import {uuidv4Sql} from '../base/uuid';
+// import TPM = protos.TraceProcessorRpc.TraceProcessorMethod;
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
 export interface HttpRpcState {
   connected: boolean;
-  status?: protos.StatusResult;
+  status?: protos.RpcStatus;
   failure?: string;
 }
 
@@ -34,43 +36,62 @@ export class HttpRpcEngine extends EngineBase {
   private disposed = false;
   private queue: Blob[] = [];
   private isProcessingQueue = false;
+  private traceProcessorUuid?: string | undefined = undefined;
+  // private isWaitingForUuid = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
 
-  constructor(id: string) {
+  constructor(id: string, traceProcessorUuid: string | undefined) {
     super();
     this.id = id;
+    this.traceProcessorUuid = traceProcessorUuid;
+  }
+
+  private connect() {
+    if (this.websocket !== undefined || this.disposed) return;
+
+    if (this.traceProcessorUuid === undefined) {
+      // If This is a new session, create a new UUID beforehand.
+      this.traceProcessorUuid = uuidv4Sql();
+    }
+    // We have an existing instance Uuid, connect to that specific instance.
+    const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/${this.traceProcessorUuid}`;
+    // this.isWaitingForUuid = false;
+
+    this.websocket = new WebSocket(wsUrl);
+    this.websocket.onopen = () => this.onWebsocketConnected();
+    this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
+    this.websocket.onclose = (e) => this.onWebsocketClosed(e);
+    this.websocket.onerror = (e) =>
+      super.fail(
+        `WebSocket error rs=${(e.target as WebSocket)?.readyState} (ERR:ws)`,
+      );
   }
 
   rpcSendRequestBytes(data: Uint8Array): void {
-    if (this.websocket === undefined) {
-      if (this.disposed) return;
-      const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket`;
-      this.websocket = new WebSocket(wsUrl);
-      this.websocket.onopen = () => this.onWebsocketConnected();
-      this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
-      this.websocket.onclose = (e) => this.onWebsocketClosed(e);
-      this.websocket.onerror = (e) =>
-        super.fail(
-          `WebSocket error rs=${(e.target as WebSocket)?.readyState} (ERR:ws)`,
-        );
-    }
+    this.connect(); // Ensures a connection is requested.
 
     if (this.connected) {
-      this.websocket.send(data);
+      assertExists(this.websocket).send(data);
     } else {
       this.requestQueue.push(data); // onWebsocketConnected() will flush this.
     }
   }
 
-  private onWebsocketConnected() {
+  onWebsocketConnected() {
+    // If we are waiting for the instance ID, the connection is not truly "ready"
+    // until that instance ID has been received. onWebsocketMessage will call this
+    // again once the instance ID arrives.
+
+    // if (this.isWaitingForUuid) return;
+
+    this.connected = true;
     for (;;) {
       const queuedMsg = this.requestQueue.shift();
       if (queuedMsg === undefined) break;
       assertExists(this.websocket).send(queuedMsg);
     }
-    this.connected = true;
   }
 
   private onWebsocketClosed(e: CloseEvent) {
@@ -81,7 +102,10 @@ export class HttpRpcEngine extends EngineBase {
       console.log('Websocket closed, reconnecting');
       this.websocket = undefined;
       this.connected = false;
-      this.rpcSendRequestBytes(new Uint8Array()); // Triggers a reconnection.
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.connect(); // triggers a reconnection after a small delay to prevent race conditions
+      }, 200);
     } else {
       super.fail(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
     }
@@ -89,6 +113,32 @@ export class HttpRpcEngine extends EngineBase {
 
   private onWebsocketMessage(e: MessageEvent) {
     const blob = assertExists(e.data as Blob);
+    // if (this.isWaitingForUuid) {
+    //   blob.arrayBuffer().then((buffer) => {
+    //     const rpcMsgEncoded = new Uint8Array(buffer);
+    //     const rpc = protos.TraceProcessorRpc.decode(rpcMsgEncoded);
+
+    //     if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
+    //       this.fail(`${rpc.fatalError}`);
+    //     }
+    //     if (rpc.response !== TPM.TPM_GET_STATUS) {
+    //       this.fail(`Initial message missing instance UUID: ${rpc}`);
+    //     } else if (
+    //       rpc.status === undefined ||
+    //       rpc.status === null ||
+    //       rpc.status.instanceUuid === undefined
+    //     ) {
+    //       this.fail(`Initial message missing instance UUID: ${rpc}`);
+    //     } else {
+    //       this.traceProcessorUuid = rpc.status?.instanceUuid ?? '';
+    //       this.isWaitingForUuid = false;
+    //       this.onWebsocketConnected();
+    //     }
+    //   });
+    //   return;
+    // }
+
+    // Standard RPC message processing.
     this.queue.push(blob);
     this.processQueue();
   }
@@ -126,9 +176,7 @@ export class HttpRpcEngine extends EngineBase {
         httpRpcState.failure = `${resp.status} - ${resp.statusText}`;
       } else {
         const buf = new Uint8Array(await resp.arrayBuffer());
-        // Decode the response buffer first. If decoding is successful, update the connection state.
-        // This ensures that the connection state is only set to true if the data is correctly parsed.
-        httpRpcState.status = protos.StatusResult.decode(buf);
+        httpRpcState.status = protos.RpcStatus.decode(buf);
         httpRpcState.connected = true;
       }
     } catch (err) {
