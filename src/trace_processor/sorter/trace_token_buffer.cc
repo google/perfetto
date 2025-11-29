@@ -187,7 +187,9 @@ uint32_t TraceTokenBuffer::InternTraceBlob(InternedIndex interned_index,
   if (last_blob.blob != tbv.blob().get()) {
     return AddTraceBlob(interned_index, tbv);
   }
-  PERFETTO_CHECK(last_blob.offset_in_blob <= tbv.offset());
+  if (last_blob.offset_in_blob > tbv.offset()) {
+    return AddTraceBlob(interned_index, tbv);
+  }
 
   // To allow our offsets in the store to be 16 bits, we intern not only the
   // TraceBlob pointer but also the offset. By having this double indirection,
