@@ -38,3 +38,12 @@
     }
   }
 }
+
+.pf-table-card-header {
+  .pf-match-type-chip {
+    background-color: var(--surface-variant);
+    color: var(--on-surface-variant);
+    font-size: 11px;
+    opacity: 0.8;
+  }
+}
