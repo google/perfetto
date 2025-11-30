@@ -33,12 +33,28 @@ export enum DurationPrecision {
   HumanReadable = 'human_readable',
 }
 
-export interface Timeline {
-  // Bring a timestamp into view.
-  panToTimestamp(ts: time): void;
+export interface PanIntoViewOptions {
+  // Where to place the timestamp/span in the viewport.
+  // nearest: pan the minimum amount to make it visible
+  readonly align?: 'center' | 'nearest' | 'zoom';
 
-  // Move the viewport.
-  setViewportTime(start: time, end: time): void;
+  // Margin from edge as a fraction of the viewport (0.0 to 1.0)
+  readonly margin?: number;
+}
+
+export interface PanInstantIntoViewOptions extends PanIntoViewOptions {
+  // When zooming into an instant which has no inherent width, this value
+  // defines what the new viewport width should be. If omitted, zoom is the same
+  // as center for instants.
+  readonly zoomWidth?: number;
+}
+
+export interface Timeline {
+  pan(delta: number): void;
+  zoom(factor: number, centerPoint?: number): void;
+  panIntoView(ts: time, options?: PanInstantIntoViewOptions): void;
+  panSpanIntoView(start: time, end: time, options?: PanIntoViewOptions): void;
+  setVisibleWindow(span: HighPrecisionTimeSpan): void;
 
   // A span representing the current viewport location.
   readonly visibleWindow: HighPrecisionTimeSpan;

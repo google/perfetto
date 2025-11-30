@@ -17,7 +17,7 @@ import {time} from '../base/time';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {WorkspaceManager} from '../public/workspace';
 import {raf} from './raf_scheduler';
-import {TimelineImpl, MIN_DURATION} from './timeline';
+import {TimelineImpl} from './timeline';
 import {TrackManagerImpl} from './track_manager';
 
 // A helper class to help jumping to tracks and time ranges.
@@ -51,7 +51,10 @@ export class ScrollHelper {
         this.focusHorizontalRange(time.start, end);
       } else {
         // Pan: just move the viewport without changing zoom
-        this.panHorizontalRange(time.start, end);
+        this.timeline.panSpanIntoView(time.start, end, {
+          align: 'nearest',
+          margin: 0.1,
+        });
       }
     }
 
@@ -69,7 +72,7 @@ export class ScrollHelper {
 
     // For instant events (duration = 0), just pan to center without zoom
     if (aoi.duration === 0) {
-      this.panHorizontalRange(start, end);
+      this.timeline.panSpanIntoView(start, end, {align: 'center'});
       return;
     }
 
@@ -81,49 +84,30 @@ export class ScrollHelper {
       // Default to 50%.
       viewPercentage = 0.5;
     }
-    const paddingPercentage = 1.0 - viewPercentage;
-    const halfPaddingTime = (aoi.duration * paddingPercentage) / 2;
-    this.timeline.updateVisibleTimeHP(aoi.pad(halfPaddingTime));
-  }
 
-  private panHorizontalRange(start: time, end: time): void {
-    // Pan to center the range without changing zoom level
-    const visible = this.timeline.visibleWindow;
-    const aoi = HighPrecisionTimeSpan.fromTime(start, end);
-    const newStart = aoi.midpoint.subNumber(visible.duration / 2);
-    const newWindow = new HighPrecisionTimeSpan(newStart, visible.duration);
-    this.timeline.updateVisibleTimeHP(newWindow);
+    this.timeline.panSpanIntoView(start, end, {
+      align: 'zoom',
+      margin: (1.0 - viewPercentage) / 2,
+    });
   }
 
   private focusHorizontalRange(start: time, end: time): void {
-    const visible = this.timeline.visibleWindow;
-    const aoi = HighPrecisionTimeSpan.fromTime(start, end);
-    const fillPercentage = 0.8; // Make selection fill 80% of viewport
-    let newRawDuration;
-    let centerPoint;
-
     // Handle instant events (duration = 0) specially
-    if (aoi.duration === 0) {
+    if (start === end) {
       // For instant events, zoom in by 99.8% (new duration = 0.2% of current)
       // This value (0.002) was chosen based on heuristic testing.
       // TODO(lalitm): This should ideally use the actual viewport width in
       // pixels to calculate a precise zoom level (e.g., make 1px at current
       // scale fill 80% of viewport), but plumbing viewport width through to
       // ScrollHelper is architecturally difficult right now.
-      newRawDuration = visible.duration * 0.002;
-      centerPoint = aoi.start;
+      this.timeline.panIntoView(start, {
+        align: 'zoom',
+        zoomWidth: 0.002 * this.timeline.visibleWindow.duration,
+      });
     } else {
-      // For events with duration, make them fill 80% of the viewport
-      newRawDuration = aoi.duration / fillPercentage;
-      centerPoint = aoi.midpoint;
+      // 10% padding on each side means the range fills 80% of the viewport
+      this.timeline.panSpanIntoView(start, end, {align: 'zoom', margin: 0.1});
     }
-    // Ensure centering even when the new duration is less than the minimum
-    // timeline duration.
-    const newDuration = Math.max(newRawDuration, MIN_DURATION);
-    const halfDuration = newDuration / 2;
-    const newStart = centerPoint.subNumber(halfDuration);
-    const newWindow = new HighPrecisionTimeSpan(newStart, newDuration);
-    this.timeline.updateVisibleTimeHP(newWindow);
   }
 
   private verticalScrollToTrack(trackUri: string, openGroup: boolean) {
