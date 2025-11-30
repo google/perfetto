@@ -53,7 +53,7 @@ class FtraceEventName {
 };
 
 struct ProtoType {
-  enum Type { INVALID, NUMERIC, STRING };
+  enum Type { INVALID, NUMERIC, STRING, BYTES };
   Type type;
   uint16_t size;
   bool is_signed;
@@ -67,6 +67,7 @@ struct ProtoType {
   static ProtoType Numeric(uint16_t size,
                            bool is_signed,
                            bool is_repeated = false);
+  static ProtoType Bytes(bool is_repeated = false);
   static ProtoType FromDescriptor(google::protobuf::FieldDescriptor::Type type,
                                   bool is_repeated = false);
 };
