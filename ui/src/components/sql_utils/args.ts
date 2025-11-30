@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {parseJsonWithBigints} from '../../base/json_utils';
 import {Engine} from '../../trace_processor/engine';
 import {STR_NULL} from '../../trace_processor/query_result';
 import {ArgSetId} from './core_types';
 
-export type ArgValue = string | number | boolean | null;
+export type ArgValue = string | number | boolean | bigint | null;
 export type Args = ArgValue | Args[] | ArgsDict;
 export type ArgsDict = {[key: string]: Args};
 
@@ -35,6 +36,6 @@ export async function getArgs(
     return {};
   }
 
-  const argsDict = JSON.parse(it.args_json);
+  const argsDict = parseJsonWithBigints(it.args_json);
   return argsDict;
 }
