@@ -39,6 +39,7 @@ export enum NodeType {
   kAggregation,
   kModifyColumns,
   kAddColumns,
+  kFilterDuring,
   kLimitAndOffset,
   kSort,
   kFilter,
@@ -54,6 +55,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kAggregation:
     case NodeType.kModifyColumns:
     case NodeType.kAddColumns:
+    case NodeType.kFilterDuring:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
     case NodeType.kFilter:

@@ -419,3 +419,11 @@ export class EqualWidthRow implements m.ClassComponent<EqualWidthRowAttrs> {
     );
   }
 }
+
+// Widget for displaying informational text in a styled box
+// Similar to the pattern used in timerange node for dynamic mode info
+export class InfoBox implements m.ClassComponent {
+  view({children}: m.CVnode) {
+    return m('.pf-exp-info-box', children);
+  }
+}
