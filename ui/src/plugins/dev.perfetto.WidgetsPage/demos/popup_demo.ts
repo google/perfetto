@@ -14,7 +14,11 @@
 
 import m from 'mithril';
 import {Button, ButtonBar} from '../../../widgets/button';
-import {Popup, PopupPosition} from '../../../widgets/popup';
+import {
+  OutsideClickHandling,
+  Popup,
+  PopupPosition,
+} from '../../../widgets/popup';
 import {PopupMenu} from '../../../widgets/menu';
 import {MenuItem} from '../../../widgets/menu';
 import {
@@ -64,7 +68,7 @@ export function renderPopup(): m.Children {
           Object.values(PopupPosition),
         ),
         closeOnEscape: true,
-        closeOnOutsideClick: true,
+        closeOnOutsideClickHandling: OutsideClickHandling.CaptureMouseAndClose,
         isContextMenu: false,
         positionAtCursor: false,
       },
