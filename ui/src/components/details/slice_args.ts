@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../widgets/menu';
-import {Arg} from '../sql_utils/args';
+import {ArgsDict} from '../sql_utils/args';
 import {Trace} from '../../public/trace';
 import {renderArguments} from './args';
 import {extensions} from '../extensions';
@@ -23,11 +23,9 @@ import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {sqliteString} from '../../base/string_utils';
 
 // Renders slice arguments (key/value pairs) as a subtree.
-export function renderSliceArguments(
-  trace: Trace,
-  args: ReadonlyArray<Arg>,
-): m.Children {
-  return renderArguments(trace, args, (arg) => {
+export function renderSliceArguments(trace: Trace, args: ArgsDict): m.Children {
+  return renderArguments(trace, args, (key, value) => {
+    const displayValue = value === null ? 'NULL' : String(value);
     return [
       m(MenuItem, {
         label: 'Find slices with same arg value',
@@ -37,7 +35,7 @@ export function renderSliceArguments(
             table: assertExists(getSqlTableDescription(trace, 'slice')),
             filters: [
               {
-                op: (cols) => `${cols[0]} = ${sqliteString(arg.displayValue)}`,
+                op: (cols) => `${cols[0]} = ${sqliteString(displayValue)}`,
                 columns: [
                   {
                     column: 'display_value',
@@ -45,7 +43,7 @@ export function renderSliceArguments(
                       table: 'args',
                       joinOn: {
                         arg_set_id: 'arg_set_id',
-                        key: sqliteString(arg.flatKey),
+                        key: sqliteString(key),
                       },
                     },
                   },
@@ -59,7 +57,7 @@ export function renderSliceArguments(
         label: 'Visualize argument values',
         icon: 'query_stats',
         onclick: () => {
-          extensions.addVisualizedArgTracks(trace, arg.flatKey);
+          extensions.addVisualizedArgTracks(trace, key);
         },
       }),
     ];
