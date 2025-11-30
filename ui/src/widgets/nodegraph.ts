@@ -93,6 +93,7 @@ export interface Node {
   readonly canDockTop?: boolean;
   readonly canDockBottom?: boolean;
   readonly contextMenuItems?: m.Children;
+  readonly invalid?: boolean; // Whether this node is in an invalid state
 }
 
 interface ConnectingState {
@@ -1335,6 +1336,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       hue,
       accentBar,
       contextMenuItems,
+      invalid,
     } = node;
     const {isDockedChild, hasDockedChild, isDockTarget, rootNode, multiselect} =
       options;
@@ -1352,6 +1354,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       hasDockedChild && 'pf-has-docked-child',
       isDockTarget && 'pf-dock-target',
       accentBar && 'pf-node--has-accent-bar',
+      invalid && 'pf-invalid',
     );
 
     // Helper to render a port

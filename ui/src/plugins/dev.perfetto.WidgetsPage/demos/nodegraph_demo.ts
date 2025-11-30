@@ -89,6 +89,7 @@ type NodeData =
 interface NodeGraphStore {
   readonly nodes: Map<string, NodeData>;
   readonly connections: Connection[];
+  readonly invalidNodes: Set<string>; // Track which nodes are marked as invalid
 }
 
 // Node metadata configuration
@@ -432,6 +433,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   let store: NodeGraphStore = {
     nodes: new Map([[initialId, createTableNode(initialId, 150, 100)]]),
     connections: [],
+    invalidNodes: new Set<string>(),
   };
 
   // History management
@@ -566,6 +568,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       // Clear existing state
       draft.nodes.clear();
       draft.connections.length = 0;
+      draft.invalidNodes.clear();
 
       // Node factory options
       const nodeFactories = [
@@ -797,7 +800,24 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   }
 
   function renderNodeContextMenu(node: NodeData) {
+    const isInvalid = store.invalidNodes.has(node.id);
     return [
+      m(MenuItem, {
+        label: isInvalid ? 'Mark as Valid' : 'Mark as Invalid',
+        icon: isInvalid ? 'check_circle' : 'error',
+        onclick: () => {
+          updateStore((draft) => {
+            if (draft.invalidNodes.has(node.id)) {
+              draft.invalidNodes.delete(node.id);
+            } else {
+              draft.invalidNodes.add(node.id);
+            }
+          });
+          console.log(
+            `Context Menu: Toggle invalid state for ${node.id}: ${!isInvalid}`,
+          );
+        },
+      }),
       m(MenuItem, {
         label: 'Delete',
         icon: 'delete',
@@ -982,6 +1002,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           contextMenuItems: attrs.contextMenus
             ? renderNodeContextMenu(nodeData)
             : undefined,
+          invalid: store.invalidNodes.has(nodeData.id),
         };
       }
 
@@ -1014,6 +1035,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           contextMenuItems: attrs.contextMenus
             ? renderNodeContextMenu(nodeData)
             : undefined,
+          invalid: store.invalidNodes.has(nodeData.id),
         };
       }
 
