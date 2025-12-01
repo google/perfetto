@@ -22,6 +22,9 @@ import {SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../widgets/callout';
 import {Intent} from '../../../widgets/common';
+import {EmptyState} from '../../../widgets/empty_state';
+import {QueryNode} from '../query_node';
+import {NodeModifySection} from './node_explorer_types';
 
 // Generic widget for a row with name input, validation, and remove button
 // Used by all "new column" types
@@ -426,4 +429,114 @@ export class InfoBox implements m.ClassComponent {
   view({children}: m.CVnode) {
     return m('.pf-exp-info-box', children);
   }
+}
+
+/**
+ * Automatically creates error/warning sections from node.state.issues
+ * Returns sections to prepend to the node's modify view
+ */
+export function createErrorSections(node: QueryNode): NodeModifySection[] {
+  const sections: NodeModifySection[] = [];
+
+  if (node.state.issues?.queryError) {
+    sections.push({
+      content: m(
+        Callout,
+        {icon: 'error'},
+        node.state.issues.queryError.message,
+      ),
+    });
+  }
+
+  return sections;
+}
+
+/**
+ * Reusable list component with empty state and item rendering
+ * Used by nodes that display lists of items (filters, aggregations, columns, etc.)
+ */
+export interface ModifiableItemListAttrs<T> {
+  items: T[];
+  renderItem: (item: T, index: number) => m.Child;
+  emptyStateTitle: string;
+  emptyStateIcon?: string;
+}
+
+export function ModifiableItemList<T>(
+  attrs: ModifiableItemListAttrs<T>,
+): m.Child {
+  if (attrs.items.length === 0) {
+    return m(EmptyState, {
+      title: attrs.emptyStateTitle,
+      icon: attrs.emptyStateIcon,
+    });
+  }
+
+  return m(
+    '.pf-modifiable-item-list',
+    attrs.items.map((item, index) => attrs.renderItem(item, index)),
+  );
+}
+
+/**
+ * Row of action buttons with consistent styling
+ * Used for "add item" controls at the top of modify views
+ */
+export interface ActionButtonRowAttrs {
+  buttons: Array<{
+    label: string;
+    icon: string;
+    onclick: () => void;
+    variant?: ButtonVariant;
+    disabled?: boolean;
+  }>;
+}
+
+export function ActionButtonRow(attrs: ActionButtonRowAttrs): m.Child {
+  return m(
+    '.pf-exp-action-buttons',
+    attrs.buttons.map((btn) =>
+      m(Button, {
+        label: btn.label,
+        icon: btn.icon,
+        onclick: btn.onclick,
+        variant: btn.variant ?? ButtonVariant.Outlined,
+        disabled: btn.disabled,
+      }),
+    ),
+  );
+}
+
+/**
+ * Creates a section with a title showing a count
+ * Common pattern: "Items (X / Y selected)" or "Items (X)"
+ */
+export interface CountedSectionTitleAttrs {
+  label: string;
+  count: number;
+  total?: number;
+}
+
+export function createCountedSectionTitle(
+  attrs: CountedSectionTitleAttrs,
+): string {
+  if (attrs.total !== undefined) {
+    return `${attrs.label} (${attrs.count} / ${attrs.total})`;
+  }
+  return `${attrs.label} (${attrs.count})`;
+}
+
+/**
+ * Helper to create a standard "no items" message section
+ */
+export function createEmptySection(
+  title: string,
+  icon?: string,
+): NodeModifySection {
+  return {
+    content: m(EmptyState, {
+      title,
+      icon,
+    }),
+  };
 }

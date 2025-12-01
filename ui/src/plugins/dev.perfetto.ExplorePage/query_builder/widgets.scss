@@ -256,6 +256,27 @@
   }
 }
 
+// Modifiable item list - generic container for lists of editable items
+.pf-modifiable-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Sort criteria list - list of draggable sort items with gaps
+.pf-sort-criteria-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Limit and offset list - list of limit/offset items with gaps
+.pf-limit-offset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 // Equal width row widget - responsive layout for equal-width items
 .pf-exp-equal-width-row {
   display: flex;
