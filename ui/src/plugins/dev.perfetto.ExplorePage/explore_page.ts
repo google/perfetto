@@ -32,7 +32,7 @@ import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
-import {MaterializationService} from './query_builder/materialization_service';
+import {QueryExecutionService} from './query_builder/query_execution_service';
 import {CleanupManager} from './query_builder/cleanup_manager';
 import {HistoryManager} from './history_manager';
 import {getAllNodes} from './query_builder/graph_utils';
@@ -58,7 +58,7 @@ interface ExplorePageAttrs {
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
-  private materializationService?: MaterializationService;
+  private queryExecutionService?: QueryExecutionService;
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
@@ -675,11 +675,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     // Initialize services if not already done
-    if (this.materializationService === undefined) {
-      this.materializationService = new MaterializationService(
+    if (this.queryExecutionService === undefined) {
+      this.queryExecutionService = new QueryExecutionService(
         attrs.trace.engine,
       );
-      this.cleanupManager = new CleanupManager(this.materializationService);
+      this.cleanupManager = new CleanupManager(this.queryExecutionService);
     }
 
     return m(
@@ -701,7 +701,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       m(Builder, {
         trace,
         sqlModules,
-        materializationService: this.materializationService,
+        queryExecutionService: this.queryExecutionService,
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,

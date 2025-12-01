@@ -33,11 +33,17 @@ import {raf} from './raf_scheduler';
  */
 export class TimelineImpl implements Timeline {
   readonly MIN_DURATION = 10;
+  private readonly ANIMATION_DURATION_MS = 300;
+  private readonly SPAM_DETECTION_THRESHOLD_MS = 500;
 
   private _visibleWindow: HighPrecisionTimeSpan;
   private _hoverCursorTimestamp?: time;
   private _highlightedSliceId?: number;
   private _hoveredNoteTimestamp?: time;
+  private _animationStartTime?: number;
+  private _animationStartWindow?: HighPrecisionTimeSpan;
+  private _animationTargetWindow?: HighPrecisionTimeSpan;
+  private _lastAnimationRequestTime = 0;
 
   // TODO(stevegolton): These are currently only referenced by the cpu slice
   // tracks and the process summary tracks. We should just make this a local
@@ -120,7 +126,12 @@ export class TimelineImpl implements Timeline {
   // Given a timestamp, if |ts| is not currently in view move the view to
   // center |ts|, keeping the same zoom level.
   panIntoView(timePoint: time, options: PanInstantIntoViewOptions = {}) {
-    const {align = 'nearest', margin = 0.1, zoomWidth} = options;
+    const {
+      align = 'nearest',
+      margin = 0.1,
+      animation = 'ease-in-out',
+      zoomWidth,
+    } = options;
 
     const viewportDuration = this._visibleWindow.duration;
     const marginNanos = viewportDuration * margin;
@@ -173,11 +184,24 @@ export class TimelineImpl implements Timeline {
         assertUnreachable(align);
     }
 
-    this.setVisibleWindow(newViewport);
+    switch (animation) {
+      case 'ease-in-out':
+        this.animateToWindow(newViewport);
+        break;
+      case 'step':
+        this.setVisibleWindow(newViewport);
+        break;
+      default:
+        assertUnreachable(animation);
+    }
   }
 
   panSpanIntoView(start: time, end: time, options: PanIntoViewOptions = {}) {
-    const {align = 'nearest', margin = 0.1} = options;
+    const {
+      align = 'nearest',
+      margin = 0.1,
+      animation = 'ease-in-out',
+    } = options;
 
     const duration = this._visibleWindow.duration;
     const marginNanos = duration * margin;
@@ -216,7 +240,16 @@ export class TimelineImpl implements Timeline {
         );
     }
 
-    this.setVisibleWindow(newViewport);
+    switch (animation) {
+      case 'ease-in-out':
+        this.animateToWindow(newViewport);
+        break;
+      case 'step':
+        this.setVisibleWindow(newViewport);
+        break;
+      default:
+        assertUnreachable(animation);
+    }
   }
 
   private panSpanIntoViewNearest(start: time, end: time, marginNanos: number) {
@@ -373,6 +406,88 @@ export class TimelineImpl implements Timeline {
   get customTimezoneOffset(): number {
     return timezoneOffsetMap[this.timezoneOverride.get()];
   }
+
+  // Animate to a new visible window using ease-in-ease-out
+  private animateToWindow(targetWindow: HighPrecisionTimeSpan) {
+    const now = performance.now();
+
+    // Detect spam: if an animation request comes within threshold of the last one,
+    // or if an animation is already in progress, skip animation and use instant update
+    const isSpamming =
+      this._animationStartTime !== undefined ||
+      now - this._lastAnimationRequestTime < this.SPAM_DETECTION_THRESHOLD_MS;
+
+    this._lastAnimationRequestTime = now;
+
+    if (isSpamming) {
+      // Cancel any ongoing animation and jump directly to target
+      if (this._animationStartTime !== undefined) {
+        raf.stopAnimation(this.onAnimation);
+        this._animationStartTime = undefined;
+        this._animationStartWindow = undefined;
+        this._animationTargetWindow = undefined;
+      }
+      // Use instant update instead of animation
+      this.setVisibleWindow(targetWindow);
+      return;
+    }
+
+    // Apply clamping to target window
+    const clampedTarget = targetWindow
+      .clampDuration(this.MIN_DURATION)
+      .fitWithin(this.traceInfo.start, this.traceInfo.end);
+
+    // Store animation state
+    this._animationStartWindow = this._visibleWindow;
+    this._animationTargetWindow = clampedTarget;
+    this._animationStartTime = now;
+
+    // Start the animation
+    raf.startAnimation(this.onAnimation);
+  }
+
+  // Animation callback using ease-in-ease-out
+  private onAnimation = (currentTimeMs: number) => {
+    if (
+      this._animationStartTime === undefined ||
+      this._animationStartWindow === undefined ||
+      this._animationTargetWindow === undefined
+    ) {
+      return;
+    }
+
+    const elapsed = currentTimeMs - this._animationStartTime;
+    const progress = Math.min(elapsed / this.ANIMATION_DURATION_MS, 1);
+
+    // Ease-in-ease-out function: 3t^2 - 2t^3
+    const eased = progress * progress * (3 - 2 * progress);
+
+    // Interpolate start position
+    const startDelta =
+      this._animationTargetWindow.start.toNumber() -
+      this._animationStartWindow.start.toNumber();
+    const newStart = this._animationStartWindow.start.addNumber(
+      startDelta * eased,
+    );
+
+    // Interpolate duration
+    const durationDelta =
+      this._animationTargetWindow.duration -
+      this._animationStartWindow.duration;
+    const newDuration =
+      this._animationStartWindow.duration + durationDelta * eased;
+
+    this._visibleWindow = new HighPrecisionTimeSpan(newStart, newDuration);
+    raf.scheduleCanvasRedraw();
+
+    if (progress >= 1) {
+      // Animation complete - clean up state
+      this._animationStartTime = undefined;
+      this._animationStartWindow = undefined;
+      this._animationTargetWindow = undefined;
+      raf.stopAnimation(this.onAnimation);
+    }
+  };
 }
 
 /**

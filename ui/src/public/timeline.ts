@@ -40,6 +40,9 @@ export interface PanIntoViewOptions {
 
   // Margin from edge as a fraction of the viewport (0.0 to 1.0)
   readonly margin?: number;
+
+  // Whether to animate the pan/zoom operation.
+  readonly animation?: 'ease-in-out' | 'step';
 }
 
 export interface PanInstantIntoViewOptions extends PanIntoViewOptions {

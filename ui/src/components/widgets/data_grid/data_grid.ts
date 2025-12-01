@@ -447,8 +447,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       distinctValuesColumns: this.distinctValuesColumns,
     });
 
-    console.log(this.distinctValuesColumns);
-
     // Store current state for API access
     this.currentDataSource = dataSource;
     this.currentColumns = orderedColumns;

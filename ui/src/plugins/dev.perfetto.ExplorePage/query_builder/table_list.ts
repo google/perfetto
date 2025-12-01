@@ -20,6 +20,7 @@ import {EmptyState} from '../../../widgets/empty_state';
 import {Chip} from '../../../widgets/chip';
 import {classNames} from '../../../base/classnames';
 import {Intent} from '../../../widgets/common';
+import {Switch} from '../../../widgets/switch';
 import markdownit from 'markdown-it';
 
 // Create a markdown renderer instance
@@ -118,6 +119,7 @@ class TableCard
       segments: FuzzySegment[];
       matchType: MatchType;
       onTableClick: (tableName: string) => void;
+      sqlModules: SqlModules;
     }>
 {
   view({
@@ -127,8 +129,10 @@ class TableCard
     segments: FuzzySegment[];
     matchType: MatchType;
     onTableClick: (tableName: string) => void;
+    sqlModules: SqlModules;
   }>) {
-    const {tableWithModule, segments, matchType, onTableClick} = attrs;
+    const {tableWithModule, segments, matchType, onTableClick, sqlModules} =
+      attrs;
     const {table, moduleName} = tableWithModule;
 
     const renderedName = segments.map((segment) =>
@@ -137,12 +141,14 @@ class TableCard
 
     const packageName = moduleName.split('.')[0];
     const matchTypeLabel = getMatchTypeLabel(matchType);
+    const isDisabled = sqlModules.isModuleDisabled(moduleName);
 
     return m(
       Card,
       {
         onclick: () => onTableClick(table.name),
         interactive: true,
+        className: classNames(isDisabled && 'pf-disabled-module'),
       },
       m(
         '.pf-table-card',
@@ -154,6 +160,13 @@ class TableCard
               label: matchTypeLabel,
               compact: true,
               className: classNames('pf-match-type-chip'),
+            }),
+          isDisabled &&
+            m(Chip, {
+              label: 'No data',
+              compact: true,
+              intent: Intent.None,
+              className: classNames('pf-no-data-chip'),
             }),
           table.importance &&
             m(Chip, {
@@ -177,6 +190,7 @@ class TableCard
 // It orchestrates the search bar, the list of tables, and handles filtering.
 export class TableList implements m.ClassComponent<TableListAttrs> {
   private selectedTags: Set<string> = new Set();
+  private hideDisabledModules: boolean = false;
 
   view({attrs}: m.CVnode<TableListAttrs>) {
     const allModules = attrs.sqlModules.listModules();
@@ -199,6 +213,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         Array.from(this.selectedTags).every((selectedTag) =>
           module.tags.includes(selectedTag),
         ),
+      );
+    }
+
+    // Filter out disabled modules if hideDisabledModules is true
+    if (this.hideDisabledModules) {
+      filteredModules = filteredModules.filter(
+        (module) => !attrs.sqlModules.isModuleDisabled(module.includeKey),
       );
     }
 
@@ -415,6 +436,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         segments,
         matchType,
         onTableClick: attrs.onTableClick,
+        sqlModules: attrs.sqlModules,
       }),
     );
 
@@ -453,11 +475,21 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             ),
           )
         : null,
-      m(SearchBar, {
-        query: attrs.searchQuery,
-        onQueryChange: attrs.onSearchQueryChange,
-        autofocus: attrs.autofocus,
-      }),
+      m(
+        '.pf-search-and-filter',
+        m(SearchBar, {
+          query: attrs.searchQuery,
+          onQueryChange: attrs.onSearchQueryChange,
+          autofocus: attrs.autofocus,
+        }),
+        m(Switch, {
+          label: 'Hide modules with no data',
+          checked: this.hideDisabledModules,
+          onchange: () => {
+            this.hideDisabledModules = !this.hideDisabledModules;
+          },
+        }),
+      ),
       m(
         CardStack,
         tableCards.length > 0

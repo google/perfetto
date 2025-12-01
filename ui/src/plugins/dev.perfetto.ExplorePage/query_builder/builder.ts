@@ -63,16 +63,9 @@ import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {Card} from '../../../widgets/card';
 import {Keycap} from '../../../widgets/hotkey_glyphs';
-import {NUM} from '../../../trace_processor/query_result';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {
-  QueryNode,
-  Query,
-  isAQuery,
-  queryToRun,
-  hashNodeQuery,
-} from '../query_node';
+import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
@@ -85,11 +78,10 @@ import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_sour
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
 import {SqlSourceNode} from './nodes/sources/sql_source';
-import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
 import {UIFilter} from './operations/filter';
-import {MaterializationService} from './materialization_service';
+import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
@@ -97,7 +89,7 @@ import {getAllDownstreamNodes} from './graph_utils';
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
-  readonly materializationService: MaterializationService;
+  readonly queryExecutionService: QueryExecutionService;
 
   readonly devMode?: boolean;
 
@@ -149,8 +141,7 @@ enum SelectedView {
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
   private trace: Trace;
-  private queryService: QueryService;
-  private materializationService: MaterializationService;
+  private queryExecutionService: QueryExecutionService;
   private query?: Query | Error;
   private queryExecuted: boolean = false;
   private isQueryRunning: boolean = false;
@@ -167,9 +158,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.trace = attrs.trace;
-    this.queryService = new QueryService(attrs.trace.engine);
-    // Use the shared MaterializationService from parent
-    this.materializationService = attrs.materializationService;
+    // Use the shared QueryExecutionService from parent
+    this.queryExecutionService = attrs.queryExecutionService;
   }
 
   private handleSidebarResize(deltaPx: number) {
@@ -297,29 +287,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           resolveNode: (nodeId: string) => this.resolveNode(nodeId, rootNodes),
           onQueryAnalyzed: (query: Query | Error) => {
             this.query = query;
-            const shouldAutoExecute = selectedNode.state.autoExecute ?? true;
-            // Don't execute if validation fails (e.g., duplicate column names)
             if (isAQuery(this.query) && selectedNode.validate()) {
-              // Compute and cache hash after successful analysis
-              const currentQueryHash = hashNodeQuery(selectedNode);
-              if (currentQueryHash !== undefined) {
-                attrs.materializationService.setCachedQueryHash(
-                  selectedNode,
-                  currentQueryHash,
-                );
-              }
-
-              // Check if we have an existing materialized table for this exact query
-              const hasMatchingMaterialization = this.canReuseMaterialization(
-                selectedNode,
-                currentQueryHash,
-              );
-
-              if (hasMatchingMaterialization || shouldAutoExecute) {
-                // Either we have materialized data to reuse, or auto-execute is on
-                this.queryExecuted = false;
-                this.runQuery(selectedNode);
-              }
+              this.runQuery(selectedNode, this.query, {manualExecution: false});
             }
           },
           onAnalysisStateChange: (isAnalyzing: boolean) => {
@@ -359,7 +328,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         startingHeight: 300,
         drawerContent: selectedNode
           ? m(DataExplorer, {
-              queryService: this.queryService,
               query: this.query,
               node: selectedNode,
               response: this.response,
@@ -385,14 +353,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 }
               },
               onExecute: () => {
-                // Don't execute if validation fails (e.g., duplicate column names)
-                if (!selectedNode.validate()) {
+                if (
+                  !selectedNode.validate() ||
+                  this.query === undefined ||
+                  this.query instanceof Error ||
+                  !isAQuery(this.query)
+                ) {
                   return;
                 }
-                // Reset queryExecuted flag to allow execution
-                // Analysis has already happened, this.query is already set
                 this.queryExecuted = false;
-                this.runQuery(selectedNode);
+                this.runQuery(selectedNode, this.query, {
+                  manualExecution: true,
+                });
               },
               onExportToTimeline: () => {
                 this.exportToTimeline(selectedNode);
@@ -567,121 +539,54 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     return undefined;
   }
 
-  /**
-   * Checks if a node's materialized table can be reused based on query hash.
-   */
-  private canReuseMaterialization(
+  private async runQuery(
     node: QueryNode,
-    queryHash: string | undefined,
-  ): boolean {
-    return (
-      queryHash !== undefined &&
-      node.state.materialized === true &&
-      node.state.materializationTableName !== undefined &&
-      node.state.materializedQueryHash === queryHash
-    );
-  }
+    query: Query,
+    options: {manualExecution: boolean},
+  ) {
+    await this.queryExecutionService.executeNodeQuery(node, query, {
+      shouldAutoExecute: options.manualExecution
+        ? true
+        : node.state.autoExecute ?? true,
+      hasExistingResult: this.queryExecuted,
+      onStart: () => {
+        this.isQueryRunning = true;
+        this.queryExecuted = false;
+      },
+      onSuccess: (result) => {
+        const engine = this.queryExecutionService.getEngine();
 
-  private async runQuery(node: QueryNode) {
-    if (
-      this.query === undefined ||
-      this.query instanceof Error ||
-      this.queryExecuted
-    ) {
-      return;
-    }
+        this.response = {
+          query: queryToRun(query),
+          totalRowCount: result.rowCount,
+          durationMs: result.durationMs,
+          columns: result.columns,
+          rows: [],
+          statementCount: 1,
+          statementWithOutputCount: 1,
+          lastStatementSql: query.sql,
+        };
 
-    this.isQueryRunning = true;
-    const queryStartMs = performance.now();
-    let tableName: string | undefined;
-    let createdNewMaterialization = false;
-    // Use cached hash - it was already computed during analysis
-    const currentQueryHash =
-      this.materializationService.getCachedQueryHash(node);
-
-    // If we can't get a hash, something is wrong with the node
-    if (currentQueryHash === undefined) {
-      this.handleQueryError(
-        node,
-        new Error('Cannot generate query hash - invalid node structure'),
-      );
-      this.isQueryRunning = false;
-      return;
-    }
-
-    try {
-      const engine = this.materializationService.getEngine();
-
-      // Check if we can reuse existing materialization
-      if (this.canReuseMaterialization(node, currentQueryHash)) {
-        // Query hasn't changed, reuse existing materialized table
-        tableName = node.state.materializationTableName!;
-        console.log(
-          `Reusing materialized table ${tableName} for node ${node.nodeId}`,
+        this.dataSource = new SQLDataSource(
+          engine,
+          `SELECT * FROM ${result.tableName}`,
         );
-      } else {
-        // Query changed - drop old materialization if it exists
-        if (node.state.materialized) {
-          await this.materializationService.dropMaterialization(node);
+        this.queryExecuted = true;
+        this.isQueryRunning = false;
+        this.setNodeIssuesFromResponse(node, query, this.response);
+
+        if (node instanceof SqlSourceNode && this.response !== undefined) {
+          node.onQueryExecuted(this.response.columns);
         }
 
-        // Materialize the new query
-        tableName = await this.materializationService.materializeNode(
-          node,
-          this.query,
-          currentQueryHash,
-        );
-        createdNewMaterialization = true;
-      }
-
-      // Fetch metadata: count and columns (we need both for the UI)
-      // If these fail, we want to clean up the materialized table
-      const [countQueryResult, schemaQueryResult] = await Promise.all([
-        engine.query(`SELECT COUNT(*) as count FROM ${tableName}`),
-        engine.query(`SELECT * FROM ${tableName} LIMIT 1`),
-      ]);
-
-      // Build response object with metadata
-      const response: QueryResponse = {
-        query: queryToRun(this.query),
-        totalRowCount: Number(countQueryResult.firstRow({count: NUM}).count),
-        durationMs: performance.now() - queryStartMs,
-        columns: schemaQueryResult.columns(),
-        rows: [], // SQLDataSource fetches rows on-demand
-        statementCount: 1,
-        statementWithOutputCount: 1,
-        lastStatementSql: this.query.sql,
-      };
-      this.response = response;
-
-      // Create data source for server-side pagination/filtering/sorting
-      this.dataSource = new SQLDataSource(engine, `SELECT * FROM ${tableName}`);
-
-      // Handle errors and warnings
-      this.queryExecuted = true;
-      this.setNodeIssuesFromResponse(node, this.query, this.response);
-
-      // Update columns for SQL source nodes
-      if (node instanceof SqlSourceNode && this.response !== undefined) {
-        node.onQueryExecuted(this.response.columns);
-        // Note: onQueryExecuted() calls notifyNextNodes() which triggers
-        // re-analysis for downstream nodes without marking this node as changed.
-        // We don't need to resetQueryState() here as that would clear the results display.
-      }
-    } catch (e) {
-      // If we created a new materialization and it failed, clean it up
-      if (createdNewMaterialization && tableName !== undefined) {
-        try {
-          await this.materializationService.dropMaterialization(node);
-        } catch (dropError) {
-          console.error('Failed to clean up materialized table:', dropError);
-        }
-      }
-      this.handleQueryError(node, e);
-    } finally {
-      this.isQueryRunning = false;
-      m.redraw();
-    }
+        m.redraw();
+      },
+      onError: (error) => {
+        this.handleQueryError(node, error);
+        this.isQueryRunning = false;
+        m.redraw();
+      },
+    });
   }
 
   private exportToTimeline(node: QueryNode) {
@@ -738,6 +643,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.response = undefined;
     this.query = undefined;
     this.queryExecuted = false;
+    // Clear any pending execution in the service
+    this.queryExecutionService.clearPendingExecution();
   }
 
   private handleQueryError(node: QueryNode, e: unknown) {
