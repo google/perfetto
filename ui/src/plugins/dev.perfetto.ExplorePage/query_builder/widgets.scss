@@ -293,3 +293,22 @@
   font-weight: 500;
   user-select: none;
 }
+
+// Info box widget - displays informational text in a styled box
+.pf-exp-info-box {
+  font-size: 13px;
+  color: var(--pf-color-text-muted);
+  padding: 12px 16px;
+  line-height: 1.5;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+// Secondary inputs container - vertical stack of input items
+.pf-exp-secondary-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

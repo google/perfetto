@@ -29,7 +29,7 @@ import {TextInput} from '../../../../../widgets/text_input';
 import {Switch} from '../../../../../widgets/switch';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import protos from '../../../../../protos';
-import {ListItem} from '../../widgets';
+import {ListItem, InfoBox} from '../../widgets';
 import {showModal} from '../../../../../widgets/modal';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
@@ -386,7 +386,7 @@ export class TimeRangeSourceNode implements QueryNode {
     if (isDynamic) {
       sections.push({
         content: m(
-          '.pf-timerange-dynamic-info',
+          InfoBox,
           'Dynamic mode: Your timeline selection will automatically update this node. Go back to the timeline and select a time range to see it here.',
         ),
       });
