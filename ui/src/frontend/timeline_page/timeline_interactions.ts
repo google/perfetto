@@ -38,9 +38,7 @@ export function shiftDragPanInteraction(
     drag: {
       cursorWhileDragging: 'grabbing',
       onDrag: (e) => {
-        trace.timeline.panVisibleWindow(
-          timescale.pxToDuration(-e.deltaSinceLastEvent.x),
-        );
+        trace.timeline.pan(timescale.pxToDuration(-e.deltaSinceLastEvent.x));
       },
     },
   };
@@ -57,17 +55,14 @@ export function wheelNavigationInteraction(
     onWheel: (e) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         const tDelta = timescale.pxToDuration(e.deltaX);
-        trace.timeline.panVisibleWindow(tDelta);
+        trace.timeline.pan(tDelta);
       } else {
         if (e.ctrlKey) {
           const sign = e.deltaY < 0 ? -1 : 1;
           const deltaY = sign * Math.log2(1 + Math.abs(e.deltaY));
           const zoomPx = e.position.x - rect.left;
           const centerPoint = zoomPx / rect.width;
-          trace.timeline.zoomVisibleWindow(
-            1 - deltaY * WHEEL_ZOOM_SPEED,
-            centerPoint,
-          );
+          trace.timeline.zoom(1 - deltaY * WHEEL_ZOOM_SPEED, centerPoint);
         }
       }
     },

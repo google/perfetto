@@ -30,7 +30,6 @@ import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {Query, QueryNode, isAQuery} from '../query_node';
-import {QueryService} from './query_service';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -38,7 +37,6 @@ import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
-  readonly queryService: QueryService;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;

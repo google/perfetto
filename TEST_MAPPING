@@ -14,6 +14,9 @@
       "name": "CtsPerfettoTestCases"
     },
     {
+      "name": "CtsPerfettoBootTimeTraceHostTestCases"
+    },
+    {
       "name": "CtsPerfettoReporterTestCases"
     },
     // Additional presubmit tests that explicitly exercise

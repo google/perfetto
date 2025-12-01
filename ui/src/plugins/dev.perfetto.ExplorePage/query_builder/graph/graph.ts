@@ -82,14 +82,11 @@ const LAYOUT_CONSTANTS = {
 // TYPE GUARDS
 // ========================================
 
-// Source nodes have no inputs (no primaryInput, no secondaryInputs)
-function isSourceNode(node: QueryNode): boolean {
-  return node.primaryInput === undefined && node.secondaryInputs === undefined;
-}
-
-// Multi-source nodes have secondaryInputs but no primaryInput
-function isMultiSourceNode(node: QueryNode): boolean {
-  return node.secondaryInputs !== undefined && node.primaryInput === undefined;
+// Check if a node should show a top port based on its type (capabilities)
+// rather than its current connection state
+function shouldShowTopPort(node: QueryNode): boolean {
+  // Single-input operation nodes always have a top port, even when disconnected
+  return singleNodeOperation(node.type);
 }
 
 // ========================================
@@ -133,11 +130,27 @@ function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
 // ========================================
 
 function getInputLabels(node: QueryNode): NodePort[] {
-  if (isSourceNode(node)) {
-    return [];
+  // Single-input operation nodes always have a top port (even when disconnected)
+  if (singleNodeOperation(node.type)) {
+    // Check if node also has secondaryInputs (like AddColumnsNode)
+    if (node.secondaryInputs) {
+      // Show both top port and side ports
+      const labels: NodePort[] = [];
+      labels.push({content: 'Input', direction: 'top'});
+
+      // For AddColumnsNode, show exactly one left-side port
+      if (node.type === NodeType.kAddColumns) {
+        labels.push({content: 'Table', direction: 'left'});
+      }
+      return labels;
+    }
+
+    // Single-input only (Sort, Filter, etc.) - show just top port
+    return [{content: 'Input', direction: 'top'}];
   }
 
-  if (isMultiSourceNode(node)) {
+  // Multi-source nodes (IntervalIntersect, Merge, Union) - no primaryInput
+  if (node.secondaryInputs) {
     // Check if node has custom input labels
     if ('getInputLabels' in node && typeof node.getInputLabels === 'function') {
       return (node as QueryNode & {getInputLabels: () => string[]})
@@ -146,48 +159,16 @@ function getInputLabels(node: QueryNode): NodePort[] {
     }
 
     // Always show one extra empty port for adding new connections
-    const numPorts = (node.secondaryInputs?.connections.size ?? 0) + 1;
+    const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
     const labels: NodePort[] = [];
     for (let i = 0; i < numPorts; i++) {
-      labels.push({content: `Input ${i + 1}`, direction: 'left'});
+      labels.push({content: `Input ${i}`, direction: 'left'});
     }
     return labels;
   }
 
-  // Check if modification node has secondaryInputs (additional left-side inputs)
-  if (node.secondaryInputs) {
-    // Check if node has custom input labels
-    if ('getInputLabels' in node && typeof node.getInputLabels === 'function') {
-      return (
-        node as QueryNode & {getInputLabels: () => NodePort[]}
-      ).getInputLabels();
-    }
-
-    const labels: NodePort[] = [];
-
-    // Add top port for primaryInput (main data flow)
-    labels.push({content: 'Input', direction: 'top'});
-
-    // For AddColumnsNode, show exactly one left-side port
-    // (it only supports connecting one table to add columns from)
-    if (node.type === NodeType.kAddColumns) {
-      labels.push({content: 'Table', direction: 'left'});
-      return labels;
-    }
-
-    // For other nodes with secondaryInputs, dynamically show ports
-    const numConnected = node.secondaryInputs.connections.size;
-    // Always show one extra empty port for adding new connections
-    const numLeftPorts = numConnected + 1;
-
-    // Add left-side ports for secondaryInputs (additional table inputs)
-    for (let i = 0; i < numLeftPorts; i++) {
-      labels.push({content: `Table ${i + 1}`, direction: 'left'});
-    }
-    return labels;
-  }
-
-  return [{content: 'Input', direction: 'top'}];
+  // Source nodes have no inputs
+  return [];
 }
 
 function buildMenuItems(
@@ -264,7 +245,7 @@ function ensureNodeLayouts(
       if (nodeGraphApi) {
         // Create a simple node config without 'next' to get accurate placement
         // The 'next' property would include docked children and affect size calculation
-        const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+        const canDockTop = shouldShowTopPort(qnode);
         const nodeTemplate: Omit<Node, 'x' | 'y'> = {
           id: qnode.nodeId,
           inputs: getInputLabels(qnode),
@@ -275,7 +256,7 @@ function ensureNodeLayouts(
             },
           ],
           canDockBottom: true,
-          canDockTop: !noTopPort,
+          canDockTop,
           hue: getNodeHue(qnode),
           accentBar: true,
           content: m(NodeBox, {
@@ -371,7 +352,7 @@ function createNodeConfig(
   qnode: QueryNode,
   attrs: GraphAttrs,
 ): Omit<Node, 'x' | 'y'> {
-  const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+  const canDockTop = shouldShowTopPort(qnode);
 
   return {
     id: qnode.nodeId,
@@ -384,7 +365,7 @@ function createNodeConfig(
       },
     ],
     canDockBottom: true,
-    canDockTop: !noTopPort,
+    canDockTop,
     hue: getNodeHue(qnode),
     accentBar: true,
     contextMenuItems: buildNodeContextMenuItems(qnode, attrs),

@@ -39,12 +39,59 @@
   }
 }
 
+.pf-search-and-filter {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--divider-color);
+  background-color: var(--surface);
+
+  .pf-search {
+    flex: 1;
+    margin-bottom: 0;
+  }
+}
+
 .pf-table-card-header {
   .pf-match-type-chip {
     background-color: var(--surface-variant);
     color: var(--on-surface-variant);
     font-size: 11px;
     opacity: 0.8;
+  }
+
+  .pf-no-data-chip {
+    background-color: rgba(var(--rgb-error), 0.1);
+    color: var(--error);
+    font-size: 11px;
+    font-weight: 500;
+  }
+}
+
+// Styling for cards with disabled modules (no data)
+.pf-disabled-module {
+  opacity: 0.6;
+  background-color: var(--surface-variant) !important;
+
+  &:hover {
+    opacity: 0.7;
+  }
+
+  .pf-table-card {
+    .table-name {
+      color: var(--on-surface-variant);
+    }
+
+    .table-module {
+      color: var(--on-surface-variant);
+      opacity: 0.7;
+    }
+
+    .table-description {
+      color: var(--on-surface-variant);
+      opacity: 0.8;
+    }
   }
 }
 

@@ -339,7 +339,7 @@ describe('query_node utilities', () => {
       setOperationChanged(node1);
 
       // Only the node itself should be marked, not children
-      // (propagation is handled by MaterializationService.invalidateNode)
+      // (propagation is handled by QueryExecutionService.invalidateNode)
       expect(state1.hasOperationChanged).toBe(true);
       expect(state2.hasOperationChanged).toBe(false);
       expect(state3.hasOperationChanged).toBe(false);

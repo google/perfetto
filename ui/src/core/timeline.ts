@@ -12,26 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../base/logging';
-import {Time, time, TimeSpan, timezoneOffsetMap} from '../base/time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {raf} from './raf_scheduler';
 import {HighPrecisionTime} from '../base/high_precision_time';
-import {DurationPrecision, Timeline, TimestampFormat} from '../public/timeline';
-import {TraceInfo} from '../public/trace_info';
+import {assertUnreachable} from '../base/logging';
+import {Time, time, timezoneOffsetMap} from '../base/time';
 import {Setting} from '../public/settings';
-
-export const MIN_DURATION = 10;
+import {
+  DurationPrecision,
+  PanInstantIntoViewOptions,
+  PanIntoViewOptions,
+  Timeline,
+  TimestampFormat,
+} from '../public/timeline';
+import {TraceInfo} from '../public/trace_info';
+import {raf} from './raf_scheduler';
 
 /**
  * State that is shared between several frontend components, but not the
  * controller. This state is updated at 60fps.
  */
 export class TimelineImpl implements Timeline {
+  readonly MIN_DURATION = 10;
+  private readonly ANIMATION_DURATION_MS = 300;
+  private readonly SPAM_DETECTION_THRESHOLD_MS = 500;
+
   private _visibleWindow: HighPrecisionTimeSpan;
   private _hoverCursorTimestamp?: time;
   private _highlightedSliceId?: number;
   private _hoveredNoteTimestamp?: time;
+  private _animationStartTime?: number;
+  private _animationStartWindow?: HighPrecisionTimeSpan;
+  private _animationTargetWindow?: HighPrecisionTimeSpan;
+  private _lastAnimationRequestTime = 0;
 
   // TODO(stevegolton): These are currently only referenced by the cpu slice
   // tracks and the process summary tracks. We should just make this a local
@@ -95,73 +107,221 @@ export class TimelineImpl implements Timeline {
     );
   }
 
-  // TODO: there is some redundancy in the fact that both |visibleWindowTime|
-  // and a |timeScale| have a notion of time range. That should live in one
-  // place only.
-
-  zoomVisibleWindow(ratio: number, centerPoint: number) {
-    this._visibleWindow = this._visibleWindow
-      .scale(ratio, centerPoint, MIN_DURATION)
-      .fitWithin(this.traceInfo.start, this.traceInfo.end);
-
-    raf.scheduleCanvasRedraw();
+  pan(delta: number) {
+    this.setVisibleWindow(
+      this._visibleWindow
+        .translate(delta)
+        .fitWithin(this.traceInfo.start, this.traceInfo.end),
+    );
   }
 
-  panVisibleWindow(delta: number) {
-    this._visibleWindow = this._visibleWindow
-      .translate(delta)
-      .fitWithin(this.traceInfo.start, this.traceInfo.end);
-
-    raf.scheduleCanvasRedraw();
+  zoom(ratio: number, centerPoint: number = 0.5) {
+    this.setVisibleWindow(
+      this._visibleWindow
+        .scale(ratio, centerPoint, this.MIN_DURATION)
+        .fitWithin(this.traceInfo.start, this.traceInfo.end),
+    );
   }
 
   // Given a timestamp, if |ts| is not currently in view move the view to
   // center |ts|, keeping the same zoom level.
-  panToTimestamp(ts: time) {
-    if (this._visibleWindow.contains(ts)) return;
-    // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
-    const halfDuration = this.visibleWindow.duration / 2;
-    const newStart = new HighPrecisionTime(ts).subNumber(halfDuration);
-    const newWindow = new HighPrecisionTimeSpan(
-      newStart,
-      this._visibleWindow.duration,
+  panIntoView(timePoint: time, options: PanInstantIntoViewOptions = {}) {
+    const {
+      align = 'nearest',
+      margin = 0.1,
+      animation = 'ease-in-out',
+      zoomWidth,
+    } = options;
+
+    const viewportDuration = this._visibleWindow.duration;
+    const marginNanos = viewportDuration * margin;
+
+    // Check if timestamp is already in view with margin
+    const viewWithMargin = this._visibleWindow.pad(-marginNanos);
+    if (align === 'nearest' && viewWithMargin.contains(timePoint)) {
+      // Already visible with margin, no need to pan
+      return;
+    }
+
+    let newViewport: HighPrecisionTimeSpan;
+
+    switch (align) {
+      case 'center':
+        newViewport = new HighPrecisionTimeSpan(
+          new HighPrecisionTime(timePoint).subNumber(viewportDuration / 2),
+          viewportDuration,
+        );
+        break;
+      case 'nearest':
+        // Pan the minimum amount to bring timestamp into view
+        if (timePoint < this._visibleWindow.start.integral) {
+          // Timestamp is before view, align to left
+          newViewport = new HighPrecisionTimeSpan(
+            new HighPrecisionTime(timePoint).subNumber(marginNanos),
+            viewportDuration,
+          );
+        } else {
+          // Timestamp is after view, align to right
+          newViewport = new HighPrecisionTimeSpan(
+            new HighPrecisionTime(timePoint).subNumber(
+              viewportDuration - marginNanos,
+            ),
+            viewportDuration,
+          );
+        }
+        break;
+      case 'zoom':
+        const newDuration =
+          zoomWidth !== undefined
+            ? Math.max(this.MIN_DURATION, zoomWidth)
+            : viewportDuration;
+        newViewport = new HighPrecisionTimeSpan(
+          new HighPrecisionTime(timePoint).subNumber(newDuration / 2),
+          newDuration,
+        );
+        break;
+      default:
+        assertUnreachable(align);
+    }
+
+    switch (animation) {
+      case 'ease-in-out':
+        this.animateToWindow(newViewport);
+        break;
+      case 'step':
+        this.setVisibleWindow(newViewport);
+        break;
+      default:
+        assertUnreachable(animation);
+    }
+  }
+
+  panSpanIntoView(start: time, end: time, options: PanIntoViewOptions = {}) {
+    const {
+      align = 'nearest',
+      margin = 0.1,
+      animation = 'ease-in-out',
+    } = options;
+
+    const duration = this._visibleWindow.duration;
+    const marginNanos = duration * margin;
+
+    const spanDuration = Number(end - start);
+    const spanMidpoint = new HighPrecisionTime(start).addNumber(
+      spanDuration / 2,
     );
-    this.updateVisibleTimeHP(newWindow);
+    let newViewport: HighPrecisionTimeSpan;
+
+    switch (align) {
+      case 'center':
+        // Center the midpoint of the span
+        newViewport = new HighPrecisionTimeSpan(
+          spanMidpoint.subNumber(duration / 2),
+          duration,
+        );
+        break;
+      case 'nearest':
+        newViewport = new HighPrecisionTimeSpan(
+          this.panSpanIntoViewNearest(start, end, marginNanos),
+          duration,
+        );
+        break;
+      case 'zoom':
+        // Make it so that the span fits exactly within the viewport with margin
+        // That is, if the margin is 10% of the viewport, the span should take up
+        // 80% of the viewport.
+        const newDuration = Math.max(
+          this.MIN_DURATION,
+          spanDuration * (1 / (1 - margin * 2)),
+        );
+        newViewport = new HighPrecisionTimeSpan(
+          spanMidpoint.subNumber(newDuration / 2),
+          newDuration,
+        );
+    }
+
+    switch (animation) {
+      case 'ease-in-out':
+        this.animateToWindow(newViewport);
+        break;
+      case 'step':
+        this.setVisibleWindow(newViewport);
+        break;
+      default:
+        assertUnreachable(animation);
+    }
   }
 
-  // Set visible window using an integer time span
-  updateVisibleTime(ts: TimeSpan) {
-    this.updateVisibleTimeHP(HighPrecisionTimeSpan.fromTime(ts.start, ts.end));
-  }
+  private panSpanIntoViewNearest(start: time, end: time, marginNanos: number) {
+    const viewWithMargin = this._visibleWindow.pad(-marginNanos);
+    const duration = this._visibleWindow.duration;
+    const spanDuration = Number(end - start);
 
-  // TODO(primiano): we ended up with two entry-points for the same function,
-  // unify them.
-  setViewportTime(start: time, end: time): void {
-    this.updateVisibleTime(new TimeSpan(start, end));
+    // Check if span is already visible with margin
+    if (viewWithMargin.containsSpan(start, end)) {
+      // Span fits in safe zone and is already there
+      return this._visibleWindow.start;
+    }
+
+    // Check if viewport is contained within span
+    if (viewWithMargin.containedBy(start, end)) {
+      // Span is larger than the safe zone so there's nothing we can do to show
+      // more of it - just return current position
+      return this._visibleWindow.start;
+    }
+
+    // Now the behavior depends on the size of the span relative to the safe
+    // zone.
+    if (spanDuration < viewWithMargin.duration) {
+      if (viewWithMargin.start.gte(start)) {
+        // Span overlaps start - align start to safe left edge
+        return new HighPrecisionTime(start).subNumber(marginNanos);
+      } else {
+        // Span overlaps end - align end of viewport to the end of the span
+        return new HighPrecisionTime(end).subNumber(duration - marginNanos);
+      }
+    } else {
+      // Span is wider than (or same width as) safe zone - work out whether to
+      // align the start of the viewport with the start of the span, or the end
+      // of the viewport with the end of the span.
+      const distToAlignStart = Math.abs(
+        viewWithMargin.start.subTime(start).toNumber(),
+      );
+      const distToAlignEnd = Math.abs(
+        viewWithMargin.end.subTime(end).toNumber(),
+      );
+      if (distToAlignEnd < distToAlignStart) {
+        // Align span end to safe right edge
+        return new HighPrecisionTime(end).subNumber(duration - marginNanos);
+      } else {
+        // Align span start to safe left edge
+        return new HighPrecisionTime(start).subNumber(marginNanos);
+      }
+    }
   }
 
   moveStart(delta: number) {
-    this.updateVisibleTimeHP(
-      new HighPrecisionTimeSpan(
-        this._visibleWindow.start.addNumber(delta),
-        this.visibleWindow.duration - delta,
-      ),
+    this._visibleWindow = new HighPrecisionTimeSpan(
+      this._visibleWindow.start.addNumber(delta),
+      this._visibleWindow.duration - delta,
     );
+
+    raf.scheduleCanvasRedraw();
   }
 
   moveEnd(delta: number) {
-    this.updateVisibleTimeHP(
-      new HighPrecisionTimeSpan(
-        this._visibleWindow.start,
-        this.visibleWindow.duration + delta,
-      ),
+    this._visibleWindow = new HighPrecisionTimeSpan(
+      this._visibleWindow.start,
+      this._visibleWindow.duration + delta,
     );
+
+    raf.scheduleCanvasRedraw();
   }
 
   // Set visible window using a high precision time span
-  updateVisibleTimeHP(ts: HighPrecisionTimeSpan) {
+  setVisibleWindow(ts: HighPrecisionTimeSpan) {
     this._visibleWindow = ts
-      .clampDuration(MIN_DURATION)
+      .clampDuration(this.MIN_DURATION)
       .fitWithin(this.traceInfo.start, this.traceInfo.end);
 
     raf.scheduleCanvasRedraw();
@@ -246,6 +406,88 @@ export class TimelineImpl implements Timeline {
   get customTimezoneOffset(): number {
     return timezoneOffsetMap[this.timezoneOverride.get()];
   }
+
+  // Animate to a new visible window using ease-in-ease-out
+  private animateToWindow(targetWindow: HighPrecisionTimeSpan) {
+    const now = performance.now();
+
+    // Detect spam: if an animation request comes within threshold of the last one,
+    // or if an animation is already in progress, skip animation and use instant update
+    const isSpamming =
+      this._animationStartTime !== undefined ||
+      now - this._lastAnimationRequestTime < this.SPAM_DETECTION_THRESHOLD_MS;
+
+    this._lastAnimationRequestTime = now;
+
+    if (isSpamming) {
+      // Cancel any ongoing animation and jump directly to target
+      if (this._animationStartTime !== undefined) {
+        raf.stopAnimation(this.onAnimation);
+        this._animationStartTime = undefined;
+        this._animationStartWindow = undefined;
+        this._animationTargetWindow = undefined;
+      }
+      // Use instant update instead of animation
+      this.setVisibleWindow(targetWindow);
+      return;
+    }
+
+    // Apply clamping to target window
+    const clampedTarget = targetWindow
+      .clampDuration(this.MIN_DURATION)
+      .fitWithin(this.traceInfo.start, this.traceInfo.end);
+
+    // Store animation state
+    this._animationStartWindow = this._visibleWindow;
+    this._animationTargetWindow = clampedTarget;
+    this._animationStartTime = now;
+
+    // Start the animation
+    raf.startAnimation(this.onAnimation);
+  }
+
+  // Animation callback using ease-in-ease-out
+  private onAnimation = (currentTimeMs: number) => {
+    if (
+      this._animationStartTime === undefined ||
+      this._animationStartWindow === undefined ||
+      this._animationTargetWindow === undefined
+    ) {
+      return;
+    }
+
+    const elapsed = currentTimeMs - this._animationStartTime;
+    const progress = Math.min(elapsed / this.ANIMATION_DURATION_MS, 1);
+
+    // Ease-in-ease-out function: 3t^2 - 2t^3
+    const eased = progress * progress * (3 - 2 * progress);
+
+    // Interpolate start position
+    const startDelta =
+      this._animationTargetWindow.start.toNumber() -
+      this._animationStartWindow.start.toNumber();
+    const newStart = this._animationStartWindow.start.addNumber(
+      startDelta * eased,
+    );
+
+    // Interpolate duration
+    const durationDelta =
+      this._animationTargetWindow.duration -
+      this._animationStartWindow.duration;
+    const newDuration =
+      this._animationStartWindow.duration + durationDelta * eased;
+
+    this._visibleWindow = new HighPrecisionTimeSpan(newStart, newDuration);
+    raf.scheduleCanvasRedraw();
+
+    if (progress >= 1) {
+      // Animation complete - clean up state
+      this._animationStartTime = undefined;
+      this._animationStartWindow = undefined;
+      this._animationTargetWindow = undefined;
+      raf.stopAnimation(this.onAnimation);
+    }
+  };
 }
 
 /**
