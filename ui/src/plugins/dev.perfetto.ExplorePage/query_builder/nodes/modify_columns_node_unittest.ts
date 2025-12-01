@@ -46,6 +46,7 @@ describe('ModifyColumnsNode', () => {
       validate: () => true,
       getTitle: () => 'Mock',
       nodeSpecificModify: () => null,
+      nodeDetails: () => ({content: null}),
       nodeInfo: () => null,
       clone: () => createMockPrevNode(),
       getStructuredQuery: () => undefined,

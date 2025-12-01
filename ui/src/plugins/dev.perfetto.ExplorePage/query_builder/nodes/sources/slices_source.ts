@@ -24,6 +24,7 @@ import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
 
 export interface SlicesSourceSerializedState {
   comment?: string;
@@ -64,6 +65,12 @@ export class SlicesSourceNode implements QueryNode {
 
   getTitle(): string {
     return 'Slices with details';
+  }
+
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: m('.pf-exp-node-title', this.getTitle()),
+    };
   }
 
   serializeState(): SlicesSourceSerializedState {

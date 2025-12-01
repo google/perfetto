@@ -28,6 +28,7 @@ describe('MergeNode', () => {
       validate: () => true,
       getTitle: () => `Mock ${id}`,
       nodeSpecificModify: () => null,
+      nodeDetails: () => ({content: null}),
       nodeInfo: () => null,
       clone: () => createMockPrevNode(id, columns),
       getStructuredQuery: () => undefined,

@@ -25,7 +25,6 @@ import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {Card} from '../../../../widgets/card';
 import {TextInput} from '../../../../widgets/text_input';
 import {TabStrip} from '../../../../widgets/tabs';
 import {Select} from '../../../../widgets/select';
@@ -35,7 +34,8 @@ import {
   JoinCondition,
 } from '../structured_query_builder';
 import {FormRow} from '../widgets';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeTitle, ColumnName} from '../node_styling_widgets';
 
 export interface MergeSerializedState {
   leftNodeId: string;
@@ -269,34 +269,31 @@ export class MergeNode implements QueryNode {
     return [this.state.leftQueryAlias, this.state.rightQueryAlias];
   }
 
-  nodeDetails(): m.Child | undefined {
-    const wrapperStyle = {paddingTop: '5px'};
-    const textStyle = {
-      fontSize: 'var(--pf-exp-font-size-sm)',
-      color: 'var(--pf-color-text-lighter)',
-    };
-
-    let content: string;
+  nodeDetails(): NodeDetailsAttrs {
+    let content: m.Children;
 
     if (this.state.conditionType === 'equality') {
       if (this.state.leftColumn && this.state.rightColumn) {
-        content = `${this.state.leftQueryAlias}.${this.state.leftColumn} = ${this.state.rightQueryAlias}.${this.state.rightColumn}`;
+        content = m(
+          '.pf-exp-merge-condition',
+          ColumnName(`${this.state.leftQueryAlias}.${this.state.leftColumn}`),
+          m('span.pf-exp-merge-equals', ' = '),
+          ColumnName(`${this.state.rightQueryAlias}.${this.state.rightColumn}`),
+        );
       } else {
-        content = 'No condition set';
+        content = m('.pf-exp-node-details-message', 'No condition set');
       }
     } else {
       if (this.state.sqlExpression) {
-        content = this.state.sqlExpression;
+        content = m('code.pf-exp-sql-expression', this.state.sqlExpression);
       } else {
-        content = 'No condition set';
+        content = m('.pf-exp-node-details-message', 'No condition set');
       }
     }
 
-    return m(
-      'div',
-      {style: wrapperStyle},
-      m(Card, m('small', {style: textStyle}, content)),
-    );
+    return {
+      content: [NodeTitle(this.getTitle()), content],
+    };
   }
 
   nodeSpecificModify(): NodeModifyAttrs {

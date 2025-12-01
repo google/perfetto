@@ -28,7 +28,7 @@ import {NodeIssues} from '../node_issues';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder} from '../structured_query_builder';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 
 export interface UnionSerializedState {
   unionNodes: string[];
@@ -199,35 +199,31 @@ export class UnionNode implements QueryNode {
     );
   }
 
-  nodeDetails(): m.Child {
-    const cards: m.Child[] = [];
+  nodeDetails(): NodeDetailsAttrs {
     const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
-    if (selectedCols.length > 0) {
-      // If more than 3 columns, just show the count
-      if (selectedCols.length > 3) {
-        cards.push(
-          m(
-            Card,
-            {className: 'pf-node-details-card'},
-            m('div', `${selectedCols.length} common columns`),
-          ),
-        );
-      } else {
-        // Show individual column names for 3 or fewer
-        const selectedItems = selectedCols.map((c) => {
-          return m('div', c.column.name);
-        });
-        cards.push(
-          m(Card, {className: 'pf-node-details-card'}, ...selectedItems),
-        );
-      }
+
+    if (selectedCols.length === 0) {
+      return {
+        content: [
+          m('.pf-exp-node-title', this.getTitle()),
+          m('.pf-exp-node-details-message', 'No common columns'),
+        ],
+      };
     }
 
-    if (cards.length === 0) {
-      return m('.pf-node-details-message', 'No common columns');
+    const cards: m.Child[] = [];
+    // If more than 3 columns, just show the count
+    if (selectedCols.length > 3) {
+      cards.push(m(Card, m('div', `${selectedCols.length} common columns`)));
+    } else {
+      // Show individual column names for 3 or fewer
+      const selectedItems = selectedCols.map((c) => m('div', c.column.name));
+      cards.push(m(Card, ...selectedItems));
     }
 
-    return m(CardStack, cards);
+    return {
+      content: [m('.pf-exp-node-title', this.getTitle()), m(CardStack, cards)],
+    };
   }
 
   nodeSpecificModify(): NodeModifyAttrs {

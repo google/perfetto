@@ -37,8 +37,9 @@ import {TextInput} from '../../../../widgets/text_input';
 import {ListItem, EqualWidthRow} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {classNames} from '../../../../base/classnames';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
+import {NodeDetailsMessage} from '../node_styling_widgets';
 
 // Maximum length for truncated SQL display
 const SQL_TRUNCATE_LENGTH = 50;
@@ -122,7 +123,7 @@ export class FilterNode implements QueryNode {
     );
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
     this.validate();
 
     const mode = this.state.filterMode ?? 'structured';
@@ -131,29 +132,39 @@ export class FilterNode implements QueryNode {
     if (mode === 'freeform') {
       const sql = this.state.sqlExpression?.trim();
       if (!sql) {
-        return m('.pf-filter-node-details', 'No filter clause');
+        return {
+          content: NodeDetailsMessage('No filter clause'),
+        };
       }
 
       if (sql.length < 200) {
-        return m('.pf-filter-node-details', m('code', sql));
+        return {
+          content: m('code', sql),
+        };
       } else {
-        return m('.pf-filter-node-details', 'Filter clause applied');
+        return {
+          content: NodeDetailsMessage('Filter clause applied'),
+        };
       }
     }
 
     // Structured mode
     if (!this.state.filters || this.state.filters.length === 0) {
-      return m('.pf-filter-node-details', 'No filters applied');
+      return {
+        content: NodeDetailsMessage('No filters applied'),
+      };
     }
 
-    return formatFilterDetails(
-      this.state.filters,
-      this.state.filterOperator,
-      this.state, // Pass state for interactive toggling and removal
-      undefined, // onRemove - handled internally by formatFilterDetails
-      true, // compact mode for smaller font
-      (filter) => this.handleFilterEdit(filter), // onEdit callback for right-click editing
-    );
+    return {
+      content: formatFilterDetails(
+        this.state.filters,
+        this.state.filterOperator,
+        this.state, // Pass state for interactive toggling and removal
+        undefined, // onRemove - handled internally by formatFilterDetails
+        true, // compact mode for smaller font
+        (filter) => this.handleFilterEdit(filter), // onEdit callback for right-click editing
+      ),
+    };
   }
 
   nodeSpecificModify(): NodeModifyAttrs {

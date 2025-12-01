@@ -33,7 +33,7 @@ import {ListItem} from '../../widgets';
 import {showModal} from '../../../../../widgets/modal';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
-import {NodeModifyAttrs} from '../../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
 
 // Poll interval for dynamic mode selection updates (in milliseconds)
 const SELECTION_POLL_INTERVAL_MS = 200;
@@ -121,6 +121,12 @@ export class TimeRangeSourceNode implements QueryNode {
 
   getTitle(): string {
     return this.state.isDynamic ? 'Current time range' : 'Time range';
+  }
+
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: m('.pf-exp-node-title', this.getTitle()),
+    };
   }
 
   serializeState(): TimeRangeSourceSerializedState {

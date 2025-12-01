@@ -94,6 +94,10 @@
   max-width: 100%;
   min-width: 0;
   flex: 1;
+  // Reserve space for the absolutely-positioned actions menu that appears on hover
+  // This prevents node content from being obscured by action buttons
+  // Value accommodates 2-3 icon buttons (each ~1.5rem) plus gaps
+  padding-right: 3.5rem;
 }
 
 .pf-exp-node-box__details {

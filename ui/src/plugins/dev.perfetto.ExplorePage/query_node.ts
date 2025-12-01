@@ -21,6 +21,7 @@ import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
 import {stringifyJsonWithBigints} from '../../base/json_utils';
+import {NodeDetailsAttrs} from './query_builder/node_explorer_types';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {
@@ -140,7 +141,7 @@ export interface QueryNode {
   // NodeModifyAttrs allows nodes to declaratively specify sections and corner buttons,
   // while m.Child allows direct rendering for backwards compatibility
   nodeSpecificModify(): unknown;
-  nodeDetails?(): m.Child | undefined;
+  nodeDetails(): NodeDetailsAttrs;
   nodeInfo(): m.Children;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
