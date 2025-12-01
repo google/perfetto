@@ -103,9 +103,8 @@ base::Status PerfettoCmd::ReportTraceToAndroidFramework(
       report_config.reporter_service_package().empty()) {
     return base::ErrStatus("Invalid 'android_report_config'");
   }
-  if (!report_config.skip_report()) {
-    return base::ErrStatus(
-        "'android_report_config.skip_report()' should be false");
+  if (report_config.skip_report()) {
+    return base::ErrStatus("'android_report_config.skip_report' is true.");
   }
 
   if (trace_size == 0) {
@@ -282,7 +281,7 @@ void PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
   std::vector<base::ScopedFile> fds = UnlinkAndReturnPersistentTracesToUpload();
 
   if (__system_property_set("perfetto.uploader_ready", "1") != 0) {
-    // This should never happens, but if it does we are in trouble. In this case
+    // This should never happen, but if it does we are in trouble. In this case
     // just crash, we don't care about traces to be reported.
     PERFETTO_FATAL("Failed to set property perfetto.uploader_ready");
   }

@@ -984,7 +984,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
         base::GetAndroidProp("sys.trace.traced_started");
     PERFETTO_LOG("svc_traced_prop: %s, sys_traced_started: %s",
                  svc_traced_prop.c_str(), sys_traced_started.c_str());
-    return 0;
     // Doesn't actually connect to service.
     ReportAllPersistentTracesToAndroidFramework();
     return 0;

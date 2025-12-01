@@ -1,5 +1,7 @@
 package android.perfetto.cts.test;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -21,7 +23,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 import com.android.tradefed.log.LogUtil.CLog;
@@ -35,7 +36,6 @@ import perfetto.protos.TracingServiceStateOuterClass.TracingServiceState;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class PerfettoReporterRebootTest extends BaseHostJUnit4Test {
-
     private final static String PERSISTENT_TRACE_SESSION_NAME =
             "reboot_host_test_persistent_session";
     private final static String PERSISTENT_TRACE_MINIMAL_CONFIG = """
@@ -64,7 +64,13 @@ public class PerfettoReporterRebootTest extends BaseHostJUnit4Test {
             """.formatted(PERSISTENT_TRACE_SESSION_NAME).trim();
     private final static String ON_DEVICE_PERFETTO_CONFIG_PATH =
             "/data/misc/perfetto-configs/reboot_host_test_persistent_session.pb.txt";
+    private final static String ON_DEVICE_PERSISTENT_TRACE_OUTPUT_PATH =
+            "/data/misc/perfetto-traces/persistent/" + PERSISTENT_TRACE_SESSION_NAME
+                    + ".pftrace";
+    private final static String ON_DEVICE_REPORTED_TRACES_DIR = "/sdcard/Android/data/android.perfetto.cts.reporter/files";
     private static File mTraceConfigFile = null;
+
+    private ITestDevice mTestDevice = null;
 
     @BeforeClass
     public static void oneTimeSetUp() throws IOException {
@@ -74,50 +80,50 @@ public class PerfettoReporterRebootTest extends BaseHostJUnit4Test {
 
     @Before
     public void SetUp() throws DeviceNotAvailableException {
-        ITestDevice device = getDevice();
-        Assert.assertTrue(device.pushFile(mTraceConfigFile, ON_DEVICE_PERFETTO_CONFIG_PATH));
+        mTestDevice = getDevice();
+        Assert.assertTrue(mTestDevice.pushFile(mTraceConfigFile, ON_DEVICE_PERFETTO_CONFIG_PATH));
+        mTestDevice.deleteFile(ON_DEVICE_PERSISTENT_TRACE_OUTPUT_PATH);
     }
 
     @After
     public void TearDown() throws DeviceNotAvailableException {
-        ITestDevice device = getDevice();
-        device.deleteFile(ON_DEVICE_PERFETTO_CONFIG_PATH);
+        mTestDevice.deleteFile(ON_DEVICE_PERFETTO_CONFIG_PATH);
+        mTestDevice.deleteFile(ON_DEVICE_PERSISTENT_TRACE_OUTPUT_PATH);
+        mTestDevice = null;
     }
 
     @Test
-    public void testReboot()
-            throws DeviceNotAvailableException, InterruptedException,
-            InvalidProtocolBufferException {
-        ITestDevice device = getDevice();
-
-        String traceFilePath =
-                "/data/misc/perfetto-traces/persistent/" + PERSISTENT_TRACE_SESSION_NAME
-                        + ".pftrace";
-
-        CommandResult perfettoResult = device.executeShellV2Command("perfetto --upload --background --txt --config "
+    public void testReboot() throws DeviceNotAvailableException, InterruptedException {
+        CommandResult perfettoResult = mTestDevice.executeShellV2Command(
+                "perfetto --upload --background --txt --config "
                         + ON_DEVICE_PERFETTO_CONFIG_PATH);
-        Assert.assertEquals("Failed to start perfetto: " + perfettoResult.toString(), CommandStatus.SUCCESS,
+        Assert.assertEquals("Failed to start perfetto: " + perfettoResult.toString(),
+                CommandStatus.SUCCESS,
                 perfettoResult.getStatus());
 
+        // Assert tracing session started
+        List<String> runningTracingSessionNames = assertGetRunningTracingSessionNames();
+        assertThat(runningTracingSessionNames).contains(PERSISTENT_TRACE_SESSION_NAME);
+
+        String uniqueSessionName = "";
+        UUID uuid = null;
         boolean traceFileExists = false;
         for (int i = 0; i < 10; i++) {
-            if (device.doesFileExist(traceFilePath)) {
-                File traceFile = device.pullFile(traceFilePath);
+            if (mTestDevice.doesFileExist(ON_DEVICE_PERSISTENT_TRACE_OUTPUT_PATH)) {
+                File traceFile = mTestDevice.pullFile(ON_DEVICE_PERSISTENT_TRACE_OUTPUT_PATH);
                 if (traceFile != null) {
                     try {
-                        String uniqueSessionName = "";
-                        UUID uuid = null;
                         Trace trace = Trace.parseFrom(new FileInputStream(traceFile));
                         for (TracePacket packet : trace.getPacketList()) {
                             if (packet.hasTraceConfig()) {
                                 uniqueSessionName = packet.getTraceConfig().getUniqueSessionName();
                                 if (packet.hasTraceUuid()) {
-                                    uuid = new UUID(packet.getTraceUuid().getMsb(), packet.getTraceUuid().getLsb());
+                                    uuid = new UUID(packet.getTraceUuid().getMsb(),
+                                            packet.getTraceUuid().getLsb());
                                 }
                                 break;
                             }
                         }
-                        CLog.i("uniqueSessionName: " + uniqueSessionName + ", uuid: " + uuid);
                     } catch (IOException e) {
                         CLog.e("Failed to parse trace file: " + e.getMessage());
                     }
@@ -129,27 +135,33 @@ public class PerfettoReporterRebootTest extends BaseHostJUnit4Test {
             }
             Thread.sleep(1_000);
         }
+
         Assert.assertTrue("Timed out waiting for a trace file", traceFileExists);
+        CLog.i("uniqueSessionName: " + uniqueSessionName + ", uuid: " + uuid);
 
-
-        ByteArrayOutputStream rawOutput = new ByteArrayOutputStream();
-        CommandResult perfettoQueryRawResult = device.executeShellV2Command("perfetto --query-raw",
-                rawOutput);
-        Assert.assertEquals(CommandStatus.SUCCESS, perfettoQueryRawResult.getStatus());
-        TracingServiceState serviceState = TracingServiceState.parseFrom(rawOutput.toByteArray());
-        List<TracingServiceState.TracingSession> tracingSessionsList =
-                serviceState.getTracingSessionsList();
-        for (TracingServiceState.TracingSession tracingSession : tracingSessionsList) {
-            CLog.i("running session, name: " + tracingSession.getUniqueSessionName() + ", state: "
-                    + tracingSession.getState());
-        }
-
-        device.reboot();
+        mTestDevice.reboot();
         CLog.i("rebooted!");
 
-        Assert.assertFalse("Trace file must be unlinked at that point", device.doesFileExist(traceFilePath));
+        Thread.sleep(3000);
 
-        CommandResult lsReportedResult = device.executeShellV2Command(
+        Assert.assertFalse("Trace file must be unlinked at that point",
+                mTestDevice.doesFileExist(ON_DEVICE_PERSISTENT_TRACE_OUTPUT_PATH));
+
+        if (uuid != null) {
+            String uuidString = uuid.toString();
+            CLog.i("uuid: " + uuidString);
+            CLog.i("fixed uuid: " + uuidString.replace("-", ""));
+        }
+
+        //String reportedFilePath = ON_DEVICE_REPORTED_TRACES_DIR + "/" + uuid.toString();
+
+//        boolean reportedFileExists = false;
+//        for (int i = 0; i < 10; i++) {
+//
+//            Thread.sleep(1_000);
+//        }
+
+        CommandResult lsReportedResult = mTestDevice.executeShellV2Command(
                 "ls -R /sdcard/Android/data/android.perfetto.cts.reporter/files");
         CLog.i("ls reported result, stdout: '" + lsReportedResult.getStdout() + "', stderr: '"
                 + lsReportedResult.getStderr() + "'");
@@ -157,9 +169,33 @@ public class PerfettoReporterRebootTest extends BaseHostJUnit4Test {
         CLog.i("now sleeping for 3 seconds....");
         Thread.sleep(3_000);
 
-        lsReportedResult = device.executeShellV2Command(
+        lsReportedResult = mTestDevice.executeShellV2Command(
                 "ls -R /sdcard/Android/data/android.perfetto.cts.reporter/files");
         CLog.i("ls reported result, stdout: '" + lsReportedResult.getStdout() + "', stderr: '"
                 + lsReportedResult.getStderr() + "'");
+    }
+
+
+    private TracingServiceState assertGetTracingServiceState() throws DeviceNotAvailableException {
+        ByteArrayOutputStream rawOutput = new ByteArrayOutputStream();
+        CommandResult result = mTestDevice.executeShellV2Command("perfetto --query-raw", rawOutput);
+        assertThat(result.getStatus()).isEqualTo(CommandStatus.SUCCESS);
+        try {
+            return TracingServiceState.parseFrom(rawOutput.toByteArray());
+        } catch (InvalidProtocolBufferException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private List<String> assertGetRunningTracingSessionNames() throws DeviceNotAvailableException {
+        TracingServiceState tracingServiceState = assertGetTracingServiceState();
+        ArrayList<String> runningTracingSessionNames = new ArrayList<>();
+        for (TracingServiceState.TracingSession session :
+                tracingServiceState.getTracingSessionsList()) {
+            if (session.getIsStarted()) {
+                runningTracingSessionNames.add(session.getUniqueSessionName());
+            }
+        }
+        return runningTracingSessionNames;
     }
 }

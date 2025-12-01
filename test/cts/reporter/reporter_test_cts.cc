@@ -29,6 +29,10 @@
 namespace perfetto {
 namespace {
 
+using ::testing::AllOf;
+using ::testing::HasSubstr;
+using ::testing::Not;
+
 class PerfettoReporterTest : public ::testing::Test {
  protected:
   // Both "persistent" and "reported" files are cleaned up using
@@ -37,6 +41,8 @@ class PerfettoReporterTest : public ::testing::Test {
       "/data/misc/perfetto-traces/persistent";
   static constexpr char kReportedTracesDir[] =
       "/sdcard/Android/data/android.perfetto.cts.reporter/files";
+
+  static constexpr char kServiceError[] = "Service error:";
 
   static constexpr uint32_t kTraceEventCount = 1;
   static constexpr uint32_t kTraceDurationOneHourInMs = 3600000;  // 1 hour
@@ -85,7 +91,7 @@ class PerfettoReporterTest : public ::testing::Test {
   static void AssertTraceWasReported(base::Uuid uuid, uint32_t kEventCount) {
     std::string path =
         std::string(kReportedTracesDir) + "/" + uuid.ToPrettyString();
-    ASSERT_TRUE(WaitForFile(path))
+    ASSERT_TRUE(WaitForNotEmptyFile(path))
         << "Timed out waiting for a reported trace file: " << path;
 
     std::string trace_str;
@@ -100,7 +106,7 @@ class PerfettoReporterTest : public ::testing::Test {
     ASSERT_EQ(for_testing, kEventCount);
   }
 
-  static bool WaitForFile(std::string path) {
+  static bool WaitForNotEmptyFile(const std::string& path) {
     static constexpr uint32_t kIterationSleepMs = 500;
     static constexpr uint32_t kIterationCount =
         kDefaultTestTimeoutMs / kIterationSleepMs;
@@ -132,7 +138,7 @@ TEST_F(PerfettoReporterTest, TestEndToEndReport) {
                             trace_config.SerializeAsString());
 
   std::string stderr_str;
-  EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+  ASSERT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
 
   AssertTraceWasReported(uuid, kTraceEventCount);
 }
@@ -151,6 +157,14 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistent) {
       kSessionName, kTraceDurationOneHourInMs, uuid, kTraceEventCount);
   trace_config.set_persist_trace_after_reboot(true);
   trace_config.set_write_into_file(true);
+  // This period configuration is tricky because we need to:
+  // 1. Keep the trace size below the limit defined in
+  // `com.android.server.tracing.TracingServiceProxy.MAX_FILE_SIZE_BYTES_TO_PIPE`.
+  // 2. Force a flush to disk at least once to emulate the real-world behavior
+  // of recordering long traces.
+  // 3. Minimize the test wait time.
+  // A period of 500ms satisfies all requirements.
+  trace_config.set_file_write_period_ms(500);
 
   auto perfetto_proc = Exec("perfetto",
                             {
@@ -164,9 +178,10 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistent) {
   std::thread background_trace([&perfetto_proc]() {
     std::string stderr_str;
     ASSERT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+    ASSERT_THAT(stderr_str, Not(HasSubstr(kServiceError)));
   });
 
-  ASSERT_TRUE(WaitForFile(trace_file))
+  ASSERT_TRUE(WaitForNotEmptyFile(trace_file))
       << "Timed out waiting for a running trace file: " << trace_file;
 
   perfetto_proc.SendSigterm();
@@ -174,6 +189,7 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistent) {
 
   AssertTraceWasReported(uuid, kTraceEventCount);
 
+  // Trace file should be removed from the ".../persistent" directory.
   ASSERT_FALSE(base::FileExists(trace_file));
 }
 
@@ -207,9 +223,10 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistentAlreadyStarted) {
   std::thread background_trace([&perfetto_proc]() {
     std::string stderr_str;
     ASSERT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+    ASSERT_THAT(stderr_str, Not(HasSubstr(kServiceError)));
   });
 
-  ASSERT_TRUE(WaitForFile(trace_file))
+  ASSERT_TRUE(WaitForNotEmptyFile(trace_file))
       << "Timed out waiting for a running trace file: " << trace_file;
 
   // Now start a second perfetto session with the same name. Error should be
@@ -218,7 +235,8 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistentAlreadyStarted) {
   ASSERT_EQ(0, perfetto_proc_2.Run(&stderr_str)) << stderr_str;
   const std::string error_message = "A trace with this unique session name (" +
                                     kSessionName + ") already exists";
-  EXPECT_THAT(stderr_str, ::testing::HasSubstr(error_message));
+  ASSERT_THAT(stderr_str,
+              AllOf(HasSubstr(kServiceError), HasSubstr(error_message)));
 
   // We can normally stop first session.
   perfetto_proc.SendSigterm();
@@ -226,6 +244,7 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistentAlreadyStarted) {
 
   AssertTraceWasReported(uuid, kTraceEventCount);
 
+  // Trace file should be removed from the ".../persistent" directory.
   ASSERT_FALSE(base::FileExists(trace_file));
 }
 
@@ -258,12 +277,14 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistentTraceExists) {
                             trace_config.SerializeAsString());
 
   std::string stderr_str;
+  // Error should be reported, exit code should be zero.
   ASSERT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
   const std::string error_message =
       "Failed to create the trace file " + trace_file;
-  EXPECT_THAT(stderr_str, ::testing::HasSubstr(error_message));
+  ASSERT_THAT(stderr_str,
+              AllOf(HasSubstr(kServiceError), HasSubstr(error_message)));
 
-  // File was not removed by perfetto_cmd.
+  // File should not be removed by perfetto_cmd.
   ASSERT_TRUE(base::FileExists(trace_file));
 }
 
