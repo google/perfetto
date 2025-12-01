@@ -63,6 +63,7 @@ export class SQLDataSource implements DataGridDataSource {
     filters = [],
     pagination,
     aggregates,
+    distinctValuesColumns,
   }: DataGridModel): void {
     this.limiter.schedule(async () => {
       this.isLoadingFlag = true;
@@ -86,6 +87,7 @@ export class SQLDataSource implements DataGridDataSource {
             totalRows: rowCount,
             rows: [],
             aggregates: {},
+            distinctValues: new Map<string, ReadonlyArray<SqlValue>>(),
           };
         }
 
@@ -112,6 +114,30 @@ export class SQLDataSource implements DataGridDataSource {
             rowOffset: offset,
             rows,
           };
+        }
+
+        // Handle distinct values requests
+        if (distinctValuesColumns) {
+          for (const column of distinctValuesColumns) {
+            if (!this.cachedResult?.distinctValues?.has(column)) {
+              // Schedule query to fetch distinct values
+              const query = `
+                SELECT DISTINCT ${column} AS value
+                FROM (${this.baseQuery})
+                ORDER BY ${column} IS NULL, ${column}
+              `;
+              const result = await runQueryForQueryTable(query, this.engine);
+              const values = result.rows.map((r) => r['value']);
+              this.cachedResult = {
+                ...this.cachedResult!,
+                // Subsume the old distinct values map and add the new entry
+                distinctValues: new Map<string, ReadonlyArray<SqlValue>>([
+                  ...this.cachedResult!.distinctValues!,
+                  [column, values],
+                ]),
+              };
+            }
+          }
         }
       } finally {
         this.isLoadingFlag = false;

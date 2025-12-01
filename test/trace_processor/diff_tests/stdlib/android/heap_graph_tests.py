@@ -101,3 +101,18 @@ class HeapGraph(TestSuite):
           "java.lang.String",1,10000,1,10000
           "B",1,1000,1,1000
         """))
+
+  def test_heap_graph_stats(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_aggregation.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;
+
+          SELECT *
+          FROM android_heap_graph_stats
+          ORDER BY upid DESC;
+        """,
+        out=Csv("""
+          "upid","graph_sample_ts","process_uptime","total_heap_size","total_native_alloc_registry_size","total_obj_count","reachable_heap_size","reachable_native_alloc_registry_size","reachable_obj_count","oom_score_adj","anon_rss_and_swap_size","dmabuf_rss_size"
+          2,10,"[NULL]",11866,0,5,11866,0,5,-900,4096000,8192000
+        """))

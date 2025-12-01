@@ -199,26 +199,27 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
 const MAX_SUBQUERIES_PER_UNION = 500;
 
 /**
- * Classes are useless in TypeScript so we need to provide a factory function
- * helper which provides the correct typing for the resultant union dataset
- * based on the input datasets.
- *
- * @param datasets - The datasets to union together.
- * @returns - A new union dataset representing the union of the input datasets.
- */
-export function createUnionDataset<T extends readonly Dataset[]>(
-  datasets: T,
-): UnionDataset<T[number]['schema']> {
-  return new UnionDataset(datasets);
-}
-
-/**
  * A dataset that represents the union of multiple datasets.
  */
 export class UnionDataset<T extends DatasetSchema = DatasetSchema>
   implements Dataset<T>
 {
-  constructor(readonly union: ReadonlyArray<Dataset>) {}
+  /**
+   * This factory method creates a new union dataset but retains the specific
+   * types of the input datasets. It's a factory function because it's not
+   * possible to do this with a constructor.
+   *
+   * @param datasets - The datasets to union together.
+   * @returns - A new union dataset representing the union of the input
+   * datasets.
+   */
+  static create<T extends readonly Dataset[]>(
+    datasets: T,
+  ): UnionDataset<T[number]['schema']> {
+    return new UnionDataset(datasets);
+  }
+
+  private constructor(readonly union: ReadonlyArray<Dataset>) {}
 
   get schema(): T {
     // Find the minimal set of columns that are supported by all datasets of

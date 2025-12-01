@@ -17,6 +17,11 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Card} from '../../../widgets/card';
 import {TextInput} from '../../../widgets/text_input';
 import {Icon} from '../../../widgets/icon';
+import {TextParagraph} from '../../../widgets/text_paragraph';
+import {SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
+import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
 
 // Generic widget for a row with name input, validation, and remove button
 // Used by all "new column" types
@@ -121,57 +126,92 @@ export class Section implements m.ClassComponent<SectionAttrs> {
   }
 }
 
-// Widget for displaying an item with icon, name, description, and action button
+// Action button definition for ListItem
+export interface ListItemAction {
+  label?: string;
+  icon: string;
+  title?: string;
+  onclick: () => void;
+}
+
+// Widget for displaying an item with icon, name, description, and action button(s)
 // Used in lists of added columns, filters, etc.
 export interface ListItemAttrs {
   icon: string;
   name: string;
   description: string;
-  actionLabel: string;
-  actionIcon?: string;
-  onAction: () => void;
+  actions?: ListItemAction[];
   onRemove?: () => void;
   className?: string;
+  onclick?: (event: MouseEvent) => void;
 }
 
 export class ListItem implements m.ClassComponent<ListItemAttrs> {
   view({attrs}: m.Vnode<ListItemAttrs>) {
-    const {
-      icon,
-      name,
-      description,
-      actionLabel,
-      actionIcon,
-      onAction,
-      onRemove,
-    } = attrs;
+    const {icon, name, description, actions, onRemove, onclick} = attrs;
 
     return m(
       '.pf-exp-list-item',
-      {className: attrs.className},
+      {
+        className: attrs.className,
+        tabindex: 0,
+        role: 'listitem',
+        onclick,
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            // Trigger first action on Enter/Space
+            actions?.[0]?.onclick();
+          } else if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (onRemove) {
+              e.preventDefault();
+              onRemove();
+            }
+          }
+        },
+      },
       m(Icon, {icon}),
       m(
         '.pf-exp-list-item-info',
         m('.pf-exp-list-item-name', name),
         m('.pf-exp-list-item-description', description),
       ),
-      m(
-        '.pf-exp-list-item-actions',
-        m(Button, {
-          label: actionLabel,
-          icon: actionIcon,
-          variant: ButtonVariant.Outlined,
-          compact: true,
-          onclick: onAction,
-        }),
-        onRemove &&
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: onRemove,
-          }),
-      ),
+      m('.pf-exp-list-item-actions', this.renderButtons(attrs)),
     );
+  }
+
+  private renderButtons(attrs: ListItemAttrs): m.Children {
+    const buttons: m.Children = [];
+
+    // Render action buttons
+    if (attrs.actions) {
+      for (const action of attrs.actions) {
+        buttons.push(
+          m(Button, {
+            label: action.label,
+            icon: action.icon,
+            title: action.title,
+            variant: ButtonVariant.Outlined,
+            compact: true,
+            onclick: action.onclick,
+          }),
+        );
+      }
+    }
+
+    // Remove button
+    if (attrs.onRemove) {
+      buttons.push(
+        m(Button, {
+          icon: 'close',
+          compact: true,
+          onclick: attrs.onRemove,
+          title: 'Remove item',
+        }),
+      );
+    }
+
+    return buttons;
   }
 }
 
@@ -257,5 +297,133 @@ export class DraggableItem implements m.ClassComponent<DraggableItemAttrs> {
       m('span.pf-exp-drag-handle', '☰'),
       children,
     );
+  }
+}
+
+// Widget for displaying a list of issues (errors or warnings) in a callout
+// Used for validation errors, duplicate column warnings, etc.
+export interface IssueListAttrs {
+  icon: 'error' | 'warning' | 'info';
+  title: string;
+  items: string[];
+}
+
+export class IssueList implements m.ClassComponent<IssueListAttrs> {
+  view({attrs}: m.Vnode<IssueListAttrs>) {
+    const {icon, title, items} = attrs;
+
+    if (items.length === 0) {
+      return null;
+    }
+
+    // Map icon to Intent for proper styling
+    const intentMap: Record<string, Intent> = {
+      error: Intent.Danger,
+      warning: Intent.Warning,
+      info: Intent.Primary,
+    };
+    const intent = intentMap[icon] ?? Intent.None;
+
+    return m(
+      Callout,
+      {icon, intent},
+      m('div', title),
+      m(
+        'ul.pf-exp-issue-list',
+        items.map((item) => m('li', item)),
+      ),
+    );
+  }
+}
+
+// Widget for displaying a SQL table's description and columns
+// Used in table source node info and join modal
+export interface TableDescriptionAttrs {
+  table: SqlTable;
+}
+
+export class TableDescription
+  implements m.ClassComponent<TableDescriptionAttrs>
+{
+  view({attrs}: m.Vnode<TableDescriptionAttrs>) {
+    const {table} = attrs;
+
+    return m(
+      '.pf-exp-table-description',
+      m(TextParagraph, {text: table.description}),
+      m(
+        'table.pf-table.pf-table-striped',
+        m(
+          'thead',
+          m('tr', m('th', 'Column'), m('th', 'Type'), m('th', 'Description')),
+        ),
+        m(
+          'tbody',
+          table.columns.map((col) => {
+            return m(
+              'tr',
+              m('td', col.name),
+              m('td', perfettoSqlTypeToString(col.type)),
+              m('td', col.description),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+// Button for switching between basic and advanced modes
+// Styled as a subtle, text-like button to indicate it's a secondary action
+export interface AdvancedModeChangeButtonAttrs {
+  label: string;
+  icon?: string;
+  onclick: () => void;
+}
+
+export class AdvancedModeChangeButton
+  implements m.ClassComponent<AdvancedModeChangeButtonAttrs>
+{
+  view({attrs}: m.Vnode<AdvancedModeChangeButtonAttrs>) {
+    const {label, icon, onclick} = attrs;
+
+    return m(Button, {
+      className: 'pf-exp-advanced-mode-button',
+      label,
+      icon,
+      onclick,
+      variant: ButtonVariant.Minimal,
+    });
+  }
+}
+
+// Widget for equal-width items with responsive stacking
+// Items are displayed inline with equal width when there's space,
+// and stack vertically when the container is too narrow
+export interface EqualWidthRowAttrs {
+  separator?: string; // Optional separator text between items
+}
+
+export class EqualWidthRow implements m.ClassComponent<EqualWidthRowAttrs> {
+  view({attrs, children}: m.CVnode<EqualWidthRowAttrs>) {
+    const items = Array.isArray(children) ? children : [children];
+    const {separator} = attrs;
+
+    return m(
+      '.pf-exp-equal-width-row',
+      items.map((item, index) => [
+        m('.pf-exp-equal-width-row__item', item),
+        separator && index < items.length - 1
+          ? m('.pf-exp-equal-width-row__separator', separator)
+          : null,
+      ]),
+    );
+  }
+}
+
+// Widget for displaying informational text in a styled box
+// Similar to the pattern used in timerange node for dynamic mode info
+export class InfoBox implements m.ClassComponent {
+  view({children}: m.CVnode) {
+    return m('.pf-exp-info-box', children);
   }
 }

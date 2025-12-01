@@ -20,8 +20,7 @@
   }
 
   &__cell--indent {
-    // 16px is more of less the width of expand_more/expand_less icon to pad out
-    // cells without the button
-    width: 16px;
+    display: inline-block;
+    width: 24px;
   }
 }

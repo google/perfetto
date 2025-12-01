@@ -21,24 +21,35 @@ let pth: PerfettoTestHelper;
 let page: Page;
 
 // Locate the header cell with the given column name.
-function locateHeaderCells(label?: string): Locator {
-  return page.getByRole('columnheader', {name: label, exact: true});
+function locateHeaderCells(text?: string): Locator {
+  const columnHeaders = page.getByRole('columnheader');
+  if (text === undefined) {
+    return columnHeaders;
+  } else {
+    return columnHeaders.filter({has: page.getByText(text, {exact: true})});
+  }
 }
 
 // Locate the data cells, optionally filtered by text.
-function locateDataCells(label?: string): Locator {
-  return page.getByRole('cell', {name: label, exact: true});
+function locateDataCells(text?: string): Locator {
+  const cells = page.getByRole('cell');
+  if (text === undefined) {
+    return cells;
+  } else {
+    return cells.filter({has: page.getByText(text, {exact: true})});
+  }
 }
 
 async function clickColumnContextMenu(headerName?: string) {
   const cell = locateHeaderCells(headerName);
   await cell.hover(); // Hover to reveal the menu button.
-  cell.getByRole('button', {name: 'Column menu'}).click();
+  await cell.getByRole('button', {name: 'Column menu'}).click();
 }
 
 async function clickCellContextMenu(text?: string) {
   const cell = locateDataCells(text).nth(0);
-  await cell.click({button: 'right'});
+  await cell.hover(); // Hover to reveal the menu button.
+  await cell.getByRole('button', {name: 'Cell menu'}).click();
 }
 
 test.beforeEach(async ({browser}, _testInfo) => {
@@ -77,7 +88,7 @@ test('Table interactions', async () => {
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  clickColumnContextMenu('dur');
+  await clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
   await pth.waitForIdleAndScreenshot(`slices-table-sorted.png`);
 

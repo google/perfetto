@@ -18,13 +18,13 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  SourceNode,
   nextNodeId,
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
 
 export interface SlicesSourceSerializedState {
   comment?: string;
@@ -34,7 +34,7 @@ export interface SlicesSourceState extends QueryNodeState {
   onchange?: () => void;
 }
 
-export class SlicesSourceNode implements SourceNode {
+export class SlicesSourceNode implements QueryNode {
   readonly nodeId: string;
   readonly state: SlicesSourceState;
   readonly finalCols: ColumnInfo[];
@@ -67,10 +67,14 @@ export class SlicesSourceNode implements SourceNode {
     return 'Slices with details';
   }
 
-  serializeState(): SlicesSourceSerializedState {
+  nodeDetails(): NodeDetailsAttrs {
     return {
-      comment: this.state.comment,
+      content: m('.pf-exp-node-title', this.getTitle()),
     };
+  }
+
+  serializeState(): SlicesSourceSerializedState {
+    return {};
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

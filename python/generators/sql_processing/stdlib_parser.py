@@ -26,7 +26,7 @@ from typing import List, Tuple, Optional
 
 from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule, parse_file
 from python.generators.sql_processing.utils import is_internal
-from python.generators.sql_processing.stdlib_tags import get_tags
+from python.generators.sql_processing.stdlib_tags import get_tags, get_table_importance
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(
@@ -265,6 +265,8 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
                 table.type,
             'visibility':
                 'private' if is_internal(table.name) else 'public',
+            'importance':
+                get_table_importance(table.name),
             'cols': [
                 _create_field_dict(col_name, col)
                 for (col_name, col) in table.cols.items()

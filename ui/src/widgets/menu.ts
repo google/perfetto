@@ -40,6 +40,9 @@ export interface MenuItemAttrs extends HTMLAttrs {
   // clicking it will result in the popup being dismissed.
   // Defaults to false when menuitem has children, true otherwise.
   closePopupOnClick?: boolean;
+
+  // Callback for when the menu is opened (only when the menu item has children).
+  onChange?(isOpen: boolean): void;
 }
 
 // An interactive menu element with an icon.
@@ -57,6 +60,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
     const {
       rightIcon = 'chevron_right',
       closePopupOnClick = false,
+      onChange,
       ...rest
     } = attrs;
 
@@ -69,6 +73,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
           closePopupOnClick,
           ...rest,
         }),
+        onChange,
         showArrow: false,
         createNewGroup: false,
         edgeOffset: 5, // Adjust for popup padding & border.
