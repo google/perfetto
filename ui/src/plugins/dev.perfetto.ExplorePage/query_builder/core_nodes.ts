@@ -20,12 +20,20 @@ import {
   TableSourceState,
 } from './nodes/sources/table_source';
 import {SqlSourceNode, SqlSourceState} from './nodes/sources/sql_source';
+import {
+  TimeRangeSourceNode,
+  TimeRangeSourceState,
+} from './nodes/sources/timerange_source';
 import {AggregationNode, AggregationNodeState} from './nodes/aggregation_node';
 import {
   ModifyColumnsNode,
   ModifyColumnsState,
 } from './nodes/modify_columns_node';
 import {AddColumnsNode, AddColumnsNodeState} from './nodes/add_columns_node';
+import {
+  FilterDuringNode,
+  FilterDuringNodeState,
+} from './nodes/filter_during_node';
 import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
@@ -46,16 +54,17 @@ export function registerCoreNodes() {
     icon: 'bar_chart',
     hotkey: 's',
     type: 'source',
+    showOnLandingPage: true,
     factory: (state) => new SlicesSourceNode(state),
   });
 
   nodeRegistry.register('table', {
-    name: 'Perfetto Table',
-    description:
-      'Query and explore data from any table in the Perfetto standard library.',
+    name: 'Table',
+    description: 'Query and explore data from any table in your trace.',
     icon: 'table_chart',
     hotkey: 't',
     type: 'source',
+    showOnLandingPage: true,
     preCreate: async ({sqlModules}) => {
       const selection = await modalForTableSelection(sqlModules);
       if (selection) {
@@ -70,13 +79,62 @@ export function registerCoreNodes() {
   });
 
   nodeRegistry.register('sql', {
-    name: 'Query Node',
+    name: 'Query',
     description:
       'Start with a custom SQL query to act as a source for further exploration.',
     icon: 'code',
     hotkey: 'q',
     type: 'source',
+    showOnLandingPage: true,
     factory: (state) => new SqlSourceNode(state as SqlSourceState),
+  });
+
+  nodeRegistry.register('timerange', {
+    name: 'Time Range',
+    description:
+      'Import time range from timeline selection. Can be dynamic (syncs with selection) or static (snapshot).',
+    icon: 'schedule',
+    type: 'source',
+    showOnLandingPage: false, // Available in menus but not on landing page
+    factory: (state) => {
+      // If start/end are already set, this is being restored from serialization
+      // or created programmatically - use those values
+      if (
+        'start' in state &&
+        state.start !== undefined &&
+        'end' in state &&
+        state.end !== undefined
+      ) {
+        if (!state.trace) {
+          throw new Error('TimeRange node requires a trace instance');
+        }
+        return new TimeRangeSourceNode({
+          ...state,
+          trace: state.trace,
+          isDynamic:
+            'isDynamic' in state && state.isDynamic === true ? true : false,
+        } as TimeRangeSourceState);
+      }
+
+      // New node - initialize from current selection
+      if (!state.trace) {
+        throw new Error('TimeRange node requires a trace instance');
+      }
+
+      const timeRange = state.trace.selection.getTimeSpanOfSelection();
+      // Note: If there's no selection, start/end will be undefined and the node
+      // will be in an invalid state (validate() will return false and show error).
+      // This is intentional - the user can fix it by clicking "Update from Selection"
+      // or by entering times manually.
+      const fullState: TimeRangeSourceState = {
+        ...state,
+        start: timeRange?.start,
+        end: timeRange?.end,
+        isDynamic: false, // Default to static mode
+        trace: state.trace,
+      };
+      return new TimeRangeSourceNode(fullState);
+    },
   });
 
   nodeRegistry.register('aggregation', {
@@ -92,6 +150,7 @@ export function registerCoreNodes() {
     description: 'Select, rename, and add new columns to the data.',
     icon: 'edit',
     type: 'modification',
+    category: 'Columns',
     factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
   });
 
@@ -101,16 +160,34 @@ export function registerCoreNodes() {
       'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
     icon: 'add_box',
     type: 'modification',
+    category: 'Columns',
     factory: (state) => {
       const fullState: AddColumnsNodeState = {
         ...state,
-        prevNode: state.prevNode!,
         selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
         leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
         rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
-        autoExecute: false,
       };
       return new AddColumnsNode(fullState);
+    },
+  });
+
+  nodeRegistry.register('filter_during', {
+    name: 'Filter During',
+    description:
+      'Filter to only show intervals that occurred during intervals from another source.',
+    icon: 'filter_alt',
+    type: 'modification',
+    category: 'Filter',
+    factory: (state) => {
+      const fullState: FilterDuringNodeState = {
+        ...state,
+        filterNegativeDurPrimary:
+          (state as FilterDuringNodeState).filterNegativeDurPrimary ?? true,
+        filterNegativeDurSecondary:
+          (state as FilterDuringNodeState).filterNegativeDurSecondary ?? true,
+      };
+      return new FilterDuringNode(fullState);
     },
   });
 
@@ -127,7 +204,7 @@ export function registerCoreNodes() {
       }
       const fullState: IntervalIntersectNodeState = {
         ...state,
-        prevNodes: state.prevNodes ?? [],
+        inputNodes: [],
       };
       return new IntervalIntersectNode(fullState);
     },
@@ -142,7 +219,6 @@ export function registerCoreNodes() {
     factory: (state) => {
       const fullState: MergeNodeState = {
         ...state,
-        prevNodes: state.prevNodes ?? [],
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -178,7 +254,7 @@ export function registerCoreNodes() {
     factory: (state) => {
       const fullState: UnionNodeState = {
         ...state,
-        prevNodes: state.prevNodes ?? [],
+        inputNodes: [],
         selectedColumns: [],
       };
       const node = new UnionNode(fullState);

@@ -6,15 +6,19 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
-    *
+    * Breaking change: Removed `stack_id` and `parent_stack_id`
+      columns from the slice table. The `ancestor_slice_by_stack` and
+      `descendant_slice_by_stack` table functions have been moved to the
+      `slices.stack` stdlib module. These features were poorly named and often
+      misused. See https://perfetto.dev/docs/analysis/perfetto-sql-backcompat
+      for migration guidance.
   UI:
     * Added snap-to-boundaries feature for precise time selection. When
       dragging selection handles or creating area selections, the cursor
       automatically snaps to nearby slice boundaries to enable exact
       measurement of slice durations. Hold Alt to temporarily disable snapping.
   SDK:
-    * Breaking change: `DynamicString` no longer accepts temporary `std::string`
-      arguments to prevent use-after-free bugs.
+    *
 
 v53.0 - 2025-11-12:
   SDK:

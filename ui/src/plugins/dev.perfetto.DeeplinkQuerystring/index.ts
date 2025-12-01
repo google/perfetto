@@ -86,7 +86,7 @@ function zoomPendingDeeplink(trace: Trace, visStart: string, visEnd: string) {
   ) {
     return;
   }
-  trace.timeline.setViewportTime(visualStart, visualEnd);
+  trace.timeline.panSpanIntoView(visualStart, visualEnd, {align: 'zoom'});
 }
 
 async function selectInitialRouteArgs(trace: Trace, args: RouteArgs) {

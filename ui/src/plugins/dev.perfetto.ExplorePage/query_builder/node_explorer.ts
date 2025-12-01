@@ -21,7 +21,6 @@ import {
   Query,
   QueryNode,
   queryToRun,
-  addConnection,
 } from '../query_node';
 import {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -29,6 +28,8 @@ import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
 import {TabStrip} from '../../../widgets/tabs';
+import {NodeModifyAttrs} from './node_explorer_types';
+import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
@@ -46,7 +47,6 @@ enum SelectedView {
   kInfo = 0,
   kModify = 1,
   kResult = 2,
-  kComment = 3,
 }
 
 export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
@@ -66,14 +66,11 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   }
 
   private updateQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
+    // TODO: Re-implement WITH statement dependencies for SqlSourceNode
+    // This was removed during the connection model migration
     if (node instanceof SqlSourceNode && node.state.sql) {
-      // Clear this node from the prevNodes
-      for (const prevNode of node.prevNodes) {
-        prevNode.nextNodes = prevNode.nextNodes.filter((n) => n !== node);
-      }
-
+      // Validate that the node doesn't reference itself
       const nodeIds = node.findDependencies();
-      const dependencies: QueryNode[] = [];
       for (const nodeId of nodeIds) {
         if (nodeId === node.nodeId) {
           node.state.issues = new NodeIssues();
@@ -81,18 +78,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
             'Node cannot depend on itself',
           );
           return;
-        }
-
-        const dependencyNode = attrs.resolveNode(nodeId);
-        if (dependencyNode) {
-          dependencies.push(dependencyNode);
-        }
-      }
-      node.prevNodes = dependencies;
-      for (let i = 0; i < node.prevNodes.length; i++) {
-        const prevNode = node.prevNodes[i];
-        if (prevNode !== undefined) {
-          addConnection(prevNode, node, i);
         }
       }
     }
@@ -148,6 +133,110 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
   }
 
+  private renderButtons(
+    buttons?: NodeModifyAttrs['topLeftButtons'],
+  ): m.Children {
+    if (!buttons || buttons.length === 0) {
+      return [];
+    }
+    const result: m.Children = [];
+    for (const btn of buttons) {
+      const attrs: Partial<ButtonAttrs> = {
+        onclick: btn.onclick,
+        variant: btn.variant ?? ButtonVariant.Outlined, // Default to Outlined
+      };
+      if (btn.label) attrs.label = btn.label;
+      if (btn.icon) attrs.icon = btn.icon;
+      if (btn.compact !== undefined) attrs.compact = btn.compact;
+      result.push(m(Button, attrs as ButtonAttrs));
+    }
+    return result;
+  }
+
+  private renderCornerButtons(buttons: NodeModifyAttrs): m.Child {
+    if (
+      !buttons.topLeftButtons &&
+      !buttons.topRightButtons &&
+      !buttons.bottomLeftButtons &&
+      !buttons.bottomRightButtons
+    ) {
+      return null;
+    }
+
+    return m('.pf-exp-node-explorer__buttons', [
+      m('.pf-exp-node-explorer__buttons-top', [
+        m(
+          '.pf-exp-node-explorer__buttons-top-left',
+          this.renderButtons(buttons.topLeftButtons),
+        ),
+        m(
+          '.pf-exp-node-explorer__buttons-top-right',
+          this.renderButtons(buttons.topRightButtons),
+        ),
+      ]),
+      m('.pf-exp-node-explorer__buttons-bottom', [
+        m(
+          '.pf-exp-node-explorer__buttons-bottom-left',
+          this.renderButtons(buttons.bottomLeftButtons),
+        ),
+        m(
+          '.pf-exp-node-explorer__buttons-bottom-right',
+          this.renderButtons(buttons.bottomRightButtons),
+        ),
+      ]),
+    ]);
+  }
+
+  private renderSections(sections?: NodeModifyAttrs['sections']): m.Child {
+    if (!sections || sections.length === 0) {
+      return null;
+    }
+
+    return m(
+      '.pf-exp-node-explorer__sections',
+      sections.map((section) =>
+        m(
+          '.pf-exp-node-explorer__section',
+          section.title &&
+            m('h3.pf-exp-node-explorer__section-title', section.title),
+          m('.pf-exp-node-explorer__section-content', section.content),
+        ),
+      ),
+    );
+  }
+
+  private renderModifyView(node: QueryNode): m.Child {
+    const modifyResult = node.nodeSpecificModify();
+
+    // Check if node returned attrs (new pattern) or m.Child (old pattern)
+    if (this.isNodeModifyAttrs(modifyResult)) {
+      const attrs = modifyResult as NodeModifyAttrs;
+      return m('.pf-exp-node-explorer__modify', [
+        this.renderCornerButtons(attrs),
+        this.renderSections(attrs.sections),
+      ]);
+    }
+
+    // Fallback to old pattern for backwards compatibility
+    return modifyResult as m.Child;
+  }
+
+  private isNodeModifyAttrs(value: unknown): value is NodeModifyAttrs {
+    if (value === null || value === undefined) return false;
+    if (typeof value !== 'object') return false;
+
+    const obj = value as Record<string, unknown>;
+
+    // Check if it has any of the NodeModifyAttrs properties
+    return (
+      'sections' in obj ||
+      'topLeftButtons' in obj ||
+      'topRightButtons' in obj ||
+      'bottomLeftButtons' in obj ||
+      'bottomRightButtons' in obj
+    );
+  }
+
   private renderContent(node: QueryNode, selectedView: number): m.Child {
     const sql: string =
       this.sqlForDisplay ??
@@ -163,7 +252,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     return m(
       'article',
       selectedView === SelectedView.kInfo && node.nodeInfo(),
-      selectedView === SelectedView.kModify && node.nodeSpecificModify(),
+      selectedView === SelectedView.kModify && this.renderModifyView(node),
       selectedView === SelectedView.kResult &&
         m('.', [
           m(TabStrip, {
@@ -190,16 +279,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
               ? m(CodeSnippet, {text: textproto, language: 'textproto'})
               : m('div', textproto),
         ]),
-      selectedView === SelectedView.kComment &&
-        m('textarea.pf-exp-node-explorer__comment', {
-          'aria-label': 'Comment',
-          'placeholder': 'Add a comment...',
-          'oninput': (e: InputEvent) => {
-            if (!e.target) return;
-            node.state.comment = (e.target as HTMLTextAreaElement).value;
-          },
-          'value': node.state.comment,
-        }),
     );
   }
 
@@ -213,6 +292,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     // This ensures that changes in the node's UI components trigger the callback chain
     node.state.onchange = attrs.onchange;
 
+    // Always analyze to generate the query object (needed to enable Run button)
+    // The autoExecute flag only controls whether we automatically execute after analysis
     this.updateQuery(node, attrs);
 
     if (isCollapsed) {

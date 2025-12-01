@@ -14,7 +14,17 @@
 
 @import "../common";
 
+.pf-exp-node-explorer:has(.pf-modify-columns-node) {
+  article {
+    padding: 0;
+  }
+}
+
 .pf-modify-columns-node {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
   .pf-exp-node-details-box strong {
     display: block;
     margin-bottom: 4px;
@@ -30,61 +40,148 @@
     color: var(--pf-text-color-light);
   }
 
-  .pf-columns-box-title {
-    font-size: var(--pf-exp-font-size-md);
+  .pf-new-columns-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .pf-modify-columns-header {
+    padding: 20px 16px;
+    background: var(--surface-color);
+    border-bottom: 1px solid var(--separator-color);
+  }
+
+  .pf-modify-columns-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--pf-text-color-primary);
+    margin-bottom: 16px;
+  }
+
+  .pf-modify-columns-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .pf-modify-columns-stats {
+    font-size: 14px;
     font-weight: 500;
-    margin: 0 0 1rem 0;
+    color: var(--pf-text-color-secondary);
+  }
+
+  .pf-modify-columns-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .pf-modify-columns-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .pf-modify-columns-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pf-column-list-container {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pf-column-list-help {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--pf-text-color-secondary);
+    font-style: italic;
+    background: var(--background-color);
+    border-bottom: 1px solid var(--separator-color);
+  }
+
+  .pf-column-list {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px;
+    gap: 4px;
   }
 
   .pf-column {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 1px 0;
+    gap: 12px;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    background: var(--surface-color);
+    border-radius: 4px;
+    border: 1px solid transparent;
+    transition: all 0.15s ease-in-out;
+
+    &:hover {
+      border-color: var(--separator-color);
+      background: var(--background-color);
+    }
+
+    // Make the text input flexible but constrained
+    .pf-text-input {
+      min-width: 100px;
+      max-width: 250px;
+      flex: 1 1 auto;
+    }
+
+    // Keep type selector from being pushed out
+    .pf-column-type {
+      flex-shrink: 0;
+    }
   }
 
   .pf-drag-handle {
     opacity: 0;
     cursor: grab;
     transition: opacity 0.2s ease-in-out;
+    width: 20px; // Fixed width for alignment
+    text-align: center;
+    color: var(--pf-text-color-secondary);
+    font-size: 16px;
+
+    &:active {
+      cursor: grabbing;
+    }
   }
 
   .pf-column:hover .pf-drag-handle {
-    opacity: 1;
+    opacity: 0.6;
+  }
+
+  .pf-drag-handle:hover {
+    opacity: 1 !important;
+  }
+
+  .pf-column-type {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--pf-text-color-secondary);
+    font-family: var(--pf-monospace-font);
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--background-color);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+
+    &:hover {
+      background: var(--separator-color);
+      color: var(--pf-text-color-primary);
+    }
   }
 
   .pf-exp-modify-columns-node-buttons {
     display: flex;
     gap: 8px;
-  }
-
-  .pf-exp-switch-wrapper,
-  .pf-exp-if-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px;
-    margin: 4px 0;
-    background: var(--surface-color);
-    border: 1px solid var(--separator-color);
-    border-radius: 4px;
-  }
-
-  .pf-exp-switch-name-row,
-  .pf-exp-if-name-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid var(--separator-color);
-
-    label {
-      font-weight: 600;
-      font-size: var(--pf-exp-font-size-sm);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--pf-text-color-secondary);
-    }
   }
 
   .pf-exp-switch-component {
@@ -127,32 +224,8 @@
   font-size: var(--pf-exp-font-size-sm);
 }
 
-.pf-exp-switch-summary,
-.pf-exp-if-summary {
-  font-size: var(--pf-exp-font-size-sm);
-  padding: 2px 0;
-}
-
-.pf-exp-switch-keyword,
-.pf-exp-if-keyword {
-  font-weight: 600;
-  color: var(--pf-primary-color);
-}
-
-.pf-exp-column-name {
-  font-family: var(--pf-font-family-monospace);
-  font-weight: 500;
-}
-
-.pf-exp-as-keyword {
-  font-style: italic;
-  color: var(--pf-text-color-light);
-}
-
-.pf-exp-alias-name {
-  font-family: var(--pf-font-family-monospace);
-  font-weight: 500;
-  color: var(--pf-primary-color);
+.pf-exp-node-details-spacer {
+  height: 8px;
 }
 
 .pf-exp-if-component {
@@ -175,4 +248,55 @@
   display: flex;
   gap: 8px;
   margin-top: 4px;
+}
+
+// Add Columns Actions Section (for AddColumnsNode)
+// Note: Uses .pf-exp-action-buttons from widgets.scss for button layout
+.pf-add-columns-actions-section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  padding: 20px;
+  background: var(--surface-color);
+  border: 1px solid var(--separator-color);
+  border-radius: 4px;
+}
+
+// Added Columns List (for AddColumnsNode)
+// Note: Uses .pf-exp-list-item, .pf-exp-empty-state from widgets.scss
+.pf-added-columns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Glob toggle styling
+.pf-exp-switch-glob-toggle {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+// Join modal two-column layout
+.pf-join-modal-layout {
+  display: flex;
+  gap: 24px;
+  min-height: 300px;
+}
+
+// Wide modal for join configuration
+.pf-join-modal-wide {
+  min-width: 700px;
+}
+
+.pf-join-modal-controls {
+  flex: 0 0 300px;
+  min-width: 250px;
+}
+
+.pf-join-modal-info {
+  flex: 1;
+  border-left: 1px solid var(--separator-color);
+  padding-left: 24px;
+  overflow: auto;
+  max-height: 400px;
 }

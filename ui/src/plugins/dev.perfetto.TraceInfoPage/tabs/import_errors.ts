@@ -26,6 +26,7 @@ import {
   groupByCategory,
   renderErrorCategoryCard,
 } from '../utils';
+import {parseJsonWithBigints} from '../../../base/json_utils';
 
 // Import log row spec
 const importLogSpec = {
@@ -228,7 +229,7 @@ export class ImportErrorsTab implements m.ClassComponent<ImportErrorsTabAttrs> {
       return null;
     }
     try {
-      const parsed = JSON.parse(args);
+      const parsed = parseJsonWithBigints(args);
       return Object.keys(parsed).length > 0 ? parsed : null;
     } catch {
       return null;

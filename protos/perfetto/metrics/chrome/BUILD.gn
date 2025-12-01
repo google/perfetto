@@ -15,7 +15,7 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [ "lite" ]
+  proto_generators = [ "zero" ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   deps = [
     "..:@TYPE@",

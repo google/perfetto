@@ -1019,8 +1019,9 @@ class TrackEvent(TestSuite):
         query="""
         WITH inline_slices AS (
           SELECT
-            EXTRACT_ARG(arg_set_id, 'callsite_id') AS callsite_id
+            callsite_id
           FROM slice
+          JOIN __intrinsic_track_event_callstacks USING (slice_id)
           WHERE name GLOB 'Inline Slice *'
         ),
         inline_stats AS (
@@ -1037,8 +1038,10 @@ class TrackEvent(TestSuite):
           inline_stats.inline_unique_callstacks
         FROM slice
         CROSS JOIN inline_stats
+        LEFT JOIN __intrinsic_track_event_callstacks tec
+          ON tec.slice_id = slice.id AND tec.callsite_id IS NOT NULL
         LEFT JOIN stack_profile_callsite spc
-          ON spc.id = EXTRACT_ARG(slice.arg_set_id, 'callsite_id')
+          ON spc.id = tec.callsite_id
         LEFT JOIN stack_profile_frame spf
           ON spf.id = spc.frame_id
         LEFT JOIN stack_profile_symbol sps

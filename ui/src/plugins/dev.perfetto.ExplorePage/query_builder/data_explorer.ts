@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
@@ -31,16 +30,13 @@ import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {Query, QueryNode, isAQuery} from '../query_node';
-import {QueryService} from './query_service';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
-
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
-  readonly queryService: QueryService;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
@@ -50,6 +46,7 @@ export interface DataExplorerAttrs {
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
+  readonly onExportToTimeline?: () => void;
   readonly onchange?: () => void;
   readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
 }
@@ -112,6 +109,39 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           )
         : null;
 
+    // Helper to create separator dot
+    const separator = () =>
+      m(
+        'span.pf-query-stats-separator',
+        {
+          'aria-hidden': 'true',
+        },
+        '•',
+      );
+
+    // Add query stats display (row count and duration)
+    const queryStats =
+      attrs.response && !attrs.isQueryRunning
+        ? m('.pf-query-stats', [
+            m('span', `${attrs.response.totalRowCount.toLocaleString()} rows`),
+            separator(),
+            m('span', `${attrs.response.durationMs.toFixed(1)}ms`),
+          ])
+        : null;
+
+    const exportButton =
+      attrs.onExportToTimeline &&
+      attrs.response &&
+      !attrs.isQueryRunning &&
+      attrs.node.state.materialized
+        ? m(Button, {
+            label: 'Export to Timeline',
+            icon: 'open_in_new',
+            onclick: () => attrs.onExportToTimeline?.(),
+            title: 'Export query results to timeline tab',
+          })
+        : null;
+
     const positionMenu = m(
       PopupMenu,
       {
@@ -130,8 +160,14 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     return [
       runButton,
       statusIndicator,
+      queryStats,
+      queryStats !== null && materializationIndicator !== null
+        ? separator()
+        : null,
       materializationIndicator,
+      materializationIndicator !== null ? separator() : null,
       autoExecuteSwitch,
+      exportButton,
       positionMenu,
     ];
   }
@@ -139,8 +175,12 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   private renderContent(attrs: DataExplorerAttrs): m.Children {
     const errors = findErrors(attrs.query, attrs.response);
 
-    // Show validation errors with centered warning icon
+    // Show validation errors first (queryError is set by validate() methods).
+    // Validation errors take priority over execution errors because if validation
+    // fails, we should not execute the query at all.
     if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
+      // Clear any stale execution error when validation fails
+      attrs.node.state.issues.clearExecutionError();
       return m(
         '.pf-data-explorer-empty-state',
         m(Icon, {
@@ -151,6 +191,33 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           '.pf-data-explorer-warning-message',
           attrs.node.state.issues.queryError.message,
         ),
+      );
+    }
+
+    // Show execution errors (e.g., when materialization fails due to
+    // invalid column names). These are stored separately from validation errors
+    // so they survive validate() calls during rendering.
+    if (attrs.node.state.issues?.executionError) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.executionError.message,
+        ),
+        m(Button, {
+          label: 'Retry',
+          icon: 'refresh',
+          intent: Intent.Primary,
+          onclick: () => {
+            // Clear the execution error and re-run the query
+            attrs.node.state.issues?.clearExecutionError();
+            attrs.onExecute();
+          },
+        }),
       );
     }
 

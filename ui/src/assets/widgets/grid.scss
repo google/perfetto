@@ -17,6 +17,10 @@
 $border-1: 1px solid var(--pf-color-border);
 $border-2: 1px solid var(--pf-color-border-secondary);
 $border-3: 2px solid var(--pf-color-border);
+$inline-padding: 0.5em;
+$block-padding: 0.3em;
+$indent-size: 16px;
+$indent-guide-offset: 12px;
 
 .pf-grid-header-cell {
   display: flex;
@@ -41,11 +45,111 @@ $border-3: 2px solid var(--pf-color-border);
     flex-shrink: 1; // The title should shrink if necessary to avoid overflow.
     text-overflow: ellipsis;
     overflow: hidden;
-    padding: 0.3em 0.5em;
+    padding: $block-padding $inline-padding;
   }
 
   &__sub-content {
-    padding: 0.3em 0.5em;
+    padding: $block-padding $inline-padding;
+  }
+
+  .pf-visible-on-hover {
+    display: none;
+
+    &.pf-active {
+      display: block;
+    }
+  }
+
+  &:hover {
+    .pf-visible-on-hover {
+      display: block;
+    }
+  }
+
+  &__sort-button {
+    // Eliminate the extra space added by the button element.
+    margin-left: -$inline-padding;
+  }
+}
+
+.pf-grid-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  overflow: hidden;
+  --pf-cell-padding-block: 0;
+  --pf-cell-padding-inline: 0;
+  --pf-grid-cell-indent: 0;
+
+  &__menu-button {
+    // Eliminate the extra space between the menu button and the cell content added by the content padding.
+    margin-left: calc(-1 * var(--pf-cell-padding-inline));
+  }
+
+  &__indent {
+    flex-shrink: 0;
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+    margin-right: calc(var(--pf-cell-padding-inline) * -1);
+
+    &--leaf {
+      visibility: hidden;
+    }
+  }
+
+  &__content {
+    flex: 1 1 auto;
+    padding: var(--pf-cell-padding-block) var(--pf-cell-padding-inline);
+    align-items: baseline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &--padded {
+    --pf-cell-padding-block: #{$block-padding};
+    --pf-cell-padding-inline: #{$inline-padding};
+  }
+
+  &--align-right {
+    .pf-grid-cell__menu-button {
+      margin-left: 0;
+      margin-right: calc(-1 * var(--pf-cell-padding-inline));
+      order: 2;
+    }
+
+    .pf-grid-cell__content {
+      order: 3;
+      text-align: right;
+    }
+  }
+
+  &--align-center {
+    .pf-grid-cell__content {
+      text-align: center;
+    }
+  }
+
+  &--nullish {
+    .pf-grid-cell__content {
+      font-style: italic;
+      color: var(--pf-color-text-muted);
+      text-align: center;
+    }
+  }
+
+  &--hint {
+    .pf-grid-cell__content {
+      color: var(--pf-color-text-hint);
+    }
+  }
+
+  &--wrap {
+    .pf-grid-cell__content {
+      white-space: normal;
+    }
   }
 
   .pf-visible-on-hover {
@@ -63,48 +167,12 @@ $border-3: 2px solid var(--pf-color-border);
   }
 }
 
-.pf-grid-cell {
-  align-items: baseline;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  &--padded {
-    padding: 0.3em 0.5em;
-  }
-
-  &--align-right {
-    text-align: right;
-  }
-
-  &--align-center {
-    text-align: center;
-  }
-
-  &--nullish {
-    font-style: italic;
-    color: var(--pf-color-text-muted);
-    text-align: center;
-  }
-
-  &--hint {
-    color: var(--pf-color-text-hint);
-  }
-
-  &[active] {
-    background: color_active(transparent);
-  }
-
-  &--wrap {
-    white-space: normal;
-  }
-}
-
 .pf-grid {
+  display: flex;
+  flex-direction: column;
   font-family: var(--pf-font-compact);
   font-size: 14px;
   overflow: auto;
-  align-items: flex-start;
   isolation: isolate; // Improves layerization performance.
 
   // If fill height is set, the grid should fill the height of its parent, and
@@ -115,14 +183,16 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &__header {
+    flex: 0 0 auto;
+
     display: flex;
     flex-direction: column;
-    background: var(--pf-color-background);
     border-bottom: $border-1;
     min-width: max-content;
     position: sticky;
     top: 0;
     z-index: 1; // Ensure header is above body rows when scrolling.
+    background: var(--pf-color-background);
   }
 
   &__puck {
@@ -131,6 +201,8 @@ $border-3: 2px solid var(--pf-color-border);
 
   &__body {
     min-width: max-content;
+    background: var(--pf-color-background);
+    flex: 0 0 auto;
 
     .pf-grid__row {
       &:hover {
@@ -138,6 +210,10 @@ $border-3: 2px solid var(--pf-color-border);
       }
       border-bottom: $border-2;
     }
+  }
+
+  &__empty-state {
+    margin-block: auto;
   }
 
   &__row {

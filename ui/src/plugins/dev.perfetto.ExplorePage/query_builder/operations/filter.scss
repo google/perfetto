@@ -221,3 +221,69 @@
   color: var(--text-primary, #333);
   line-height: 1.4;
 }
+
+// Filter node content container
+.pf-filter-node-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+// Filter input options (Create filter button + text input)
+.pf-filter-input-options {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 8px 0;
+}
+
+// Separator between filter options
+.pf-filter-or-separator {
+  color: var(--md-sys-color-outline);
+  font-size: 14px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+// Type filter text input container
+.pf-filter-type-input {
+  justify-self: end;
+  width: 100%;
+  max-width: 280px;
+
+  // Make the text input fill the container
+  .pf-text-input {
+    width: 100%;
+  }
+}
+
+// Filter list container
+.pf-filters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+// Disabled filter styling
+.pf-filter-disabled {
+  opacity: 0.5;
+}
+
+// Filter footer with operator toggle and mode switch
+.pf-filter-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+// SQL expression modal editor container
+.pf-filter-sql-editor {
+  min-height: 300px;
+  // Matches the One Dark theme used by the CodeMirror editor
+  background-color: var(--pf-editor-background, #282c34);
+  position: relative;
+}

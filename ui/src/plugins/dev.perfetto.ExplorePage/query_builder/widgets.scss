@@ -1,0 +1,314 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "./common";
+
+// General widget styles
+
+.pf-exp-column-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--pf-color-border);
+
+  label {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-exp-button-group {
+  display: flex;
+  gap: 8px;
+}
+
+// Card header widget
+.pf-exp-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+
+  &__title {
+    margin: 0;
+  }
+}
+
+// Section widget
+.pf-exp-section {
+  padding: 1rem;
+  border-bottom: 1px solid var(--pf-color-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.pf-exp-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+
+  h2 {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
+  }
+}
+
+.pf-exp-section-content {
+  // Content fills available space
+}
+
+// List item widget - displays an item with icon, name, description, and action button
+.pf-exp-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--pf-color-background);
+    border-color: var(--pf-color-primary);
+  }
+
+  &:focus {
+    outline: 2px solid var(--pf-color-accent, var(--pf-color-primary));
+    outline-offset: 2px;
+  }
+
+  &:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pf-color-accent, var(--pf-color-primary));
+    outline-offset: 2px;
+  }
+
+  &.pf-joined-source {
+    border-left: 4px solid var(--pf-color-primary);
+  }
+}
+
+.pf-exp-list-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; // Allow text truncation
+}
+
+.pf-exp-list-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pf-color-text);
+  font-family: "Roboto Mono", monospace;
+}
+
+.pf-exp-list-item-description {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-exp-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+// Action buttons widget - horizontal row of action buttons
+.pf-exp-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+
+  button {
+    justify-content: flex-start;
+  }
+}
+
+// Form row widget - labeled form row with children
+// Uses <label> as the root element for accessibility
+.pf-exp-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  span {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+    min-width: 100px;
+  }
+}
+
+// Labeled control widget - inline label with any control
+// Uses <label> as the root element for accessibility
+.pf-exp-labeled-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin: 0; // Prevent margin stacking with section gaps
+
+  span {
+    color: var(--pf-color-text);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  // Allow inputs to shrink and not overflow
+  .pf-text-input {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+}
+
+// Draggable list item widget
+.pf-exp-draggable-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  cursor: grab;
+  flex-wrap: wrap;
+
+  &:hover {
+    background: var(--pf-color-background);
+  }
+
+  .pf-exp-drag-handle {
+    cursor: grab;
+    color: var(--pf-color-text-muted);
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  // Ensure checkbox doesn't grow
+  .pf-checkbox {
+    flex-shrink: 0;
+  }
+}
+
+// Issue list widget - bulleted list inside a callout
+.pf-exp-issue-list {
+  margin-top: 4px;
+  margin-bottom: 0;
+  padding-left: 20px;
+}
+
+// Interval node input row widget
+.pf-exp-interval-node {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+
+  span {
+    flex: 1;
+  }
+}
+
+// Advanced mode change button - subtle text-like button for mode switching
+// Overrides Button widget styles for a more subtle appearance
+.pf-exp-advanced-mode-button.pf-button {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+
+  &:hover {
+    color: var(--pf-color-primary);
+    background: var(--pf-color-background-secondary);
+  }
+
+  .pf-left-icon {
+    font-size: 16px;
+  }
+
+  .pf-button__label {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+  }
+}
+
+// Equal width row widget - responsive layout for equal-width items
+.pf-exp-equal-width-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: stretch;
+
+  // When container is narrow (< 500px), stack vertically
+  @container (max-width: 500px) {
+    flex-direction: column;
+
+    .pf-exp-equal-width-row__separator {
+      display: none; // Hide separator in vertical mode
+    }
+  }
+}
+
+.pf-exp-equal-width-row__item {
+  flex: 1 1 0; // Equal width, can grow and shrink
+  min-width: 0; // Allow items to shrink below content size
+  display: flex;
+  align-items: stretch;
+
+  // Make child elements fill the container
+  > * {
+    flex: 1;
+  }
+}
+
+.pf-exp-equal-width-row__separator {
+  display: flex;
+  align-items: center;
+  color: var(--pf-color-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  user-select: none;
+}
+
+// Info box widget - displays informational text in a styled box
+.pf-exp-info-box {
+  font-size: 13px;
+  color: var(--pf-color-text-muted);
+  padding: 12px 16px;
+  line-height: 1.5;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+// Secondary inputs container - vertical stack of input items
+.pf-exp-secondary-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

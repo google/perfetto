@@ -22,9 +22,9 @@ import {androidRecordSection} from './pages/android';
 import {perfettoSDKRecordSection} from './pages/perfetto_sdk';
 import {bufferConfigPage} from './pages/buffer_config_page';
 import {chromeRecordSection} from './pages/chrome';
-import {instructionsPage} from './pages/instructions_page';
 import {cpuRecordSection} from './pages/cpu';
 import {gpuRecordSection} from './pages/gpu';
+import {instructionsPage} from './pages/instructions_page';
 import {memoryRecordSection} from './pages/memory';
 import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
@@ -33,7 +33,6 @@ import {networkRecordSection} from './pages/network';
 import {targetSelectionPage} from './pages/target_selection_page';
 import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
-import {savedConfigsPage} from './pages/saved_configs';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
 import m from 'mithril';
 export default class implements PerfettoPlugin {
@@ -42,7 +41,7 @@ export default class implements PerfettoPlugin {
 
   static onActivate(app: App) {
     app.sidebar.addMenuItem({
-      section: 'navigation',
+      section: 'trace_files',
       text: 'Record new trace',
       href: '#!/record',
       icon: 'fiber_smart_record',
@@ -88,7 +87,6 @@ export default class implements PerfettoPlugin {
         targetSelectionPage(recMgr),
         bufferConfigPage(recMgr),
         instructionsPage(recMgr),
-        savedConfigsPage(recMgr),
 
         chromeRecordSection(() => chromeProvider.getChromeCategories()),
         cpuRecordSection(),

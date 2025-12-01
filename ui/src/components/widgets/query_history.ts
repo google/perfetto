@@ -36,7 +36,9 @@ export class QueryHistoryComponent
     const {trace, runQuery, setQuery, ...rest} = attrs;
     const unstarred: HistoryItemComponentAttrs[] = [];
     const starred: HistoryItemComponentAttrs[] = [];
-    for (let i = queryHistoryStorage.data.length - 1; i >= 0; i--) {
+    // Items are stored with most recent first (index 0)
+    // Iterate forward and separate starred from unstarred
+    for (let i = 0; i < queryHistoryStorage.data.length; i++) {
       const entry = queryHistoryStorage.data[i];
       const arr = entry.starred ? starred : unstarred;
       arr.push({trace, index: i, entry, runQuery, setQuery});
@@ -126,28 +128,39 @@ class HistoryStorage {
 
   saveQuery(query: string) {
     const items = this.data;
-    let firstUnstarred = -1;
+    let lastUnstarred = -1;
     let countUnstarred = 0;
+    let existingIndex = -1;
+
     for (let i = 0; i < items.length; i++) {
       if (!items[i].starred) {
         countUnstarred++;
-        if (firstUnstarred === -1) {
-          firstUnstarred = i;
-        }
+        lastUnstarred = i;
       }
 
       if (items[i].query === query) {
-        // Query is already in the history, no need to save
-        return;
+        existingIndex = i;
       }
     }
 
-    if (countUnstarred >= this.maxItems) {
-      assertTrue(firstUnstarred !== -1);
-      items.splice(firstUnstarred, 1);
+    // If query already exists, move it to the front (index 0)
+    if (existingIndex !== -1) {
+      const isStarred = items[existingIndex].starred;
+      items.splice(existingIndex, 1);
+      // Re-add at the front with same starred status
+      items.unshift({query, starred: isStarred});
+      this.save();
+      return;
     }
 
-    items.push({query, starred: false});
+    // Check if we need to remove the oldest unstarred query
+    if (countUnstarred >= this.maxItems) {
+      assertTrue(lastUnstarred !== -1);
+      items.splice(lastUnstarred, 1);
+    }
+
+    // Add new query at the front as unstarred
+    items.unshift({query, starred: false});
     this.save();
   }
 

@@ -59,11 +59,6 @@ CREATE PERFETTO VIEW slice (
   name STRING,
   -- The depth of the slice in the current stack of slices.
   depth LONG,
-  -- A unique identifier obtained from the names of all slices in this stack.
-  -- This is rarely useful and kept around only for legacy reasons.
-  stack_id LONG,
-  -- The stack_id for the parent of this slice. Rarely useful.
-  parent_stack_id LONG,
   -- The id of the parent (i.e. immediate ancestor) slice for this slice.
   parent_id JOINID(slice.id),
   -- The id of the argument set associated with this slice.
@@ -131,10 +126,6 @@ CREATE PERFETTO VIEW slices (
   name STRING,
   -- Alias of `slice.depth`.
   depth LONG,
-  -- Alias of `slice.stack_id`.
-  stack_id LONG,
-  -- Alias of `slice.parent_stack_id`.
-  parent_stack_id LONG,
   -- Alias of `slice.parent_id`.
   parent_id JOINID(slice.id),
   -- Alias of `slice.arg_set_id`.
@@ -268,7 +259,7 @@ SELECT
     WHEN 'int'
     THEN cast_string!(int_value)
     WHEN 'uint'
-    THEN cast_string!(int_value)
+    THEN printf('%u', int_value)
     WHEN 'string'
     THEN string_value
     WHEN 'real'

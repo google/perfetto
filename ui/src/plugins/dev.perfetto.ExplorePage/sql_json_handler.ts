@@ -231,7 +231,7 @@ export function createGraphFromSql(sql: string): string {
         filters: [],
       },
       nextNodes: [],
-      prevNodes: [],
+      inputNodeIds: [],
     };
     serializedNodes.push(node);
     nodeMap.set(nodeId, node);
@@ -242,10 +242,10 @@ export function createGraphFromSql(sql: string): string {
     for (const dep of parsedNode.dependencies) {
       const depNode = nodeMap.get(dep)!;
       depNode.nextNodes.push(node.nodeId);
-      if (!node.prevNodes) {
-        node.prevNodes = [];
+      if (!node.inputNodeIds) {
+        node.inputNodeIds = [];
       }
-      node.prevNodes.push(depNode.nodeId);
+      node.inputNodeIds.push(depNode.nodeId);
     }
     if (parsedNode.dependencies.length === 0) {
       rootNodeIds.push(node.nodeId);
