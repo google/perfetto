@@ -198,7 +198,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Interval source is invalid',
+        'Interval source 1 is invalid',
       );
     });
 
@@ -240,7 +240,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Interval source is missing required columns',
+        'Interval source 1 is missing required columns',
       );
     });
 
