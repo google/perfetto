@@ -92,6 +92,7 @@ import {UIFilter} from './operations/filter';
 import {MaterializationService} from './materialization_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
+import {getAllDownstreamNodes} from './graph_utils';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -144,7 +145,6 @@ enum SelectedView {
   kInfo = 0,
   kModify = 1,
   kResult = 2,
-  kComment = 3,
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -186,7 +186,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
     const sourceNodes = nodeRegistry
       .list()
-      .filter(([_id, node]) => node.type === 'source')
+      .filter(([_id, node]) => node.showOnLandingPage === true)
       .map(([id, node]) => {
         const name = node.name ?? 'Unnamed Source';
         const description = node.description ?? '';
@@ -326,6 +326,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             this.isAnalyzing = isAnalyzing;
           },
           onchange: () => {
+            // When a node's state changes, notify all downstream nodes
+            // to update their columns and UI. This ensures that when e.g.
+            // a column is renamed in ModifyColumnsNode, the AggregationNode
+            // sees the new column name.
+            const downstreamNodes = getAllDownstreamNodes(selectedNode);
+            for (const node of downstreamNodes) {
+              // Skip the node itself (it's included in downstream nodes)
+              if (node.nodeId === selectedNode.nodeId) continue;
+              node.onPrevNodesUpdated?.();
+            }
             attrs.onNodeStateChange?.();
           },
           isCollapsed: this.isExplorerCollapsed,
@@ -526,28 +536,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 this.isExplorerCollapsed = true;
               } else {
                 this.selectedView = SelectedView.kResult;
-                this.isExplorerCollapsed = false;
-              }
-            },
-          }),
-        selectedNode &&
-          m(Button, {
-            icon: 'comment',
-            title: 'Comment',
-            iconFilled: !!selectedNode.state.comment,
-            className:
-              this.selectedView === SelectedView.kComment &&
-              !this.isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
-                this.selectedView === SelectedView.kComment &&
-                !this.isExplorerCollapsed
-              ) {
-                this.isExplorerCollapsed = true;
-              } else {
-                this.selectedView = SelectedView.kComment;
                 this.isExplorerCollapsed = false;
               }
             },

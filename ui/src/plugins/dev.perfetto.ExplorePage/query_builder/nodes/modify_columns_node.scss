@@ -77,6 +77,18 @@
     gap: 8px;
   }
 
+  .pf-modify-columns-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .pf-modify-columns-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
   .pf-column-list-container {
     display: flex;
     flex-direction: column;
@@ -112,6 +124,18 @@
     &:hover {
       border-color: var(--separator-color);
       background: var(--background-color);
+    }
+
+    // Make the text input flexible but constrained
+    .pf-text-input {
+      min-width: 100px;
+      max-width: 250px;
+      flex: 1 1 auto;
+    }
+
+    // Keep type selector from being pushed out
+    .pf-column-type {
+      flex-shrink: 0;
     }
   }
 

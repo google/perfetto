@@ -22,6 +22,7 @@ import {
 } from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
 
 export class TestNode implements QueryNode {
   readonly nodeId: string;
@@ -43,6 +44,12 @@ export class TestNode implements QueryNode {
 
   getTitle(): string {
     return 'Test Node';
+  }
+
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: null,
+    };
   }
 
   clone(): QueryNode {

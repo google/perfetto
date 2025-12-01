@@ -21,11 +21,12 @@ import {
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {LabeledControl} from '../widgets';
+import {NodeDetailsAttrs} from '../node_explorer_types';
+import {NarrowTextInput} from '../node_styling_widgets';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
   limit?: number;
@@ -61,73 +62,80 @@ export class LimitAndOffsetNode implements QueryNode {
     return 'Limit and Offset';
   }
 
-  nodeDetails(): m.Child {
-    const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
-
-    return m('div', [
-      m(
-        LabeledControl,
-        {label: 'Limit'},
-        m(TextInput, {
-          style: {width: '40px'},
-          oninput: (e: Event) => {
-            const target = e.target as HTMLInputElement;
-            this.state.limit = Number(target.value);
+  private renderLimitControl(): m.Child {
+    return m(
+      LabeledControl,
+      {label: 'Limit'},
+      m(NarrowTextInput, {
+        oninput: (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          this.state.limit = Number(target.value);
+          m.redraw();
+        },
+        onblur: () => {
+          this.state.onchange?.();
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            this.state.onchange?.();
+          }
+        },
+        value: this.state.limit?.toString() ?? '10',
+      }),
+      !this.showOffset &&
+        m(Button, {
+          icon: 'edit',
+          minimal: true,
+          onclick: () => {
+            this.showOffset = true;
+            // Set offset to 10 when showing for the first time
+            if (this.state.offset === 0 || this.state.offset === undefined) {
+              this.state.offset = 10;
+            }
+            this.state.onchange?.();
             m.redraw();
           },
-          onblur: () => {
-            this.state.onchange?.();
-          },
-          onkeydown: (e: KeyboardEvent) => {
-            if (e.key === 'Enter') {
-              this.state.onchange?.();
-            }
-          },
-          value: this.state.limit?.toString() ?? '10',
         }),
-        !this.showOffset &&
-          m(Button, {
-            icon: 'edit',
-            minimal: true,
-            onclick: () => {
-              this.showOffset = true;
-              // Set offset to 10 when showing for the first time
-              if (this.state.offset === 0 || this.state.offset === undefined) {
-                this.state.offset = 10;
-              }
-              this.state.onchange?.();
-              m.redraw();
-            },
-          }),
-      ),
-      (this.showOffset || hasOffset) &&
-        m(
-          LabeledControl,
-          {label: 'Offset'},
-          m(TextInput, {
-            style: {width: '40px'},
-            oninput: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              const value = Number(target.value);
-              this.state.offset = value;
-              // Hide offset when set to 0
-              if (value === 0) {
-                this.showOffset = false;
-              }
-              m.redraw();
-            },
-            onblur: () => {
-              this.state.onchange?.();
-            },
-            onkeydown: (e: KeyboardEvent) => {
-              if (e.key === 'Enter') {
-                this.state.onchange?.();
-              }
-            },
-            value: this.state.offset?.toString() ?? '10',
-          }),
-        ),
-    ]);
+    );
+  }
+
+  private renderOffsetControl(): m.Child {
+    return m(
+      LabeledControl,
+      {label: 'Offset'},
+      m(NarrowTextInput, {
+        oninput: (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          const value = Number(target.value);
+          this.state.offset = value;
+          // Hide offset when set to 0
+          if (value === 0) {
+            this.showOffset = false;
+          }
+          m.redraw();
+        },
+        onblur: () => {
+          this.state.onchange?.();
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            this.state.onchange?.();
+          }
+        },
+        value: this.state.offset?.toString() ?? '10',
+      }),
+    );
+  }
+
+  nodeDetails(): NodeDetailsAttrs {
+    const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
+
+    return {
+      content: m('div', [
+        this.renderLimitControl(),
+        (this.showOffset || hasOffset) && this.renderOffsetControl(),
+      ]),
+    };
   }
 
   nodeSpecificModify(): m.Child {
@@ -202,7 +210,6 @@ export class LimitAndOffsetNode implements QueryNode {
       primaryInputId: this.primaryInput?.nodeId,
       limit: this.state.limit,
       offset: this.state.offset,
-      comment: this.state.comment,
     };
   }
 

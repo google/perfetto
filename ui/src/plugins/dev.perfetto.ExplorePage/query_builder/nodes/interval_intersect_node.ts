@@ -34,6 +34,8 @@ import {
 } from '../../../../widgets/multiselect';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {LabeledControl, IssueList, ListItem} from '../widgets';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeTitle} from '../node_styling_widgets';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -397,8 +399,10 @@ export class IntervalIntersectNode implements QueryNode {
     );
   }
 
-  nodeDetails(): m.Child {
-    return this.renderPartitionSelector(true);
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
+    };
   }
 
   private cleanupPartitionColumns(): void {
@@ -534,7 +538,7 @@ export class IntervalIntersectNode implements QueryNode {
     return Array.from(commonColumns).sort();
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
     const error = this.state.issues?.queryError;
     const duplicateWarnings = this.checkDuplicateColumns();
@@ -550,26 +554,50 @@ export class IntervalIntersectNode implements QueryNode {
 
     // If no inputs connected, show empty state
     if (connectedInputs.length === 0) {
-      return m(
-        '.pf-exp-query-operations',
-        m(EmptyState, {
-          icon: 'link_off',
-          title: 'No inputs connected',
-        }),
-      );
+      return {
+        sections: [
+          {
+            content: m(EmptyState, {
+              icon: 'link_off',
+              title: 'No inputs connected',
+            }),
+          },
+        ],
+      };
     }
 
-    return m(
-      '.pf-exp-query-operations',
-      error && m(Callout, {icon: 'error'}, error.message),
-      m(IssueList, {
-        icon: 'warning',
-        title:
-          "Duplicate columns will be excluded from the result. Use '+ -> Columns -> Modify' to rename them:",
-        items: duplicateWarnings,
-      }),
-      this.renderPartitionSelector(false),
-      connectedInputs.map(({node, index}) => {
+    const sections: NodeModifyAttrs['sections'] = [];
+
+    // Add error if present
+    if (error) {
+      sections.push({
+        content: m(Callout, {icon: 'error'}, error.message),
+      });
+    }
+
+    // Add duplicate warnings if present
+    if (duplicateWarnings.length > 0) {
+      sections.push({
+        content: m(IssueList, {
+          icon: 'warning',
+          title:
+            "Duplicate columns will be excluded from the result. Use '+ -> Columns -> Modify' to rename them:",
+          items: duplicateWarnings,
+        }),
+      });
+    }
+
+    // Add partition selector
+    const partitionSelector = this.renderPartitionSelector(false);
+    if (partitionSelector !== null) {
+      sections.push({
+        content: partitionSelector,
+      });
+    }
+
+    // Add input nodes section
+    sections.push({
+      content: connectedInputs.map(({node, index}) => {
         const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
 
         return m(ListItem, {
@@ -603,7 +631,11 @@ export class IntervalIntersectNode implements QueryNode {
           ],
         });
       }),
-    );
+    });
+
+    return {
+      sections,
+    };
   }
 
   clone(): QueryNode {
@@ -650,7 +682,6 @@ export class IntervalIntersectNode implements QueryNode {
       intervalNodes: this.inputNodesList
         .filter((n): n is QueryNode => n !== undefined)
         .map((n) => n.nodeId),
-      comment: this.state.comment,
       filterNegativeDur: this.state.filterNegativeDur,
       partitionColumns: this.state.partitionColumns,
     };

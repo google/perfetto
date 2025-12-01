@@ -33,12 +33,13 @@ import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
 import {showModal} from '../../../../widgets/modal';
 import {Editor} from '../../../../widgets/editor';
-import {Switch} from '../../../../widgets/switch';
-import {Button, ButtonVariant} from '../../../../widgets/button';
 import {TextInput} from '../../../../widgets/text_input';
-import {AdvancedModeChangeButton, ListItem} from '../widgets';
+import {ListItem, EqualWidthRow} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {classNames} from '../../../../base/classnames';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {Button, ButtonVariant} from '../../../../widgets/button';
+import {NodeDetailsMessage} from '../node_styling_widgets';
 
 // Maximum length for truncated SQL display
 const SQL_TRUNCATE_LENGTH = 50;
@@ -122,7 +123,7 @@ export class FilterNode implements QueryNode {
     );
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
     this.validate();
 
     const mode = this.state.filterMode ?? 'structured';
@@ -131,114 +132,150 @@ export class FilterNode implements QueryNode {
     if (mode === 'freeform') {
       const sql = this.state.sqlExpression?.trim();
       if (!sql) {
-        return m('.pf-filter-node-details', 'No filter clause');
+        return {
+          content: NodeDetailsMessage('No filter clause'),
+        };
       }
 
       if (sql.length < 200) {
-        return m('.pf-filter-node-details', m('code', sql));
+        return {
+          content: m('code', sql),
+        };
       } else {
-        return m('.pf-filter-node-details', 'Filter clause applied');
+        return {
+          content: NodeDetailsMessage('Filter clause applied'),
+        };
       }
     }
 
     // Structured mode
     if (!this.state.filters || this.state.filters.length === 0) {
-      return m('.pf-filter-node-details', 'No filters applied');
+      return {
+        content: NodeDetailsMessage('No filters applied'),
+      };
     }
 
-    return formatFilterDetails(
-      this.state.filters,
-      this.state.filterOperator,
-      this.state, // Pass state for interactive toggling and removal
-      undefined, // onRemove - handled internally by formatFilterDetails
-      true, // compact mode for smaller font
-      (filter) => this.handleFilterEdit(filter), // onEdit callback for right-click editing
-    );
+    return {
+      content: formatFilterDetails(
+        this.state.filters,
+        this.state.filterOperator,
+        this.state, // Pass state for interactive toggling and removal
+        undefined, // onRemove - handled internally by formatFilterDetails
+        true, // compact mode for smaller font
+        (filter) => this.handleFilterEdit(filter), // onEdit callback for right-click editing
+      ),
+    };
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
 
     const mode = this.state.filterMode ?? 'structured';
+    const filters = this.state.filters ?? [];
+    const operator = this.state.filterOperator ?? 'AND';
 
     // Set autoExecute based on mode
     this.state.autoExecute = mode === 'structured';
 
-    return m('.pf-filter-node-content', [
-      this.renderInputOptions(),
-      this.renderFiltersList(),
-      this.renderFooter(),
-    ]);
-  }
+    // Build bottom buttons
+    const bottomLeftButtons: NodeModifyAttrs['bottomLeftButtons'] = [];
+    const bottomRightButtons: NodeModifyAttrs['bottomRightButtons'] = [];
 
-  private renderInputOptions(): m.Child {
-    const mode = this.state.filterMode ?? 'structured';
+    // Show AND/OR switch only when there are 2+ filters in structured mode
+    if (mode === 'structured' && filters.length >= 2) {
+      bottomLeftButtons.push({
+        label: operator === 'OR' ? 'OR' : 'AND',
+        icon: operator === 'OR' ? 'alt_route' : 'join',
+        onclick: () => {
+          this.state.filterOperator = operator === 'OR' ? 'AND' : 'OR';
+          this.state.onchange?.();
+        },
+      });
+    }
 
-    // In freeform mode, show edit button
-    if (mode === 'freeform') {
-      return m(
-        '.pf-filter-input-options',
-        m(Button, {
+    // Mode switch button
+    bottomRightButtons.push({
+      label:
+        mode === 'structured' ? 'Switch to WHERE clause' : 'Switch to filters',
+      icon: mode === 'structured' ? 'code' : 'filter_alt',
+      onclick: () => this.handleModeSwitch(mode),
+      compact: true,
+    });
+
+    // Build sections
+    const sections: NodeModifyAttrs['sections'] = [];
+
+    // Input section with buttons/inputs
+    if (mode === 'structured') {
+      sections.push({
+        content: m(
+          EqualWidthRow,
+          {separator: '•'},
+          m(Button, {
+            label: 'Create filter',
+            icon: 'add',
+            variant: ButtonVariant.Outlined,
+            onclick: () => this.showAddFilterModal(),
+          }),
+          m(TextInput, {
+            placeholder: 'Type filter (e.g., dur > 1000)',
+            leftIcon: 'filter_alt',
+            onkeydown: (e: KeyboardEvent) => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              const input = e.target as HTMLInputElement;
+              const text = input.value.trim();
+              if (text === '') return;
+
+              // Parse the text into a structured filter
+              const filter = parseFilterFromText(text, this.sourceCols);
+              if (!isFilterDefinitionValid(filter)) {
+                // Show error to user - filter couldn't be parsed
+                showModal({
+                  title: 'Invalid filter',
+                  content: m(
+                    'div',
+                    m('p', `Could not parse filter: "${text}"`),
+                    m(
+                      'p',
+                      'Expected format: column operator value (e.g., dur > 1000)',
+                    ),
+                  ),
+                });
+                return;
+              }
+
+              // Add the parsed filter to the list
+              this.state.filters = [...(this.state.filters ?? []), filter];
+              this.state.filterMode = 'structured';
+              this.state.onchange?.();
+              input.value = '';
+            },
+          }),
+        ),
+      });
+    } else {
+      // Freeform mode - show edit button
+      sections.push({
+        content: m(Button, {
           label: 'Edit WHERE clause',
           icon: 'edit',
           variant: ButtonVariant.Outlined,
           onclick: () => this.showSqlExpressionModal(),
         }),
-      );
+      });
     }
 
-    // Structured mode: show two clear alternatives - left and right with separator
-    return m(
-      '.pf-filter-input-options',
-      // Option 1: Create filter button (left)
-      m(Button, {
-        label: 'Create filter',
-        icon: 'add',
-        variant: ButtonVariant.Outlined,
-        onclick: () => this.showAddFilterModal(),
-      }),
-      // Visible separator
-      m('span.pf-filter-or-separator', 'or'),
-      // Option 2: Type filter text input (right)
-      m(
-        '.pf-filter-type-input',
-        m(TextInput, {
-          placeholder: 'Type filter (e.g., dur > 1000)',
-          leftIcon: 'filter_alt',
-          onkeydown: (e: KeyboardEvent) => {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            const input = e.target as HTMLInputElement;
-            const text = input.value.trim();
-            if (text === '') return;
+    // Filters list section
+    sections.push({
+      content: this.renderFiltersList(),
+    });
 
-            // Parse the text into a structured filter
-            const filter = parseFilterFromText(text, this.sourceCols);
-            if (!isFilterDefinitionValid(filter)) {
-              // Show error to user - filter couldn't be parsed
-              showModal({
-                title: 'Invalid filter',
-                content: m(
-                  'div',
-                  m('p', `Could not parse filter: "${text}"`),
-                  m(
-                    'p',
-                    'Expected format: column operator value (e.g., dur > 1000)',
-                  ),
-                ),
-              });
-              return;
-            }
-
-            // Add the parsed filter to the list
-            this.state.filters = [...(this.state.filters ?? []), filter];
-            this.state.filterMode = 'structured';
-            this.state.onchange?.();
-            input.value = '';
-          },
-        }),
-      ),
-    );
+    return {
+      bottomLeftButtons,
+      bottomRightButtons,
+      sections,
+    };
   }
 
   private renderFiltersList(): m.Child {
@@ -318,45 +355,6 @@ export class FilterNode implements QueryNode {
     }
 
     return m('.pf-filters-list', items);
-  }
-
-  private renderFooter(): m.Child {
-    const mode = this.state.filterMode ?? 'structured';
-    const filters = this.state.filters ?? [];
-    const operator = this.state.filterOperator ?? 'AND';
-
-    // Show AND/OR switch only when there are 2+ filters in structured mode
-    const showOperatorSwitch = mode === 'structured' && filters.length >= 2;
-
-    return m(
-      '.pf-filter-footer',
-      // AND/OR toggle (only visible with 2+ filters) - left side
-      showOperatorSwitch
-        ? m(
-            '.pf-filter-operator-toggle',
-            m(Switch, {
-              labelLeft: 'AND',
-              label: 'OR',
-              checked: operator === 'OR',
-              onchange: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                const newOperator = target.checked ? 'OR' : 'AND';
-                this.state.filterOperator = newOperator;
-                this.state.onchange?.();
-              },
-            }),
-          )
-        : null,
-      // Mode switch button (bottom right)
-      m(AdvancedModeChangeButton, {
-        label:
-          mode === 'structured'
-            ? 'Switch to WHERE clause'
-            : 'Switch to filters',
-        icon: mode === 'structured' ? 'code' : 'filter_alt',
-        onclick: () => this.handleModeSwitch(mode),
-      }),
-    );
   }
 
   private handleModeSwitch(currentMode: 'structured' | 'freeform'): void {
@@ -602,7 +600,6 @@ export class FilterNode implements QueryNode {
       filterOperator: this.state.filterOperator,
       filterMode: this.state.filterMode,
       sqlExpression: this.state.sqlExpression,
-      comment: this.state.comment,
     };
   }
 

@@ -130,8 +130,8 @@ export const SIMPLE_TYPE_KINDS: SimpleType['kind'][] = [
 
 export function parsePerfettoSqlTypeFromString(args: {
   type: string;
-  table: string;
-  column: string;
+  table?: string;
+  column?: string;
 }): Result<PerfettoSqlType> {
   const value = args.type.toLowerCase();
   const maybeSimpleType = SIMPLE_TYPES[value];
@@ -142,6 +142,11 @@ export function parsePerfettoSqlTypeFromString(args: {
   }
   if (value === 'id') {
     // The plain `ID` are resolved into `ID($current_table.$current_column)`.
+    if (args.table === undefined || args.column === undefined) {
+      return errResult(
+        `Cannot parse plain 'id' type without table and column context`,
+      );
+    }
     return okResult({
       kind: 'id',
       source: {

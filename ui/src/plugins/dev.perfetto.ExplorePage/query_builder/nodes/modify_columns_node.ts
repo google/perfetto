@@ -20,7 +20,6 @@ import {
   NodeType,
 } from '../../query_node';
 import {Button, ButtonVariant} from '../../../../widgets/button';
-import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {TextInput} from '../../../../widgets/text_input';
@@ -34,6 +33,12 @@ import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {DraggableItem} from '../widgets';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {
+  NodeDetailsMessage,
+  NodeDetailsSpacer,
+  ColumnName,
+} from '../node_styling_widgets';
 
 export interface ModifyColumnsSerializedState {
   primaryInputId?: string;
@@ -101,9 +106,8 @@ export class ModifyColumnsNode implements QueryNode {
 
     this.state.selectedColumns = newSelectedColumns;
 
-    // Trigger UI update and notify next nodes of the change
+    // Trigger downstream update (handled by builder's onchange callback)
     this.state.onchange?.();
-    m.redraw();
   }
 
   static deserializeState(
@@ -181,138 +185,146 @@ export class ModifyColumnsNode implements QueryNode {
     return 'Modify Columns';
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
     const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
     const totalCols = this.state.selectedColumns.length;
 
     // If all columns have been deselected, show a specific message.
     if (selectedCols.length === 0) {
-      return m('.pf-exp-node-details-message', 'All columns deselected');
+      return {
+        content: NodeDetailsMessage('All columns deselected'),
+      };
     }
 
     // Determine the state of modifications.
     const hasUnselected = this.state.selectedColumns.some((c) => !c.checked);
     const hasAlias = this.state.selectedColumns.some((c) => c.alias);
     if (!hasUnselected && !hasAlias) {
-      return m('.pf-exp-node-details-message', 'Select all');
+      return {
+        content: NodeDetailsMessage('Select all'),
+      };
     }
 
     // If there are too many selected columns, show a summary.
     const maxColumnsToShow = 5;
     if (selectedCols.length > maxColumnsToShow) {
       const renamedCols = selectedCols.filter((c) => c.alias);
-      const summaryText = `${selectedCols.length} of ${totalCols} columns selected`;
+      const allSelected = selectedCols.length === totalCols;
 
       // Show up to 3 renamed columns explicitly even in summary mode.
       if (renamedCols.length > 0 && renamedCols.length <= 3) {
         const renamedItems = renamedCols.map((c) =>
-          m('div', `${c.column.name} AS ${c.alias}`),
+          m('div', ColumnName(c.column.name), ' AS ', ColumnName(c.alias!)),
         );
-        return m(
-          CardStack,
-          m(
-            Card,
-            {className: 'pf-exp-node-details-card'},
+        // Only show the count if not all columns are selected
+        if (allSelected) {
+          return {
+            content: m('div', ...renamedItems),
+          };
+        }
+        const summaryText = `${selectedCols.length} of ${totalCols} columns selected`;
+        return {
+          content: m(
+            'div',
             m('div', summaryText),
-            m('.pf-exp-node-details-spacer'),
+            NodeDetailsSpacer(),
             ...renamedItems,
           ),
-        );
+        };
       } else {
-        return m(
-          CardStack,
-          m(
-            Card,
-            {className: 'pf-exp-node-details-card'},
-            m('div', summaryText),
-          ),
-        );
+        // If all columns are selected, don't show the redundant "X of X" message
+        if (allSelected) {
+          return {
+            content: NodeDetailsMessage('Select all'),
+          };
+        }
+        const summaryText = `${selectedCols.length} of ${totalCols} columns selected`;
+        return {
+          content: m('div', summaryText),
+        };
       }
     }
 
     // Otherwise, list all selected columns.
     const selectedItems = selectedCols.map((c) => {
       if (c.alias) {
-        return m('div', `${c.column.name} AS ${c.alias}`);
+        return m('div', ColumnName(c.column.name), ' AS ', ColumnName(c.alias));
       } else {
-        return m('div', c.column.name);
+        return m('div', ColumnName(c.column.name));
       }
     });
-    return m(
-      CardStack,
-      m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
-    );
+    return {
+      content: m('div', ...selectedItems),
+    };
   }
 
-  nodeSpecificModify(): m.Child {
-    return m(
-      'div.pf-modify-columns-node',
-      this.renderHeader(),
-      this.renderColumnList(),
-    );
-  }
-
-  private renderHeader(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
     const selectedCount = this.state.selectedColumns.filter(
       (col) => col.checked,
     ).length;
     const totalCount = this.state.selectedColumns.length;
 
-    return m(
-      '.pf-modify-columns-header',
-      m('.pf-modify-columns-title', 'Select and Rename Columns'),
-      m(
-        '.pf-modify-columns-actions',
-        m(
-          '.pf-modify-columns-stats',
-          `${selectedCount} / ${totalCount} selected`,
+    // Build sections
+    const sections: NodeModifyAttrs['sections'] = [
+      {
+        title: `Select and Rename Columns (${selectedCount} / ${totalCount} selected)`,
+        content: m(
+          '.pf-modify-columns-content',
+          m(
+            '.pf-modify-columns-actions',
+            m(Button, {
+              label: 'Select All',
+              onclick: () => {
+                this.state.selectedColumns = this.state.selectedColumns.map(
+                  (col) => ({
+                    ...col,
+                    checked: true,
+                  }),
+                );
+                this.state.onchange?.();
+              },
+              variant: ButtonVariant.Outlined,
+              compact: true,
+            }),
+            m(Button, {
+              label: 'Deselect All',
+              onclick: () => {
+                this.state.selectedColumns = this.state.selectedColumns.map(
+                  (col) => ({
+                    ...col,
+                    checked: false,
+                  }),
+                );
+                this.state.onchange?.();
+              },
+              variant: ButtonVariant.Outlined,
+              compact: true,
+            }),
+          ),
+          this.renderColumnList(),
         ),
-        m(
-          '.pf-modify-columns-buttons',
-          m(Button, {
-            label: 'Select All',
-            variant: ButtonVariant.Outlined,
-            compact: true,
-            onclick: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: true,
-                }),
-              );
-              this.state.onchange?.();
-            },
-          }),
-          m(Button, {
-            label: 'Deselect All',
-            variant: ButtonVariant.Outlined,
-            compact: true,
-            onclick: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: false,
-                }),
-              );
-              this.state.onchange?.();
-            },
-          }),
-        ),
-      ),
-    );
+      },
+    ];
+
+    return {
+      sections,
+    };
   }
 
   private renderColumnList(): m.Child {
     return m(
-      '.pf-column-list-container',
+      '.pf-modify-columns-node',
       m(
-        '.pf-column-list-help',
-        'Check columns to include, add aliases to rename, and drag to reorder',
-      ),
-      m(
-        '.pf-column-list',
-        this.state.selectedColumns.map((col, index) =>
-          this.renderSelectedColumn(col, index),
+        '.pf-column-list-container',
+        m(
+          '.pf-column-list-help',
+          'Check columns to include, add aliases to rename, and drag to reorder',
+        ),
+        m(
+          '.pf-column-list',
+          this.state.selectedColumns.map((col, index) =>
+            this.renderSelectedColumn(col, index),
+          ),
         ),
       ),
     );
@@ -478,7 +490,6 @@ export class ModifyColumnsNode implements QueryNode {
         checked: c.checked,
         alias: c.alias,
       })),
-      comment: this.state.comment,
     };
   }
 }

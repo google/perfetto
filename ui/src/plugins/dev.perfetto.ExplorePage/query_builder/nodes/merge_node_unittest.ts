@@ -28,6 +28,7 @@ describe('MergeNode', () => {
       validate: () => true,
       getTitle: () => `Mock ${id}`,
       nodeSpecificModify: () => null,
+      nodeDetails: () => ({content: null}),
       nodeInfo: () => null,
       clone: () => createMockPrevNode(id, columns),
       getStructuredQuery: () => undefined,
@@ -787,7 +788,6 @@ describe('MergeNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
-        comment: 'Test merge',
       });
 
       const serialized = mergeNode.serializeState();
@@ -799,7 +799,6 @@ describe('MergeNode', () => {
       expect(serialized.conditionType).toBe('equality');
       expect(serialized.leftColumn).toBe('id');
       expect(serialized.rightColumn).toBe('id');
-      expect(serialized.comment).toBe('Test merge');
     });
   });
 

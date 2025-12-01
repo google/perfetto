@@ -35,6 +35,7 @@ import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
 import {setValidationError} from '../../node_issues';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
 
 export interface SqlSourceSerializedState {
   sql?: string;
@@ -109,10 +110,15 @@ export class SqlSourceNode implements QueryNode {
     return 'Sql source';
   }
 
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: m('.pf-exp-node-title', this.getTitle()),
+    };
+  }
+
   serializeState(): SqlSourceSerializedState {
     return {
       sql: this.state.sql,
-      comment: this.state.comment,
     };
   }
 

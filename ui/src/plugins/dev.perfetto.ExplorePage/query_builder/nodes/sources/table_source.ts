@@ -34,6 +34,7 @@ import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
 import {setValidationError} from '../../node_issues';
 import {TableDescription} from '../../widgets';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
@@ -146,6 +147,12 @@ export class TableSourceNode implements QueryNode {
     return `${this.state.sqlTable?.name}`;
   }
 
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: this.state.sqlTable?.name ?? '',
+    };
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
     if (!this.state.sqlTable) return;
@@ -169,7 +176,6 @@ export class TableSourceNode implements QueryNode {
   serializeState(): TableSourceSerializedState {
     return {
       sqlTable: this.state.sqlTable?.name,
-      comment: this.state.comment,
     };
   }
 

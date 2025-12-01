@@ -31,6 +31,10 @@ import {
 } from './nodes/modify_columns_node';
 import {AddColumnsNode, AddColumnsNodeState} from './nodes/add_columns_node';
 import {
+  FilterDuringNode,
+  FilterDuringNodeState,
+} from './nodes/filter_during_node';
+import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
 } from './nodes/interval_intersect_node';
@@ -50,6 +54,7 @@ export function registerCoreNodes() {
     icon: 'bar_chart',
     hotkey: 's',
     type: 'source',
+    showOnLandingPage: true,
     factory: (state) => new SlicesSourceNode(state),
   });
 
@@ -59,6 +64,7 @@ export function registerCoreNodes() {
     icon: 'table_chart',
     hotkey: 't',
     type: 'source',
+    showOnLandingPage: true,
     preCreate: async ({sqlModules}) => {
       const selection = await modalForTableSelection(sqlModules);
       if (selection) {
@@ -79,6 +85,7 @@ export function registerCoreNodes() {
     icon: 'code',
     hotkey: 'q',
     type: 'source',
+    showOnLandingPage: true,
     factory: (state) => new SqlSourceNode(state as SqlSourceState),
   });
 
@@ -160,9 +167,27 @@ export function registerCoreNodes() {
         selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
         leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
         rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
-        autoExecute: true,
       };
       return new AddColumnsNode(fullState);
+    },
+  });
+
+  nodeRegistry.register('filter_during', {
+    name: 'Filter During',
+    description:
+      'Filter to only show intervals that occurred during intervals from another source.',
+    icon: 'filter_alt',
+    type: 'modification',
+    category: 'Filter',
+    factory: (state) => {
+      const fullState: FilterDuringNodeState = {
+        ...state,
+        filterNegativeDurPrimary:
+          (state as FilterDuringNodeState).filterNegativeDurPrimary ?? true,
+        filterNegativeDurSecondary:
+          (state as FilterDuringNodeState).filterNegativeDurSecondary ?? true,
+      };
+      return new FilterDuringNode(fullState);
     },
   });
 

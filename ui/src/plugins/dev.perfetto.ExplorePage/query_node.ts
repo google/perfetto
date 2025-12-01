@@ -21,6 +21,7 @@ import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
 import {stringifyJsonWithBigints} from '../../base/json_utils';
+import {NodeDetailsAttrs} from './query_builder/node_explorer_types';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {
@@ -38,6 +39,7 @@ export enum NodeType {
   kAggregation,
   kModifyColumns,
   kAddColumns,
+  kFilterDuring,
   kLimitAndOffset,
   kSort,
   kFilter,
@@ -53,6 +55,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kAggregation:
     case NodeType.kModifyColumns:
     case NodeType.kAddColumns:
+    case NodeType.kFilterDuring:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
     case NodeType.kFilter:
@@ -83,7 +86,6 @@ export interface SecondaryInputSpec {
 
 // All information required to create a new node.
 export interface QueryNodeState {
-  comment?: string;
   trace?: Trace;
   sqlModules?: SqlModules;
   sqlTable?: SqlTable;
@@ -137,8 +139,11 @@ export interface QueryNode {
 
   validate(): boolean;
   getTitle(): string;
-  nodeSpecificModify(): m.Child;
-  nodeDetails?(): m.Child | undefined;
+  // Returns either NodeModifyAttrs (new structured pattern) or m.Child (legacy pattern)
+  // NodeModifyAttrs allows nodes to declaratively specify sections and corner buttons,
+  // while m.Child allows direct rendering for backwards compatibility
+  nodeSpecificModify(): unknown;
+  nodeDetails(): NodeDetailsAttrs;
   nodeInfo(): m.Children;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
