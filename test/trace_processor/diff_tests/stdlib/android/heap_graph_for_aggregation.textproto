@@ -15,6 +15,18 @@ packet {
   }
 }
 packet {
+  timestamp: 5
+  process_stats {
+    processes {
+      pid: 2
+      rss_anon_kb: 1000
+      vm_swap_kb: 3000
+      oom_score_adj: -900
+      dmabuf_rss_kb: 8000
+    }
+  }
+}
+packet {
   trusted_packet_sequence_id: 999
   timestamp: 10
   #                 A[0x1]         java.lang.String[0x4]

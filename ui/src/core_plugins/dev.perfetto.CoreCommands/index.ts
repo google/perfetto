@@ -347,7 +347,7 @@ export default class CoreCommands implements PerfettoPlugin {
       callback: (tsRaw: unknown) => {
         const ts = getOrPromptForTimestamp(tsRaw);
         if (ts !== undefined) {
-          ctx.timeline.panToTimestamp(ts);
+          ctx.timeline.panIntoView(ts, {align: 'center'});
         }
       },
     });
