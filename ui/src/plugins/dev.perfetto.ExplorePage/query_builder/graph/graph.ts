@@ -141,6 +141,12 @@ function getInputLabels(node: QueryNode): NodePort[] {
       // For AddColumnsNode, show exactly one left-side port
       if (node.type === NodeType.kAddColumns) {
         labels.push({content: 'Table', direction: 'left'});
+      } else {
+        // For other nodes with secondaryInputs (like FilterDuring) - show dynamic ports
+        const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
+        for (let i = 0; i < numPorts; i++) {
+          labels.push({content: `Input ${i}`, direction: 'left'});
+        }
       }
       return labels;
     }
