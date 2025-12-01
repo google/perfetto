@@ -91,7 +91,8 @@ export interface QueryNodeState {
   sqlTable?: SqlTable;
 
   // Operations
-  filters?: UIFilter[];
+  // Filters can be partial during editing (similar to how Aggregation works)
+  filters?: Partial<UIFilter>[];
   filterOperator?: 'AND' | 'OR'; // How to combine filters (default: AND)
 
   issues?: NodeIssues;
@@ -282,7 +283,9 @@ export async function analyzeNode(
   if (structuredQueries === undefined) return;
 
   const res = await engine.analyzeStructuredQuery(structuredQueries);
-  if (res.error) return Error(res.error);
+  if (res.error !== undefined && res.error !== null && res.error !== '') {
+    return Error(res.error);
+  }
   if (res.results.length === 0) return Error('No structured query results');
   if (res.results.length !== structuredQueries.length) {
     return Error(
@@ -296,7 +299,11 @@ export async function analyzeNode(
   if (lastRes.sql === null || lastRes.sql === undefined) {
     return;
   }
-  if (!lastRes.textproto) {
+  if (
+    lastRes.textproto === undefined ||
+    lastRes.textproto === null ||
+    lastRes.textproto === ''
+  ) {
     return Error('No textproto in structured query results');
   }
 

@@ -740,7 +740,7 @@ function formatSingleFilter(filter: UIFilter): string {
  * Helper to create a toggle callback for filter enable/disable in nodeDetails.
  */
 function createFilterToggleCallback(state: {
-  filters?: UIFilter[];
+  filters?: Partial<UIFilter>[];
   onchange?: () => void;
 }): (filter: UIFilter) => void {
   return (filter: UIFilter) => {
@@ -763,7 +763,7 @@ function createFilterToggleCallback(state: {
 export function formatFilterDetails(
   filters: UIFilter[] | undefined,
   filterOperator: 'AND' | 'OR' | undefined,
-  state?: {filters?: UIFilter[]; onchange?: () => void},
+  state?: {filters?: Partial<UIFilter>[]; onchange?: () => void},
   onRemove?: (filter: UIFilter) => void,
   compact?: boolean,
   onEdit?: (filter: UIFilter) => void,
