@@ -36,9 +36,115 @@ import {createTableColumn} from '../../components/widgets/sql/table/create_colum
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
+  private disabledModules: Set<string> = new Set();
+  private initPromise: Promise<void>;
 
   constructor(trace: Trace, docs: SqlModulesDocsSchema) {
     this.packages = docs.map((json) => new StdlibPackageImpl(trace, json));
+    // Start computing disabled modules based on data availability
+    this.initPromise = this.computeDisabledModules(trace, docs);
+  }
+
+  async waitForInit(): Promise<void> {
+    await this.initPromise;
+  }
+
+  private async computeDisabledModules(
+    trace: Trace,
+    docs: SqlModulesDocsSchema,
+  ): Promise<void> {
+    // Build dependency graph: module -> modules that include it
+    const dependents = new Map<string, Set<string>>();
+    const modulesWithChecks = new Map<string, string>();
+
+    for (const pkg of docs) {
+      for (const mod of pkg.modules) {
+        const moduleName = mod.module_name;
+
+        // Store data check SQL if present
+        if (mod.data_check_sql) {
+          modulesWithChecks.set(moduleName, mod.data_check_sql);
+        }
+
+        // Build reverse dependency graph
+        if (mod.includes) {
+          for (const includedModule of mod.includes) {
+            if (!dependents.has(includedModule)) {
+              dependents.set(includedModule, new Set());
+            }
+            dependents.get(includedModule)!.add(moduleName);
+          }
+        }
+      }
+    }
+
+    console.log(
+      `[SqlModules] Found ${modulesWithChecks.size} modules with data checks`,
+    );
+
+    // Check data availability for modules with checks
+    const missingDataModules = new Set<string>();
+    for (const [moduleName, checkSql] of modulesWithChecks) {
+      try {
+        const result = await trace.engine.query(checkSql);
+        // EXISTS returns 0 or 1
+        if (result.numRows() > 0) {
+          // Use iter() to avoid type checking issues with VARINT
+          const iter = result.iter({});
+          iter.next();
+          const hasDataValue = iter.get('has_data');
+          const hasData =
+            typeof hasDataValue === 'bigint'
+              ? hasDataValue !== 0n
+              : Number(hasDataValue) !== 0;
+          if (!hasData) {
+            console.log(`[SqlModules] Module "${moduleName}" has no data`);
+            missingDataModules.add(moduleName);
+          }
+        }
+      } catch (e) {
+        // If query fails, assume no data
+        console.warn(`[SqlModules] Data check failed for "${moduleName}":`, e);
+        missingDataModules.add(moduleName);
+      }
+    }
+
+    console.log(
+      `[SqlModules] ${missingDataModules.size} modules with missing data:`,
+      Array.from(missingDataModules),
+    );
+
+    // BFS to find all transitive dependents of modules with missing data
+    const queue = Array.from(missingDataModules);
+    const disabled = new Set(missingDataModules);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const deps = dependents.get(current);
+
+      if (deps) {
+        for (const dependent of deps) {
+          if (!disabled.has(dependent)) {
+            disabled.add(dependent);
+            queue.push(dependent);
+          }
+        }
+      }
+    }
+
+    this.disabledModules = disabled;
+    console.log(
+      `[SqlModules] Total disabled modules (including transitive deps): ${disabled.size}`,
+      Array.from(disabled),
+    );
+  }
+
+  isModuleDisabled(moduleName: string): boolean {
+    return this.disabledModules.has(moduleName);
+  }
+
+  getDisabledModules(): ReadonlySet<string> {
+    return this.disabledModules;
   }
 
   getTable(tableName: string): SqlTable | undefined {
@@ -135,10 +241,14 @@ export class StdlibModuleImpl implements SqlModule {
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
   readonly macros: SqlMacro[];
+  readonly dataCheckSql?: string;
+  readonly includes: string[];
 
   constructor(trace: Trace, docs: DocsModuleSchemaType) {
     this.includeKey = docs.module_name;
     this.tags = docs.tags;
+    this.dataCheckSql = docs.data_check_sql ?? undefined;
+    this.includes = docs.includes ?? [];
 
     const neededInclude = this.includeKey.startsWith('prelude')
       ? undefined
@@ -349,6 +459,8 @@ const MODULE_SCHEMA = z.object({
   functions: z.array(FUNCTION_SCHEMA),
   table_functions: z.array(TABLE_FUNCTION_SCHEMA),
   macros: z.array(MACRO_SCHEMA),
+  data_check_sql: z.string().nullish(),
+  includes: z.array(z.string()).nullish(),
 });
 type DocsModuleSchemaType = z.infer<typeof MODULE_SCHEMA>;
 
