@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -29,6 +31,9 @@
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/uuid.h"
+#include "perfetto/ext/base/version.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/httpd.h"
@@ -40,6 +45,9 @@ namespace perfetto::trace_processor {
 namespace {
 
 constexpr int kBindPort = 9001;
+constexpr int kMilliSecondPerMinute = 60 * 1000;
+constexpr uint64_t kNanosecondPerMinute = 60 * 1000000000ULL;
+constexpr const char kDefaultTpUuid[] = "";
 
 // Sets by default the Access-Control-Allow-Origin: $origin on the following
 // origins. This affects only browser clients that use CORS. Other HTTP clients
@@ -50,9 +58,13 @@ const char* kDefaultAllowedCORSOrigins[] = {
     "http://127.0.0.1:10000",
 };
 
+void SendRpcChunk(base::HttpServerConnection* conn,
+                  const void* data,
+                  uint32_t len);
+
 class Httpd : public base::HttpRequestHandler {
  public:
-  explicit Httpd(Rpc& rpc);
+  explicit Httpd(Rpc& rpc, size_t timeout_mins);
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
@@ -62,12 +74,104 @@ class Httpd : public base::HttpRequestHandler {
   // HttpRequestHandler implementation.
   void OnHttpRequest(const base::HttpRequest&) override;
   void OnWebsocketMessage(const base::WebsocketMessage&) override;
+  void OnHttpConnectionClosed(base::HttpServerConnection* conn) override;
 
   static void ServeHelpPage(const base::HttpRequest&);
+  void CleanUpInactiveInstances();
 
+  class RpcThread {
+   public:
+    explicit RpcThread(Httpd* httpd)
+        : httpd_(httpd),
+          last_accessed_ns_(
+              static_cast<uint64_t>(base::GetWallTimeNs().count())) {
+      rpc_thread_ = std::thread([this]() {
+        // Create task runner and RPC instance in worker thread context
+        base::UnixTaskRunner task_runner;
+        std::unique_ptr<Rpc> rpc = std::make_unique<Rpc>();
+
+        // Signal that initialization is complete
+        {
+          std::lock_guard<std::mutex> lock(init_mutex_);
+          task_runner_ = &task_runner;
+          rpc_ = std::move(rpc);
+          initialized_ = true;
+          init_cv_.notify_one();
+        }
+
+        // Run the event loop
+        task_runner.Run();
+      });
+    }
+
+    ~RpcThread() {
+      {
+        std::lock_guard<std::mutex> lock(init_mutex_);
+        if (initialized_ && task_runner_) {
+          task_runner_->Quit();
+        }
+      }
+      if (rpc_thread_.joinable()) {
+        rpc_thread_.join();
+      }
+    }
+
+    void OnWebsocketMessage(const base::WebsocketMessage& msg) {
+      // Queue the message to be processed on the worker thread
+      last_accessed_ns_ = static_cast<uint64_t>(base::GetWallTimeNs().count());
+      std::unique_lock<std::mutex> lock(init_mutex_);
+      init_cv_.wait(lock, [this] { return initialized_; });
+
+      if (task_runner_ && rpc_) {
+        if (!rpc_->IsAttached()) {
+          rpc_->SetAttachedState(true);
+        }
+        task_runner_->PostTask([this, msg,
+                                data = std::vector<uint8_t>(msg.data.begin(),
+                                                            msg.data.end())]() {
+          rpc_->SetRpcResponseFunction(
+              [this, conn = msg.conn](const void* data, uint32_t len) {
+                std::lock_guard<std::mutex> lock(httpd_->websocket_rpc_mutex_);
+                if (httpd_->conn_to_id_map.count(conn)) {
+                  // only send the chunk if the connection is still registered
+                  // by the httpd.
+                  SendRpcChunk(conn, data, len);
+                }
+              });
+          rpc_->OnRpcRequest(data.data(), static_cast<uint32_t>(data.size()));
+          rpc_->SetRpcResponseFunction(nullptr);
+        });
+      }
+    }
+
+    std::unique_ptr<Rpc> rpc_;
+
+    // Get the last accessed time in nanoseconds
+    uint64_t GetLastAccessedNs() const { return last_accessed_ns_.load(); }
+
+   private:
+    Httpd* const httpd_;
+    std::thread rpc_thread_;  // Dedicated thread
+
+    // These are valid only in the worker thread context
+    base::UnixTaskRunner* task_runner_ = nullptr;
+
+    // Synchronization
+    std::mutex init_mutex_;
+    std::condition_variable init_cv_;
+    bool initialized_ = false;
+    std::atomic<uint64_t> last_accessed_ns_;
+  };
+
+  // global rpc for older uis that don't have the rpc map and for opening files
+  // via trace_processor_shell
   Rpc& global_trace_processor_rpc_;
-  base::MaybeLockFreeTaskRunner task_runner_;
+  base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
+  std::mutex websocket_rpc_mutex_;
+  std::unordered_map<std::string, std::unique_ptr<RpcThread>> id_to_tp_map;
+  std::unordered_map<base::HttpServerConnection*, std::string> conn_to_id_map;
+  size_t tp_timeout_mins_;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -95,8 +199,11 @@ void SendRpcChunk(base::HttpServerConnection* conn,
   }
 }
 
-Httpd::Httpd(Rpc& rpc)
-    : global_trace_processor_rpc_(rpc), http_srv_(&task_runner_, this) {}
+Httpd::Httpd(Rpc& rpc,
+             size_t timeout_mins)
+    : global_trace_processor_rpc_(rpc),  // Create empty global RPC
+      http_srv_(&task_runner_, this),
+      tp_timeout_mins_(timeout_mins) {}
 Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
@@ -114,6 +221,34 @@ void Httpd::Run(const std::string& listen_ip,
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
+
+  if (tp_timeout_mins_ > 0) {
+    PERFETTO_ILOG("RPC timeout enabled: %zu minutes", tp_timeout_mins_);
+  } else {
+    PERFETTO_ILOG("RPC timeout disabled (timeout_mins = 0)");
+  }
+
+  // Create a self-repeating cleanup task every tp_timeout_mins to clean up
+  // inactive instances. repeatedly check for any instances that have been
+  // inactive for more than tp_timeout_mins_ and clean them up. If
+  // tp_timeout_mins_ is 0, auto cleanup is disabled.
+  auto cleanup_task = std::make_shared<std::function<void()>>();
+  *cleanup_task = [this, cleanup_task]() {
+    CleanUpInactiveInstances();
+    if (tp_timeout_mins_ > 0) {
+      task_runner_.PostDelayedTask(
+          *cleanup_task,
+          static_cast<uint32_t>(tp_timeout_mins_ * kMilliSecondPerMinute));
+    }
+  };
+
+  // Initial scheduling only if timeout is enabled
+  if (tp_timeout_mins_ > 0) {
+    task_runner_.PostDelayedTask(
+        *cleanup_task,
+        static_cast<uint32_t>(tp_timeout_mins_ * kMilliSecondPerMinute));
+  }
+
   task_runner_.Run();
 }
 
@@ -147,14 +282,179 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   };
 
   if (req.uri == "/status") {
-    auto status = global_trace_processor_rpc_.GetStatus();
-    return conn.SendResponse("200 OK", default_headers, Vec2Sv(status));
+    protozero::HeapBuffered<protos::pbzero::RpcStatus> result;
+    {
+      std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+      for (const auto& entry : id_to_tp_map) {
+        std::string tp_uuid = entry.first;
+        const auto& tp_rpc = entry.second;
+        auto* tp_status = result->add_instances();
+        tp_status->set_loaded_trace_name(tp_rpc->rpc_->GetCurrentTraceName());
+        tp_status->set_human_readable_version(base::GetVersionString());
+        tp_status->set_api_version(
+            protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+        if (const char* version_code = base::GetVersionCode(); version_code) {
+          tp_status->set_version_code(version_code);
+        }
+        tp_status->set_instance_uuid(tp_uuid);
+        tp_status->set_inactivity_ns(
+            static_cast<uint64_t>(base::GetWallTimeNs().count()) -
+            tp_rpc->GetLastAccessedNs());
+        tp_status->set_is_attached(tp_rpc->rpc_->IsAttached());
+      }
+    }
+
+    // for backward compatibility, add the global instance if it has a trace
+    // loaded
+    if (!global_trace_processor_rpc_.GetCurrentTraceName().empty()) {
+      auto* tp_status = result->add_instances();
+      tp_status->set_loaded_trace_name(
+          global_trace_processor_rpc_.GetCurrentTraceName());
+      tp_status->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        tp_status->set_version_code(version_code);
+      }
+      tp_status->set_api_version(
+          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+      tp_status->set_instance_uuid(kDefaultTpUuid);
+    }
+
+    // adding legacy support for older uis
+    auto id_to_tp_it = id_to_tp_map.begin();
+    if (id_to_tp_it != id_to_tp_map.end()) {
+      result->set_loaded_trace_name(
+          id_to_tp_it->second->rpc_->GetCurrentTraceName());
+      result->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        result->set_version_code(version_code);
+      }
+      result->set_api_version(
+          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+    } else {
+      result->set_loaded_trace_name(
+          global_trace_processor_rpc_.GetCurrentTraceName());
+      result->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        result->set_version_code(version_code);
+      }
+      result->set_api_version(
+          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+    }
+
+    return conn.SendResponse("200 OK", default_headers,
+                             Vec2Sv(result.SerializeAsArray()));
   }
 
-  if (req.uri == "/websocket" && req.is_websocket_handshake) {
-    // Will trigger OnWebsocketMessage() when is received.
-    // It returns a 403 if the origin is not one of the allowed CORS origins.
-    return conn.UpgradeToWebsocket(req);
+  if (base::StartsWith(req.uri.ToStdString(), "/websocket") &&
+      req.is_websocket_handshake) {
+    std::string path = req.uri.substr(strlen("/websocket"))
+                           .ToStdString();  // path may be "", "/", "/<id>"
+    std::string instance_uuid;
+    // bool send_id_back = false;
+
+    {
+      std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+
+      if (path.empty() ||
+          path == "/") {  // If the WS handshake does not come with an UUID,
+                          // register it with the global tp with the Legacy
+                          // /websocket endpoint
+        PERFETTO_ILOG(
+            "Legacy /websocket endpoint: connecting to global trace "
+            "processor instance");
+        instance_uuid = kDefaultTpUuid;
+        // } else if (path == "/new") {
+        //   // Case 3: Explicit request for a new instance.
+        //   send_id_back = true;
+        //   base::Uuid new_uuid = base::Uuidv4();
+        //   instance_uuid = new_uuid.ToPrettyString();
+        //   auto new_thread = std::make_unique<RpcThread>(this);
+        //   id_to_tp_map.emplace(instance_uuid, std::move(new_thread));
+        //   PERFETTO_ILOG("New TP instance %s created via /websocket/new",
+        //                 instance_uuid.c_str());
+      } else {
+        // if an ID's provided, create a new TP in a separate thread and
+        // register it in the map.
+        std::string parsed_uuid = path.substr(1);
+        if (parsed_uuid.empty()) {
+          return conn.SendResponseAndClose("404 Not Found", {});
+        }
+        instance_uuid = parsed_uuid;
+        if (id_to_tp_map.find(instance_uuid) == id_to_tp_map.end()) {
+          //   if no such thread exists, create one.
+          instance_uuid = path;
+          auto new_thread = std::make_unique<RpcThread>(this);
+          id_to_tp_map.emplace(instance_uuid, std::move(new_thread));
+          PERFETTO_ILOG("New TP instance %s created via /websocket/<tp_uuid>",
+                        instance_uuid.c_str());
+        } else {
+          PERFETTO_ILOG("Attaching to existing TP instance %s",
+                        instance_uuid.c_str());
+        }
+      }
+
+      // Associate the connection with the determined instance ID before
+      // upgrading.
+      conn_to_id_map.emplace(&conn, instance_uuid);
+    }
+
+    conn.UpgradeToWebsocket(req);
+
+    // if (send_id_back) {
+    //   // Immediately send a status message to the client upon connection.
+    //   // This follows the pattern of TPM_GET_STATUS responses.
+    //   // We need to wrap the TraceProcessorRpc message into a
+    //   // TraceProcessorRpcStream to be compliant with the RPC protocol on the
+    //   // wire.
+    //   protozero::HeapBuffered<protos::pbzero::TraceProcessorRpcStream>
+    //   stream; auto* rpc = stream->add_msg(); rpc->set_seq(0);  // This is the
+    //   first message, seq can be 0.
+    //   rpc->set_response(protos::pbzero::TraceProcessorRpc::TPM_GET_STATUS);
+
+    //   auto* status = rpc->set_status();
+    //   // For a new instance, the trace name is empty.
+    //   status->set_loaded_trace_name("");
+    //   status->set_human_readable_version(base::GetVersionString());
+    //   if (const char* version_code = base::GetVersionCode(); version_code) {
+    //     status->set_version_code(version_code);
+    //   }
+    //   status->set_api_version(
+    //       protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+    //   status->set_instance_uuid(instance_uuid);
+    //   req.conn->SendWebsocketMessage(
+    //       Vec2Sv(stream.SerializeAsArray()).data(),
+    //       static_cast<uint32_t>(stream.SerializeAsArray().size()));
+    // }
+    return;
+  }
+
+  if (req.uri == "/close") {
+    // TODO: fix the UI /close request to send UUID instead of instance ID
+    const std::string instance_uuid = req.body.ToStdString();
+    if (instance_uuid.empty()) {
+      return conn.SendResponseAndClose("400 Bad Request", default_headers);
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+      auto id_to_tp_it = id_to_tp_map.find(instance_uuid);
+      if (id_to_tp_it == id_to_tp_map.end()) {
+        return conn.SendResponseAndClose("404 Not Found", default_headers);
+      }
+      id_to_tp_map.erase(id_to_tp_it);
+      for (auto conn_to_id_it = conn_to_id_map.begin();
+           conn_to_id_it != conn_to_id_map.end();) {
+        if (conn_to_id_it->second == instance_uuid) {
+          auto conn_to_close = conn_to_id_it->first;
+          conn_to_id_it = conn_to_id_map.erase(conn_to_id_it);
+          conn_to_close->Close();
+        } else {
+          ++conn_to_id_it;
+        }
+      }
+    }
+    PERFETTO_ILOG("Closed and removed TP instance %s", instance_uuid.c_str());
+    return conn.SendResponseAndClose("200 OK", default_headers);
   }
 
   // --- Everything below this line is a legacy endpoint not used by the UI.
@@ -204,7 +504,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   // New endpoint, returns data in batches using chunked transfer encoding.
-  // The batch size is determined by |cells_per_batch_| and
+  // The batch size is determined by |cells_per_batch_|
   // |batch_split_threshold_| in query_result_serializer.h.
   // This is temporary, it will be switched to WebSockets soon.
   if (req.uri == "/query") {
@@ -259,13 +559,91 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  global_trace_processor_rpc_.SetRpcResponseFunction(
-      [&](const void* data, uint32_t len) {
-        SendRpcChunk(msg.conn, data, len);
-      });
-  // OnRpcRequest() will call SendRpcChunk() one or more times.
-  global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
-  global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+  std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+  auto conn_to_id_it = conn_to_id_map.find(msg.conn);
+  if (conn_to_id_it == conn_to_id_map.end() ||
+      conn_to_id_it->second == kDefaultTpUuid) {
+    // Connection not registered, which can happen if we are using an older
+    // version of the UI. In this case we use the global RPC because there is no
+    // UUID associated with it.
+    global_trace_processor_rpc_.SetRpcResponseFunction(
+        [&](const void* data, uint32_t len) {
+          SendRpcChunk(msg.conn, data, len);
+        });
+    // OnRpcRequest() will call SendRpcChunk() one or more times.
+    global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
+    global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+    return;
+  }
+
+  std::string instance_uuid = conn_to_id_it->second;
+  auto id_to_tp_it = id_to_tp_map.find(instance_uuid);
+  if (id_to_tp_it == id_to_tp_map.end()) {
+    PERFETTO_ELOG(
+        "Inconsistent state: conn mapped to non-existent instance id %s",
+        instance_uuid.c_str());
+    return;
+  }
+  id_to_tp_it->second->OnWebsocketMessage(msg);
+}
+
+void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
+  std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+  auto conn_to_id_it = conn_to_id_map.find(conn);
+  if (conn_to_id_it != conn_to_id_map.end()) {
+    std::string instance_uuid = conn_to_id_it->second;
+    auto id_to_tp_it = id_to_tp_map.find(instance_uuid);
+    if (id_to_tp_it != id_to_tp_map.end()) {
+      if (id_to_tp_it->second->rpc_->GetCurrentTraceName().empty()) {
+        id_to_tp_map.erase(id_to_tp_it);
+      } else {
+        id_to_tp_it->second->rpc_->SetAttachedState(false);
+      }
+    }
+    conn_to_id_map.erase(conn_to_id_it);
+  }
+}
+
+void Httpd::CleanUpInactiveInstances() {
+  std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+
+  if (tp_timeout_mins_ == 0) {
+    // Timeout disabled
+    return;
+  }
+
+  uint64_t kInactivityNs =
+      static_cast<uint64_t>(tp_timeout_mins_) * kNanosecondPerMinute;
+  uint64_t now = static_cast<uint64_t>(base::GetWallTimeNs().count());
+
+  for (auto it = id_to_tp_map.begin(); it != id_to_tp_map.end();) {
+    const std::string instance_uuid = it->first;
+    uint64_t last_accessed = it->second->GetLastAccessedNs();
+
+    if (now - last_accessed > kInactivityNs) {
+      PERFETTO_ILOG(
+          "Cleaning up inactive RPC instance: %s"
+          " (inactive for %.1f minutes)",
+          instance_uuid.c_str(),
+          static_cast<double>(now - last_accessed) / (kNanosecondPerMinute));
+      // Remove from conn_to_id_map as well
+      for (auto conn_to_id_it = conn_to_id_map.begin();
+           conn_to_id_it != conn_to_id_map.end();) {
+        if (conn_to_id_it->second == instance_uuid) {
+          auto conn_to_close = conn_to_id_it->first;
+          conn_to_id_it = conn_to_id_map.erase(conn_to_id_it);
+          conn_to_close->Close();
+        } else {
+          ++conn_to_id_it;
+        }
+      }
+
+      // Remove the RpcThread
+      it = id_to_tp_map.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 }  // namespace
@@ -273,8 +651,9 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 void RunHttpRPCServer(Rpc& rpc,
                       const std::string& listen_ip,
                       const std::string& port_number,
-                      const std::vector<std::string>& additional_cors_origins) {
-  Httpd srv(rpc);
+                      const std::vector<std::string>& additional_cors_origins,
+                      size_t timeout_mins) {
+  Httpd srv(rpc, timeout_mins);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
@@ -282,7 +661,8 @@ void RunHttpRPCServer(Rpc& rpc,
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {
-  static const char kPage[] = R"(Perfetto Trace Processor RPC Server
+  static const char kPage[] = R"(
+Perfetto Trace Processor RPC Server
 
 
 This service can be used in two ways:

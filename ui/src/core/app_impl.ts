@@ -79,6 +79,7 @@ export class AppImpl implements App {
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
+    selectedTraceProcessorUuid: undefined as string | undefined, // Store the selected ID here
   };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
@@ -220,8 +221,11 @@ export class AppImpl implements App {
     return this.openTrace({...args, type: 'ARRAY_BUFFER', serializedAppState});
   }
 
-  openTraceFromHttpRpc() {
-    return this.openTrace({type: 'HTTP_RPC'});
+  openTraceFromHttpRpc(traceProcessorUuid?: string): void {
+    this.openTrace({
+      type: 'HTTP_RPC',
+      traceProcessorUuid: traceProcessorUuid ?? undefined,
+    });
   }
 
   private async openTrace(src: TraceSource): Promise<TraceImpl> {
@@ -241,6 +245,9 @@ export class AppImpl implements App {
       } else {
         src = {...src, buffer: src.buffer.slice().buffer};
       }
+    } else if (src.type === 'HTTP_RPC') {
+      AppImpl.instance.httpRpc.selectedTraceProcessorUuid =
+        src.traceProcessorUuid ?? '';
     }
 
     const result = defer<TraceImpl>();
