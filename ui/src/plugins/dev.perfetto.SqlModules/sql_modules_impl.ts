@@ -234,6 +234,7 @@ class SqlTableImpl implements SqlTable {
   includeKey?: string;
   description: string;
   type: string;
+  importance?: 'high' | 'mid' | 'low';
   columns: SqlColumn[];
   idColumn: SqlColumn | undefined;
 
@@ -246,6 +247,7 @@ class SqlTableImpl implements SqlTable {
     this.includeKey = includeKey;
     this.description = docs.desc;
     this.type = docs.type;
+    this.importance = docs.importance ?? undefined;
     this.columns = docs.cols.map(
       (json) => new StdlibColumnImpl(json, this.name),
     );
@@ -306,6 +308,7 @@ const DATA_OBJECT_SCHEMA = z.object({
   desc: z.string(),
   summary_desc: z.string(),
   type: z.string(),
+  importance: z.enum(['high', 'mid', 'low']).nullish(),
   cols: z.array(ARG_OR_COL_SCHEMA),
 });
 type DocsDataObjectSchemaType = z.infer<typeof DATA_OBJECT_SCHEMA>;

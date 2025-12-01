@@ -38,3 +38,78 @@
     }
   }
 }
+
+.pf-table-card-header {
+  .pf-match-type-chip {
+    background-color: var(--surface-variant);
+    color: var(--on-surface-variant);
+    font-size: 11px;
+    opacity: 0.8;
+  }
+}
+
+.table-description {
+  // Inline code styling
+  code {
+    background-color: var(--surface-variant);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: "Roboto Mono", monospace;
+    font-size: 0.9em;
+    color: var(--on-surface);
+  }
+
+  // Links
+  a {
+    color: var(--primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  // Bold text
+  strong {
+    font-weight: 500;
+  }
+
+  // Italic text
+  em {
+    font-style: italic;
+  }
+
+  // Paragraphs
+  p {
+    margin: 0.5em 0;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // Lists
+  ul,
+  ol {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+  }
+
+  // Code blocks
+  pre {
+    background-color: var(--surface-variant);
+    padding: 8px 12px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0.5em 0;
+
+    code {
+      background-color: transparent;
+      padding: 0;
+    }
+  }
+}

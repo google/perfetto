@@ -54,12 +54,17 @@ class WindowManagerHierarchyWalker {
                                           // DisplayContent, ActivityRecord
   };
 
+  struct ExtractResult {
+    std::vector<ExtractedWindowContainer> window_containers;
+    bool has_parse_error;
+  };
+
   static constexpr const char* kErrorMessageMissingField =
       "Protobuf message is missing expected field";
 
   explicit WindowManagerHierarchyWalker(StringPool* pool);
 
-  base::StatusOr<std::vector<ExtractedWindowContainer>> ExtractWindowContainers(
+  ExtractResult ExtractWindowContainers(
       const protos::pbzero::WindowManagerTraceEntry::Decoder& entry);
 
  private:

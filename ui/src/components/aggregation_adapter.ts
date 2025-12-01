@@ -23,7 +23,7 @@ import {
 } from '../public/selection';
 import {Trace} from '../public/trace';
 import {Track} from '../public/track';
-import {Dataset, DatasetSchema, UnionDataset} from '../trace_processor/dataset';
+import {UnionDataset, Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
@@ -130,7 +130,7 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
   tracks: ReadonlyArray<Track>,
   spec: T,
   kind?: string,
-): Dataset<T> | undefined {
+) {
   const datasets = tracks
     .filter((t) => kind === undefined || t.tags?.kinds?.includes(kind))
     .map((t) => t.renderer.getDataset?.())
@@ -138,8 +138,7 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
     .filter((d) => d.implements(spec));
 
   if (datasets.length > 0) {
-    // TODO(stevegolton): Avoid typecast in UnionDataset.
-    return (new UnionDataset(datasets) as unknown as Dataset<T>).optimize();
+    return UnionDataset.create(datasets).optimize();
   } else {
     return undefined;
   }

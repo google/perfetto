@@ -1,0 +1,88 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Section title styling
+.pf-timerange-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary-foreground-color);
+  margin: 0 0 12px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+// Mode selection section
+.pf-timerange-mode-section {
+  padding: 16px;
+  margin-bottom: 20px;
+  background: var(--apc-selection-fill-secondary-color, rgba(0, 0, 0, 0.02));
+  border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
+  border-radius: 4px;
+}
+
+// Mode selection row (switch + button)
+.pf-timerange-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  // Make the switch larger and more prominent
+  .pf-switch {
+    transform: scale(1.3);
+    transform-origin: left center;
+  }
+}
+
+// Time values section
+.pf-timerange-values-section {
+  margin-top: 20px;
+}
+
+// List of time values (Start, End, Duration)
+.pf-timerange-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; // Spacing between list items (same as filters)
+}
+
+// Duration display (read-only)
+.pf-timerange-duration-display {
+  font-family: var(--pf-font-monospace);
+  font-size: 13px;
+  color: var(--primary-foreground-color);
+  padding: 4px 0;
+}
+
+// Info title
+.pf-timerange-info-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary-foreground-color);
+  margin: 0 0 16px 0;
+}
+
+// Info mode display
+.pf-timerange-info-mode {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
+  font-size: 12px;
+  color: var(--secondary-foreground-color);
+}
+
+.pf-node-info-empty {
+  color: var(--disabled-foreground-color, #999);
+  font-style: italic;
+  padding: 8px 0;
+}

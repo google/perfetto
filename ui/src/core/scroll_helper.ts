@@ -17,7 +17,7 @@ import {time} from '../base/time';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {WorkspaceManager} from '../public/workspace';
 import {raf} from './raf_scheduler';
-import {TimelineImpl} from './timeline';
+import {TimelineImpl, MIN_DURATION} from './timeline';
 import {TrackManagerImpl} from './track_manager';
 
 // A helper class to help jumping to tracks and time ranges.
@@ -99,6 +99,8 @@ export class ScrollHelper {
     const visible = this.timeline.visibleWindow;
     const aoi = HighPrecisionTimeSpan.fromTime(start, end);
     const fillPercentage = 0.8; // Make selection fill 80% of viewport
+    let newRawDuration;
+    let centerPoint;
 
     // Handle instant events (duration = 0) specially
     if (aoi.duration === 0) {
@@ -108,17 +110,20 @@ export class ScrollHelper {
       // pixels to calculate a precise zoom level (e.g., make 1px at current
       // scale fill 80% of viewport), but plumbing viewport width through to
       // ScrollHelper is architecturally difficult right now.
-      const newDuration = visible.duration * 0.002;
-      const halfDuration = newDuration / 2;
-      const newStart = aoi.start.subNumber(halfDuration);
-      const newWindow = new HighPrecisionTimeSpan(newStart, newDuration);
-      this.timeline.updateVisibleTimeHP(newWindow);
+      newRawDuration = visible.duration * 0.002;
+      centerPoint = aoi.start;
     } else {
       // For events with duration, make them fill 80% of the viewport
-      const paddingPercentage = 1.0 - fillPercentage;
-      const halfPaddingTime = (aoi.duration * paddingPercentage) / 2;
-      this.timeline.updateVisibleTimeHP(aoi.pad(halfPaddingTime));
+      newRawDuration = aoi.duration / fillPercentage;
+      centerPoint = aoi.midpoint;
     }
+    // Ensure centering even when the new duration is less than the minimum
+    // timeline duration.
+    const newDuration = Math.max(newRawDuration, MIN_DURATION);
+    const halfDuration = newDuration / 2;
+    const newStart = centerPoint.subNumber(halfDuration);
+    const newWindow = new HighPrecisionTimeSpan(newStart, newDuration);
+    this.timeline.updateVisibleTimeHP(newWindow);
   }
 
   private verticalScrollToTrack(trackUri: string, openGroup: boolean) {

@@ -17,6 +17,8 @@
 $border-1: 1px solid var(--pf-color-border);
 $border-2: 1px solid var(--pf-color-border-secondary);
 $border-3: 2px solid var(--pf-color-border);
+$inline-padding: 0.5em;
+$block-padding: 0.3em;
 
 .pf-grid-header-cell {
   display: flex;
@@ -41,11 +43,11 @@ $border-3: 2px solid var(--pf-color-border);
     flex-shrink: 1; // The title should shrink if necessary to avoid overflow.
     text-overflow: ellipsis;
     overflow: hidden;
-    padding: 0.3em 0.5em;
+    padding: $block-padding $inline-padding;
   }
 
   &__sub-content {
-    padding: 0.3em 0.5em;
+    padding: $block-padding $inline-padding;
   }
 
   .pf-visible-on-hover {
@@ -61,42 +63,91 @@ $border-3: 2px solid var(--pf-color-border);
       display: block;
     }
   }
+
+  &__sort-button {
+    // Eliminate the extra space added by the button element.
+    margin-left: -$inline-padding;
+  }
 }
 
 .pf-grid-cell {
-  align-items: baseline;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: row;
+  --pf-cell-padding-block: 0;
+  --pf-cell-padding-inline: 0;
+
+  &__menu-button {
+    // Eliminate the extra space between the menu button and the cell content added by the content padding.
+    margin-left: calc(-1 * var(--pf-cell-padding-inline));
+  }
+
+  &__content {
+    flex: 1 1 auto;
+
+    padding: var(--pf-cell-padding-block) var(--pf-cell-padding-inline);
+    align-items: baseline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   &--padded {
-    padding: 0.3em 0.5em;
+    --pf-cell-padding-block: #{$block-padding};
+    --pf-cell-padding-inline: #{$inline-padding};
   }
 
   &--align-right {
-    text-align: right;
+    // Move the menu button to the left when right-aligned.
+    flex-direction: row-reverse;
+
+    .pf-grid-cell__menu-button {
+      margin-left: 0;
+      margin-right: calc(-1 * var(--pf-cell-padding-inline));
+    }
+
+    .pf-grid-cell__content {
+      text-align: right;
+    }
   }
 
   &--align-center {
-    text-align: center;
+    .pf-grid-cell__content {
+      text-align: center;
+    }
   }
 
   &--nullish {
-    font-style: italic;
-    color: var(--pf-color-text-muted);
-    text-align: center;
+    .pf-grid-cell__content {
+      font-style: italic;
+      color: var(--pf-color-text-muted);
+      text-align: center;
+    }
   }
 
   &--hint {
-    color: var(--pf-color-text-hint);
-  }
-
-  &[active] {
-    background: color_active(transparent);
+    .pf-grid-cell__content {
+      color: var(--pf-color-text-hint);
+    }
   }
 
   &--wrap {
-    white-space: normal;
+    .pf-grid-cell__content {
+      white-space: normal;
+    }
+  }
+
+  .pf-visible-on-hover {
+    display: none;
+
+    &.pf-active {
+      display: block;
+    }
+  }
+
+  &:hover {
+    .pf-visible-on-hover {
+      display: block;
+    }
   }
 }
 

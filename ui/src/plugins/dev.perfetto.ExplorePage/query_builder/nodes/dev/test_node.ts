@@ -18,13 +18,13 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  SourceNode,
   nextNodeId,
 } from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
 
-export class TestNode implements SourceNode {
+export class TestNode implements QueryNode {
   readonly nodeId: string;
   readonly state: QueryNodeState;
   isDevNode = true;
@@ -44,6 +44,12 @@ export class TestNode implements SourceNode {
 
   getTitle(): string {
     return 'Test Node';
+  }
+
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: null,
+    };
   }
 
   clone(): QueryNode {

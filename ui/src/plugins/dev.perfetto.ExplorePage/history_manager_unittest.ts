@@ -40,6 +40,7 @@ describe('HistoryManager', () => {
       name: 'test_table',
       description: 'Test table',
       type: 'table',
+      importance: undefined,
       getTableColumns: () => [],
       columns: [
         {
@@ -93,7 +94,6 @@ describe('HistoryManager', () => {
 
     // Add an aggregation node
     const aggNode = new AggregationNode({
-      prevNode: tableNode,
       groupByColumns: [],
       aggregations: [],
     });
@@ -146,7 +146,6 @@ describe('HistoryManager', () => {
     });
 
     const aggNode = new AggregationNode({
-      prevNode: tableNode,
       groupByColumns: [],
       aggregations: [],
     });

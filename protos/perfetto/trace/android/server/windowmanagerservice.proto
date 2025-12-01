@@ -412,6 +412,7 @@ message WindowTokenProto {
   repeated WindowStateProto windows = 3 [deprecated = true];
   optional bool waiting_to_show = 5 [deprecated = true];
   optional bool paused = 6;
+  optional bool client_visible = 7;
 }
 
 // represents WindowState
@@ -525,6 +526,7 @@ message WindowContainerProto {
   repeated WindowContainerChildProto children = 5;
   optional IdentifierProto identifier = 6;
   optional SurfaceControlProto surface_control = 7;
+  optional bool visible_requested = 8;
 }
 
 // represents a generic child of a WindowContainer
@@ -548,7 +550,7 @@ message WindowContainerChildProto {
   optional WindowTokenProto window_token = 7;
   // represents a WindowState child
   optional WindowStateProto window = 8;
-  // represents a WindowState child
+  // represents a TaskFragment child
   optional TaskFragmentProto task_fragment = 9;
 }
 

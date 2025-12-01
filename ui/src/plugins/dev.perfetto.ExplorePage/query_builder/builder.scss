@@ -17,10 +17,12 @@
 @import "./empty_graph.scss";
 @import "./help.scss";
 @import "./graph/node_box.scss";
+@import "./node_styling_widgets.scss";
 @import "./node_explorer.scss";
 @import "./operations/operation_component.scss";
 @import "./nodes/sources/slices_source.scss";
 @import "./nodes/sources/table_source.scss";
+@import "./nodes/sources/timerange_source.scss";
 @import "./nodes/aggregation_node.scss";
 @import "./nodes/modify_columns_node.scss";
 @import "./table_list.scss";
@@ -32,7 +34,7 @@
   // SplitPanel's main section needs to have the grid layout
   .pf-split-panel__main {
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto auto auto;
     overflow: hidden;
   }
 
@@ -42,18 +44,20 @@
     position: relative;
   }
 
-  .pf-qb-explorer {
+  // Position the resize handle in the grid, but let the widget handle its own styling
+  .pf-resize-handle {
     grid-column: 2;
+  }
+
+  .pf-qb-explorer {
+    grid-column: 3;
     overflow: hidden;
-    width: 500px;
     height: 100%;
-    transition:
-      width 0.3s ease,
-      border-left 0.3s ease;
+    // Width is controlled by inline style for smooth resizing
   }
 
   .pf-qb-side-panel {
-    grid-column: 3;
+    grid-column: 4;
     width: 60px;
     height: 100%;
     display: flex;
@@ -151,8 +155,11 @@
   }
 
   &.explorer-collapsed {
+    .pf-resize-handle {
+      display: none;
+    }
+
     .pf-qb-explorer {
-      width: 0;
       border-left: none;
       overflow: hidden;
     }
@@ -191,5 +198,71 @@
 
   .pf-query-stats-separator {
     user-select: none;
+  }
+}
+
+.pf-unselected-explorer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  padding: 24px;
+}
+
+.pf-source-card {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .pf-source-card-clickable {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    transition: transform 0.1s ease;
+
+    .pf-icon {
+      font-size: 32px;
+      color: var(--pf-color-primary);
+      transition: color 0.1s ease;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--pf-color-on-surface);
+      transition: color 0.1s ease;
+    }
+  }
+
+  &:hover .pf-source-card-clickable,
+  &:focus-within .pf-source-card-clickable {
+    transform: translateY(-2px);
+
+    .pf-icon {
+      color: var(--pf-color-accent);
+    }
+
+    h3 {
+      color: var(--pf-color-accent);
+    }
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--pf-color-text-muted);
+    text-align: center;
+  }
+
+  .pf-source-card-hotkey {
+    align-self: flex-end;
+    margin-top: 4px;
   }
 }

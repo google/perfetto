@@ -23,19 +23,18 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  SourceNode,
   nextNodeId,
 } from '../../../query_node';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
-import {TextParagraph} from '../../../../../widgets/text_paragraph';
 import {Trace} from '../../../../../public/trace';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
-import {perfettoSqlTypeToString} from '../../../../../trace_processor/perfetto_sql_type';
 import {setValidationError} from '../../node_issues';
+import {TableDescription} from '../../widgets';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
@@ -94,10 +93,9 @@ export function modalForTableSelection(
   });
 }
 
-export class TableSourceNode implements SourceNode {
+export class TableSourceNode implements QueryNode {
   readonly nodeId: string;
   readonly state: TableSourceState;
-  readonly prevNodes: QueryNode[] = [];
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
 
@@ -149,6 +147,12 @@ export class TableSourceNode implements SourceNode {
     return `${this.state.sqlTable?.name}`;
   }
 
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: this.state.sqlTable?.name ?? '',
+    };
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
     if (!this.state.sqlTable) return;
@@ -172,42 +176,14 @@ export class TableSourceNode implements SourceNode {
   serializeState(): TableSourceSerializedState {
     return {
       sqlTable: this.state.sqlTable?.name,
-      comment: this.state.comment,
     };
   }
 
   nodeInfo(): m.Children {
     if (this.state.sqlTable != null) {
-      const table = this.state.sqlTable;
       return m(
         '.pf-stdlib-table-node',
-        m(
-          '.pf-details-box',
-          m(TextParagraph, {text: table.description}),
-          m(
-            'table.pf-table.pf-table-striped',
-            m(
-              'thead',
-              m(
-                'tr',
-                m('th', 'Column'),
-                m('th', 'Type'),
-                m('th', 'Description'),
-              ),
-            ),
-            m(
-              'tbody',
-              table.columns.map((col) => {
-                return m(
-                  'tr',
-                  m('td', col.name),
-                  m('td', perfettoSqlTypeToString(col.type)),
-                  m('td', col.description),
-                );
-              }),
-            ),
-          ),
-        ),
+        m('.pf-details-box', m(TableDescription, {table: this.state.sqlTable})),
       );
     }
     return m(

@@ -30,7 +30,7 @@ INTRODUCTION = '''
 
 ## Introduction
 The PerfettoSQL standard library is a repository of tables, views, functions
-and macros, contributed by domain experts, which make querying traces easier
+and macros, contributed by domain experts, which make querying traces easier.
 Its design is heavily inspired by standard libraries in languages like Python,
 C++ and Java.
 
