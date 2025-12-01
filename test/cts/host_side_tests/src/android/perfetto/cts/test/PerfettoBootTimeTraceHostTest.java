@@ -29,6 +29,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,6 +50,11 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
             buffers {
                 size_kb: 1024
                 fill_policy: RING_BUFFER
+            }
+            # Boost to the highest priority to always capture logcat updates
+            priority_boost {
+                policy: POLICY_SCHED_FIFO
+                priority: 99
             }
             data_sources: {
                 config {
@@ -79,6 +85,9 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
             activate_triggers: "stop-boot-trace-trigger"
             """
                     .stripIndent();
+
+    private static final Duration TRACING_SESSION_STOP_MAX_WAIT_TIME = Duration.ofSeconds(30);
+    private static final Duration TRACING_SESSION_STOP_DELAY_WAIT_TIME = Duration.ofSeconds(1);
 
     private static File mTraceConfigFile = null;
     private static File mTraceStopTriggerConfigFile = null;
@@ -126,7 +135,7 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void testBootTraceStart() throws DeviceNotAvailableException, IOException {
+    public void testBootTraceStart() throws Exception {
         assertThat(mTestDevice.pushFile(mTraceConfigFile, BOOT_TRACE_CONFIG_ON_DEVICE_PATH))
                 .isTrue();
         assertThat(mTestDevice.setProperty(BOOT_TRACE_ENABLE_PROPERTY, "1")).isTrue();
@@ -141,10 +150,10 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
         runningTracingSessionNames = assertGetRunningTracingSessionNames();
         assertThat(runningTracingSessionNames).contains(BOOT_TRACE_CONFIG_SESSION_NAME);
 
-        // Assert property is reset after reboot.
+        // Assert property is reset after reboot
         assertThat(mTestDevice.getProperty(BOOT_TRACE_ENABLE_PROPERTY)).isNotEqualTo("1");
 
-        // Now push the trigger config to stop the tracing session.
+        // Now push the trigger config to stop the tracing session
         assertThat(
                         mTestDevice.pushFile(
                                 mTraceStopTriggerConfigFile,
@@ -155,9 +164,8 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
                         "perfetto --txt -c " + BOOT_TRACE_STOP_TRIGGER_CONFIG_ON_DEVICE_PATH);
         assertThat(result.getStatus()).isEqualTo(CommandStatus.SUCCESS);
 
-        // Assert boot tracing session stopped.
-        runningTracingSessionNames = assertGetRunningTracingSessionNames();
-        assertThat(runningTracingSessionNames).doesNotContain(BOOT_TRACE_CONFIG_SESSION_NAME);
+        // Assert boot tracing session stopped
+        assertTracingSessionStopped(BOOT_TRACE_CONFIG_SESSION_NAME);
 
         assertThat(mTestDevice.doesFileExist(BOOT_TRACE_RESULT_ON_DEVICE_PATH)).isTrue();
         File traceFile = mTestDevice.pullFile(BOOT_TRACE_RESULT_ON_DEVICE_PATH);
@@ -180,8 +188,11 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
         assertThat(hasBootCompletedLine).isTrue();
     }
 
+    // This test verifies that when both trace and stop trigger configurations are pushed, the boot
+    // tracing session starts automatically during early boot and stops once the device boot
+    // process completes.
     @Test
-    public void testBootTraceStartAndStop() throws DeviceNotAvailableException, IOException {
+    public void testBootTraceStartAndStop() throws Exception {
         assertThat(mTestDevice.pushFile(mTraceConfigFile, BOOT_TRACE_CONFIG_ON_DEVICE_PATH))
                 .isTrue();
         assertThat(
@@ -195,16 +206,15 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
         List<String> runningTracingSessionNames = assertGetRunningTracingSessionNames();
         assertThat(runningTracingSessionNames).doesNotContain(BOOT_TRACE_CONFIG_SESSION_NAME);
 
-        // Assert there is no trace file before reboot.
+        // Assert there is no trace file before reboot
         assertThat(mTestDevice.doesFileExist(BOOT_TRACE_RESULT_ON_DEVICE_PATH)).isFalse();
 
         mTestDevice.reboot();
 
-        // Assert property is reset after reboot.
+        // Assert property is reset after reboot
         assertThat(mTestDevice.getProperty(BOOT_TRACE_ENABLE_PROPERTY)).isNotEqualTo("1");
-        // Assertf tracing session was already stopped
-        runningTracingSessionNames = assertGetRunningTracingSessionNames();
-        assertThat(runningTracingSessionNames).doesNotContain(BOOT_TRACE_CONFIG_SESSION_NAME);
+        // Assert tracing session was already stopped
+        assertTracingSessionStopped(BOOT_TRACE_CONFIG_SESSION_NAME);
 
         assertThat(mTestDevice.doesFileExist(BOOT_TRACE_RESULT_ON_DEVICE_PATH)).isTrue();
         File traceFile = mTestDevice.pullFile(BOOT_TRACE_RESULT_ON_DEVICE_PATH);
@@ -213,7 +223,7 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
         // Tracing session was started at the early boot stage, so we expect that:
         // 1. It has multiple logcat events with the "init" tag (issues by the init process)
         // 2. It is stopped by a trigger on a system boot, so it may or may not has any
-        // "sys.boot_completed=1 .*" lines.
+        // "sys.boot_completed=1 .*" lines
         List<String> messages = getInitLogcatMessages(traceFile);
         assertThat(messages).isNotEmpty();
         boolean hasProcessingActionLine = false;
@@ -263,6 +273,25 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
             }
         }
         return runningTracingSessionNames;
+    }
+
+    private void assertTracingSessionStopped(String tracingSessionName)
+            throws InterruptedException, DeviceNotAvailableException {
+        // Tracing session may not stop immediately, we give it some time to stop
+        long attempts =
+                TRACING_SESSION_STOP_MAX_WAIT_TIME.dividedBy(TRACING_SESSION_STOP_DELAY_WAIT_TIME);
+        for (long i = 0; i < attempts; i++) {
+            List<String> runningTracingSessionNames = assertGetRunningTracingSessionNames();
+            if (!runningTracingSessionNames.contains(tracingSessionName)) {
+                return;
+            }
+            Thread.sleep(TRACING_SESSION_STOP_DELAY_WAIT_TIME);
+        }
+        Assert.fail(
+                "Tracing session '%s' is still running after %d seconds."
+                        .formatted(
+                                tracingSessionName,
+                                TRACING_SESSION_STOP_MAX_WAIT_TIME.getSeconds()));
     }
 
     private void cleanUpOnDeviceBootTraceFiles() throws DeviceNotAvailableException {
