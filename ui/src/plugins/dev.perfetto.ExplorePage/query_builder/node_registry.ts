@@ -57,6 +57,17 @@ export interface NodeDescriptor {
 
   // Whether this node is only available in dev mode.
   devOnly?: boolean;
+
+  /**
+   * Whether this node should be shown on the landing page.
+   *
+   * If false, the node is still available in menus but not on the landing page.
+   * This is useful for nodes that are better accessed via commands or menus
+   * rather than being a primary entry point.
+   *
+   * @default true for source nodes
+   */
+  showOnLandingPage?: boolean;
 }
 
 export class NodeRegistry {

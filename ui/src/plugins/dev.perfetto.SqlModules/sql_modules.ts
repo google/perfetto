@@ -35,6 +35,12 @@ export interface SqlModules {
   // Returns module that contains Perfetto SQL table/view if it was loaded in one of the Perfetto
   // SQL module.
   getModuleForTable(tableName: string): SqlModule | undefined;
+
+  // Returns true if the module is disabled due to missing data in the trace.
+  isModuleDisabled(moduleName: string): boolean;
+
+  // Returns the set of all disabled module names.
+  getDisabledModules(): ReadonlySet<string>;
 }
 
 // Handles the access to a specific Perfetto SQL Package. Package consists of
@@ -80,6 +86,7 @@ export interface SqlTable {
   readonly includeKey?: string;
   readonly description: string;
   readonly type: string;
+  readonly importance?: 'high' | 'mid' | 'low';
   readonly columns: SqlColumn[];
 
   // Returns all columns as TableColumns.

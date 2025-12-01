@@ -85,16 +85,6 @@ class ProfilingMetrics(TestSuite):
               reachable_obj_count: 3
               anon_rss_and_swap_size: 4096000
               oom_score_adj: 0
-              roots {
-                root_type: "ROOT_JAVA_FRAME"
-                type_name: "DeobfuscatedA[]"
-                obj_count: 1
-              }
-              roots {
-                root_type: "ROOT_JAVA_FRAME"
-                type_name: "FactoryProducerDelegateImplActor"
-                obj_count: 1
-              }
             }
           }
         }

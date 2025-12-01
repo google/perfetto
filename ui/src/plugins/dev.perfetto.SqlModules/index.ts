@@ -40,8 +40,10 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    docs.then((resolvedDocs) => {
-      this.sqlModules = new SqlModulesImpl(trace, resolvedDocs);
+    docs.then(async (resolvedDocs) => {
+      const impl = new SqlModulesImpl(trace, resolvedDocs);
+      await impl.waitForInit();
+      this.sqlModules = impl;
       m.redraw();
     });
 
@@ -56,18 +58,42 @@ export default class implements PerfettoPlugin {
 
         const tables = this.sqlModules.listTablesNames();
 
+        // Annotate disabled modules in the prompt
+        const annotatedTables = tables.map((tableName) => {
+          const module = this.sqlModules!.getModuleForTable(tableName);
+          if (module && this.sqlModules!.isModuleDisabled(module.includeKey)) {
+            return `${tableName} (no data)`;
+          }
+          return tableName;
+        });
+
         const chosenTable = await trace.omnibox.prompt(
           'Choose a table...',
-          tables,
+          annotatedTables,
         );
         if (chosenTable === undefined) {
           return;
         }
-        const module = this.sqlModules.getModuleForTable(chosenTable);
+
+        // Strip the annotation if present
+        const actualTableName = chosenTable.replace(' (no data)', '');
+        const module = this.sqlModules.getModuleForTable(actualTableName);
         if (module === undefined) {
           return;
         }
-        const sqlTable = module.getSqlTableDescription(chosenTable);
+
+        // Warn if opening a disabled module
+        if (this.sqlModules.isModuleDisabled(module.includeKey)) {
+          const proceed = window.confirm(
+            `Warning: The module "${module.includeKey}" may not have data in this trace. ` +
+              `The table might be empty. Continue anyway?`,
+          );
+          if (!proceed) {
+            return;
+          }
+        }
+
+        const sqlTable = module.getSqlTableDescription(actualTableName);
         sqlTable &&
           extensions.addLegacySqlTableTab(trace, {
             table: sqlTable,

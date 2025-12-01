@@ -18,15 +18,18 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  notifyNextNodes,
-  ModificationNode,
 } from '../../query_node';
 import protos from '../../../../protos';
 import {
   ColumnInfo,
   columnInfoFromName,
+  columnInfoFromSqlColumn,
   newColumnInfoList,
 } from '../column_info';
+import {
+  PerfettoSqlTypes,
+  PerfettoSqlType,
+} from '../../../../trace_processor/perfetto_sql_type';
 import {
   PopupMultiSelect,
   MultiSelectOption,
@@ -34,8 +37,6 @@ import {
 } from '../../../../widgets/multiselect';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
-import {Button} from '../../../../widgets/button';
-import {Card} from '../../../../widgets/card';
 import {Form} from '../../../../widgets/form';
 import {NodeIssues} from '../node_issues';
 import {Icons} from '../../../../base/semantic_icons';
@@ -44,6 +45,9 @@ import {
   AggregationSpec,
 } from '../structured_query_builder';
 import {isColumnValidForAggregation} from '../utils';
+import {LabeledControl, ListItem} from '../widgets';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {EmptyState} from '../../../../widgets/empty_state';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -59,7 +63,6 @@ export interface AggregationSerializedState {
 }
 
 export interface AggregationNodeState extends QueryNodeState {
-  prevNode: QueryNode;
   groupByColumns: ColumnInfo[];
   aggregations: Aggregation[];
 }
@@ -73,23 +76,28 @@ export interface Aggregation {
   isEditing?: boolean;
 }
 
-export class AggregationNode implements ModificationNode {
+export class AggregationNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kAggregation;
-  readonly prevNode: QueryNode;
+  primaryInput?: QueryNode;
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
 
   get finalCols(): ColumnInfo[] {
-    // When there's no prevNode, aggregation doesn't make sense
+    // When there's no primaryInput, aggregation doesn't make sense
     // Return empty array to indicate no output columns
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       return [];
     }
     const selected = this.state.groupByColumns.filter((c) => c.checked);
     for (const agg of this.state.aggregations) {
+      const resultType = getAggregationResultType(agg);
+      const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
       selected.push(
-        columnInfoFromName(agg.newColumnName ?? placeholderNewColumnName(agg)),
+        columnInfoFromSqlColumn({
+          name: resultName,
+          type: resultType,
+        }),
       );
     }
     return newColumnInfoList(selected, true);
@@ -102,19 +110,7 @@ export class AggregationNode implements ModificationNode {
       groupByColumns: state.groupByColumns ?? [],
       aggregations: state.aggregations ?? [],
     };
-    this.prevNode = state.prevNode;
     this.nextNodes = [];
-    if (this.state.groupByColumns.length === 0 && this.prevNode !== undefined) {
-      this.state.groupByColumns = newColumnInfoList(
-        this.prevNode.finalCols ?? [],
-        false,
-      );
-    }
-    const userOnChange = this.state.onchange;
-    this.state.onchange = () => {
-      notifyNextNodes(this);
-      userOnChange?.();
-    };
   }
 
   onPrevNodesUpdated() {
@@ -122,11 +118,11 @@ export class AggregationNode implements ModificationNode {
   }
 
   updateGroupByColumns() {
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       return;
     }
     const newGroupByColumns = newColumnInfoList(
-      this.prevNode.finalCols ?? [],
+      this.primaryInput.finalCols ?? [],
       false,
     );
     for (const oldCol of this.state.groupByColumns) {
@@ -150,16 +146,16 @@ export class AggregationNode implements ModificationNode {
       this.state.issues.clear();
     }
 
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       this.setValidationError('No input node connected');
       return false;
     }
-    if (!this.prevNode.validate()) {
+    if (!this.primaryInput.validate()) {
       this.setValidationError('Previous node is invalid');
       return false;
     }
     const sourceColNames = new Set(
-      (this.prevNode.finalCols ?? []).map((c) => c.name),
+      (this.primaryInput.finalCols ?? []).map((c) => c.name),
     );
     const missingCols: string[] = [];
     for (const col of this.state.groupByColumns) {
@@ -191,6 +187,29 @@ export class AggregationNode implements ModificationNode {
       );
       return false;
     }
+
+    // Check for duplicate column names
+    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
+    const columnNames = new Set<string>();
+
+    // Add group-by column names
+    for (const col of selectedGroupBy) {
+      columnNames.add(col.name);
+    }
+
+    // Check aggregation result column names for duplicates
+    for (const agg of this.state.aggregations) {
+      if (!agg.isValid) continue;
+      const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
+      if (columnNames.has(resultName)) {
+        this.setValidationError(
+          `Duplicate column name "${resultName}" - aggregation result conflicts with GROUP BY column or another aggregation`,
+        );
+        return false;
+      }
+      columnNames.add(resultName);
+    }
+
     return true;
   }
 
@@ -205,7 +224,7 @@ export class AggregationNode implements ModificationNode {
     return 'Aggregation';
   }
 
-  nodeDetails?(): m.Child | undefined {
+  nodeDetails(): NodeDetailsAttrs {
     const groupByOptions: MultiSelectOption[] = this.state.groupByColumns.map(
       (col) => ({
         id: col.name,
@@ -222,16 +241,8 @@ export class AggregationNode implements ModificationNode {
 
     const details: m.Child[] = [
       m(
-        '.pf-group-by-selector',
-        {
-          style: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: this.state.aggregations.length > 0 ? '8px' : '0',
-          },
-        },
-        m('label', 'Group by:'),
+        LabeledControl,
+        {label: 'Group by:'},
         m(PopupMultiSelect, {
           label,
           options: groupByOptions,
@@ -274,16 +285,282 @@ export class AggregationNode implements ModificationNode {
       details.push(m('div', agg));
     });
 
-    return m('.pf-aggregation-node-details', details);
+    return {
+      content: m('.pf-aggregation-node-details', details),
+    };
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
+    const sections: NodeModifyAttrs['sections'] = [];
+
+    // Group by section
+    sections.push({
+      content: this.renderGroupBySection(),
+    });
+
+    // Aggregation creation section - always visible
+    // Ensure there's always a draft aggregation
+    let draftAgg = this.state.aggregations.find((a) => a.isEditing);
+    if (!draftAgg) {
+      draftAgg = {isEditing: true};
+      this.state.aggregations.push(draftAgg);
+    }
+
+    sections.push({
+      content: this.renderAggregationEditor(draftAgg),
+    });
+
+    // Aggregations list section
+    sections.push({
+      content: this.renderAggregationsList(),
+    });
+
+    return {sections};
+  }
+
+  private renderGroupBySection(): m.Child {
+    const groupByOptions: MultiSelectOption[] = this.state.groupByColumns.map(
+      (col) => ({
+        id: col.name,
+        name: col.name,
+        checked: col.checked,
+      }),
+    );
+
+    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
+    const label =
+      selectedGroupBy.length > 0
+        ? selectedGroupBy.map((c) => c.name).join(', ')
+        : 'None';
+
     return m(
-      '.node-specific-modify',
-      m(AggregationOperationComponent, {
-        groupByColumns: this.state.groupByColumns,
-        aggregations: this.state.aggregations,
-        onchange: this.state.onchange,
+      LabeledControl,
+      {label: 'GROUP BY columns:'},
+      m(PopupMultiSelect, {
+        label,
+        options: groupByOptions,
+        showNumSelected: false,
+        onChange: (diffs: MultiSelectDiff[]) => {
+          for (const diff of diffs) {
+            const column = this.state.groupByColumns.find(
+              (c) => c.name === diff.id,
+            );
+            if (column) {
+              column.checked = diff.checked;
+            }
+          }
+          this.state.onchange?.();
+        },
+      }),
+    );
+  }
+
+  private renderAggregationEditor(agg: Aggregation): m.Child {
+    const index = this.state.aggregations.indexOf(agg);
+
+    const columnOptions = this.state.groupByColumns.map((col) => {
+      const isValid = isColumnValidForAggregation(col, agg.aggregationOp);
+      return m(
+        'option',
+        {
+          value: col.name,
+          selected: agg.column?.name === col.name,
+          disabled: !isValid,
+        },
+        col.name,
+      );
+    });
+
+    const isAggregationValid = (): boolean => {
+      if (!validateAggregation(agg)) return false;
+
+      const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
+
+      // Check against selected GROUP BY columns
+      const selectedGroupBy = this.state.groupByColumns.filter(
+        (c) => c.checked,
+      );
+      for (const col of selectedGroupBy) {
+        if (col.name === resultName) {
+          return false;
+        }
+      }
+
+      // Check against other aggregation result names
+      for (let i = 0; i < this.state.aggregations.length; i++) {
+        if (i === index) continue;
+        const otherAgg = this.state.aggregations[i];
+        if (!otherAgg.isValid) continue;
+        const otherName =
+          otherAgg.newColumnName ?? placeholderNewColumnName(otherAgg);
+        if (otherName === resultName) {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    return m(
+      Form,
+      {
+        submitLabel: 'Apply',
+        submitIcon: Icons.Check,
+        required: true,
+        validation: isAggregationValid,
+        onSubmit: (e: Event) => {
+          e.preventDefault();
+          if (!agg.newColumnName) {
+            agg.newColumnName = placeholderNewColumnName(agg);
+          }
+          const wasValid = agg.isValid; // Track if this was an existing aggregation
+          agg.isEditing = false;
+          agg.isValid = validateAggregation(agg);
+
+          // Only create a new draft if we just created a new aggregation
+          // If we were editing an existing one, don't create a duplicate
+          if (!wasValid) {
+            this.state.aggregations.push({isEditing: true});
+          }
+
+          this.state.onchange?.();
+          m.redraw();
+        },
+      },
+      m(
+        '.pf-exp-aggregation-editor',
+        m(
+          Select,
+          {
+            required: true,
+            onchange: (e: Event) => {
+              agg.aggregationOp = (e.target as HTMLSelectElement).value;
+              if (agg.aggregationOp !== 'PERCENTILE') {
+                agg.percentile = undefined;
+              }
+              if (agg.aggregationOp === 'COUNT_ALL') {
+                agg.column = undefined;
+              }
+              m.redraw();
+            },
+          },
+          m(
+            'option',
+            {disabled: true, selected: !agg.aggregationOp, value: ''},
+            'Select operation',
+          ),
+          AGGREGATION_OPS.map((op) =>
+            m(
+              'option',
+              {
+                value: op,
+                selected: op === agg.aggregationOp,
+              },
+              op,
+            ),
+          ),
+        ),
+        agg.aggregationOp === 'PERCENTILE' &&
+          m(TextInput, {
+            placeholder: 'percentile (0-100)',
+            type: 'number',
+            min: 0,
+            max: 100,
+            required: true,
+            oninput: (e: InputEvent) => {
+              const value = parseFloat((e.target as HTMLInputElement).value);
+              agg.percentile = isNaN(value) ? undefined : value;
+              m.redraw();
+            },
+            value: agg.percentile?.toString() ?? '',
+          }),
+        agg.aggregationOp &&
+          agg.aggregationOp !== 'COUNT_ALL' &&
+          m(
+            Select,
+            {
+              required: true,
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                agg.column = this.state.groupByColumns.find(
+                  (c) => c.name === target.value,
+                );
+                m.redraw();
+              },
+            },
+            m(
+              'option',
+              {disabled: true, selected: !agg.column, value: ''},
+              'Select column',
+            ),
+            columnOptions,
+          ),
+        'AS',
+        m(TextInput, {
+          placeholder: placeholderNewColumnName(agg),
+          oninput: (e: InputEvent) => {
+            agg.newColumnName = (e.target as HTMLInputElement).value.trim();
+          },
+          value: agg.newColumnName,
+        }),
+      ),
+    );
+  }
+
+  private renderAggregationsList(): m.Child {
+    const validAggregations = this.state.aggregations.filter(
+      (agg) => agg.isValid && !agg.isEditing,
+    );
+
+    if (validAggregations.length === 0) {
+      return m(EmptyState, {
+        title: 'No aggregations added yet.',
+      });
+    }
+
+    return m(
+      '.pf-exp-aggregations-list',
+      validAggregations.map((agg) => {
+        const index = this.state.aggregations.indexOf(agg);
+        let aggDisplay = '';
+        if (agg.aggregationOp === 'COUNT_ALL') {
+          aggDisplay = 'COUNT(*)';
+        } else if (
+          agg.aggregationOp === 'PERCENTILE' &&
+          agg.percentile !== undefined
+        ) {
+          aggDisplay = `PERCENTILE(${agg.column?.name}, ${agg.percentile})`;
+        } else {
+          aggDisplay = `${agg.aggregationOp}(${agg.column?.name})`;
+        }
+
+        return m(ListItem, {
+          icon: 'functions',
+          name: agg.newColumnName ?? placeholderNewColumnName(agg),
+          description: aggDisplay,
+          actions: [
+            {
+              label: 'Edit',
+              icon: 'edit',
+              onclick: () => {
+                // Remove any existing draft aggregation
+                const draftIndex = this.state.aggregations.findIndex(
+                  (a) => a.isEditing && !a.isValid,
+                );
+                if (draftIndex !== -1) {
+                  this.state.aggregations.splice(draftIndex, 1);
+                }
+                // Set this aggregation to editing
+                agg.isEditing = true;
+                m.redraw();
+              },
+            },
+          ],
+          onRemove: () => {
+            this.state.aggregations.splice(index, 1);
+            this.state.onchange?.();
+          },
+        });
       }),
     );
   }
@@ -336,7 +613,6 @@ export class AggregationNode implements ModificationNode {
 
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
-      prevNode: this.state.prevNode,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       onchange: this.state.onchange,
@@ -348,8 +624,8 @@ export class AggregationNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    // Defensive check: prevNode must exist for aggregation to work
-    if (this.prevNode === undefined) return undefined;
+    // Defensive check: primaryInput must exist for aggregation to work
+    if (this.primaryInput === undefined) return undefined;
 
     // Prepare groupByColumns
     const groupByColumns = this.state.groupByColumns
@@ -359,6 +635,9 @@ export class AggregationNode implements ModificationNode {
     // Prepare aggregations
     const aggregations: AggregationSpec[] = [];
     for (const agg of this.state.aggregations) {
+      // Skip aggregations that are still being edited (not yet applied)
+      if (agg.isEditing) continue;
+
       agg.isValid = validateAggregation(agg);
       if (agg.isValid) {
         // Map COUNT_ALL to COUNT for the proto (COUNT_ALL is UI-only)
@@ -385,13 +664,13 @@ export class AggregationNode implements ModificationNode {
     const sq =
       groupByColumns.length > 0
         ? StructuredQueryBuilder.withGroupBy(
-            this.prevNode,
+            this.primaryInput,
             groupByColumns,
             aggregations,
             this.nodeId,
           )
         : StructuredQueryBuilder.withGroupBy(
-            this.prevNode,
+            this.primaryInput,
             [], // Empty group by columns means aggregate entire result set
             aggregations,
             this.nodeId,
@@ -420,10 +699,10 @@ export class AggregationNode implements ModificationNode {
   }
 
   resolveColumns() {
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       return;
     }
-    const sourceCols = this.prevNode.finalCols ?? [];
+    const sourceCols = this.primaryInput.finalCols ?? [];
     this.state.groupByColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
       if (sourceCol) {
@@ -440,8 +719,9 @@ export class AggregationNode implements ModificationNode {
     });
   }
 
-  serializeState(): AggregationSerializedState {
+  serializeState(): AggregationSerializedState & {primaryInputId?: string} {
     return {
+      primaryInputId: this.primaryInput?.nodeId,
       groupByColumns: this.state.groupByColumns.map((c) => ({
         name: c.name,
         checked: c.checked,
@@ -454,7 +734,6 @@ export class AggregationNode implements ModificationNode {
         isValid: a.isValid,
         isEditing: a.isEditing,
       })),
-      comment: this.state.comment,
     };
   }
 
@@ -478,7 +757,6 @@ export class AggregationNode implements ModificationNode {
     });
     return {
       ...state,
-      prevNode: undefined as unknown as QueryNode,
       groupByColumns,
       aggregations,
     };
@@ -595,6 +873,40 @@ function stringToAggregateOp(
   throw new Error(`Invalid AggregateOp '${s}'`);
 }
 
+// Helper function to determine the result type of an aggregation operation
+function getAggregationResultType(agg: Aggregation): PerfettoSqlType {
+  if (!agg.aggregationOp) {
+    return PerfettoSqlTypes.INT; // Default fallback
+  }
+
+  switch (agg.aggregationOp) {
+    case 'COUNT':
+    case 'COUNT_ALL':
+      return PerfettoSqlTypes.INT;
+
+    case 'SUM':
+    case 'MIN':
+    case 'MAX':
+      // Preserve the input column type for SUM, MIN, MAX
+      if (!agg.column?.column.type) {
+        console.warn(
+          `${agg.aggregationOp} aggregation missing column type information, defaulting to INT`,
+        );
+      }
+      return agg.column?.column.type ?? PerfettoSqlTypes.INT;
+
+    case 'MEAN':
+    case 'MEDIAN':
+    case 'DURATION_WEIGHTED_MEAN':
+    case 'PERCENTILE':
+      // These operations always return DOUBLE
+      return PerfettoSqlTypes.DOUBLE;
+
+    default:
+      return PerfettoSqlTypes.INT; // Default fallback
+  }
+}
+
 const AGGREGATION_OPS = [
   'COUNT',
   'COUNT_ALL',
@@ -606,267 +918,3 @@ const AGGREGATION_OPS = [
   'DURATION_WEIGHTED_MEAN',
   'PERCENTILE',
 ] as const;
-
-interface AggregationOperationComponentAttrs {
-  groupByColumns: ColumnInfo[];
-  aggregations: Aggregation[];
-  onchange?: () => void;
-}
-
-class AggregationOperationComponent
-  implements m.ClassComponent<AggregationOperationComponentAttrs>
-{
-  view({attrs}: m.CVnode<AggregationOperationComponentAttrs>) {
-    // Initialize with an aggregation editor if we don't have any aggregations yet
-    if (attrs.aggregations.length === 0) {
-      attrs.aggregations.push({isEditing: true});
-    }
-
-    // Use the utility function to determine if a column is valid for the given operation
-    const isColumnValidForOp = isColumnValidForAggregation;
-
-    const aggregationEditor = (agg: Aggregation, index: number): m.Child => {
-      const columnOptions = attrs.groupByColumns.map((col) => {
-        const isValid = isColumnValidForOp(col, agg.aggregationOp);
-        return m(
-          'option',
-          {
-            value: col.name,
-            selected: agg.column?.name === col.name,
-            disabled: !isValid,
-          },
-          col.name,
-        );
-      });
-
-      // Validation function that checks if the aggregation is complete and valid
-      const isAggregationValid = (): boolean => {
-        return validateAggregation(agg);
-      };
-
-      return m(
-        Form,
-        {
-          submitLabel: 'Apply',
-          submitIcon: Icons.Check,
-          cancelLabel: 'Cancel',
-          required: true,
-          validation: isAggregationValid,
-          onSubmit: (e: Event) => {
-            e.preventDefault();
-            if (!agg.newColumnName) {
-              agg.newColumnName = placeholderNewColumnName(agg);
-            }
-            agg.isEditing = false;
-            attrs.onchange?.();
-          },
-          onCancel: () => {
-            // If this is a new aggregation that hasn't been confirmed yet, remove it
-            if (!agg.isValid) {
-              attrs.aggregations.splice(index, 1);
-            } else {
-              // Otherwise just stop editing
-              agg.isEditing = false;
-            }
-            m.redraw();
-          },
-        },
-        m(
-          '.pf-exp-aggregation-editor',
-          m(
-            Select,
-            {
-              required: true,
-              onchange: (e: Event) => {
-                agg.aggregationOp = (e.target as HTMLSelectElement).value;
-                // Clear percentile when changing operation
-                if (agg.aggregationOp !== 'PERCENTILE') {
-                  agg.percentile = undefined;
-                }
-                // Clear column when switching to COUNT_ALL
-                if (agg.aggregationOp === 'COUNT_ALL') {
-                  agg.column = undefined;
-                }
-                m.redraw();
-              },
-            },
-            m(
-              'option',
-              {disabled: true, selected: !agg.aggregationOp, value: ''},
-              'Select operation',
-            ),
-            AGGREGATION_OPS.map((op) =>
-              m(
-                'option',
-                {
-                  value: op,
-                  selected: op === agg.aggregationOp,
-                },
-                op,
-              ),
-            ),
-          ),
-          // Percentile value input (only for PERCENTILE operation, shown before column)
-          agg.aggregationOp === 'PERCENTILE' &&
-            m(TextInput, {
-              placeholder: 'percentile (0-100)',
-              type: 'number',
-              min: 0,
-              max: 100,
-              required: true,
-              oninput: (e: InputEvent) => {
-                const value = parseFloat((e.target as HTMLInputElement).value);
-                agg.percentile = isNaN(value) ? undefined : value;
-                m.redraw();
-              },
-              value: agg.percentile?.toString() ?? '',
-            }),
-          // Column selector (not shown for COUNT_ALL)
-          agg.aggregationOp &&
-            agg.aggregationOp !== 'COUNT_ALL' &&
-            m(
-              Select,
-              {
-                required: true,
-                onchange: (e: Event) => {
-                  const target = e.target as HTMLSelectElement;
-                  agg.column = attrs.groupByColumns.find(
-                    (c) => c.name === target.value,
-                  );
-                  m.redraw();
-                },
-              },
-              m(
-                'option',
-                {disabled: true, selected: !agg.column, value: ''},
-                'Select column',
-              ),
-              columnOptions,
-            ),
-          'AS',
-          m(TextInput, {
-            placeholder: placeholderNewColumnName(agg),
-            oninput: (e: Event) => {
-              agg.newColumnName = (e.target as HTMLInputElement).value.trim();
-            },
-            value: agg.newColumnName,
-          }),
-        ),
-      );
-    };
-
-    const aggregationViewer = (agg: Aggregation, index: number): m.Child => {
-      let aggDisplay = '';
-      if (agg.aggregationOp === 'COUNT_ALL') {
-        aggDisplay = 'COUNT(*)';
-      } else if (
-        agg.aggregationOp === 'PERCENTILE' &&
-        agg.percentile !== undefined
-      ) {
-        aggDisplay = `PERCENTILE(${agg.column?.name}, ${agg.percentile})`;
-      } else {
-        aggDisplay = `${agg.aggregationOp}(${agg.column?.name})`;
-      }
-
-      return m(
-        '.pf-exp-aggregation-viewer',
-        m(
-          'span',
-          {
-            onclick: () => {
-              attrs.aggregations.forEach((a, i) => {
-                a.isEditing = i === index;
-              });
-              m.redraw();
-            },
-          },
-          `${aggDisplay} AS ${agg.newColumnName}`,
-        ),
-        m(Button, {
-          icon: Icons.Close,
-          onclick: (e: Event) => {
-            e.stopPropagation();
-            attrs.aggregations.splice(index, 1);
-            attrs.onchange?.();
-            m.redraw();
-          },
-        }),
-      );
-    };
-
-    const aggregationsList = (): m.Children => {
-      const lastAgg = attrs.aggregations[attrs.aggregations.length - 1];
-      const showAddButton = lastAgg.isValid;
-
-      return [
-        ...attrs.aggregations.map((agg, index) => {
-          if (agg.isEditing) {
-            return aggregationEditor(agg, index);
-          } else {
-            return aggregationViewer(agg, index);
-          }
-        }),
-        showAddButton &&
-          m(Button, {
-            label: 'Add more aggregations',
-            onclick: () => {
-              if (!lastAgg.newColumnName) {
-                lastAgg.newColumnName = placeholderNewColumnName(lastAgg);
-              }
-              lastAgg.isEditing = false;
-              attrs.aggregations.push({isEditing: true});
-              attrs.onchange?.();
-            },
-          }),
-      ];
-    };
-
-    const selectGroupByColumns = (): m.Child => {
-      const groupByOptions: MultiSelectOption[] = attrs.groupByColumns.map(
-        (col) => ({
-          id: col.name,
-          name: col.name,
-          checked: col.checked,
-        }),
-      );
-
-      const selectedGroupBy = attrs.groupByColumns.filter((c) => c.checked);
-      const label =
-        selectedGroupBy.length > 0
-          ? selectedGroupBy.map((c) => c.name).join(', ')
-          : 'None';
-
-      return m(
-        '.pf-exp-multi-select-container',
-        m('label', 'GROUP BY columns'),
-        m(PopupMultiSelect, {
-          label,
-          options: groupByOptions,
-          showNumSelected: false,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            for (const diff of diffs) {
-              const column = attrs.groupByColumns.find(
-                (c) => c.name === diff.id,
-              );
-              if (column) {
-                column.checked = diff.checked;
-              }
-            }
-            attrs.onchange?.();
-          },
-        }),
-      );
-    };
-
-    return m(
-      '.pf-exp-query-operations',
-      m(Card, {}, [
-        m(
-          '.pf-exp-operations-container',
-          selectGroupByColumns(),
-          m('.pf-exp-aggregations-list', aggregationsList()),
-        ),
-      ]),
-    );
-  }
-}

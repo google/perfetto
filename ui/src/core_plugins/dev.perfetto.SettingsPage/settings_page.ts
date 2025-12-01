@@ -18,20 +18,18 @@ import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {z} from 'zod';
 import {Button, ButtonVariant} from '../../widgets/button';
-import {Card, CardStack} from '../../widgets/card';
-import {SettingsShell} from '../../widgets/settings_shell';
+import {CardStack} from '../../widgets/card';
+import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
-import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
-import {Anchor} from '../../widgets/anchor';
 
 export interface SettingsPageAttrs {
   readonly subpage?: string;
@@ -214,53 +212,27 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   }
 
   private renderSettingCard(setting: Setting<unknown>, subpage: string) {
-    return m(
-      Card,
-      {
-        id: setting.id,
-        className: classNames(
-          'pf-settings-page__card',
-          !setting.isDefault && 'pf-settings-page__card--changed',
-          subpage === `/${setting.id}` && 'pf-settings-page__card--focused',
-        ),
-        key: setting.id,
-      },
-      m(
-        '.pf-settings-page__details',
-        m(
-          Stack,
-          {
-            orientation: 'horizontal',
-            gap: 'small',
-            className: 'pf-settings-page__label-row',
-          },
-          m('h1', setting.name),
-          m(
-            '.pf-settings-page__link-button',
-            m(Anchor, {
-              href: `#!/settings/${encodeURIComponent(setting.id)}`,
-              icon: 'link',
-              title: 'Link to this setting',
-            }),
-          ),
-        ),
-        m('.pf-settings-page__setting-id', setting.id),
-        setting.description &&
-          m('.pf-settings-page__description', setting.description),
-      ),
-      m('.pf-settings-page__controls', [
+    return m(SettingsCard, {
+      id: setting.id,
+      title: setting.name,
+      description: setting.description.trim(),
+      focused: subpage === `/${setting.id}`,
+      controls: m('.pf-settings-page__controls', [
         !setting.isDefault &&
           m(Button, {
             icon: 'restore',
             title: 'Restore default',
             variant: ButtonVariant.Minimal,
+            className: 'pf-settings-page__restore-button',
             onclick: () => {
               setting.reset();
             },
           }),
         this.renderSettingControl(setting),
       ]),
-    );
+      accent: !setting.isDefault ? Intent.Primary : undefined,
+      linkHref: `#!/settings/${encodeURIComponent(setting.id)}`,
+    });
   }
 
   private renderSettingControl(setting: Setting<unknown>) {
@@ -383,17 +355,6 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
         m(Icon, {icon: 'error_outline'}),
         m('span', 'Cannot edit this setting directly'),
       ]);
-    }
-  }
-
-  oncreate(vnode: m.VnodeDOM<SettingsPageAttrs>) {
-    const subpage = decodeURIComponent(vnode.attrs.subpage ?? '');
-    const settingId = /[/](.+)/.exec(subpage)?.[1];
-    if (settingId) {
-      const setting = vnode.dom.querySelector(`#${CSS.escape(settingId)}`);
-      if (setting) {
-        setting.scrollIntoView({block: 'center'});
-      }
     }
   }
 }

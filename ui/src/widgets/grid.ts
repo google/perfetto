@@ -68,20 +68,27 @@ export interface GridHeaderCellAttrs extends m.Attributes {
 
 export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
   view({attrs, children}: m.Vnode<GridHeaderCellAttrs>) {
-    const {sort, onSort, menuItems, subContent, ...htmlAttrs} = attrs;
+    const {
+      sort,
+      onSort,
+      menuItems,
+      subContent,
+      hintSortDirection,
+      ...htmlAttrs
+    } = attrs;
 
     const renderSortButton = () => {
       if (!onSort) return undefined;
 
       const nextDirection: SortDirection = (() => {
-        if (!sort) return attrs.hintSortDirection || 'ASC';
+        if (!sort) return hintSortDirection || 'ASC';
         if (sort === 'ASC') return 'DESC';
         if (sort === 'DESC') return 'ASC';
         return 'ASC';
       })();
 
       const sortIconDirection: SortDirection | undefined = (() => {
-        if (!sort) return attrs.hintSortDirection;
+        if (!sort) return hintSortDirection;
         return sort;
       })();
 
@@ -107,8 +114,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            className:
-              'pf-visible-on-hover pf-grid-header-cell__menu-button pf-grid--no-measure',
+            className: 'pf-visible-on-hover pf-grid-header-cell__menu-button',
             icon: Icons.ContextMenuAlt,
             rounded: true,
             ariaLabel: 'Column menu',
@@ -122,6 +128,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       '.pf-grid-header-cell',
       {
         ...htmlAttrs,
+        role: 'columnheader',
       },
       [
         m(
@@ -146,6 +153,10 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly nullish?: boolean;
   readonly padding?: boolean;
   readonly wrap?: boolean;
+  readonly label?: string;
+  readonly indent?: number;
+  readonly chevron?: 'expanded' | 'collapsed' | 'leaf';
+  readonly onChevronClick?: () => void;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -157,37 +168,76 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       className,
       padding = true,
       wrap,
-      ...rest
+      indent,
+      chevron,
+      onChevronClick,
+      ...htmlAttrs
     } = attrs;
 
-    const cell = m(
+    const renderChevron = () => {
+      if (chevron === undefined) return undefined;
+
+      const icon = chevron === 'expanded' ? Icons.ExpandDown : Icons.GoForward;
+      const ariaLabel = chevron === 'expanded' ? 'Collapse row' : 'Expand row';
+
+      return m(Button, {
+        className: classNames(
+          'pf-grid-cell__chevron',
+          chevron === 'leaf' && 'pf-grid-cell__chevron--leaf',
+        ),
+        icon,
+        rounded: true,
+        ariaLabel,
+        onclick: (e: MouseEvent) => {
+          if (onChevronClick) {
+            onChevronClick();
+            e.stopPropagation();
+          }
+        },
+      });
+    };
+
+    const renderIndent = () => {
+      if (indent === undefined || indent === 0) return undefined;
+
+      return m('.pf-grid-cell__indent', {
+        style: {
+          width: `${indent * 16}px`,
+        },
+      });
+    };
+
+    return m(
       '.pf-grid-cell',
       {
-        ...rest,
+        ...htmlAttrs,
         className: classNames(
           className,
-          align && `pf-grid-cell--align-${align}`,
+          align === 'right' && !chevron && 'pf-grid-cell--align-right',
           padding && 'pf-grid-cell--padded',
           nullish && 'pf-grid-cell--nullish',
           wrap && 'pf-grid-cell--wrap',
         ),
+        role: 'cell',
       },
-      children,
+      renderIndent(),
+      renderChevron(),
+      m('.pf-grid-cell__content', children),
+      Boolean(menuItems) &&
+        m(
+          PopupMenu,
+          {
+            trigger: m(Button, {
+              className: 'pf-visible-on-hover pf-grid-cell__menu-button',
+              icon: Icons.ContextMenuAlt,
+              rounded: true,
+              ariaLabel: 'Cell menu',
+            }),
+            position: PopupPosition.Bottom,
+          },
+          menuItems,
+        ),
     );
-
-    if (Boolean(menuItems)) {
-      return m(
-        PopupMenu,
-        {
-          trigger: cell,
-          isContextMenu: true,
-          position: PopupPosition.Bottom,
-        },
-        menuItems,
-      );
-    } else {
-      return cell;
-    }
   }
 }
 
@@ -254,20 +304,163 @@ export interface GridApi {
 /**
  * Attributes for the Grid component.
  */
+/**
+ * Configuration for the Grid component.
+ * Grid is a low-level presentation component - consumers must wrap content
+ * in GridHeaderCell and GridCell components.
+ */
 export interface GridAttrs {
+  /**
+   * Column definitions for the grid.
+   * Each column specifies a key, optional header content, and display options.
+   *
+   * @example
+   * columns: [
+   *   {
+   *     key: 'id',
+   *     header: m(GridHeaderCell, {sort: 'ASC'}, 'ID'),
+   *     minWidth: 100,
+   *   },
+   *   {
+   *     key: 'name',
+   *     header: m(GridHeaderCell, {menuItems: [...]}, 'Name'),
+   *   },
+   * ]
+   */
   readonly columns: ReadonlyArray<GridColumn>;
+
+  /**
+   * Row data to display in the grid.
+   * Can be either a full array of rows or a partial/paginated dataset.
+   *
+   * Full dataset (array):
+   * - Use when all data fits in memory
+   * - Virtualization is optional
+   *
+   * Partial dataset (PartialRowData):
+   * - Use for large datasets with on-demand loading
+   * - Virtualization is required
+   *
+   * @example Full dataset
+   * rowData: [
+   *   [m(GridCell, '1'), m(GridCell, 'Alice')],
+   *   [m(GridCell, '2'), m(GridCell, 'Bob')],
+   * ]
+   *
+   * @example Partial/paginated dataset
+   * rowData: {
+   *   data: currentRows,
+   *   total: 1000000,
+   *   offset: 0,
+   *   onLoadData: (offset, limit) => {
+   *     // Load data for requested range
+   *   },
+   * }
+   */
   readonly rowData: GridRowData;
+
+  /**
+   * Virtual scrolling configuration.
+   * When enabled, only visible rows are rendered for better performance.
+   * Required when using PartialRowData, optional for full datasets.
+   *
+   * @example
+   * virtualization: {
+   *   rowHeightPx: 24,  // Fixed height for each row
+   * }
+   */
   readonly virtualization?: GridVirtualization;
+
+  /**
+   * Whether the grid should expand to fill its parent container's height.
+   * When true, the grid will take up all available vertical space.
+   * Default = false.
+   *
+   * @example
+   * fillHeight: true
+   */
   readonly fillHeight?: boolean;
+
+  /**
+   * Optional CSS class name to apply to the grid root element.
+   * Used for custom styling.
+   *
+   * @example
+   * className: 'my-custom-grid'
+   */
   readonly className?: string;
+
+  /**
+   * Callback fired when the user hovers over a row.
+   * Receives the absolute row index (not relative to current page).
+   * Use with virtualized grids to implement row highlighting or preview features.
+   *
+   * @param rowIndex The absolute index of the hovered row
+   *
+   * @example
+   * onRowHover: (rowIndex) => {
+   *   console.log(`Hovering row ${rowIndex}`);
+   * }
+   */
   readonly onRowHover?: (rowIndex: number) => void;
+
+  /**
+   * Callback fired when the user's mouse leaves a row.
+   * Pairs with onRowHover for implementing hover effects.
+   *
+   * @example
+   * onRowOut: () => {
+   *   console.log('Left row');
+   * }
+   */
   readonly onRowOut?: () => void;
+
+  /**
+   * Callback fired when columns are reordered via drag-and-drop.
+   * Only called if column.reorderable is set on columns.
+   *
+   * @param from The key of the column being moved
+   * @param to The key of the target column
+   * @param position Whether to place before or after the target
+   *
+   * @example
+   * onColumnReorder: (from, to, position) => {
+   *   const newOrder = reorderArray(columnOrder, from, to, position);
+   *   setColumnOrder(newOrder);
+   * }
+   */
   readonly onColumnReorder?: (
     from: string | number | undefined,
     to: string | number | undefined,
     position: ReorderPosition,
   ) => void;
+
+  /**
+   * Callback fired when the grid is fully initialized.
+   * Receives an API object for programmatic control of the grid.
+   * Use this to access methods like autoFitColumn() and autoFitAllColumns().
+   *
+   * @param api The grid's imperative API
+   *
+   * @example
+   * onReady: (api) => {
+   *   // Auto-fit all columns on mount
+   *   api.autoFitAllColumns();
+   * }
+   */
   readonly onReady?: (api: GridApi) => void;
+
+  /**
+   * Content to display when the grid has no rows.
+   * Typically used to show a helpful message or call-to-action.
+   *
+   * @example
+   * emptyState: m(EmptyState, {
+   *   icon: 'inbox',
+   *   title: 'No data available',
+   * })
+   */
+  readonly emptyState?: m.Children;
 }
 
 /**
@@ -407,6 +600,10 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     const tempDiv = document.createElement('div');
     tempDiv.appendChild(fragment);
 
+    // Remove all button elements to exclude them from the copy
+    const buttons = tempDiv.querySelectorAll('button');
+    buttons.forEach((button) => button.remove());
+
     // Find all rows in the cloned content
     const rows = Array.from(
       tempDiv.querySelectorAll('.pf-grid__row'),
@@ -497,6 +694,9 @@ export class Grid implements m.ClassComponent<GridAttrs> {
             attrs,
           )
         : this.renderGridBody(columns, rows, attrs),
+      totalRows === 0 &&
+        attrs.emptyState !== undefined &&
+        m('.pf-grid__empty-state', attrs.emptyState),
     );
   }
 
@@ -711,13 +911,13 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     const gridClone = gridDom.cloneNode(true) as HTMLElement;
     gridDom.appendChild(gridClone);
 
-    // Hide any elements that are not part of the measurement - these are
-    // elements with class .pf-grid--no-measure
-    const noMeasureElements = gridClone.querySelectorAll(
-      '.pf-grid--no-measure',
+    // Show any elements that are normally visible only on hover - this takes
+    // into account the menu buttons, sort buttons, etc.
+    const invisibleElements = gridClone.querySelectorAll(
+      '.pf-visible-on-hover',
     );
-    noMeasureElements.forEach((el) => {
-      (el as HTMLElement).style.display = 'none';
+    invisibleElements.forEach((el) => {
+      (el as HTMLElement).style.display = 'block';
     });
 
     // Now read the actual widths (this will cause a reflow)
@@ -861,7 +1061,6 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         'style': {
           width: `var(--pf-grid-col-${columnId})`,
         },
-        'role': 'cell',
         'data-column-id': columnId,
         'className': classNames(
           thickRightBorder && 'pf-grid__cell-container--border-right-thick',
@@ -959,8 +1158,6 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     return m(
       '.pf-grid__cell-container',
       {
-        'role': 'columnheader',
-        'ariaLabel': column.key,
         'data-column-id': columnId,
         'key': column.key,
         'style': {

@@ -101,7 +101,7 @@ on property:persist.traced.enable=1
     mkdir /data/misc/perfetto-traces/persistent 0777 root shell
 
     stop traced_relay
-    
+
     start post_reboot_persistent_traces_uploader
 
 # This is a fallback.
@@ -137,19 +137,13 @@ on post-fs-data
 # when setting the debug property. So we turn "ro.persistent_properties.ready"
 # into a trigger, and then check whether we should start tracing when the
 # trigger fires.
-#on perfetto_maybe_trace_on_boot && property:persist.debug.perfetto.boottrace=1 && property:persist.traced.enable=1
-#    setprop persist.debug.perfetto.boottrace ""
-#    rm /data/misc/perfetto-traces/boottrace.perfetto-trace
-#    # Set by traced after listen()ing on the consumer socket. Without this,
-#    # perfetto could try to connect to traced before traced is ready to listen.
-#    wait_for_prop sys.trace.traced_started 1
-#    start perfetto_trace_on_boot
-
-on property:persist.traced.enable=1
-    rm /data/misc/perfetto-traces/traced_started.txt
-
-on property:sys.trace.traced_started=1
-    write /data/misc/perfetto-traces/traced_started.txt 1
+# sys.trace.traced_started is set by traced after listen()ing on the consumer
+# socket. Without this, perfetto could try to connect to traced before traced
+# is ready to listen.
+on perfetto_maybe_trace_on_boot && property:persist.debug.perfetto.boottrace=1 && property:persist.traced.enable=1 && property:sys.trace.traced_started=1
+    setprop persist.debug.perfetto.boottrace ""
+    rm /data/misc/perfetto-traces/boottrace.perfetto-trace
+    start perfetto_trace_on_boot
 
 on property:ro.persistent_properties.ready=true
     trigger perfetto_maybe_trace_on_boot
@@ -197,11 +191,11 @@ on init
 #  tracing session, for debugging purposes
 ##############################################################################
 
-#on property:persist.debug.perfetto.persistent_sysui_tracing_for_bugreport=1 && property:persist.traced.enable=1 && property:ro.debuggable=1
-#    # Set by traced after listen()ing on the consumer socket. Without this,
-#    # perfetto could try to connect to traced before traced is ready to listen.
-#    wait_for_prop sys.trace.traced_started 1
-#    start perfetto_persistent_sysui_tracing_for_bugreport
+# sys.trace.traced_started is set by traced after listen()ing on the consumer
+# socket. Without this, perfetto could try to connect to traced before traced
+# is ready to listen.
+on property:persist.debug.perfetto.persistent_sysui_tracing_for_bugreport=1 && property:persist.traced.enable=1 && property:ro.debuggable=1 && property:sys.trace.traced_started=1
+    start perfetto_persistent_sysui_tracing_for_bugreport
 
 # If something disables traced, we don't want init to respawn the service (that will fail) continuously.
 on property:persist.traced.enable=0

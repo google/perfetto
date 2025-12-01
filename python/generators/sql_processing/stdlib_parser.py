@@ -26,7 +26,8 @@ from typing import List, Tuple, Optional
 
 from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule, parse_file
 from python.generators.sql_processing.utils import is_internal
-from python.generators.sql_processing.stdlib_tags import get_tags
+from python.generators.sql_processing.stdlib_tags import get_tags, get_table_importance
+from python.perfetto.trace_data_checks import MODULE_DATA_CHECK_SQL
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(
@@ -201,6 +202,9 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
   Output format matches what gen_stdlib_docs_json currently produces.
   """
 
+  # Use the curated data check SQL map
+  data_check_sql_map = MODULE_DATA_CHECK_SQL
+
   def _summary_desc(s: str) -> str:
     """Extract the first sentence from a description."""
     s = s.replace('\n', ' ')
@@ -245,14 +249,12 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
     package_name = module_name.split(".")[0]
 
     module_dict = {
-        'module_name':
-            module_name,
+        'module_name': module_name,
         'module_doc': {
             'name': parsed.module_doc.name,
             'desc': parsed.module_doc.desc,
         } if parsed.module_doc else None,
-        'tags':
-            get_tags(module_name),
+        'tags': get_tags(module_name),
         'includes': [inc.module for inc in parsed.includes],
         'data_objects': [{
             'name':
@@ -265,6 +267,8 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
                 table.type,
             'visibility':
                 'private' if is_internal(table.name) else 'public',
+            'importance':
+                get_table_importance(table.name),
             'cols': [
                 _create_field_dict(col_name, col)
                 for (col_name, col) in table.cols.items()
@@ -322,6 +326,7 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
             ],
         }
                    for macro in parsed.macros],
+        'data_check_sql': data_check_sql_map.get(module_name),
     }
     packages[package_name].append(module_dict)
 
