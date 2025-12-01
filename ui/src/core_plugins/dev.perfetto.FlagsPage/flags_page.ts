@@ -18,15 +18,14 @@ import {channelChanged, getNextChannel, setChannel} from '../../core/channels';
 import {featureFlags} from '../../core/feature_flags';
 import {Flag, OverrideState} from '../../public/feature_flag';
 import {Button, ButtonVariant} from '../../widgets/button';
-import {Card, CardStack} from '../../widgets/card';
+import {CardStack} from '../../widgets/card';
 import {EmptyState} from '../../widgets/empty_state';
 import {Icon} from '../../widgets/icon';
 import {Select} from '../../widgets/select';
-import {SettingsShell} from '../../widgets/settings_shell';
-import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
+import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
+import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
 import {FuzzyFinder} from '../../base/fuzzy';
-import {classNames} from '../../base/classnames';
 import {Intent} from '../../widgets/common';
 import {Anchor} from '../../widgets/anchor';
 import {Popup} from '../../widgets/popup';
@@ -46,50 +45,34 @@ interface SelectWidgetAttrs {
   readonly description: m.Children;
   readonly options: FlagOption[];
   readonly selected: string;
+  readonly isChanged: boolean;
+  readonly focused: boolean;
   readonly onSelect: (id: string) => void;
 }
 
 class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
   view({attrs}: m.Vnode<SelectWidgetAttrs>) {
-    return m(Stack, {orientation: 'horizontal'}, [
-      m(Stack, [
-        m(
-          Stack,
-          {
-            orientation: 'horizontal',
-            gap: 'small',
-            className: 'pf-flags-page__label-row',
+    return m(SettingsCard, {
+      id: attrs.id,
+      title: attrs.label,
+      description: attrs.description,
+      focused: attrs.focused,
+      accent: attrs.isChanged ? Intent.Primary : undefined,
+      linkHref: `#!/flags/${encodeURIComponent(attrs.id)}`,
+      controls: m(
+        Select,
+        {
+          onchange: (e: InputEvent) => {
+            const value = (e.target as HTMLSelectElement).value;
+            attrs.onSelect(value);
           },
-          attrs.label,
-          m(
-            '.pf-flags-page__link-button',
-            m(Anchor, {
-              href: `#!/flags/${encodeURIComponent(attrs.id)}`,
-              icon: 'link',
-              title: 'Link to this flag',
-            }),
-          ),
-        ),
-        m('.pf-flags-page__flag-id', attrs.id),
-        m('.pf-flags-page__description', attrs.description),
-      ]),
-      m(StackAuto),
-      m(StackFixed, [
-        m(
-          Select,
-          {
-            onchange: (e: InputEvent) => {
-              const value = (e.target as HTMLSelectElement).value;
-              attrs.onSelect(value);
-            },
-          },
-          attrs.options.map((o) => {
-            const selected = o.id === attrs.selected;
-            return m('option', {value: o.id, selected}, o.name);
-          }),
-        ),
-      ]),
-    ]);
+        },
+        attrs.options.map((o) => {
+          const selected = o.id === attrs.selected;
+          return m('option', {value: o.id, selected}, o.name);
+        }),
+      ),
+    });
   }
 }
 
@@ -102,43 +85,34 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
   view({attrs}: m.Vnode<FlagWidgetAttrs>) {
     const flag = attrs.flag;
     const defaultState = flag.defaultValue ? 'Enabled' : 'Disabled';
-    const isChanged = flag.isOverridden();
 
-    return m(
-      Card,
-      {
-        id: flag.id,
-        className: classNames(
-          isChanged && 'pf-flags-page__card--changed',
-          attrs.focused && 'pf-flags-page__card--focused',
-        ),
+    return m(SelectWidget, {
+      label: flag.name,
+      id: flag.id,
+      description: flag.description.trim(),
+      options: [
+        {id: OverrideState.DEFAULT, name: `Default (${defaultState})`},
+        {id: OverrideState.TRUE, name: 'Enabled'},
+        {id: OverrideState.FALSE, name: 'Disabled'},
+      ],
+      isChanged: flag.isOverridden(),
+      focused: attrs.focused,
+      selected: flag.overriddenState(),
+      onSelect: (value: string) => {
+        switch (value) {
+          case OverrideState.TRUE:
+            flag.set(true);
+            break;
+          case OverrideState.FALSE:
+            flag.set(false);
+            break;
+          default:
+          case OverrideState.DEFAULT:
+            flag.reset();
+            break;
+        }
       },
-      m(SelectWidget, {
-        label: flag.name,
-        id: flag.id,
-        description: flag.description,
-        options: [
-          {id: OverrideState.DEFAULT, name: `Default (${defaultState})`},
-          {id: OverrideState.TRUE, name: 'Enabled'},
-          {id: OverrideState.FALSE, name: 'Disabled'},
-        ],
-        selected: flag.overriddenState(),
-        onSelect: (value: string) => {
-          switch (value) {
-            case OverrideState.TRUE:
-              flag.set(true);
-              break;
-            case OverrideState.FALSE:
-              flag.set(false);
-              break;
-            default:
-            case OverrideState.DEFAULT:
-              flag.reset();
-              break;
-          }
-        },
-      }),
-    );
+    });
   }
 }
 
@@ -249,37 +223,30 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
       m(
         Stack,
         {spacing: 'large'},
-        m(
-          Card,
-          {
-            id: 'releaseChannel',
-            className: classNames(
-              subpage === `/releaseChannel` && 'pf-flags-page__card--focused',
+        m(SelectWidget, {
+          label: 'Release channel',
+          id: 'releaseChannel',
+          isChanged: getNextChannel() !== 'stable',
+          focused: subpage === `/releaseChannel`,
+          description: [
+            'Which release channel of the UI to use. See ',
+            m(
+              Anchor,
+              {
+                href: RELEASE_PROCESS_URL,
+              },
+              'Release Process',
             ),
-          },
-          m(SelectWidget, {
-            label: 'Release channel',
-            id: 'releaseChannel',
-            description: [
-              'Which release channel of the UI to use. See ',
-              m(
-                Anchor,
-                {
-                  href: RELEASE_PROCESS_URL,
-                },
-                'Release Process',
-              ),
-              ' for more information.',
-            ],
-            options: [
-              {id: 'stable', name: 'Stable (default)'},
-              {id: 'canary', name: 'Canary'},
-              {id: 'autopush', name: 'Autopush'},
-            ],
-            selected: getNextChannel(),
-            onSelect: (id) => setChannel(id),
-          }),
-        ),
+            ' for more information.',
+          ],
+          options: [
+            {id: 'stable', name: 'Stable (default)'},
+            {id: 'canary', name: 'Canary'},
+            {id: 'autopush', name: 'Autopush'},
+          ],
+          selected: getNextChannel(),
+          onSelect: (id) => setChannel(id),
+        }),
         m(
           'span',
           m(
@@ -314,16 +281,5 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
         ),
       ),
     );
-  }
-
-  oncreate(vnode: m.VnodeDOM<FlagsPageAttrs>) {
-    const subpage = decodeURIComponent(vnode.attrs.subpage ?? '');
-    const flagId = /[/](\w+)/.exec(subpage)?.slice(1, 2)[0];
-    if (flagId) {
-      const flag = vnode.dom.querySelector(`#${flagId}`);
-      if (flag) {
-        flag.scrollIntoView({block: 'center'});
-      }
-    }
   }
 }

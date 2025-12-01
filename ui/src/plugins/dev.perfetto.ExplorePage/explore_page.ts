@@ -23,6 +23,7 @@ import {
   NodeActions,
   addConnection,
   removeConnection,
+  singleNodeOperation,
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {Trace} from '../../public/trace';
@@ -32,7 +33,9 @@ import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
 import {MaterializationService} from './query_builder/materialization_service';
+import {CleanupManager} from './query_builder/cleanup_manager';
 import {HistoryManager} from './history_manager';
+import {getAllNodes} from './query_builder/graph_utils';
 
 registerCoreNodes();
 
@@ -56,6 +59,7 @@ interface ExplorePageAttrs {
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private materializationService?: MaterializationService;
+  private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
 
@@ -138,12 +142,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // Use a wrapper object to hold the node reference (allows mutation without 'let')
       const nodeRef: {current?: QueryNode} = {};
 
-      const isMultisource = descriptor.type === 'multisource';
-
       const nodeState: QueryNodeState = {
         ...initialState,
-        // For modification nodes, set prevNode; multisource nodes will be connected via addConnection
-        ...(isMultisource ? {} : {prevNode: node}),
         sqlModules,
         trace: attrs.trace,
         // Provide actions for nodes that need to interact with the graph
@@ -181,18 +181,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // Mark this node as initialized
       this.initializedNodes.add(newNode.nodeId);
 
-      if (isMultisource) {
-        // For multisource nodes: just connect and add to root nodes
-        // Don't insert in-between - the node combines multiple sources
-        addConnection(node, newNode);
-
-        onStateUpdate((currentState) => ({
-          ...currentState,
-          rootNodes: [...currentState.rootNodes, newNode],
-          selectedNode: newNode,
-        }));
-      } else {
-        // For modification nodes: insert between the target and its children
+      if (singleNodeOperation(newNode.type)) {
+        // For single-input operations: insert between the target and its children
         // Store the existing next nodes
         const existingNextNodes = [...node.nextNodes];
 
@@ -214,6 +204,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
         onStateUpdate((currentState) => ({
           ...currentState,
+          selectedNode: newNode,
+        }));
+      } else {
+        // For multi-source nodes: just connect and add to root nodes
+        // Don't insert in-between - the node combines multiple sources
+        addConnection(node, newNode);
+
+        onStateUpdate((currentState) => ({
+          ...currentState,
+          rootNodes: [...currentState.rootNodes, newNode],
           selectedNode: newNode,
         }));
       }
@@ -309,13 +309,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Get the current input node at the specified port
     let inputNode: QueryNode | undefined;
-    if ('inputNodes' in targetNode && targetNode.inputNodes) {
-      inputNode = targetNode.inputNodes[portIndex];
-    } else if (
-      'prevNodes' in targetNode &&
-      Array.isArray(targetNode.prevNodes)
-    ) {
-      inputNode = targetNode.prevNodes[portIndex];
+    if ('secondaryInputs' in targetNode && targetNode.secondaryInputs) {
+      inputNode = targetNode.secondaryInputs.connections.get(portIndex);
     }
 
     if (!inputNode) {
@@ -323,10 +318,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
-    // Create the ModifyColumns node with the input node as prevNode
+    // Create the ModifyColumns node
     const newNode = descriptor.factory(
       {
-        prevNode: inputNode,
         sqlModules,
         trace: attrs.trace,
       },
@@ -336,7 +330,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // Remove the old connection from inputNode to targetNode
     removeConnection(inputNode, targetNode);
 
-    // Add connection from inputNode to ModifyColumns node
+    // Add connection from inputNode to ModifyColumns node (sets primaryInput)
     addConnection(inputNode, newNode);
 
     // Add connection from ModifyColumns node to targetNode at the same port
@@ -351,29 +345,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   async handleClearAllNodes(attrs: ExplorePageAttrs) {
-    // Clean up materialized tables for all nodes
-    if (this.materializationService !== undefined) {
-      const allNodes = this.getAllNodes(attrs.state.rootNodes);
-      const materialized = allNodes.filter(
-        (node) => node.state.materialized === true,
-      );
-
-      // Drop all materializations in parallel
-      const results = await Promise.allSettled(
-        materialized.map((node) =>
-          this.materializationService!.dropMaterialization(node),
-        ),
-      );
-
-      // Log any failures but don't block the clear operation
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          console.error(
-            `Failed to drop materialization for node ${materialized[index].nodeId}:`,
-            result.reason,
-          );
-        }
-      });
+    // Clean up materialized tables for all nodes using CleanupManager
+    if (this.cleanupManager !== undefined) {
+      const allNodes = getAllNodes(attrs.state.rootNodes);
+      await this.cleanupManager.cleanupNodes(allNodes);
     }
 
     attrs.onStateUpdate((currentState) => ({
@@ -381,37 +356,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       rootNodes: [],
       selectedNode: undefined,
     }));
-  }
-
-  private getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
-    const allNodes: QueryNode[] = [];
-    const visited = new Set<string>();
-    const queue = [...rootNodes];
-
-    while (queue.length > 0) {
-      const node = queue.shift()!;
-      if (visited.has(node.nodeId)) {
-        continue;
-      }
-      visited.add(node.nodeId);
-      allNodes.push(node);
-
-      // Traverse forward edges
-      queue.push(...node.nextNodes);
-
-      // Traverse backward edges
-      if ('prevNode' in node && node.prevNode) {
-        queue.push(node.prevNode);
-      } else if ('prevNodes' in node) {
-        for (const prevNode of node.prevNodes) {
-          if (prevNode !== undefined) {
-            queue.push(prevNode);
-          }
-        }
-      }
-    }
-
-    return allNodes;
   }
 
   handleDuplicateNode(attrs: ExplorePageAttrs, node: QueryNode) {
@@ -475,20 +419,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   async handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
     const {state, onStateUpdate} = attrs;
 
-    // Clean up materialized table if it exists
-    if (
-      this.materializationService !== undefined &&
-      node.state.materialized === true
-    ) {
-      try {
-        await this.materializationService.dropMaterialization(node);
-      } catch (e) {
-        console.error(
-          `Failed to drop materialization for node ${node.nodeId}:`,
-          e,
-        );
-        // Continue with node deletion even if materialization cleanup fails
-      }
+    // Clean up all node resources (both JS and SQL) using CleanupManager
+    if (this.cleanupManager !== undefined) {
+      await this.cleanupManager.cleanupNode(node);
     }
 
     let newRootNodes = state.rootNodes.filter((n) => n !== node);
@@ -498,20 +431,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Get parent nodes before removing connections
     const parentNodes: QueryNode[] = [];
-    if ('prevNode' in node && node.prevNode) {
-      parentNodes.push(node.prevNode);
-    } else if ('prevNodes' in node) {
-      for (const prevNode of node.prevNodes) {
-        if (prevNode !== undefined) parentNodes.push(prevNode);
+    if ('primaryInput' in node && node.primaryInput) {
+      parentNodes.push(node.primaryInput);
+    } else if ('secondaryInputs' in node && node.secondaryInputs) {
+      for (const inputNode of node.secondaryInputs.connections.values()) {
+        parentNodes.push(inputNode);
       }
     }
 
-    // Also collect nodes from inputNodes (side ports)
-    if ('inputNodes' in node && node.inputNodes) {
-      for (const inputNode of node.inputNodes) {
-        if (inputNode !== undefined) parentNodes.push(inputNode);
-      }
-    }
+    // Side ports are already handled by secondaryInputs above
 
     // Get child nodes
     const childNodes = [...node.nextNodes];
@@ -565,7 +493,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     // Handle state updates based on node type
-    if ('prevNode' in toNode && toNode.prevNode === undefined) {
+    if ('primaryInput' in toNode && toNode.primaryInput === undefined) {
       // toNode is a ModificationNode that's now orphaned
       // Add it to rootNodes so it remains visible (but invalid)
       const newRootNodes = state.rootNodes.includes(toNode)
@@ -576,7 +504,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         ...currentState,
         rootNodes: newRootNodes,
       }));
-    } else if ('prevNodes' in toNode) {
+    } else if ('secondaryInputs' in toNode) {
       // toNode is a MultiSourceNode - just trigger a state update
       onStateUpdate((currentState) => ({...currentState}));
     }
@@ -741,9 +669,17 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Ensure all nodes have actions initialized (e.g., nodes from imported state)
     // This is efficient - only processes nodes not yet initialized
-    const allNodes = this.getAllNodes(state.rootNodes);
+    const allNodes = getAllNodes(state.rootNodes);
     for (const node of allNodes) {
       this.ensureNodeActions(wrappedAttrs, node);
+    }
+
+    // Initialize services if not already done
+    if (this.materializationService === undefined) {
+      this.materializationService = new MaterializationService(
+        attrs.trace.engine,
+      );
+      this.cleanupManager = new CleanupManager(this.materializationService);
     }
 
     return m(
@@ -751,19 +687,21 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       {
         onkeydown: (e: KeyboardEvent) => this.handleKeyDown(e, wrappedAttrs),
         oncreate: (vnode) => {
-          // Initialize materialization service
-          if (this.materializationService === undefined) {
-            this.materializationService = new MaterializationService(
-              attrs.trace.engine,
-            );
-          }
           (vnode.dom as HTMLElement).focus();
+        },
+        onremove: async () => {
+          // Clean up all materialized tables when component is destroyed
+          if (this.cleanupManager !== undefined) {
+            const allNodes = getAllNodes(state.rootNodes);
+            await this.cleanupManager.cleanupAll(allNodes);
+          }
         },
         tabindex: 0,
       },
       m(Builder, {
         trace,
         sqlModules,
+        materializationService: this.materializationService,
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,

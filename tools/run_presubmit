@@ -901,14 +901,16 @@ def main():
       default='',
       help='Comma-separated list of code formatters to skip')
   # The pre-push hook passes extra cmdline arguments like 'origin git@...'.
-  # Accept and ignore positional args.
-  args, _ = parser.parse_known_args()
+  args, positional_args = parser.parse_known_args()
 
-  # 1. Determine files to check
+  # 1. Determine files to check.
   merge_base = args.merge_base
   if merge_base is None:
+    remote = 'origin'
+    if not sys.stdin.isatty() and len(positional_args) > 1:
+      remote = positional_args[0]  # Get the remote fromt the git hook cmdline.
     merge_base = subprocess.check_output(
-        ['git', 'merge-base', 'HEAD', 'origin/main'], text=True).strip()
+        ['git', 'merge-base', 'HEAD', remote + '/main'], text=True).strip()
 
   changed_files = get_changed_files(merge_base)
 

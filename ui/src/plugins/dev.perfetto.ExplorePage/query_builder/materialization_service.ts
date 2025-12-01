@@ -14,10 +14,14 @@
 
 import {Engine} from '../../../trace_processor/engine';
 import {Query, QueryNode} from '../query_node';
+import {getAllDownstreamNodes} from './graph_utils';
 
 /**
  * Service for managing materialized tables for Explore Page nodes.
  * Materialization creates persistent tables using CREATE OR REPLACE PERFETTO TABLE.
+ *
+ * Also manages query hash caching and invalidation to optimize re-materialization
+ * decisions and propagate changes through the query graph.
  *
  * Includes debouncing to prevent excessive materialization calls during rapid
  * user input (e.g., typing column names).
@@ -25,6 +29,9 @@ import {Query, QueryNode} from '../query_node';
 export class MaterializationService {
   private materializeTimer?: ReturnType<typeof setTimeout>;
   private static readonly MATERIALIZE_DEBOUNCE_MS = 300;
+
+  // Cache of computed query hashes to avoid redundant JSON.stringify() calls
+  private queryHashCache = new Map<string, string>();
 
   constructor(private engine: Engine) {}
 
@@ -109,6 +116,11 @@ export class MaterializationService {
   /**
    * Drops a materialized table for a node.
    *
+   * IMPORTANT: State is updated BEFORE the DROP query executes to prevent race
+   * conditions where another runQuery() call checks canReuseMaterialization()
+   * while the DROP is in progress. Without this, rapid clicking could cause
+   * COUNT queries to run against tables that are being dropped.
+   *
    * @param node The node whose materialized table should be dropped
    */
   async dropMaterialization(node: QueryNode): Promise<void> {
@@ -117,13 +129,16 @@ export class MaterializationService {
     }
 
     const tableName = node.state.materializationTableName;
-    // Use query() not tryQuery() - we want to know if drop fails
-    await this.engine.query(`DROP TABLE IF EXISTS ${tableName}`);
 
-    // Only update state if drop succeeded
+    // Update state BEFORE awaiting the DROP to prevent race conditions.
+    // If another runQuery() call happens while DROP is in progress,
+    // canReuseMaterialization() will correctly return false.
     node.state.materialized = false;
     node.state.materializationTableName = undefined;
     node.state.materializedQueryHash = undefined;
+
+    // Use query() not tryQuery() - we want to know if drop fails
+    await this.engine.query(`DROP TABLE IF EXISTS ${tableName}`);
   }
 
   /**
@@ -178,5 +193,50 @@ export class MaterializationService {
    */
   getEngine(): Engine {
     return this.engine;
+  }
+
+  /**
+   * Gets the cached query hash for a node if it exists.
+   *
+   * @param node The node to get the cached hash for
+   * @returns The cached hash or undefined if not cached
+   */
+  getCachedQueryHash(node: QueryNode): string | undefined {
+    return this.queryHashCache.get(node.nodeId);
+  }
+
+  /**
+   * Sets the cached query hash for a node.
+   *
+   * @param node The node to cache the hash for
+   * @param hash The query hash to cache
+   */
+  setCachedQueryHash(node: QueryNode, hash: string): void {
+    this.queryHashCache.set(node.nodeId, hash);
+  }
+
+  /**
+   * Invalidates a node and all its downstream dependents.
+   * Clears cached query hashes and materialization state for the entire
+   * downstream subgraph.
+   *
+   * This should be called when a node's operation changes to ensure
+   * all dependent nodes are re-validated and re-materialized if needed.
+   *
+   * @param node The node that changed
+   */
+  invalidateNode(node: QueryNode): void {
+    // Get all downstream nodes (including the starting node)
+    const downstreamNodes = getAllDownstreamNodes(node);
+
+    for (const downstreamNode of downstreamNodes) {
+      // Clear cached query hash
+      this.queryHashCache.delete(downstreamNode.nodeId);
+
+      // Clear materialization state if materialized
+      if (downstreamNode.state.materialized) {
+        downstreamNode.state.materializedQueryHash = undefined;
+      }
+    }
   }
 }

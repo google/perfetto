@@ -61,6 +61,8 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
+import {Card} from '../../../widgets/card';
+import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {NUM} from '../../../trace_processor/query_result';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
@@ -71,7 +73,6 @@ import {
   queryToRun,
   hashNodeQuery,
 } from '../query_node';
-import {ExplorePageHelp} from './help';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
@@ -82,17 +83,21 @@ import {
 import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
 import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {TableSourceNode} from './nodes/sources/table_source';
+import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
 import {UIFilter} from './operations/filter';
 import {MaterializationService} from './materialization_service';
+import {ResizeHandle} from '../../../widgets/resize_handle';
+import {nodeRegistry} from './node_registry';
+import {getAllDownstreamNodes} from './graph_utils';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
+  readonly materializationService: MaterializationService;
 
   readonly devMode?: boolean;
 
@@ -140,10 +145,10 @@ enum SelectedView {
   kInfo = 0,
   kModify = 1,
   kResult = 2,
-  kComment = 3,
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
+  private trace: Trace;
   private queryService: QueryService;
   private materializationService: MaterializationService;
   private query?: Query | Error;
@@ -156,23 +161,73 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private dataSource?: DataGridDataSource;
   private drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
   private selectedView: SelectedView = SelectedView.kInfo;
+  private sidebarWidth: number = 500; // Default width in pixels
+  private readonly MIN_SIDEBAR_WIDTH = 250;
+  private readonly MAX_SIDEBAR_WIDTH = 800;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
+    this.trace = attrs.trace;
     this.queryService = new QueryService(attrs.trace.engine);
-    this.materializationService = new MaterializationService(
-      attrs.trace.engine,
+    // Use the shared MaterializationService from parent
+    this.materializationService = attrs.materializationService;
+  }
+
+  private handleSidebarResize(deltaPx: number) {
+    // Subtract delta because the handle is on the left edge of the sidebar
+    // Dragging left (negative delta) = narrower sidebar (positive change)
+    // Dragging right (positive delta) = wider sidebar (negative change)
+    this.sidebarWidth = Math.max(
+      this.MIN_SIDEBAR_WIDTH,
+      Math.min(this.MAX_SIDEBAR_WIDTH, this.sidebarWidth - deltaPx),
     );
+    m.redraw();
+  }
+
+  private renderSourceCards(attrs: BuilderAttrs): m.Children {
+    const sourceNodes = nodeRegistry
+      .list()
+      .filter(([_id, node]) => node.showOnLandingPage === true)
+      .map(([id, node]) => {
+        const name = node.name ?? 'Unnamed Source';
+        const description = node.description ?? '';
+        const icon = node.icon ?? '';
+        const hotkey =
+          node.hotkey && typeof node.hotkey === 'string'
+            ? node.hotkey.toUpperCase()
+            : undefined;
+
+        return m(
+          Card,
+          {
+            'interactive': true,
+            'onclick': () => attrs.onAddSourceNode(id),
+            'tabindex': 0,
+            'role': 'button',
+            'aria-label': `Add ${name} source`,
+            'className': 'pf-source-card',
+            'onkeydown': (e: KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                attrs.onAddSourceNode(id);
+              }
+            },
+          },
+          m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', name)),
+          m('p', description),
+          hotkey ? m('.pf-source-card-hotkey', m(Keycap, hotkey)) : null,
+        );
+      });
+
+    if (sourceNodes.length === 0) {
+      return m('p', 'No source nodes available');
+    }
+
+    return sourceNodes;
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
-    const {
-      trace,
-      rootNodes,
-      onNodeSelected,
-      selectedNode,
-      onClearAllNodes,
-      sqlModules,
-    } = attrs;
+    const {trace, rootNodes, onNodeSelected, selectedNode, onClearAllNodes} =
+      attrs;
 
     if (selectedNode && selectedNode !== this.previousSelectedNode) {
       this.resetQueryState();
@@ -188,6 +243,17 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         this.selectedView = SelectedView.kInfo;
       }
     }
+
+    // When transitioning to unselected state with collapsed explorer, reappear at minimum size
+    if (
+      !selectedNode &&
+      this.previousSelectedNode &&
+      this.isExplorerCollapsed
+    ) {
+      this.isExplorerCollapsed = false;
+      this.sidebarWidth = this.MIN_SIDEBAR_WIDTH;
+    }
+
     this.previousSelectedNode = selectedNode;
 
     const layoutClasses =
@@ -232,9 +298,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onQueryAnalyzed: (query: Query | Error) => {
             this.query = query;
             const shouldAutoExecute = selectedNode.state.autoExecute ?? true;
-            if (isAQuery(this.query)) {
-              // Check if we have an existing materialized table for this exact query
+            // Don't execute if validation fails (e.g., duplicate column names)
+            if (isAQuery(this.query) && selectedNode.validate()) {
+              // Compute and cache hash after successful analysis
               const currentQueryHash = hashNodeQuery(selectedNode);
+              if (currentQueryHash !== undefined) {
+                attrs.materializationService.setCachedQueryHash(
+                  selectedNode,
+                  currentQueryHash,
+                );
+              }
+
+              // Check if we have an existing materialized table for this exact query
               const hasMatchingMaterialization = this.canReuseMaterialization(
                 selectedNode,
                 currentQueryHash,
@@ -251,6 +326,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             this.isAnalyzing = isAnalyzing;
           },
           onchange: () => {
+            // When a node's state changes, notify all downstream nodes
+            // to update their columns and UI. This ensures that when e.g.
+            // a column is renamed in ModifyColumnsNode, the AggregationNode
+            // sees the new column name.
+            const downstreamNodes = getAllDownstreamNodes(selectedNode);
+            for (const node of downstreamNodes) {
+              // Skip the node itself (it's included in downstream nodes)
+              if (node.nodeId === selectedNode.nodeId) continue;
+              node.onPrevNodesUpdated?.();
+            }
             attrs.onNodeStateChange?.();
           },
           isCollapsed: this.isExplorerCollapsed,
@@ -259,23 +344,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             this.selectedView = view;
           },
         })
-      : m(ExplorePageHelp, {
-          sqlModules,
-          onTableClick: (tableName: string) => {
-            const {onRootNodeCreated} = attrs;
-            const sqlTable = sqlModules.getTable(tableName);
-            if (!sqlTable) return;
-
-            const newNode = new TableSourceNode({
-              trace,
-              sqlModules,
-              sqlTable,
-              filters: [],
-            });
-            newNode.state.autoExecute = true;
-            onRootNodeCreated(newNode);
-          },
-        });
+      : m('.pf-unselected-explorer', this.renderSourceCards(attrs));
 
     return m(
       SplitPanel,
@@ -316,10 +385,17 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 }
               },
               onExecute: () => {
+                // Don't execute if validation fails (e.g., duplicate column names)
+                if (!selectedNode.validate()) {
+                  return;
+                }
                 // Reset queryExecuted flag to allow execution
                 // Analysis has already happened, this.query is already set
                 this.queryExecuted = false;
                 this.runQuery(selectedNode);
+              },
+              onExportToTimeline: () => {
+                this.exportToTimeline(selectedNode);
               },
             })
           : null,
@@ -385,10 +461,22 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }),
         ),
       ),
-      m('.pf-qb-explorer', explorer),
-      selectedNode &&
-        m(
-          '.pf-qb-side-panel',
+      m(ResizeHandle, {
+        direction: 'horizontal',
+        onResize: (deltaPx) => this.handleSidebarResize(deltaPx),
+      }),
+      m(
+        '.pf-qb-explorer',
+        {
+          style: {
+            width: this.isExplorerCollapsed ? '0' : `${this.sidebarWidth}px`,
+          },
+        },
+        explorer,
+      ),
+      m(
+        '.pf-qb-side-panel',
+        selectedNode &&
           m(Button, {
             icon: Icons.Info,
             title: 'Info',
@@ -409,27 +497,29 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
+        selectedNode &&
           selectedNode.nodeSpecificModify() != null &&
-            m(Button, {
-              icon: Icons.Edit,
-              title: 'Edit',
-              className:
+          m(Button, {
+            icon: Icons.Edit,
+            title: 'Edit',
+            className:
+              this.selectedView === SelectedView.kModify &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
                 this.selectedView === SelectedView.kModify &&
                 !this.isExplorerCollapsed
-                  ? 'pf-active'
-                  : '',
-              onclick: () => {
-                if (
-                  this.selectedView === SelectedView.kModify &&
-                  !this.isExplorerCollapsed
-                ) {
-                  this.isExplorerCollapsed = true;
-                } else {
-                  this.selectedView = SelectedView.kModify;
-                  this.isExplorerCollapsed = false;
-                }
-              },
-            }),
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kModify;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+        selectedNode &&
           m(Button, {
             icon: 'code',
             title: 'Result',
@@ -450,28 +540,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
-          m(Button, {
-            icon: 'comment',
-            title: 'Comment',
-            iconFilled: !!selectedNode.state.comment,
-            className:
-              this.selectedView === SelectedView.kComment &&
-              !this.isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
-                this.selectedView === SelectedView.kComment &&
-                !this.isExplorerCollapsed
-              ) {
-                this.isExplorerCollapsed = true;
-              } else {
-                this.selectedView = SelectedView.kComment;
-                this.isExplorerCollapsed = false;
-              }
-            },
-          }),
-        ),
+      ),
     );
   }
 
@@ -526,7 +595,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const queryStartMs = performance.now();
     let tableName: string | undefined;
     let createdNewMaterialization = false;
-    const currentQueryHash = hashNodeQuery(node);
+    // Use cached hash - it was already computed during analysis
+    const currentQueryHash =
+      this.materializationService.getCachedQueryHash(node);
 
     // If we can't get a hash, something is wrong with the node
     if (currentQueryHash === undefined) {
@@ -613,6 +684,25 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     }
   }
 
+  private exportToTimeline(node: QueryNode) {
+    // Only export if we have a materialized table
+    const tableName = node.state.materializationTableName;
+    if (!tableName) {
+      console.warn('Cannot export to timeline: no materialized table');
+      return;
+    }
+
+    // Use the materialized table instead of re-running the original query
+    addQueryResultsTab(
+      this.trace,
+      {
+        query: `SELECT * FROM ${tableName}`,
+        title: 'Explore Query',
+      },
+      'explore_page',
+    );
+  }
+
   private setNodeIssuesFromResponse(
     node: QueryNode,
     query: Query,
@@ -632,6 +722,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       node.state.issues.queryError = error;
       node.state.issues.responseError = warning;
       node.state.issues.dataError = noDataWarning;
+      // Clear any previous execution error since we got a successful response
+      node.state.issues.clearExecutionError();
     } else {
       node.state.issues = undefined;
     }
@@ -650,11 +742,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
   private handleQueryError(node: QueryNode, e: unknown) {
     console.error('Failed to run query:', e);
-    this.resetQueryState();
+    // Clear response and data source but keep query so Retry can re-execute
+    this.dataSource = undefined;
+    this.response = undefined;
+    this.queryExecuted = false;
     if (!node.state.issues) {
       node.state.issues = new NodeIssues();
     }
-    node.state.issues.queryError =
+    // Use executionError (not queryError) so error persists across re-renders
+    // that trigger validate() - queryError gets cleared during validation
+    node.state.issues.executionError =
       e instanceof Error ? e : new Error(String(e));
   }
 }

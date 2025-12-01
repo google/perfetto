@@ -18,6 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import html
 import sys
 import json
 from typing import Any, List, Dict, Set
@@ -29,7 +30,7 @@ INTRODUCTION = '''
 
 ## Introduction
 The PerfettoSQL standard library is a repository of tables, views, functions
-and macros, contributed by domain experts, which make querying traces easier
+and macros, contributed by domain experts, which make querying traces easier.
 Its design is heavily inspired by standard libraries in languages like Python,
 C++ and Java.
 
@@ -119,6 +120,61 @@ details > details {
   padding: 0.5em;
   border-left: 3px solid #d0d0d0;
 }
+
+/* Tag filter buttons */
+.tag-filter {
+  display: inline-block;
+  padding: 0.3em 0.8em;
+  margin: 0.2em;
+  border: 1px solid #ccc;
+  border-radius: 16px;
+  background-color: #f5f5f5;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+}
+
+.tag-filter:hover {
+  background-color: #e0e0e0;
+  border-color: #999;
+}
+
+.tag-filter.active {
+  background-color: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+}
+
+.tag-filter.active:hover {
+  background-color: #1557b0;
+  border-color: #1557b0;
+}
+
+#clear-filters {
+  display: none;
+  margin-left: 1em;
+  padding: 0.3em 0.8em;
+  border: 1px solid #d93025;
+  border-radius: 16px;
+  background-color: #fff;
+  color: #d93025;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+#clear-filters:hover {
+  background-color: #fce8e6;
+}
+
+/* Hidden modules when filtered */
+.module-details.hidden-by-filter {
+  display: none;
+}
+
+/* Package sections that have no visible modules */
+.package-section.hidden-by-filter {
+  display: none;
+}
 </style>
 
 <script>
@@ -131,6 +187,71 @@ function openDetailsOnHash() {
       element.open = true;
     }
   }
+}
+
+// Tag filtering functionality
+let activeTags = new Set();
+
+function filterByTags() {
+  const modules = document.querySelectorAll('.module-details');
+  const clearBtn = document.getElementById('clear-filters');
+
+  // Show/hide clear button
+  if (clearBtn) {
+    clearBtn.style.display = activeTags.size > 0 ? 'inline-block' : 'none';
+  }
+
+  modules.forEach(module => {
+    if (activeTags.size === 0) {
+      // No filter active - show all
+      module.classList.remove('hidden-by-filter');
+    } else {
+      const moduleTags = (module.dataset.tags || '').split(',').filter(t => t);
+      // Modules with no tags are always visible
+      const hasNoTags = moduleTags.length === 0;
+      const hasMatchingTag = moduleTags.some(tag => activeTags.has(tag));
+      if (hasNoTags || hasMatchingTag) {
+        module.classList.remove('hidden-by-filter');
+      } else {
+        module.classList.add('hidden-by-filter');
+      }
+    }
+  });
+
+  // Hide package sections with no visible modules
+  document.querySelectorAll('h2').forEach(h2 => {
+    if (!h2.textContent.startsWith('Package:')) return;
+    let sibling = h2.nextElementSibling;
+    let hasVisibleModule = false;
+    while (sibling && sibling.tagName !== 'H2') {
+      if (sibling.classList.contains('module-details') &&
+          !sibling.classList.contains('hidden-by-filter')) {
+        hasVisibleModule = true;
+        break;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+    h2.style.display = (activeTags.size === 0 || hasVisibleModule) ? '' : 'none';
+  });
+}
+
+function toggleTag(tag, button) {
+  if (activeTags.has(tag)) {
+    activeTags.delete(tag);
+    button.classList.remove('active');
+  } else {
+    activeTags.add(tag);
+    button.classList.add('active');
+  }
+  filterByTags();
+}
+
+function clearAllFilters() {
+  activeTags.clear();
+  document.querySelectorAll('.tag-filter').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  filterByTags();
 }
 
 // Run on page load and hash change
@@ -270,6 +391,7 @@ class ModuleMd:
     self.dependencies = dependencies or {}
     self.dependents = dependents or {}
     self.dependency_graph = ''
+    self.tags = module_dict.get('tags', [])
 
     # Views/tables (only public)
     for data in module_dict['data_objects']:
@@ -393,7 +515,11 @@ class PackageMd:
       module_anchor = file.module_name.replace('.', '-')
       # Prelude is always open by default
       open_attr = ' open' if self.package_name == 'prelude' else ''
-      lines.append(f'<details id="{module_anchor}"{open_attr}>')
+      # Add data-tags attribute for filtering (escape for HTML attribute)
+      tags_attr = f' data-tags="{html.escape(",".join(file.tags))}"' if file.tags else ''
+      lines.append(
+          f'<details id="{module_anchor}"{open_attr}{tags_attr} class="module-details">'
+      )
       lines.append(
           f'<summary style="cursor: pointer;"><h3 style="display: inline;">{file.module_name}</h3></summary>'
       )
@@ -468,6 +594,12 @@ def main():
       package["modules"] = [merged_module]
       break
 
+  # Collect all unique tags from the stdlib
+  all_tags: Set[str] = set()
+  for package in stdlib_json:
+    for module in package["modules"]:
+      all_tags.update(module.get('tags', []))
+
   # Fetch the modules from json documentation.
   packages: Dict[str, PackageMd] = {}
   for package in stdlib_json:
@@ -484,6 +616,23 @@ def main():
 
   with open(args.output, 'w') as f:
     f.write(INTRODUCTION)
+
+    # Write tags list with interactive filter buttons
+    if all_tags:
+      f.write('\n## Tags\n')
+      f.write('Click on tags to filter modules by category:\n\n')
+      f.write('<div id="tag-filters">\n')
+      for tag in sorted(all_tags):
+        # Escape tag for both JS string (single quotes) and HTML content
+        escaped_tag = html.escape(tag).replace("'", "\\'")
+        f.write(
+            f'<span class="tag-filter" onclick="toggleTag(\'{escaped_tag}\', this)">{html.escape(tag)}</span>\n'
+        )
+      f.write(
+          '<button id="clear-filters" onclick="clearAllFilters()">Clear filters</button>\n'
+      )
+      f.write('</div>\n\n')
+
     f.write(prelude.get_md())
     f.write('\n')
     f.write('\n'.join(module.get_md() for module in packages.values()))
