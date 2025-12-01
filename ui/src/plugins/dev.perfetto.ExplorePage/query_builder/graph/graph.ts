@@ -374,6 +374,7 @@ function createNodeConfig(
       onAddOperationNode: attrs.onAddOperationNode,
     }),
     next: getNextDockedNode(qnode, attrs),
+    invalid: !qnode.validate(),
   };
 }
 
