@@ -32,7 +32,7 @@ import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
-import {UIFilter} from './operations/filter';
+import {UIFilter, normalizeDataGridFilter} from './operations/filter';
 
 export interface DataExplorerAttrs {
   readonly node: QueryNode;
@@ -46,7 +46,10 @@ export interface DataExplorerAttrs {
   readonly onExecute: () => void;
   readonly onExportToTimeline?: () => void;
   readonly onchange?: () => void;
-  readonly onFilterAdd?: (filter: UIFilter) => void;
+  readonly onFilterAdd?: (
+    filter: UIFilter | UIFilter[],
+    filterOperator?: 'AND' | 'OR',
+  ) => void;
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
@@ -311,6 +314,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         '>',
         '>=',
         'glob',
+        'in',
+        'not in',
         'is null',
         'is not null',
       ] as const;
@@ -328,21 +333,37 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           // array.
           filters: [],
           onFilterAdd: (filter) => {
-            // These are the filters supported by the explore page currently.
+            // Normalize the filter (expands IN/NOT IN to multiple equality filters)
+            const normalizedFilters = normalizeDataGridFilter(filter);
 
-            if ((supportedOps as unknown as string[]).includes(filter.op)) {
-              if (attrs.onFilterAdd) {
-                // Delegate to the parent handler which will create a FilterNode
-                attrs.onFilterAdd(filter as UIFilter);
-              } else {
-                // Fallback: add filter directly to node state (legacy behavior)
-                attrs.node.state.filters = [
-                  ...(attrs.node.state.filters ?? []),
-                  filter as UIFilter,
-                ];
-                attrs.onchange?.();
+            if (attrs.onFilterAdd) {
+              // Pass all normalized filters at once
+              // Determine logical operator based on original filter type:
+              // - IN: multiple values ORed together (value = X OR value = Y)
+              // - NOT IN: multiple values ANDed together (value != X AND value != Y)
+              //   (De Morgan's law: NOT(A OR B) = NOT A AND NOT B)
+              let operator: 'AND' | 'OR' | undefined;
+              if (normalizedFilters.length > 1) {
+                operator = filter.op === 'not in' ? 'AND' : 'OR';
+              }
+              attrs.onFilterAdd(
+                normalizedFilters.length === 1
+                  ? normalizedFilters[0]
+                  : normalizedFilters,
+                operator,
+              );
+            } else {
+              // Legacy: add filters directly to node state
+              attrs.node.state.filters = [
+                ...(attrs.node.state.filters ?? []),
+                ...normalizedFilters,
+              ];
+              if (normalizedFilters.length > 1) {
+                attrs.node.state.filterOperator =
+                  filter.op === 'not in' ? 'AND' : 'OR';
               }
             }
+            attrs.onchange?.();
           },
           cellRenderer: (value: SqlValue, name: string) => {
             return renderCell(value, name);

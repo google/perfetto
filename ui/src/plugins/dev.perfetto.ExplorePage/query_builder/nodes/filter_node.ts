@@ -29,6 +29,8 @@ import {
   ALL_FILTER_OPS,
   isValueRequired,
   parseFilterValue,
+  parseFilterFromText,
+  formatFilterValue,
 } from '../operations/filter';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
@@ -385,6 +387,20 @@ export class FilterNode implements QueryNode {
         },
       ],
     });
+  }
+
+  private removeFilter(index: number): void {
+    const filters = this.state.filters;
+    if (!filters || index >= filters.length) return;
+
+    const newFilters = [...filters];
+    newFilters.splice(index, 1);
+    this.state.filters = newFilters;
+    this.state.onchange?.();
+  }
+
+  private formatFilterDescription(filter: UIFilter): string {
+    return formatFilterValue(filter, false);
   }
 
   private truncateSql(sql: string): string {

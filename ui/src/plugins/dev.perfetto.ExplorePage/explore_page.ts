@@ -35,7 +35,13 @@ import {nodeRegistry, PreCreateState} from './query_builder/node_registry';
 import {QueryExecutionService} from './query_builder/query_execution_service';
 import {CleanupManager} from './query_builder/cleanup_manager';
 import {HistoryManager} from './history_manager';
-import {getAllNodes} from './query_builder/graph_utils';
+import {
+  getAllNodes,
+  insertNodeBetween,
+  reconnectParentsToChildren,
+  getInputNodeAtPort,
+  getAllInputNodes,
+} from './query_builder/graph_utils';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 registerCoreNodes();
@@ -288,24 +294,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
       if (singleNodeOperation(newNode.type)) {
         // For single-input operations: insert between the target and its children
-        // Store the existing next nodes
-        const existingNextNodes = [...node.nextNodes];
-
-        // Clear the node's next nodes (we'll reconnect through the new node)
-        node.nextNodes = [];
-
-        // Connect: node -> newNode
-        addConnection(node, newNode);
-
-        // Connect: newNode -> each existing next node
-        for (const nextNode of existingNextNodes) {
-          if (nextNode !== undefined) {
-            // First remove the old connection from node to nextNode (if it still exists)
-            removeConnection(node, nextNode);
-            // Then add connection from newNode to nextNode
-            addConnection(newNode, nextNode);
-          }
-        }
+        insertNodeBetween(node, newNode, addConnection, removeConnection);
 
         onStateUpdate((currentState) => ({
           ...currentState,
@@ -465,10 +454,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     if (!descriptor) return;
 
     // Get the current input node at the specified port
-    let inputNode: QueryNode | undefined;
-    if ('secondaryInputs' in targetNode && targetNode.secondaryInputs) {
-      inputNode = targetNode.secondaryInputs.connections.get(portIndex);
-    }
+    const inputNode = getInputNodeAtPort(targetNode, portIndex);
 
     if (!inputNode) {
       console.warn(`No input node found at port ${portIndex}`);
@@ -523,17 +509,37 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
+  /**
+   * Helper to set filters on a node and optionally set the filter operator.
+   * Reduces duplication across multiple filter-setting locations.
+   */
+  private setFiltersOnNode(
+    node: QueryNode,
+    filters: UIFilter[],
+    filterOperator?: 'AND' | 'OR',
+  ): void {
+    node.state.filters = filters;
+    if (filterOperator) {
+      node.state.filterOperator = filterOperator;
+    }
+  }
+
   async handleFilterAdd(
     attrs: ExplorePageAttrs,
     sourceNode: QueryNode,
-    filter: {column: string; op: string; value?: unknown},
+    filter: UIFilter | UIFilter[],
+    filterOperator?: 'AND' | 'OR',
   ) {
-    // If the source node is already a FilterNode, just add the filter to it
+    // Normalize to array for uniform handling (single filter → [filter])
+    const filters = Array.isArray(filter) ? filter : [filter];
+
+    // If the source node is already a FilterNode, just add the filter(s) to it
     if (sourceNode.type === NodeType.kFilter) {
-      sourceNode.state.filters = [
-        ...(sourceNode.state.filters ?? []),
-        filter as UIFilter,
-      ];
+      this.setFiltersOnNode(
+        sourceNode,
+        [...(sourceNode.state.filters ?? []), ...filters],
+        filterOperator,
+      );
       attrs.onStateUpdate((currentState) => ({...currentState}));
       return;
     }
@@ -544,10 +550,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       sourceNode.nextNodes[0].type === NodeType.kFilter
     ) {
       const existingFilterNode = sourceNode.nextNodes[0];
-      existingFilterNode.state.filters = [
-        ...(existingFilterNode.state.filters ?? []),
-        filter as UIFilter,
-      ];
+      this.setFiltersOnNode(
+        existingFilterNode,
+        [...(existingFilterNode.state.filters ?? []), ...filters],
+        filterOperator,
+      );
       attrs.onStateUpdate((currentState) => ({
         ...currentState,
         selectedNode: existingFilterNode,
@@ -563,9 +570,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       filterNodeId,
     );
 
-    // Add the filter to the newly created FilterNode
+    // Add the filter(s) to the newly created FilterNode
     if (newFilterNode) {
-      newFilterNode.state.filters = [filter as UIFilter];
+      this.setFiltersOnNode(newFilterNode, filters, filterOperator);
       attrs.onStateUpdate((currentState) => ({
         ...currentState,
         selectedNode: newFilterNode,
@@ -586,19 +593,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       newRootNodes = [...newRootNodes, ...node.nextNodes];
     }
 
-    // Get parent nodes before removing connections
-    const parentNodes: QueryNode[] = [];
-    if ('primaryInput' in node && node.primaryInput) {
-      parentNodes.push(node.primaryInput);
-    } else if ('secondaryInputs' in node && node.secondaryInputs) {
-      for (const inputNode of node.secondaryInputs.connections.values()) {
-        parentNodes.push(inputNode);
-      }
-    }
-
-    // Side ports are already handled by secondaryInputs above
-
-    // Get child nodes
+    // Get parent and child nodes before removing connections
+    const parentNodes = getAllInputNodes(node);
     const childNodes = [...node.nextNodes];
 
     // Remove all connections to/from the deleted node
@@ -610,11 +606,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     // Reconnect parents to children (bypass the deleted node)
-    for (const parent of parentNodes) {
-      for (const child of childNodes) {
-        addConnection(parent, child);
-      }
-    }
+    reconnectParentsToChildren(parentNodes, childNodes, addConnection);
 
     // If the deleted node was selected, deselect it.
     const newSelectedNode =
@@ -915,8 +907,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onImportWithStatement: () =>
           this.handleImportWithStatement(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
-        onFilterAdd: (node, filter) => {
-          this.handleFilterAdd(wrappedAttrs, node, filter);
+        onFilterAdd: (node, filter, filterOperator) => {
+          this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);
         },
         onNodeStateChange: () => {
           // Trigger a state update when node properties change (e.g., selecting group by columns)
