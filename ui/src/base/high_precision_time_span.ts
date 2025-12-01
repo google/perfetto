@@ -105,7 +105,11 @@ export class HighPrecisionTimeSpan {
    * 0 is the start of the time window and 1 is the end.
    * @param minDur Don't allow the time span to become shorter than this.
    */
-  scale(ratio: number, center: number, minDur: number): HighPrecisionTimeSpan {
+  scale(
+    ratio: number,
+    center: number,
+    minDur: number = 0,
+  ): HighPrecisionTimeSpan {
     const currentDuration = this.duration;
     const newDuration = Math.max(currentDuration * ratio, minDur);
     // Delta between new and old duration
@@ -207,6 +211,16 @@ export class HighPrecisionTimeSpan {
    */
   containsSpan(start: time, end: time): boolean {
     return this.start.lte(start) && this.end.gte(end);
+  }
+
+  /**
+   * Checks if this span is entirely contained within another span.
+   *
+   * @param start The start of the other span.
+   * @param end The end of the other span.
+   */
+  containedBy(start: time, end: time): boolean {
+    return this.start.gte(start) && this.end.lte(end);
   }
 
   /**
