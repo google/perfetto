@@ -16,6 +16,7 @@ import {ModifyColumnsNode} from './nodes/modify_columns_node';
 import {AggregationNode} from './nodes/aggregation_node';
 import {QueryNode, NodeType} from '../query_node';
 import {columnInfoFromSqlColumn} from './column_info';
+import {NodeDetailsAttrs} from './node_explorer_types';
 
 describe('Node Propagation', () => {
   function createMockSourceNode(): QueryNode {
@@ -32,6 +33,7 @@ describe('Node Propagation', () => {
       validate: () => true,
       getTitle: () => 'Source',
       nodeSpecificModify: () => null,
+      nodeDetails: (): NodeDetailsAttrs => ({content: null}),
       nodeInfo: () => null,
       clone: () => createMockSourceNode(),
       getStructuredQuery: () => undefined,

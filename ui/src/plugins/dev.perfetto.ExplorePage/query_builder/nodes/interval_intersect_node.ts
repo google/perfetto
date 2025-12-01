@@ -34,7 +34,8 @@ import {
 } from '../../../../widgets/multiselect';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {LabeledControl, IssueList, ListItem} from '../widgets';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeTitle} from '../node_styling_widgets';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -141,41 +142,6 @@ export class IntervalIntersectNode implements QueryNode {
       }
     }
 
-    // For each input node, add id_N, ts_N, dur_N
-    for (let i = 0; i < inputNodes.length; i++) {
-      const node = inputNodes[i];
-      if (node === undefined) continue;
-
-      // Find the actual column info for id to get its type
-      const nodeCols = node.finalCols;
-      const idCol = nodeCols.find((c) => c.name === 'id');
-
-      // Create id_N column with explicit type handling
-      const idColumnType = idCol?.column.type;
-      finalCols.push({
-        name: `id_${i}`,
-        type: idCol?.type ?? 'NA',
-        checked: true,
-        column: idColumnType
-          ? {name: `id_${i}`, type: idColumnType}
-          : {name: `id_${i}`},
-      });
-      // ts_N columns are TIMESTAMP type
-      finalCols.push({
-        name: `ts_${i}`,
-        type: 'TIMESTAMP',
-        checked: true,
-        column: {name: `ts_${i}`, type: PerfettoSqlTypes.TIMESTAMP},
-      });
-      // dur_N columns are DURATION type
-      finalCols.push({
-        name: `dur_${i}`,
-        type: 'DURATION',
-        checked: true,
-        column: {name: `dur_${i}`, type: PerfettoSqlTypes.DURATION},
-      });
-    }
-
     // First, identify which columns are duplicated across inputs
     const columnCounts = new Map<string, number>();
     for (const node of inputNodes) {
@@ -209,6 +175,41 @@ export class IntervalIntersectNode implements QueryNode {
           seenColumns.add(col.name);
         }
       }
+    }
+
+    // For each input node, add id_N, ts_N, dur_N
+    for (let i = 0; i < inputNodes.length; i++) {
+      const node = inputNodes[i];
+      if (node === undefined) continue;
+
+      // Find the actual column info for id to get its type
+      const nodeCols = node.finalCols;
+      const idCol = nodeCols.find((c) => c.name === 'id');
+
+      // Create id_N column with explicit type handling
+      const idColumnType = idCol?.column.type;
+      finalCols.push({
+        name: `id_${i}`,
+        type: idCol?.type ?? 'NA',
+        checked: true,
+        column: idColumnType
+          ? {name: `id_${i}`, type: idColumnType}
+          : {name: `id_${i}`},
+      });
+      // ts_N columns are TIMESTAMP type
+      finalCols.push({
+        name: `ts_${i}`,
+        type: 'TIMESTAMP',
+        checked: true,
+        column: {name: `ts_${i}`, type: PerfettoSqlTypes.TIMESTAMP},
+      });
+      // dur_N columns are DURATION type
+      finalCols.push({
+        name: `dur_${i}`,
+        type: 'DURATION',
+        checked: true,
+        column: {name: `dur_${i}`, type: PerfettoSqlTypes.DURATION},
+      });
     }
 
     return finalCols;
@@ -398,8 +399,10 @@ export class IntervalIntersectNode implements QueryNode {
     );
   }
 
-  nodeDetails(): m.Child {
-    return this.renderPartitionSelector(true);
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
+    };
   }
 
   private cleanupPartitionColumns(): void {

@@ -870,14 +870,10 @@ type_count (2-.perfetto.protos.JavaHeapClassStats.TypeCountR	typeCount¬
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessD
 samples (2*.perfetto.protos.JavaHeapClassStats.SampleRsamples
-Õ
-5protos/perfetto/metrics/android/java_heap_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ò
+ß
+5protos/perfetto/metrics/android/java_heap_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ü
 JavaHeapStatsS
-instance_stats (2,.perfetto.protos.JavaHeapStats.InstanceStatsRinstanceStatsb
-	HeapRoots
-	root_type (	RrootType
-	type_name (	RtypeName
-	obj_count (RobjCountÝ
+instance_stats (2,.perfetto.protos.JavaHeapStats.InstanceStatsRinstanceStatsÅ
 Sample
 ts (Rts
 	heap_size (RheapSize(
@@ -886,15 +882,15 @@ type_count (2-.perfetto.protos.JavaHeapClassStats.TypeCountR	typeCount¬
 reachable_heap_size (RreachableHeapSize;
 reachable_heap_native_size	 (RreachableHeapNativeSize.
 reachable_obj_count (RreachableObjCount2
-anon_rss_and_swap_size (RanonRssAndSwapSize>
-roots (2(.perfetto.protos.JavaHeapStats.HeapRootsRroots"
+anon_rss_and_swap_size (RanonRssAndSwapSize&
+dmabuf_rss_size (RdmabufRssSize"
 oom_score_adj
  (RoomScoreAdj*
 process_uptime_ms (RprocessUptimeMs§
 InstanceStats
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess?
-samples (2%.perfetto.protos.JavaHeapStats.SampleRsamples
+samples (2%.perfetto.protos.JavaHeapStats.SampleRsamplesJ
 »
 0protos/perfetto/metrics/android/lmk_metric.protoperfetto.protos"õ
 AndroidLmkMetric

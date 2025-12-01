@@ -19,7 +19,15 @@ import {
   NodeType,
   getSecondaryInput,
 } from '../../query_node';
-import {ColumnInfo, columnInfoFromName} from '../column_info';
+import {
+  ColumnInfo,
+  columnInfoFromName,
+  columnInfoFromSqlColumn,
+} from '../column_info';
+import {
+  PerfettoSqlTypes,
+  parsePerfettoSqlTypeFromString,
+} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import m from 'mithril';
 import {
@@ -47,7 +55,8 @@ import {
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 import {Form, FormLabel, FormSection} from '../../../../widgets/form';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -504,7 +513,16 @@ export class AddColumnsNode implements QueryNode {
       const newCols =
         this.state.selectedColumns?.map((c) => {
           const alias = this.state.columnAliases?.get(c);
-          // If an alias is provided, use it as the column name
+          // Find the column in rightCols to preserve type information
+          const sourceCol = this.rightCols.find((col) => col.name === c);
+          if (sourceCol) {
+            // Preserve type information from the source column
+            return columnInfoFromSqlColumn({
+              name: alias ?? c,
+              type: sourceCol.column.type,
+            });
+          }
+          // Fallback if column not found (shouldn't happen in valid state)
           return columnInfoFromName(alias ?? c);
         }) ?? [];
       cols = [...cols, ...newCols];
@@ -517,18 +535,36 @@ export class AddColumnsNode implements QueryNode {
         .map((col) => {
           // Use stored sqlType if available (from deserialization)
           if (col.sqlType) {
-            return columnInfoFromName(col.name);
+            // Parse the stored type string and use it
+            const parsedType = parsePerfettoSqlTypeFromString({
+              type: col.sqlType,
+            });
+            if (!parsedType.ok) {
+              console.warn(
+                `Failed to parse stored type '${col.sqlType}' for column '${col.name}', defaulting to INT`,
+              );
+            }
+            return columnInfoFromSqlColumn({
+              name: col.name,
+              type: parsedType.ok ? parsedType.value : PerfettoSqlTypes.INT,
+            });
           }
           // Try to preserve type information if the expression is a simple column reference
           const sourceCol = this.sourceCols.find(
             (c) => c.column.name === col.expression,
           );
-          if (sourceCol) {
+          if (sourceCol && sourceCol.column.type) {
             col.sqlType = sourceCol.type;
-            return columnInfoFromName(col.name);
+            return columnInfoFromSqlColumn({
+              name: col.name,
+              type: sourceCol.column.type,
+            });
           }
-          // For complex expressions, use 'NA' as type
-          return columnInfoFromName(col.name, true);
+          // For complex expressions, we can't infer the type, use INT as default
+          return columnInfoFromSqlColumn({
+            name: col.name,
+            type: PerfettoSqlTypes.INT,
+          });
         }) ?? [];
 
     return [...cols, ...computedCols];
@@ -716,14 +752,16 @@ export class AddColumnsNode implements QueryNode {
     return error?.error;
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
     const hasConnectedNode = this.rightNode !== undefined;
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
     const hasSelectedColumns =
       this.state.selectedColumns && this.state.selectedColumns.length > 0;
 
     if (!hasSelectedColumns && !hasComputedColumns) {
-      return m('.pf-exp-node-details-message', 'No columns added');
+      return {
+        content: NodeDetailsMessage('No columns added'),
+      };
     }
 
     const items: m.Child[] = [];
@@ -733,12 +771,7 @@ export class AddColumnsNode implements QueryNode {
       for (const col of this.state.selectedColumns ?? []) {
         const alias = this.state.columnAliases?.get(col);
         const displayName = alias || col;
-        items.push(
-          m('div', [
-            m('span.pf-exp-column-name', displayName),
-            ': column from input',
-          ]),
-        );
+        items.push(m('div', [ColumnName(displayName), ': column from input']));
       }
     }
 
@@ -756,12 +789,12 @@ export class AddColumnsNode implements QueryNode {
         description = col.expression || '(empty)';
       }
 
-      items.push(
-        m('div', [m('span.pf-exp-column-name', name), `: ${description}`]),
-      );
+      items.push(m('div', [ColumnName(name), `: ${description}`]));
     }
 
-    return m('div', items);
+    return {
+      content: m('div', items),
+    };
   }
 
   nodeSpecificModify(): NodeModifyAttrs {

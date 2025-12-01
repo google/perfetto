@@ -139,7 +139,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           this.timelineBounds,
         );
         const tDelta = timescale.pxToDuration(pannedPx);
-        timeline.panVisibleWindow(tDelta);
+        timeline.pan(tDelta);
         raf.scheduleCanvasRedraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
@@ -147,7 +147,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         const timeline = attrs.trace.timeline;
         const zoomPx = zoomedPositionPx - this.timelineBounds.left;
         const centerPoint = zoomPx / this.timelineBounds.width;
-        timeline.zoomVisibleWindow(1 - zoomRatio, centerPoint);
+        timeline.zoom(1 - zoomRatio, centerPoint);
         raf.scheduleCanvasRedraw();
       },
     });
