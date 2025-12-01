@@ -51,7 +51,9 @@ RETURNS Expr AS
   LIMIT 1
 );
 
--- Provides tables and views for analyzing heap graph statistics.
+-- Table summarizing java heap graphs collected with the ART perfetto module.
+-- Contains one row per heap graph, with summary statistics (e.g. total / reachable objects)
+-- and memory stats for the corresponding process at the time of the heap dump.
 CREATE PERFETTO TABLE android_heap_graph_stats (
   -- The upid of the process.
   upid JOINID(process.id),

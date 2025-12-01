@@ -1897,6 +1897,7 @@ message JavaHeapHistogram {
 // Begin of protos/perfetto/metrics/android/java_heap_stats.proto
 
 message JavaHeapStats {
+  // Was repeated HeapRoots roots = 7;
   reserved 7;
 
   // Next id: 13

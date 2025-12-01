@@ -20,6 +20,7 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 message JavaHeapStats {
+  // Was repeated HeapRoots roots = 7;
   reserved 7;
 
   // Next id: 13
