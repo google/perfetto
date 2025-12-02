@@ -266,17 +266,7 @@ export class AggregationNode implements QueryNode {
     const aggs = this.state.aggregations
       .filter((agg) => agg.isValid)
       .map((agg) => {
-        let aggDisplay = '';
-        if (agg.aggregationOp === 'COUNT_ALL') {
-          aggDisplay = 'COUNT(*)';
-        } else if (
-          agg.aggregationOp === 'PERCENTILE' &&
-          agg.percentile !== undefined
-        ) {
-          aggDisplay = `PERCENTILE(${agg.column?.name}, ${agg.percentile})`;
-        } else {
-          aggDisplay = `${agg.aggregationOp}(${agg.column?.name})`;
-        }
+        const aggDisplay = getAggregationDisplay(agg);
         return `${aggDisplay} AS ${agg.newColumnName ?? placeholderNewColumnName(agg)}`;
       });
 
@@ -440,7 +430,7 @@ export class AggregationNode implements QueryNode {
               if (agg.aggregationOp !== 'PERCENTILE') {
                 agg.percentile = undefined;
               }
-              if (agg.aggregationOp === 'COUNT_ALL') {
+              if (isCountAll(agg)) {
                 agg.column = undefined;
               }
               m.redraw();
@@ -477,7 +467,7 @@ export class AggregationNode implements QueryNode {
             value: agg.percentile?.toString() ?? '',
           }),
         agg.aggregationOp &&
-          agg.aggregationOp !== 'COUNT_ALL' &&
+          !isCountAll(agg) &&
           m(
             Select,
             {
@@ -520,17 +510,7 @@ export class AggregationNode implements QueryNode {
         items: validAggregations,
         renderItem: (agg: Aggregation) => {
           const index = this.state.aggregations.indexOf(agg);
-          let aggDisplay = '';
-          if (agg.aggregationOp === 'COUNT_ALL') {
-            aggDisplay = 'COUNT(*)';
-          } else if (
-            agg.aggregationOp === 'PERCENTILE' &&
-            agg.percentile !== undefined
-          ) {
-            aggDisplay = `PERCENTILE(${agg.column?.name}, ${agg.percentile})`;
-          } else {
-            aggDisplay = `${agg.aggregationOp}(${agg.column?.name})`;
-          }
+          const aggDisplay = getAggregationDisplay(agg);
 
           return m(ListItem, {
             icon: 'functions',
@@ -639,13 +619,12 @@ export class AggregationNode implements QueryNode {
       if (agg.isEditing) continue;
 
       agg.isValid = validateAggregation(agg);
-      if (agg.isValid) {
-        // Map COUNT_ALL to COUNT for the proto (COUNT_ALL is UI-only)
-        const protoOp =
-          agg.aggregationOp === 'COUNT_ALL' ? 'COUNT' : agg.aggregationOp!;
+      if (agg.isValid && agg.aggregationOp) {
+        // Map COUNT(*) to COUNT for the proto (COUNT(*) is UI-only)
+        const protoOp = isCountAll(agg) ? 'COUNT' : agg.aggregationOp;
 
         const aggSpec: AggregationSpec = {
-          columnName: agg.column?.column.name, // Optional for COUNT_ALL
+          columnName: agg.column?.column.name, // Optional for COUNT(*)
           op: protoOp,
           resultColumnName: agg.newColumnName ?? placeholderNewColumnName(agg),
         };
@@ -746,9 +725,12 @@ export class AggregationNode implements QueryNode {
       return col;
     });
     const aggregations = state.aggregations.map((a) => {
+      // Migrate old COUNT_ALL to COUNT(*) for backward compatibility
+      const aggregationOp =
+        a.aggregationOp === 'COUNT_ALL' ? 'COUNT(*)' : a.aggregationOp;
       return {
         column: a.column,
-        aggregationOp: a.aggregationOp,
+        aggregationOp,
         newColumnName: a.newColumnName,
         percentile: a.percentile,
         isValid: a.isValid,
@@ -789,8 +771,8 @@ export function createGroupByProto(
 function validateAggregation(aggregation: Aggregation): boolean {
   if (!aggregation.aggregationOp) return false;
 
-  // COUNT_ALL doesn't need a column
-  if (aggregation.aggregationOp === 'COUNT_ALL') {
+  // COUNT(*) doesn't need a column
+  if (isCountAll(aggregation)) {
     return true;
   }
 
@@ -823,7 +805,7 @@ export function GroupByAggregationAttrsToProto(
 ): protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate {
   const newAgg = new protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate();
 
-  // COUNT_ALL doesn't have a column; all other operations do
+  // COUNT(*) doesn't have a column; all other operations do
   if (agg.column) {
     newAgg.columnName = agg.column.column.name;
   }
@@ -840,8 +822,8 @@ export function GroupByAggregationAttrsToProto(
 }
 
 export function placeholderNewColumnName(agg: Aggregation) {
-  // COUNT_ALL doesn't have a column
-  if (agg.aggregationOp === 'COUNT_ALL') {
+  // COUNT(*) doesn't have a column
+  if (isCountAll(agg)) {
     return 'count';
   }
 
@@ -856,14 +838,14 @@ export function placeholderNewColumnName(agg: Aggregation) {
 function stringToAggregateOp(
   s: string,
 ): protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op {
-  // COUNT_ALL maps to COUNT in the proto (without a column)
-  if (s === 'COUNT_ALL') {
+  // COUNT(*) maps to COUNT in the proto (without a column)
+  if (s === 'COUNT(*)') {
     return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op.COUNT;
   }
 
-  // Only check ops that exist in the proto (exclude COUNT_ALL)
+  // Only check ops that exist in the proto (exclude COUNT(*))
   const validProtoOps: readonly string[] = AGGREGATION_OPS.filter(
-    (op) => op !== 'COUNT_ALL',
+    (op) => op !== 'COUNT(*)',
   );
   if (validProtoOps.includes(s)) {
     return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op[
@@ -881,7 +863,7 @@ function getAggregationResultType(agg: Aggregation): PerfettoSqlType {
 
   switch (agg.aggregationOp) {
     case 'COUNT':
-    case 'COUNT_ALL':
+    case 'COUNT(*)':
       return PerfettoSqlTypes.INT;
 
     case 'SUM':
@@ -907,9 +889,28 @@ function getAggregationResultType(agg: Aggregation): PerfettoSqlType {
   }
 }
 
+// Helper to check if an aggregation is COUNT(*)
+function isCountAll(agg: Aggregation): boolean {
+  return agg.aggregationOp === 'COUNT(*)';
+}
+
+// Helper to get display string for an aggregation
+function getAggregationDisplay(agg: Aggregation): string {
+  if (isCountAll(agg)) {
+    return 'COUNT(*)';
+  } else if (
+    agg.aggregationOp === 'PERCENTILE' &&
+    agg.percentile !== undefined
+  ) {
+    return `PERCENTILE(${agg.column?.name}, ${agg.percentile})`;
+  } else {
+    return `${agg.aggregationOp}(${agg.column?.name})`;
+  }
+}
+
 const AGGREGATION_OPS = [
   'COUNT',
-  'COUNT_ALL',
+  'COUNT(*)',
   'SUM',
   'MIN',
   'MAX',
