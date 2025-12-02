@@ -333,3 +333,169 @@
   flex-direction: column;
   gap: 8px;
 }
+
+// Inline edit list container - vertical stack with spacing
+.pf-inline-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Form list item widget - inline form editing in a list item
+.pf-exp-form-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  min-height: 40px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+
+  &.pf-valid {
+    background: var(--pf-color-background-secondary);
+    border-color: var(--pf-color-border);
+
+    &:hover {
+      background: var(--pf-color-background);
+      border-color: var(--pf-color-primary);
+    }
+  }
+
+  &.pf-invalid {
+    background: rgba(255, 100, 100, 0.08);
+    border-color: rgba(255, 100, 100, 0.3);
+
+    &:hover {
+      background: rgba(255, 100, 100, 0.12);
+      border-color: rgba(255, 100, 100, 0.5);
+    }
+  }
+}
+
+.pf-exp-form-list-item-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+
+  // Ensure form controls don't overflow
+  .pf-select,
+  .pf-text-input {
+    min-width: 80px;
+  }
+}
+
+.pf-exp-form-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+// Material Design outlined input field with label on border
+.pf-outlined-field {
+  position: relative;
+  min-width: 120px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: border-color 0.15s ease-in-out;
+
+  &:hover:not(:disabled) {
+    border-color: var(--pf-color-text-secondary);
+  }
+
+  &:focus-within:not(:disabled) {
+    border-color: var(--pf-color-primary);
+    box-shadow: 0 0 0 1px var(--pf-color-primary);
+
+    .pf-outlined-field-legend {
+      color: var(--pf-color-primary);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--pf-color-background-secondary);
+  }
+
+  .pf-outlined-field-legend {
+    padding: 0 4px;
+    margin-left: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--pf-color-text-secondary);
+    user-select: none;
+    transition: color 0.15s ease-in-out;
+  }
+
+  .pf-outlined-field-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--pf-color-text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+
+  select.pf-outlined-field-input {
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Button styled like a form list item
+.pf-add-item-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  min-height: 40px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--pf-color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+
+  &:hover {
+    border-color: var(--pf-color-primary);
+    background: var(--pf-color-background);
+  }
+
+  &:focus {
+    outline: 2px solid var(--pf-color-primary);
+    outline-offset: 2px;
+  }
+
+  &:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pf-color-primary);
+    outline-offset: 2px;
+  }
+
+  .pf-add-item-placeholder__label {
+    font-weight: 500;
+  }
+}

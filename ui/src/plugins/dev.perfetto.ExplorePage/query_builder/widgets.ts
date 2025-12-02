@@ -540,3 +540,210 @@ export function createEmptySection(
     }),
   };
 }
+
+// Widget for inline filter editing form
+// Combines editing and creation into a single list item
+export interface FormListItemAttrs<T> {
+  item: T;
+  isValid: boolean;
+  onUpdate: (updated: T) => void;
+  onRemove?: () => void; // Optional - if not provided, no remove button
+  children: m.Children;
+}
+
+export class FormListItem<T> implements m.ClassComponent<FormListItemAttrs<T>> {
+  view({attrs}: m.Vnode<FormListItemAttrs<T>>) {
+    const {isValid, onRemove, children} = attrs;
+
+    return m(
+      '.pf-exp-form-list-item',
+      {
+        className: isValid ? 'pf-valid' : 'pf-invalid',
+      },
+      m('.pf-exp-form-list-item-content', children),
+      // Only show remove button if onRemove is provided
+      onRemove &&
+        m(
+          '.pf-exp-form-list-item-actions',
+          m(Button, {
+            icon: 'close',
+            compact: true,
+            onclick: onRemove,
+            title: 'Remove item',
+          }),
+        ),
+    );
+  }
+}
+
+// Material Design outlined input field with label on border
+// Pass children as the third argument to m() for select options
+export interface OutlinedFieldAttrs {
+  label: string;
+  value: string;
+  onchange?: (e: Event) => void;
+  oninput?: (e: Event) => void;
+  disabled?: boolean;
+  placeholder?: string; // For text inputs
+}
+
+export class OutlinedField implements m.ClassComponent<OutlinedFieldAttrs> {
+  view({attrs, children}: m.Vnode<OutlinedFieldAttrs>) {
+    const {label, value, onchange, oninput, disabled, placeholder} = attrs;
+
+    // Determine if this is a select or input
+    // Children can be an array, so check if it has content
+    const isSelect =
+      children !== undefined &&
+      children !== null &&
+      (Array.isArray(children) ? children.length > 0 : true);
+
+    return m(
+      'fieldset.pf-outlined-field',
+      {
+        disabled,
+      },
+      [
+        m('legend.pf-outlined-field-legend', label),
+        isSelect
+          ? m(
+              'select.pf-outlined-field-input',
+              {
+                value,
+                onchange,
+                disabled,
+              },
+              children,
+            )
+          : m('input.pf-outlined-field-input', {
+              type: 'text',
+              value,
+              oninput,
+              disabled,
+              placeholder,
+            }),
+      ],
+    );
+  }
+}
+
+// Button styled like an OutlinedField placeholder for adding new items
+// Matches the visual style of OutlinedField (border, height, etc.) but acts as a clickable button
+export interface AddItemPlaceholderAttrs {
+  label: string;
+  icon?: string;
+  onclick: () => void;
+}
+
+export class AddItemPlaceholder
+  implements m.ClassComponent<AddItemPlaceholderAttrs>
+{
+  view({attrs}: m.Vnode<AddItemPlaceholderAttrs>) {
+    const {label, icon, onclick} = attrs;
+
+    return m(
+      'button.pf-add-item-placeholder',
+      {
+        type: 'button',
+        onclick,
+      },
+      [
+        icon && m(Icon, {icon}),
+        m('span.pf-add-item-placeholder__label', label),
+      ],
+    );
+  }
+}
+
+// Generic inline editing list widget
+// Renders a list of items with inline editing forms, validation, and an "add" button
+export interface InlineEditListAttrs<T> {
+  items: T[]; // Can include partial/invalid items during editing
+  validate: (item: T) => boolean; // Returns true if item is valid
+  renderControls: (
+    item: T,
+    index: number,
+    onUpdate: (updated: T) => void,
+  ) => m.Children; // Renders the form controls for editing an item
+  onUpdate: (items: T[]) => void; // Called when items array changes
+  onValidChange?: () => void; // Called when an item becomes valid (for triggering query rebuilds)
+  addButtonLabel: string;
+  addButtonIcon?: string;
+  emptyItem: () => T; // Factory function to create a new empty item
+}
+
+export class InlineEditList<T>
+  implements m.ClassComponent<InlineEditListAttrs<T>>
+{
+  view({attrs}: m.Vnode<InlineEditListAttrs<T>>) {
+    const {
+      items,
+      validate,
+      renderControls,
+      onUpdate,
+      onValidChange,
+      addButtonLabel,
+      addButtonIcon,
+      emptyItem,
+    } = attrs;
+
+    const itemViews: m.Child[] = [];
+
+    // Render each item as an inline form
+    for (const [index, item] of items.entries()) {
+      const isValid = validate(item);
+
+      itemViews.push(
+        m(FormListItem<T>, {
+          item,
+          isValid,
+          onUpdate: (updated) => {
+            const wasValid = validate(item);
+            const nowValid = validate(updated);
+
+            // Update the item in the array
+            items[index] = updated;
+            onUpdate([...items]);
+
+            // If the item just became valid, trigger the valid change callback
+            if (!wasValid && nowValid && onValidChange) {
+              onValidChange();
+            }
+          },
+          onRemove: () => {
+            items.splice(index, 1);
+            onUpdate([...items]);
+            onValidChange?.();
+          },
+          children: renderControls(item, index, (updated) => {
+            const wasValid = validate(item);
+            const nowValid = validate(updated);
+
+            // Update the item
+            items[index] = updated;
+            onUpdate([...items]);
+
+            // If the item just became valid, trigger the valid change callback
+            if (!wasValid && nowValid && onValidChange) {
+              onValidChange();
+            }
+          }),
+        }),
+      );
+    }
+
+    // Add "Add item" button
+    itemViews.push(
+      m(AddItemPlaceholder, {
+        label: addButtonLabel,
+        icon: addButtonIcon,
+        onclick: () => {
+          items.push(emptyItem());
+          onUpdate([...items]);
+        },
+      }),
+    );
+
+    return m('.pf-inline-edit-list', itemViews);
+  }
+}

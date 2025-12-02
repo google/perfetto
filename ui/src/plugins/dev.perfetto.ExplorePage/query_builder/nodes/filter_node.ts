@@ -24,19 +24,18 @@ import protos from '../../../../protos';
 import {
   UIFilter,
   createExperimentalFiltersProto,
-  showFilterEditModal,
   formatFilterDetails,
   isFilterDefinitionValid,
-  parseFilterFromText,
+  ALL_FILTER_OPS,
+  isValueRequired,
+  parseFilterValue,
 } from '../operations/filter';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
 import {showModal} from '../../../../widgets/modal';
 import {Editor} from '../../../../widgets/editor';
-import {TextInput} from '../../../../widgets/text_input';
-import {ListItem, EqualWidthRow, InfoBox} from '../widgets';
+import {ListItem, OutlinedField, InlineEditList, InfoBox} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
-import {classNames} from '../../../../base/classnames';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {NodeDetailsMessage} from '../node_styling_widgets';
@@ -46,8 +45,6 @@ import {Icons} from '../../../../base/semantic_icons';
 const SQL_TRUNCATE_LENGTH = 50;
 
 export interface FilterNodeState extends QueryNodeState {
-  filters?: UIFilter[];
-  filterOperator?: 'AND' | 'OR';
   filterMode?: 'structured' | 'freeform';
   sqlExpression?: string;
 }
@@ -62,7 +59,10 @@ export class FilterNode implements QueryNode {
 
   constructor(state: FilterNodeState) {
     this.nodeId = nextNodeId();
-    this.state = state;
+    this.state = {
+      ...state,
+      filters: state.filters ?? [],
+    };
     this.nextNodes = [];
   }
 
@@ -83,45 +83,6 @@ export class FilterNode implements QueryNode {
       this.state.issues = new NodeIssues();
     }
     this.state.issues.queryError = new Error(message);
-  }
-
-  private handleFilterEdit(filter: UIFilter): void {
-    // Check if there are any columns available
-    if (this.sourceCols.length === 0) {
-      showModal({
-        title: 'Cannot edit filter',
-        content: m(
-          'div',
-          m('p', 'No columns are available to filter on.'),
-          m(
-            'p',
-            'Please select a table or add columns before editing filters.',
-          ),
-        ),
-      });
-      return;
-    }
-
-    showFilterEditModal(
-      filter,
-      this.sourceCols,
-      (editedFilter) => {
-        // Update filter in main filters array
-        this.state.filters = (this.state.filters ?? []).map((f) =>
-          f === filter ? editedFilter : f,
-        );
-        this.state.onchange?.();
-        m.redraw();
-      },
-      () => {
-        // Delete callback
-        this.state.filters = (this.state.filters ?? []).filter(
-          (f) => f !== filter,
-        );
-        this.state.onchange?.();
-        m.redraw();
-      },
-    );
   }
 
   nodeDetails(): NodeDetailsAttrs {
@@ -149,8 +110,11 @@ export class FilterNode implements QueryNode {
       }
     }
 
-    // Structured mode
-    if (!this.state.filters || this.state.filters.length === 0) {
+    // Structured mode - only show valid filters in nodeDetails
+    const validFilters =
+      this.state.filters?.filter(isFilterDefinitionValid) ?? [];
+
+    if (validFilters.length === 0) {
       return {
         content: NodeDetailsMessage('No filters applied'),
       };
@@ -158,12 +122,12 @@ export class FilterNode implements QueryNode {
 
     return {
       content: formatFilterDetails(
-        this.state.filters,
+        validFilters,
         this.state.filterOperator,
         this.state, // Pass state for interactive toggling and removal
         undefined, // onRemove - handled internally by formatFilterDetails
         true, // compact mode for smaller font
-        (filter) => this.handleFilterEdit(filter), // onEdit callback for right-click editing
+        undefined, // No edit callback - editing happens in nodeSpecificModify
       ),
     };
   }
@@ -206,65 +170,18 @@ export class FilterNode implements QueryNode {
     // Build sections
     const sections: NodeModifyAttrs['sections'] = [];
 
-    // Info box explaining nested filters
-    sections.push({
-      content: m(
-        InfoBox,
-        'To combine AND and OR logic (nested filters), use multiple filter nodes. Each filter node can use either AND or OR to combine its conditions.',
-      ),
-    });
-
-    // Input section with buttons/inputs
+    // Info box explaining nested filters (only in structured mode)
     if (mode === 'structured') {
       sections.push({
         content: m(
-          EqualWidthRow,
-          {separator: '•'},
-          m(Button, {
-            label: 'Create filter',
-            icon: 'add',
-            variant: ButtonVariant.Outlined,
-            onclick: () => this.showAddFilterModal(),
-          }),
-          m(TextInput, {
-            placeholder: 'Type filter (e.g., dur > 1000)',
-            leftIcon: Icons.Filter,
-            onkeydown: (e: KeyboardEvent) => {
-              if (e.key !== 'Enter') return;
-              e.preventDefault();
-              const input = e.target as HTMLInputElement;
-              const text = input.value.trim();
-              if (text === '') return;
-
-              // Parse the text into a structured filter
-              const filter = parseFilterFromText(text, this.sourceCols);
-              if (!isFilterDefinitionValid(filter)) {
-                // Show error to user - filter couldn't be parsed
-                showModal({
-                  title: 'Invalid filter',
-                  content: m(
-                    'div',
-                    m('p', `Could not parse filter: "${text}"`),
-                    m(
-                      'p',
-                      'Expected format: column operator value (e.g., dur > 1000)',
-                    ),
-                  ),
-                });
-                return;
-              }
-
-              // Add the parsed filter to the list
-              this.state.filters = [...(this.state.filters ?? []), filter];
-              this.state.filterMode = 'structured';
-              this.state.onchange?.();
-              input.value = '';
-            },
-          }),
+          InfoBox,
+          'To combine AND and OR logic (nested filters), use multiple filter nodes. Each filter node can use either AND or OR to combine its conditions.',
         ),
       });
-    } else {
-      // Freeform mode - show edit button
+    }
+
+    // Input section with buttons/inputs - only for freeform mode
+    if (mode === 'freeform') {
       sections.push({
         content: m(Button, {
           label: 'Edit WHERE clause',
@@ -289,8 +206,6 @@ export class FilterNode implements QueryNode {
 
   private renderFiltersList(): m.Child {
     const mode = this.state.filterMode ?? 'structured';
-    const filters = this.state.filters ?? [];
-    const hasFilters = filters.length > 0;
     const hasSqlExpression =
       this.state.sqlExpression !== undefined &&
       this.state.sqlExpression.trim() !== '';
@@ -324,46 +239,97 @@ export class FilterNode implements QueryNode {
       );
     }
 
-    if (!hasFilters) {
-      return m(EmptyState, {
-        title: 'No filters added yet.',
-      });
-    }
+    // Structured mode - use InlineEditList widget
+    return m(InlineEditList<Partial<UIFilter>>, {
+      items: this.state.filters ?? [],
+      validate: (filter) => isFilterDefinitionValid(filter as UIFilter),
+      renderControls: (filter, _index, onUpdate) =>
+        this.renderFilterFormControls(filter, onUpdate),
+      onUpdate: (filters) => {
+        this.state.filters = filters;
+      },
+      onValidChange: () => {
+        this.state.onchange?.();
+      },
+      addButtonLabel: 'Add filter',
+      addButtonIcon: 'add',
+      emptyItem: () => ({enabled: true}),
+    });
+  }
 
-    const items: m.Child[] = [];
+  private renderFilterFormControls(
+    filter: Partial<UIFilter>,
+    onUpdate: (updated: Partial<UIFilter>) => void,
+  ): m.Children {
+    const opObject = ALL_FILTER_OPS.find((o) => o.displayName === filter.op);
+    const valueRequired = isValueRequired(opObject);
 
-    // Show each filter as a list item
-    for (const [index, filter] of filters.entries()) {
-      const isEnabled = filter.enabled !== false;
-      const filterDescription = this.formatFilterDescription(filter);
-
-      items.push(
-        m(ListItem, {
-          icon: isEnabled ? Icons.Filter : Icons.FilterOff,
-          name: filter.column,
-          description: filterDescription,
-          actions: [
-            {
-              label: 'Edit',
-              icon: 'edit',
-              onclick: () => this.handleFilterEdit(filter),
-            },
-          ],
-          onRemove: () => this.removeFilter(index),
-          className: classNames(!isEnabled && 'pf-filter-disabled'),
-          onclick: (e: MouseEvent) => {
-            // Do nothing if a button was clicked
-            if ((e.target as HTMLElement).closest('button')) {
-              return;
-            }
-            filter.enabled = !isEnabled;
-            this.state.onchange?.();
+    return [
+      // Column selector with outlined style
+      m(
+        OutlinedField,
+        {
+          label: 'Column',
+          value: filter.column ?? '',
+          onchange: (e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            onUpdate({...filter, column: target.value});
           },
-        }),
-      );
-    }
-
-    return m('.pf-filters-list', items);
+        },
+        [
+          m('option', {value: '', disabled: true}, 'Select column...'),
+          ...this.sourceCols.map((col) =>
+            m('option', {value: col.name}, col.name),
+          ),
+        ],
+      ),
+      // Operator selector with outlined style
+      m(
+        OutlinedField,
+        {
+          label: 'Operator',
+          value: opObject?.key ?? '',
+          onchange: (e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            const newOp = ALL_FILTER_OPS.find((op) => op.key === target.value);
+            if (newOp) {
+              const updated: Partial<UIFilter> = {
+                column: filter.column,
+                op: newOp.displayName as UIFilter['op'],
+                enabled: filter.enabled,
+              };
+              // Add value if required
+              if (isValueRequired(newOp)) {
+                (updated as {value: string}).value =
+                  'value' in filter ? String(filter.value) : '';
+              }
+              onUpdate(updated);
+            }
+          },
+        },
+        [
+          m('option', {value: '', disabled: true}, 'Select operator...'),
+          ...ALL_FILTER_OPS.map((op) =>
+            m('option', {value: op.key}, op.displayName),
+          ),
+        ],
+      ),
+      // Value input with outlined style (always show, disabled when not required)
+      m(OutlinedField, {
+        label: 'Value',
+        value: 'value' in filter ? String(filter.value) : '',
+        disabled: !valueRequired,
+        placeholder: 'Enter value...',
+        oninput: (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          const parsed = parseFilterValue(target.value);
+          onUpdate({
+            ...filter,
+            value: parsed ?? target.value,
+          } as Partial<UIFilter>);
+        },
+      }),
+    ];
   }
 
   private handleModeSwitch(currentMode: 'structured' | 'freeform'): void {
@@ -383,35 +349,6 @@ export class FilterNode implements QueryNode {
       this.state.filterMode = 'structured';
       this.state.onchange?.();
     }
-  }
-
-  private showAddFilterModal(): void {
-    // Check if there are any columns available
-    if (this.sourceCols.length === 0) {
-      showModal({
-        title: 'Cannot add filter',
-        content: m(
-          'div',
-          m('p', 'No columns are available to filter on.'),
-          m('p', 'Please select a table or add columns before adding filters.'),
-        ),
-      });
-      return;
-    }
-
-    // Start with first column and "is not null" operator
-    const defaultColumn = this.sourceCols[0].name;
-    const newFilter: Partial<UIFilter> = {
-      column: defaultColumn,
-      op: 'is not null',
-    };
-
-    showFilterEditModal(newFilter, this.sourceCols, (createdFilter) => {
-      this.state.filters = [...(this.state.filters ?? []), createdFilter];
-      this.state.filterMode = 'structured';
-      this.state.onchange?.();
-      m.redraw();
-    });
   }
 
   private showSqlExpressionModal(): void {
@@ -448,27 +385,6 @@ export class FilterNode implements QueryNode {
         },
       ],
     });
-  }
-
-  private removeFilter(index: number): void {
-    const filters = this.state.filters;
-    if (!filters || index >= filters.length) return;
-
-    const newFilters = [...filters];
-    newFilters.splice(index, 1);
-    this.state.filters = newFilters;
-    this.state.onchange?.();
-  }
-
-  private formatFilterDescription(filter: UIFilter): string {
-    if ('value' in filter) {
-      const valueStr =
-        typeof filter.value === 'string'
-          ? `"${filter.value}"`
-          : String(filter.value);
-      return `${filter.op} ${valueStr}`;
-    }
-    return filter.op;
   }
 
   private truncateSql(sql: string): string {
@@ -565,18 +481,21 @@ export class FilterNode implements QueryNode {
       );
     }
 
-    // Structured mode
-    if (!this.state.filters || this.state.filters.length === 0) {
+    // Structured mode - only use valid filters for query building
+    const validFilters =
+      this.state.filters?.filter(isFilterDefinitionValid) ?? [];
+
+    if (validFilters.length === 0) {
       return this.primaryInput.getStructuredQuery();
     }
 
     const filtersProto = createExperimentalFiltersProto(
-      this.state.filters,
+      validFilters,
       this.sourceCols,
       this.state.filterOperator,
     );
 
-    if (!filtersProto) {
+    if (filtersProto === undefined) {
       return this.primaryInput.getStructuredQuery();
     }
 
