@@ -13,19 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {MenuDivider, MenuItem} from '../../../../widgets/menu';
+import {MenuItem, MenuTitle} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
 import {Row} from '../../../../trace_processor/query_result';
-import {Spinner} from '../../../../widgets/spinner';
-import {
-  Grid,
-  GridCell,
-  GridColumn,
-  GridHeaderCell,
-  renderSortMenuItems,
-  SortDirection,
-} from '../../../../widgets/grid';
 
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
@@ -34,27 +25,27 @@ import {
   TableColumn,
   TableManager,
   tableColumnId,
+  tableColumnAlias,
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './menus/select_column_menu';
-import {renderColumnFilterOptions} from './menus/add_column_filter_menu';
 import {renderCastColumnMenu} from './menus/cast_column_menu';
 import {renderTransformColumnMenu} from './menus/transform_column_menu';
+import {DataGrid} from '../../data_grid/data_grid';
+import {
+  ColumnDefinition,
+  DataGridFilter,
+  Sorting,
+} from '../../data_grid/common';
+import {SqlTableDataSource} from './sql_table_data_source';
+import {Filter} from './filters';
+import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
   // For additional menu items to add to the column header menus
   readonly addColumnMenuItems?: (column: TableColumn) => m.Children;
-  // For additional filter actions
-  readonly extraAddFilterActions?: (
-    op: string,
-    column: string,
-    value?: string,
-  ) => void;
-  readonly extraRemoveFilterActions?: (filterSqlStr: string) => void;
 }
-
-type AdditionalColumnMenuItems = Record<string, m.Children>;
 
 function renderCell(
   column: TableColumn,
@@ -111,12 +102,13 @@ class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
 
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
-
   private state: SqlTableState;
+  private dataSource: SqlTableDataSource;
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
     this.table = this.state.config;
+    this.dataSource = new SqlTableDataSource(this.state);
   }
 
   renderAddColumnOptions(addColumn: (column: TableColumn) => void): m.Children {
@@ -141,147 +133,239 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     });
   }
 
-  getAdditionalColumnMenuItems(
-    addColumnMenuItems?: (
-      column: TableColumn,
-      columnAlias: string,
-    ) => m.Children,
-  ) {
-    if (addColumnMenuItems === undefined) return;
-
-    const additionalColumnMenuItems: AdditionalColumnMenuItems = {};
-    this.state.getSelectedColumns().forEach((column) => {
-      const columnAlias =
-        this.state.getCurrentRequest().columns[sqlColumnId(column.column)];
-
-      additionalColumnMenuItems[columnAlias] = addColumnMenuItems(
-        column,
-        columnAlias,
-      );
+  private convertTableColumnsToDataGridColumns(
+    columns: readonly TableColumn[],
+    addColumnMenuItems?: (column: TableColumn) => m.Children,
+  ): ColumnDefinition[] {
+    return columns.map((column, i) => {
+      // Use the aliased name (with escaped characters) to match the SQL result keys
+      const aliasedName = tableColumnAlias(column);
+      const columnDef: ColumnDefinition = {
+        name: aliasedName,
+        title: columnTitle(column),
+        headerMenuItems: [
+          m(MenuTitle, {label: 'More'}),
+          // Column-specific menu items from the column itself
+          column.getColumnSpecificMenuItems?.({
+            replaceColumn: (newColumn: TableColumn) =>
+              this.state.replaceColumnAtIndex(i, newColumn),
+          }),
+          // Cast and transform options
+          m(
+            MenuItem,
+            {label: 'Cast', icon: Icons.Change},
+            renderCastColumnMenu(column, i, this.state),
+          ),
+          renderTransformColumnMenu(column, i, this.state),
+          // Hide column (only if more than 1 visible)
+          columns.length > 1 &&
+            m(MenuItem, {
+              label: 'Hide',
+              icon: Icons.Hide,
+              onclick: () => this.state.hideColumnAtIndex(i),
+            }),
+          m(AddColumnMenuItem, {
+            table: this,
+            state: this.state,
+            index: i,
+          }),
+          // Additional menu items from config
+          addColumnMenuItems && addColumnMenuItems(column),
+        ],
+        cellMenuItems: (_value, row) => {
+          const {menu} = renderCell(column, row as Row, this.state);
+          return menu;
+        },
+      };
+      return columnDef;
     });
+  }
 
-    return additionalColumnMenuItems;
+  private sqlFilterToDataGridFilter(
+    sqlFilter: Filter,
+  ): DataGridFilter | undefined {
+    // Try to convert SqlTable Filter back to DataGridFilter
+    // This is best-effort - some complex filters may not convert
+    if (sqlFilter.columns.length !== 1) {
+      // DataGrid filters work on single columns
+      return undefined;
+    }
+
+    const columnName = sqlColumnId(sqlFilter.columns[0]);
+    const sqlExp = sqlFilter.op([columnName]);
+
+    // Parse common filter patterns
+    if (sqlExp === `${columnName} IS NULL`) {
+      return {column: columnName, op: 'is null'};
+    }
+    if (sqlExp === `${columnName} IS NOT NULL`) {
+      return {column: columnName, op: 'is not null'};
+    }
+
+    // Try to match basic operators with values
+    const match = sqlExp.match(
+      new RegExp(`^${columnName}\\s+(=|!=|<|<=|>|>=|glob|not glob)\\s+(.+)$`),
+    );
+    if (match) {
+      const op = match[1];
+      const value = match[2];
+
+      // Return properly typed filter based on operator
+      if (
+        op === '=' ||
+        op === '!=' ||
+        op === '<' ||
+        op === '<=' ||
+        op === '>' ||
+        op === '>=' ||
+        op === 'glob' ||
+        op === 'not glob'
+      ) {
+        return {column: columnName, op, value};
+      }
+    }
+
+    // Can't convert this filter
+    return undefined;
+  }
+
+  private convertSortingToDataGrid(): Sorting {
+    const orderBy = this.state.getOrderedBy();
+    if (orderBy.length === 0) {
+      return {direction: 'UNSORTED'};
+    }
+    const firstOrder = orderBy[0];
+    // Find the column to get its alias
+    const columns = this.state.getSelectedColumns();
+    const column = columns.find(
+      (c) => tableColumnId(c) === sqlColumnId(firstOrder.column),
+    );
+    return {
+      column: column
+        ? tableColumnAlias(column)
+        : sqlColumnId(firstOrder.column),
+      direction: firstOrder.direction,
+    };
+  }
+
+  private dataGridFilterToSqlFilter(
+    dgFilter: DataGridFilter,
+    column: TableColumn,
+  ): Filter {
+    if ('value' in dgFilter) {
+      if (Array.isArray(dgFilter.value)) {
+        // Handle 'in' and 'not in' operators
+        const values = dgFilter.value.map(sqlValueToSqliteString).join(', ');
+        return {
+          op: (cols) =>
+            dgFilter.op === 'in'
+              ? `${cols[0]} IN (${values})`
+              : `${cols[0]} NOT IN (${values})`,
+          columns: [column.column],
+        };
+      } else {
+        // Handle operators with single values
+        const value = sqlValueToSqliteString(dgFilter.value);
+        return {
+          op: (cols) => `${cols[0]} ${dgFilter.op} ${value}`,
+          columns: [column.column],
+        };
+      }
+    } else {
+      // Handle 'is null' and 'is not null'
+      return {
+        op: (cols) => `${cols[0]} ${dgFilter.op.toUpperCase()}`,
+        columns: [column.column],
+      };
+    }
   }
 
   view({attrs}: m.Vnode<SqlTableConfig>) {
-    const rows = this.state.getDisplayedRows();
-    const additionalColumnMenuItems = this.getAdditionalColumnMenuItems(
+    const columns = this.state.getSelectedColumns();
+    const dataGridColumns = this.convertTableColumnsToDataGridColumns(
+      columns,
       attrs.addColumnMenuItems,
     );
 
-    const columns = this.state.getSelectedColumns();
+    // Convert column order - use aliases to match DataGrid column names
+    const columnOrder = columns.map((c) => tableColumnAlias(c));
 
-    // Build VirtualGrid columns
-    const virtualGridColumns = columns.map((column, i) => {
-      const sorted = this.state.isSortedBy(column);
-      const menuItems: m.Children = [
-        renderSortMenuItems(sorted, (direction) =>
-          this.state.sortBy({column, direction}),
-        ),
-        m(MenuDivider),
-        this.state.getSelectedColumns().length > 1 &&
-          m(MenuItem, {
-            label: 'Hide',
-            icon: Icons.Hide,
-            onclick: () => this.state.hideColumnAtIndex(i),
-          }),
-        // Use the new getColumnSpecificMenuItems method if available
-        column.getColumnSpecificMenuItems?.({
-          replaceColumn: (newColumn: TableColumn) =>
-            this.state.replaceColumnAtIndex(i, newColumn),
-        }),
-        m(
-          MenuItem,
-          {label: 'Cast', icon: Icons.Change},
-          renderCastColumnMenu(column, i, this.state),
-        ),
-        renderTransformColumnMenu(column, i, this.state),
-        m(
-          MenuItem,
-          {label: 'Add filter', icon: Icons.Filter},
-          renderColumnFilterOptions(column, this.state),
-        ),
-        additionalColumnMenuItems &&
-          additionalColumnMenuItems[
-            this.state.getCurrentRequest().columns[sqlColumnId(column.column)]
-          ],
-        // Menu items before divider apply to selected column
-        m(MenuDivider),
-        // Menu items after divider apply to entire table
-        m(AddColumnMenuItem, {
-          table: this,
-          state: this.state,
-          index: i,
-        }),
-      ];
-      const columnKey = tableColumnId(column);
+    // Custom cell renderer that uses TableColumn's renderCell
+    const cellRenderer = (value: unknown, columnName: string, row: unknown) => {
+      // columnName is the aliased name, so compare with aliases
+      const column = columns.find((c) => tableColumnAlias(c) === columnName);
+      if (!column) return String(value);
 
-      const gridColumn: GridColumn = {
-        key: columnKey,
-        header: m(
-          GridHeaderCell,
-          {
-            sort: sorted,
-            onSort: (direction: SortDirection) => {
-              this.state.sortBy({column, direction});
-            },
-            menuItems,
-          },
-          columnTitle(column),
-        ),
-        reorderable: {handle: 'column'},
-      };
+      const {content} = renderCell(column, row as Row, this.state);
+      return content;
+    };
 
-      return gridColumn;
-    });
-
-    // Build VirtualGrid rows
-    const virtualGridRows = rows.map((row) => {
-      return columns.map((col) => {
-        const {content, menu, isNumerical, isNull} = renderCell(
-          col,
-          row,
-          this.state,
-        );
-        return m(
-          GridCell,
-          {
-            menuItems: menu,
-            align: isNull ? 'center' : isNumerical ? 'right' : 'left',
-            nullish: isNull,
-          },
-          content,
-        );
-      });
-    });
-
-    return [
-      m(Grid, {
-        className: 'sql-table',
-        columns: virtualGridColumns,
-        rowData: virtualGridRows,
-        fillHeight: true,
-        onColumnReorder: (from, to, position) => {
-          if (typeof from === 'string' && typeof to === 'string') {
-            // Convert column names to indices
-            const fromIndex = columns.findIndex(
-              (col) => tableColumnId(col) === from,
-            );
-            const toIndex = columns.findIndex(
-              (col) => tableColumnId(col) === to,
-            );
-
-            if (fromIndex !== -1 && toIndex !== -1) {
-              const targetIndex = position === 'before' ? toIndex : toIndex + 1;
-              this.state.moveColumn(fromIndex, targetIndex);
+    return m(DataGrid, {
+      columns: dataGridColumns,
+      data: this.dataSource,
+      columnOrder,
+      onColumnOrderChanged: (newOrder: ReadonlyArray<string>) => {
+        // Handle column reordering - find which column moved and where
+        for (let i = 0; i < newOrder.length; i++) {
+          if (newOrder[i] !== columnOrder[i]) {
+            const movedColumn = newOrder[i];
+            const fromIndex = columnOrder.indexOf(movedColumn);
+            const toIndex = i;
+            if (fromIndex !== -1 && fromIndex !== toIndex) {
+              this.state.moveColumn(fromIndex, toIndex);
             }
+            return;
           }
-        },
-      }),
-      this.state.isLoading() && m(Spinner),
-      this.state.getQueryError() !== undefined &&
-        m('.query-error', this.state.getQueryError()),
-    ];
+        }
+      },
+      sorting: this.convertSortingToDataGrid(),
+      onSort: (sorting: Sorting) => {
+        if (sorting.direction === 'UNSORTED') {
+          // Clear sorting
+          if (columns.length > 0) {
+            this.state.sortBy({column: columns[0], direction: undefined});
+          }
+        } else {
+          // sorting.column is the aliased name
+          const column = columns.find(
+            (c) => tableColumnAlias(c) === sorting.column,
+          );
+          if (column) {
+            this.state.sortBy({column, direction: sorting.direction});
+          }
+        }
+      },
+      // Use DataGrid's filter system and sync to SqlTable state
+      filters: this.state.filters
+        .get()
+        .map((f) => this.sqlFilterToDataGridFilter(f))
+        .filter((f): f is DataGridFilter => f !== undefined),
+      onFilterAdd: (dgFilter: DataGridFilter) => {
+        // dgFilter.column is the aliased name
+        const column = columns.find(
+          (c) => tableColumnAlias(c) === dgFilter.column,
+        );
+        if (column) {
+          const sqlFilter = this.dataGridFilterToSqlFilter(dgFilter, column);
+          this.state.filters.addFilter(sqlFilter);
+        }
+      },
+      onFilterRemove: (index: number) => {
+        const currentFilters = this.state.filters.get();
+        if (index >= 0 && index < currentFilters.length) {
+          this.state.filters.removeFilter(currentFilters[index]);
+        }
+      },
+      clearFilters: () => {
+        this.state.filters.clear();
+      },
+      cellRenderer,
+      fillHeight: true,
+      className: 'sql-table',
+      columnReordering: true,
+      showColumnManagement: false,
+      showFiltersInToolbar: false,
+    });
   }
 }
 

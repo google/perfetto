@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
-import {exists} from '../../base/utils';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
@@ -74,23 +73,6 @@ class SqlTableTab implements Tab {
   private histograms: SqlHistogramState[] = [];
 
   private getTableButtons() {
-    const range = this.tableState.getDisplayedRange();
-    const rowCount = this.tableState.getTotalRowCount();
-    const navigation = [
-      exists(range) &&
-        exists(rowCount) &&
-        `Showing rows ${range.from}-${range.to} of ${rowCount}`,
-      m(Button, {
-        icon: Icons.GoBack,
-        disabled: !this.tableState.canGoBack(),
-        onclick: () => this.tableState.goBack(),
-      }),
-      m(Button, {
-        icon: Icons.GoForward,
-        disabled: !this.tableState.canGoForward(),
-        onclick: () => this.tableState.goForward(),
-      }),
-    ];
     const {selectStatement, columns} = this.tableState.getCurrentRequest();
     const debugTrackColumns = Object.values(columns).filter(
       (c) => !c.startsWith('__'),
@@ -108,7 +90,6 @@ class SqlTableTab implements Tab {
       }),
     );
     return [
-      ...navigation,
       addDebugTrack,
       m(
         PopupMenu,
@@ -319,9 +300,7 @@ class SqlTableTab implements Tab {
   }
 
   getTitle(): string {
-    const rowCount = this.tableState.getTotalRowCount();
-    const rows = rowCount === undefined ? '' : ` (${rowCount})`;
-    return `Table ${this.getDisplayName()}${rows}`;
+    return `Table ${this.getDisplayName()}`;
   }
 
   private getDisplayName(): string {
