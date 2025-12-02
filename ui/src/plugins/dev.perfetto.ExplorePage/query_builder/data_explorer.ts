@@ -33,6 +33,7 @@ import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
 import {UIFilter} from './operations/filter';
+
 export interface DataExplorerAttrs {
   readonly node: QueryNode;
   readonly query?: Query | Error;
@@ -302,6 +303,18 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             )
           : null;
 
+      const supportedOps = [
+        '=',
+        '!=',
+        '<',
+        '<=',
+        '>',
+        '>=',
+        'glob',
+        'is null',
+        'is not null',
+      ] as const;
+
       return [
         warning,
         m(DataGrid, {
@@ -309,24 +322,15 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           columns: attrs.response.columns.map((c) => ({name: c})),
           data: attrs.dataSource,
           showFiltersInToolbar: true,
+          supportedFilters: supportedOps,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.
           filters: [],
           onFilterAdd: (filter) => {
             // These are the filters supported by the explore page currently.
-            const supportedOps = [
-              '=',
-              '!=',
-              '<',
-              '<=',
-              '>',
-              '>=',
-              'glob',
-              'is null',
-              'is not null',
-            ];
-            if (supportedOps.includes(filter.op)) {
+
+            if ((supportedOps as unknown as string[]).includes(filter.op)) {
               if (attrs.onFilterAdd) {
                 // Delegate to the parent handler which will create a FilterNode
                 attrs.onFilterAdd(filter as UIFilter);
