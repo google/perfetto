@@ -58,9 +58,8 @@ import {
   removeConnection,
 } from '../../query_node';
 import {EmptyGraph} from '../empty_graph';
-import {nodeRegistry} from '../node_registry';
 import {NodeBox} from './node_box';
-import {buildCategorizedMenuItems} from './menu_utils';
+import {buildMenuItems} from './menu_utils';
 import {getAllNodes, findNodeById} from '../graph_utils';
 
 // ========================================
@@ -178,35 +177,24 @@ function getInputLabels(node: QueryNode): NodePort[] {
   return [];
 }
 
-function buildMenuItems(
-  nodeType: 'source' | 'multisource' | 'modification',
-  devMode: boolean | undefined,
-  onAddNode: (id: string) => void,
-): m.Children[] {
-  const nodes = nodeRegistry
-    .list()
-    .filter(([_id, descriptor]) => descriptor.type === nodeType)
-    .filter(([_id, descriptor]) => !descriptor.devOnly || devMode);
-
-  return buildCategorizedMenuItems(nodes, onAddNode);
-}
-
 function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const modificationItems = buildMenuItems('modification', undefined, (id) =>
-    onAddOperationNode(id, targetNode),
-  );
   const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
     onAddOperationNode(id, targetNode),
   );
+  const modificationItems = buildMenuItems('modification', undefined, (id) =>
+    onAddOperationNode(id, targetNode),
+  );
 
-  // Add a divider between modification and multisource nodes if both exist
-  if (modificationItems.length > 0 && multisourceItems.length > 0) {
-    return [...modificationItems, m(MenuDivider), ...multisourceItems];
-  }
-  return [...modificationItems, ...multisourceItems];
+  return [
+    m(MenuTitle, {label: 'Modification nodes'}),
+    ...modificationItems,
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Operations'}),
+    ...multisourceItems,
+  ];
 }
 
 // ========================================

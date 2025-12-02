@@ -15,11 +15,10 @@
 import m from 'mithril';
 
 import {classNames} from '../../../../base/classnames';
-import {PopupMenu} from '../../../../widgets/menu';
+import {PopupMenu, MenuDivider, MenuTitle} from '../../../../widgets/menu';
 import {QueryNode, NodeType} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
-import {nodeRegistry} from '../node_registry';
-import {buildCategorizedMenuItems} from './menu_utils';
+import {buildMenuItems} from './menu_utils';
 import {NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeDetailsContent} from '../node_styling_widgets';
 
@@ -42,17 +41,28 @@ export function renderWarningIcon(node: QueryNode): m.Child {
 
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   const {node, onAddOperationNode} = attrs;
-  const operationNodes = nodeRegistry
-    .list()
-    .filter(([_id, descriptor]) => descriptor.type === 'modification');
 
-  if (operationNodes.length === 0) {
+  const multisourceMenuItems = buildMenuItems('multisource', undefined, (id) =>
+    onAddOperationNode(id, node),
+  );
+
+  const modificationMenuItems = buildMenuItems(
+    'modification',
+    undefined,
+    (id) => onAddOperationNode(id, node),
+  );
+
+  if (modificationMenuItems.length === 0 && multisourceMenuItems.length === 0) {
     return null;
   }
 
-  const menuItems = buildCategorizedMenuItems(operationNodes, (id) =>
-    onAddOperationNode(id, node),
-  );
+  const menuItems = [
+    m(MenuTitle, {label: 'Modification nodes'}),
+    ...modificationMenuItems,
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Operations'}),
+    ...multisourceMenuItems,
+  ];
 
   return m(
     PopupMenu,

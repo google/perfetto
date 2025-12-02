@@ -139,30 +139,12 @@ export function registerCoreNodes() {
     },
   });
 
-  nodeRegistry.register('aggregation', {
-    name: 'Aggregation',
-    description: 'Group and aggregate data from the source node.',
-    icon: 'functions',
-    type: 'modification',
-    factory: (state) => new AggregationNode(state as AggregationNodeState),
-  });
-
-  nodeRegistry.register('modify_columns', {
-    name: 'Modify Columns',
-    description: 'Select, rename, and add new columns to the data.',
-    icon: 'edit',
-    type: 'modification',
-    category: 'Columns',
-    factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
-  });
-
   nodeRegistry.register('add_columns', {
     name: 'Add Columns',
     description:
       'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
     icon: 'add_box',
     type: 'modification',
-    category: 'Columns',
     factory: (state) => {
       const fullState: AddColumnsNodeState = {
         ...state,
@@ -174,13 +156,37 @@ export function registerCoreNodes() {
     },
   });
 
+  nodeRegistry.register('modify_columns', {
+    name: 'Modify Columns',
+    description: 'Select, rename, and add new columns to the data.',
+    icon: 'edit',
+    type: 'modification',
+    factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
+  });
+
+  nodeRegistry.register('aggregation', {
+    name: 'Aggregation',
+    description: 'Group and aggregate data from the source node.',
+    icon: 'functions',
+    type: 'modification',
+    factory: (state) => new AggregationNode(state as AggregationNodeState),
+  });
+
+  nodeRegistry.register('filter_node', {
+    name: 'Filter',
+    description: 'Filter rows based on column values.',
+    icon: Icons.Filter,
+    type: 'modification',
+    factory: (state) => new FilterNode(state as FilterNodeState),
+  });
+
   nodeRegistry.register('filter_during', {
     name: 'Filter During',
     description:
       'Filter to only show intervals that occurred during intervals from another source.',
     icon: Icons.Filter,
-    type: 'modification',
-    category: 'Filter',
+    type: 'multisource',
+    category: 'Time',
     factory: (state) => {
       const fullState: FilterDuringNodeState = {
         ...state,
@@ -198,6 +204,7 @@ export function registerCoreNodes() {
     description: 'Intersect the intervals with another table.',
     icon: 'timeline',
     type: 'multisource',
+    category: 'Time',
     factory: (state, context) => {
       if (!context) {
         throw new Error(
@@ -238,14 +245,6 @@ export function registerCoreNodes() {
     icon: 'sort',
     type: 'modification',
     factory: (state) => new SortNode(state as SortNodeState),
-  });
-
-  nodeRegistry.register('filter_node', {
-    name: 'Filter',
-    description: 'Filter rows based on column values.',
-    icon: Icons.Filter,
-    type: 'modification',
-    factory: (state) => new FilterNode(state as FilterNodeState),
   });
 
   nodeRegistry.register('union_node', {
