@@ -279,10 +279,20 @@ export class SqlTableState {
     this.orderBy = this.orderBy.filter(
       (c) => tableColumnId(c.column) != tableColumnId(clause.column),
     );
-    if (clause.direction === undefined) return;
-    // Add the new sort clause to the front, so we effectively stable-sort the
-    // data currently displayed to the user.
-    this.orderBy.unshift({column: clause.column, direction: clause.direction});
+    if (clause.direction !== undefined) {
+      // Add the new sort clause to the front, so we effectively stable-sort the
+      // data currently displayed to the user.
+      this.orderBy.unshift({
+        column: clause.column,
+        direction: clause.direction,
+      });
+    }
+    // Always reload, even when removing sort (direction === undefined)
+    this.reload({resetOffset: true});
+  }
+
+  clearAllSorting() {
+    this.orderBy = [];
     this.reload({resetOffset: true});
   }
 
