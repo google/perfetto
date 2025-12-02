@@ -30,18 +30,20 @@ import {
   PerfettoSqlTypes,
   PerfettoSqlType,
 } from '../../../../trace_processor/perfetto_sql_type';
-import {
-  PopupMultiSelect,
-  MultiSelectOption,
-  MultiSelectDiff,
-} from '../../../../widgets/multiselect';
 import {NodeIssues} from '../node_issues';
 import {
   StructuredQueryBuilder,
   AggregationSpec,
 } from '../structured_query_builder';
 import {isColumnValidForAggregation} from '../utils';
-import {LabeledControl, InlineEditList, OutlinedField} from '../widgets';
+import {
+  LabeledControl,
+  InlineEditList,
+  OutlinedField,
+  OutlinedMultiSelect,
+  MultiSelectOption,
+  MultiSelectDiff,
+} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 
 export interface AggregationSerializedState {
@@ -238,7 +240,7 @@ export class AggregationNode implements QueryNode {
       m(
         LabeledControl,
         {label: 'Group by:'},
-        m(PopupMultiSelect, {
+        m(OutlinedMultiSelect, {
           label,
           options: groupByOptions,
           showNumSelected: false,
@@ -309,7 +311,7 @@ export class AggregationNode implements QueryNode {
     return m(
       LabeledControl,
       {label: 'GROUP BY columns:'},
-      m(PopupMultiSelect, {
+      m(OutlinedMultiSelect, {
         label,
         options: groupByOptions,
         showNumSelected: false,
@@ -450,7 +452,7 @@ export class AggregationNode implements QueryNode {
         : undefined,
       // New column name input (always shown)
       m(OutlinedField, {
-        label: 'AS (column name)',
+        label: 'New column name',
         value: agg.newColumnName ?? '',
         placeholder: columnNamePlaceholder,
         oninput: (e: Event) => {

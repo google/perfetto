@@ -27,13 +27,15 @@ import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../../widgets/callout';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {NodeIssues} from '../node_issues';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 import {
-  PopupMultiSelect,
+  LabeledControl,
+  IssueList,
+  ListItem,
+  OutlinedMultiSelect,
   MultiSelectOption,
   MultiSelectDiff,
-} from '../../../../widgets/multiselect';
-import {StructuredQueryBuilder} from '../structured_query_builder';
-import {LabeledControl, IssueList, ListItem} from '../widgets';
+} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle} from '../node_styling_widgets';
 
@@ -370,7 +372,7 @@ export class IntervalIntersectNode implements QueryNode {
     return m(
       LabeledControl,
       {label: 'Partition by:'},
-      m(PopupMultiSelect, {
+      m(OutlinedMultiSelect, {
         label,
         options: partitionOptions,
         showNumSelected: false,

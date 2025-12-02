@@ -25,6 +25,14 @@ import {Intent} from '../../../widgets/common';
 import {EmptyState} from '../../../widgets/empty_state';
 import {QueryNode} from '../query_node';
 import {NodeModifySection} from './node_explorer_types';
+import {
+  PopupMultiSelect,
+  MultiSelectOption,
+  MultiSelectDiff,
+} from '../../../widgets/multiselect';
+
+// Re-export multiselect types for convenience
+export type {MultiSelectOption, MultiSelectDiff};
 
 // Generic widget for a row with name input, validation, and remove button
 // Used by all "new column" types
@@ -624,6 +632,24 @@ export class OutlinedField implements m.ClassComponent<OutlinedFieldAttrs> {
             }),
       ],
     );
+  }
+}
+
+// Wrapper around PopupMultiSelect with more obvious clickable styling
+export interface OutlinedMultiSelectAttrs {
+  label: string;
+  options: MultiSelectOption[];
+  onChange: (diffs: MultiSelectDiff[]) => void;
+  showNumSelected?: boolean;
+  repeatCheckedItemsAtTop?: boolean;
+  compact?: boolean;
+}
+
+export class OutlinedMultiSelect
+  implements m.ClassComponent<OutlinedMultiSelectAttrs>
+{
+  view({attrs}: m.Vnode<OutlinedMultiSelectAttrs>) {
+    return m('.pf-outlined-multiselect', m(PopupMultiSelect, attrs));
   }
 }
 

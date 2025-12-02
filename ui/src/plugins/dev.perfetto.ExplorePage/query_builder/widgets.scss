@@ -13,6 +13,7 @@
 // limitations under the License.
 
 @import "./common";
+@import "./node_styling_widgets";
 
 // General widget styles
 
@@ -70,10 +71,6 @@
     font-weight: 500;
     margin: 0;
   }
-}
-
-.pf-exp-section-content {
-  // Content fills available space
 }
 
 // List item widget - displays an item with icon, name, description, and action button
@@ -411,8 +408,9 @@
   }
 
   &:focus-within:not(:disabled) {
+    // Use thicker border instead of box-shadow to avoid covering the legend
     border-color: var(--pf-color-primary);
-    box-shadow: 0 0 0 1px var(--pf-color-primary);
+    border-width: 2px;
 
     .pf-outlined-field-legend {
       color: var(--pf-color-primary);
@@ -455,6 +453,27 @@
 
     &:disabled {
       cursor: not-allowed;
+    }
+  }
+}
+
+// Outlined multiselect - styles the PopupMultiSelect button to look like a form field
+.pf-outlined-multiselect {
+  flex: 1;
+
+  .pf-button {
+    @extend .pf-exp-column-name;
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--pf-color-border) !important;
+
+    &:hover {
+      border-color: var(--pf-color-primary) !important;
+      background: var(--pf-color-hover) !important;
+    }
+
+    &:focus {
+      border-color: var(--pf-color-primary) !important;
     }
   }
 }
