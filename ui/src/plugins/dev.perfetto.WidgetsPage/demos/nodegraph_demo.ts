@@ -424,6 +424,7 @@ interface NodeGraphDemoAttrs {
   readonly accentBars?: boolean;
   readonly colors?: boolean;
   readonly contextMenus?: boolean;
+  readonly contextMenuOnHover?: boolean;
 }
 
 export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
@@ -1146,6 +1147,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         connections: store.connections,
         selectedNodeIds: selectedNodeIds,
         multiselect: attrs.multiselect,
+        contextMenuOnHover: attrs.contextMenuOnHover,
         onReady: (api: NodeGraphApi) => {
           graphApi = api;
         },
@@ -1259,6 +1261,7 @@ export function renderNodeGraph() {
         titleBars: false,
         colors: true,
         contextMenus: true,
+        contextMenuOnHover: false,
       },
     }),
 
