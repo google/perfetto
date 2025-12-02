@@ -224,11 +224,12 @@
   font-weight: 600;
   color: var(--pf-color-text);
   margin: 0;
-  padding-bottom: 0.5rem;
+  padding: 0 1rem 0.5rem 1rem;
 }
 
 .pf-exp-node-explorer__section-content {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  padding: 0 1rem;
 }

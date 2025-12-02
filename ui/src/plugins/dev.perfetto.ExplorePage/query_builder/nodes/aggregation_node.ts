@@ -47,7 +47,7 @@ import {
 import {isColumnValidForAggregation} from '../utils';
 import {LabeledControl, ListItem} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {EmptyState} from '../../../../widgets/empty_state';
+import {createErrorSections, ModifiableItemList} from '../widgets';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -291,7 +291,9 @@ export class AggregationNode implements QueryNode {
   }
 
   nodeSpecificModify(): NodeModifyAttrs {
-    const sections: NodeModifyAttrs['sections'] = [];
+    const sections: NodeModifyAttrs['sections'] = [
+      ...createErrorSections(this),
+    ];
 
     // Group by section
     sections.push({
@@ -512,55 +514,53 @@ export class AggregationNode implements QueryNode {
       (agg) => agg.isValid && !agg.isEditing,
     );
 
-    if (validAggregations.length === 0) {
-      return m(EmptyState, {
-        title: 'No aggregations added yet.',
-      });
-    }
-
     return m(
       '.pf-exp-aggregations-list',
-      validAggregations.map((agg) => {
-        const index = this.state.aggregations.indexOf(agg);
-        let aggDisplay = '';
-        if (agg.aggregationOp === 'COUNT_ALL') {
-          aggDisplay = 'COUNT(*)';
-        } else if (
-          agg.aggregationOp === 'PERCENTILE' &&
-          agg.percentile !== undefined
-        ) {
-          aggDisplay = `PERCENTILE(${agg.column?.name}, ${agg.percentile})`;
-        } else {
-          aggDisplay = `${agg.aggregationOp}(${agg.column?.name})`;
-        }
+      ModifiableItemList({
+        items: validAggregations,
+        renderItem: (agg: Aggregation) => {
+          const index = this.state.aggregations.indexOf(agg);
+          let aggDisplay = '';
+          if (agg.aggregationOp === 'COUNT_ALL') {
+            aggDisplay = 'COUNT(*)';
+          } else if (
+            agg.aggregationOp === 'PERCENTILE' &&
+            agg.percentile !== undefined
+          ) {
+            aggDisplay = `PERCENTILE(${agg.column?.name}, ${agg.percentile})`;
+          } else {
+            aggDisplay = `${agg.aggregationOp}(${agg.column?.name})`;
+          }
 
-        return m(ListItem, {
-          icon: 'functions',
-          name: agg.newColumnName ?? placeholderNewColumnName(agg),
-          description: aggDisplay,
-          actions: [
-            {
-              label: 'Edit',
-              icon: 'edit',
-              onclick: () => {
-                // Remove any existing draft aggregation
-                const draftIndex = this.state.aggregations.findIndex(
-                  (a) => a.isEditing && !a.isValid,
-                );
-                if (draftIndex !== -1) {
-                  this.state.aggregations.splice(draftIndex, 1);
-                }
-                // Set this aggregation to editing
-                agg.isEditing = true;
-                m.redraw();
+          return m(ListItem, {
+            icon: 'functions',
+            name: agg.newColumnName ?? placeholderNewColumnName(agg),
+            description: aggDisplay,
+            actions: [
+              {
+                label: 'Edit',
+                icon: 'edit',
+                onclick: () => {
+                  // Remove any existing draft aggregation
+                  const draftIndex = this.state.aggregations.findIndex(
+                    (a) => a.isEditing && !a.isValid,
+                  );
+                  if (draftIndex !== -1) {
+                    this.state.aggregations.splice(draftIndex, 1);
+                  }
+                  // Set this aggregation to editing
+                  agg.isEditing = true;
+                  m.redraw();
+                },
               },
+            ],
+            onRemove: () => {
+              this.state.aggregations.splice(index, 1);
+              this.state.onchange?.();
             },
-          ],
-          onRemove: () => {
-            this.state.aggregations.splice(index, 1);
-            this.state.onchange?.();
-          },
-        });
+          });
+        },
+        emptyStateTitle: 'No aggregations added yet.',
       }),
     );
   }
