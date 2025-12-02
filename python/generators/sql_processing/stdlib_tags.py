@@ -482,6 +482,7 @@ TABLE_IMPORTANCE = {
     'android_battery_charge': 'mid',  # Battery charge level tracking over time
     'android_charging_states': 'mid',  # Device charging state transitions
     'android_process_metadata': 'mid',  # Process metadata and information
+    'android_statsd_atoms': 'mid',  # StatsD atom events and counters
 
     # LOW IMPORTANCE - Raw/specialized tables, less frequently needed
     'slices':
