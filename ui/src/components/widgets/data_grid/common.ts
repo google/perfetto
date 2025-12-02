@@ -43,7 +43,7 @@ export interface ColumnDefinition {
 
 export interface FilterValue {
   readonly column: string;
-  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob';
+  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
   readonly value: SqlValue;
 }
 

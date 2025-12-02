@@ -24,6 +24,7 @@ import {Box} from '../../../widgets/box';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {EmptyState} from '../../../widgets/empty_state';
+import {Form} from '../../../widgets/form';
 import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem, MenuTitle} from '../../../widgets/menu';
@@ -497,7 +498,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       }
 
       if (filterControls) {
-        menuItems.push(
+        const distinctState = dataSource.rows?.distinctValues?.get(column.name);
+
+        // Create a single "Add filter..." submenu containing all filter options
+        const filterSubmenuItems: m.Children = [];
+
+        // Null filters
+        filterSubmenuItems.push(
           m(MenuItem, {
             label: 'Filter out nulls',
             onclick: () => {
@@ -512,17 +519,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           }),
         );
 
-        // Add "Filter by values..." for columns with distinct values enabled
+        // Value-based filters for columns with distinct values enabled
         if (column.distinctValues ?? true) {
-          const distinctState = dataSource.rows?.distinctValues?.get(
-            column.name,
-          );
-
-          menuItems.push(
+          filterSubmenuItems.push(m(MenuDivider));
+          filterSubmenuItems.push(
             m(
               MenuItem,
               {
-                label: 'Add filter...',
+                label: 'Equals to...',
                 onChange: (isOpen) => {
                   if (isOpen === true) {
                     this.distinctValuesColumns.add(column.name);
@@ -544,8 +548,109 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 },
               }),
             ),
+            m(
+              MenuItem,
+              {
+                label: 'Not equals to...',
+                onChange: (isOpen) => {
+                  if (isOpen === true) {
+                    this.distinctValuesColumns.add(column.name);
+                  } else {
+                    this.distinctValuesColumns.delete(column.name);
+                  }
+                },
+              },
+              m(DistinctValuesSubmenu, {
+                columnName: column.name,
+                distinctState,
+                formatValue: this.formatDistinctValue.bind(this),
+                onApply: (selectedValues) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: 'not in',
+                    value: Array.from(selectedValues),
+                  });
+                },
+              }),
+            ),
           );
         }
+
+        // Text-based filters
+        filterSubmenuItems.push(m(MenuDivider));
+        filterSubmenuItems.push(
+          m(
+            MenuItem,
+            {
+              label: 'Contains...',
+            },
+            m(TextFilterSubmenu, {
+              columnName: column.name,
+              operator: 'contains',
+              onApply: (value) => {
+                // Construct glob pattern for contains
+                onFilterAdd({
+                  column: column.name,
+                  op: 'glob',
+                  value: `*${value}*`,
+                });
+              },
+            }),
+          ),
+          m(
+            MenuItem,
+            {
+              label: 'Not contains...',
+            },
+            m(TextFilterSubmenu, {
+              columnName: column.name,
+              operator: 'not contains',
+              onApply: (value) => {
+                // Use 'not glob' operator with glob pattern
+                onFilterAdd({
+                  column: column.name,
+                  op: 'not glob',
+                  value: `*${value}*`,
+                });
+              },
+            }),
+          ),
+          m(
+            MenuItem,
+            {
+              label: 'Glob...',
+            },
+            m(TextFilterSubmenu, {
+              columnName: column.name,
+              operator: 'glob',
+              onApply: (value) => {
+                onFilterAdd({column: column.name, op: 'glob', value});
+              },
+            }),
+          ),
+          m(
+            MenuItem,
+            {
+              label: 'Not glob...',
+            },
+            m(TextFilterSubmenu, {
+              columnName: column.name,
+              operator: 'not glob',
+              onApply: (value) => {
+                onFilterAdd({column: column.name, op: 'not glob', value});
+              },
+            }),
+          ),
+        );
+
+        // Add the "Add filter..." menu item with all the filter options as submenu
+        menuItems.push(
+          m(
+            MenuItem,
+            {label: 'Add filter...', icon: Icons.Filter},
+            filterSubmenuItems,
+          ),
+        );
       }
 
       if (Boolean(column.headerMenuItems)) {
@@ -1116,15 +1221,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private formatFilter(filter: DataGridFilter) {
     if ('value' in filter) {
-      // Handle array values for 'in' operator
+      // Handle array values for 'in' and 'not in' operators
       if (Array.isArray(filter.value)) {
+        const opDisplay = filter.op === 'in' ? 'equals' : 'not equals';
         if (filter.value.length > 3) {
-          return `${filter.column} ${filter.op} (${filter.value.length} values)`;
+          return `${filter.column} ${opDisplay} (${filter.value.length} values)`;
         } else {
-          return `${filter.column} ${filter.op} (${filter.value.join(', ')})`;
+          return `${filter.column} ${opDisplay} (${filter.value.join(', ')})`;
         }
       }
-      return `${filter.column} ${filter.op} ${filter.value}`;
+      // Format operator display for better readability
+      const opDisplay = filter.op === 'not glob' ? 'not glob' : filter.op;
+      return `${filter.column} ${opDisplay} ${filter.value}`;
     } else {
       return `${filter.column} ${filter.op}`;
     }
@@ -1362,5 +1470,62 @@ class DistinctValuesSubmenu
         }),
       ]),
     ]);
+  }
+}
+
+// Helper component for text-based filter input
+interface TextFilterSubmenuAttrs {
+  readonly columnName: string;
+  readonly operator: 'glob' | 'not glob' | 'contains' | 'not contains';
+  readonly onApply: (value: string) => void;
+}
+
+class TextFilterSubmenu implements m.ClassComponent<TextFilterSubmenuAttrs> {
+  private inputValue = '';
+
+  view({attrs}: m.Vnode<TextFilterSubmenuAttrs>) {
+    const {operator, onApply} = attrs;
+
+    const placeholder = (() => {
+      switch (operator) {
+        case 'glob':
+          return 'Enter glob pattern (e.g., *text*)...';
+        case 'not glob':
+          return 'Enter glob pattern to exclude...';
+        case 'contains':
+          return 'Enter text to include...';
+        case 'not contains':
+          return 'Enter text to exclude...';
+      }
+    })();
+
+    const applyFilter = () => {
+      if (this.inputValue.trim().length > 0) {
+        onApply(this.inputValue.trim());
+        this.inputValue = '';
+      }
+    };
+
+    return m(
+      Form,
+      {
+        className: 'pf-data-grid__text-filter-form',
+        submitLabel: 'Add Filter',
+        submitIcon: 'check',
+        onSubmit: (e: Event) => {
+          e.preventDefault();
+          applyFilter();
+        },
+        validation: () => this.inputValue.trim().length > 0,
+      },
+      m(TextInput, {
+        placeholder,
+        value: this.inputValue,
+        autofocus: true,
+        oninput: (e: InputEvent) => {
+          this.inputValue = (e.target as HTMLInputElement).value;
+        },
+      }),
+    );
   }
 }

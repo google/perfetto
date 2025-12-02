@@ -14,11 +14,7 @@
 
 import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {
-  DataGridDataSource,
-  FilterNull,
-  FilterValue,
-} from '../../../components/widgets/data_grid/common';
+import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
 import {
   DataGrid,
   renderCell,
@@ -36,6 +32,7 @@ import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
+import {UIFilter} from './operations/filter';
 export interface DataExplorerAttrs {
   readonly node: QueryNode;
   readonly query?: Query | Error;
@@ -48,7 +45,7 @@ export interface DataExplorerAttrs {
   readonly onExecute: () => void;
   readonly onExportToTimeline?: () => void;
   readonly onchange?: () => void;
-  readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
+  readonly onFilterAdd?: (filter: UIFilter) => void;
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
@@ -332,12 +329,12 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             if (supportedOps.includes(filter.op)) {
               if (attrs.onFilterAdd) {
                 // Delegate to the parent handler which will create a FilterNode
-                attrs.onFilterAdd(filter as FilterValue | FilterNull);
+                attrs.onFilterAdd(filter as UIFilter);
               } else {
                 // Fallback: add filter directly to node state (legacy behavior)
                 attrs.node.state.filters = [
                   ...(attrs.node.state.filters ?? []),
-                  filter as FilterValue | FilterNull,
+                  filter as UIFilter,
                 ];
                 attrs.onchange?.();
               }
