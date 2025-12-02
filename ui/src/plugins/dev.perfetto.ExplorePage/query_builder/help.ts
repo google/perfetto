@@ -19,7 +19,7 @@ import {Card, CardStack} from '../../../widgets/card';
 
 export interface ExplorePageHelpAttrs {
   sqlModules: SqlModules;
-  onTableClick: (tableName: string) => void;
+  onTableClick: (tableName: string, event: MouseEvent) => void;
 }
 
 export class ExplorePageHelp implements m.ClassComponent<ExplorePageHelpAttrs> {

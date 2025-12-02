@@ -31,7 +31,7 @@ import {Trace} from '../../public/trace';
 import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
-import {nodeRegistry} from './query_builder/node_registry';
+import {nodeRegistry, PreCreateState} from './query_builder/node_registry';
 import {QueryExecutionService} from './query_builder/query_execution_service';
 import {CleanupManager} from './query_builder/cleanup_manager';
 import {HistoryManager} from './history_manager';
@@ -125,7 +125,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const {state, onStateUpdate} = attrs;
     const descriptor = nodeRegistry.get(derivedNodeId);
     if (descriptor) {
-      let initialState: Partial<QueryNodeState> | null = {};
+      let initialState: PreCreateState | PreCreateState[] | null = {};
       if (descriptor.preCreate) {
         const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
         if (!sqlModules) return;
@@ -136,6 +136,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         return;
       }
 
+      // For operation nodes, we only support single node creation
+      // (multi-select only makes sense for source nodes)
+      if (Array.isArray(initialState)) {
+        console.warn(
+          'Operation nodes do not support multi-node creation from preCreate',
+        );
+        return;
+      }
+
       const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
       if (!sqlModules) return;
 
@@ -143,7 +152,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       const nodeRef: {current?: QueryNode} = {};
 
       const nodeState: QueryNodeState = {
-        ...initialState,
+        ...(initialState as Partial<QueryNodeState>),
         sqlModules,
         trace: attrs.trace,
         // Provide actions for nodes that need to interact with the graph
@@ -228,7 +237,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const descriptor = nodeRegistry.get(id);
     if (!descriptor) return;
 
-    let initialState: Partial<QueryNodeState> | null = {};
+    let initialState: PreCreateState | PreCreateState[] | null = {};
 
     if (descriptor.preCreate) {
       const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
@@ -240,18 +249,37 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
-    const newNode = descriptor.factory(
-      {
-        ...initialState,
-        trace: attrs.trace,
-      },
-      {allNodes: attrs.state.rootNodes},
-    );
+    // Handle both single node and multi-node creation
+    const statesToCreate = Array.isArray(initialState)
+      ? initialState
+      : [initialState];
+
+    const newNodes: QueryNode[] = [];
+    for (const state of statesToCreate) {
+      try {
+        const newNode = descriptor.factory(
+          {
+            ...state,
+            trace: attrs.trace,
+          } as QueryNodeState,
+          {allNodes: attrs.state.rootNodes},
+        );
+        newNodes.push(newNode);
+      } catch (error) {
+        console.error('Failed to create node:', error);
+        // Continue creating other nodes even if one fails
+      }
+    }
+
+    // If no nodes were successfully created, return early
+    if (newNodes.length === 0) {
+      return;
+    }
 
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
-      rootNodes: [...currentState.rootNodes, newNode],
-      selectedNode: newNode,
+      rootNodes: [...currentState.rootNodes, ...newNodes],
+      selectedNode: newNodes[newNodes.length - 1], // Select the last node
     }));
   }
 

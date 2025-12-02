@@ -29,10 +29,11 @@ const md = markdownit();
 // Attributes for the main TableList component.
 export interface TableListAttrs {
   sqlModules: SqlModules;
-  onTableClick: (tableName: string) => void;
+  onTableClick: (tableName: string, event: MouseEvent) => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
   autofocus?: boolean;
+  selectedTables?: Set<string>;
 }
 
 // A helper interface that combines a SQL table with its module name.
@@ -118,8 +119,9 @@ class TableCard
       tableWithModule: TableWithModule;
       segments: FuzzySegment[];
       matchType: MatchType;
-      onTableClick: (tableName: string) => void;
+      onTableClick: (tableName: string, event: MouseEvent) => void;
       sqlModules: SqlModules;
+      selectedTables?: Set<string>;
     }>
 {
   view({
@@ -128,11 +130,18 @@ class TableCard
     tableWithModule: TableWithModule;
     segments: FuzzySegment[];
     matchType: MatchType;
-    onTableClick: (tableName: string) => void;
+    onTableClick: (tableName: string, event: MouseEvent) => void;
     sqlModules: SqlModules;
+    selectedTables?: Set<string>;
   }>) {
-    const {tableWithModule, segments, matchType, onTableClick, sqlModules} =
-      attrs;
+    const {
+      tableWithModule,
+      segments,
+      matchType,
+      onTableClick,
+      sqlModules,
+      selectedTables,
+    } = attrs;
     const {table, moduleName} = tableWithModule;
 
     const renderedName = segments.map((segment) =>
@@ -142,13 +151,17 @@ class TableCard
     const packageName = moduleName.split('.')[0];
     const matchTypeLabel = getMatchTypeLabel(matchType);
     const isDisabled = sqlModules.isModuleDisabled(moduleName);
+    const isSelected = selectedTables?.has(table.name) ?? false;
 
     return m(
       Card,
       {
-        onclick: () => onTableClick(table.name),
+        onclick: (e: MouseEvent) => onTableClick(table.name, e),
         interactive: true,
-        className: classNames(isDisabled && 'pf-disabled-module'),
+        className: classNames(
+          isDisabled && 'pf-disabled-module',
+          isSelected && 'pf-selected-table',
+        ),
       },
       m(
         '.pf-table-card',
@@ -437,6 +450,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         matchType,
         onTableClick: attrs.onTableClick,
         sqlModules: attrs.sqlModules,
+        selectedTables: attrs.selectedTables,
       }),
     );
 
@@ -491,10 +505,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         }),
       ),
       m(
-        CardStack,
-        tableCards.length > 0
-          ? m(CardStack, tableCards)
-          : m(EmptyState, {title: 'No tables found'}),
+        '.pf-table-cards-container',
+        m(
+          CardStack,
+          tableCards.length > 0
+            ? m(CardStack, tableCards)
+            : m(EmptyState, {title: 'No tables found'}),
+        ),
       ),
     );
   }
