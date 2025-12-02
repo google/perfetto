@@ -44,8 +44,19 @@ export interface ColumnDefinition {
   // bar.
   readonly aggregation?: AggregationFunction;
 
-  // Optional extra menu items to add to the header column's context menu.
-  readonly headerMenuItems?: m.Children;
+  // Optional function that receives default menu item groups and returns
+  // the complete menu structure. This allows full control over menu organization.
+  // Default groups provided:
+  // - sorting: Sort ascending/descending/clear items
+  // - filters: Filter options (null filters, equals, contains, etc.)
+  // - fitToContent: Fit column to content width
+  // - columnManagement: Hide column, manage columns visibility
+  readonly contextMenuRenderer?: (builtins: {
+    readonly sorting?: m.Children;
+    readonly filters?: m.Children;
+    readonly fitToContent?: m.Children;
+    readonly columnManagement?: m.Children;
+  }) => m.Children;
 
   // Optional function that returns extra menu items to add to each data cell's
   // context menu. The function receives the cell value and the complete row
@@ -56,6 +67,12 @@ export interface ColumnDefinition {
   // "Filter by values..." menu item that shows all distinct values. Only
   // enable for columns with low cardinality (e.g., strings, enums).
   readonly distinctValues?: boolean;
+
+  // Control which types of filters are available for this column.
+  // - 'numeric': Shows comparison filters (=, !=, <, <=, >, >=) and null filters
+  // - 'string': Shows text filters (contains, glob) and equals/null filters
+  // - undefined: Shows all applicable filters based on other settings
+  readonly filterType?: 'numeric' | 'string';
 }
 
 export interface FilterValue {

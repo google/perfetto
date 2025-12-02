@@ -53,7 +53,6 @@ export class SqlTableDataSource implements DataGridDataSource {
   }
 
   async exportData(): Promise<readonly RowDef[]> {
-    // Return all currently loaded rows
-    return this.state.getDisplayedRows() as RowDef[];
+    throw new Error('Exporting data is not supported for SqlTableDataSource.');
   }
 }

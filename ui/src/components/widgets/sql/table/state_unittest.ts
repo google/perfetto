@@ -107,6 +107,6 @@ test('sqlTableState: sqlStatement', () => {
 
   // Check the generated SQL statement.
   expect(normalize(state.getCurrentRequest().query)).toBe(
-    'SELECT table_0.id AS id, table_0.name AS name, table_0.ts AS ts FROM table AS table_0 LIMIT 101 OFFSET 0',
+    'SELECT table_0.id AS id, table_0.name AS name, table_0.ts AS ts FROM table AS table_0 LIMIT 100 OFFSET 0',
   );
 });

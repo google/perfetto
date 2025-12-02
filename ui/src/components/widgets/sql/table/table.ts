@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {MenuItem, MenuTitle} from '../../../../widgets/menu';
+import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
 import {Row} from '../../../../trace_processor/query_result';
@@ -40,6 +40,7 @@ import {
 import {SqlTableDataSource} from './sql_table_data_source';
 import {Filter} from './filters';
 import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
+import {isQuantitativeType} from '../../../../trace_processor/perfetto_sql_type';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -140,38 +141,53 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     return columns.map((column, i) => {
       // Use the aliased name (with escaped characters) to match the SQL result keys
       const aliasedName = tableColumnAlias(column);
+
+      // Determine filter type based on column's SQL type
+      const filterType = column.type
+        ? isQuantitativeType(column.type)
+          ? 'numeric'
+          : 'string'
+        : undefined;
+
       const columnDef: ColumnDefinition = {
+        distinctValues: false, // Distinct values are not supported for SqlTable columns
         name: aliasedName,
         title: columnTitle(column),
-        headerMenuItems: [
-          m(MenuTitle, {label: 'More'}),
+        filterType,
+        contextMenuRenderer: (builtins) => {
           // Column-specific menu items from the column itself
-          column.getColumnSpecificMenuItems?.({
+          const columnSpecificItems = column.getColumnSpecificMenuItems?.({
             replaceColumn: (newColumn: TableColumn) =>
               this.state.replaceColumnAtIndex(i, newColumn),
-          }),
-          // Cast and transform options
-          m(
-            MenuItem,
-            {label: 'Cast', icon: Icons.Change},
-            renderCastColumnMenu(column, i, this.state),
-          ),
-          renderTransformColumnMenu(column, i, this.state),
-          // Hide column (only if more than 1 visible)
-          columns.length > 1 &&
+          });
+
+          return [
+            builtins.sorting,
+            m(MenuDivider),
             m(MenuItem, {
-              label: 'Hide',
-              icon: Icons.Hide,
+              label: 'Remove column',
+              icon: Icons.Delete,
               onclick: () => this.state.hideColumnAtIndex(i),
             }),
-          m(AddColumnMenuItem, {
-            table: this,
-            state: this.state,
-            index: i,
-          }),
-          // Additional menu items from config
-          addColumnMenuItems && addColumnMenuItems(column),
-        ],
+            builtins.fitToContent,
+            m(MenuDivider),
+            builtins.filters,
+            columnSpecificItems,
+            m(
+              MenuItem,
+              {label: 'Cast', icon: Icons.Change},
+              renderCastColumnMenu(column, i, this.state),
+            ),
+            renderTransformColumnMenu(column, i, this.state),
+            addColumnMenuItems && addColumnMenuItems(column),
+            m(MenuDivider),
+            m(AddColumnMenuItem, {
+              table: this,
+              state: this.state,
+              index: i,
+            }),
+          ];
+        },
         cellMenuItems: (_value, row) => {
           const {menu} = renderCell(column, row as Row, this.state);
           return menu;
@@ -363,7 +379,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       fillHeight: true,
       className: 'sql-table',
       columnReordering: true,
-      showColumnManagement: false,
       showFiltersInToolbar: false,
     });
   }
