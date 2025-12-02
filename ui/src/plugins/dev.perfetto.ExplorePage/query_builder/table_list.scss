@@ -13,8 +13,31 @@
 // limitations under the License.
 
 // Override modal's main margin for table list
+// The :has() selector provides sufficient specificity to override the default margin
 .pf-modal-dialog main:has(.pf-exp-node-explorer-help) {
-  margin-top: 0 !important;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+
+// Make the table list scrollable
+.pf-exp-node-explorer-help {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pf-exp-table-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pf-table-cards-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .pf-tag-filter {
@@ -69,28 +92,45 @@
   }
 }
 
-// Styling for cards with disabled modules (no data)
-.pf-disabled-module {
-  opacity: 0.6;
-  background-color: var(--surface-variant) !important;
-
-  &:hover {
-    opacity: 0.7;
+// Styling for selected tables (multi-select mode)
+// Use same layer as cards but with higher specificity to override defaults
+@layer pf-widgets {
+  .pf-card-stack > .pf-card.pf-selected-table {
+    background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
+    border: 2px solid var(--pf-color-accent);
+    box-shadow: 0 2px 8px var(--pf-color-box-shadow);
   }
 
-  .pf-table-card {
-    .table-name {
-      color: var(--on-surface-variant);
-    }
+  .pf-card-stack > .pf-card.pf-selected-table.pf-interactive:hover {
+    background: color-mix(in srgb, var(--pf-color-accent) 25%, transparent);
+    box-shadow: 0 4px 12px var(--pf-color-box-shadow);
+  }
+}
 
-    .table-module {
-      color: var(--on-surface-variant);
+// Styling for cards with disabled modules (no data)
+@layer pf-widgets {
+  .pf-card-stack > .pf-card.pf-disabled-module {
+    opacity: 0.6;
+    background-color: var(--surface-variant);
+
+    &:hover {
       opacity: 0.7;
     }
 
-    .table-description {
-      color: var(--on-surface-variant);
-      opacity: 0.8;
+    .pf-table-card {
+      .table-name {
+        color: var(--on-surface-variant);
+      }
+
+      .table-module {
+        color: var(--on-surface-variant);
+        opacity: 0.7;
+      }
+
+      .table-description {
+        color: var(--on-surface-variant);
+        opacity: 0.8;
+      }
     }
   }
 }

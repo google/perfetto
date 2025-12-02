@@ -66,12 +66,13 @@ export function registerCoreNodes() {
     type: 'source',
     showOnLandingPage: true,
     preCreate: async ({sqlModules}) => {
-      const selection = await modalForTableSelection(sqlModules);
-      if (selection) {
-        return {
+      const selections = await modalForTableSelection(sqlModules);
+      if (selections && selections.length > 0) {
+        // Return an array of states, one for each selected table
+        return selections.map((selection) => ({
           sqlTable: selection.sqlTable,
           sqlModules,
-        };
+        }));
       }
       return null;
     },

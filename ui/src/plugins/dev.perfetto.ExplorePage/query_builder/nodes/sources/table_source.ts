@@ -56,40 +56,93 @@ interface TableSelectionResult {
 
 export function modalForTableSelection(
   sqlModules: SqlModules,
-): Promise<TableSelectionResult | undefined> {
+): Promise<TableSelectionResult[] | undefined> {
   return new Promise((resolve) => {
     let searchQuery = '';
+    const selectedTables = new Set<string>();
 
-    showModal({
-      title: 'Choose a table',
-      content: () => {
-        return m(
-          '.pf-exp-node-explorer-help',
-          m(TableList, {
-            sqlModules,
-            onTableClick: (tableName: string) => {
-              const sqlTable = sqlModules.getTable(tableName);
-              if (!sqlTable) {
-                resolve(undefined);
-                return;
-              }
-              const sourceCols = sqlTable.columns.map((c) =>
-                columnInfoFromSqlColumn(c, true),
-              );
-              resolve({sqlTable, sourceCols});
-              closeModal();
-            },
-            searchQuery,
-            onSearchQueryChange: (query) => {
-              searchQuery = query;
-              redrawModal();
-            },
-            autofocus: true,
-          }),
+    const updateModal = () => {
+      showModal({
+        key: 'table-selection-modal',
+        title:
+          selectedTables.size > 0
+            ? `Choose tables - ${selectedTables.size} selected`
+            : 'Choose a table - Ctrl+click for multiple selection',
+        content: () => {
+          return m(
+            '.pf-exp-node-explorer-help',
+            m(TableList, {
+              sqlModules,
+              onTableClick: handleTableClick,
+              searchQuery,
+              onSearchQueryChange: (query) => {
+                searchQuery = query;
+                redrawModal();
+              },
+              autofocus: true,
+              selectedTables,
+            }),
+          );
+        },
+        buttons:
+          selectedTables.size > 0
+            ? [
+                {
+                  text: `Add ${selectedTables.size} table${selectedTables.size > 1 ? 's' : ''}`,
+                  primary: true,
+                  action: handleConfirm,
+                },
+              ]
+            : [],
+      });
+    };
+
+    const handleTableClick = (tableName: string, event: MouseEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        // Multi-select mode: toggle selection
+        if (selectedTables.has(tableName)) {
+          selectedTables.delete(tableName);
+        } else {
+          selectedTables.add(tableName);
+        }
+        updateModal();
+      } else {
+        // Single-select mode: immediately select and close
+        const sqlTable = sqlModules.getTable(tableName);
+        if (!sqlTable) {
+          resolve(undefined);
+          return;
+        }
+        const sourceCols = sqlTable.columns.map((c) =>
+          columnInfoFromSqlColumn(c, true),
         );
-      },
-      buttons: [],
-    });
+        resolve([{sqlTable, sourceCols}]);
+        closeModal();
+      }
+    };
+
+    const handleConfirm = () => {
+      if (selectedTables.size === 0) {
+        resolve(undefined);
+        closeModal();
+        return;
+      }
+
+      const results: TableSelectionResult[] = [];
+      for (const tableName of selectedTables) {
+        const sqlTable = sqlModules.getTable(tableName);
+        if (sqlTable) {
+          const sourceCols = sqlTable.columns.map((c) =>
+            columnInfoFromSqlColumn(c, true),
+          );
+          results.push({sqlTable, sourceCols});
+        }
+      }
+      resolve(results);
+      closeModal();
+    };
+
+    updateModal();
   });
 }
 

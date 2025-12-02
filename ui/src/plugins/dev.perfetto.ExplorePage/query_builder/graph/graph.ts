@@ -76,6 +76,7 @@ type LayoutMap = Map<string, Position>;
 const LAYOUT_CONSTANTS = {
   INITIAL_X: 100,
   INITIAL_Y: 100,
+  BATCH_NODE_HORIZONTAL_OFFSET: 250,
 };
 
 // ========================================
@@ -243,6 +244,7 @@ function ensureNodeLayouts(
   nodeGraphApi: NodeGraphApi | null,
 ): void {
   // Assign layouts to new nodes using smart placement
+  let nodeOffset = 0;
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
       let placement: Position;
@@ -274,10 +276,15 @@ function ensureNodeLayouts(
         placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
       } else {
         // Fallback to default position if API not ready yet
+        // Offset nodes horizontally by BATCH_NODE_HORIZONTAL_OFFSET
+        // when multiple nodes are created in a batch to prevent overlap
         placement = {
-          x: LAYOUT_CONSTANTS.INITIAL_X,
+          x:
+            LAYOUT_CONSTANTS.INITIAL_X +
+            nodeOffset * LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
           y: LAYOUT_CONSTANTS.INITIAL_Y,
         };
+        nodeOffset++;
       }
 
       attrs.onNodeLayoutChange(qnode.nodeId, placement);
