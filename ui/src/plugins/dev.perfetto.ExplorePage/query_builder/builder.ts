@@ -91,13 +91,9 @@ export interface BuilderAttrs {
   readonly sqlModules: SqlModules;
   readonly queryExecutionService: QueryExecutionService;
 
-  readonly devMode?: boolean;
-
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
-
-  readonly onDevModeChange?: (enabled: boolean) => void;
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
@@ -365,8 +361,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
           onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
-          devMode: attrs.devMode,
-          onDevModeChange: attrs.onDevModeChange,
           onDeleteNode: attrs.onDeleteNode,
           onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,

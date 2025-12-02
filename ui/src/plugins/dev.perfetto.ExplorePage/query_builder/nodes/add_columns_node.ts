@@ -1653,7 +1653,36 @@ export class AddColumnsNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new AddColumnsNode(this.state);
+    const stateCopy: AddColumnsNodeState = {
+      selectedColumns: this.state.selectedColumns
+        ? [...this.state.selectedColumns]
+        : undefined,
+      leftColumn: this.state.leftColumn,
+      rightColumn: this.state.rightColumn,
+      suggestionSelections: this.state.suggestionSelections
+        ? new Map(this.state.suggestionSelections)
+        : undefined,
+      expandedSuggestions: this.state.expandedSuggestions
+        ? new Set(this.state.expandedSuggestions)
+        : undefined,
+      selectedSuggestionTable: this.state.selectedSuggestionTable,
+      columnAliases: this.state.columnAliases
+        ? new Map(this.state.columnAliases)
+        : undefined,
+      suggestionAliases: this.state.suggestionAliases
+        ? new Map(this.state.suggestionAliases)
+        : undefined,
+      isGuidedConnection: this.state.isGuidedConnection,
+      computedColumns: this.state.computedColumns?.map((col) => ({
+        ...col,
+        cases: col.cases?.map((c) => ({...c})),
+        clauses: col.clauses?.map((c) => ({...c})),
+      })),
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new AddColumnsNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
