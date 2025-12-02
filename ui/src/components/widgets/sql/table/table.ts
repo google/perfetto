@@ -338,10 +338,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       sorting: this.convertSortingToDataGrid(),
       onSort: (sorting: Sorting) => {
         if (sorting.direction === 'UNSORTED') {
-          // Clear sorting
-          if (columns.length > 0) {
-            this.state.sortBy({column: columns[0], direction: undefined});
-          }
+          // Clear all sorting
+          this.state.clearAllSorting();
         } else {
           // sorting.column is the aliased name
           const column = columns.find(
