@@ -224,6 +224,15 @@
   right: 6px;
 }
 
+// Hide elements with this class, show on node hover
+.pf-show-on-hover {
+  visibility: hidden;
+}
+
+.pf-node:hover .pf-show-on-hover {
+  visibility: visible;
+}
+
 .pf-node-content {
   padding-inline: 12px;
 }
