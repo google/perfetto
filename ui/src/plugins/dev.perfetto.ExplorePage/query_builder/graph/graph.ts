@@ -33,6 +33,7 @@
 
 import m from 'mithril';
 
+import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
@@ -57,7 +58,6 @@ import {
   addConnection,
   removeConnection,
 } from '../../query_node';
-import {EmptyGraph} from '../empty_graph';
 import {NodeBox} from './node_box';
 import {buildMenuItems} from './menu_utils';
 import {getAllNodes, findNodeById} from '../graph_utils';
@@ -536,13 +536,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
 
-  private renderEmptyNodeGraph(attrs: GraphAttrs) {
-    return m(EmptyGraph, {
-      onAddSourceNode: attrs.onAddSourceNode,
-      onImport: attrs.onImport,
-    });
-  }
-
   private renderControls(attrs: GraphAttrs) {
     const sourceMenuItems = buildMenuItems(
       'source',
@@ -575,9 +568,14 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     const moreMenuItems = [
       m(MenuItem, {
-        label: 'Export',
+        label: 'Export to JSON',
         icon: Icons.Download,
         onclick: attrs.onExport,
+      }),
+      m(MenuItem, {
+        label: 'Import from JSON',
+        icon: 'file_upload',
+        onclick: attrs.onImport,
       }),
       m(MenuItem, {
         label: 'Clear All Nodes',
@@ -606,7 +604,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           trigger: m(Button, {
             icon: Icons.ContextMenuAlt,
             variant: ButtonVariant.Minimal,
-            style: {marginLeft: '8px'},
+            className: classNames('pf-exp-more-menu-button'),
           }),
         },
         moreMenuItems,
@@ -616,22 +614,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
   view({attrs}: m.CVnode<GraphAttrs>) {
     const {rootNodes, selectedNode} = attrs;
-    const allNodes = getAllNodes(rootNodes);
-
-    if (allNodes.length === 0) {
-      return m(
-        '.pf-exp-node-graph',
-        {
-          tabindex: 0,
-          onclick: (e: MouseEvent) => {
-            if (e.target === e.currentTarget) {
-              attrs.onDeselect();
-            }
-          },
-        },
-        this.renderEmptyNodeGraph(attrs),
-      );
-    }
 
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
