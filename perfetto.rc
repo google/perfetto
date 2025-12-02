@@ -107,10 +107,10 @@ on property:persist.traced.enable=1
 # This is a fallback.
 on property:sys.boot_completed=1
     setprop perfetto.uploader_ready 1
-    write /data/misc/perfetto-traces/uploader_debug_1.txt "on property:sys.boot_completed=1 setprop perfetto.uploader_ready 1"
 
+# TODO(ktimofeev): add a comment about possible states of 'perfetto.uploader_ready'
+# and the two steps initialization 
 on property:persist.traced.enable=1 && property:perfetto.uploader_ready=1
-    write /data/misc/perfetto-traces/uploader_debug.txt "on property:persist.traced.enable=1 && property:perfetto.uploader_ready=1"
     start traced
     start traced_probes
 

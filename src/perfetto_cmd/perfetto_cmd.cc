@@ -190,7 +190,8 @@ Statsd-specific and other Android-only flags:
   --config-uid          : UID of app which registered the config.
   --subscription-id     : ID of the subscription that triggered this trace.
   --upload              : Upload trace.
-  --upload-after-reboot : TODO(ktimofeev): add description
+  --upload-after-reboot : Used by Android to upload the traces saved to a 
+                          special directory after the system reboot.
   --dropbox        TAG  : DEPRECATED: Use --upload instead
                           TAG should always be set to 'perfetto'.
   --save-for-bugreport  : If a trace with bugreport_score > 0 is running, it
@@ -813,9 +814,13 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
                                  trace_config_->unique_session_name() +
                                  ".pftrace";
     PERFETTO_CHECK(trace_config_->output_path().empty());
-    // TODO(ktimofeev): add comment on why we pass file name for the traced to
-    // create, tl;dr: it could be that session with name already started so it
-    // should be soft error, but we can't check it from perfetto_cmd.
+
+    // Delegate trace file creation to `traced` by passing the filename.
+    // `traced` verifies trace configuration and the internal state (e.g.,
+    // checking if a session with the same name exists) and creates the file
+    // only upon successful startup.
+    // This prevents us from having empty persistent files if the
+    // session fails to start.
     trace_config_->set_output_path(persistent_trace_out_path_);
   }
 

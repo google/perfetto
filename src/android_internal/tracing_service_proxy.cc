@@ -16,6 +16,8 @@
 
 #include "src/android_internal/tracing_service_proxy.h"
 
+#include <android-base/properties.h>
+
 #include <android/tracing/ITracingServiceProxy.h>
 #include <android/tracing/TraceReportParams.h>
 #include <binder/IBinder.h>
@@ -28,6 +30,7 @@ namespace perfetto {
 namespace android_internal {
 
 using android::sp;
+using android::base::WaitForProperty;
 using android::binder::Status;
 using android::os::ParcelFileDescriptor;
 using android::tracing::ITracingServiceProxy;
@@ -35,7 +38,8 @@ using android::tracing::TraceReportParams;
 
 namespace {
 static constexpr char kServiceName[] = "tracing.proxy";
-}
+static constexpr char kSysBootCompletedProperty[] = "sys.boot_completed";
+}  // namespace
 
 bool NotifyTraceSessionEnded(bool session_stolen) {
   auto service = android::waitForService<ITracingServiceProxy>(
@@ -57,6 +61,14 @@ bool ReportTrace(const char* reporter_package_name,
   // Keep this first so we recapture the raw fd in a RAII type as soon as
   // possible.
   android::base::unique_fd fd(owned_trace_fd);
+
+  // 'ReportTrace' may be called before system boot is completed (e.g., when
+  // reporting traces after a reboot). In this case, we must wait until boot
+  // completes to ensure the 'tracing.proxy' service is available.
+  bool boot_completed = WaitForProperty(kSysBootCompletedProperty, "1");
+  if (!boot_completed) {
+    return false;
+  }
 
   auto service = android::waitForService<ITracingServiceProxy>(
       android::String16(kServiceName));
