@@ -53,7 +53,7 @@
 import m from 'mithril';
 import {HTMLAttrs, Intent} from './common';
 import {Icon} from './icon';
-import {Popup, PopupPosition} from './popup';
+import {OutsideClickHandling, Popup, PopupPosition} from './popup';
 import {EmptyState} from './empty_state';
 import {classNames} from '../base/classnames';
 import {Stack} from './stack';
@@ -91,7 +91,7 @@ export class MultiselectInput
         isOpen: this.popupIsOpen,
         // Disable Popup's built-in close handlers - we manage via input focus/blur
         closeOnEscape: false,
-        closeOnOutsideClick: false,
+        closeOnOutsideClickHandling: OutsideClickHandling.NoClose,
         trigger: m(
           '.pf-multiselect-input',
           htmlAttrs,

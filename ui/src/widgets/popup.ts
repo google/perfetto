@@ -18,7 +18,7 @@ import m from 'mithril';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 import {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
@@ -43,6 +43,17 @@ export enum PopupPosition {
   LeftEnd = 'left-end',
 }
 
+export enum OutsideClickHandling {
+  // Clicking outside the popup or trigger causes a close of the popup.
+  // Propogation of the click to other parts of the UI is suppressed.
+  CaptureMouseAndClose = 'capture-mouse-and-close',
+  // Clicking outside the popup or trigger causes a close of the popup.
+  // No suppression of the event happens.
+  NoCaptureAndClose = 'no-capture-and-close',
+  // Clicking outisde the popup or trigger does nothing.
+  NoClose = 'no-close',
+}
+
 type OnChangeCallback = (shouldOpen: boolean) => void;
 
 export interface PopupAttrs {
@@ -60,7 +71,7 @@ export interface PopupAttrs {
   closeOnEscape?: boolean;
   // Close on mouse down somewhere other than the popup or trigger.
   // Defaults to true.
-  closeOnOutsideClick?: boolean;
+  closeOnOutsideClickHandling?: OutsideClickHandling;
   // Controls whether the popup is open or not.
   // When provided, the popup operates in controlled mode and will not
   // automatically toggle on trigger clicks. The parent component must
@@ -120,10 +131,12 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private isOpen: boolean = false;
   private triggerElement?: Element;
   private popupElement?: HTMLElement;
+  private backdropElement?: HTMLElement;
+  private overlayContainer?: Element;
   private popper?: Instance;
   private onChange: OnChangeCallback = () => {};
   private closeOnEscape?: boolean;
-  private closeOnOutsideClick?: boolean;
+  private closeOnOutsideClickHandling?: OutsideClickHandling;
   private relativeMouseX?: number; // Relative to trigger element
   private relativeMouseY?: number; // Relative to trigger element
 
@@ -140,7 +153,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       isOpen = this.isOpen,
       onChange = () => {},
       closeOnEscape = true,
-      closeOnOutsideClick = true,
+      closeOnOutsideClickHandling = OutsideClickHandling.CaptureMouseAndClose,
       isContextMenu = false,
     } = attrs;
 
@@ -150,7 +163,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     this.isOpen = isOpen;
     this.onChange = onChange;
     this.closeOnEscape = closeOnEscape;
-    this.closeOnOutsideClick = closeOnOutsideClick;
+    this.closeOnOutsideClickHandling = closeOnOutsideClickHandling;
 
     return [
       this.renderTrigger(trigger, isOpen, isControlled, isContextMenu),
@@ -217,6 +230,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       }
     }
 
+    // For escape handling.
+    baseAttrs.onkeydown = this.handlePopupOrTriggerKeyDown;
+
     trigger.attrs = baseAttrs;
     return trigger;
   }
@@ -250,6 +266,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         }
         const closestContainer = dom.closest('.pf-overlay-container');
         if (closestContainer) {
+          this.overlayContainer = closestContainer;
           return {container: closestContainer};
         }
         return {container: undefined};
@@ -260,9 +277,43 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         );
         this.popupElement = popupElement;
         this.createOrUpdatePopper(attrs);
-        document.addEventListener('mousedown', this.handleDocMouseDown);
-        document.addEventListener('keydown', this.handleDocKeyPress);
+
+        // We choose to use mouseup rather than mousedown to remove the annoying
+        // latency in menus when clicking on a new menu item: the mousedown
+        // would fire immediately making the old menu close but the new menu
+        // does not open until the click event fires which is a perceptible
+        // amount of time later. Using mouseup solves this problem completely.
+        document.addEventListener('mouseup', this.handleDocMouseUp);
+
+        // For closing popup on escape.
+        dom.addEventListener('keydown', this.handlePopupOrTriggerKeyDown);
+
+        // We use the click event (not mousedown) for dismiss button detection
+        // to correctly close on form submits: only click events fire in that
+        // case
         dom.addEventListener('click', this.handleContentClick);
+
+        // Create backdrop element if this is a first-level popup
+        if (this.overlayContainer) {
+          const ancestorPopup = dom.closest(`[ref=${Popup.POPUP_REF}]`);
+          if (
+            !ancestorPopup &&
+            this.closeOnOutsideClickHandling ===
+              OutsideClickHandling.CaptureMouseAndClose
+          ) {
+            this.backdropElement = document.createElement('div');
+            this.backdropElement.className = 'pf-popup-backdrop';
+            this.backdropElement.addEventListener(
+              'click',
+              this.handleBackdropClick,
+            );
+            this.overlayContainer.insertBefore(
+              this.backdropElement,
+              this.overlayContainer.firstChild,
+            );
+          }
+        }
+
         onPopupMount(popupElement);
       },
       onContentUpdate: () => {
@@ -275,11 +326,23 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
           onPopupUnMount(this.popupElement);
         }
         dom.removeEventListener('click', this.handleContentClick);
-        document.removeEventListener('keydown', this.handleDocKeyPress);
-        document.removeEventListener('mousedown', this.handleDocMouseDown);
+        dom.removeEventListener('keydown', this.handlePopupOrTriggerKeyDown);
+        document.removeEventListener('mouseup', this.handleDocMouseUp);
+
+        // Remove backdrop element if we created it
+        if (this.backdropElement) {
+          this.backdropElement.removeEventListener(
+            'click',
+            this.handleBackdropClick,
+          );
+          this.backdropElement.remove();
+          this.backdropElement = undefined;
+        }
+
         this.popper && this.popper.destroy();
         this.popper = undefined;
         this.popupElement = undefined;
+        this.overlayContainer = undefined;
       },
     };
 
@@ -296,6 +359,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
             fitContent && 'pf-popup--fit-content',
           ),
           ref: Popup.POPUP_REF,
+          tabindex: -1,
         },
         showArrow && m('.pf-popup-arrow[data-popper-arrow]'),
         m('.pf-popup-content', children),
@@ -474,28 +538,14 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     }
   }
 
-  private eventInPopupOrTrigger(e: Event): boolean {
-    const target = e.target as HTMLElement;
-    const onTrigger = isOrContains(assertExists(this.triggerElement), target);
-    const onPopup = isOrContains(assertExists(this.popupElement), target);
-    return onTrigger || onPopup;
-  }
-
-  private handleDocMouseDown = (e: Event) => {
-    if (this.closeOnOutsideClick && !this.eventInPopupOrTrigger(e)) {
+  private handleDocMouseUp = (e: Event) => {
+    const handling = this.closeOnOutsideClickHandling;
+    if (
+      (handling === OutsideClickHandling.CaptureMouseAndClose ||
+        handling === OutsideClickHandling.NoCaptureAndClose) &&
+      !this.eventInPopupOrTrigger(e)
+    ) {
       this.closePopup();
-    }
-  };
-
-  private handleDocKeyPress = (e: KeyboardEvent) => {
-    // Close on escape keypress if we are in the toplevel group
-    const nextGroupElement = this.popupElement?.querySelector(
-      `.${Popup.POPUP_GROUP_CLASS}`,
-    );
-    if (!nextGroupElement) {
-      if (this.closeOnEscape && e.key === 'Escape') {
-        this.closePopup();
-      }
     }
   };
 
@@ -517,6 +567,29 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     }
   };
 
+  private handlePopupOrTriggerKeyDown = (e: KeyboardEvent) => {
+    // Close on escape keypress if we are in the toplevel group or it's the
+    // trigger element.
+    const nextGroupElement = this.popupElement?.querySelector(
+      `.${Popup.POPUP_GROUP_CLASS}`,
+    );
+    if (!nextGroupElement || e.target === this.triggerElement) {
+      if (this.closeOnEscape && e.key === 'Escape') {
+        e.preventDefault();
+        this.closePopup();
+      }
+    }
+  };
+
+  private handleBackdropClick = (e: Event) => {
+    assertTrue(
+      this.closeOnOutsideClickHandling ===
+        OutsideClickHandling.CaptureMouseAndClose,
+    );
+    e.preventDefault();
+    this.closePopup();
+  };
+
   private closePopup() {
     this.isOpen = false;
     this.onChange(false);
@@ -526,5 +599,12 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private togglePopup() {
     this.isOpen = !this.isOpen;
     this.onChange(this.isOpen);
+  }
+
+  private eventInPopupOrTrigger(e: Event): boolean {
+    const target = e.target as HTMLElement;
+    const onTrigger = isOrContains(assertExists(this.triggerElement), target);
+    const onPopup = isOrContains(assertExists(this.popupElement), target);
+    return onTrigger || onPopup;
   }
 }
