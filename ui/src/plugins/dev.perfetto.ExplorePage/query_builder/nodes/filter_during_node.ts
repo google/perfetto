@@ -357,7 +357,14 @@ export class FilterDuringNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new FilterDuringNode(this.state);
+    const stateCopy: FilterDuringNodeState = {
+      filterNegativeDurPrimary: this.state.filterNegativeDurPrimary,
+      filterNegativeDurSecondary: this.state.filterNegativeDurSecondary,
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new FilterDuringNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -381,7 +388,7 @@ export class FilterDuringNode implements QueryNode {
       );
     }
 
-    if (!combinedSecondaryQuery) return undefined;
+    if (combinedSecondaryQuery === undefined) return undefined;
 
     // Step 2: Wrap the combined secondary to only select id, ts, dur
     // This avoids column conflicts in the interval intersection
@@ -434,7 +441,7 @@ export class FilterDuringNode implements QueryNode {
       `${this.nodeId}_secondary_wrap`,
     );
 
-    if (!wrappedSecondary) return undefined;
+    if (wrappedSecondary === undefined) return undefined;
 
     // Create a temporary QueryNode wrapper for the wrapped secondary query
     // This is needed because withIntervalIntersect expects QuerySource (QueryNode | undefined)
@@ -487,7 +494,7 @@ export class FilterDuringNode implements QueryNode {
       `${this.nodeId}_intersect`,
     );
 
-    if (!intervalIntersectQuery) return undefined;
+    if (intervalIntersectQuery === undefined) return undefined;
 
     // Step 4: Select columns to match primary input's schema
     // IntervalIntersect returns: ts, dur (intersected), id_0, ts_0, dur_0, id_1, ts_1, dur_1, plus other primary columns

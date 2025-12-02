@@ -146,7 +146,6 @@ export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
-  devMode?: boolean;
 }
 
 interface ExplorePageAttrs {
@@ -208,17 +207,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Mark as initialized
     this.initializedNodes.add(node.nodeId);
-  }
-
-  private async handleDevModeChange(attrs: ExplorePageAttrs, enabled: boolean) {
-    if (enabled) {
-      const {registerDevNodes} = await import('./query_builder/dev_nodes');
-      registerDevNodes();
-    }
-    attrs.onStateUpdate((currentState) => ({
-      ...currentState,
-      devMode: enabled,
-    }));
   }
 
   async handleAddOperationNode(
@@ -861,9 +849,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
-        devMode: state.devMode,
-        onDevModeChange: (enabled) =>
-          this.handleDevModeChange(wrappedAttrs, enabled),
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,

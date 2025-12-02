@@ -109,8 +109,6 @@ export interface GraphAttrs {
   readonly onImport: () => void;
   readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly devMode?: boolean;
-  readonly onDevModeChange?: (enabled: boolean) => void;
 }
 
 // ========================================
@@ -181,10 +179,10 @@ function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
+  const multisourceItems = buildMenuItems('multisource', (id) =>
     onAddOperationNode(id, targetNode),
   );
-  const modificationItems = buildMenuItems('modification', undefined, (id) =>
+  const modificationItems = buildMenuItems('modification', (id) =>
     onAddOperationNode(id, targetNode),
   );
 
@@ -537,21 +535,15 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private hasPerformedInitialLayout: boolean = false;
 
   private renderControls(attrs: GraphAttrs) {
-    const sourceMenuItems = buildMenuItems(
-      'source',
-      attrs.devMode,
-      attrs.onAddSourceNode,
-    );
+    const sourceMenuItems = buildMenuItems('source', attrs.onAddSourceNode);
 
     const modificationMenuItems = buildMenuItems(
       'modification',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
     const operationMenuItems = buildMenuItems(
       'multisource',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
