@@ -138,7 +138,7 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
     .filter((d) => d.implements(spec));
 
   if (datasets.length > 0) {
-    return UnionDataset.create(datasets).optimize();
+    return UnionDataset.create(datasets);
   } else {
     return undefined;
   }

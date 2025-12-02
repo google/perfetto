@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertExists} from '../base/logging';
 import {Time, time} from '../base/time';
-import {getOrCreate} from '../base/utils';
 import {FilterExpression, SearchProvider} from '../public/search';
 import {Track} from '../public/track';
-import {SourceDataset} from '../trace_processor/dataset';
+import {planQuery} from '../trace_processor/dataset_query_utils';
 import {Engine} from '../trace_processor/engine';
-import {LONG, NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
+import {LONG, NUM} from '../trace_processor/query_result';
 
 // Type alias for search results
 export type SearchResult = {
@@ -26,17 +26,6 @@ export type SearchResult = {
   ts: time;
   track: Track;
 };
-
-type PartitionMap = Map<string, Map<SqlValue, Track[]>>;
-
-// Defines a group of tracks that use the same dataset source, including a LUT
-// to find the corresponding track.
-export interface TrackGroup {
-  readonly src: string;
-  readonly schema: Record<string, SqlValue>;
-  readonly nonPartitioned: Track[];
-  readonly partitioned: PartitionMap;
-}
 
 // Searches for a given searchTerm within all tracks that have a name column.
 export async function searchTrackEvents(
@@ -89,162 +78,41 @@ async function searchTracksUsingProvider(
   tracks: ReadonlyArray<Track>,
   filter: FilterExpression,
 ): Promise<SearchResult[]> {
-  const trackGroups = buildTrackGroups(tracks);
+  // Define schema for search results
+  const resultSchema = {id: NUM, ts: LONG};
 
-  const results = await searchTrackGroupsWithFilter(
-    engine,
-    trackGroups,
-    filter,
-  );
-
-  return results;
-}
-
-function buildTrackGroups(
-  tracks: ReadonlyArray<Track>,
-): Map<string, TrackGroup> {
-  const trackGroups = new Map<string, TrackGroup>();
-  for (const track of tracks) {
+  const filteredTracks = tracks.filter((track) => {
     const dataset = track.renderer.getDataset?.();
-    if (dataset) {
-      const src = dataset.src;
-      const trackGroup = getOrCreate(trackGroups, src, () => ({
-        src,
-        schema: {},
-        nonPartitioned: [],
-        partitioned: new Map(),
-      }));
-      addTrackToTrackGroup(trackGroup, track, dataset);
-    }
-  }
-  return trackGroups;
-}
+    return dataset?.implements(resultSchema);
+  });
 
-function addTrackToTrackGroup(
-  trackGroup: TrackGroup,
-  track: Track,
-  dataset: SourceDataset,
-): void {
-  const filter = dataset.filter;
-  const schema = dataset.schema;
-
-  // Combine schemas from all datasets in the group.
-  for (const [col, type] of Object.entries(schema)) {
-    // TODO(stevegolton): This is a bit of a hack as the data types could
-    // conflict. In the future we will probably switch to a centralized
-    // datasource approach which tracks will point to that has its own schema.
-    trackGroup.schema[col] = type;
-  }
-
-  if (filter === undefined) {
-    trackGroup.nonPartitioned.push(track);
-  } else {
-    const partitions = getOrCreate(
-      trackGroup.partitioned,
-      filter.col,
-      () => new Map<SqlValue, Track[]>(),
-    );
-    const addTrackToPartition = (value: SqlValue) => {
-      const key = normalizeMapKey(value);
-      const partition = getOrCreate(partitions, key, () => []);
-      partition.push(track);
-    };
-
-    if ('eq' in filter) {
-      addTrackToPartition(filter.eq);
-    } else {
-      for (const value of filter.in) {
-        addTrackToPartition(value);
+  // Query all tracks with lineage tracking
+  const plan = planQuery({
+    inputs: filteredTracks,
+    datasetFetcher: (track) => assertExists(track.renderer.getDataset?.()),
+    columns: resultSchema,
+    // Include filter columns - these are needed for the WHERE clause
+    // but won't be in the final result
+    filterColumns: filter.columns,
+    // Skip partition filters since we're searching across all tracks
+    skipPartitionFilters: true,
+    queryBuilder: (baseQuery: string, resultCols: string[]) => {
+      // Select only the result columns, apply JOIN/WHERE filter
+      const cols = resultCols.map((c) => `__root.${c}`).join(', ');
+      if (filter.join) {
+        return `SELECT ${cols} FROM (${baseQuery}) AS __root JOIN ${filter.join} WHERE ${filter.where}`;
       }
-    }
-  }
-}
+      return `SELECT ${cols} FROM (${baseQuery}) AS __root WHERE ${filter.where}`;
+    },
+  });
 
-// Normalizes values used as keys in the partition map.
-// This is necessary because SQL queries might return integer values as BigInts
-// (e.g., for LONG types), while filter definitions might use standard numbers.
-// This ensures consistent key types (BigInt for integers, others as-is)
-// for reliable lookups in the JavaScript Map.
-function normalizeMapKey(value: SqlValue): SqlValue {
-  if (typeof value === 'number' && Number.isInteger(value)) {
-    return BigInt(value);
-  } else {
-    return value;
-  }
-}
+  // Execute the query plan, returning results with lineage tracking
+  const results = await plan.execute(engine);
 
-async function searchTrackGroupsWithFilter(
-  engine: Engine,
-  trackGroups: Map<string, TrackGroup>,
-  filter: FilterExpression,
-): Promise<SearchResult[]> {
-  let searchResults: SearchResult[] = [];
-
-  // Process each track group
-  for (const trackGroup of trackGroups.values()) {
-    // Only search track groups that implement the required schema
-    // The schema check ensures 'id', 'ts' columns exist.
-    const groupDataset = new SourceDataset({
-      src: trackGroup.src,
-      schema: trackGroup.schema,
-    });
-    if (groupDataset.implements({id: NUM, ts: LONG})) {
-      const results = await searchTrackGroup(trackGroup, filter, engine);
-      searchResults = searchResults.concat(results);
-    }
-  }
-
-  return searchResults;
-}
-
-async function searchTrackGroup(
-  trackGroup: TrackGroup,
-  filter: FilterExpression,
-  engine: Engine,
-): Promise<SearchResult[]> {
-  const results: SearchResult[] = [];
-  const partitionCols = Array.from(trackGroup.partitioned.keys());
-  const partitionColSchema = Object.fromEntries(
-    partitionCols.map((key) => [key, UNKNOWN]),
-  );
-
-  // Ensure required columns plus any partition columns are selected.
-  const schema = {id: NUM, ts: LONG, ...partitionColSchema};
-  const selectCols = ['id', 'ts', ...partitionCols];
-
-  // Build and execute search query
-  const query = `
-    SELECT
-      ${selectCols.map((c) => `source.${c} AS ${c}`).join()}
-    FROM (${trackGroup.src}) AS source
-    ${filter.join ? `JOIN ${filter.join}` : ''}
-    WHERE ${filter.where}
-  `;
-  const result = await engine.query(query);
-
-  // Process query results
-  for (const iter = result.iter(schema); iter.valid(); iter.next()) {
-    const id = iter.id;
-    const ts = Time.fromRaw(iter.ts);
-
-    // Add results for matching partitioned tracks
-    for (const colName of partitionCols) {
-      const partitionValue = iter.get(colName);
-      const tracks = trackGroup.partitioned.get(colName)?.get(partitionValue);
-
-      if (tracks) {
-        for (const track of tracks) {
-          results.push({id, ts, track});
-        }
-      }
-    }
-
-    // Add results for non-partitioned tracks (they match any row from the
-    // source)
-    for (const track of trackGroup.nonPartitioned) {
-      results.push({id, ts, track});
-    }
-  }
-
-  return results;
+  // Map results to SearchResult format
+  return results.map((result) => ({
+    id: result.row.id,
+    ts: Time.fromRaw(result.row.ts),
+    track: result.source,
+  }));
 }
