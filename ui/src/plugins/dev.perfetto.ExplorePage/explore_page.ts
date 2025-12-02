@@ -531,13 +531,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     filterOperator?: 'AND' | 'OR',
   ) {
     // Normalize to array for uniform handling (single filter → [filter])
-    const filters = Array.isArray(filter) ? filter : [filter];
+    const filters: UIFilter[] = Array.isArray(filter) ? filter : [filter];
 
     // If the source node is already a FilterNode, just add the filter(s) to it
     if (sourceNode.type === NodeType.kFilter) {
       this.setFiltersOnNode(
         sourceNode,
-        [...(sourceNode.state.filters ?? []), ...filters],
+        [...(sourceNode.state.filters ?? []), ...filters] as UIFilter[],
         filterOperator,
       );
       attrs.onStateUpdate((currentState) => ({...currentState}));
@@ -552,7 +552,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       const existingFilterNode = sourceNode.nextNodes[0];
       this.setFiltersOnNode(
         existingFilterNode,
-        [...(existingFilterNode.state.filters ?? []), ...filters],
+        [...(existingFilterNode.state.filters ?? []), ...filters] as UIFilter[],
         filterOperator,
       );
       attrs.onStateUpdate((currentState) => ({
