@@ -34,7 +34,7 @@ import {NodeIssues} from '../node_issues';
 import {showModal} from '../../../../widgets/modal';
 import {Editor} from '../../../../widgets/editor';
 import {TextInput} from '../../../../widgets/text_input';
-import {ListItem, EqualWidthRow} from '../widgets';
+import {ListItem, EqualWidthRow, InfoBox} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {classNames} from '../../../../base/classnames';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
@@ -205,6 +205,14 @@ export class FilterNode implements QueryNode {
 
     // Build sections
     const sections: NodeModifyAttrs['sections'] = [];
+
+    // Info box explaining nested filters
+    sections.push({
+      content: m(
+        InfoBox,
+        'To combine AND and OR logic (nested filters), use multiple filter nodes. Each filter node can use either AND or OR to combine its conditions.',
+      ),
+    });
 
     // Input section with buttons/inputs
     if (mode === 'structured') {
