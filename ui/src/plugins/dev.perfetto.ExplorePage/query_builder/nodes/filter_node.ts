@@ -40,6 +40,7 @@ import {classNames} from '../../../../base/classnames';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {NodeDetailsMessage} from '../node_styling_widgets';
+import {Icons} from '../../../../base/semantic_icons';
 
 // Maximum length for truncated SQL display
 const SQL_TRUNCATE_LENGTH = 50;
@@ -197,7 +198,7 @@ export class FilterNode implements QueryNode {
     bottomRightButtons.push({
       label:
         mode === 'structured' ? 'Switch to WHERE clause' : 'Switch to filters',
-      icon: mode === 'structured' ? 'code' : 'filter_alt',
+      icon: mode === 'structured' ? 'code' : Icons.Filter,
       onclick: () => this.handleModeSwitch(mode),
       compact: true,
     });
@@ -219,7 +220,7 @@ export class FilterNode implements QueryNode {
           }),
           m(TextInput, {
             placeholder: 'Type filter (e.g., dur > 1000)',
-            leftIcon: 'filter_alt',
+            leftIcon: Icons.Filter,
             onkeydown: (e: KeyboardEvent) => {
               if (e.key !== 'Enter') return;
               e.preventDefault();
@@ -330,7 +331,7 @@ export class FilterNode implements QueryNode {
 
       items.push(
         m(ListItem, {
-          icon: isEnabled ? 'filter_alt' : 'filter_alt_off',
+          icon: isEnabled ? Icons.Filter : Icons.FilterOff,
           name: filter.column,
           description: filterDescription,
           actions: [

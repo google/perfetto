@@ -46,6 +46,7 @@ import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
 } from './nodes/limit_and_offset_node';
+import {Icons} from '../../../base/semantic_icons';
 
 export function registerCoreNodes() {
   nodeRegistry.register('slice', {
@@ -176,7 +177,7 @@ export function registerCoreNodes() {
     name: 'Filter During',
     description:
       'Filter to only show intervals that occurred during intervals from another source.',
-    icon: 'filter_alt',
+    icon: Icons.Filter,
     type: 'modification',
     category: 'Filter',
     factory: (state) => {
@@ -241,7 +242,7 @@ export function registerCoreNodes() {
   nodeRegistry.register('filter_node', {
     name: 'Filter',
     description: 'Filter rows based on column values.',
-    icon: 'filter_alt',
+    icon: Icons.Filter,
     type: 'modification',
     factory: (state) => new FilterNode(state as FilterNodeState),
   });
@@ -266,7 +267,7 @@ export function registerCoreNodes() {
   nodeRegistry.register('limit_and_offset_node', {
     name: 'Limit and Offset',
     description: 'Limit the number of rows returned and optionally skip rows.',
-    icon: 'filter_list',
+    icon: Icons.Filter,
     type: 'modification',
     factory: (state) =>
       new LimitAndOffsetNode(state as LimitAndOffsetNodeState),

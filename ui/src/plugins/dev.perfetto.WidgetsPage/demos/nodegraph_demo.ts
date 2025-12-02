@@ -29,6 +29,7 @@ import {
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
+import {Icons} from '../../../base/semantic_icons';
 
 // Base node data interface
 interface BaseNodeData {
@@ -856,7 +857,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         return [
           m(MenuItem, {
             label: 'Select',
-            icon: 'filter_alt',
+            icon: Icons.Filter,
             onclick: () => addNode(createSelectNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -864,7 +865,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           }),
           m(MenuItem, {
             label: 'Filter',
-            icon: 'filter_list',
+            icon: Icons.Filter,
             onclick: () => addNode(createFilterNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
@@ -1085,7 +1086,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
               m(MenuItem, {
                 label: 'Select',
-                icon: 'filter_alt',
+                icon: Icons.Filter,
                 onclick: () => addNode(createSelectNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -1093,7 +1094,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
               m(MenuItem, {
                 label: 'Filter',
-                icon: 'filter_list',
+                icon: Icons.Filter,
                 onclick: () => addNode(createFilterNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,

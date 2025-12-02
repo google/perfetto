@@ -186,7 +186,6 @@ export function renderDataGrid(app: App): m.Children {
               style: {
                 height: '100%',
               },
-              icon: 'search_off',
             },
             'Load a trace to start',
           );

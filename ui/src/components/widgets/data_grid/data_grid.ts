@@ -956,7 +956,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 filters.length > 0 &&
                   m(Button, {
                     variant: ButtonVariant.Filled,
-                    icon: 'filter_alt_off',
+                    icon: Icons.FilterOff,
                     label: 'Clear filters',
                     onclick: clearFilters,
                   }),
