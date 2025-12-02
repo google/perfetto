@@ -212,7 +212,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
       Popup,
       {
         trigger: m(Button, {
-          icon: 'filter_alt',
+          icon: Icons.Filter,
           title: 'Track filter',
           compact: COMPACT_BUTTONS,
           iconFilled: trackFilters.areFiltersSet(),
@@ -298,7 +298,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         m(Button, {
           type: 'reset',
           label: 'Clear All Filters',
-          icon: 'filter_alt_off',
+          icon: Icons.FilterOff,
           onclick: () => {
             trackFilters.clearAll();
           },
