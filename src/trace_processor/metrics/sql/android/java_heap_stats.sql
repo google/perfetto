@@ -26,7 +26,7 @@ heap_graph_sample_protos AS (
     upid,
     RepeatedField(JavaHeapStats_Sample(
       'ts', graph_sample_ts,
-      'process_uptime_ms', CAST(process_uptime / 1e6 as INT64),
+      'process_uptime_ms', cast_int!(process_uptime / 1e6),
       'heap_size', total_heap_size,
       'heap_native_size', total_native_alloc_registry_size,
       'obj_count', total_obj_count,
