@@ -122,6 +122,11 @@ public class PerfettoReporterRebootTest extends BaseHostJUnit4Test {
         mTestDevice = null;
     }
 
+    //TODO(ktimofeev): Add more tests:
+    // 1. Test that we can disable traced and enable it back
+    // 2. Test that we can't call "perfetto --upload-after-reboot" after traced is started.
+    // 3. Test the we can start traced even if the "perfetto --upload-after-reboot" crashed. 
+
     @Test
     public void testPersistentTraceReportedAfterReboot() throws Exception {
         assertPerfettoCommandmentSuccess(

@@ -983,12 +983,17 @@ int PerfettoCmd::ConnectToServiceRunAndMaybeNotify() {
 int PerfettoCmd::ConnectToServiceAndRun() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (upload_after_reboot_flag_) {
-    PERFETTO_LOG("PerfettoCmd: upload_after_reboot_flag_");
+    std::string uploader_ready_prop =
+        base::GetAndroidProp("perfetto.uploader_ready");
     std::string svc_traced_prop = base::GetAndroidProp("init.svc.traced");
-    std::string sys_traced_started =
-        base::GetAndroidProp("sys.trace.traced_started");
-    PERFETTO_LOG("svc_traced_prop: %s, sys_traced_started: %s",
-                 svc_traced_prop.c_str(), sys_traced_started.c_str());
+    PERFETTO_LOG("uploader_ready_prop: '%s', svc_traced_prop: '%s'",
+                 uploader_ready_prop.c_str(), svc_traced_prop.c_str());
+    if (uploader_ready_prop != "" || svc_traced_prop == "running") {
+      PERFETTO_ELOG(
+          "--upload-after-reboot can only be used by Android during the system "
+          "boot process, before the traced service is started.");
+      return 1;
+    }
     // Doesn't actually connect to service.
     ReportAllPersistentTracesToAndroidFramework();
     return 0;
