@@ -65,13 +65,7 @@ function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
 
 // Helper function to check if a table has timestamp columns.
 function isTimestampedTable(table: SqlTable): boolean {
-  return table.columns.some(
-    (col) =>
-      col.name === 'ts' ||
-      col.name === 'timestamp' ||
-      col.name.endsWith('_ts') ||
-      col.name.startsWith('ts_'),
-  );
+  return table.columns.some((col) => col.type?.kind === 'timestamp');
 }
 
 // Renders a search input bar.
