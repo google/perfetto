@@ -47,9 +47,6 @@ const NODE_VERTICAL_SPACING = 180;
 const GRID_START_X = 100;
 const GRID_START_Y = 100;
 
-// Maximum number of nodes to auto-initialize to avoid performance issues
-const MAX_AUTO_INITIALIZED_NODES = 12;
-
 /**
  * Generates grid layout positions for nodes arranged in rows.
  *
@@ -75,59 +72,64 @@ function createGridLayout(
 }
 
 /**
- * Creates table nodes for all high-importance tables that have data.
+ * Creates slice source node and thread_state table node.
  * This is used for auto-initialization when the explore page first opens.
- * Limited to MAX_AUTO_INITIALIZED_NODES to avoid performance issues.
  *
  * @param sqlModules The SQL modules interface for accessing table metadata
  * @param trace The trace instance
  * @param allNodes All existing nodes in the graph
- * @returns Array of newly created table nodes (up to MAX_AUTO_INITIALIZED_NODES)
+ * @returns Array of newly created nodes (slice source and thread_state table)
  */
 function createHighImportanceTableNodes(
   sqlModules: SqlModules,
   trace: Trace,
   allNodes: QueryNode[],
 ): QueryNode[] {
-  // Get all high-importance tables that have data
-  const highImportanceTables = sqlModules
-    .listTables()
-    .filter((table) => {
-      // Filter for high importance tables
-      if (table.importance !== 'high') return false;
-
-      // Filter out tables from disabled modules (no data)
-      if (table.includeKey && sqlModules.isModuleDisabled(table.includeKey)) {
-        return false;
-      }
-
-      return true;
-    })
-    .slice(0, MAX_AUTO_INITIALIZED_NODES);
-
-  if (highImportanceTables.length === 0) {
-    return [];
-  }
-
-  // Create a table node for each high-importance table
-  const descriptor = nodeRegistry.get('table');
-  if (!descriptor) return [];
-
   const newNodes: QueryNode[] = [];
-  for (const sqlTable of highImportanceTables) {
+
+  // Create slice source node
+  const sliceDescriptor = nodeRegistry.get('slice');
+  if (sliceDescriptor) {
     try {
-      const newNode = descriptor.factory(
+      const sliceNode = sliceDescriptor.factory(
         {
-          sqlTable,
-          sqlModules,
           trace,
         },
         {allNodes},
       );
-      newNodes.push(newNode);
+      newNodes.push(sliceNode);
     } catch (error) {
-      console.error(`Failed to create node for table ${sqlTable.name}:`, error);
-      // Continue creating other nodes even if one fails
+      console.error('Failed to create slice source node:', error);
+    }
+  }
+
+  // Create thread_state table node
+  const tableDescriptor = nodeRegistry.get('table');
+  if (tableDescriptor) {
+    const threadStateTable = sqlModules
+      .listTables()
+      .find((table) => table.name === 'thread_state');
+
+    if (threadStateTable) {
+      // Check if the table is available (module not disabled)
+      if (
+        !threadStateTable.includeKey ||
+        !sqlModules.isModuleDisabled(threadStateTable.includeKey)
+      ) {
+        try {
+          const threadStateNode = tableDescriptor.factory(
+            {
+              sqlTable: threadStateTable,
+              sqlModules,
+              trace,
+            },
+            {allNodes},
+          );
+          newNodes.push(threadStateNode);
+        } catch (error) {
+          console.error('Failed to create thread_state table node:', error);
+        }
+      }
     }
   }
 
