@@ -1051,28 +1051,20 @@ export function formatFilterDetails(
 
   // For 4 or fewer filters
   if (count <= 4) {
-    // For OR filters, show chips in visual boundary without summary text
-    if (operator === 'OR') {
-      const orChipsClass = compact
-        ? '.pf-filter-chips.pf-filter-chips--no-count.pf-filter-chips--compact'
-        : '.pf-filter-chips.pf-filter-chips--no-count';
-
-      return m(
-        '.pf-filter-or-group',
-        m('.pf-filter-or-badge', 'OR'),
-        m(
-          orChipsClass,
-          filters.map((filter) => renderFilterChip(filter)),
-        ),
-      );
-    }
-    // For AND filters, just show chips
     const filterChipsClass = compact
       ? '.pf-filter-chips.pf-filter-chips--compact'
       : '.pf-filter-chips';
 
+    // Show operator badge only when there are 2+ filters
+    const showOperatorBadge = count >= 2;
+
     return m(
       '.pf-filter-container',
+      showOperatorBadge &&
+        m(
+          '.pf-filter-operator-header',
+          m('.pf-filter-operator-badge', operator),
+        ),
       m(
         filterChipsClass,
         filters.map((filter) => renderFilterChip(filter)),
