@@ -412,7 +412,7 @@
 
   &:focus-within:not(:disabled) {
     border-color: var(--pf-color-primary);
-    border-width: 2px;
+    box-shadow: 0 0 0 1px var(--pf-color-primary);
 
     .pf-outlined-field-legend {
       color: var(--pf-color-primary);
