@@ -18,7 +18,8 @@ Unreleased:
       automatically snaps to nearby slice boundaries to enable exact
       measurement of slice durations. Hold Alt to temporarily disable snapping.
   SDK:
-    *
+    * Breaking change: `DynamicString` no longer accepts temporary `std::string`
+      arguments to prevent use-after-free bugs.
 
 v53.0 - 2025-11-12:
   SDK:
