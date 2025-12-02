@@ -51,19 +51,31 @@ export function addLegacyTableTab(
   addSqlTableTabWithState(
     trace,
     new SqlTableState(trace, config.table, {
-      filters: new Filters(config.filters),
       imports: config.imports,
     }),
+    config.filters,
   );
 }
 
-function addSqlTableTabWithState(trace: Trace, state: SqlTableState) {
-  addEphemeralTab(trace, 'sqlTable', new SqlTableTab(state));
+function addSqlTableTabWithState(
+  trace: Trace,
+  state: SqlTableState,
+  initialFilters?: Filter[],
+) {
+  addEphemeralTab(trace, 'sqlTable', new SqlTableTab(state, initialFilters));
 }
 
 class SqlTableTab implements Tab {
-  constructor(private readonly tableState: SqlTableState) {
+  // Filters are now managed by this tab, not by SqlTableState
+  // They're used for pivot tables, bar charts, etc. but not the main table
+  private readonly filters: Filters;
+
+  constructor(
+    private readonly tableState: SqlTableState,
+    initialFilters?: Filter[],
+  ) {
     this.selectedTab = tableState.uuid;
+    this.filters = new Filters(initialFilters);
   }
 
   private selectedTab: string;
@@ -73,10 +85,13 @@ class SqlTableTab implements Tab {
   private histograms: SqlHistogramState[] = [];
 
   private getTableButtons() {
-    const {selectStatement, columns} = this.tableState.getCurrentRequest();
-    const debugTrackColumns = Object.values(columns).filter(
-      (c) => !c.startsWith('__'),
-    );
+    // Build a simple query for debug track
+    const baseQuery = this.tableState.buildBaseQuery();
+    const columnNames = this.tableState
+      .getSelectedColumns()
+      .map((c) => sqlColumnId(c.column))
+      .filter((c) => !c.startsWith('__'));
+
     const addDebugTrack = m(
       Popup,
       {
@@ -85,8 +100,8 @@ class SqlTableTab implements Tab {
       },
       m(AddDebugTrackMenu, {
         trace: this.tableState.trace,
-        query: `SELECT ${debugTrackColumns.join(', ')} FROM (${selectStatement})`,
-        availableColumns: debugTrackColumns,
+        query: `SELECT ${columnNames.join(', ')} FROM (${baseQuery})`,
+        availableColumns: columnNames,
       }),
     );
     return [
@@ -105,13 +120,13 @@ class SqlTableTab implements Tab {
             addSqlTableTabWithState(
               this.tableState.trace,
               this.tableState.clone(),
+              this.filters.get(),
             ),
         }),
         m(MenuItem, {
           label: 'Copy SQL query',
           icon: Icons.Copy,
-          onclick: () =>
-            copyToClipboard(this.tableState.getNonPaginatedSQLQuery()),
+          onclick: () => copyToClipboard(this.tableState.buildBaseQuery()),
         }),
       ),
     ];
@@ -132,7 +147,7 @@ class SqlTableTab implements Tab {
             pivots: [column],
             table: this.tableState.config,
             trace: this.tableState.trace,
-            filters: this.tableState.filters,
+            filters: this.filters,
           });
           this.selectedTab = state.uuid;
           this.pivots.push(state);
@@ -146,7 +161,7 @@ class SqlTableTab implements Tab {
             trace: this.tableState.trace,
             sqlSource: this.tableState.config.name,
             column: column.column,
-            filters: this.tableState.filters,
+            filters: this.filters,
           });
           this.selectedTab = state.uuid;
           this.barCharts.push(state);
@@ -161,7 +176,7 @@ class SqlTableTab implements Tab {
               trace: this.tableState.trace,
               sqlSource: this.tableState.config.name,
               column: column.column,
-              filters: this.tableState.filters,
+              filters: this.filters,
             });
             this.selectedTab = state.uuid;
             this.histograms.push(state);
@@ -171,7 +186,7 @@ class SqlTableTab implements Tab {
   }
 
   render() {
-    const hasFilters = this.tableState.filters.get().length > 0;
+    const hasFilters = this.filters.get().length > 0;
 
     const tabs: (TabOption & {content: m.Children})[] = [
       {
@@ -210,15 +225,22 @@ class SqlTableTab implements Tab {
               m(MenuItem, {
                 label: 'Add filters',
                 onclick: () => {
-                  this.tableState.filters.addFilters(node.getFilters());
+                  this.filters.addFilters(node.getFilters());
                 },
               }),
               m(MenuItem, {
                 label: 'Open tab with filters',
                 onclick: () => {
                   const newState = this.tableState.clone();
-                  newState.filters.addFilters(node.getFilters());
-                  addSqlTableTabWithState(this.tableState.trace, newState);
+                  const newFilters = [
+                    ...this.filters.get(),
+                    ...node.getFilters(),
+                  ];
+                  addSqlTableTabWithState(
+                    this.tableState.trace,
+                    newState,
+                    newFilters,
+                  );
                 },
               }),
             ),
@@ -275,7 +297,7 @@ class SqlTableTab implements Tab {
         '.pf-sql-table',
         (hasFilters || tabs.length > 1) &&
           m('.pf-sql-table__toolbar', [
-            hasFilters && renderFilters(this.tableState.filters),
+            hasFilters && renderFilters(this.filters),
             tabs.length > 1 &&
               m(TabStrip, {
                 tabs,
@@ -308,6 +330,7 @@ class SqlTableTab implements Tab {
   }
 
   isLoading(): boolean {
-    return this.tableState.isLoading();
+    // Loading state is now managed by SQLDataSource internally
+    return false;
   }
 }

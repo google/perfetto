@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
-import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
 import {Row} from '../../../../trace_processor/query_result';
 
@@ -23,23 +22,16 @@ import {SqlTableDescription} from './table_description';
 import {
   RenderedCell,
   TableColumn,
-  TableManager,
   tableColumnId,
   tableColumnAlias,
 } from './table_column';
-import {SqlColumn, sqlColumnId} from './sql_column';
+import {sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './menus/select_column_menu';
 import {renderCastColumnMenu} from './menus/cast_column_menu';
 import {renderTransformColumnMenu} from './menus/transform_column_menu';
 import {DataGrid} from '../../data_grid/data_grid';
-import {
-  ColumnDefinition,
-  DataGridFilter,
-  Sorting,
-} from '../../data_grid/common';
-import {SqlTableDataSource} from './sql_table_data_source';
-import {Filter} from './filters';
-import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
+import {ColumnDefinition} from '../../data_grid/common';
+import {SQLDataSource} from '../../data_grid/sql_data_source';
 import {isQuantitativeType} from '../../../../trace_processor/perfetto_sql_type';
 
 export interface SqlTableConfig {
@@ -51,12 +43,14 @@ export interface SqlTableConfig {
 function renderCell(
   column: TableColumn,
   row: Row,
-  state: SqlTableState,
+  columnAliasMap: {[key: string]: string},
 ): RenderedCell {
-  const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]];
+  const alias = columnAliasMap[sqlColumnId(column.display ?? column.column)];
+  const sqlValue = row[alias];
 
-  const result = column.renderCell(sqlValue, getTableManager(state));
+  // TableManager is no longer needed since filters/queries are managed elsewhere
+  // Pass undefined for now - columns should not depend on TableManager
+  const result = column.renderCell(sqlValue, undefined!);
 
   return result;
 }
@@ -104,12 +98,26 @@ class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
   private state: SqlTableState;
-  private dataSource: SqlTableDataSource;
+  private dataSource: SQLDataSource;
+  private columnAliasMap: {[key: string]: string} = {};
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
     this.table = this.state.config;
-    this.dataSource = new SqlTableDataSource(this.state);
+    this.dataSource = this.createDataSource();
+
+    // Recreate datasource when columns change
+    this.state.onColumnsChanged(() => {
+      this.dataSource = this.createDataSource();
+      m.redraw();
+    });
+  }
+
+  private createDataSource(): SQLDataSource {
+    const baseQuery = this.state.buildBaseQuery();
+    const imports = this.state.getSQLImports();
+    this.columnAliasMap = this.state.getColumnAliasMap();
+    return new SQLDataSource(this.state.trace.engine, baseQuery, imports);
   }
 
   renderAddColumnOptions(addColumn: (column: TableColumn) => void): m.Children {
@@ -128,7 +136,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         key: columnTitle(column),
         column,
       })),
-      manager: getTableManager(this.state),
+      manager: undefined!, // TableManager no longer needed
       existingColumnIds,
       onColumnSelected: addColumn,
     });
@@ -190,111 +198,12 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         },
         cellContextMenuRenderer: (_value, row, builtins) => {
           // Get the menu from renderCell to allow column-specific context menus
-          const {menu} = renderCell(column, row as Row, this.state);
+          const {menu} = renderCell(column, row as Row, this.columnAliasMap);
           return [menu, builtins.addFilter];
         },
       };
       return columnDef;
     });
-  }
-
-  private sqlFilterToDataGridFilter(
-    sqlFilter: Filter,
-  ): DataGridFilter | undefined {
-    // Try to convert SqlTable Filter back to DataGridFilter
-    // This is best-effort - some complex filters may not convert
-    if (sqlFilter.columns.length !== 1) {
-      // DataGrid filters work on single columns
-      return undefined;
-    }
-
-    const columnName = sqlColumnId(sqlFilter.columns[0]);
-    const sqlExp = sqlFilter.op([columnName]);
-
-    // Parse common filter patterns
-    if (sqlExp === `${columnName} IS NULL`) {
-      return {column: columnName, op: 'is null'};
-    }
-    if (sqlExp === `${columnName} IS NOT NULL`) {
-      return {column: columnName, op: 'is not null'};
-    }
-
-    // Try to match basic operators with values
-    const match = sqlExp.match(
-      new RegExp(`^${columnName}\\s+(=|!=|<|<=|>|>=|glob|not glob)\\s+(.+)$`),
-    );
-    if (match) {
-      const op = match[1];
-      const value = match[2];
-
-      // Return properly typed filter based on operator
-      if (
-        op === '=' ||
-        op === '!=' ||
-        op === '<' ||
-        op === '<=' ||
-        op === '>' ||
-        op === '>=' ||
-        op === 'glob' ||
-        op === 'not glob'
-      ) {
-        return {column: columnName, op, value};
-      }
-    }
-
-    // Can't convert this filter
-    return undefined;
-  }
-
-  private convertSortingToDataGrid(): Sorting {
-    const orderBy = this.state.getOrderedBy();
-    if (orderBy.length === 0) {
-      return {direction: 'UNSORTED'};
-    }
-    const firstOrder = orderBy[0];
-    // Find the column to get its alias
-    const columns = this.state.getSelectedColumns();
-    const column = columns.find(
-      (c) => tableColumnId(c) === sqlColumnId(firstOrder.column),
-    );
-    return {
-      column: column
-        ? tableColumnAlias(column)
-        : sqlColumnId(firstOrder.column),
-      direction: firstOrder.direction,
-    };
-  }
-
-  private dataGridFilterToSqlFilter(
-    dgFilter: DataGridFilter,
-    column: TableColumn,
-  ): Filter {
-    if ('value' in dgFilter) {
-      if (Array.isArray(dgFilter.value)) {
-        // Handle 'in' and 'not in' operators
-        const values = dgFilter.value.map(sqlValueToSqliteString).join(', ');
-        return {
-          op: (cols) =>
-            dgFilter.op === 'in'
-              ? `${cols[0]} IN (${values})`
-              : `${cols[0]} NOT IN (${values})`,
-          columns: [column.column],
-        };
-      } else {
-        // Handle operators with single values
-        const value = sqlValueToSqliteString(dgFilter.value);
-        return {
-          op: (cols) => `${cols[0]} ${dgFilter.op} ${value}`,
-          columns: [column.column],
-        };
-      }
-    } else {
-      // Handle 'is null' and 'is not null'
-      return {
-        op: (cols) => `${cols[0]} ${dgFilter.op.toUpperCase()}`,
-        columns: [column.column],
-      };
-    }
   }
 
   view({attrs}: m.Vnode<SqlTableConfig>) {
@@ -313,7 +222,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       const column = columns.find((c) => tableColumnAlias(c) === columnName);
       if (!column) return String(value);
 
-      const {content} = renderCell(column, row as Row, this.state);
+      const {content} = renderCell(column, row as Row, this.columnAliasMap);
       return content;
     };
 
@@ -335,45 +244,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           }
         }
       },
-      sorting: this.convertSortingToDataGrid(),
-      onSort: (sorting: Sorting) => {
-        if (sorting.direction === 'UNSORTED') {
-          // Clear all sorting
-          this.state.clearAllSorting();
-        } else {
-          // sorting.column is the aliased name
-          const column = columns.find(
-            (c) => tableColumnAlias(c) === sorting.column,
-          );
-          if (column) {
-            this.state.sortBy({column, direction: sorting.direction});
-          }
-        }
-      },
-      // Use DataGrid's filter system and sync to SqlTable state
-      filters: this.state.filters
-        .get()
-        .map((f) => this.sqlFilterToDataGridFilter(f))
-        .filter((f): f is DataGridFilter => f !== undefined),
-      onFilterAdd: (dgFilter: DataGridFilter) => {
-        // dgFilter.column is the aliased name
-        const column = columns.find(
-          (c) => tableColumnAlias(c) === dgFilter.column,
-        );
-        if (column) {
-          const sqlFilter = this.dataGridFilterToSqlFilter(dgFilter, column);
-          this.state.filters.addFilter(sqlFilter);
-        }
-      },
-      onFilterRemove: (index: number) => {
-        const currentFilters = this.state.filters.get();
-        if (index >= 0 && index < currentFilters.length) {
-          this.state.filters.removeFilter(currentFilters[index]);
-        }
-      },
-      clearFilters: () => {
-        this.state.filters.clear();
-      },
       cellRenderer,
       fillHeight: true,
       className: 'sql-table',
@@ -381,18 +251,4 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       showFiltersInToolbar: false,
     });
   }
-}
-
-export function getTableManager(state: SqlTableState): TableManager {
-  return {
-    filters: state.filters,
-    trace: state.trace,
-    getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-      buildSqlQuery({
-        table: state.config.name,
-        columns,
-        filters: state.filters.get(),
-        orderBy: state.getOrderedBy(),
-      }),
-  };
 }
