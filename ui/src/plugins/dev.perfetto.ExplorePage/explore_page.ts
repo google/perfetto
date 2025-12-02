@@ -36,8 +36,103 @@ import {QueryExecutionService} from './query_builder/query_execution_service';
 import {CleanupManager} from './query_builder/cleanup_manager';
 import {HistoryManager} from './history_manager';
 import {getAllNodes} from './query_builder/graph_utils';
+import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 registerCoreNodes();
+
+// Grid layout constants
+const NODES_PER_ROW = 3;
+const NODE_HORIZONTAL_SPACING = 250;
+const NODE_VERTICAL_SPACING = 180;
+const GRID_START_X = 100;
+const GRID_START_Y = 100;
+
+// Maximum number of nodes to auto-initialize to avoid performance issues
+const MAX_AUTO_INITIALIZED_NODES = 12;
+
+/**
+ * Generates grid layout positions for nodes arranged in rows.
+ *
+ * @param nodes The nodes to layout
+ * @returns Map of node IDs to {x, y} positions
+ */
+function createGridLayout(
+  nodes: QueryNode[],
+): Map<string, {x: number; y: number}> {
+  const layouts = new Map<string, {x: number; y: number}>();
+
+  nodes.forEach((node, index) => {
+    const row = Math.floor(index / NODES_PER_ROW);
+    const col = index % NODES_PER_ROW;
+
+    const x = GRID_START_X + col * NODE_HORIZONTAL_SPACING;
+    const y = GRID_START_Y + row * NODE_VERTICAL_SPACING;
+
+    layouts.set(node.nodeId, {x, y});
+  });
+
+  return layouts;
+}
+
+/**
+ * Creates table nodes for all high-importance tables that have data.
+ * This is used for auto-initialization when the explore page first opens.
+ * Limited to MAX_AUTO_INITIALIZED_NODES to avoid performance issues.
+ *
+ * @param sqlModules The SQL modules interface for accessing table metadata
+ * @param trace The trace instance
+ * @param allNodes All existing nodes in the graph
+ * @returns Array of newly created table nodes (up to MAX_AUTO_INITIALIZED_NODES)
+ */
+function createHighImportanceTableNodes(
+  sqlModules: SqlModules,
+  trace: Trace,
+  allNodes: QueryNode[],
+): QueryNode[] {
+  // Get all high-importance tables that have data
+  const highImportanceTables = sqlModules
+    .listTables()
+    .filter((table) => {
+      // Filter for high importance tables
+      if (table.importance !== 'high') return false;
+
+      // Filter out tables from disabled modules (no data)
+      if (table.includeKey && sqlModules.isModuleDisabled(table.includeKey)) {
+        return false;
+      }
+
+      return true;
+    })
+    .slice(0, MAX_AUTO_INITIALIZED_NODES);
+
+  if (highImportanceTables.length === 0) {
+    return [];
+  }
+
+  // Create a table node for each high-importance table
+  const descriptor = nodeRegistry.get('table');
+  if (!descriptor) return [];
+
+  const newNodes: QueryNode[] = [];
+  for (const sqlTable of highImportanceTables) {
+    try {
+      const newNode = descriptor.factory(
+        {
+          sqlTable,
+          sqlModules,
+          trace,
+        },
+        {allNodes},
+      );
+      newNodes.push(newNode);
+    } catch (error) {
+      console.error(`Failed to create node for table ${sqlTable.name}:`, error);
+      // Continue creating other nodes even if one fails
+    }
+  }
+
+  return newNodes;
+}
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -62,6 +157,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
+  private hasAutoInitialized = false;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -281,6 +377,39 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       rootNodes: [...currentState.rootNodes, ...newNodes],
       selectedNode: newNodes[newNodes.length - 1], // Select the last node
     }));
+  }
+
+  private autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
+    this.hasAutoInitialized = true;
+
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    const newNodes = createHighImportanceTableNodes(
+      sqlModules,
+      attrs.trace,
+      attrs.state.rootNodes,
+    );
+
+    // Add all nodes to the graph with grid layout
+    if (newNodes.length > 0) {
+      const gridLayouts = createGridLayout(newNodes);
+
+      attrs.onStateUpdate((currentState) => {
+        // Merge new layouts with existing layouts
+        const newNodeLayouts = new Map(currentState.nodeLayouts);
+        gridLayouts.forEach((layout, nodeId) => {
+          newNodeLayouts.set(nodeId, layout);
+        });
+
+        return {
+          ...currentState,
+          rootNodes: [...currentState.rootNodes, ...newNodes],
+          nodeLayouts: newNodeLayouts,
+          // Don't select any node - leave selection empty
+        };
+      });
+    }
   }
 
   private async handleAddAndConnectTable(
@@ -708,6 +837,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         attrs.trace.engine,
       );
       this.cleanupManager = new CleanupManager(this.queryExecutionService);
+    }
+
+    // Auto-initialize high-importance tables on first load
+    if (state.rootNodes.length === 0 && !this.hasAutoInitialized) {
+      this.autoInitializeHighImportanceTables(wrappedAttrs);
     }
 
     return m(
