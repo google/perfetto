@@ -85,6 +85,15 @@
   cursor: move;
   pointer-events: auto;
   width: 100%;
+
+  // Hide elements with this class, show on node hover
+  .pf-show-on-hover {
+    visibility: hidden;
+  }
+
+  &:hover .pf-show-on-hover {
+    visibility: visible;
+  }
 }
 
 .pf-node--has-accent-bar::before {
@@ -222,15 +231,6 @@
   position: absolute;
   top: 6px;
   right: 6px;
-}
-
-// Hide elements with this class, show on node hover
-.pf-show-on-hover {
-  visibility: hidden;
-}
-
-.pf-node:hover .pf-show-on-hover {
-  visibility: visible;
 }
 
 .pf-node-content {
