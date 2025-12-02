@@ -393,8 +393,8 @@ export class AggregationNode implements QueryNode {
               ...agg,
               aggregationOp: value,
             };
-            // Clear column if switching to COUNT_ALL
-            if (value === 'COUNT_ALL') {
+            // Clear column if switching to COUNT(*)
+            if (value === 'COUNT(*)') {
               updated.column = undefined;
             }
             // Clear percentile if not PERCENTILE
