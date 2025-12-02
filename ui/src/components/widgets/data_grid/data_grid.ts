@@ -633,6 +633,84 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               }),
             ),
           m(MenuDivider),
+          // Numeric comparison filters (only for numeric columns)
+          column.filterType === 'numeric' &&
+            supportedFilters.includes('>') &&
+            m(
+              MenuItem,
+              {
+                label: 'Greater than...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '>',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '>',
+                    value,
+                  });
+                },
+              }),
+            ),
+          column.filterType === 'numeric' &&
+            supportedFilters.includes('>=') &&
+            m(
+              MenuItem,
+              {
+                label: 'Greater than or equal...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '>=',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '>=',
+                    value,
+                  });
+                },
+              }),
+            ),
+          column.filterType === 'numeric' &&
+            supportedFilters.includes('<') &&
+            m(
+              MenuItem,
+              {
+                label: 'Less than...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '<',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '<',
+                    value,
+                  });
+                },
+              }),
+            ),
+          column.filterType === 'numeric' &&
+            supportedFilters.includes('<=') &&
+            m(
+              MenuItem,
+              {
+                label: 'Less than or equal...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '<=',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '<=',
+                    value,
+                  });
+                },
+              }),
+            ),
+          m(MenuDivider),
           // Text-based filters (only if filterType is not 'numeric')
           column.filterType !== 'numeric' &&
             supportedFilters.includes('glob') &&
@@ -894,11 +972,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
             // Build filter menu items if filtering is enabled
             if (filterControls) {
+              const cellFilterItems: m.Children[] = [];
+
               if (value !== null) {
                 if (supportedFilters.includes('=')) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(MenuItem, {
-                      label: 'Filter equal to this',
+                      label: 'Equal to this',
                       onclick: () => {
                         onFilterAdd({
                           column: column.name,
@@ -910,9 +990,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   );
                 }
                 if (supportedFilters.includes('!=')) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(MenuItem, {
-                      label: 'Filter not equal to this',
+                      label: 'Not equal to this',
                       onclick: () => {
                         onFilterAdd({
                           column: column.name,
@@ -934,7 +1014,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               ) {
                 const selectedText = window.getSelection()?.toString().trim();
                 if (selectedText && selectedText.length > 0) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(
                       MenuItem,
                       {
@@ -978,9 +1058,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               // Numeric comparison filters - only show if filterType is not 'string'
               if (isNumeric(value) && column.filterType !== 'string') {
                 if (supportedFilters.includes('>')) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(MenuItem, {
-                      label: 'Filter greater than this',
+                      label: 'Greater than this',
                       onclick: () => {
                         onFilterAdd({
                           column: column.name,
@@ -992,9 +1072,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   );
                 }
                 if (supportedFilters.includes('>=')) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(MenuItem, {
-                      label: 'Filter greater than or equal to this',
+                      label: 'Greater than or equal to this',
                       onclick: () => {
                         onFilterAdd({
                           column: column.name,
@@ -1006,9 +1086,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   );
                 }
                 if (supportedFilters.includes('<')) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(MenuItem, {
-                      label: 'Filter less than this',
+                      label: 'Less than this',
                       onclick: () => {
                         onFilterAdd({
                           column: column.name,
@@ -1020,9 +1100,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   );
                 }
                 if (supportedFilters.includes('<=')) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(MenuItem, {
-                      label: 'Filter less than or equal to this',
+                      label: 'Less than or equal to this',
                       onclick: () => {
                         onFilterAdd({
                           column: column.name,
@@ -1037,7 +1117,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
               if (value === null) {
                 if (supportedFilters.includes('is not null')) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(MenuItem, {
                       label: 'Filter out nulls',
                       onclick: () => {
@@ -1050,7 +1130,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   );
                 }
                 if (supportedFilters.includes('is null')) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(MenuItem, {
                       label: 'Only show nulls',
                       onclick: () => {
@@ -1063,16 +1143,30 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   );
                 }
               }
-            }
 
-            // Add custom cell menu items if provided
-            if (column.cellMenuItems !== undefined) {
-              const extraItems = column.cellMenuItems(value, row);
-              if (extraItems !== undefined) {
-                if (menuItems.length > 0) {
-                  menuItems.push(m(MenuDivider));
+              // Build "Add filter..." menu item to pass to renderer
+              const addFilterItem =
+                cellFilterItems.length > 0
+                  ? m(
+                      MenuItem,
+                      {label: 'Add filter...', icon: Icons.Filter},
+                      cellFilterItems,
+                    )
+                  : undefined;
+
+              // Use custom cell context menu renderer if provided
+              if (column.cellContextMenuRenderer) {
+                const customMenuItems = column.cellContextMenuRenderer(
+                  value,
+                  row,
+                  {addFilter: addFilterItem},
+                );
+                if (customMenuItems !== undefined && customMenuItems !== null) {
+                  menuItems.push(customMenuItems);
                 }
-                menuItems.push(extraItems);
+              } else if (addFilterItem !== undefined) {
+                // Use default: just add the filter menu
+                menuItems.push(addFilterItem);
               }
             }
 
@@ -1605,7 +1699,11 @@ interface TextFilterSubmenuAttrs {
     | 'contains'
     | 'not contains'
     | '='
-    | '!=';
+    | '!='
+    | '>'
+    | '>='
+    | '<'
+    | '<=';
   readonly onApply: (value: string) => void;
 }
 
@@ -1629,6 +1727,14 @@ class TextFilterSubmenu implements m.ClassComponent<TextFilterSubmenuAttrs> {
           return 'Enter value to match...';
         case '!=':
           return 'Enter value to exclude...';
+        case '>':
+          return 'Enter value...';
+        case '>=':
+          return 'Enter value...';
+        case '<':
+          return 'Enter value...';
+        case '<=':
+          return 'Enter value...';
       }
     })();
 
