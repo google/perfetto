@@ -142,6 +142,51 @@ export class Menu implements m.ClassComponent<HTMLAttrs> {
   }
 }
 
+// A component that wraps menu items and automatically manages dividers.
+// - Filters out falsy children (undefined, null, false, empty arrays)
+// - Only renders if non-falsy children exist
+// - Automatically adds a MenuDivider before the section
+// - CSS hides the first (and last) divider in a menu automatically
+//
+// Usage:
+//   m(MenuSection, [items...])
+export class MenuSection implements m.ClassComponent {
+  view({children}: m.CVnode) {
+    // Filter out falsy/empty children
+    const validChildren = this.filterChildren(children);
+
+    // Don't render anything if no truthy children
+    if (validChildren.length === 0) {
+      return undefined;
+    }
+
+    // Render divider with special class, followed by children
+    // CSS will hide the first .pf-menu-section-divider in a menu
+    return [m(MenuDivider), ...validChildren];
+  }
+
+  private filterChildren(children: m.Children): m.Children[] {
+    if (children === undefined || children === null) return [];
+
+    const childArray = Array.isArray(children) ? children : [children];
+
+    return childArray.filter((child) => {
+      // Filter out falsy values
+      if (
+        child === undefined ||
+        child === null ||
+        child === false ||
+        child === ''
+      ) {
+        return false;
+      }
+      // Filter out empty arrays
+      if (Array.isArray(child) && child.length === 0) return false;
+      return true;
+    });
+  }
+}
+
 interface PopupMenuAttrs extends PopupAttrs {
   // Whether this popup should form a new popup group.
   // When nesting popups, grouping controls how popups are closed.

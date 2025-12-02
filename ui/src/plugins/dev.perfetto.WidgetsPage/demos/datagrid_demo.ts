@@ -23,7 +23,7 @@ import {Engine} from '../../../trace_processor/engine';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
 import {languages} from '../sample_data';
-import {MenuItem} from '../../../widgets/menu';
+import {MenuItem, MenuDivider} from '../../../widgets/menu';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
@@ -114,11 +114,24 @@ export function renderDataGrid(app: App): m.Children {
               name: 'id',
               title: 'ID',
               aggregation: aggregation ? 'COUNT' : undefined,
-              headerMenuItems: m(MenuItem, {
-                label: 'Log column name',
-                icon: 'info',
-                onclick: () => console.log('Column: id'),
-              }),
+              contextMenuRenderer: (defaultGroups) => {
+                // Just sprinkle dividers freely - CSS will clean them up!
+                return [
+                  defaultGroups.sorting,
+                  m(MenuDivider),
+                  defaultGroups.filters,
+                  m(MenuDivider),
+                  m(MenuItem, {
+                    label: 'Log column name',
+                    icon: 'info',
+                    onclick: () => console.log('Column: id'),
+                  }),
+                  m(MenuDivider),
+                  defaultGroups.fitToContent,
+                  m(MenuDivider),
+                  defaultGroups.columnManagement,
+                ];
+              },
             },
             {
               name: 'lang',
