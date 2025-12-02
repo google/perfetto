@@ -452,7 +452,14 @@ export class FilterNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new FilterNode(this.state);
+    const stateCopy: FilterNodeState = {
+      filterMode: this.state.filterMode,
+      sqlExpression: this.state.sqlExpression,
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new FilterNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
