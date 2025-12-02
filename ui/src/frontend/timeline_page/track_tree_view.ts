@@ -74,6 +74,7 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {CanvasColors} from '../../public/canvas_colors';
+import {Icons} from '../../base/semantic_icons';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -244,13 +245,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           EmptyState,
           {
             className,
-            icon: 'filter_alt_off',
             title: `No tracks match track filter`,
           },
           m(Button, {
             intent: Intent.Primary,
             variant: ButtonVariant.Filled,
             label: 'Clear track filter',
+            icon: Icons.FilterOff,
             onclick: () => trace.tracks.filters.clearAll(),
           }),
         );

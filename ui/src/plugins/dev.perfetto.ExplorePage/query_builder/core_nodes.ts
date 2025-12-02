@@ -46,6 +46,7 @@ import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
 } from './nodes/limit_and_offset_node';
+import {Icons} from '../../../base/semantic_icons';
 
 export function registerCoreNodes() {
   nodeRegistry.register('slice', {
@@ -66,12 +67,13 @@ export function registerCoreNodes() {
     type: 'source',
     showOnLandingPage: true,
     preCreate: async ({sqlModules}) => {
-      const selection = await modalForTableSelection(sqlModules);
-      if (selection) {
-        return {
+      const selections = await modalForTableSelection(sqlModules);
+      if (selections && selections.length > 0) {
+        // Return an array of states, one for each selected table
+        return selections.map((selection) => ({
           sqlTable: selection.sqlTable,
           sqlModules,
-        };
+        }));
       }
       return null;
     },
@@ -137,30 +139,12 @@ export function registerCoreNodes() {
     },
   });
 
-  nodeRegistry.register('aggregation', {
-    name: 'Aggregation',
-    description: 'Group and aggregate data from the source node.',
-    icon: 'functions',
-    type: 'modification',
-    factory: (state) => new AggregationNode(state as AggregationNodeState),
-  });
-
-  nodeRegistry.register('modify_columns', {
-    name: 'Modify Columns',
-    description: 'Select, rename, and add new columns to the data.',
-    icon: 'edit',
-    type: 'modification',
-    category: 'Columns',
-    factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
-  });
-
   nodeRegistry.register('add_columns', {
     name: 'Add Columns',
     description:
       'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
     icon: 'add_box',
     type: 'modification',
-    category: 'Columns',
     factory: (state) => {
       const fullState: AddColumnsNodeState = {
         ...state,
@@ -172,13 +156,37 @@ export function registerCoreNodes() {
     },
   });
 
+  nodeRegistry.register('modify_columns', {
+    name: 'Modify Columns',
+    description: 'Select, rename, and add new columns to the data.',
+    icon: 'edit',
+    type: 'modification',
+    factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
+  });
+
+  nodeRegistry.register('aggregation', {
+    name: 'Aggregation',
+    description: 'Group and aggregate data from the source node.',
+    icon: 'functions',
+    type: 'modification',
+    factory: (state) => new AggregationNode(state as AggregationNodeState),
+  });
+
+  nodeRegistry.register('filter_node', {
+    name: 'Filter',
+    description: 'Filter rows based on column values.',
+    icon: Icons.Filter,
+    type: 'modification',
+    factory: (state) => new FilterNode(state as FilterNodeState),
+  });
+
   nodeRegistry.register('filter_during', {
     name: 'Filter During',
     description:
       'Filter to only show intervals that occurred during intervals from another source.',
-    icon: 'filter_alt',
-    type: 'modification',
-    category: 'Filter',
+    icon: Icons.Filter,
+    type: 'multisource',
+    category: 'Time',
     factory: (state) => {
       const fullState: FilterDuringNodeState = {
         ...state,
@@ -196,6 +204,7 @@ export function registerCoreNodes() {
     description: 'Intersect the intervals with another table.',
     icon: 'timeline',
     type: 'multisource',
+    category: 'Time',
     factory: (state, context) => {
       if (!context) {
         throw new Error(
@@ -238,14 +247,6 @@ export function registerCoreNodes() {
     factory: (state) => new SortNode(state as SortNodeState),
   });
 
-  nodeRegistry.register('filter_node', {
-    name: 'Filter',
-    description: 'Filter rows based on column values.',
-    icon: 'filter_alt',
-    type: 'modification',
-    factory: (state) => new FilterNode(state as FilterNodeState),
-  });
-
   nodeRegistry.register('union_node', {
     name: 'Union',
     description: 'Combine rows from multiple sources.',
@@ -266,7 +267,7 @@ export function registerCoreNodes() {
   nodeRegistry.register('limit_and_offset_node', {
     name: 'Limit and Offset',
     description: 'Limit the number of rows returned and optionally skip rows.',
-    icon: 'filter_list',
+    icon: Icons.Filter,
     type: 'modification',
     factory: (state) =>
       new LimitAndOffsetNode(state as LimitAndOffsetNodeState),

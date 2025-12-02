@@ -25,6 +25,10 @@ export interface NodeFactoryContext {
   allNodes: QueryNode[];
 }
 
+// The initial state returned by preCreate, which will be merged with
+// trace and other runtime properties before node creation.
+export type PreCreateState = Record<string, unknown>;
+
 export interface NodeDescriptor {
   // The name of the node, as it appears in the UI.
   name: string;
@@ -48,9 +52,11 @@ export interface NodeDescriptor {
   // An optional, async function that runs before the node is created.
   // It can be used for interactive setup, like showing a modal.
   // If it returns null, the creation is aborted.
+  // Can return an array to create multiple nodes at once (source nodes only).
+  // Note: Operation nodes should only return a single state or null.
   preCreate?: (
     context: PreCreateContext,
-  ) => Promise<Partial<QueryNodeState> | null>;
+  ) => Promise<PreCreateState | PreCreateState[] | null>;
 
   // A function that creates a new instance of the node.
   factory: (state: QueryNodeState, context?: NodeFactoryContext) => QueryNode;

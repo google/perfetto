@@ -38,6 +38,7 @@ import {
   GridRow,
 } from '../../widgets/grid';
 import {FtraceFilter, FtraceStat} from './common';
+import {Icons} from '../../base/semantic_icons';
 
 const ROW_H = 24;
 
@@ -268,7 +269,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 
     return m(PopupMultiSelect, {
       label: 'Filter',
-      icon: 'filter_list_alt',
+      icon: Icons.Filter,
       position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {

@@ -128,12 +128,11 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
       return m(
         EmptyState,
         {
-          icon: 'filter_alt_off',
           title: 'No settings match your search criteria',
         },
         m(Button, {
           label: 'Clear filter',
-          icon: 'clear',
+          icon: Icons.FilterOff,
           variant: ButtonVariant.Filled,
           onclick: () => {
             this.filterText = '';

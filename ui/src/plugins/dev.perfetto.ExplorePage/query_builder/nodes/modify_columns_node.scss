@@ -14,12 +14,6 @@
 
 @import "../common";
 
-.pf-exp-node-explorer:has(.pf-modify-columns-node) {
-  article {
-    padding: 0;
-  }
-}
-
 .pf-modify-columns-node {
   display: flex;
   flex-direction: column;
@@ -87,6 +81,7 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+    padding-left: 8px;
   }
 
   .pf-column-list-container {
@@ -95,7 +90,7 @@
   }
 
   .pf-column-list-help {
-    padding: 12px 16px;
+    padding: 12px 0;
     font-size: 13px;
     color: var(--pf-text-color-secondary);
     font-style: italic;
@@ -106,8 +101,8 @@
   .pf-column-list {
     display: flex;
     flex-direction: column;
-    padding: 12px 16px;
     gap: 4px;
+    padding: 12px 0;
   }
 
   .pf-column {

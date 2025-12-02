@@ -16,6 +16,23 @@ import m from 'mithril';
 import {SqlValue} from '../../../trace_processor/query_result';
 
 export type AggregationFunction = 'SUM' | 'AVG' | 'COUNT' | 'MIN' | 'MAX';
+
+export type FilterType = DataGridFilter['op'];
+
+export const DEFAULT_SUPPORTED_FILTERS: ReadonlyArray<FilterType> = [
+  '=',
+  '!=',
+  '<',
+  '<=',
+  '>',
+  '>=',
+  'glob',
+  'not glob',
+  'in',
+  'not in',
+  'is null',
+  'is not null',
+];
 export interface ColumnDefinition {
   // Name/id of the column - this should match the key in the data.
   readonly name: string;
@@ -43,7 +60,7 @@ export interface ColumnDefinition {
 
 export interface FilterValue {
   readonly column: string;
-  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob';
+  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
   readonly value: SqlValue;
 }
 

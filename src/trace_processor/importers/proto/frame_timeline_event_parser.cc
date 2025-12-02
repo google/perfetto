@@ -461,6 +461,8 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
     jank_tag = jank_tag_other_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_BUFFER_STUFFING) {
     jank_tag = jank_tag_buffer_stuffing_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_SF_STUFFING) {
+    jank_tag = jank_tag_sf_stuffing_id_;
   } else if (present_type_opt.has_value() &&
              *present_type_opt == FrameTimelineEvent::PRESENT_DROPPED) {
     jank_tag = jank_tag_dropped_id_;

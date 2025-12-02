@@ -33,6 +33,7 @@
 
 import m from 'mithril';
 
+import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
@@ -57,10 +58,8 @@ import {
   addConnection,
   removeConnection,
 } from '../../query_node';
-import {EmptyGraph} from '../empty_graph';
-import {nodeRegistry} from '../node_registry';
 import {NodeBox} from './node_box';
-import {buildCategorizedMenuItems} from './menu_utils';
+import {buildMenuItems} from './menu_utils';
 import {getAllNodes, findNodeById} from '../graph_utils';
 
 // ========================================
@@ -76,6 +75,7 @@ type LayoutMap = Map<string, Position>;
 const LAYOUT_CONSTANTS = {
   INITIAL_X: 100,
   INITIAL_Y: 100,
+  BATCH_NODE_HORIZONTAL_OFFSET: 250,
 };
 
 // ========================================
@@ -141,6 +141,12 @@ function getInputLabels(node: QueryNode): NodePort[] {
       // For AddColumnsNode, show exactly one left-side port
       if (node.type === NodeType.kAddColumns) {
         labels.push({content: 'Table', direction: 'left'});
+      } else {
+        // For other nodes with secondaryInputs (like FilterDuring) - show dynamic ports
+        const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
+        for (let i = 0; i < numPorts; i++) {
+          labels.push({content: `Input ${i}`, direction: 'left'});
+        }
       }
       return labels;
     }
@@ -171,35 +177,24 @@ function getInputLabels(node: QueryNode): NodePort[] {
   return [];
 }
 
-function buildMenuItems(
-  nodeType: 'source' | 'multisource' | 'modification',
-  devMode: boolean | undefined,
-  onAddNode: (id: string) => void,
-): m.Children[] {
-  const nodes = nodeRegistry
-    .list()
-    .filter(([_id, descriptor]) => descriptor.type === nodeType)
-    .filter(([_id, descriptor]) => !descriptor.devOnly || devMode);
-
-  return buildCategorizedMenuItems(nodes, onAddNode);
-}
-
 function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const modificationItems = buildMenuItems('modification', undefined, (id) =>
-    onAddOperationNode(id, targetNode),
-  );
   const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
     onAddOperationNode(id, targetNode),
   );
+  const modificationItems = buildMenuItems('modification', undefined, (id) =>
+    onAddOperationNode(id, targetNode),
+  );
 
-  // Add a divider between modification and multisource nodes if both exist
-  if (modificationItems.length > 0 && multisourceItems.length > 0) {
-    return [...modificationItems, m(MenuDivider), ...multisourceItems];
-  }
-  return [...modificationItems, ...multisourceItems];
+  return [
+    m(MenuTitle, {label: 'Modification nodes'}),
+    ...modificationItems,
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Operations'}),
+    ...multisourceItems,
+  ];
 }
 
 // ========================================
@@ -237,6 +232,7 @@ function ensureNodeLayouts(
   nodeGraphApi: NodeGraphApi | null,
 ): void {
   // Assign layouts to new nodes using smart placement
+  let nodeOffset = 0;
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
       let placement: Position;
@@ -268,10 +264,15 @@ function ensureNodeLayouts(
         placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
       } else {
         // Fallback to default position if API not ready yet
+        // Offset nodes horizontally by BATCH_NODE_HORIZONTAL_OFFSET
+        // when multiple nodes are created in a batch to prevent overlap
         placement = {
-          x: LAYOUT_CONSTANTS.INITIAL_X,
+          x:
+            LAYOUT_CONSTANTS.INITIAL_X +
+            nodeOffset * LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
           y: LAYOUT_CONSTANTS.INITIAL_Y,
         };
+        nodeOffset++;
       }
 
       attrs.onNodeLayoutChange(qnode.nodeId, placement);
@@ -374,6 +375,7 @@ function createNodeConfig(
       onAddOperationNode: attrs.onAddOperationNode,
     }),
     next: getNextDockedNode(qnode, attrs),
+    invalid: !qnode.validate(),
   };
 }
 
@@ -534,13 +536,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
 
-  private renderEmptyNodeGraph(attrs: GraphAttrs) {
-    return m(EmptyGraph, {
-      onAddSourceNode: attrs.onAddSourceNode,
-      onImport: attrs.onImport,
-    });
-  }
-
   private renderControls(attrs: GraphAttrs) {
     const sourceMenuItems = buildMenuItems(
       'source',
@@ -573,9 +568,14 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     const moreMenuItems = [
       m(MenuItem, {
-        label: 'Export',
+        label: 'Export to JSON',
         icon: Icons.Download,
         onclick: attrs.onExport,
+      }),
+      m(MenuItem, {
+        label: 'Import from JSON',
+        icon: 'file_upload',
+        onclick: attrs.onImport,
       }),
       m(MenuItem, {
         label: 'Clear All Nodes',
@@ -604,7 +604,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           trigger: m(Button, {
             icon: Icons.ContextMenuAlt,
             variant: ButtonVariant.Minimal,
-            style: {marginLeft: '8px'},
+            className: classNames('pf-exp-more-menu-button'),
           }),
         },
         moreMenuItems,
@@ -614,22 +614,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
   view({attrs}: m.CVnode<GraphAttrs>) {
     const {rootNodes, selectedNode} = attrs;
-    const allNodes = getAllNodes(rootNodes);
-
-    if (allNodes.length === 0) {
-      return m(
-        '.pf-exp-node-graph',
-        {
-          tabindex: 0,
-          onclick: (e: MouseEvent) => {
-            if (e.target === e.currentTarget) {
-              attrs.onDeselect();
-            }
-          },
-        },
-        this.renderEmptyNodeGraph(attrs),
-      );
-    }
 
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
@@ -722,6 +706,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
             m.redraw();
           },
+          contextMenuOnHover: true,
         } satisfies NodeGraphAttrs),
         this.renderControls(attrs),
       ],

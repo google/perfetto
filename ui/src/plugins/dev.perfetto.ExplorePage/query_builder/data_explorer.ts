@@ -14,18 +14,13 @@
 
 import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {
-  DataGridDataSource,
-  FilterNull,
-  FilterValue,
-} from '../../../components/widgets/data_grid/common';
+import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
 import {
   DataGrid,
   renderCell,
 } from '../../../components/widgets/data_grid/data_grid';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {DetailsShell} from '../../../widgets/details_shell';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
@@ -36,6 +31,8 @@ import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
+import {UIFilter, normalizeDataGridFilter} from './operations/filter';
+
 export interface DataExplorerAttrs {
   readonly node: QueryNode;
   readonly query?: Query | Error;
@@ -48,19 +45,25 @@ export interface DataExplorerAttrs {
   readonly onExecute: () => void;
   readonly onExportToTimeline?: () => void;
   readonly onchange?: () => void;
-  readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
+  readonly onFilterAdd?: (
+    filter: UIFilter | UIFilter[],
+    filterOperator?: 'AND' | 'OR',
+  ) => void;
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
     return m(
-      DetailsShell,
-      {
-        title: 'Query data',
-        fillHeight: true,
-        buttons: this.renderMenu(attrs),
-      },
-      this.renderContent(attrs),
+      '.pf-exp-data-explorer',
+      m(
+        '.pf-exp-data-explorer__header',
+        m(
+          '.pf-exp-data-explorer__title-row',
+          m('h2', 'Query data'),
+          m('.pf-exp-data-explorer__buttons', this.renderMenu(attrs)),
+        ),
+      ),
+      m('.pf-exp-data-explorer__content', this.renderContent(attrs)),
     );
   }
 
@@ -129,19 +132,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           ])
         : null;
 
-    const exportButton =
-      attrs.onExportToTimeline &&
-      attrs.response &&
-      !attrs.isQueryRunning &&
-      attrs.node.state.materialized
-        ? m(Button, {
-            label: 'Export to Timeline',
-            icon: 'open_in_new',
-            onclick: () => attrs.onExportToTimeline?.(),
-            title: 'Export query results to timeline tab',
-          })
-        : null;
-
     const positionMenu = m(
       PopupMenu,
       {
@@ -151,8 +141,16 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
       [
         m(MenuItem, {
-          label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
-          onclick: () => attrs.onFullScreenToggle(),
+          label: 'Export to Timeline',
+          icon: 'open_in_new',
+          onclick: () => attrs.onExportToTimeline?.(),
+          title: 'Export query results to timeline tab',
+          disabled: !(
+            attrs.onExportToTimeline &&
+            attrs.response &&
+            !attrs.isQueryRunning &&
+            attrs.node.state.materialized
+          ),
         }),
       ],
     );
@@ -167,7 +165,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       materializationIndicator,
       materializationIndicator !== null ? separator() : null,
       autoExecuteSwitch,
-      exportButton,
       positionMenu,
     ];
   }
@@ -305,6 +302,20 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             )
           : null;
 
+      const supportedOps = [
+        '=',
+        '!=',
+        '<',
+        '<=',
+        '>',
+        '>=',
+        'glob',
+        'in',
+        'not in',
+        'is null',
+        'is not null',
+      ] as const;
+
       return [
         warning,
         m(DataGrid, {
@@ -312,36 +323,43 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           columns: attrs.response.columns.map((c) => ({name: c})),
           data: attrs.dataSource,
           showFiltersInToolbar: true,
+          supportedFilters: supportedOps,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.
           filters: [],
           onFilterAdd: (filter) => {
-            // These are the filters supported by the explore page currently.
-            const supportedOps = [
-              '=',
-              '!=',
-              '<',
-              '<=',
-              '>',
-              '>=',
-              'glob',
-              'is null',
-              'is not null',
-            ];
-            if (supportedOps.includes(filter.op)) {
-              if (attrs.onFilterAdd) {
-                // Delegate to the parent handler which will create a FilterNode
-                attrs.onFilterAdd(filter as FilterValue | FilterNull);
-              } else {
-                // Fallback: add filter directly to node state (legacy behavior)
-                attrs.node.state.filters = [
-                  ...(attrs.node.state.filters ?? []),
-                  filter as FilterValue | FilterNull,
-                ];
-                attrs.onchange?.();
+            // Normalize the filter (expands IN/NOT IN to multiple equality filters)
+            const normalizedFilters = normalizeDataGridFilter(filter);
+
+            if (attrs.onFilterAdd) {
+              // Pass all normalized filters at once
+              // Determine logical operator based on original filter type:
+              // - IN: multiple values ORed together (value = X OR value = Y)
+              // - NOT IN: multiple values ANDed together (value != X AND value != Y)
+              //   (De Morgan's law: NOT(A OR B) = NOT A AND NOT B)
+              let operator: 'AND' | 'OR' | undefined;
+              if (normalizedFilters.length > 1) {
+                operator = filter.op === 'not in' ? 'AND' : 'OR';
+              }
+              attrs.onFilterAdd(
+                normalizedFilters.length === 1
+                  ? normalizedFilters[0]
+                  : normalizedFilters,
+                operator,
+              );
+            } else {
+              // Legacy: add filters directly to node state
+              attrs.node.state.filters = [
+                ...(attrs.node.state.filters ?? []),
+                ...normalizedFilters,
+              ];
+              if (normalizedFilters.length > 1) {
+                attrs.node.state.filterOperator =
+                  filter.op === 'not in' ? 'AND' : 'OR';
               }
             }
+            attrs.onchange?.();
           },
           cellRenderer: (value: SqlValue, name: string) => {
             return renderCell(value, name);

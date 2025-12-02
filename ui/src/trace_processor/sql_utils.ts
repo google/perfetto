@@ -110,7 +110,7 @@ export function sqlValueToSqliteString(
   val: SqlValue | ReadonlyArray<SqlValue>,
 ): string {
   if (Array.isArray(val)) {
-    return val.map((v) => sqlValueToSqliteString(v)).join(',');
+    return val.map((v) => sqlValueToSqliteString(v)).join(', ');
   }
   if (val instanceof Uint8Array) {
     throw new Error("Can't pass blob back to trace processor as value");

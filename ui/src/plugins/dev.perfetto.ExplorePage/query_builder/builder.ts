@@ -115,7 +115,11 @@ export interface BuilderAttrs {
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
-  readonly onFilterAdd: (node: QueryNode, filter: UIFilter) => void;
+  readonly onFilterAdd: (
+    node: QueryNode,
+    filter: UIFilter | UIFilter[],
+    filterOperator?: 'AND' | 'OR',
+  ) => void;
 
   // Import / Export JSON
   readonly onImport: () => void;
@@ -252,30 +256,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         this.isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
 
-    // When no nodes exist, show only the graph (which renders EmptyGraph)
-    // without any panels or split layout
-    if (rootNodes.length === 0) {
-      return m(Graph, {
-        rootNodes,
-        selectedNode,
-        onNodeSelected,
-        nodeLayouts: attrs.nodeLayouts,
-        onNodeLayoutChange: attrs.onNodeLayoutChange,
-        onDeselect: attrs.onDeselect,
-        onAddSourceNode: attrs.onAddSourceNode,
-        onClearAllNodes,
-        onDuplicateNode: attrs.onDuplicateNode,
-        onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
-        devMode: attrs.devMode,
-        onDevModeChange: attrs.onDevModeChange,
-        onDeleteNode: attrs.onDeleteNode,
-        onConnectionRemove: attrs.onConnectionRemove,
-        onImport: attrs.onImport,
-        onImportWithStatement: attrs.onImportWithStatement,
-        onExport: attrs.onExport,
-      });
-    }
-
     const explorer = selectedNode
       ? m(NodeExplorer, {
           // The key to force mithril to re-create the component when the
@@ -337,8 +317,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onchange: () => {
                 attrs.onNodeStateChange?.();
               },
-              onFilterAdd: (filter) => {
-                attrs.onFilterAdd(selectedNode, filter);
+              onFilterAdd: (filter, filterOperator) => {
+                attrs.onFilterAdd(selectedNode, filter, filterOperator);
               },
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,

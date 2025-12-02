@@ -34,7 +34,7 @@ import {raf} from './raf_scheduler';
 export class TimelineImpl implements Timeline {
   readonly MIN_DURATION = 10;
   private readonly ANIMATION_DURATION_MS = 300;
-  private readonly SPAM_DETECTION_THRESHOLD_MS = 500;
+  private readonly SPAM_DETECTION_THRESHOLD_MS = 300;
 
   private _visibleWindow: HighPrecisionTimeSpan;
   private _hoverCursorTimestamp?: time;

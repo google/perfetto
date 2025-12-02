@@ -182,6 +182,7 @@ export interface NodeGraphAttrs {
   readonly onNodeRemove?: (nodeId: string) => void;
   readonly hideControls?: boolean;
   readonly multiselect?: boolean; // Enable multi-node selection (default: true)
+  readonly contextMenuOnHover?: boolean; // Show context menu on hover (default: false)
   readonly fillHeight?: boolean;
   readonly toolbarItems?: m.Children;
   readonly style?: Partial<CSSStyleDeclaration>;
@@ -1325,6 +1326,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       isDockTarget: boolean;
       rootNode?: Node;
       multiselect: boolean;
+      contextMenuOnHover: boolean;
     },
   ): m.Vnode {
     const {
@@ -1338,8 +1340,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       contextMenuItems,
       invalid,
     } = node;
-    const {isDockedChild, hasDockedChild, isDockTarget, rootNode, multiselect} =
-      options;
+    const {
+      isDockedChild,
+      hasDockedChild,
+      isDockTarget,
+      rootNode,
+      multiselect,
+      contextMenuOnHover,
+    } = options;
     const {connections = [], onConnect, nodes = []} = vnode.attrs;
 
     // Separate ports by direction
@@ -1570,6 +1578,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   trigger: m(Button, {
                     rounded: true,
                     icon: Icons.ContextMenuAlt,
+                    className: contextMenuOnHover ? 'pf-show-on-hover' : '',
                   }),
                 },
                 contextMenuItems,
@@ -1581,6 +1590,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           contextMenuItems !== undefined &&
           m(
             '.pf-node-context-menu',
+            {className: contextMenuOnHover ? 'pf-show-on-hover' : ''},
             m(
               PopupMenu,
               {
@@ -1815,6 +1825,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         selectedNodeIds = new Set<string>(),
         hideControls = false,
         multiselect = true,
+        contextMenuOnHover = false,
         fillHeight,
       } = vnode.attrs;
 
@@ -2002,6 +2013,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                           isDockTarget: cIsDockTarget,
                           rootNode: node,
                           multiselect,
+                          contextMenuOnHover,
                         });
                       }),
                     );
@@ -2026,6 +2038,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                         isDockTarget,
                         rootNode: undefined,
                         multiselect,
+                        contextMenuOnHover,
                       }),
                     );
                   }

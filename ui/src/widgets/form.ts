@@ -64,6 +64,7 @@ export class Form implements m.ClassComponent<FormAttrs> {
       resetLabel,
       onSubmit = () => {},
       preventDefault = true,
+      validation: _validation,
       ...htmlAttrs
     } = attrs;
 
@@ -78,7 +79,7 @@ export class Form implements m.ClassComponent<FormAttrs> {
             m(Button, {
               type: 'submit',
               label: submitLabel,
-              rightIcon: submitIcon,
+              icon: submitIcon,
               className: Popup.DISMISS_POPUP_GROUP_CLASS,
               intent: Intent.Primary,
               variant: ButtonVariant.Filled,

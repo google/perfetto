@@ -45,6 +45,7 @@ import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
 import {Store} from '../../base/store';
 import {Trace} from '../../public/trace';
+import {Icons} from '../../base/semantic_icons';
 
 const ROW_H = 24;
 
@@ -334,7 +335,7 @@ interface FilterByTextWidgetAttrs {
 
 class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
   view({attrs}: m.Vnode<FilterByTextWidgetAttrs>) {
-    const icon = attrs.hideNonMatching ? 'filter_alt' : 'filter_alt_off';
+    const icon = attrs.hideNonMatching ? Icons.Filter : Icons.FilterOff;
     const tooltip = attrs.hideNonMatching
       ? 'Show all logs and highlight matches'
       : 'Show only matching logs';
@@ -430,7 +431,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
 
     return m(PopupMultiSelect, {
       label: 'Filter by machine',
-      icon: 'filter_list_alt',
+      icon: Icons.Filter,
       position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 @import "./query_builder/builder.scss";
+@import "./query_builder/data_explorer.scss";
 
 .pf-explore-page {
   --pf-exp-font-size-sm: 0.9em;
@@ -27,18 +28,5 @@
   &__header {
     display: flex;
     align-items: center;
-  }
-}
-
-.pf-data-explorer-empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 300px;
-
-  button {
-    font-size: 1.2em;
-    padding: 1.5rem 2.5rem;
   }
 }
