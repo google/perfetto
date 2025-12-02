@@ -188,9 +188,10 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
             }),
           ];
         },
-        cellMenuItems: (_value, row) => {
+        cellContextMenuRenderer: (_value, row, builtins) => {
+          // Get the menu from renderCell to allow column-specific context menus
           const {menu} = renderCell(column, row as Row, this.state);
-          return menu;
+          return [menu, builtins.addFilter];
         },
       };
       return columnDef;

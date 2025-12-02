@@ -58,10 +58,18 @@ export interface ColumnDefinition {
     readonly columnManagement?: m.Children;
   }) => m.Children;
 
-  // Optional function that returns extra menu items to add to each data cell's
-  // context menu. The function receives the cell value and the complete row
-  // data.
-  readonly cellMenuItems?: (value: SqlValue, row: RowDef) => m.Children;
+  // Optional function that receives the default filter menu item and returns
+  // the complete cell context menu structure. This allows full control over
+  // the cell menu organization.
+  // Default item provided:
+  // - addFilter: "Add filter..." menu item with context-sensitive filter options
+  readonly cellContextMenuRenderer?: (
+    value: SqlValue,
+    row: RowDef,
+    builtins: {
+      addFilter?: m.Children;
+    },
+  ) => m.Children;
 
   // Enable distinct values filtering for this column. When enabled, adds a
   // "Filter by values..." menu item that shows all distinct values. Only
