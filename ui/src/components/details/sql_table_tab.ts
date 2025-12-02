@@ -37,6 +37,7 @@ import {sqlColumnId} from '../widgets/sql/table/sql_column';
 import {TabOption, TabStrip} from '../../widgets/tabs';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
+import {exists} from '../../base/utils';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -89,7 +90,11 @@ class SqlTableTab implements Tab {
         availableColumns: debugTrackColumns,
       }),
     );
+
+    const rowCount = this.tableState.getTotalRowCount();
+
     return [
+      exists(rowCount) && `${rowCount.toLocaleString()} rows`,
       addDebugTrack,
       m(
         PopupMenu,
@@ -300,7 +305,10 @@ class SqlTableTab implements Tab {
   }
 
   getTitle(): string {
-    return `Table ${this.getDisplayName()}`;
+    const rowCount = this.tableState.getTotalRowCount();
+    const rows =
+      rowCount === undefined ? '' : ` (${rowCount.toLocaleString()})`;
+    return `Table ${this.getDisplayName()}${rows}`;
   }
 
   private getDisplayName(): string {
