@@ -1,0 +1,101 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Consistent padding value used throughout
+$panel-padding: 1rem;
+
+.pf-exp-data-explorer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--pf-color-surface);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: $panel-padding;
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
+  &__title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-grow: 1;
+    gap: 0.75rem;
+
+    h2 {
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--pf-color-text);
+      margin: 0;
+    }
+  }
+
+  &__buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__content {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.pf-data-explorer-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  height: 100%;
+  padding: $panel-padding;
+}
+
+.pf-data-explorer-warning-icon {
+  font-size: 48px;
+  color: var(--pf-color-warning);
+}
+
+.pf-data-explorer-warning-message {
+  text-align: center;
+  color: var(--pf-color-text);
+  max-width: 600px;
+}
+
+.pf-exp-query-running-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pf-query-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--pf-color-text-secondary);
+}
+
+.pf-query-stats-separator {
+  margin: 0 0.25rem;
+  color: var(--pf-color-text-disabled);
+}

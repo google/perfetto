@@ -14,12 +14,6 @@
 
 @import "../common";
 
-.pf-exp-node-explorer:has(.pf-modify-columns-node) {
-  article {
-    padding: 0;
-  }
-}
-
 .pf-modify-columns-node {
   display: flex;
   flex-direction: column;

@@ -21,7 +21,6 @@ import {
 } from '../../../components/widgets/data_grid/data_grid';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {DetailsShell} from '../../../widgets/details_shell';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
@@ -55,13 +54,16 @@ export interface DataExplorerAttrs {
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
     return m(
-      DetailsShell,
-      {
-        title: 'Query data',
-        fillHeight: true,
-        buttons: this.renderMenu(attrs),
-      },
-      this.renderContent(attrs),
+      '.pf-exp-data-explorer',
+      m(
+        '.pf-exp-data-explorer__header',
+        m(
+          '.pf-exp-data-explorer__title-row',
+          m('h2', 'Query data'),
+          m('.pf-exp-data-explorer__buttons', this.renderMenu(attrs)),
+        ),
+      ),
+      m('.pf-exp-data-explorer__content', this.renderContent(attrs)),
     );
   }
 
@@ -130,19 +132,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           ])
         : null;
 
-    const exportButton =
-      attrs.onExportToTimeline &&
-      attrs.response &&
-      !attrs.isQueryRunning &&
-      attrs.node.state.materialized
-        ? m(Button, {
-            label: 'Export to Timeline',
-            icon: 'open_in_new',
-            onclick: () => attrs.onExportToTimeline?.(),
-            title: 'Export query results to timeline tab',
-          })
-        : null;
-
     const positionMenu = m(
       PopupMenu,
       {
@@ -152,8 +141,16 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
       [
         m(MenuItem, {
-          label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
-          onclick: () => attrs.onFullScreenToggle(),
+          label: 'Export to Timeline',
+          icon: 'open_in_new',
+          onclick: () => attrs.onExportToTimeline?.(),
+          title: 'Export query results to timeline tab',
+          disabled: !(
+            attrs.onExportToTimeline &&
+            attrs.response &&
+            !attrs.isQueryRunning &&
+            attrs.node.state.materialized
+          ),
         }),
       ],
     );
@@ -168,7 +165,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       materializationIndicator,
       materializationIndicator !== null ? separator() : null,
       autoExecuteSwitch,
-      exportButton,
       positionMenu,
     ];
   }

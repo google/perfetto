@@ -30,10 +30,6 @@ import {
 } from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import m from 'mithril';
-import {
-  PopupMultiSelect,
-  MultiSelectDiff,
-} from '../../../../widgets/multiselect';
 import {Select} from '../../../../widgets/select';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {TextInput} from '../../../../widgets/text_input';
@@ -51,6 +47,8 @@ import {
   LabeledControl,
   TableDescription,
   IssueList,
+  OutlinedMultiSelect,
+  MultiSelectDiff,
 } from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
@@ -1255,7 +1253,7 @@ export class AddColumnsNode implements QueryNode {
               m(
                 LabeledControl,
                 {label: 'Columns:'},
-                m(PopupMultiSelect, {
+                m(OutlinedMultiSelect, {
                   label:
                     selectedColumns.length > 0
                       ? selectedColumns.join(', ')
@@ -1372,7 +1370,7 @@ export class AddColumnsNode implements QueryNode {
       m(
         LabeledControl,
         {label: 'Columns:'},
-        m(PopupMultiSelect, {
+        m(OutlinedMultiSelect, {
           label: selectedColumnsLabel,
           showNumSelected: false,
           compact: true,

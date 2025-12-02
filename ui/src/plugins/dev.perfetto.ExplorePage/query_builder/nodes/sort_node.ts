@@ -23,16 +23,17 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Button} from '../../../../widgets/button';
 import {
-  PopupMultiSelect,
-  MultiSelectOption,
-  MultiSelectDiff,
-} from '../../../../widgets/multiselect';
-import {
   StructuredQueryBuilder,
   SortCriterion as BuilderSortCriterion,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {LabeledControl, DraggableItem} from '../widgets';
+import {
+  LabeledControl,
+  DraggableItem,
+  OutlinedMultiSelect,
+  MultiSelectOption,
+  MultiSelectDiff,
+} from '../widgets';
 import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
 import {createErrorSections} from '../widgets';
 import {NodeDetailsMessage} from '../node_styling_widgets';
@@ -149,7 +150,7 @@ export class SortNode implements QueryNode {
       {
         label: 'Sort by:',
       },
-      m(PopupMultiSelect, {
+      m(OutlinedMultiSelect, {
         label,
         options: sortOptions,
         showNumSelected: false,
