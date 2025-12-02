@@ -706,6 +706,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
             m.redraw();
           },
+          contextMenuOnHover: true,
         } satisfies NodeGraphAttrs),
         this.renderControls(attrs),
       ],
