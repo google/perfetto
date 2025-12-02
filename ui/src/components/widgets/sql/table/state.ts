@@ -25,8 +25,6 @@ import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
 import {moveArrayItem} from '../../../../base/array_utils';
 import {uuidv4} from '../../../../base/uuid';
 
-const ROW_LIMIT = 100;
-
 interface Request {
   // Select statement, without the includes and the LIMIT and OFFSET clauses.
   selectStatement: string;
@@ -66,6 +64,7 @@ export class SqlTableState {
     direction: SortDirection;
   }[];
   private offset = 0;
+  private limit = 100;
   private request: Request;
   private data?: Data;
   private rowCount?: RowCount;
@@ -179,36 +178,6 @@ export class SqlTableState {
     `;
   }
 
-  canGoForward(): boolean {
-    if (this.data === undefined) return false;
-    return this.data.rows.length > ROW_LIMIT;
-  }
-
-  canGoBack(): boolean {
-    if (this.data === undefined) return false;
-    return this.offset > 0;
-  }
-
-  goForward() {
-    if (!this.canGoForward()) return;
-    this.offset += ROW_LIMIT;
-    this.reload({offset: 'keep'});
-  }
-
-  goBack() {
-    if (!this.canGoBack()) return;
-    this.offset -= ROW_LIMIT;
-    this.reload({offset: 'keep'});
-  }
-
-  getDisplayedRange(): {from: number; to: number} | undefined {
-    if (this.data === undefined) return undefined;
-    return {
-      from: this.offset + 1,
-      to: this.offset + Math.min(this.data.rows.length, ROW_LIMIT),
-    };
-  }
-
   private async loadRowCount(): Promise<RowCount | undefined> {
     const filters = Array.from(this.filters.get());
     const res = await this.trace.engine.query(this.getCountRowsSQLQuery());
@@ -221,11 +190,10 @@ export class SqlTableState {
 
   private buildRequest(): Request {
     const {selectStatement, columns} = this.buildSqlSelectStatement('display');
-    // We fetch one more row to determine if we can go forward.
     const query = `
       ${this.getSQLImports()}
       ${selectStatement}
-      LIMIT ${ROW_LIMIT + 1}
+      LIMIT ${this.limit}
       OFFSET ${this.offset}
     `;
     return {selectStatement, query, columns};
@@ -248,8 +216,8 @@ export class SqlTableState {
     };
   }
 
-  private async reload(params?: {offset: 'reset' | 'keep'}) {
-    if ((params?.offset ?? 'reset') === 'reset') {
+  private async reload(params?: {resetOffset?: boolean}) {
+    if (params?.resetOffset) {
       this.offset = 0;
     }
 
@@ -315,7 +283,7 @@ export class SqlTableState {
     // Add the new sort clause to the front, so we effectively stable-sort the
     // data currently displayed to the user.
     this.orderBy.unshift({column: clause.column, direction: clause.direction});
-    this.reload();
+    this.reload({resetOffset: true});
   }
 
   isSortedBy(column: TableColumn): SortDirection | undefined {
@@ -339,7 +307,7 @@ export class SqlTableState {
 
   addColumn(column: TableColumn, index: number) {
     this.columns.splice(index + 1, 0, column);
-    this.reload({offset: 'keep'});
+    this.reload({resetOffset: true});
   }
 
   hideColumnAtIndex(index: number) {
@@ -347,13 +315,29 @@ export class SqlTableState {
     this.columns.splice(index, 1);
     this.willRemoveColumn(column);
     // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
-    this.reload({offset: 'keep'});
+    this.reload({resetOffset: true});
   }
 
   replaceColumnAtIndex(index: number, column: TableColumn) {
     this.willRemoveColumn(this.columns[index]);
     this.columns[index] = column;
-    this.reload({offset: 'keep'});
+    this.reload({resetOffset: true});
+  }
+
+  setPagination(offset: number, limit: number) {
+    if (this.offset !== offset || this.limit !== limit) {
+      this.offset = offset;
+      this.limit = limit;
+      this.reload();
+    }
+  }
+
+  getCurrentOffset(): number {
+    return this.offset;
+  }
+
+  getCurrentLimit(): number {
+    return this.limit;
   }
 
   private willRemoveColumn(column: TableColumn) {

@@ -52,7 +52,7 @@ function createPluginSliceIdColumn(
   const col = new StandardColumn(name, undefined);
   col.renderCell = (value: SqlValue, tableManager: TableManager) => {
     if (value === null || typeof value !== 'bigint') {
-      return renderStandardCell(value, name, tableManager);
+      return renderStandardCell(value, tableManager);
     }
     return {
       content: renderSliceRef({

@@ -77,7 +77,7 @@ export class StandardColumn implements TableColumn {
   ) {}
 
   renderCell(value: SqlValue, tableManager?: TableManager) {
-    return renderStandardCell(value, this.column, tableManager);
+    return renderStandardCell(value, tableManager);
   }
 
   initialColumns(): TableColumn[] {
@@ -98,17 +98,15 @@ export class TimestampColumn implements TableColumn {
       value = BigInt(Math.round(value));
     }
     if (typeof value !== 'bigint') {
-      return renderStandardCell(value, this.column, tableManager);
+      return renderStandardCell(value, tableManager);
     }
+    const menuItems = tableManager ? getStandardContextMenuItems(value) : [];
     return {
       content: m(Timestamp, {
         trace: this.trace,
         ts: Time.fromRaw(value),
       }),
-      menu: [
-        tableManager &&
-          getStandardContextMenuItems(value, this.column, tableManager),
-      ],
+      menu: menuItems.length > 0 ? menuItems : undefined,
       isNumerical: true,
     };
   }
@@ -127,18 +125,16 @@ export class DurationColumn implements TableColumn {
       value = BigInt(Math.round(value));
     }
     if (typeof value !== 'bigint') {
-      return renderStandardCell(value, this.column, tableManager);
+      return renderStandardCell(value, tableManager);
     }
 
+    const menuItems = tableManager ? getStandardContextMenuItems(value) : [];
     return {
       content: m(DurationWidget, {
         trace: this.trace,
         dur: Duration.fromRaw(value),
       }),
-      menu: [
-        tableManager &&
-          getStandardContextMenuItems(value, this.column, tableManager),
-      ],
+      menu: menuItems.length > 0 ? menuItems : undefined,
       isNumerical: true,
     };
   }
@@ -162,9 +158,10 @@ export class SliceIdColumn implements TableColumn {
     const id = value;
 
     if (!manager || id === null) {
-      return renderStandardCell(id, this.column, manager);
+      return renderStandardCell(id, manager);
     }
 
+    const menuItems = getStandardContextMenuItems(id);
     return {
       content: m(SliceRef, {
         trace: this.trace,
@@ -172,7 +169,7 @@ export class SliceIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
-      menu: getStandardContextMenuItems(id, this.column, manager),
+      menu: menuItems.length > 0 ? menuItems : undefined,
       isNumerical: true,
     };
   }
@@ -223,12 +220,13 @@ export class SchedIdColumn implements TableColumn {
     const id = value;
 
     if (!manager || id === null) {
-      return renderStandardCell(id, this.column, manager);
+      return renderStandardCell(id, manager);
     }
     if (typeof id !== 'bigint') {
       return {content: wrongTypeError('id', this.column, id)};
     }
 
+    const menuItems = getStandardContextMenuItems(id);
     return {
       content: m(SchedRef, {
         trace: this.trace,
@@ -236,7 +234,7 @@ export class SchedIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
-      menu: getStandardContextMenuItems(id, this.column, manager),
+      menu: menuItems.length > 0 ? menuItems : undefined,
       isNumerical: true,
     };
   }
@@ -257,12 +255,13 @@ export class ThreadStateIdColumn implements TableColumn {
     const id = value;
 
     if (!manager || id === null) {
-      return renderStandardCell(id, this.column, manager);
+      return renderStandardCell(id, manager);
     }
     if (typeof id !== 'bigint') {
       return {content: wrongTypeError('id', this.column, id)};
     }
 
+    const menuItems = getStandardContextMenuItems(id);
     return {
       content: m(ThreadStateRef, {
         trace: this.trace,
@@ -270,7 +269,7 @@ export class ThreadStateIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
-      menu: getStandardContextMenuItems(id, this.column, manager),
+      menu: menuItems.length > 0 ? menuItems : undefined,
       isNumerical: true,
     };
   }
@@ -294,7 +293,7 @@ export class ThreadIdColumn implements TableColumn {
     const utid = value;
 
     if (!manager || utid === null) {
-      return renderStandardCell(utid, this.column, manager);
+      return renderStandardCell(utid, manager);
     }
 
     if (typeof utid !== 'bigint') {
@@ -303,12 +302,14 @@ export class ThreadIdColumn implements TableColumn {
       );
     }
 
+    const standardMenuItems = getStandardContextMenuItems(utid);
+    const menuItems = [
+      showThreadDetailsMenuItem(this.trace, asUtid(Number(utid))),
+      ...standardMenuItems,
+    ];
     return {
       content: `${utid}`,
-      menu: [
-        showThreadDetailsMenuItem(this.trace, asUtid(Number(utid))),
-        getStandardContextMenuItems(utid, this.column, manager),
-      ],
+      menu: menuItems.length > 0 ? menuItems : undefined,
       isNumerical: true,
     };
   }
@@ -386,7 +387,7 @@ export class ProcessIdColumn implements TableColumn {
     const upid = value;
 
     if (!manager || upid === null) {
-      return renderStandardCell(upid, this.column, manager);
+      return renderStandardCell(upid, manager);
     }
 
     if (typeof upid !== 'bigint') {
@@ -395,12 +396,14 @@ export class ProcessIdColumn implements TableColumn {
       );
     }
 
+    const standardMenuItems = getStandardContextMenuItems(upid);
+    const menuItems = [
+      showProcessDetailsMenuItem(this.trace, asUpid(Number(upid))),
+      ...standardMenuItems,
+    ];
     return {
       content: `${upid}`,
-      menu: [
-        showProcessDetailsMenuItem(this.trace, asUpid(Number(upid))),
-        getStandardContextMenuItems(upid, this.column, manager),
-      ],
+      menu: menuItems.length > 0 ? menuItems : undefined,
       isNumerical: true,
     };
   }
@@ -527,7 +530,7 @@ class ArgColumn implements TableColumn {
 
   renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell {
     if (tableManager === undefined) {
-      return renderStandardCell(value, this.column, tableManager);
+      return renderStandardCell(value, tableManager);
     }
     if (typeof value !== 'string') {
       return {
@@ -538,26 +541,14 @@ class ArgColumn implements TableColumn {
     }
     const argValue = parseJsonWithBigints(value);
     if (argValue['id'] === null) {
-      return renderStandardCell(null, this.getRawColumn('id'), tableManager);
+      return renderStandardCell(null, tableManager);
     }
     if (argValue['int_value'] !== null) {
-      return renderStandardCell(
-        argValue['int_value'],
-        this.getRawColumn('int_value'),
-        tableManager,
-      );
+      return renderStandardCell(argValue['int_value'], tableManager);
     } else if (argValue['real_value'] !== null) {
-      return renderStandardCell(
-        argValue['real_value'],
-        this.getRawColumn('real_value'),
-        tableManager,
-      );
+      return renderStandardCell(argValue['real_value'], tableManager);
     } else {
-      return renderStandardCell(
-        argValue['string_value'],
-        this.getRawColumn('string_value'),
-        tableManager,
-      );
+      return renderStandardCell(argValue['string_value'], tableManager);
     }
   }
 }
@@ -568,7 +559,7 @@ export class ArgSetIdColumn implements TableColumn {
   constructor(public readonly column: SqlColumn) {}
 
   renderCell(value: SqlValue, tableManager: TableManager) {
-    return renderStandardCell(value, this.column, tableManager);
+    return renderStandardCell(value, tableManager);
   }
 
   listDerivedColumns(manager: TableManager) {

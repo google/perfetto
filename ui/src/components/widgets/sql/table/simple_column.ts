@@ -28,6 +28,6 @@ export class SimpleColumn implements TableColumn {
   }
 
   renderCell(value: SqlValue, tableManager: TableManager | undefined) {
-    return renderStandardCell(value, this.column, tableManager);
+    return renderStandardCell(value, tableManager);
   }
 }

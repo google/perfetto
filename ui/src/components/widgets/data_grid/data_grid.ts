@@ -237,6 +237,14 @@ export interface DataGridAttrs {
   readonly columnReordering?: boolean;
 
   /**
+   * Whether to show column management options (hide, show, fit to content) in
+   * column header menus. When false, these options are hidden but
+   * columnReordering still works if enabled.
+   * Default = true.
+   */
+  readonly showColumnManagement?: boolean;
+
+  /**
    * Optional custom cell renderer function.
    * Allows customization of how cell values are displayed.
    * @param value The raw value from the data source
@@ -407,6 +415,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ? (x) => (this.columnOrder = x)
         : noOp,
       columnReordering = onColumnOrderChanged !== noOp,
+      showColumnManagement = true,
       cellRenderer = renderCell,
       showFiltersInToolbar = true,
       fillHeight = false,
@@ -716,15 +725,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         }
       }
 
-      if (Boolean(column.headerMenuItems)) {
-        if (menuItems.length > 0) {
-          menuItems.push(m(MenuDivider));
-        }
-        menuItems.push(column.headerMenuItems);
-      }
-
-      // Add column visibility options if column reordering is enabled
-      if (columnReordering) {
+      // Always show "Fit to content" if gridApi is available
+      if (this.gridApi || showColumnManagement) {
         if (menuItems.length > 0) {
           menuItems.push(m(MenuDivider));
           menuItems.push(m(MenuTitle, {label: 'Column'}));
@@ -740,7 +742,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             }),
           );
         }
+      }
 
+      // Add column management options if enabled
+      if (showColumnManagement) {
         // Hide current column (only if more than 1 visible)
         if (orderedColumns.length > 1) {
           menuItems.push(
@@ -808,6 +813,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             ],
           ),
         );
+      }
+
+      // Add extra menu items from column definition in a "More" section
+      if (Boolean(column.headerMenuItems)) {
+        if (menuItems.length > 0) {
+          menuItems.push(m(MenuDivider));
+        }
+        menuItems.push(column.headerMenuItems);
       }
 
       // Build aggregation sub-content if needed
@@ -1140,7 +1153,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.gridApi = api;
         },
         emptyState:
-          rows?.totalRows === 0
+          rows?.totalRows === 0 && !dataSource.isLoading
             ? m(
                 EmptyState,
                 {
@@ -1184,45 +1197,61 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     toolbarItemsRight: m.Children,
     showExportButton: boolean,
   ) {
-    if (
-      filters.length === 0 &&
-      !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
-      showResetButton === false &&
-      showExportButton === false
-    ) {
+    // Build toolbar items
+    const toolbarItems: m.Children[] = [];
+
+    if (Boolean(toolbarItemsLeft)) {
+      toolbarItems.push(toolbarItemsLeft);
+    }
+
+    if (showResetButton) {
+      toolbarItems.push(
+        m(Button, {
+          icon: Icons.ResetState,
+          label: 'Reset',
+          disabled: filters.length === 0 && sorting.direction === 'UNSORTED',
+          title: 'Reset grid state',
+          onclick: () => {
+            onSort({direction: 'UNSORTED'});
+          },
+        }),
+      );
+    }
+
+    // Filter chips in auto-expanding section
+    if (showFilters && filters.length > 0) {
+      toolbarItems.push(
+        m(StackAuto, [
+          m(GridFilterBar, [
+            filters.map((filter) => {
+              return m(GridFilterChip, {
+                content: this.formatFilter(filter),
+                onRemove: () => {
+                  const filterIndex = filters.indexOf(filter);
+                  onFilterRemove(filterIndex);
+                },
+              });
+            }),
+          ]),
+        ]),
+      );
+    }
+
+    if (Boolean(toolbarItemsRight)) {
+      toolbarItems.push(toolbarItemsRight);
+    }
+
+    if (showExportButton) {
+      toolbarItems.push(m(DataGridExportButton, {api: this.dataGridApi}));
+    }
+
+    // Only render toolbar if there are items to show
+    if (toolbarItems.length === 0) {
       return undefined;
     }
 
     return m(Box, {className: 'pf-data-grid__toolbar', spacing: 'small'}, [
-      m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
-        toolbarItemsLeft,
-        showResetButton &&
-          m(Button, {
-            icon: Icons.ResetState,
-            label: 'Reset',
-            disabled: filters.length === 0 && sorting.direction === 'UNSORTED',
-            title: 'Reset grid state',
-            onclick: () => {
-              onSort({direction: 'UNSORTED'});
-            },
-          }),
-        m(StackAuto, [
-          showFilters &&
-            m(GridFilterBar, [
-              filters.map((filter) => {
-                return m(GridFilterChip, {
-                  content: this.formatFilter(filter),
-                  onRemove: () => {
-                    const filterIndex = filters.indexOf(filter);
-                    onFilterRemove(filterIndex);
-                  },
-                });
-              }),
-            ]),
-        ]),
-        toolbarItemsRight,
-        showExportButton && m(DataGridExportButton, {api: this.dataGridApi}),
-      ]),
+      m(Stack, {orientation: 'horizontal', spacing: 'small'}, toolbarItems),
     ]);
   }
 
