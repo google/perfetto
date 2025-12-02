@@ -21,6 +21,8 @@ import {Chip} from '../../../widgets/chip';
 import {classNames} from '../../../base/classnames';
 import {Intent} from '../../../widgets/common';
 import {Switch} from '../../../widgets/switch';
+import {Icon} from '../../../widgets/icon';
+import {Tooltip} from '../../../widgets/tooltip';
 import markdownit from 'markdown-it';
 
 // Create a markdown renderer instance
@@ -59,6 +61,17 @@ function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
     case 'low':
       return 'Low';
   }
+}
+
+// Helper function to check if a table has timestamp columns.
+function isTimestampedTable(table: SqlTable): boolean {
+  return table.columns.some(
+    (col) =>
+      col.name === 'ts' ||
+      col.name === 'timestamp' ||
+      col.name.endsWith('_ts') ||
+      col.name.startsWith('ts_'),
+  );
 }
 
 // Renders a search input bar.
@@ -153,6 +166,8 @@ class TableCard
     const isDisabled = sqlModules.isModuleDisabled(moduleName);
     const isSelected = selectedTables?.has(table.name) ?? false;
 
+    const hasTimestamp = isTimestampedTable(table);
+
     return m(
       Card,
       {
@@ -168,6 +183,17 @@ class TableCard
         m(
           '.pf-table-card-header',
           m('.table-name', renderedName),
+          hasTimestamp &&
+            m(
+              Tooltip,
+              {
+                trigger: m(Icon, {
+                  icon: 'schedule',
+                  className: classNames('pf-timestamp-icon'),
+                }),
+              },
+              'This table contains timestamp columns',
+            ),
           matchTypeLabel &&
             m(Chip, {
               label: matchTypeLabel,
@@ -204,6 +230,7 @@ class TableCard
 export class TableList implements m.ClassComponent<TableListAttrs> {
   private selectedTags: Set<string> = new Set();
   private hideDisabledModules: boolean = false;
+  private onlyShowTimestampedTables: boolean = false;
 
   view({attrs}: m.CVnode<TableListAttrs>) {
     const allModules = attrs.sqlModules.listModules();
@@ -234,6 +261,16 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       filteredModules = filteredModules.filter(
         (module) => !attrs.sqlModules.isModuleDisabled(module.includeKey),
       );
+    }
+
+    // Filter to only timestamped tables if onlyShowTimestampedTables is true
+    if (this.onlyShowTimestampedTables) {
+      filteredModules = filteredModules
+        .map((module) => ({
+          ...module,
+          tables: module.tables.filter(isTimestampedTable),
+        }))
+        .filter((module) => module.tables.length > 0);
     }
 
     // Helper function to search tables by query (used for both display and tag filtering)
@@ -501,6 +538,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           checked: this.hideDisabledModules,
           onchange: () => {
             this.hideDisabledModules = !this.hideDisabledModules;
+          },
+        }),
+        m(Switch, {
+          label: 'Only show timestamped tables',
+          checked: this.onlyShowTimestampedTables,
+          onchange: () => {
+            this.onlyShowTimestampedTables = !this.onlyShowTimestampedTables;
           },
         }),
       ),

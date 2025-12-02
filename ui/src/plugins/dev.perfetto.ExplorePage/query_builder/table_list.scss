@@ -77,6 +77,13 @@
 }
 
 .pf-table-card-header {
+  .pf-timestamp-icon {
+    color: var(--primary);
+    font-size: 18px;
+    margin-left: 4px;
+    opacity: 0.8;
+  }
+
   .pf-match-type-chip {
     background-color: var(--surface-variant);
     color: var(--on-surface-variant);
