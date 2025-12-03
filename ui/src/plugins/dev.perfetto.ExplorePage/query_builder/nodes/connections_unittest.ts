@@ -1330,4 +1330,124 @@ describe('Connection Management', () => {
       expect(newNode.nextNodes.length).toBe(0);
     });
   });
+
+  describe('Secondary input removal should not trigger reconnection', () => {
+    it('should NOT reconnect secondary input node to children when removing secondary connection', () => {
+      // Bug reproduction test:
+      // Scenario:
+      //   sliceSource -> FilterDuring (primary input) -> childNode
+      //   intervalsSource -> FilterDuring (secondary input)
+      //
+      // When removing the secondary input connection (intervalsSource -> FilterDuring),
+      // the intervalsSource should NOT get connected to childNode.
+      //
+      // Bug: intervalsSource was getting reconnected to childNode
+      // Expected: intervalsSource is simply disconnected, no reconnection
+
+      const sliceSource = createMockPrevNode('slices', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('name', 'STRING'),
+      ]);
+
+      const intervalsSource = createMockPrevNode('intervals', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const filterDuringNode = new FilterDuringNode({});
+
+      // Connect sliceSource to FilterDuring's primary input
+      addConnection(sliceSource, filterDuringNode);
+      // Connect intervalsSource to FilterDuring's secondary input
+      addConnection(intervalsSource, filterDuringNode, 0);
+
+      // Add a child node downstream of FilterDuring
+      const childNode = new ModifyColumnsNode({selectedColumns: []});
+      addConnection(filterDuringNode, childNode);
+
+      // Verify initial state
+      expect(filterDuringNode.primaryInput).toBe(sliceSource);
+      expect(filterDuringNode.secondaryInputs.connections.get(0)).toBe(
+        intervalsSource,
+      );
+      expect(filterDuringNode.nextNodes).toContain(childNode);
+      expect(intervalsSource.nextNodes).toContain(filterDuringNode);
+      expect(intervalsSource.nextNodes.length).toBe(1);
+
+      // Remove the secondary input connection
+      removeConnection(intervalsSource, filterDuringNode);
+
+      // After removal:
+      // 1. intervalsSource should have no nextNodes
+      expect(intervalsSource.nextNodes.length).toBe(0);
+
+      // 2. FilterDuring's secondary input should be empty
+      expect(
+        filterDuringNode.secondaryInputs.connections.get(0),
+      ).toBeUndefined();
+
+      // 3. CRITICAL: intervalsSource should NOT be connected to childNode
+      //    (This was the bug - the reconnection logic was incorrectly triggered)
+      expect(intervalsSource.nextNodes).not.toContain(childNode);
+      expect(childNode.primaryInput).toBe(filterDuringNode);
+      expect(childNode.primaryInput).not.toBe(intervalsSource);
+
+      // 4. The primary chain should remain intact
+      expect(filterDuringNode.primaryInput).toBe(sliceSource);
+      expect(filterDuringNode.nextNodes).toContain(childNode);
+    });
+
+    it('should NOT reconnect IntervalIntersect input to downstream when removing one input', () => {
+      // Similar bug scenario with IntervalIntersectNode:
+      //   node1 -> IntervalIntersect -> childNode
+      //   node2 -> IntervalIntersect (secondary input at port 1)
+      //
+      // When removing node2's connection, node2 should NOT be connected to childNode
+
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const intervalNode = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+      });
+      node1.nextNodes.push(intervalNode);
+      node2.nextNodes.push(intervalNode);
+
+      // Add a child downstream
+      const childNode = new ModifyColumnsNode({selectedColumns: []});
+      addConnection(intervalNode, childNode);
+
+      // Verify initial state
+      expect(intervalNode.secondaryInputs.connections.size).toBe(2);
+      expect(intervalNode.nextNodes).toContain(childNode);
+      expect(node2.nextNodes).toContain(intervalNode);
+      expect(node2.nextNodes.length).toBe(1);
+
+      // Remove node2's connection
+      removeConnection(node2, intervalNode);
+
+      // After removal:
+      // 1. node2 should have no nextNodes
+      expect(node2.nextNodes.length).toBe(0);
+
+      // 2. node2 should NOT be connected to childNode
+      expect(node2.nextNodes).not.toContain(childNode);
+      expect(childNode.primaryInput).toBe(intervalNode);
+
+      // 3. The remaining connections should be intact
+      expect(intervalNode.secondaryInputs.connections.get(0)).toBe(node1);
+      expect(intervalNode.nextNodes).toContain(childNode);
+    });
+  });
 });

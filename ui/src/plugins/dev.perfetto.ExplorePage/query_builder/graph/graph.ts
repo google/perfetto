@@ -105,7 +105,11 @@ export interface GraphAttrs {
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
+  readonly onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void;
   readonly onImport: () => void;
   readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
@@ -518,7 +522,11 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
 function handleConnectionRemove(
   conn: Connection,
   rootNodes: QueryNode[],
-  onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void,
+  onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void,
 ): void {
   const fromNode = findQueryNode(conn.fromNode, rootNodes);
   const toNode = findQueryNode(conn.toNode, rootNodes);
@@ -527,11 +535,22 @@ function handleConnectionRemove(
     return;
   }
 
+  // Check BEFORE removal if this is a secondary input connection
+  let isSecondaryInput = false;
+  if (toNode.secondaryInputs?.connections) {
+    for (const node of toNode.secondaryInputs.connections.values()) {
+      if (node === fromNode) {
+        isSecondaryInput = true;
+        break;
+      }
+    }
+  }
+
   // Use the helper function to cleanly remove the connection
   removeConnection(fromNode, toNode);
 
   // Call the parent callback for any additional cleanup (e.g., state management)
-  onConnectionRemove(fromNode, toNode);
+  onConnectionRemove(fromNode, toNode, isSecondaryInput);
 }
 
 // ========================================
