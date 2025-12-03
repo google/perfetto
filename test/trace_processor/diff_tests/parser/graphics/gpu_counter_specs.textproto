@@ -17,6 +17,22 @@ packet {
   trusted_packet_sequence_id: 1
   timestamp: 0
   gpu_counter_event {
+    gpu_id: 1
+    counter_descriptor {
+      specs {
+        counter_id: 1
+        name: "GPU Frequency"
+        description: "clock speed"
+        denominator_units: SECOND,
+      }
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  gpu_counter_event {
     counter_descriptor {
       specs {
         counter_id: 2

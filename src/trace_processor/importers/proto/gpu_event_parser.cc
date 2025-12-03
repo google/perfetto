@@ -199,9 +199,9 @@ void GpuEventParser::TokenizeGpuCounterEvent(ConstBytes blob) {
 
       auto name_id = context_->storage->InternString(name);
       auto desc_id = context_->storage->InternString(desc);
+      auto gpu_id = event.has_gpu_id() ? event.gpu_id() : 0;
       auto track_id = context_->track_tracker->InternTrack(
-          tracks::kGpuCounterBlueprint,
-          tracks::Dimensions(0 /* gpu_id */, name),
+          tracks::kGpuCounterBlueprint, tracks::Dimensions(gpu_id, name),
           tracks::DynamicName(name_id),
           [&, this](ArgsTracker::BoundInserter& inserter) {
             inserter.AddArg(description_id_, Variadic::String(desc_id));
