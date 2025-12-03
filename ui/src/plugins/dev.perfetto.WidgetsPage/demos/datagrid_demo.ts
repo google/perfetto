@@ -115,7 +115,6 @@ export function renderDataGrid(app: App): m.Children {
               title: 'ID',
               aggregation: aggregation ? 'COUNT' : undefined,
               contextMenuRenderer: (defaultGroups) => {
-                // Just sprinkle dividers freely - CSS will clean them up!
                 return [
                   defaultGroups.sorting,
                   m(MenuDivider),

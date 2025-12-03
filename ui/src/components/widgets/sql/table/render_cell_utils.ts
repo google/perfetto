@@ -66,6 +66,6 @@ export function renderStandardCell(
   const contextMenuItems: m.Child[] = getStandardContextMenuItems(value);
   return {
     ...contentWithFormatting,
-    menu: contextMenuItems.length > 0 ? contextMenuItems : undefined,
+    menu: contextMenuItems,
   };
 }
