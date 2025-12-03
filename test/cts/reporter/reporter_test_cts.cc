@@ -258,8 +258,14 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistentTraceExists) {
       std::string(kPersistentTracesDir) + "/" + kSessionName + ".pftrace";
   // Create a trace file, it could be, for example, a trace from the previous
   // run that was by mistake not removed on reboot.
-  auto fd = base::OpenFile(trace_file, O_RDWR | O_CREAT | O_TRUNC, 0600);
-  ASSERT_TRUE(fd) << "Failed to create an 'existing' trace file.";
+  //
+  // This test binary is running as the 'shell' user, which doesn't have write
+  // permission to the `kPersistentTracesDir` directory, so we can't just use
+  // `base::OpenFile` to create an 'existing' trace file. So, to create a file,
+  // we start a simple anonymous Perfetto session with the `--out` pointing to
+  // the file we want to create.
+  auto perfetto_create_file_proc =
+      Exec("perfetto", {"--time", "1s", "--out", trace_file});
 
   base::Uuid uuid = base::Uuidv4();
   TraceConfig trace_config = CreateMinimalTraceReporterConfig(
@@ -275,6 +281,20 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistentTraceExists) {
                                 "-",
                             },
                             trace_config.SerializeAsString());
+
+  // Run a perfetto session that creates a file, wait for the file to be
+  // created, stop session.
+  std::thread perfetto_create_file_proc_thread([&perfetto_create_file_proc]() {
+    std::string stderr_str;
+    ASSERT_EQ(0, perfetto_create_file_proc.Run(&stderr_str)) << stderr_str;
+    ASSERT_THAT(stderr_str, Not(HasSubstr(kServiceError)));
+  });
+
+  ASSERT_TRUE(WaitForNotEmptyFile(trace_file))
+      << "Timed out waiting for an 'existing' trace file to be created: "
+      << trace_file;
+  perfetto_create_file_proc.SendSigterm();
+  perfetto_create_file_proc_thread.join();
 
   std::string stderr_str;
   // Error should be reported, exit code should be zero.
