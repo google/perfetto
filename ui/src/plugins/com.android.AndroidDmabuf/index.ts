@@ -18,7 +18,11 @@ import {
 } from '../../components/tracks/query_counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  COUNTER_TRACK_KIND,
+  SLICE_TABLE_TRACK,
+  SLICE_TRACK,
+} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -141,7 +145,7 @@ async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     tags: {
-      kinds: [SLICE_TRACK_KIND],
+      kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
       trackIds: ids,
     },
     renderer: await createTraceProcessorSliceTrack({

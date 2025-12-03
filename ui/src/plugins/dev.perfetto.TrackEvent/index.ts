@@ -25,7 +25,11 @@ import {
 } from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
 import {assertExists, assertTrue} from '../../base/logging';
-import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  COUNTER_TRACK_KIND,
+  SLICE_TABLE_TRACK,
+  SLICE_TRACK,
+} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
@@ -178,7 +182,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         continue;
       }
 
-      const kind = isCounter ? COUNTER_TRACK_KIND : SLICE_TRACK_KIND;
+      const kind = isCounter ? COUNTER_TRACK_KIND : SLICE_TABLE_TRACK;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const trackName = getTrackName({
         name,
@@ -203,7 +207,9 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           uri,
           description: description ?? undefined,
           tags: {
-            kinds: [kind],
+            kinds: isCounter
+              ? [COUNTER_TRACK_KIND]
+              : [SLICE_TRACK, SLICE_TABLE_TRACK],
             trackIds: [trackIds[0]],
             upid: upid ?? undefined,
             utid: utid ?? undefined,

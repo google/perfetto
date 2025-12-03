@@ -22,7 +22,7 @@ import {
   areaSelectionsEqual,
   AreaSelectionTab,
 } from '../../public/selection';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TABLE_TRACK} from '../../public/track_kinds';
 import {Button} from '../../widgets/button';
 import {Trace} from '../../public/trace';
 import {extensions} from '../../components/extensions';
@@ -46,7 +46,10 @@ export class PivotTableTab implements AreaSelectionTab {
     ) {
       this.previousSelection = selection;
       this.trackIds = selection.tracks
-        .filter((track) => track.tags?.kinds?.includes(SLICE_TRACK_KIND))
+        // Can only work from slice table tracks.
+        // TODO(stevegolton): Remove this and just use the aggregations which
+        // can operate on any slice-like tracks.
+        .filter((track) => track.tags?.kinds?.includes(SLICE_TABLE_TRACK))
         .flatMap((track) => track.tags?.trackIds ?? []);
       this.getOrCreateState().filters.setFilters([
         {

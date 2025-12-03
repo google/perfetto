@@ -17,6 +17,21 @@
 // ton of circular imports.
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
-export const SLICE_TRACK_KIND = 'SliceTrack';
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
+
+// This type indicates that a track represents slice-like data and that it's
+// dataset's columns are as such:
+// - id: A unique identifier for the slice
+// - ts: A timestamp indicating the start of the slice
+// - dur: (Optional) A duration indicating the length of the slice
+// - name: (Optional) The name of the slice
+export const SLICE_TRACK = 'SliceTrack';
+
+// This type indicates the id of each event in this track corresponds to a row
+// in the `slice` table. Users of this track kind can expect to be able to query
+// the `slice` table for more information about each event.
+// TODO(stevegolton): Eventually, users should not have to make this assumption
+// and should just be able to operate on the dataset provided by the track, but
+// some legacy systems still rely on this: e.g flows.
+export const SLICE_TABLE_TRACK = 'SliceTableTrack';
