@@ -508,31 +508,27 @@ export class MergeNode implements QueryNode {
     };
   }
 
-  static deserializeState(
-    nodes: Map<string, QueryNode>,
-    state: MergeSerializedState,
-  ): {
-    leftNode?: QueryNode;
-    rightNode?: QueryNode;
-    leftQueryAlias: string;
-    rightQueryAlias: string;
-    conditionType: 'equality' | 'freeform';
-    leftColumn: string;
-    rightColumn: string;
-    sqlExpression: string;
-  } {
-    const leftNode = nodes.get(state.leftNodeId);
-    const rightNode = nodes.get(state.rightNodeId);
-
+  static deserializeState(state: MergeSerializedState): MergeNodeState {
     return {
-      leftNode,
-      rightNode,
       leftQueryAlias: state.leftQueryAlias,
       rightQueryAlias: state.rightQueryAlias,
       conditionType: state.conditionType ?? 'equality',
       leftColumn: state.leftColumn ?? '',
       rightColumn: state.rightColumn ?? '',
       sqlExpression: state.sqlExpression ?? '',
+    };
+  }
+
+  static deserializeConnections(
+    nodes: Map<string, QueryNode>,
+    state: MergeSerializedState,
+  ): {
+    leftNode?: QueryNode;
+    rightNode?: QueryNode;
+  } {
+    return {
+      leftNode: nodes.get(state.leftNodeId),
+      rightNode: nodes.get(state.rightNodeId),
     };
   }
 }

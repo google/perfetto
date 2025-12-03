@@ -690,21 +690,25 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   static deserializeState(
+    state: IntervalIntersectSerializedState,
+  ): IntervalIntersectNodeState {
+    return {
+      inputNodes: [],
+      filterNegativeDur: state.filterNegativeDur,
+      partitionColumns: state.partitionColumns,
+    };
+  }
+
+  static deserializeConnections(
     nodes: Map<string, QueryNode>,
     state: IntervalIntersectSerializedState,
-  ): {
-    inputNodes: QueryNode[];
-    filterNegativeDur?: boolean[];
-    partitionColumns?: string[];
-  } {
+  ): {inputNodes: QueryNode[]} {
     // Resolve all input nodes from their IDs
     const inputNodes = state.intervalNodes
       .map((id) => nodes.get(id))
       .filter((node): node is QueryNode => node !== undefined);
     return {
       inputNodes,
-      filterNegativeDur: state.filterNegativeDur,
-      partitionColumns: state.partitionColumns,
     };
   }
 }

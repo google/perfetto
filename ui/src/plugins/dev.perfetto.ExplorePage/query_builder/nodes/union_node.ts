@@ -308,17 +308,23 @@ export class UnionNode implements QueryNode {
     };
   }
 
-  static deserializeState(
+  static deserializeState(state: UnionSerializedState): UnionNodeState {
+    return {
+      inputNodes: [],
+      selectedColumns: state.selectedColumns,
+    };
+  }
+
+  static deserializeConnections(
     nodes: Map<string, QueryNode>,
     state: UnionSerializedState,
-  ): {inputNodes: QueryNode[]; selectedColumns: ColumnInfo[]} {
+  ): {inputNodes: QueryNode[]} {
     // Resolve all input nodes from their IDs
     const inputNodes = state.unionNodes
       .map((id) => nodes.get(id))
       .filter((node): node is QueryNode => node !== undefined);
     return {
       inputNodes,
-      selectedColumns: state.selectedColumns,
     };
   }
 }

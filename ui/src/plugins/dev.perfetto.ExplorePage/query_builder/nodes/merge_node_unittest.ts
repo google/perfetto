@@ -804,6 +804,29 @@ describe('MergeNode', () => {
 
   describe('deserializeState', () => {
     it('should deserialize state correctly', () => {
+      const serialized = {
+        leftNodeId: 'node1',
+        rightNodeId: 'node2',
+        leftQueryAlias: 'left',
+        rightQueryAlias: 'right',
+        conditionType: 'equality' as const,
+        leftColumn: 'id',
+        rightColumn: 'id',
+        sqlExpression: '',
+      };
+
+      const state = MergeNode.deserializeState(serialized);
+
+      expect(state.leftQueryAlias).toBe('left');
+      expect(state.rightQueryAlias).toBe('right');
+      expect(state.conditionType).toBe('equality');
+      expect(state.leftColumn).toBe('id');
+      expect(state.rightColumn).toBe('id');
+    });
+  });
+
+  describe('deserializeConnections', () => {
+    it('should deserialize connections correctly', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
       const nodes = new Map([
@@ -811,7 +834,7 @@ describe('MergeNode', () => {
         ['node2', node2],
       ]);
 
-      const state = MergeNode.deserializeState(nodes, {
+      const connections = MergeNode.deserializeConnections(nodes, {
         leftNodeId: 'node1',
         rightNodeId: 'node2',
         leftQueryAlias: 'left',
@@ -822,19 +845,14 @@ describe('MergeNode', () => {
         sqlExpression: '',
       });
 
-      expect(state.leftNode).toBe(node1);
-      expect(state.rightNode).toBe(node2);
-      expect(state.leftQueryAlias).toBe('left');
-      expect(state.rightQueryAlias).toBe('right');
-      expect(state.conditionType).toBe('equality');
-      expect(state.leftColumn).toBe('id');
-      expect(state.rightColumn).toBe('id');
+      expect(connections.leftNode).toBe(node1);
+      expect(connections.rightNode).toBe(node2);
     });
 
     it('should handle missing nodes gracefully', () => {
       const nodes = new Map<string, QueryNode>();
 
-      const state = MergeNode.deserializeState(nodes, {
+      const connections = MergeNode.deserializeConnections(nodes, {
         leftNodeId: 'missing1',
         rightNodeId: 'missing2',
         leftQueryAlias: 'left',
@@ -845,8 +863,8 @@ describe('MergeNode', () => {
         sqlExpression: '',
       });
 
-      expect(state.leftNode).toBeUndefined();
-      expect(state.rightNode).toBeUndefined();
+      expect(connections.leftNode).toBeUndefined();
+      expect(connections.rightNode).toBeUndefined();
     });
   });
 });

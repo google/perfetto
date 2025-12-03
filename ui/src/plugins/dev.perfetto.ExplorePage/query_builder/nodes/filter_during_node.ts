@@ -561,7 +561,20 @@ export class FilterDuringNode implements QueryNode {
     serializedState: FilterDuringNodeState,
   ): FilterDuringNodeState {
     return {
-      ...serializedState,
+      filterNegativeDurPrimary: serializedState.filterNegativeDurPrimary,
+      filterNegativeDurSecondary: serializedState.filterNegativeDurSecondary,
+    };
+  }
+
+  static deserializeConnections(
+    nodes: Map<string, QueryNode>,
+    serializedState: {secondaryInputNodeIds?: string[]},
+  ): {secondaryInputNodes: QueryNode[]} {
+    const secondaryInputNodes = (serializedState.secondaryInputNodeIds ?? [])
+      .map((id) => nodes.get(id))
+      .filter((node): node is QueryNode => node !== undefined);
+    return {
+      secondaryInputNodes,
     };
   }
 
