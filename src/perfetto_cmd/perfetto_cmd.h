@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/pipe.h"
@@ -42,6 +43,11 @@
 #include "src/perfetto_cmd/packet_writer.h"
 
 namespace perfetto {
+
+// Forward declaration for a proto.
+namespace protos::gen {
+class TraceConfig_AndroidReportConfig;
+}  // namespace protos::gen
 
 class PerfettoCmd : public Consumer {
  public:
@@ -150,6 +156,12 @@ class PerfettoCmd : public Consumer {
       base::ScopedMmap mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
+  base::Status ReportTraceToAndroidFramework(
+      int trace_fd,
+      uint64_t trace_size,
+      const base::Uuid& uuid,
+      const std::string& unique_session_name,
+      const protos::gen::TraceConfig_AndroidReportConfig& report_config);
   void ReportTraceToAndroidFrameworkOrCrash();
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
