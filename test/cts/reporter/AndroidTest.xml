@@ -26,11 +26,11 @@
     <!-- If the CtsPerfettoReporterApp.apk is already installed tradefed may not re-install it.
     Because of this we clear it internal data before and after the test, to delete the "reported"
     traces that are saved on disk. -->
-    <!-- <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="throw-if-cmd-fail" value="true" />
         <option name="run-command" value="pm clear android.perfetto.cts.reporter"/>
         <option name="teardown-command" value="pm clear android.perfetto.cts.reporter"/>
-    </target_preparer> -->
+    </target_preparer>
     <!-- Remove any persistent trace files, that may be left if the test crashed or failed. -->
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <!-- Don't throw if there is nothing to remove. -->
