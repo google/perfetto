@@ -111,7 +111,11 @@ export interface BuilderAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
+  readonly onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void;
   readonly onFilterAdd: (
     node: QueryNode,
     filter: UIFilter | UIFilter[],

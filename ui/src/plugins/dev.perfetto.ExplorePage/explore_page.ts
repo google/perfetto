@@ -613,16 +613,21 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs: ExplorePageAttrs,
     fromNode: QueryNode,
     toNode: QueryNode,
+    isSecondaryInput: boolean,
   ) {
     const {state, onStateUpdate} = attrs;
 
     // NOTE: The basic connection removal is already handled by graph.ts
     // This callback handles higher-level logic like reconnection and state updates
 
-    // Check if we should reconnect fromNode to toNode's children (bypass toNode)
-    // Note: We check if fromNode has no next nodes (connection already removed)
+    // Only reconnect fromNode to toNode's children when removing a PRIMARY input.
+    // When removing a SECONDARY input, we should NOT reconnect - the secondary
+    // input node is just an auxiliary input (like intervals for FilterDuring)
+    // and should not be connected to the children of the node it was feeding into.
     const shouldReconnect =
-      fromNode.nextNodes.length === 0 && toNode.nextNodes.length > 0;
+      !isSecondaryInput &&
+      fromNode.nextNodes.length === 0 &&
+      toNode.nextNodes.length > 0;
 
     if (shouldReconnect) {
       // Reconnect fromNode to all of toNode's children (bypass toNode)
@@ -887,8 +892,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             this.handleDeleteNode(wrappedAttrs, state.selectedNode);
           }
         },
-        onConnectionRemove: (fromNode, toNode) => {
-          this.handleConnectionRemove(wrappedAttrs, fromNode, toNode);
+        onConnectionRemove: (fromNode, toNode, isSecondaryInput) => {
+          this.handleConnectionRemove(
+            wrappedAttrs,
+            fromNode,
+            toNode,
+            isSecondaryInput,
+          );
         },
         onImport: () => this.handleImport(wrappedAttrs),
         onImportWithStatement: () =>
