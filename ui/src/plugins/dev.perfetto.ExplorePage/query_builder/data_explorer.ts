@@ -23,7 +23,6 @@ import {SqlValue} from '../../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
-import {TextParagraph} from '../../../widgets/text_paragraph';
 import {Query, QueryNode, isAQuery} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
@@ -32,6 +31,7 @@ import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
 import {UIFilter, normalizeDataGridFilter} from './operations/filter';
+import {DataExplorerEmptyState} from './widgets';
 
 export interface DataExplorerAttrs {
   readonly node: QueryNode;
@@ -178,17 +178,11 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
       // Clear any stale execution error when validation fails
       attrs.node.state.issues.clearExecutionError();
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.queryError.message,
-        ),
-      );
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.queryError.message,
+      });
     }
 
     // Show execution errors (e.g., when materialization fails due to
@@ -196,15 +190,12 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // so they survive validate() calls during rendering.
     if (attrs.node.state.issues?.executionError) {
       return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
+        DataExplorerEmptyState,
+        {
           icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.executionError.message,
-        ),
+          variant: 'warning',
+          title: attrs.node.state.issues.executionError.message,
+        },
         m(Button, {
           label: 'Retry',
           icon: 'refresh',
@@ -220,86 +211,55 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
     // Show execution errors with centered warning icon
     if (errors) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m('.pf-data-explorer-warning-message', `Error: ${errors.message}`),
-      );
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: `Error: ${errors.message}`,
+      });
     }
 
     // Show response warnings with centered warning icon
     if (attrs.node.state.issues?.responseError) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.responseError.message,
-        ),
-      );
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.responseError.message,
+      });
     }
 
     // Show data errors (like "no rows returned") with centered warning icon
     if (attrs.node.state.issues?.dataError) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.dataError.message,
-        ),
-      );
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.dataError.message,
+      });
     }
 
     // Show spinner overlay when query is running
     if (attrs.isQueryRunning) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(
-          '.pf-exp-query-running-spinner',
-          {
-            style: {
-              fontSize: '64px',
-            },
-          },
-          m(Spinner, {
-            easing: true,
-          }),
-        ),
-      );
+      return m(DataExplorerEmptyState, {}, m(Spinner, {easing: true}));
     }
 
     // Show "No data to display" when no query is available
     if (attrs.query === undefined) {
-      return m(TextParagraph, {text: 'No data to display'});
+      return m(DataExplorerEmptyState, {
+        title: 'No data to display',
+      });
     }
 
     if (attrs.response && attrs.dataSource && attrs.node.validate()) {
       // Show warning for multiple statements with centered icon
       const warning =
         attrs.response.statementWithOutputCount > 1
-          ? m(
-              '.pf-data-explorer-empty-state',
-              m(Icon, {
-                className: 'pf-data-explorer-warning-icon',
-                icon: 'warning',
-              }),
-              m(
-                '.pf-data-explorer-warning-message',
-                `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} `,
-                'statements returned a result. ',
+          ? m(DataExplorerEmptyState, {
+              icon: 'warning',
+              variant: 'warning',
+              title:
+                `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} ` +
+                'statements returned a result. ' +
                 'Only the results for the last statement are displayed.',
-              ),
-            )
+            })
           : null;
 
       const supportedOps = [
@@ -378,7 +338,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       !attrs.isAnalyzing
     ) {
       return m(
-        '.pf-data-explorer-empty-state',
+        DataExplorerEmptyState,
+        {},
         m(Button, {
           label: 'Run Query',
           icon: 'play_arrow',
