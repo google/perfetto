@@ -459,9 +459,6 @@ export class AddColumnsNode implements QueryNode {
   nextNodes: QueryNode[];
   readonly state: AddColumnsNodeState;
 
-  // Track the previous rightNode ID to detect when it actually changes
-  private previousRightNodeId?: string;
-
   constructor(state: AddColumnsNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
@@ -482,25 +479,28 @@ export class AddColumnsNode implements QueryNode {
     this.state.columnAliases = this.state.columnAliases ?? new Map();
     this.state.suggestionAliases = this.state.suggestionAliases ?? new Map();
     this.state.computedColumns = this.state.computedColumns ?? [];
-    // Initialize tracking for the right node
-    this.previousRightNodeId = undefined;
   }
 
   // Called when a node is connected/disconnected to inputNodes
   onPrevNodesUpdated(): void {
-    const currentRightNodeId = this.rightNode?.nodeId;
-
-    // Only reset column selection when the RIGHT node (secondary input) changes,
-    // not when the primary input changes
-    if (currentRightNodeId !== this.previousRightNodeId) {
+    // If node is disconnected, reset everything
+    if (!this.rightNode) {
       this.state.selectedColumns = [];
+      this.state.isGuidedConnection = false;
+      this.state.onchange?.();
+      return;
+    }
 
-      // If node is disconnected, reset the guided connection flag
-      if (!this.rightNode) {
-        this.state.isGuidedConnection = false;
+    // Check if the join column is still valid
+    if (this.state.rightColumn) {
+      const rightColExists = this.rightCols.some(
+        (c) => c.column.name === this.state.rightColumn,
+      );
+      if (!rightColExists) {
+        // Join column no longer exists - reset selection
+        this.state.selectedColumns = [];
+        this.state.rightColumn = undefined;
       }
-
-      this.previousRightNodeId = currentRightNodeId;
     }
 
     this.state.onchange?.();
