@@ -80,6 +80,7 @@ import {addQueryResultsTab} from '../../../components/query_table/query_result_t
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
+import {DataExplorerEmptyState} from './widgets';
 import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
@@ -295,9 +296,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       SplitPanel,
       {
         className: layoutClasses,
-        visibility: selectedNode
-          ? this.drawerVisibility
-          : SplitPanelDrawerVisibility.COLLAPSED,
+        visibility: this.drawerVisibility,
         onVisibilityChange: (v) => {
           this.drawerVisibility = v;
         },
@@ -346,7 +345,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 this.exportToTimeline(selectedNode);
               },
             })
-          : null,
+          : m(DataExplorerEmptyState, {
+              icon: 'info',
+              title: 'Select a node to see the data',
+            }),
       },
       m(
         '.pf-qb-node-graph',

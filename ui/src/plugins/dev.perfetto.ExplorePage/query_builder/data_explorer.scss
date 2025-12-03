@@ -68,23 +68,29 @@ $panel-padding: 1rem;
   gap: 1rem;
   height: 100%;
   padding: $panel-padding;
-}
+  color: var(--pf-color-text-muted);
 
-.pf-data-explorer-warning-icon {
-  font-size: 48px;
-  color: var(--pf-color-warning);
-}
+  &__icon {
+    font-size: 48px;
+  }
 
-.pf-data-explorer-warning-message {
-  text-align: center;
-  color: var(--pf-color-text);
-  max-width: 600px;
-}
+  &__message {
+    text-align: center;
+    max-width: 600px;
+  }
 
-.pf-exp-query-running-spinner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  // Style children (spinner, buttons) to be prominent
+  .pf-spinner {
+    font-size: 48px;
+  }
+
+  &.pf-warning {
+    color: var(--pf-color-text);
+
+    .pf-data-explorer-empty-state__icon {
+      color: var(--pf-color-warning);
+    }
+  }
 }
 
 .pf-query-stats {
