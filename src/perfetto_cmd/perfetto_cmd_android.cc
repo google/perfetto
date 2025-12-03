@@ -272,18 +272,19 @@ PerfettoCmd::UnlinkAndReturnPersistentTracesToUpload() {
 
 void PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
   // We must do as little work as possible before setting
-  // "perfetto.uploader_ready". The "traced" service will not start until this
-  // property is set to "1".
+  // "perfetto.persistent.uploader.status". The "traced" service will not start
+  // until this property is set to "1".
   //
   // A fallback mechanism exists in perfetto.rc to prevent indefinite wait:
   // if this function crashes, hangs, or is never called, the property will
   // automatically be set to "1" once "sys.boot_completed=1".
   std::vector<base::ScopedFile> fds = UnlinkAndReturnPersistentTracesToUpload();
 
-  if (__system_property_set("perfetto.uploader_ready", "1") != 0) {
+  if (__system_property_set("perfetto.persistent.uploader.status", "1") != 0) {
     // This should never happen, but if it does we are in trouble. In this case
     // just crash, we don't care about traces to be reported.
-    PERFETTO_FATAL("Failed to set property perfetto.uploader_ready");
+    PERFETTO_FATAL(
+        "Failed to set property perfetto.persistent.uploader.status");
   }
 
   for (base::ScopedFile& fd : fds) {
