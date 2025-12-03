@@ -291,20 +291,28 @@ function getNodeHue(node: QueryNode): number {
       return 122; // Green (#c8e6c9)
     case NodeType.kSqlSource:
       return 199; // Cyan/Light Blue (#b3e5fc)
+    case NodeType.kTimeRangeSource:
+      return 33; // Orange (#ffe0b2)
     case NodeType.kAggregation:
       return 339; // Pink (#f8bbd0)
     case NodeType.kModifyColumns:
       return 261; // Purple (#d1c4e9)
     case NodeType.kAddColumns:
       return 232; // Indigo (#c5cae9)
+    case NodeType.kFilterDuring:
+      return 88; // Light Green (#dcedc8)
     case NodeType.kLimitAndOffset:
       return 175; // Teal (#b2dfdb)
     case NodeType.kSort:
       return 54; // Yellow (#fff9c4)
+    case NodeType.kFilter:
+      return 207; // Blue (#bbdefb)
     case NodeType.kIntervalIntersect:
       return 45; // Amber/Orange (#ffecb3)
     case NodeType.kUnion:
       return 187; // Cyan (#b2ebf2)
+    case NodeType.kMerge:
+      return 14; // Deep Orange (#ffccbc)
     default:
       return 65; // Lime (#f0f4c3)
   }
