@@ -33,15 +33,29 @@ export class SQLDataSource implements DataGridDataSource {
   private readonly engine: Engine;
   private readonly limiter = new AsyncLimiter();
   private readonly baseQuery: string;
+  private readonly imports: string;
+  private importsExecuted = false;
   private workingQuery = '';
   private pagination?: Pagination;
   private aggregates?: ReadonlyArray<AggregateSpec>;
   private cachedResult?: DataSourceResult;
   private isLoadingFlag = false;
 
-  constructor(engine: Engine, query: string) {
+  constructor(engine: Engine, query: string, imports?: string) {
     this.engine = engine;
     this.baseQuery = query;
+    this.imports = imports || '';
+  }
+
+  /**
+   * Execute SQL imports if they haven't been executed yet.
+   * This should be called before any queries that depend on the imports.
+   */
+  private async executeImportsOnce(): Promise<void> {
+    if (this.imports && !this.importsExecuted) {
+      await this.engine.query(this.imports);
+      this.importsExecuted = true;
+    }
   }
 
   /**
@@ -70,6 +84,9 @@ export class SQLDataSource implements DataGridDataSource {
       this.isLoadingFlag = true;
 
       try {
+        // Execute imports once before any queries
+        await this.executeImportsOnce();
+
         // If the working query has changed, we need to invalidate the cache and
         // reload everything, including the page count.
         const workingQuery = this.buildWorkingQuery(columns, filters, sorting);

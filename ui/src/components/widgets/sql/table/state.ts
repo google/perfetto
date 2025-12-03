@@ -12,62 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, Row} from '../../../../trace_processor/query_result';
-import {ColumnOrderClause, SqlColumn, sqlColumnId} from './sql_column';
-import {buildSqlQuery} from './query_builder';
-import {raf} from '../../../../core/raf_scheduler';
-import {SortDirection} from '../../../../base/comparison_utils';
+import {SqlColumn, sqlColumnId} from './sql_column';
 import {assertTrue} from '../../../../base/logging';
 import {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
-import {areFiltersEqual, Filter, Filters} from './filters';
 import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
 import {moveArrayItem} from '../../../../base/array_utils';
 import {uuidv4} from '../../../../base/uuid';
-
-interface Request {
-  // Select statement, without the includes and the LIMIT and OFFSET clauses.
-  selectStatement: string;
-  // Query, including the LIMIT and OFFSET clauses.
-  query: string;
-  // Map of SqlColumn's id to the column name in the query.
-  columns: {[key: string]: string};
-}
-
-// Result of the execution of the query.
-interface Data {
-  // Rows to show, including pagination.
-  rows: Row[];
-  error?: string;
-}
-
-interface RowCount {
-  // Total number of rows in view, excluding the pagination.
-  // Undefined if the query returned an error.
-  count: number;
-  // Filters which were used to compute this row count.
-  // We need to recompute the totalRowCount only when filters change and not
-  // when the set of columns / order by changes.
-  filters: Filter[];
-}
+import {buildSqlQuery} from './query_builder';
 
 export class SqlTableState {
-  public readonly filters: Filters;
   public readonly uuid: string;
 
   private readonly additionalImports: string[];
+  private readonly columnObservers: Array<() => void> = [];
 
-  // Columns currently displayed to the user. All potential columns can be found `this.table.columns`.
+  // Columns currently displayed to the user. All potential columns can be found in this.config.columns.
   private columns: TableColumn[];
-  private orderBy: {
-    column: TableColumn;
-    direction: SortDirection;
-  }[];
-  private offset = 0;
-  private limit = 100;
-  private request: Request;
-  private data?: Data;
-  private rowCount?: RowCount;
 
   constructor(
     readonly trace: Trace,
@@ -76,18 +37,10 @@ export class SqlTableState {
       initialColumns?: TableColumn[];
       additionalColumns?: TableColumn[];
       imports?: string[];
-      filters?: Filters;
-      orderBy?: {
-        column: TableColumn;
-        direction: SortDirection;
-      }[];
     },
   ) {
     this.additionalImports = args?.imports || [];
     this.uuid = uuidv4();
-
-    this.filters = args?.filters || new Filters();
-    this.filters.addObserver(() => this.reload());
     this.columns = [];
 
     if (args?.initialColumns !== undefined) {
@@ -105,261 +58,91 @@ export class SqlTableState {
         this.columns.push(...args.additionalColumns);
       }
     }
-
-    this.orderBy = args?.orderBy ?? [];
-
-    this.request = this.buildRequest();
-    this.reload();
   }
 
   clone(): SqlTableState {
     return new SqlTableState(this.trace, this.config, {
       initialColumns: this.columns,
       imports: this.args?.imports,
-      filters: new Filters(this.filters.get()),
-      orderBy: this.orderBy,
     });
   }
 
-  private getSQLImports() {
-    const tableImports = this.config.imports || [];
-    return [...tableImports, ...this.additionalImports]
-      .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
-      .join('\n');
+  /**
+   * Register a callback to be called when columns change
+   */
+  onColumnsChanged(callback: () => void): void {
+    this.columnObservers.push(callback);
   }
 
-  private getCountRowsSQLQuery(): string {
-    return `
-      ${this.getSQLImports()}
-
-      ${this.getSqlQuery({count: 'COUNT()'})}
-    `;
+  /**
+   * Notify all observers that columns have changed
+   */
+  private notifyColumnsChanged(): void {
+    this.columnObservers.forEach((cb) => cb());
   }
 
-  // Return a query which selects the given columns, applying the filters and ordering currently in effect.
-  getSqlQuery(columns: {[key: string]: SqlColumn}): string {
+  /**
+   * Build the base SQL query for the data source.
+   * This uses the query builder to handle joins and column expressions properly.
+   * WITHOUT imports (those should be run separately)
+   * and WITHOUT filters/sorting/pagination (those are handled by SQLDataSource)
+   */
+  buildBaseQuery(): string {
+    // Build columns map for query builder
+    const columns: {[key: string]: SqlColumn} = Object.fromEntries(
+      this.columns.map((c) => [tableColumnAlias(c), c.column]),
+    );
+
+    // Use the query builder which handles joins and complex expressions
     return buildSqlQuery({
       table: this.config.name,
       columns,
       prefix: this.config.prefix,
-      filters: this.filters.get(),
-      orderBy: this.getOrderedBy(),
+      // No filters, groupBy, or orderBy - those are handled by SQLDataSource
     });
   }
 
-  // We need column names to pass to the debug track creation logic.
-  private buildSqlSelectStatement(mode: 'display' | 'data'): {
-    selectStatement: string;
-    columns: {[key: string]: string};
-  } {
-    const columns: {[key: string]: SqlColumn} = Object.fromEntries(
-      this.columns.map((c) => [
-        tableColumnAlias(c),
-        mode === 'data' ? c.column : c.display ?? c.column,
-      ]),
-    );
-
-    return {
-      selectStatement: this.getSqlQuery(columns),
-      columns: Object.fromEntries(
-        Object.entries(columns).map(([key, value]) => [
-          sqlColumnId(value),
-          key,
-        ]),
-      ),
-    };
+  /**
+   * Get SQL imports that need to be run before any queries.
+   * These should be executed once when creating the data source.
+   */
+  getSQLImports(): string {
+    const tableImports = this.config.imports || [];
+    const allImports = [...tableImports, ...this.additionalImports];
+    return allImports.length > 0
+      ? allImports.map((i) => `INCLUDE PERFETTO MODULE ${i};`).join('\n')
+      : '';
   }
 
-  getNonPaginatedSQLQuery(): string {
-    return `
-      ${this.getSQLImports()}
-
-      ${this.buildSqlSelectStatement('data').selectStatement}
-    `;
-  }
-
-  private async loadRowCount(): Promise<RowCount | undefined> {
-    const filters = Array.from(this.filters.get());
-    const res = await this.trace.engine.query(this.getCountRowsSQLQuery());
-    if (res.error() !== undefined) return undefined;
-    return {
-      count: res.firstRow({count: NUM}).count,
-      filters: filters,
-    };
-  }
-
-  private buildRequest(): Request {
-    const {selectStatement, columns} = this.buildSqlSelectStatement('display');
-    const query = `
-      ${this.getSQLImports()}
-      ${selectStatement}
-      LIMIT ${this.limit}
-      OFFSET ${this.offset}
-    `;
-    return {selectStatement, query, columns};
-  }
-
-  private async loadData(): Promise<Data> {
-    const queryRes = await this.trace.engine.query(this.request.query);
-    const rows: Row[] = [];
-    for (const it = queryRes.iter({}); it.valid(); it.next()) {
-      const row: Row = {};
-      for (const column of queryRes.columns()) {
-        row[column] = it.get(column);
-      }
-      rows.push(row);
+  /**
+   * Get mapping from SqlColumn IDs to their aliases in the query results
+   */
+  getColumnAliasMap(): {[key: string]: string} {
+    const map: {[key: string]: string} = {};
+    for (const column of this.columns) {
+      map[sqlColumnId(column.column)] = tableColumnAlias(column);
     }
-
-    return {
-      rows,
-      error: queryRes.error(),
-    };
-  }
-
-  private async reload(params?: {resetOffset?: boolean}) {
-    if (params?.resetOffset) {
-      this.offset = 0;
-    }
-
-    const newFilters = this.rowCount?.filters;
-    const filtersMatch =
-      newFilters && areFiltersEqual(newFilters, this.filters.get());
-    this.data = undefined;
-    const request = this.buildRequest();
-    this.request = request;
-    if (!filtersMatch) {
-      this.rowCount = undefined;
-    }
-
-    // Schedule a full redraw to happen after a short delay (50 ms).
-    // This is done to prevent flickering / visual noise and allow the UI to fetch
-    // the initial data from the Trace Processor.
-    // There is a chance that someone else schedules a full redraw in the
-    // meantime, forcing the flicker, but in practice it works quite well and
-    // avoids a lot of complexity for the callers.
-    // 50ms is half of the responsiveness threshold (100ms):
-    // https://web.dev/rail/#response-process-events-in-under-50ms
-    setTimeout(() => raf.scheduleFullRedraw(), 50);
-
-    if (!filtersMatch) {
-      this.rowCount = await this.loadRowCount();
-    }
-
-    const data = await this.loadData();
-
-    // If the request has changed since we started loading the data, do not update the state.
-    if (this.request !== request) return;
-    this.data = data;
-
-    raf.scheduleFullRedraw();
-  }
-
-  getTotalRowCount(): number | undefined {
-    return this.rowCount?.count;
-  }
-
-  getCurrentRequest(): Request {
-    return this.request;
-  }
-
-  getDisplayedRows(): Row[] {
-    return this.data?.rows || [];
-  }
-
-  getQueryError(): string | undefined {
-    return this.data?.error;
-  }
-
-  isLoading() {
-    return this.data === undefined;
-  }
-
-  sortBy(clause: {column: TableColumn; direction: SortDirection | undefined}) {
-    // Remove previous sort by the same column.
-    this.orderBy = this.orderBy.filter(
-      (c) => tableColumnId(c.column) != tableColumnId(clause.column),
-    );
-    if (clause.direction !== undefined) {
-      // Add the new sort clause to the front, so we effectively stable-sort the
-      // data currently displayed to the user.
-      this.orderBy.unshift({
-        column: clause.column,
-        direction: clause.direction,
-      });
-    }
-    // Always reload, even when removing sort (direction === undefined)
-    this.reload({resetOffset: true});
-  }
-
-  clearAllSorting() {
-    this.orderBy = [];
-    this.reload({resetOffset: true});
-  }
-
-  isSortedBy(column: TableColumn): SortDirection | undefined {
-    if (this.orderBy.length === 0) return undefined;
-    if (tableColumnId(this.orderBy[0].column) !== tableColumnId(column)) {
-      return undefined;
-    }
-    return this.orderBy[0].direction;
-  }
-
-  getOrderedBy(): ColumnOrderClause[] {
-    const result: ColumnOrderClause[] = [];
-    for (const orderBy of this.orderBy) {
-      result.push({
-        column: orderBy.column.column,
-        direction: orderBy.direction,
-      });
-    }
-    return result;
+    return map;
   }
 
   addColumn(column: TableColumn, index: number) {
     this.columns.splice(index + 1, 0, column);
-    this.reload({resetOffset: true});
+    this.notifyColumnsChanged();
   }
 
   hideColumnAtIndex(index: number) {
-    const column = this.columns[index];
     this.columns.splice(index, 1);
-    this.willRemoveColumn(column);
-    // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
-    this.reload({resetOffset: true});
+    this.notifyColumnsChanged();
   }
 
   replaceColumnAtIndex(index: number, column: TableColumn) {
-    this.willRemoveColumn(this.columns[index]);
     this.columns[index] = column;
-    this.reload({resetOffset: true});
-  }
-
-  setPagination(offset: number, limit: number) {
-    if (this.offset !== offset || this.limit !== limit) {
-      this.offset = offset;
-      this.limit = limit;
-      this.reload();
-    }
-  }
-
-  getCurrentOffset(): number {
-    return this.offset;
-  }
-
-  getCurrentLimit(): number {
-    return this.limit;
-  }
-
-  private willRemoveColumn(column: TableColumn) {
-    // We can only filter by the visible columns to avoid confusing the user,
-    // so we remove order by clauses that refer to the hidden column.
-    this.orderBy = this.orderBy.filter(
-      (c) => tableColumnId(c.column) !== tableColumnId(column),
-    );
+    this.notifyColumnsChanged();
   }
 
   moveColumn(fromIndex: number, toIndex: number) {
     moveArrayItem(this.columns, fromIndex, toIndex);
+    this.notifyColumnsChanged();
   }
 
   getSelectedColumns(): readonly TableColumn[] {
