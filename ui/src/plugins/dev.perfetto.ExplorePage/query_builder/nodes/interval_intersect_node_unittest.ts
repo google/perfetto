@@ -811,14 +811,12 @@ describe('IntervalIntersectNode', () => {
         partitionColumns: ['utid'],
       };
 
-      const deserialized = IntervalIntersectNode.deserializeState(
+      const deserialized = IntervalIntersectNode.deserializeConnections(
         nodes,
         serialized,
       );
 
       expect(deserialized.inputNodes).toEqual([node1, node2, node3]);
-      expect(deserialized.filterNegativeDur).toEqual([true, false, true]);
-      expect(deserialized.partitionColumns).toEqual(['utid']);
     });
 
     it('should handle missing nodes gracefully', () => {
@@ -845,14 +843,13 @@ describe('IntervalIntersectNode', () => {
         partitionColumns: ['utid'],
       };
 
-      const deserialized = IntervalIntersectNode.deserializeState(
+      const deserialized = IntervalIntersectNode.deserializeConnections(
         nodes,
         serialized,
       );
 
       // Should only include found nodes (node_missing is filtered out)
       expect(deserialized.inputNodes).toEqual([node1, node2]);
-      expect(deserialized.filterNegativeDur).toEqual([true, false, true]);
     });
   });
 
