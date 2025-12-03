@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/android_stats/statsd_logging_helper.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <sys/sendfile.h>
@@ -87,12 +88,20 @@ void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
                              cfg.privacy_level()));
 }
 
+// static
 base::Status PerfettoCmd::ReportTraceToAndroidFramework(
     int trace_fd,
     uint64_t trace_size,
     const base::Uuid& uuid,
     const std::string& unique_session_name,
-    const protos::gen::TraceConfig_AndroidReportConfig& report_config) {
+    const protos::gen::TraceConfig_AndroidReportConfig& report_config,
+    bool statsd_logging) {
+  auto log_upload_event_fn = [statsd_logging, &uuid](PerfettoStatsdAtom atom) {
+    if (statsd_logging) {
+      android_stats::MaybeLogUploadEvent(atom, uuid.lsb(), uuid.msb());
+    }
+  };
+
   if (report_config.reporter_service_class().empty() ||
       report_config.reporter_service_package().empty()) {
     return base::ErrStatus("Invalid 'android_report_config'");
@@ -102,12 +111,12 @@ base::Status PerfettoCmd::ReportTraceToAndroidFramework(
   }
 
   if (trace_size == 0) {
-    LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportEmptyTrace);
+    log_upload_event_fn(PerfettoStatsdAtom::kCmdFwReportEmptyTrace);
     PERFETTO_LOG("Skipping reporting trace to Android. Empty trace.");
     return base::OkStatus();
   }
 
-  LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportBegin);
+  log_upload_event_fn(PerfettoStatsdAtom::kCmdFwReportBegin);
   base::StackString<128> self_fd("/proc/self/fd/%d", trace_fd);
   base::ScopedFile fd(base::OpenFile(self_fd.c_str(), O_RDONLY | O_CLOEXEC));
   if (!fd) {
@@ -134,7 +143,7 @@ base::Status PerfettoCmd::ReportTraceToAndroidFramework(
                  uuid.ToPrettyString().c_str(), unique_session_name.c_str(),
                  trace_size);
   }
-  LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportHandoff);
+  log_upload_event_fn(PerfettoStatsdAtom::kCmdFwReportHandoff);
   return base::OkStatus();
 }
 
@@ -144,7 +153,7 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
   base::Uuid uuid(uuid_);
   base::Status status = ReportTraceToAndroidFramework(
       trace_fd, bytes_written_, uuid, trace_config_->unique_session_name(),
-      trace_config_->android_report_config());
+      trace_config_->android_report_config(), statsd_logging_);
   if (!status.ok()) {
     PERFETTO_FATAL("ReportTraceToAndroidFramework: %s", status.c_message());
   }

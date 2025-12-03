@@ -156,12 +156,13 @@ class PerfettoCmd : public Consumer {
       base::ScopedMmap mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
-  base::Status ReportTraceToAndroidFramework(
+  static base::Status ReportTraceToAndroidFramework(
       int trace_fd,
       uint64_t trace_size,
       const base::Uuid& uuid,
       const std::string& unique_session_name,
-      const protos::gen::TraceConfig_AndroidReportConfig& report_config);
+      const protos::gen::TraceConfig_AndroidReportConfig& report_config,
+      bool statsd_logging);
   void ReportTraceToAndroidFrameworkOrCrash();
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
