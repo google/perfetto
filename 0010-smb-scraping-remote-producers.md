@@ -2,7 +2,7 @@
 
 **Authors:** @jahdiel-alvarez
 
-**Status:** Draft
+**Status:** Decided
 
 ## Problem
 
@@ -24,10 +24,10 @@ chunk that will never be sent to the tracing service.
 
 After various iterations we settled on the following design:
 
-### Intercept OnStop/OnFlush calls in the remote producers
+### Intercept OnFlush calls in the remote producers
 
 Instead of adding a new method to the current tracing protocol between traced and
-producers, we can intercept the `OnStop` and `OnFlush` service requests coming
+producers, we can intercept the `OnFlush` service requests coming
 from the service at the producer IPC client level. When the requests are
 intercepted, the producer should verify if it is in SMB emulation mode and if
 it is then it will go ahead and do internal SMB scraping. Once done, the process
@@ -57,3 +57,21 @@ service calls `GetUncommittedChunks` (a new IPC method) on the producer. This
 call will then be handled by the tracing muxer, which will scrape the emulated
 SMB and pass the data back to the tracing service. The returned data will be
 handled in the exact same way as it is done for local producers.
+
+### Option 2: Intercept OnStop/OnFlush calls in the remote producers
+
+Same approach as the final decision but included intercepting the `OnStop` service
+request as well. It was decided against this approach because you should never see
+`OnStop` without an `OnFlush` request (there are some exceptions like driving the
+consumer protocol yourself). There is more risk to waste too much time by intercepting
+both requests and missing the stop deadline imposed by the tracing service.
+
+## Note for Posterity
+
+In theory, we should look on whether the producer is using shmem emulation. However,
+`use_shmem_emulation_` is only part of the handshake between producer and traced_relay,
+`TracingServiceImpl` doesn't know anything about it. For now we will go with this
+proposal, because currently there is a 1:1 mapping between "being a remote producer"
+and "using shmem emulation". Technically speaking a local producer could choose to use
+shmem emulation in which case the logic here would not be sufficient. Since there are
+no known use-cases of this today, we accept it for the sake of pragmatism.
