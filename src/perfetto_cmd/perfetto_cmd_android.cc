@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "src/android_stats/statsd_logging_helper.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <sys/sendfile.h>
@@ -32,6 +31,7 @@
 #include "src/android_internal/incident_service.h"
 #include "src/android_internal/lazy_library_loader.h"
 #include "src/android_internal/tracing_service_proxy.h"
+#include "src/android_stats/statsd_logging_helper.h"
 
 #include "protos/perfetto/config/trace_config.gen.h"
 
