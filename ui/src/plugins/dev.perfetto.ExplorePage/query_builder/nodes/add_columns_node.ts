@@ -459,6 +459,9 @@ export class AddColumnsNode implements QueryNode {
   nextNodes: QueryNode[];
   readonly state: AddColumnsNodeState;
 
+  // Track the previous rightNode ID to detect when it actually changes
+  private previousRightNodeId?: string;
+
   constructor(state: AddColumnsNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
@@ -479,16 +482,25 @@ export class AddColumnsNode implements QueryNode {
     this.state.columnAliases = this.state.columnAliases ?? new Map();
     this.state.suggestionAliases = this.state.suggestionAliases ?? new Map();
     this.state.computedColumns = this.state.computedColumns ?? [];
+    // Initialize tracking for the right node
+    this.previousRightNodeId = undefined;
   }
 
   // Called when a node is connected/disconnected to inputNodes
   onPrevNodesUpdated(): void {
-    // Reset column selection when the right node changes
-    this.state.selectedColumns = [];
+    const currentRightNodeId = this.rightNode?.nodeId;
 
-    // If node is disconnected, reset the guided connection flag
-    if (!this.rightNode) {
-      this.state.isGuidedConnection = false;
+    // Only reset column selection when the RIGHT node (secondary input) changes,
+    // not when the primary input changes
+    if (currentRightNodeId !== this.previousRightNodeId) {
+      this.state.selectedColumns = [];
+
+      // If node is disconnected, reset the guided connection flag
+      if (!this.rightNode) {
+        this.state.isGuidedConnection = false;
+      }
+
+      this.previousRightNodeId = currentRightNodeId;
     }
 
     this.state.onchange?.();
