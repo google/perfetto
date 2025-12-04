@@ -143,7 +143,7 @@ void AndroidCpuPerUidModule::NotifyEndOfFile() {
     tables::AndroidCpuPerUidTrackTable::Row row;
     row.uid = it.key() >> 32;
     row.cluster = it.key() & 0xffffffff;
-    row.total_cpu_millis = it.value();
+    row.total_cpu_millis = static_cast<int64_t>(it.value());
     row.track_id = context_->track_tracker->InternTrack(
         kCpuPerUidBlueprint, tracks::Dimensions(row.uid, row.cluster));
     context_->storage->mutable_android_cpu_per_uid_track_table()->Insert(row);
