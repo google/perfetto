@@ -128,7 +128,10 @@ config("sanitizers_ldflags") {
       ldflags += [ "-fsanitize=memory" ]
     }
     if (is_ubsan) {
-      ldflags += [ "-fsanitize=undefined" ]
+      ldflags += [
+        "-fsanitize=undefined",
+        "-fsanitize=vptr",
+      ]
     }
     configs = [ ":sanitizer_options_link_helper" ]
   }
