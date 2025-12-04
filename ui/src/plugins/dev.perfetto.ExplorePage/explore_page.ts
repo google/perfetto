@@ -29,7 +29,6 @@ import {UIFilter} from './query_builder/operations/filter';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, importStateFromJson} from './json_handler';
-import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry, PreCreateState} from './query_builder/node_registry';
 import {QueryExecutionService} from './query_builder/query_execution_service';
@@ -758,14 +757,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
-  private handleImportWithStatement(attrs: ExplorePageAttrs) {
-    const {trace, sqlModulesPlugin, onStateUpdate} = attrs;
-    const sqlModules = sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
-
-    showImportWithStatementModal(trace, sqlModules, onStateUpdate);
-  }
-
   private handleUndo(attrs: ExplorePageAttrs) {
     if (!this.historyManager) return;
 
@@ -917,8 +908,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           );
         },
         onImport: () => this.handleImport(wrappedAttrs),
-        onImportWithStatement: () =>
-          this.handleImportWithStatement(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
         onFilterAdd: (node, filter, filterOperator) => {
           this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);

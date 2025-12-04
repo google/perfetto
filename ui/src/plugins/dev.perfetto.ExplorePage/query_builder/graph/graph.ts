@@ -111,7 +111,6 @@ export interface GraphAttrs {
     isSecondaryInput: boolean,
   ) => void;
   readonly onImport: () => void;
-  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
 }
 
