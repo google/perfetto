@@ -289,6 +289,22 @@ export class IntervalIntersectNode implements QueryNode {
       if (!checkColumns(inputNode, ['id', 'ts', 'dur'])) return false;
     }
 
+    // Validate partition columns exist in all inputs
+    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
+      for (const partitionCol of this.state.partitionColumns) {
+        for (let i = 0; i < inputNodes.length; i++) {
+          const node = inputNodes[i];
+          const cols = new Set(node.finalCols.map((c) => c.name));
+          if (!cols.has(partitionCol)) {
+            this.setValidationError(
+              `Partition column '${partitionCol}' is missing from Input ${i}. Please remove the partitioning or ensure all inputs have this column.`,
+            );
+            return false;
+          }
+        }
+      }
+    }
+
     return true;
   }
 
@@ -354,11 +370,22 @@ export class IntervalIntersectNode implements QueryNode {
 
     // Get common columns for partition selection
     const commonColumns = this.getCommonColumns();
-    if (commonColumns.length === 0) {
+
+    // Build options: include both common columns AND currently selected partition columns
+    // This ensures we show invalid partition columns so the user can deselect them
+    const allPartitionOptions = new Set([
+      ...commonColumns,
+      ...(this.state.partitionColumns ?? []),
+    ]);
+
+    // If there are no options at all (no common columns and no partitions set), don't show
+    if (allPartitionOptions.size === 0) {
       return null;
     }
 
-    const partitionOptions: MultiSelectOption[] = commonColumns.map((col) => ({
+    const partitionOptions: MultiSelectOption[] = Array.from(
+      allPartitionOptions,
+    ).map((col) => ({
       id: col,
       name: col,
       checked: this.state.partitionColumns?.includes(col) ?? false,
@@ -416,7 +443,7 @@ export class IntervalIntersectNode implements QueryNode {
     }
 
     const inputNodes = this.inputNodesList;
-    if (inputNodes.length === 0 || inputNodes[0] === undefined) {
+    if (inputNodes.length === 0) {
       if (this.state.partitionColumns.length > 0) {
         console.warn(
           '[IntervalIntersect] Clearing partition columns - no input nodes available',
@@ -426,23 +453,9 @@ export class IntervalIntersectNode implements QueryNode {
       return;
     }
 
-    const firstNodeCols = inputNodes[0].finalCols;
-    const availablePartitionCols = new Set(firstNodeCols.map((c) => c.name));
-
-    // Remove partition columns that no longer exist in input nodes
-    const validPartitionCols = this.state.partitionColumns.filter((colName) =>
-      availablePartitionCols.has(colName),
-    );
-
-    if (validPartitionCols.length !== this.state.partitionColumns.length) {
-      const removed = this.state.partitionColumns.filter(
-        (c) => !validPartitionCols.includes(c),
-      );
-      console.warn(
-        `[IntervalIntersect] Removing partition columns no longer available in input: ${removed.join(', ')}`,
-      );
-      this.state.partitionColumns = validPartitionCols;
-    }
+    // Don't automatically remove partition columns that become invalid.
+    // Instead, keep them and let validation fail so the user sees the error
+    // and can manually remove the partitioning.
   }
 
   onPrevNodesUpdated(): void {
