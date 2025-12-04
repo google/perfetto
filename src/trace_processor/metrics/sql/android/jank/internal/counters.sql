@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 INCLUDE PERFETTO MODULE android.cujs.cujs_base;
-INCLUDE PERFETTO MODULE android.cujs.sysui_cuj_counters;
+INCLUDE PERFETTO MODULE android.cujs.cuj_frame_counters;
 
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
 CREATE PERFETTO TABLE android_jank_cuj_counter_metrics AS
