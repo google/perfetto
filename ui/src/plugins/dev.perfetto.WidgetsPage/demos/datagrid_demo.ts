@@ -23,7 +23,7 @@ import {Engine} from '../../../trace_processor/engine';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
 import {languages} from '../sample_data';
-import {MenuItem} from '../../../widgets/menu';
+import {MenuItem, MenuDivider} from '../../../widgets/menu';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
@@ -62,6 +62,7 @@ export function renderDataGrid(app: App): m.Children {
         readonlySorting,
         aggregation,
         demoToolbarItems,
+        distinctValues,
         filterIsNull,
         filterIsNotNull,
         filterIn,
@@ -114,27 +115,55 @@ export function renderDataGrid(app: App): m.Children {
               name: 'id',
               title: 'ID',
               aggregation: aggregation ? 'COUNT' : undefined,
-              headerMenuItems: m(MenuItem, {
-                label: 'Log column name',
-                icon: 'info',
-                onclick: () => console.log('Column: id'),
-              }),
+              distinctValues,
+              filterType: 'numeric',
+              contextMenuRenderer: (defaultGroups) => {
+                return [
+                  defaultGroups.sorting,
+                  m(MenuDivider),
+                  defaultGroups.filters,
+                  m(MenuDivider),
+                  defaultGroups.fitToContent,
+                  m(MenuDivider),
+                  defaultGroups.columnManagement,
+                  m(MenuDivider),
+                  m(MenuItem, {
+                    label: 'Custom menu item',
+                    icon: 'info',
+                    onclick: () => console.log('Column: id'),
+                  }),
+                ];
+              },
             },
             {
               name: 'lang',
               title: 'Language',
+              distinctValues,
+              filterType: 'string',
             },
             {
               name: 'year',
               title: 'Year',
+              distinctValues,
+              filterType: 'numeric',
             },
             {
               name: 'creator',
               title: 'Creator',
+              distinctValues,
+              filterType: 'string',
             },
             {
               name: 'typing',
               title: 'Typing',
+              distinctValues,
+              filterType: 'string',
+            },
+            {
+              name: 'execution',
+              title: 'Execution',
+              distinctValues,
+              filterType: 'string',
             },
           ],
           data: languages,
@@ -145,9 +174,10 @@ export function renderDataGrid(app: App): m.Children {
         readonlyFilters: false,
         readonlySorting: false,
         aggregation: false,
-        showResetButton: false,
+        distinctValues: true,
         demoToolbarItems: false,
         showExportButton: false,
+        showRowCount: true,
         filterIsNull: true,
         filterIsNotNull: true,
         filterIn: true,
@@ -176,6 +206,7 @@ export function renderDataGrid(app: App): m.Children {
         readonlyFilters,
         readonlySorting,
         aggregation,
+        distinctValues,
         ...rest
       }) => {
         const trace = app.trace;
@@ -203,21 +234,39 @@ export function renderDataGrid(app: App): m.Children {
                 name: 'id',
                 title: 'ID',
                 aggregation: aggregation ? 'COUNT' : undefined,
+                distinctValues,
+                filterType: 'numeric',
               },
               {
                 name: 'dur',
                 title: 'Duration',
                 aggregation: aggregation ? 'SUM' : undefined,
+                distinctValues,
+                filterType: 'numeric',
               },
               {
                 name: 'state',
                 title: 'State',
+                distinctValues,
+                filterType: 'string',
               },
-              {name: 'thread_name', title: 'Thread'},
-              {name: 'ucpu', title: 'CPU'},
+              {
+                name: 'thread_name',
+                title: 'Thread',
+                distinctValues,
+                filterType: 'string',
+              },
+              {
+                name: 'ucpu',
+                title: 'CPU',
+                distinctValues,
+                filterType: 'numeric',
+              },
               {
                 name: 'io_wait',
                 title: 'IO Wait',
+                distinctValues,
+                filterType: 'numeric',
               },
             ],
           });
@@ -238,6 +287,8 @@ export function renderDataGrid(app: App): m.Children {
         readonlyFilters: false,
         readonlySorting: false,
         aggregation: false,
+        distinctValues: true,
+        showRowCount: true,
       },
       noPadding: true,
     }),
