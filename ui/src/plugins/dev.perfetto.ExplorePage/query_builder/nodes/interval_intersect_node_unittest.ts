@@ -655,6 +655,117 @@ describe('IntervalIntersectNode', () => {
       expect(node.validate()).toBe(true);
       expect(node.state.issues?.queryError).toBeUndefined();
     });
+
+    it('should fail validation when partition column is missing from an input', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node3 = createMockPrevNode('node3', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        // Missing 'utid' column
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2, node3],
+        partitionColumns: ['utid'],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toContain(
+        "Partition column 'utid' is missing from Input 2",
+      );
+      expect(node.state.issues?.queryError?.message).toContain(
+        'remove the partitioning',
+      );
+    });
+
+    it('should pass validation when all inputs have partition columns', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node3 = createMockPrevNode('node3', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2, node3],
+        partitionColumns: ['utid'],
+      });
+
+      expect(node.validate()).toBe(true);
+    });
+
+    it('should fail validation when only some partition columns are missing', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+        createColumnInfo('upid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+        // Missing 'upid' column
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        partitionColumns: ['utid', 'upid'],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toContain(
+        "Partition column 'upid' is missing from Input 1",
+      );
+    });
+
+    it('should pass validation with empty partition columns array', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        partitionColumns: [],
+      });
+
+      expect(node.validate()).toBe(true);
+      expect(node.state.issues?.queryError).toBeUndefined();
+    });
   });
 
   describe('getTitle', () => {
