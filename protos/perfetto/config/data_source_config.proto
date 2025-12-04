@@ -48,12 +48,14 @@ import "protos/perfetto/config/gpu/gpu_renderstages_config.proto";
 import "protos/perfetto/config/inode_file/inode_file_config.proto";
 import "protos/perfetto/config/interceptor_config.proto";
 import "protos/perfetto/config/power/android_power_config.proto";
+import "protos/perfetto/config/protovm/protovm_config.proto";
 import "protos/perfetto/config/statsd/statsd_tracing_config.proto";
 import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
 import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/profiling/perf_event_config.proto";
+
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
@@ -153,6 +155,18 @@ message DataSourceConfig {
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
 
   optional PriorityBoostConfig priority_boost = 10;
+
+  // If specified, the data source requires the tracing service to process
+  // overwritten packets (patches) using a ProtoVM instance with this config.
+  // The ProtoVM program is specified at data source registration time through
+  // the descriptor.
+
+  // TODO(primiano): something we should discuss. Currently, through this config
+  // we control the memory limit of a single ProtoVM instance.
+  // However, we don't control the total memory usage because producers are
+  // allowed to pass N programs, each could have a difference version and the
+  // service would instantiate N ProtoVMs.
+  optional ProtoVmConfig protovm_config = 12;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
