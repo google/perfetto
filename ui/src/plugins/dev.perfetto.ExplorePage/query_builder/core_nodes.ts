@@ -94,7 +94,7 @@ export function registerCoreNodes() {
   nodeRegistry.register('timerange', {
     name: 'Time Range',
     description:
-      'Import time range from timeline selection. Can be dynamic (syncs with selection) or static (snapshot).',
+      'Use timeline selection as a source node. Can be dynamic (syncs with timeline) or static (snapshot).',
     icon: 'schedule',
     type: 'source',
     showOnLandingPage: false, // Available in menus but not on landing page
