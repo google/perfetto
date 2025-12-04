@@ -637,11 +637,12 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   if (current_trace_name_.empty())
     current_trace_name_ = "Unnamed trace";
 
+  RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
+
   // Last opportunity to flush all pending data.
   FlushInternal(false);
 
   HeapGraphTracker::Get(context())->FinalizeAllProfiles();
-  RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
   DeobfuscationTracker::Get(context())->NotifyEndOfFile();
 
   // Rebuild the bounds table once everything has been completed: we do this
