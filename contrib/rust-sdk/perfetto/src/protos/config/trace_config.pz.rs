@@ -100,6 +100,7 @@ pb_msg!(TraceConfig {
     priority_boost: PriorityBoostConfig, msg, 40,
     exclusive_prio: u32, primitive, 41,
     no_flush_before_write_into_file: bool, primitive, 42,
+    trace_all_machines: bool, primitive, 43,
 });
 
 pb_msg!(SessionSemaphore {
