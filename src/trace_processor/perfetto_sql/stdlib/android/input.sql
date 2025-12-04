@@ -231,7 +231,7 @@ CREATE PERFETTO TABLE android_input_events (
   -- Duration of input event receipt.
   receive_dur DURATION,
   -- Vsync Id associated with the input. Null if an input event has no associated frame event.
-  frame_id LONG
+  frame_id JOINID(android_frames.frame_id)
 ) AS
 WITH
   dispatch AS MATERIALIZED (

@@ -28,7 +28,7 @@ RETURNS TABLE (
   -- Frame slice.
   id ID(slice.id),
   -- Parsed frame id.
-  frame_id LONG,
+  frame_id JOINID(android_frames.frame_id),
   -- Utid.
   utid JOINID(thread.id),
   -- Upid.
@@ -65,7 +65,7 @@ CREATE PERFETTO TABLE android_frames_choreographer_do_frame (
   id ID(slice.id),
   -- Frame id. Taken as the value behind "Choreographer#doFrame" in slice
   -- name.
-  frame_id LONG,
+  frame_id JOINID(android_frames.frame_id),
   -- Utid of the UI thread
   ui_thread_utid JOINID(thread.id),
   -- Upid of application process
@@ -92,7 +92,7 @@ CREATE PERFETTO TABLE android_frames_draw_frame (
   id ID(slice.id),
   -- Frame id. Taken as the value behind "DrawFrame" in slice
   -- name.
-  frame_id LONG,
+  frame_id JOINID(android_frames.frame_id),
   -- Utid of the render thread
   render_thread_utid JOINID(thread.id),
   -- Upid of application process
@@ -144,7 +144,7 @@ GROUP BY
 -- captures the layer_id for each actual timeline slice too.
 CREATE PERFETTO TABLE android_frames_layers (
   -- Frame id.
-  frame_id LONG,
+  frame_id JOINID(android_frames.frame_id),
   -- Timestamp of the frame. Start of the frame as defined by the start of
   -- "Choreographer#doFrame" slice and the same as the start of the frame in
   -- `actual_frame_timeline_slice if present.
@@ -274,7 +274,7 @@ WHERE
 -- information across different layers for a given frame_id in a given process.
 CREATE PERFETTO TABLE android_frames (
   -- Frame id.
-  frame_id LONG,
+  frame_id ID,
   -- Timestamp of the frame. Start of the frame as defined by the start of
   -- "Choreographer#doFrame" slice and the same as the start of the frame in
   -- `actual_frame_timeline_slice if present.
@@ -326,7 +326,9 @@ SELECT
 FROM android_frames_layers AS frames_layers
 GROUP BY
   frame_id,
-  upid;
+  upid
+ORDER BY
+  frame_id;
 
 -- Returns first frame after the provided timestamp. The returning table has at
 -- most one row.
@@ -336,7 +338,7 @@ CREATE PERFETTO FUNCTION android_first_frame_after(
 )
 RETURNS TABLE (
   -- Frame id.
-  frame_id LONG,
+  frame_id JOINID(android_frames.frame_id),
   -- Start of the frame, the timestamp of the "Choreographer#doFrame" slice.
   ts TIMESTAMP,
   -- Duration of the frame.
