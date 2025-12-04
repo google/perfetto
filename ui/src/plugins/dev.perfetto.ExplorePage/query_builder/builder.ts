@@ -129,6 +129,8 @@ export interface BuilderAttrs {
   readonly onImport: () => void;
   readonly onExport: () => void;
 
+  readonly onLoadExample: () => void;
+
   // Node state change callback
   readonly onNodeStateChange?: () => void;
 
@@ -214,11 +216,36 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         );
       });
 
+    // Add Examples card at the end
+    const examplesCard = m(
+      Card,
+      {
+        'interactive': true,
+        'onclick': () => attrs.onLoadExample(),
+        'tabindex': 0,
+        'role': 'button',
+        'aria-label': 'Load example graph',
+        'className': 'pf-source-card',
+        'onkeydown': (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            attrs.onLoadExample();
+          }
+        },
+      },
+      m(
+        '.pf-source-card-clickable',
+        m(Icon, {icon: 'auto_stories'}),
+        m('h3', 'Examples'),
+      ),
+      m('p', 'Load an example graph'),
+    );
+
     if (sourceNodes.length === 0) {
-      return m('p', 'No source nodes available');
+      return [examplesCard];
     }
 
-    return sourceNodes;
+    return [examplesCard, ...sourceNodes];
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
