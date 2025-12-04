@@ -87,6 +87,9 @@ import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
 
+// Side panel width - must match --pf-qb-side-panel-width in builder.scss
+const SIDE_PANEL_WIDTH = 60;
+
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
@@ -421,14 +424,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         '.pf-qb-explorer',
         {
           style: {
-            width: this.isExplorerCollapsed ? '0' : `${this.sidebarWidth}px`,
+            width: this.isExplorerCollapsed
+              ? '0'
+              : `${this.sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
           },
         },
         explorer,
       ),
-      m(
-        '.pf-qb-side-panel',
-        selectedNode &&
+      selectedNode &&
+        m(
+          '.pf-qb-side-panel',
           m(Button, {
             icon: Icons.Info,
             title: 'Info',
@@ -449,29 +454,27 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
-        selectedNode &&
           selectedNode.nodeSpecificModify() != null &&
-          m(Button, {
-            icon: Icons.Edit,
-            title: 'Edit',
-            className:
-              this.selectedView === SelectedView.kModify &&
-              !this.isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
+            m(Button, {
+              icon: Icons.Edit,
+              title: 'Edit',
+              className:
                 this.selectedView === SelectedView.kModify &&
                 !this.isExplorerCollapsed
-              ) {
-                this.isExplorerCollapsed = true;
-              } else {
-                this.selectedView = SelectedView.kModify;
-                this.isExplorerCollapsed = false;
-              }
-            },
-          }),
-        selectedNode &&
+                  ? 'pf-active'
+                  : '',
+              onclick: () => {
+                if (
+                  this.selectedView === SelectedView.kModify &&
+                  !this.isExplorerCollapsed
+                ) {
+                  this.isExplorerCollapsed = true;
+                } else {
+                  this.selectedView = SelectedView.kModify;
+                  this.isExplorerCollapsed = false;
+                }
+              },
+            }),
           m(Button, {
             icon: 'code',
             title: 'Result',
@@ -492,7 +495,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
-      ),
+        ),
     );
   }
 
