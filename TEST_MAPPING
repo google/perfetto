@@ -19,6 +19,9 @@
     {
       "name": "CtsPerfettoReporterTestCases"
     },
+    {
+      "name": "CtsPerfettoReporterRebootTestCases"
+    },
     // Additional presubmit tests that explicitly exercise
     // Perfetto's backend
     {

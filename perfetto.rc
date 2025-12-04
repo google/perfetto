@@ -52,6 +52,12 @@ service traced_probes /system/bin/traced_probes
     capabilities DAC_READ_SEARCH SYS_NICE
     shared_kallsyms
 
+service post_reboot_persistent_traces_uploader /system/bin/perfetto --upload-after-reboot
+    oneshot
+    disabled
+    user nobody
+    group nobody
+
 on property:persist.device_config.global_settings.sys_traced=1
     setprop persist.traced.enable 1
 
@@ -91,7 +97,20 @@ on property:persist.traced.enable=1
     # too many other domains can write into that. See b/170404111.
     mkdir /data/misc/perfetto-configs 0775 root shell
 
+    # TODO(ktimofeev): add a comment about persistent traces locations
+    mkdir /data/misc/perfetto-traces/persistent 0777 root shell
+
     stop traced_relay
+
+    start post_reboot_persistent_traces_uploader
+
+# This is a fallback.
+on property:sys.boot_completed=1
+    setprop perfetto.persistent.uploader.status 1
+
+# TODO(ktimofeev): add a comment about possible states of 'perfetto.persistent.uploader.status'
+# and the two steps initialization 
+on property:persist.traced.enable=1 && property:perfetto.persistent.uploader.status=1
     start traced
     start traced_probes
 
@@ -120,7 +139,7 @@ on post-fs-data
 # trigger fires.
 # sys.trace.traced_started is set by traced after listen()ing on the consumer
 # socket. Without this, perfetto could try to connect to traced before traced
-# is ready to listen. 
+# is ready to listen.
 on perfetto_maybe_trace_on_boot && property:persist.debug.perfetto.boottrace=1 && property:persist.traced.enable=1 && property:sys.trace.traced_started=1
     setprop persist.debug.perfetto.boottrace ""
     rm /data/misc/perfetto-traces/boottrace.perfetto-trace

@@ -26,13 +26,13 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/thread_task_runner.h"
-#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -42,6 +42,15 @@
 #include "src/perfetto_cmd/packet_writer.h"
 
 namespace perfetto {
+
+// Forward declaration for a proto.
+namespace protos::gen {
+class TraceConfig_AndroidReportConfig;
+}  // namespace protos::gen
+
+// Directory for persistent files, used on Android. This is automatically
+// created by the system by setting setprop persist.traced.enable=1.
+extern const char* kAndroidPersistentStateDir;
 
 class PerfettoCmd : public Consumer {
  public:
@@ -146,11 +155,21 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
-  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
-      base::ScopedMmap mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
-  void ReportTraceToAndroidFrameworkOrCrash();
+  base::Status ReportTraceToAndroidFramework(
+      base::ScopedFile trace_fd,
+      uint64_t trace_size,
+      const protos::gen::TraceConfig_AndroidReportConfig& report_config,
+      const base::Uuid& uuid,
+      const std::string& unique_session_name);
+  void ReportTraceToAndroidFrameworkOrCrash(base::ScopedFile trace_fd,
+                                            uint64_t trace_size);
+  void ReportAllPersistentTracesToAndroidFramework();
+  static std::vector<base::ScopedFile>
+  UnlinkAndReturnPersistentTracesToUpload();
+  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
+      base::ScopedMmap mmapped_trace);
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);
@@ -166,6 +185,7 @@ class PerfettoCmd : public Consumer {
   base::ScopedFstream trace_out_stream_;
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
+  std::string persistent_trace_out_path_;
   base::EventFd ctrl_c_evt_;
   bool ctrl_c_handler_installed_ = false;
   base::ScopedPlatformHandle notify_fd_;
@@ -188,6 +208,7 @@ class PerfettoCmd : public Consumer {
   bool background_wait_ = false;
   bool ignore_guardrails_ = false;
   bool upload_flag_ = false;
+  bool upload_after_reboot_flag_ = false;
   bool connected_ = false;
   std::string uuid_;
   std::optional<TracingSessionID> clone_tsid_{};

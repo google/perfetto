@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.NativeDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
@@ -126,6 +127,12 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
         // Traced is running
         ProcessInfo traced = mTestDevice.getProcessByName("traced");
         assertThat(traced).isNotNull();
+        // Invalidate the property cache, otherwise, on CI,
+        // `mTestDevice.getProperty(BOOT_TRACE_ENABLE_PROPERTY)` may return the stale value "1".
+        // We maybe want to use `adb setprop` directly to bypass this cache.
+        if (mTestDevice instanceof NativeDevice) {
+            ((NativeDevice) mTestDevice).invalidatePropertyCache();
+        }
         // Boot trace was not triggered
         assertThat(mTestDevice.getProperty(BOOT_TRACE_ENABLE_PROPERTY)).isNotEqualTo("1");
         if (mTestDevice.doesFileExist(BOOT_TRACE_RESULT_ON_DEVICE_PATH)) {
