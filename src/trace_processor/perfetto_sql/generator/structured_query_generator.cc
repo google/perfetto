@@ -221,6 +221,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> AddColumns(
       const StructuredQuery::ExperimentalAddColumns::Decoder&);
 
+  base::StatusOr<std::string> CreateSlices(
+      const StructuredQuery::ExperimentalCreateSlices::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
   static base::StatusOr<std::string> ExperimentalFilterGroup(
@@ -348,6 +351,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       StructuredQuery::ExperimentalAddColumns::Decoder add_columns_decoder(
           q.experimental_add_columns());
       ASSIGN_OR_RETURN(source, AddColumns(add_columns_decoder));
+    } else if (q.has_experimental_create_slices()) {
+      StructuredQuery::ExperimentalCreateSlices::Decoder create_slices_decoder(
+          q.experimental_create_slices());
+      ASSIGN_OR_RETURN(source, CreateSlices(create_slices_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -913,6 +920,56 @@ base::StatusOr<std::string> GeneratorImpl::AddColumns(
   std::string sql = "(SELECT " + select_clause + " FROM " + core_table +
                     " AS core LEFT JOIN " + input_table + " AS input ON " +
                     condition + ")";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::CreateSlices(
+    const StructuredQuery::ExperimentalCreateSlices::Decoder& create_slices) {
+  // Validate required fields
+  if (!create_slices.has_starts_query()) {
+    return base::ErrStatus("CreateSlices must specify a starts_query");
+  }
+  if (!create_slices.has_ends_query()) {
+    return base::ErrStatus("CreateSlices must specify an ends_query");
+  }
+  if (!create_slices.has_starts_ts_column()) {
+    return base::ErrStatus("CreateSlices must specify starts_ts_column");
+  }
+  if (!create_slices.has_ends_ts_column()) {
+    return base::ErrStatus("CreateSlices must specify ends_ts_column");
+  }
+
+  std::string starts_ts_col = create_slices.starts_ts_column().ToStdString();
+  std::string ends_ts_col = create_slices.ends_ts_column().ToStdString();
+
+  if (starts_ts_col.empty()) {
+    return base::ErrStatus("starts_ts_column cannot be empty");
+  }
+  if (ends_ts_col.empty()) {
+    return base::ErrStatus("ends_ts_column cannot be empty");
+  }
+
+  // Generate nested sources
+  std::string starts_table = NestedSource(create_slices.starts_query());
+  std::string ends_table = NestedSource(create_slices.ends_query());
+
+  // Build the SQL to create slices
+  // For each start, find the first end that comes after it
+  std::string sql = "(WITH starts AS (SELECT * FROM " + starts_table +
+                    "),\n     ends AS (SELECT * FROM " + ends_table +
+                    "),\n     matched AS (\n       SELECT \n" +
+                    "         starts." + starts_ts_col +
+                    " AS start_ts,\n"
+                    "         (SELECT MIN(ends." +
+                    ends_ts_col + ") FROM ends WHERE ends." + ends_ts_col +
+                    " > starts." + starts_ts_col +
+                    ") AS end_ts\n"
+                    "       FROM starts\n     )\nSELECT \n" +
+                    "  start_ts AS ts,\n"
+                    "  end_ts - start_ts AS dur\n"
+                    "FROM matched\n"
+                    "WHERE end_ts IS NOT NULL)";
 
   return sql;
 }

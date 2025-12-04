@@ -330,6 +330,51 @@ message PerfettoSqlStructuredQuery {
     }
   }
 
+  // DON'T USE. EXPERIMENTAL.
+  // Creates slices (rows with ts and dur) by pairing start and end timestamps
+  // from two separate queries.
+  //
+  // For each start timestamp, this operation finds the first end timestamp that
+  // comes after it and creates a slice with:
+  //   - ts = start timestamp
+  //   - dur = end timestamp - start timestamp
+  //
+  // Examples:
+  //  1) Create slices from lock acquire/release events:
+  //    * starts_query contains lock acquire events with timestamp
+  //    * ends_query contains lock release events with timestamp
+  //    * starts_ts_column = "ts", ends_ts_column = "ts"
+  //  2) Create slices from begin/end markers:
+  //    * starts_query filters for events where type = 'BEGIN'
+  //    * ends_query filters for events where type = 'END'
+  //
+  // Schema:
+  //  1) starts_query must have the column specified in starts_ts_column
+  //  2) ends_query must have the column specified in ends_ts_column
+  //  3) Both timestamp columns must contain integer timestamps
+  //  4) Output schema: (ts, dur) where:
+  //     - ts is the start timestamp
+  //     - dur is the duration (end - start)
+  //
+  // Matching Behavior:
+  //  - Each start is paired with the first end that comes after it
+  //  - Starts with no matching end are excluded from the output
+  //  - Ends with no matching start are ignored
+  //  - If multiple starts occur before an end, each is paired with that end
+  message ExperimentalCreateSlices {
+    // The query containing start timestamps. Required.
+    optional PerfettoSqlStructuredQuery starts_query = 1;
+
+    // The query containing end timestamps. Required.
+    optional PerfettoSqlStructuredQuery ends_query = 2;
+
+    // The column name in starts_query containing the timestamp. Required.
+    optional string starts_ts_column = 3;
+
+    // The column name in ends_query containing the timestamp. Required.
+    optional string ends_ts_column = 4;
+  }
+
   // An opaque id field for the query. The convention is to use underscores
   // and lower case (foo_bar) but this is not enforced. Optional in the general
   // case but strongly recommended for good error messages. Required in cases
@@ -382,6 +427,9 @@ message PerfettoSqlStructuredQuery {
 
     // DON'T USE. EXPERIMENTAL.
     ExperimentalAddColumns experimental_add_columns = 102;
+
+    // DON'T USE. EXPERIMENTAL.
+    ExperimentalCreateSlices experimental_create_slices = 104;
   }
 
   // Evaluation order of operations:
