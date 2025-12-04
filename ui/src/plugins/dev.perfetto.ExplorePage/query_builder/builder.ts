@@ -129,8 +129,6 @@ export interface BuilderAttrs {
   readonly onImport: () => void;
   readonly onExport: () => void;
 
-  readonly onImportWithStatement: () => void;
-
   // Node state change callback
   readonly onNodeStateChange?: () => void;
 
@@ -373,7 +371,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onDeleteNode: attrs.onDeleteNode,
           onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,
-          onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
         }),
         selectedNode &&
