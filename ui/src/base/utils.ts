@@ -90,3 +90,7 @@ export function sleepMs(ms: number): Promise<void> {
     setTimeout(() => resolve(), ms);
   });
 }
+
+// Utility to cast a value to T | undefined. For example: to convert the result
+// of a key lookup in a record to possibly undefined
+export const maybeUndefined = <T>(value: T) => value as T | undefined;

@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {Sorting} from '../../components/aggregation';
 import {
+  AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
@@ -53,13 +54,11 @@ export class FrameSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
-            jank_type,
-            count(1) as occurrences,
-            min(dur) as minDur,
-            avg(dur) as meanDur,
-            max(dur) as maxDur
+            id,
+            ts,
+            dur,
+            jank_type
           from (${iiTable.name})
-          group by jank_type
         `);
 
         return {
@@ -77,33 +76,34 @@ export class FrameSelectionAggregator implements Aggregator {
     return {column: 'occurrences', direction: 'DESC'};
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Jank Type',
-        columnId: 'jank_type',
+  getColumnDefinitions(): AggregatePivotModel {
+    return {
+      groupBy: ['jank_type'],
+      values: {
+        count: {func: 'COUNT'},
+        min_dur: {col: 'dur', func: 'MIN'},
+        max_dur: {col: 'dur', func: 'MAX'},
+        mean_dur: {col: 'dur', func: 'AVG'},
       },
-      {
-        title: 'Min duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'minDur',
-      },
-      {
-        title: 'Max duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'maxDur',
-      },
-      {
-        title: 'Mean duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'meanDur',
-      },
-      {
-        title: 'Occurrences',
-        columnId: 'occurrences',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-    ];
+      columns: [
+        {
+          title: 'ID',
+          columnId: 'id',
+        },
+        {
+          title: 'Jank Type',
+          columnId: 'jank_type',
+        },
+        {
+          title: 'Timestamp',
+          columnId: 'ts',
+        },
+        {
+          title: 'Wall Duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'dur',
+        },
+      ],
+    };
   }
 }

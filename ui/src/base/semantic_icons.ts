@@ -22,8 +22,8 @@ export class Icons {
   static readonly Delete = 'delete';
   static readonly SortedAsc = 'arrow_upward';
   static readonly SortedDesc = 'arrow_downward';
-  static readonly GoBack = 'chevron_left';
-  static readonly GoForward = 'chevron_right';
+  static readonly GoBack = 'arrow_back';
+  static readonly GoForward = 'arrow_forward';
   static readonly Add = 'add';
   static readonly Close = 'close';
   static readonly Hide = 'visibility_off';

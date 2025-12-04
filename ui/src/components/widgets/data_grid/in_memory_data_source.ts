@@ -25,6 +25,7 @@ import {
   AggregateSpec,
   areAggregateArraysEqual,
   DataGridFilter,
+  PivotModel,
 } from './common';
 
 export class InMemoryDataSource implements DataGridDataSource {
@@ -36,6 +37,7 @@ export class InMemoryDataSource implements DataGridDataSource {
   // Cached state for diffing
   private oldSorting: Sorting = {direction: 'UNSORTED'};
   private oldFilters: ReadonlyArray<DataGridFilter> = [];
+  private oldPivot?: PivotModel;
   private aggregates?: ReadonlyArray<AggregateSpec>;
 
   constructor(data: ReadonlyArray<RowDef>) {
@@ -57,19 +59,30 @@ export class InMemoryDataSource implements DataGridDataSource {
     sorting = {direction: 'UNSORTED'},
     filters = [],
     aggregates,
+    pivot,
     distinctValuesColumns,
   }: DataGridModel): void {
     if (
       !this.isSortByEqual(sorting, this.oldSorting) ||
       !this.areFiltersEqual(filters, this.oldFilters) ||
-      !areAggregateArraysEqual(aggregates, this.aggregates)
+      !areAggregateArraysEqual(aggregates, this.aggregates) ||
+      !arePivotsEqual(pivot, this.oldPivot)
     ) {
       this.oldSorting = sorting;
       this.oldFilters = filters;
       this.aggregates = aggregates;
+      this.oldPivot = pivot;
 
       // Apply filters
       let result = this.applyFilters(this.data, filters);
+
+      // Apply pivot (but not in drilldown mode - drilldown shows raw data)
+      if (pivot && !pivot.drillDown) {
+        result = this.applyPivoting(result, pivot);
+      } else if (pivot?.drillDown) {
+        // Drilldown mode: filter to show only rows matching the drillDown values
+        result = this.applyDrillDown(result, pivot);
+      }
 
       // Apply sorting
       result = this.applySorting(result, sorting);
@@ -144,7 +157,12 @@ export class InMemoryDataSource implements DataGridDataSource {
         continue;
       }
 
-      switch (func) {
+      let aggFunc = func;
+      if (aggFunc === 'COUNT') {
+        aggFunc = 'SUM';
+      }
+
+      switch (aggFunc) {
         case 'SUM':
           result[col] = values.reduce(
             (acc: number, val) => acc + (Number(val) || 0),
@@ -157,9 +175,6 @@ export class InMemoryDataSource implements DataGridDataSource {
               (acc: number, val) => acc + (Number(val) || 0),
               0,
             ) as number) / values.length;
-          break;
-        case 'COUNT':
-          result[col] = values.length;
           break;
         case 'MIN':
           result[col] = values.reduce(
@@ -328,6 +343,95 @@ export class InMemoryDataSource implements DataGridDataSource {
         : strB.localeCompare(strA);
     });
   }
+
+  private applyPivoting(
+    data: ReadonlyArray<RowDef>,
+    pivot: PivotModel,
+  ): ReadonlyArray<RowDef> {
+    const groups = new Map<string, RowDef[]>();
+
+    for (const row of data) {
+      const key = pivot.groupBy.map((col) => row[col]).join('-');
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(row);
+    }
+
+    const result: RowDef[] = [];
+
+    for (const group of groups.values()) {
+      const newRow: RowDef = {};
+      for (const col of pivot.groupBy) {
+        newRow[col] = group[0][col];
+      }
+      for (const [alias, value] of Object.entries(pivot.values)) {
+        if (value.func === 'COUNT') {
+          newRow[alias] = group.length;
+          continue;
+        }
+
+        const values = group
+          .map((row) => row[value.col!])
+          .filter((value) => value !== null);
+        if (values.length === 0) {
+          newRow[alias] = null;
+          continue;
+        }
+        switch (value.func) {
+          case 'SUM':
+            newRow[alias] = values.reduce(
+              (acc: number, val) => acc + (Number(val) || 0),
+              0,
+            );
+            break;
+          case 'AVG':
+            newRow[alias] =
+              (values.reduce(
+                (acc: number, val) => acc + (Number(val) || 0),
+                0,
+              ) as number) / values.length;
+            break;
+          case 'MIN':
+            newRow[alias] = values.reduce(
+              (acc, val) => (val < acc ? val : acc),
+              values[0],
+            );
+            break;
+          case 'MAX':
+            newRow[alias] = values.reduce(
+              (acc, val) => (val > acc ? val : acc),
+              values[0],
+            );
+            break;
+          case 'ANY':
+            newRow[alias] = values[0];
+            break;
+          default:
+            break;
+        }
+      }
+      result.push(newRow);
+    }
+
+    return result;
+  }
+
+  private applyDrillDown(
+    data: ReadonlyArray<RowDef>,
+    pivot: PivotModel,
+  ): ReadonlyArray<RowDef> {
+    const drillDown = pivot.drillDown!;
+
+    return data.filter((row) => {
+      // Check if this row matches all the drillDown values
+      return pivot.groupBy.every((col) => {
+        const drillDownValue = drillDown[col];
+        const rowValue = row[col];
+        return valuesEqual(rowValue, drillDownValue);
+      });
+    });
+  }
 }
 
 // Compare values, using a special deep comparison for Uint8Arrays.
@@ -382,4 +486,16 @@ function compareNumeric(a: SqlValue, b: SqlValue): number {
     // so just convert both to numbers.
     return Number(a) - Number(b);
   }
+}
+
+function arePivotsEqual(a?: PivotModel, b?: PivotModel): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  if (a.groupBy.join(',') !== b.groupBy.join(',')) return false;
+  if (JSON.stringify(a.values) !== JSON.stringify(b.values)) return false;
+  // Check drillDown equality
+  if (a.drillDown === b.drillDown) return true;
+  if (a.drillDown === undefined || b.drillDown === undefined) return false;
+  if (JSON.stringify(a.drillDown) !== JSON.stringify(b.drillDown)) return false;
+  return true;
 }

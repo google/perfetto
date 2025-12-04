@@ -28,6 +28,7 @@ import {
 import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
+import {AggregatePivotModel} from '../../components/aggregation_adapter';
 
 export class WattsonAggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
@@ -46,8 +47,13 @@ export class WattsonAggregationPanel
   private renderTable(
     dataSource: DataGridDataSource,
     sorting: Sorting,
-    columns: ReadonlyArray<ColumnDef>,
+    columns: ReadonlyArray<ColumnDef> | AggregatePivotModel,
   ) {
+    // TODO: Support pivot tables
+    if ('groupBy' in columns) {
+      return undefined;
+    }
+
     return m(DataGrid, {
       toolbarItemsLeft: m(
         Box,
@@ -68,7 +74,7 @@ export class WattsonAggregationPanel
         return {
           name: c.columnId,
           title: displayTitle,
-          aggregation: c.sum ? 'SUM' : undefined,
+          // aggregation: c.sum ? 'SUM' : undefined,
           filterType: filterTypeForColumnDef(c.formatHint),
           cellRenderer: (value) => {
             const formatHint = c.formatHint;
