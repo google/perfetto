@@ -52,6 +52,7 @@ perfetto_sql_source_set("android") {
     "monitor_contention.sql",
     "network_packets.sql",
     "oom_adjuster.sql",
+    "package_lookup.sql",
     "power_rails.sql",
     "process_metadata.sql",
     "screen_state.sql",
