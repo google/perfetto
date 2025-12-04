@@ -28,6 +28,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.metadata_tables import THREAD_TABLE
+from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 ANDROID_LOG_TABLE = Table(
     python_module=__file__,
@@ -56,6 +57,18 @@ ANDROID_LOG_TABLE = Table(
             'msg': 'Content of the log entry.'
         },
     ),
+)
+
+ANDROID_CPU_PER_UID_TRACK_TABLE = Table(
+    python_module=__file__,
+    class_name="AndroidCpuPerUidTrackTable",
+    sql_name="__intrinsic_android_cpu_per_uid_track",
+    columns=[
+        C("track_id", CppTableId(TRACK_TABLE), cpp_access=CppAccess.READ),
+        C("uid", CppInt64(), cpp_access=CppAccess.READ),
+        C("cluster", CppInt64(), cpp_access=CppAccess.READ),
+        C("total_cpu_millis", CppInt64(), cpp_access=CppAccess.READ),
+    ],
 )
 
 ANDROID_GAME_INTERVENTION_LIST_TABLE = Table(
@@ -341,6 +354,7 @@ ANDROID_USER_LIST_TABLE = Table(
 
 # Keep this list sorted.
 ALL_TABLES = [
+    ANDROID_CPU_PER_UID_TRACK_TABLE,
     ANDROID_DUMPSTATE_TABLE,
     ANDROID_GAME_INTERVENTION_LIST_TABLE,
     ANDROID_INPUT_EVENT_DISPATCH_TABLE,

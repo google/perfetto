@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <string>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -40,13 +41,33 @@ class AndroidCpuPerUidModule : public ProtoImporterModule {
                             const TracePacketData&,
                             uint32_t field_id) override;
 
+  void NotifyEndOfFile() override;
+
  private:
   void UpdateCounter(int64_t ts,
                      uint32_t uid,
                      uint32_t cluster,
                      uint64_t value);
 
+  void ComputeTotals(uint32_t uid, uint32_t cluster, uint64_t time_ms);
+  void UpdateTotals(int64_t ts,
+                    base::StringView name,
+                    uint32_t cluster,
+                    uint64_t value);
+
   TraceProcessorContext* context_;
+
+  // Last cpu duration per uid/cluster (key is uid << 32 | cluster).
+  base::FlatHashMap<uint64_t, uint64_t> last_value_;
+
+  // Cumulative duration per uid/cluster (key is uid << 32 | cluster).
+  base::FlatHashMap<uint64_t, uint64_t> cumulative_;
+
+  // Map from cluster to total cumulative app (uid >= 10000) duration.
+  base::FlatHashMap<uint32_t, uint64_t> app_totals_;
+
+  // Map from cluster to total cumulative system (uid < 10000) duration.
+  base::FlatHashMap<uint32_t, uint64_t> system_totals_;
 };
 
 }  // namespace perfetto::trace_processor

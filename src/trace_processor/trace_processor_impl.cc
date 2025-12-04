@@ -1041,6 +1041,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> tables;
   AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_sample_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_android_cpu_per_uid_track_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_android_dumpstate_table());
   AddUnfinalizedStaticTable(
       tables, storage->mutable_android_game_intervenion_list_table());
