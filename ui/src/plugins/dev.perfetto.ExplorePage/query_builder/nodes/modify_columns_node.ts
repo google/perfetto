@@ -455,7 +455,13 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new ModifyColumnsNode(this.state);
+    const stateCopy: ModifyColumnsState = {
+      selectedColumns: newColumnInfoList(this.state.selectedColumns),
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new ModifyColumnsNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

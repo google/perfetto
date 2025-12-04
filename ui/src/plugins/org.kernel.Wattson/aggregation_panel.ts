@@ -25,7 +25,6 @@ import {
   DataGrid,
   renderCell,
 } from '../../components/widgets/data_grid/data_grid';
-import {SqlValue} from '../../trace_processor/query_result';
 import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
@@ -49,7 +48,6 @@ export class WattsonAggregationPanel
     sorting: Sorting,
     columns: ReadonlyArray<ColumnDef>,
   ) {
-    const columnsById = new Map(columns.map((c) => [c.columnId, c]));
     return m(DataGrid, {
       toolbarItemsLeft: m(
         Box,
@@ -63,7 +61,6 @@ export class WattsonAggregationPanel
         }),
       ),
       fillHeight: true,
-      showResetButton: false,
       columns: columns.map((c): ColumnDefinition => {
         const displayTitle = this.scaleNumericData
           ? c.title.replace('estimated mW', 'estimated µW')
@@ -72,14 +69,35 @@ export class WattsonAggregationPanel
           name: c.columnId,
           title: displayTitle,
           aggregation: c.sum ? 'SUM' : undefined,
+          filterType: filterTypeForColumnDef(c.formatHint),
+          cellRenderer: (value) => {
+            const formatHint = c.formatHint;
+            if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+              return m(
+                'span.pf-data-grid__cell--number',
+                Duration.humanise(value),
+              );
+            } else if (formatHint === 'PERCENT' && typeof value === 'number') {
+              return m(
+                'span.pf-data-grid__cell--number',
+                `${(value * 100).toFixed(2)}%`,
+              );
+            } else {
+              let v = value;
+              if (
+                this.scaleNumericData &&
+                c.columnId.includes('_mw') &&
+                typeof value === 'number'
+              ) {
+                v = value * 1000;
+              }
+              return renderCell(v, c.columnId);
+            }
+          },
         };
       }),
       data: dataSource,
       initialSorting: sorting,
-      cellRenderer: (value: SqlValue, columnName: string) => {
-        const formatHint = columnsById.get(columnName)?.formatHint;
-        return this.renderValue(value, columnName, formatHint);
-      },
     });
   }
 
@@ -104,25 +122,19 @@ export class WattsonAggregationPanel
       }),
     );
   }
+}
 
-  private renderValue(value: SqlValue, colName: string, formatHint?: string) {
-    if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
-      return m('span.pf-data-grid__cell--number', Duration.humanise(value));
-    } else if (formatHint === 'PERCENT' && typeof value === 'number') {
-      return m(
-        'span.pf-data-grid__cell--number',
-        `${(value * 100).toFixed(2)}%`,
-      );
-    } else {
-      let v = value;
-      if (
-        this.scaleNumericData &&
-        colName.includes('_mw') &&
-        typeof value === 'number'
-      ) {
-        v = value * 1000;
-      }
-      return renderCell(v, colName);
-    }
+function filterTypeForColumnDef(
+  formatHint: string | undefined,
+): 'numeric' | 'string' | undefined {
+  switch (formatHint) {
+    case 'UNDEFINED':
+      return undefined;
+    case 'NUMERIC':
+    case 'DURATION_NS':
+      return 'numeric';
+    case 'STRING':
+    default:
+      return 'string';
   }
 }

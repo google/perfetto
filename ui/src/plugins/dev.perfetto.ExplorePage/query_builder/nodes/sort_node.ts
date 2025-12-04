@@ -273,7 +273,16 @@ export class SortNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new SortNode(this.state);
+    const stateCopy: SortNodeState = {
+      sortColNames: this.state.sortColNames
+        ? [...this.state.sortColNames]
+        : undefined,
+      sortCriteria: this.state.sortCriteria?.map((c) => ({...c})),
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new SortNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

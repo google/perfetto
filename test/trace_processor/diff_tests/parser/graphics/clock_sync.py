@@ -42,6 +42,7 @@ PIXEL = 26
 # Add a counter descriptor for our test counter:
 trace.add_gpu_counter_spec(
     ts=1,
+    gpu_id=0,
     counter_id=42,
     name="gpu_counter(42)",
     description="Number of fragments per second",

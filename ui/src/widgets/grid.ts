@@ -930,32 +930,42 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       return;
     }
 
+    // First, clear any previously set widths to allow natural sizing
     columns.forEach((column) => {
       const columnId = this.getColumnId(column.key);
-
-      // Clear the existing width to allow natural sizing
       gridClone.style.setProperty(`--pf-grid-col-${columnId}`, 'fit-content');
-
-      // Find all the cells in this column
-      const cellsInThisColumn = Array.from(allCells).filter(
-        (cell) => (cell as HTMLElement).dataset['columnId'] === `${columnId}`,
-      );
-
-      const widths = cellsInThisColumn.map((c) => {
-        return c.scrollWidth;
-      });
-      const maxCellWidth = Math.max(...widths);
-      const unboundedWidth = maxCellWidth + CELL_PADDING_PX;
-      const width = Math.min(
-        column.maxWidth,
-        Math.max(column.minWidth, unboundedWidth),
-      );
-
-      gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${width}px`);
-
-      // Store the width
-      this.sizedColumns.add(column.key);
     });
+
+    // Now measure then set widths
+    columns
+      // Now, measure all the cells we have available
+      .map((column) => {
+        const columnId = this.getColumnId(column.key);
+
+        // Find all the cells in this column
+        const cellsInThisColumn = Array.from(allCells).filter(
+          (cell) => (cell as HTMLElement).dataset['columnId'] === `${columnId}`,
+        );
+
+        const widths = cellsInThisColumn.map((c) => {
+          return c.scrollWidth;
+        });
+        const maxCellWidth = Math.max(...widths);
+        const unboundedWidth = maxCellWidth + CELL_PADDING_PX;
+        const width = Math.min(
+          column.maxWidth,
+          Math.max(column.minWidth, unboundedWidth),
+        );
+
+        // Store the width
+        this.sizedColumns.add(column.key);
+
+        return {columnId, width};
+      })
+      // Set all the variables in one go to avoid forced reflows
+      .forEach(({columnId, width}) => {
+        gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${width}px`);
+      });
 
     gridClone.remove();
   }

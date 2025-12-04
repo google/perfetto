@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {assetSrc} from '../../base/assets';
 
 import {Builder} from './query_builder/builder';
 import {
@@ -28,8 +29,11 @@ import {
 import {UIFilter} from './query_builder/operations/filter';
 import {Trace} from '../../public/trace';
 
-import {exportStateAsJson, importStateFromJson} from './json_handler';
-import {showImportWithStatementModal} from './sql_json_handler';
+import {
+  exportStateAsJson,
+  importStateFromJson,
+  deserializeState,
+} from './json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry, PreCreateState} from './query_builder/node_registry';
 import {QueryExecutionService} from './query_builder/query_execution_service';
@@ -43,6 +47,7 @@ import {
   getAllInputNodes,
 } from './query_builder/graph_utils';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import {showExamplesModal} from './examples_modal';
 
 registerCoreNodes();
 
@@ -146,7 +151,6 @@ export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
-  devMode?: boolean;
 }
 
 interface ExplorePageAttrs {
@@ -208,17 +212,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Mark as initialized
     this.initializedNodes.add(node.nodeId);
-  }
-
-  private async handleDevModeChange(attrs: ExplorePageAttrs, enabled: boolean) {
-    if (enabled) {
-      const {registerDevNodes} = await import('./query_builder/dev_nodes');
-      registerDevNodes();
-    }
-    attrs.onStateUpdate((currentState) => ({
-      ...currentState,
-      devMode: enabled,
-    }));
   }
 
   async handleAddOperationNode(
@@ -590,25 +583,41 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       await this.cleanupManager.cleanupNode(node);
     }
 
-    let newRootNodes = state.rootNodes.filter((n) => n !== node);
-    if (state.rootNodes.includes(node) && node.nextNodes.length > 0) {
-      newRootNodes = [...newRootNodes, ...node.nextNodes];
-    }
-
-    // Get parent and child nodes before removing connections
-    const parentNodes = getAllInputNodes(node);
+    // Capture parent and child nodes BEFORE removing connections
+    // (removeConnection may clear these references)
+    const allParentNodes = getAllInputNodes(node);
     const childNodes = [...node.nextNodes];
 
-    // Remove all connections to/from the deleted node
-    for (const parent of parentNodes) {
+    // Capture ONLY the primary parent before removal
+    // Secondary inputs should NOT be reconnected - they are auxiliary inputs
+    // specific to the deleted node and should not propagate to its children.
+    const primaryParentNodes: QueryNode[] = [];
+    if ('primaryInput' in node && node.primaryInput) {
+      primaryParentNodes.push(node.primaryInput);
+    }
+
+    // Remove all connections to/from the deleted node (both primary and secondary)
+    for (const parent of allParentNodes) {
       removeConnection(parent, node);
     }
     for (const child of childNodes) {
       removeConnection(node, child);
     }
 
-    // Reconnect parents to children (bypass the deleted node)
-    reconnectParentsToChildren(parentNodes, childNodes, addConnection);
+    // Reconnect ONLY the primary parent to children (bypass the deleted node)
+    reconnectParentsToChildren(primaryParentNodes, childNodes, addConnection);
+
+    // Update root nodes: remove the deleted node
+    let newRootNodes = state.rootNodes.filter((n) => n !== node);
+
+    // If the deleted node has children that weren't reconnected to a primary parent,
+    // they must become root nodes to remain accessible in the graph.
+    // This handles two cases:
+    // 1. Deleted node was a root node with no primary input (children become roots)
+    // 2. Deleted node only had secondary inputs (e.g., IntervalIntersectNode)
+    if (primaryParentNodes.length === 0 && childNodes.length > 0) {
+      newRootNodes = [...newRootNodes, ...childNodes];
+    }
 
     // If the deleted node was selected, deselect it.
     const newSelectedNode =
@@ -625,16 +634,21 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs: ExplorePageAttrs,
     fromNode: QueryNode,
     toNode: QueryNode,
+    isSecondaryInput: boolean,
   ) {
     const {state, onStateUpdate} = attrs;
 
     // NOTE: The basic connection removal is already handled by graph.ts
     // This callback handles higher-level logic like reconnection and state updates
 
-    // Check if we should reconnect fromNode to toNode's children (bypass toNode)
-    // Note: We check if fromNode has no next nodes (connection already removed)
+    // Only reconnect fromNode to toNode's children when removing a PRIMARY input.
+    // When removing a SECONDARY input, we should NOT reconnect - the secondary
+    // input node is just an auxiliary input (like intervals for FilterDuring)
+    // and should not be connected to the children of the node it was feeding into.
     const shouldReconnect =
-      fromNode.nextNodes.length === 0 && toNode.nextNodes.length > 0;
+      !isSecondaryInput &&
+      fromNode.nextNodes.length === 0 &&
+      toNode.nextNodes.length > 0;
 
     if (shouldReconnect) {
       // Reconnect fromNode to all of toNode's children (bypass toNode)
@@ -749,12 +763,28 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
-  private handleImportWithStatement(attrs: ExplorePageAttrs) {
+  private async handleLoadExample(attrs: ExplorePageAttrs) {
     const {trace, sqlModulesPlugin, onStateUpdate} = attrs;
     const sqlModules = sqlModulesPlugin.getSqlModules();
     if (!sqlModules) return;
 
-    showImportWithStatementModal(trace, sqlModules, onStateUpdate);
+    const selectedExample = await showExamplesModal();
+    if (!selectedExample) return;
+
+    try {
+      // Fetch the JSON file from assets using assetSrc for proper path resolution
+      const response = await fetch(assetSrc(selectedExample.jsonPath));
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load example: ${response.status} ${response.statusText}`,
+        );
+      }
+      const json = await response.text();
+      const newState = deserializeState(json, trace, sqlModules);
+      onStateUpdate(newState);
+    } catch (error) {
+      console.error('Failed to load example:', error);
+    }
   }
 
   private handleUndo(attrs: ExplorePageAttrs) {
@@ -861,9 +891,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
-        devMode: state.devMode,
-        onDevModeChange: (enabled) =>
-          this.handleDevModeChange(wrappedAttrs, enabled),
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
@@ -902,13 +929,17 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             this.handleDeleteNode(wrappedAttrs, state.selectedNode);
           }
         },
-        onConnectionRemove: (fromNode, toNode) => {
-          this.handleConnectionRemove(wrappedAttrs, fromNode, toNode);
+        onConnectionRemove: (fromNode, toNode, isSecondaryInput) => {
+          this.handleConnectionRemove(
+            wrappedAttrs,
+            fromNode,
+            toNode,
+            isSecondaryInput,
+          );
         },
         onImport: () => this.handleImport(wrappedAttrs),
-        onImportWithStatement: () =>
-          this.handleImportWithStatement(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
+        onLoadExample: () => this.handleLoadExample(wrappedAttrs),
         onFilterAdd: (node, filter, filterOperator) => {
           this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);
         },

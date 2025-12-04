@@ -61,9 +61,6 @@ export interface NodeDescriptor {
   // A function that creates a new instance of the node.
   factory: (state: QueryNodeState, context?: NodeFactoryContext) => QueryNode;
 
-  // Whether this node is only available in dev mode.
-  devOnly?: boolean;
-
   /**
    * Whether this node should be shown on the landing page.
    *

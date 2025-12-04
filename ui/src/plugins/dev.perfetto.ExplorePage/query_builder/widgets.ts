@@ -30,6 +30,38 @@ import {
   MultiSelectOption,
   MultiSelectDiff,
 } from '../../../widgets/multiselect';
+import {classNames} from '../../../base/classnames';
+
+// Empty state widget for the data explorer with warning variant support
+export type DataExplorerEmptyStateVariant = 'default' | 'warning';
+
+export interface DataExplorerEmptyStateAttrs {
+  readonly icon?: string;
+  readonly title?: string;
+  readonly variant?: DataExplorerEmptyStateVariant;
+}
+
+export class DataExplorerEmptyState
+  implements m.ClassComponent<DataExplorerEmptyStateAttrs>
+{
+  view({attrs, children}: m.CVnode<DataExplorerEmptyStateAttrs>) {
+    const {icon, title, variant = 'default'} = attrs;
+
+    return m(
+      '.pf-data-explorer-empty-state',
+      {
+        className: classNames(variant === 'warning' && 'pf-warning'),
+      },
+      icon &&
+        m(Icon, {
+          className: 'pf-data-explorer-empty-state__icon',
+          icon,
+        }),
+      title && m('.pf-data-explorer-empty-state__message', title),
+      children,
+    );
+  }
+}
 
 // Re-export multiselect types for convenience
 export type {MultiSelectOption, MultiSelectDiff};

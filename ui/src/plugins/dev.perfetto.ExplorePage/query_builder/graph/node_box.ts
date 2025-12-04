@@ -42,14 +42,12 @@ export function renderWarningIcon(node: QueryNode): m.Child {
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   const {node, onAddOperationNode} = attrs;
 
-  const multisourceMenuItems = buildMenuItems('multisource', undefined, (id) =>
+  const multisourceMenuItems = buildMenuItems('multisource', (id) =>
     onAddOperationNode(id, node),
   );
 
-  const modificationMenuItems = buildMenuItems(
-    'modification',
-    undefined,
-    (id) => onAddOperationNode(id, node),
+  const modificationMenuItems = buildMenuItems('modification', (id) =>
+    onAddOperationNode(id, node),
   );
 
   if (modificationMenuItems.length === 0 && multisourceMenuItems.length === 0) {

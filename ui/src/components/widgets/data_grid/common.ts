@@ -33,6 +33,8 @@ export const DEFAULT_SUPPORTED_FILTERS: ReadonlyArray<FilterType> = [
   'is null',
   'is not null',
 ];
+export type CellRenderer = (value: SqlValue, row: RowDef) => m.Children;
+
 export interface ColumnDefinition {
   // Name/id of the column - this should match the key in the data.
   readonly name: string;
@@ -40,22 +42,54 @@ export interface ColumnDefinition {
   // Human readable title to display instead of the name.
   readonly title?: m.Children;
 
+  // Custom renderer for this column's cells
+  readonly cellRenderer?: CellRenderer;
+
   // An optional aggregation for data in this column displayed in the header
   // bar.
   readonly aggregation?: AggregationFunction;
 
-  // Optional extra menu items to add to the header column's context menu.
-  readonly headerMenuItems?: m.Children;
+  // Optional function that receives default menu item groups and returns
+  // the complete menu structure. This allows full control over menu organization.
+  // Default groups provided:
+  // - sorting: Sort ascending/descending/clear items
+  // - filters: Filter options (null filters, equals, contains, etc.)
+  // - fitToContent: Fit column to content width
+  // - columnManagement: Hide column, manage columns visibility
+  readonly contextMenuRenderer?: (builtins: {
+    readonly sorting?: m.Children;
+    readonly filters?: m.Children;
+    readonly fitToContent?: m.Children;
+    readonly columnManagement?: m.Children;
+  }) => m.Children;
 
-  // Optional function that returns extra menu items to add to each data cell's
-  // context menu. The function receives the cell value and the complete row
-  // data.
-  readonly cellMenuItems?: (value: SqlValue, row: RowDef) => m.Children;
+  // Optional function that receives the default filter menu item and returns
+  // the complete cell context menu structure. This allows full control over
+  // the cell menu organization.
+  // Default item provided:
+  // - addFilter: "Add filter..." menu item with context-sensitive filter options
+  readonly cellContextMenuRenderer?: (
+    value: SqlValue,
+    row: RowDef,
+    builtins: {
+      addFilter?: m.Children;
+    },
+  ) => m.Children;
 
   // Enable distinct values filtering for this column. When enabled, adds a
   // "Filter by values..." menu item that shows all distinct values. Only
   // enable for columns with low cardinality (e.g., strings, enums).
   readonly distinctValues?: boolean;
+
+  // Control which types of filters are available for this column.
+  // - 'numeric': Shows comparison filters (=, !=, <, <=, >, >=) and null filters
+  // - 'string': Shows text filters (contains, glob) and equals/null filters
+  // - undefined: Shows all applicable filters based on other settings
+  readonly filterType?: 'numeric' | 'string';
+
+  // Optional value formatter for this column. This is used when exporting
+  // data to format the value as a string.
+  readonly valueFormatter?: ValueFormatter;
 }
 
 export interface FilterValue {

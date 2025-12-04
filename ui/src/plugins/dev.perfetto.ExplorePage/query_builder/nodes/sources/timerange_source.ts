@@ -27,6 +27,7 @@ import {Trace} from '../../../../../public/trace';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {TextInput} from '../../../../../widgets/text_input';
 import {Switch} from '../../../../../widgets/switch';
+import {Anchor} from '../../../../../widgets/anchor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import protos from '../../../../../protos';
 import {ListItem, InfoBox} from '../../widgets';
@@ -93,7 +94,7 @@ export class TimeRangeSourceNode implements QueryNode {
 
     if (this.state.start === undefined || this.state.end === undefined) {
       this.state.issues.queryError = new Error(
-        'Time range not set. Use "Update from Selection" or enable Dynamic mode to sync with timeline selection.',
+        'Time range not set. Use "Update from Timeline" or enable Dynamic mode to sync with timeline selection.',
       );
       return false;
     }
@@ -375,6 +376,16 @@ export class TimeRangeSourceNode implements QueryNode {
 
     const sections: NodeModifyAttrs['sections'] = [];
 
+    // Explanation section - always shown
+    sections.push({
+      content: m(
+        InfoBox,
+        'Time range allows you to make a selection in the ',
+        m(Anchor, {href: '#!/viewer'}, 'timeline'),
+        ' and use it as a source node in the graph.',
+      ),
+    });
+
     // Error message section
     if (error) {
       sections.push({
@@ -403,7 +414,7 @@ export class TimeRangeSourceNode implements QueryNode {
         }),
         !isDynamic &&
           m(Button, {
-            label: 'Update from Selection',
+            label: 'Update from Timeline',
             onclick: () => this.updateFromSelection(),
             variant: ButtonVariant.Outlined,
           }),
@@ -466,7 +477,7 @@ export class TimeRangeSourceNode implements QueryNode {
         'div',
         m(
           '.pf-node-info-empty',
-          'No time range set. Use "Update from Selection" or enter times manually.',
+          'No time range set. Use "Update from Timeline" or enter times manually.',
         ),
       );
     }

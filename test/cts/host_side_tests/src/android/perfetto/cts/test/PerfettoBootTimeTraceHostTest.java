@@ -19,6 +19,7 @@ package android.perfetto.cts.test;
 import static com.google.common.truth.Truth.assertThat;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.device.DeviceProperties;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
@@ -31,6 +32,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -122,6 +124,11 @@ public class PerfettoBootTimeTraceHostTest extends BaseHostJUnit4Test {
     @Before
     public void setUp() throws DeviceNotAvailableException {
         mTestDevice = getDevice();
+        String buildType = mTestDevice.getProperty(DeviceProperties.BUILD_TYPE);
+        Assume.assumeTrue(
+                "Recording Perfetto traces on boot is supported only on 'userdebug' or 'eng'"
+                    + " builds.",
+                buildType.equals("userdebug") || buildType.equals("eng"));
         // Make sure device is in the expected state
         // Traced is running
         ProcessInfo traced = mTestDevice.getProcessByName("traced");

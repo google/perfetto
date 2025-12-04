@@ -105,12 +105,13 @@ export interface GraphAttrs {
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
+  readonly onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void;
   readonly onImport: () => void;
-  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly devMode?: boolean;
-  readonly onDevModeChange?: (enabled: boolean) => void;
 }
 
 // ========================================
@@ -181,10 +182,10 @@ function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
+  const multisourceItems = buildMenuItems('multisource', (id) =>
     onAddOperationNode(id, targetNode),
   );
-  const modificationItems = buildMenuItems('modification', undefined, (id) =>
+  const modificationItems = buildMenuItems('modification', (id) =>
     onAddOperationNode(id, targetNode),
   );
 
@@ -293,20 +294,28 @@ function getNodeHue(node: QueryNode): number {
       return 122; // Green (#c8e6c9)
     case NodeType.kSqlSource:
       return 199; // Cyan/Light Blue (#b3e5fc)
+    case NodeType.kTimeRangeSource:
+      return 33; // Orange (#ffe0b2)
     case NodeType.kAggregation:
       return 339; // Pink (#f8bbd0)
     case NodeType.kModifyColumns:
       return 261; // Purple (#d1c4e9)
     case NodeType.kAddColumns:
       return 232; // Indigo (#c5cae9)
+    case NodeType.kFilterDuring:
+      return 88; // Light Green (#dcedc8)
     case NodeType.kLimitAndOffset:
       return 175; // Teal (#b2dfdb)
     case NodeType.kSort:
       return 54; // Yellow (#fff9c4)
+    case NodeType.kFilter:
+      return 207; // Blue (#bbdefb)
     case NodeType.kIntervalIntersect:
       return 45; // Amber/Orange (#ffecb3)
     case NodeType.kUnion:
       return 187; // Cyan (#b2ebf2)
+    case NodeType.kMerge:
+      return 14; // Deep Orange (#ffccbc)
     default:
       return 65; // Lime (#f0f4c3)
   }
@@ -512,7 +521,11 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
 function handleConnectionRemove(
   conn: Connection,
   rootNodes: QueryNode[],
-  onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void,
+  onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void,
 ): void {
   const fromNode = findQueryNode(conn.fromNode, rootNodes);
   const toNode = findQueryNode(conn.toNode, rootNodes);
@@ -521,11 +534,22 @@ function handleConnectionRemove(
     return;
   }
 
+  // Check BEFORE removal if this is a secondary input connection
+  let isSecondaryInput = false;
+  if (toNode.secondaryInputs?.connections) {
+    for (const node of toNode.secondaryInputs.connections.values()) {
+      if (node === fromNode) {
+        isSecondaryInput = true;
+        break;
+      }
+    }
+  }
+
   // Use the helper function to cleanly remove the connection
   removeConnection(fromNode, toNode);
 
   // Call the parent callback for any additional cleanup (e.g., state management)
-  onConnectionRemove(fromNode, toNode);
+  onConnectionRemove(fromNode, toNode, isSecondaryInput);
 }
 
 // ========================================
@@ -537,21 +561,15 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private hasPerformedInitialLayout: boolean = false;
 
   private renderControls(attrs: GraphAttrs) {
-    const sourceMenuItems = buildMenuItems(
-      'source',
-      attrs.devMode,
-      attrs.onAddSourceNode,
-    );
+    const sourceMenuItems = buildMenuItems('source', attrs.onAddSourceNode);
 
     const modificationMenuItems = buildMenuItems(
       'modification',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
     const operationMenuItems = buildMenuItems(
       'multisource',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 

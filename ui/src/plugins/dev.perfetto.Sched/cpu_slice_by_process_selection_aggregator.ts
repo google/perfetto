@@ -88,6 +88,7 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
       {
         title: 'PID',
         columnId: 'pid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Wall duration',
@@ -109,6 +110,7 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
         title: 'Occurrences',
         columnId: 'occurrences',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

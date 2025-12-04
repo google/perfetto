@@ -169,8 +169,34 @@ export function insertNodeBetween(
   addConnection: (from: QueryNode, to: QueryNode, portIndex?: number) => void,
   removeConnection: (from: QueryNode, to: QueryNode) => void,
 ): void {
-  // Store the existing child nodes
-  const existingChildren = [...parentNode.nextNodes];
+  // Prevent self-referential insert
+  if (parentNode === newNode) {
+    throw new Error('Cannot insert a node between itself');
+  }
+
+  // Store the existing child nodes along with their connection info
+  // We need to preserve the port index for secondary input connections
+  const existingChildren: Array<{
+    child: QueryNode;
+    portIndex: number | undefined;
+  }> = [];
+
+  for (const child of parentNode.nextNodes) {
+    if (child !== undefined) {
+      // Check if parentNode is connected to child's secondary inputs
+      // and find the port index if so
+      let portIndex: number | undefined = undefined;
+      if (child.secondaryInputs) {
+        for (const [port, inputNode] of child.secondaryInputs.connections) {
+          if (inputNode === parentNode) {
+            portIndex = port;
+            break;
+          }
+        }
+      }
+      existingChildren.push({child, portIndex});
+    }
+  }
 
   // Clear parent's next nodes (we'll reconnect through newNode)
   parentNode.nextNodes = [];
@@ -178,15 +204,12 @@ export function insertNodeBetween(
   // Connect: parent -> newNode
   addConnection(parentNode, newNode);
 
-  // Connect: newNode -> each existing child
-  for (const child of existingChildren) {
-    // Skip undefined children (defensive - shouldn't happen if graph is well-formed)
-    if (child !== undefined) {
-      // Remove old connection from parent to child (if it still exists)
-      removeConnection(parentNode, child);
-      // Add connection from newNode to child
-      addConnection(newNode, child);
-    }
+  // Connect: newNode -> each existing child, preserving port indices
+  for (const {child, portIndex} of existingChildren) {
+    // Remove old connection from parent to child (if it still exists)
+    removeConnection(parentNode, child);
+    // Add connection from newNode to child, preserving the port index
+    addConnection(newNode, child, portIndex);
   }
 }
 

@@ -333,6 +333,7 @@ class Trace(object):
 
   def add_gpu_counter_spec(self,
                            ts,
+                           gpu_id,
                            counter_id,
                            name,
                            description=None,
@@ -341,6 +342,7 @@ class Trace(object):
     packet = self.add_packet()
     packet.timestamp = ts
     gpu_counters = packet.gpu_counter_event
+    gpu_counters.gpu_id = gpu_id
     counter_desc = gpu_counters.counter_descriptor
     spec = counter_desc.specs.add()
     spec.counter_id = counter_id

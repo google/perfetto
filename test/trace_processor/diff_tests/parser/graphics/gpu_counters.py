@@ -29,6 +29,7 @@ trace = synth_common.create_trace()
 # Add 3 counter specs.
 trace.add_gpu_counter_spec(
     ts=1,
+    gpu_id=0,
     counter_id=31,
     name="Vertex / Second",
     description="Number of vertices per second",
@@ -36,6 +37,7 @@ trace.add_gpu_counter_spec(
     unit_denominators=[SECOND])
 trace.add_gpu_counter_spec(
     ts=2,
+    gpu_id=0,
     counter_id=32,
     name="Fragment / Second",
     description="Number of fragments per second",
@@ -43,6 +45,7 @@ trace.add_gpu_counter_spec(
     unit_denominators=[SECOND])
 trace.add_gpu_counter_spec(
     ts=3,
+    gpu_id=1,
     counter_id=34,
     name="Triangle Acceleration",
     description="Number of triangles per ms-ms",

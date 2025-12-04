@@ -221,7 +221,14 @@ export class LimitAndOffsetNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new LimitAndOffsetNode(this.state);
+    const stateCopy: LimitAndOffsetNodeState = {
+      limit: this.state.limit,
+      offset: this.state.offset,
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new LimitAndOffsetNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
