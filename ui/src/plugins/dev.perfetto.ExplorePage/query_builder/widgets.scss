@@ -23,6 +23,7 @@
   gap: 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--pf-color-border);
+  flex-wrap: wrap;
 
   label {
     font-weight: 600;
@@ -30,6 +31,17 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--pf-color-text-muted);
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+
+    label {
+      width: 100%;
+    }
   }
 }
 
@@ -152,12 +164,25 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 
   span {
     font-weight: 500;
     font-size: 12px;
     color: var(--pf-color-text-muted);
     min-width: 100px;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    span {
+      width: 100%;
+      min-width: 0;
+    }
   }
 }
 
@@ -166,7 +191,7 @@
 .pf-exp-labeled-control {
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 0; // Prevent margin stacking with section gaps
 
@@ -180,6 +205,22 @@
   .pf-text-input {
     min-width: 0;
     flex: 1 1 auto;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    span {
+      width: 100%;
+      white-space: normal;
+    }
+
+    .pf-text-input {
+      width: 100%;
+    }
   }
 }
 
@@ -258,6 +299,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  container-type: inline-size;
 }
 
 // Sort criteria list - list of draggable sort items with gaps
@@ -336,6 +378,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  container-type: inline-size;
 }
 
 // Form list item widget - inline form editing in a list item
@@ -377,11 +420,27 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
 
   // Ensure form controls don't overflow
   .pf-select,
   .pf-text-input {
     min-width: 80px;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    .pf-select,
+    .pf-text-input,
+    .pf-outlined-field,
+    .pf-outlined-multiselect {
+      width: 100%;
+      min-width: 0;
+    }
   }
 }
 
