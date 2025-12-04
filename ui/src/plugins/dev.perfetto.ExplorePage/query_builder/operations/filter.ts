@@ -14,17 +14,13 @@
 
 import m from 'mithril';
 import {Button} from '../../../../widgets/button';
-import {Checkbox} from '../../../../widgets/checkbox';
 import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
-import {Icon} from '../../../../widgets/icon';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {Stack} from '../../../../widgets/stack';
-import {Icons} from '../../../../base/semantic_icons';
 import {showModal, closeModal} from '../../../../widgets/modal';
 import {Form, FormLabel} from '../../../../widgets/form';
 import {DataGridFilter} from '../../../../components/widgets/data_grid/common';
@@ -136,213 +132,6 @@ export function normalizeDataGridFilter(filter: DataGridFilter): UIFilter[] {
 
   // All other filter types pass through as-is
   return [filter as UIFilter];
-}
-
-/**
- * Attributes for the FilterOperation component.
- */
-export interface FilterAttrs {
-  readonly sourceCols: ColumnInfo[];
-  readonly filters?: ReadonlyArray<UIFilter>;
-  readonly filterOperator?: 'AND' | 'OR';
-  readonly onFiltersChanged?: (filters: ReadonlyArray<UIFilter>) => void;
-  readonly onFilterOperatorChanged?: (operator: 'AND' | 'OR') => void;
-  readonly onchange?: () => void;
-  readonly onEdit?: (filter: UIFilter) => void; // Right-click edit callback
-}
-
-export class FilterOperation implements m.ClassComponent<FilterAttrs> {
-  private error?: string;
-  private uiFilters: UIFilter[] = [];
-
-  oncreate({attrs}: m.Vnode<FilterAttrs>) {
-    this.uiFilters = [...(attrs.filters ?? [])];
-  }
-
-  onbeforeupdate({attrs}: m.Vnode<FilterAttrs>) {
-    // Sync with parent state
-    this.uiFilters = [...(attrs.filters ?? [])];
-  }
-
-  private setFilters(nextFilters: UIFilter[], attrs: FilterAttrs) {
-    this.uiFilters = nextFilters;
-    attrs.onFiltersChanged?.(this.uiFilters);
-    attrs.onchange?.();
-    m.redraw();
-  }
-
-  private renderFilterChip(filter: UIFilter, attrs: FilterAttrs): m.Child {
-    const isEnabled = filter.enabled !== false; // Default to true
-    const label = formatFilterValue(filter, true);
-
-    return m(
-      'div',
-      {
-        className: 'pf-filter-chip-container',
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          opacity: isEnabled ? 1 : 0.5,
-        },
-        onmousedown: (e: MouseEvent) => {
-          // Stop propagation to prevent node undocking when interacting with filters
-          e.stopPropagation();
-        },
-        oncontextmenu: attrs.onEdit
-          ? (e: MouseEvent) => {
-              e.preventDefault();
-              e.stopPropagation();
-              attrs.onEdit!(filter);
-            }
-          : undefined,
-      },
-      m(Checkbox, {
-        checked: isEnabled,
-        onclick: (e: MouseEvent) => {
-          e.stopPropagation();
-        },
-        onmousedown: (e: MouseEvent) => {
-          e.stopPropagation();
-        },
-        onmouseup: (e: MouseEvent) => {
-          e.stopPropagation();
-        },
-        onchange: () => {
-          const nextFilters = this.uiFilters.map((f) =>
-            f === filter ? {...f, enabled: !isEnabled} : f,
-          );
-          this.setFilters(nextFilters, attrs);
-        },
-      }),
-      m(Chip, {
-        label,
-        rounded: true,
-        removable: true,
-        intent: isEnabled ? Intent.Primary : Intent.None,
-        onRemove: () => {
-          const nextFilters = this.uiFilters.filter((f) => f !== filter);
-          this.setFilters(nextFilters, attrs);
-        },
-      }),
-      // Edit icon - always visible in nodeSpecificModify
-      attrs.onEdit &&
-        m(Icon, {
-          'icon': Icons.Edit,
-          'style': {cursor: 'pointer', marginLeft: '2px'},
-          'onclick': (e: MouseEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            attrs.onEdit!(filter);
-          },
-          // Add aria-label for accessibility
-          'aria-label': 'Edit filter',
-          'role': 'button',
-          'tabindex': 0,
-        }),
-    );
-  }
-
-  view({attrs}: m.CVnode<FilterAttrs>) {
-    const {sourceCols} = attrs;
-
-    return m('.pf-exp-query-operations', [
-      // Header section with filter input
-      m(
-        '.pf-exp-filters-header',
-        m(
-          '.pf-exp-filters-input-row',
-          m('label.pf-exp-filters-label', 'Type the filter '),
-          m(TextInput, {
-            placeholder: 'e.g. ts > 1000',
-            disabled: sourceCols.length === 0,
-            onkeydown: (e: KeyboardEvent) => {
-              const target = e.target as HTMLInputElement;
-              if (e.key === 'Enter') {
-                const text = target.value;
-                if (text.length > 0) {
-                  const filter = parseFilterFromText(text, sourceCols);
-                  if (!isFilterDefinitionValid(filter)) {
-                    if (filter.column === undefined) {
-                      this.error = `Column not found in "${text}"`;
-                    } else if (filter.op === undefined) {
-                      this.error = `Operator not found in "${text}"`;
-                    } else {
-                      this.error = `Filter value is missing in "${text}"`;
-                    }
-                    m.redraw();
-                    return;
-                  }
-                  this.error = undefined;
-                  this.setFilters([...this.uiFilters, filter], attrs);
-                  target.value = '';
-                }
-              }
-            },
-          }),
-        ),
-      ),
-      this.error && m('.pf-exp-error-message', this.error),
-      // Filters list
-      m(
-        '.pf-filters-container',
-        m(
-          Stack,
-          {orientation: 'vertical'},
-          this.uiFilters.map((filter) => this.renderFilterChip(filter, attrs)),
-          m(Button, {
-            icon: 'add',
-            label: 'Add Filter',
-            rounded: true,
-            intent: Intent.Primary,
-            disabled: attrs.sourceCols.length === 0,
-            title:
-              attrs.sourceCols.length === 0
-                ? 'No columns available to filter on'
-                : undefined,
-            onclick: () => {
-              // Check if there are any columns available
-              if (attrs.sourceCols.length === 0) {
-                showModal({
-                  title: 'Cannot add filter',
-                  content: m(
-                    'div',
-                    m('p', 'No columns are available to filter on.'),
-                    m(
-                      'p',
-                      'Please select a table or add columns before adding filters.',
-                    ),
-                  ),
-                });
-                return;
-              }
-
-              // Clear any previous errors
-              this.error = undefined;
-
-              // Start with first column and "is not null" operator
-              const defaultColumn = attrs.sourceCols[0].name;
-              const newFilter: Partial<UIFilter> = {
-                column: defaultColumn,
-                op: 'is not null',
-              };
-
-              // showFilterEditModal now accepts Partial<UIFilter>
-              showFilterEditModal(
-                newFilter,
-                attrs.sourceCols,
-                (createdFilter) => {
-                  const nextFilters = [...this.uiFilters, createdFilter];
-                  this.uiFilters = nextFilters;
-                  this.setFilters(nextFilters, attrs);
-                },
-              );
-            },
-          }),
-        ),
-      ),
-    ]);
-  }
 }
 
 /**
@@ -918,28 +707,6 @@ export function createExperimentalFiltersProto(
   filterGroup.filters = protoFilters;
 
   return filterGroup;
-}
-
-/**
- * Helper to render FilterOperation with standard wiring for any node.
- * This avoids repeating the same pattern in every node type.
- */
-export function renderFilterOperation(
-  filters: UIFilter[] | undefined,
-  filterOperator: 'AND' | 'OR' | undefined,
-  sourceCols: ColumnInfo[],
-  onFiltersChanged: (filters: ReadonlyArray<UIFilter>) => void,
-  onFilterOperatorChanged: (operator: 'AND' | 'OR') => void,
-  onEdit?: (filter: UIFilter) => void,
-): m.Child {
-  return m(FilterOperation, {
-    filters,
-    filterOperator,
-    sourceCols,
-    onFiltersChanged,
-    onFilterOperatorChanged,
-    onEdit,
-  });
 }
 
 /**
