@@ -116,6 +116,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
       {
         title: 'PID',
         columnId: 'pid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Thread',
@@ -124,6 +125,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
       {
         title: 'TID',
         columnId: 'tid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'State',
@@ -149,6 +151,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         title: 'Occurrences',
         columnId: 'occurrences',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

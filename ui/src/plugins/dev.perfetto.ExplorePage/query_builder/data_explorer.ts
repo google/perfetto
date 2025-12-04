@@ -15,11 +15,7 @@
 import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
-import {
-  DataGrid,
-  renderCell,
-} from '../../../components/widgets/data_grid/data_grid';
-import {SqlValue} from '../../../trace_processor/query_result';
+import {DataGrid} from '../../../components/widgets/data_grid/data_grid';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -320,9 +316,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
               }
             }
             attrs.onchange?.();
-          },
-          cellRenderer: (value: SqlValue, name: string) => {
-            return renderCell(value, name);
           },
         }),
       ];

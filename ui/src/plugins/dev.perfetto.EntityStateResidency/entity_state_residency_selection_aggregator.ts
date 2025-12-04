@@ -90,6 +90,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
         title: 'Time in state (ms)',
         columnId: 'delta_value',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Time in state',
@@ -100,6 +101,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
       {
         title: 'Sample Count',
         columnId: 'count',
+        formatHint: 'NUMERIC',
       },
     ];
   }
