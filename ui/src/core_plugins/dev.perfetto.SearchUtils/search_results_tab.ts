@@ -38,6 +38,28 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
       {
         name: 'id',
         title: 'Event ID',
+        cellRenderer: (value, row) => {
+          if (typeof row.trackUri === 'string') {
+            return m(
+              Anchor,
+              {
+                onclick: () => {
+                  trace.selection.selectTrackEvent(
+                    row.trackUri as string,
+                    value as number,
+                    {
+                      switchToCurrentSelectionTab: false,
+                      clearSearch: false,
+                      scrollToSelection: true,
+                    },
+                  );
+                },
+              },
+              String(value),
+            );
+          }
+          return String(value);
+        },
       },
       {
         name: 'ts',
@@ -80,28 +102,6 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
         columns,
         data: rowData,
         fillHeight: true,
-        cellRenderer: (value, columnName, row) => {
-          if (columnName === 'id' && typeof row.trackUri === 'string') {
-            return m(
-              Anchor,
-              {
-                onclick: () => {
-                  trace.selection.selectTrackEvent(
-                    row.trackUri as string,
-                    value as number,
-                    {
-                      switchToCurrentSelectionTab: false,
-                      clearSearch: false,
-                      scrollToSelection: true,
-                    },
-                  );
-                },
-              },
-              String(value),
-            );
-          }
-          return String(value);
-        },
       }),
     );
   }
