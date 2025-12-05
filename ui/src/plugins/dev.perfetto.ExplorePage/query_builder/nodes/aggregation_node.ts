@@ -344,7 +344,10 @@ export class AggregationNode implements QueryNode {
       },
       addButtonLabel: 'Add aggregation',
       addButtonIcon: 'add',
-      emptyItem: () => ({}),
+      emptyItem: () => ({
+        aggregationOp: 'COUNT(*)',
+        newColumnName: 'count',
+      }),
     });
   }
 
