@@ -593,7 +593,7 @@ TEST_P(ShortestPathStabilityTest, Run) {
   }
 
   helper.BuildFlamegraph();
-  helper.AssertParent("ChildClass", "A_Parent");
+  helper.AssertParent("Child", "A_Parent");
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -602,32 +602,24 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         ShortestPathTestCase{
             "Aid_greater_than_Bid__B_references_earlier_A",
-            {
-                {/* id= */ 2, /* name= */ "B_Parent", /* parents= */ {kRoot}},
-                {/* id= */ 3, /* name= */ "A_Parent", /* parents= */ {kRoot}},
-                {/* id= */ 4, /* name= */ "ChildClass", /* parents= */ {2, 3}}
-            }},
+            {{/* id= */ 2, /* name= */ "B_Parent", /* parents= */ {kRoot}},
+             {/* id= */ 3, /* name= */ "A_Parent", /* parents= */ {kRoot}},
+             {/* id= */ 4, /* name= */ "Child", /* parents= */ {2, 3}}}},
         ShortestPathTestCase{
             "Aid_greater_than_Bid__A_references_earlier_B",
-            {
-                {/* id= */ 2, /* name= */ "B_Parent", /* parents= */ {kRoot}},
-                {/* id= */ 3, /* name= */ "A_Parent", /* parents= */ {kRoot}},
-                {/* id= */ 4, /* name= */ "ChildClass", /* parents= */ {3, 2}}
-            }},
+            {{/* id= */ 2, /* name= */ "B_Parent", /* parents= */ {kRoot}},
+             {/* id= */ 3, /* name= */ "A_Parent", /* parents= */ {kRoot}},
+             {/* id= */ 4, /* name= */ "Child", /* parents= */ {3, 2}}}},
         ShortestPathTestCase{
             "Aid_less_than_Bid__B_references_earlier_A",
-            {
-                {/* id= */ 2, /* name= */ "A_Parent", /* parents= */ {kRoot}},
-                {/* id= */ 3, /* name= */ "B_Parent", /* parents= */ {kRoot}},
-                {/* id= */ 4, /* name= */ "ChildClass", /* parents= */ {3, 2}}
-            }},
+            {{/* id= */ 2, /* name= */ "A_Parent", /* parents= */ {kRoot}},
+             {/* id= */ 3, /* name= */ "B_Parent", /* parents= */ {kRoot}},
+             {/* id= */ 4, /* name= */ "Child", /* parents= */ {3, 2}}}},
         ShortestPathTestCase{
             "Aid_less_than_Bid__A_references_earlier_B",
-            {
-                {/* id= */ 2, /* name= */ "A_Parent", /* parents= */ {kRoot}},
-                {/* id= */ 3, /* name= */ "B_Parent", /* parents= */ {kRoot}},
-                {/* id= */ 4, /* name= */ "ChildClass", /* parents= */ {2, 3}}
-            }}),
+            {{/* id= */ 2, /* name= */ "A_Parent", /* parents= */ {kRoot}},
+             {/* id= */ 3, /* name= */ "B_Parent", /* parents= */ {kRoot}},
+             {/* id= */ 4, /* name= */ "Child", /* parents= */ {2, 3}}}}),
     &ShortestPathTestCase::ToString);
 
 constexpr char kArray[] = "X[]";
