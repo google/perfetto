@@ -17,6 +17,12 @@ import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 
+// Interface for accessing private methods during testing
+interface FilterDuringNodeWithPrivates {
+  getCommonColumns(): string[];
+  cleanupPartitionColumns(): void;
+}
+
 describe('FilterDuringNode', () => {
   function createMockNode(id: string, columns: ColumnInfo[]): QueryNode {
     return {
@@ -526,6 +532,498 @@ describe('FilterDuringNode', () => {
       const node = new FilterDuringNode({});
 
       expect(() => node.onPrevNodesUpdated()).not.toThrow();
+    });
+  });
+
+  describe('partition columns', () => {
+    describe('initialization', () => {
+      it('should initialize with empty partition columns by default', () => {
+        const node = new FilterDuringNode({});
+
+        expect(node.state.partitionColumns).toBeUndefined();
+      });
+
+      it('should preserve provided partition columns', () => {
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid', 'cpu'],
+        });
+
+        expect(node.state.partitionColumns).toEqual(['utid', 'cpu']);
+      });
+    });
+
+    describe('getCommonColumns', () => {
+      it('should return empty array when no primary input', () => {
+        const node = new FilterDuringNode({});
+
+        // Access private method for testing
+        const commonColumns = (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).getCommonColumns();
+
+        expect(commonColumns).toEqual([]);
+      });
+
+      it('should return empty array when no secondary inputs', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({});
+        node.primaryInput = primaryNode;
+
+        const commonColumns = (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).getCommonColumns();
+
+        expect(commonColumns).toEqual([]);
+      });
+
+      it('should find common columns between primary and secondary inputs', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+          createColumnInfo('cpu', 'INT'),
+          createColumnInfo('name', 'STRING'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+          createColumnInfo('cpu', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const commonColumns = (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).getCommonColumns();
+
+        expect(commonColumns).toEqual(['cpu', 'utid']);
+      });
+
+      it('should exclude id, ts, dur columns', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const node = new FilterDuringNode({});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const commonColumns = (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).getCommonColumns();
+
+        expect(commonColumns).toEqual([]);
+      });
+
+      it('should exclude STRING and BYTES type columns', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('name', 'STRING'),
+          createColumnInfo('data', 'BYTES'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('name', 'STRING'),
+          createColumnInfo('data', 'BYTES'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const commonColumns = (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).getCommonColumns();
+
+        expect(commonColumns).toEqual(['utid']);
+      });
+
+      it('should only return columns present in all secondary inputs', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+          createColumnInfo('cpu', 'INT'),
+          createColumnInfo('priority', 'INT'),
+        ]);
+
+        const secondaryNode1 = createMockNode('secondary1', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+          createColumnInfo('cpu', 'INT'),
+        ]);
+
+        const secondaryNode2 = createMockNode('secondary2', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+          createColumnInfo('priority', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode1);
+        node.secondaryInputs.connections.set(1, secondaryNode2);
+
+        const commonColumns = (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).getCommonColumns();
+
+        // Only 'utid' is in primary AND both secondaries
+        expect(commonColumns).toEqual(['utid']);
+      });
+
+      it('should sort common columns alphabetically', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('zzz', 'INT'),
+          createColumnInfo('aaa', 'INT'),
+          createColumnInfo('mmm', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('zzz', 'INT'),
+          createColumnInfo('aaa', 'INT'),
+          createColumnInfo('mmm', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const commonColumns = (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).getCommonColumns();
+
+        expect(commonColumns).toEqual(['aaa', 'mmm', 'zzz']);
+      });
+    });
+
+    describe('cleanupPartitionColumns', () => {
+      it('should not throw when partitionColumns is undefined', () => {
+        const node = new FilterDuringNode({});
+
+        expect(() =>
+          (
+            node as unknown as FilterDuringNodeWithPrivates
+          ).cleanupPartitionColumns(),
+        ).not.toThrow();
+      });
+
+      it('should not throw when partitionColumns is empty', () => {
+        const node = new FilterDuringNode({
+          partitionColumns: [],
+        });
+
+        expect(() =>
+          (
+            node as unknown as FilterDuringNodeWithPrivates
+          ).cleanupPartitionColumns(),
+        ).not.toThrow();
+      });
+
+      it('should remove partition columns no longer available in inputs', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid', 'cpu'], // 'cpu' doesn't exist
+        });
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).cleanupPartitionColumns();
+
+        expect(node.state.partitionColumns).toEqual(['utid']);
+      });
+
+      it('should clear all partition columns when none are available', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid', 'cpu'],
+        });
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).cleanupPartitionColumns();
+
+        expect(node.state.partitionColumns).toEqual([]);
+      });
+
+      it('should preserve valid partition columns', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+          createColumnInfo('cpu', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+          createColumnInfo('cpu', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid', 'cpu'],
+        });
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        (
+          node as unknown as FilterDuringNodeWithPrivates
+        ).cleanupPartitionColumns();
+
+        expect(node.state.partitionColumns).toEqual(['utid', 'cpu']);
+      });
+    });
+
+    describe('serializeState with partition columns', () => {
+      it('should include partition columns in serialized state', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid'],
+        });
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const serialized = node.serializeState();
+
+        expect(serialized).toEqual({
+          primaryInputId: primaryNode.nodeId,
+          secondaryInputNodeIds: [secondaryNode.nodeId],
+          filterNegativeDurPrimary: true,
+          filterNegativeDurSecondary: true,
+          partitionColumns: ['utid'],
+        });
+      });
+
+      it('should handle undefined partition columns', () => {
+        const node = new FilterDuringNode({});
+
+        const serialized = node.serializeState() as Record<string, unknown>;
+
+        expect(serialized).toHaveProperty('partitionColumns');
+        expect(serialized.partitionColumns).toBeUndefined();
+      });
+    });
+
+    describe('deserializeState with partition columns', () => {
+      it('should restore partition columns from serialized state', () => {
+        const state = FilterDuringNode.deserializeState({
+          filterNegativeDurPrimary: false,
+          filterNegativeDurSecondary: true,
+          partitionColumns: ['utid', 'cpu'],
+        });
+
+        expect(state.partitionColumns).toEqual(['utid', 'cpu']);
+      });
+
+      it('should handle missing partition columns in serialized state', () => {
+        const state = FilterDuringNode.deserializeState({
+          filterNegativeDurPrimary: false,
+          filterNegativeDurSecondary: true,
+        });
+
+        expect(state.partitionColumns).toBeUndefined();
+      });
+    });
+
+    describe('clone with partition columns', () => {
+      it('should clone partition columns', () => {
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid', 'cpu'],
+        });
+
+        const cloned = node.clone() as FilterDuringNode;
+
+        expect(cloned.state.partitionColumns).toEqual(['utid', 'cpu']);
+      });
+
+      it('should create independent copy of partition columns array', () => {
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid'],
+        });
+
+        const cloned = node.clone() as FilterDuringNode;
+
+        // Modify cloned partition columns
+        cloned.state.partitionColumns?.push('cpu');
+
+        // Original should not be affected
+        expect(node.state.partitionColumns).toEqual(['utid']);
+        expect(cloned.state.partitionColumns).toEqual(['utid', 'cpu']);
+      });
+
+      it('should handle undefined partition columns', () => {
+        const node = new FilterDuringNode({});
+
+        const cloned = node.clone() as FilterDuringNode;
+
+        expect(cloned.state.partitionColumns).toBeUndefined();
+      });
+    });
+
+    describe('getStructuredQuery with partition columns', () => {
+      it('should pass partition columns to interval intersect', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid'],
+        });
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const sq = node.getStructuredQuery();
+
+        // Query should be generated successfully with partition columns
+        expect(sq).toBeDefined();
+        expect(sq?.id).toBe(node.nodeId);
+      });
+
+      it('should work without partition columns', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const sq = node.getStructuredQuery();
+
+        expect(sq).toBeDefined();
+        expect(sq?.id).toBe(node.nodeId);
+      });
+    });
+
+    describe('onPrevNodesUpdated with partition columns', () => {
+      it('should cleanup partition columns when inputs change', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('utid', 'INT'),
+        ]);
+
+        const node = new FilterDuringNode({
+          partitionColumns: ['utid', 'cpu'], // 'cpu' doesn't exist
+        });
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        node.onPrevNodesUpdated();
+
+        // 'cpu' should be removed as it doesn't exist in inputs
+        expect(node.state.partitionColumns).toEqual(['utid']);
+      });
     });
   });
 });
