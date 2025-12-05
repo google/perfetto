@@ -601,61 +601,33 @@ INSTANTIATE_TEST_SUITE_P(
     ShortestPathStabilityTest,
     testing::Values(
         ShortestPathTestCase{
-            .name = "Aid_greater_than_Bid__B_references_earlier_A",
-            .objects =
-                {
-                    {.id = 2,
-                     .class_name = "B_Parent",
-                     .parents = {kRoot}},  // B_Parent (id=2), parent=Root(1)
-                    {.id = 3,
-                     .class_name = "A_Parent",
-                     .parents = {kRoot}},  // A_Parent (id=3), parent=Root(1)
-                    {.id = 4,
-                     .class_name = "ChildClass",
-                     .parents = {2, 3}}  // Child (id=4), parents=B(2), A(3)
-                }},
+            "Aid_greater_than_Bid__B_references_earlier_A",
+            {
+                {/* id= */ 2, /* name= */ "B_Parent", /* parents= */ {kRoot}},
+                {/* id= */ 3, /* name= */ "A_Parent", /* parents= */ {kRoot}},
+                {/* id= */ 4, /* name= */ "ChildClass", /* parents= */ {2, 3}}
+            }},
         ShortestPathTestCase{
-            .name = "Aid_greater_than_Bid__A_references_earlier_B",
-            .objects =
-                {
-                    {.id = 3,
-                     .class_name = "A_Parent",
-                     .parents = {kRoot}},  // A_Parent (id=3), parent=Root(1)
-                    {.id = 2,
-                     .class_name = "B_Parent",
-                     .parents = {kRoot}},  // B_Parent (id=2), parent=Root(1)
-                    {.id = 4,
-                     .class_name = "ChildClass",
-                     .parents = {3, 2}}  // Child (id=4), parents=A(3), B(2)
-                }},
+            "Aid_greater_than_Bid__A_references_earlier_B",
+            {
+                {/* id= */ 2, /* name= */ "B_Parent", /* parents= */ {kRoot}},
+                {/* id= */ 3, /* name= */ "A_Parent", /* parents= */ {kRoot}},
+                {/* id= */ 4, /* name= */ "ChildClass", /* parents= */ {3, 2}}
+            }},
         ShortestPathTestCase{
-            .name = "Aid_less_than_Bid__B_references_earlier_A",
-            .objects =
-                {
-                    {.id = 3,
-                     .class_name = "B_Parent",
-                     .parents = {kRoot}},  // B_Parent (id=3), parent=Root(1)
-                    {.id = 2,
-                     .class_name = "A_Parent",
-                     .parents = {kRoot}},  // A_Parent (id=2), parent=Root(1)
-                    {.id = 4,
-                     .class_name = "ChildClass",
-                     .parents = {2, 3}}  // Child (id=4), parents=A(2), B(3)
-                }},
+            "Aid_less_than_Bid__B_references_earlier_A",
+            {
+                {/* id= */ 2, /* name= */ "A_Parent", /* parents= */ {kRoot}},
+                {/* id= */ 3, /* name= */ "B_Parent", /* parents= */ {kRoot}},
+                {/* id= */ 4, /* name= */ "ChildClass", /* parents= */ {3, 2}}
+            }},
         ShortestPathTestCase{
-            .name = "Aid_less_than_Bid__A_references_earlier_B",
-            .objects =
-                {
-                    {.id = 2,
-                     .class_name = "A_Parent",
-                     .parents = {kRoot}},  // A_Parent (id=2), parent=Root(1)
-                    {.id = 3,
-                     .class_name = "B_Parent",
-                     .parents = {kRoot}},  // B_Parent (id=3), parent=Root(1)
-                    {.id = 4,
-                     .class_name = "ChildClass",
-                     .parents = {2, 3}}  // Child (id=4), parents=A(2), B(3)
-                }}),
+            "Aid_less_than_Bid__A_references_earlier_B",
+            {
+                {/* id= */ 2, /* name= */ "A_Parent", /* parents= */ {kRoot}},
+                {/* id= */ 3, /* name= */ "B_Parent", /* parents= */ {kRoot}},
+                {/* id= */ 4, /* name= */ "ChildClass", /* parents= */ {2, 3}}
+            }}),
     &ShortestPathTestCase::ToString);
 
 constexpr char kArray[] = "X[]";

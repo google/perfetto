@@ -418,8 +418,7 @@ class ProfilingHeapGraph(TestSuite):
         '''))
 
   def test_heap_graph_root_sorting(self):
-    # We expect RootA to be the parent because it comes first alphabetically,
-    # even though RootB (id 1) is smaller than RootA (id 2).
+    # We expect RootA to be the parent because it comes first alphabetically
     return DiffTestBlueprint(
         trace=Path('heap_graph_root_sorting.textproto'),
         query="""
@@ -436,8 +435,7 @@ class ProfilingHeapGraph(TestSuite):
         '''))
 
   def test_heap_graph_root_sorting_reverse(self):
-    # We expect RootA to be the parent because it comes first alphabetically,
-    # even though RootA (id 1) is smaller than RootB (id 2).
+    # We expect RootA to be the parent because it comes first alphabetically
     return DiffTestBlueprint(
         trace=Path('heap_graph_root_sorting_reverse.textproto'),
         query="""
