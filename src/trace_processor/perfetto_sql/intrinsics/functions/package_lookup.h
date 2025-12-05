@@ -29,6 +29,8 @@ struct PackageLookup : public sqlite::Function<PackageLookup> {
   struct Context {
     Context(TraceStorage* s)
         : storage(s),
+          // TODO(rzuklie): the uid column is not indexed (since it is not
+          // unique), consider finding a more efficient way to scan the table.
           package_list_cursor(s->mutable_package_list_table()->CreateCursor(
               {dataframe::FilterSpec{
                   tables::PackageListTable::ColumnIndex::uid,
