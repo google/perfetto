@@ -20,6 +20,7 @@ import {Checkbox} from '../../../widgets/checkbox';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
   Connection,
+  Label,
   Node,
   NodeGraph,
   NodeGraphApi,
@@ -90,6 +91,7 @@ type NodeData =
 interface NodeGraphStore {
   readonly nodes: Map<string, NodeData>;
   readonly connections: Connection[];
+  readonly labels: Label[];
   readonly invalidNodes: Set<string>; // Track which nodes are marked as invalid
 }
 
@@ -435,6 +437,22 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   let store: NodeGraphStore = {
     nodes: new Map([[initialId, createTableNode(initialId, 150, 100)]]),
     connections: [],
+    labels: [
+      {
+        id: uuidv4(),
+        x: 400,
+        y: 100,
+        width: 180,
+        text: 'One line label',
+      },
+      {
+        id: uuidv4(),
+        x: 400,
+        y: 200,
+        width: 180,
+        text: 'Another label with longer text that will wrap',
+      },
+    ],
     invalidNodes: new Set<string>(),
   };
 
@@ -444,6 +462,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
   // Selection state (separate from undo/redo history)
   const selectedNodeIds = new Set<string>();
+  const selectedLabelIds = new Set<string>();
 
   // Helper to find the parent node (node that has this node as nextId)
   function findDockedParent(
@@ -562,6 +581,20 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     selectedNodeIds.delete(nodeId);
 
     console.log(`removeNode: ${nodeId}`);
+  };
+
+  const removeLabel = (labelId: string) => {
+    updateStore((draft) => {
+      const labelIndex = draft.labels.findIndex((l) => l.id === labelId);
+      if (labelIndex !== -1) {
+        draft.labels.splice(labelIndex, 1);
+      }
+    });
+
+    // Clear from selection (outside of store update)
+    selectedLabelIds.delete(labelId);
+
+    console.log(`removeLabel: ${labelId}`);
   };
 
   // Stress test function
@@ -1194,6 +1227,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         },
         onSelectionClear: () => {
           selectedNodeIds.clear();
+          selectedLabelIds.clear();
           m.redraw();
           console.log(`onSelectionClear`);
         },
@@ -1234,6 +1268,60 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               );
             }
           });
+        },
+        labels: store.labels,
+        selectedLabelIds: selectedLabelIds,
+        onLabelMove: (labelId: string, x: number, y: number) => {
+          updateStore((draft) => {
+            const label = draft.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.x = x;
+              label.y = y;
+              console.log(`onLabelMove: ${labelId} to (${x}, ${y})`);
+            }
+          });
+        },
+        onLabelResize: (labelId: string, width: number) => {
+          updateStore((draft) => {
+            const label = draft.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.width = width;
+              console.log(`onLabelResize: ${labelId} to width ${width}`);
+            }
+          });
+        },
+        onLabelTextChange: (labelId: string, text: string) => {
+          updateStore((draft) => {
+            const label = draft.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.text = text;
+              console.log(`onLabelTextChange: ${labelId} to "${text}"`);
+            }
+          });
+        },
+        onLabelSelect: (labelId: string) => {
+          selectedLabelIds.clear();
+          selectedLabelIds.add(labelId);
+          m.redraw();
+          console.log(`onLabelSelect: ${labelId}`);
+        },
+        onLabelAddToSelection: (labelId: string) => {
+          selectedLabelIds.add(labelId);
+          m.redraw();
+          console.log(
+            `onLabelAddToSelection: ${labelId} (total: ${selectedLabelIds.size})`,
+          );
+        },
+        onLabelRemoveFromSelection: (labelId: string) => {
+          selectedLabelIds.delete(labelId);
+          m.redraw();
+          console.log(
+            `onLabelRemoveFromSelection: ${labelId} (total: ${selectedLabelIds.size})`,
+          );
+        },
+        onLabelRemove: (labelId: string) => {
+          removeLabel(labelId);
+          console.log(`onLabelRemove: ${labelId}`);
         },
       };
 

@@ -49,6 +49,7 @@
  */
 import m from 'mithril';
 import {Button, ButtonVariant} from './button';
+import {Icon} from './icon';
 import {PopupMenu} from './menu';
 import {classNames} from '../base/classnames';
 import {Icons} from '../base/semantic_icons';
@@ -96,6 +97,14 @@ export interface Node {
   readonly invalid?: boolean; // Whether this node is in an invalid state
 }
 
+export interface Label {
+  readonly id: string;
+  x: number;
+  y: number;
+  width: number; // Width of the label box (user can resize)
+  text: string; // Text content of the label
+}
+
 interface ConnectingState {
   nodeId: string;
   portIndex: number;
@@ -133,6 +142,7 @@ interface CanvasState {
   connecting: ConnectingState | null;
   mousePos: Position;
   selectedNodes: ReadonlySet<string>;
+  selectedLabels: ReadonlySet<string>;
   panOffset: Position;
   isPanning: boolean;
   panStart: Position;
@@ -149,6 +159,12 @@ interface CanvasState {
   selectionRect: SelectionRect | null; // Box selection state
   canvasMouseDownPos: Position;
   tempNodePositions: Map<string, Position>; // Temporary positions during drag
+  editingLabel: string | null; // ID of label currently being edited
+  draggedLabel: string | null; // ID of label being dragged
+  labelDragStartPos: Position | null; // Position where label drag started
+  resizingLabel: string | null; // ID of label being resized
+  resizeStartWidth: number; // Width when resize started
+  resizeStartX: number; // Mouse X position when resize started
 }
 
 export interface NodeGraphApi {
@@ -160,6 +176,7 @@ export interface NodeGraphApi {
 export interface NodeGraphAttrs {
   readonly nodes: ReadonlyArray<Node>;
   readonly connections: ReadonlyArray<Connection>;
+  readonly labels?: ReadonlyArray<Label>;
   readonly onConnect?: (connection: Connection) => void;
   readonly onNodeMove?: (nodeId: string, x: number, y: number) => void;
   readonly onConnectionRemove?: (index: number) => void;
@@ -180,6 +197,14 @@ export interface NodeGraphAttrs {
     y: number,
   ) => void;
   readonly onNodeRemove?: (nodeId: string) => void;
+  readonly selectedLabelIds?: ReadonlySet<string>;
+  readonly onLabelSelect?: (labelId: string) => void;
+  readonly onLabelAddToSelection?: (labelId: string) => void;
+  readonly onLabelRemoveFromSelection?: (labelId: string) => void;
+  readonly onLabelMove?: (labelId: string, x: number, y: number) => void;
+  readonly onLabelResize?: (labelId: string, width: number) => void;
+  readonly onLabelTextChange?: (labelId: string, text: string) => void;
+  readonly onLabelRemove?: (labelId: string) => void;
   readonly hideControls?: boolean;
   readonly multiselect?: boolean; // Enable multi-node selection (default: true)
   readonly contextMenuOnHover?: boolean; // Show context menu on hover (default: false)
@@ -296,6 +321,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     connecting: null,
     mousePos: {x: 0, y: 0},
     selectedNodes: new Set<string>(),
+    selectedLabels: new Set<string>(),
     panOffset: {x: 0, y: 0},
     isPanning: false,
     panStart: {x: 0, y: 0},
@@ -308,6 +334,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     selectionRect: null,
     canvasMouseDownPos: {x: 0, y: 0},
     tempNodePositions: new Map<string, Position>(),
+    editingLabel: null,
+    draggedLabel: null,
+    labelDragStartPos: null,
+    resizingLabel: null,
+    resizeStartWidth: 0,
+    resizeStartX: 0,
   };
 
   // Track drag state for batching updates
@@ -368,6 +400,29 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         canvasState.mousePos.transformedX ?? 0;
       canvasState.selectionRect.currentY =
         canvasState.mousePos.transformedY ?? 0;
+      m.redraw();
+    } else if (canvasState.draggedLabel !== null) {
+      // Handle label dragging
+      const newX =
+        (canvasState.mousePos.transformedX ?? 0) - canvasState.dragOffset.x;
+      const newY =
+        (canvasState.mousePos.transformedY ?? 0) - canvasState.dragOffset.y;
+
+      const {onLabelMove} = vnode.attrs;
+      if (onLabelMove) {
+        onLabelMove(canvasState.draggedLabel, newX, newY);
+      }
+      m.redraw();
+    } else if (canvasState.resizingLabel !== null) {
+      // Handle label resizing
+      const currentX = canvasState.mousePos.transformedX ?? 0;
+      const deltaX = currentX - canvasState.resizeStartX;
+      const newWidth = Math.max(100, canvasState.resizeStartWidth + deltaX);
+
+      const {onLabelResize} = vnode.attrs;
+      if (onLabelResize) {
+        onLabelResize(canvasState.resizingLabel, newWidth);
+      }
       m.redraw();
     } else if (canvasState.isPanning) {
       // Pan the canvas
@@ -594,6 +649,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         }
       }
     }
+
+    // Cleanup label state
+    canvasState.draggedLabel = null;
+    canvasState.labelDragStartPos = null;
+    canvasState.resizingLabel = null;
 
     canvasState.draggedNode = null;
     dragStartPosition = null;
@@ -1655,6 +1715,151 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     );
   }
 
+  function renderLabel(label: Label, vnode: m.Vnode<NodeGraphAttrs>): m.Vnode {
+    const {id, x, y, width, text} = label;
+    const isEditing = canvasState.editingLabel === id;
+    const isDragging = canvasState.draggedLabel === id;
+    const isSelected = canvasState.selectedLabels.has(id);
+
+    return m(
+      '.pf-label',
+      {
+        'key': `label-${id}`,
+        'data-label': id,
+        'className': classNames(
+          isDragging && 'pf-dragging',
+          isEditing && 'pf-editing',
+          isSelected && 'pf-selected',
+        ),
+        'style': {
+          left: `${x}px`,
+          top: `${y}px`,
+          width: `${width}px`,
+        },
+        'onpointerdown': (e: PointerEvent) => {
+          const target = e.target as HTMLElement;
+
+          // Check if clicking on the resize handle or delete button
+          if (
+            target.closest('.pf-label-resize-handle') ||
+            target.closest('.pf-label-delete-button')
+          ) {
+            e.stopPropagation();
+            return;
+          }
+
+          // Check if clicking on the text input while editing
+          if (isEditing && target.tagName === 'TEXTAREA') {
+            e.stopPropagation();
+            return;
+          }
+
+          // Start dragging the label and select it
+          canvasState.draggedLabel = id;
+          canvasState.dragOffset = {
+            x: (canvasState.mousePos.transformedX ?? 0) - x,
+            y: (canvasState.mousePos.transformedY ?? 0) - y,
+          };
+          // Store the starting position to detect if label actually moved
+          canvasState.labelDragStartPos = {x, y};
+
+          const {onLabelSelect} = vnode.attrs;
+          if (onLabelSelect !== undefined) {
+            onLabelSelect(id);
+          }
+
+          e.stopPropagation();
+        },
+        'onclick': (e: PointerEvent) => {
+          // Don't enter edit mode if clicking on resize handle or delete button
+          const target = e.target as HTMLElement;
+          if (
+            target.closest('.pf-label-resize-handle') ||
+            target.closest('.pf-label-delete-button')
+          ) {
+            return;
+          }
+
+          // Only enter edit mode if label didn't actually move during drag
+          const didMove =
+            canvasState.labelDragStartPos !== null &&
+            (canvasState.labelDragStartPos.x !== x ||
+              canvasState.labelDragStartPos.y !== y);
+
+          if (!didMove) {
+            canvasState.editingLabel = id;
+            m.redraw();
+          }
+
+          e.stopPropagation();
+        },
+      },
+      [
+        isEditing
+          ? // Text content when editing
+            m('textarea.pf-label-text', {
+              value: text,
+              oninput: (e: InputEvent) => {
+                const {onLabelTextChange} = vnode.attrs;
+                const target = e.target as HTMLTextAreaElement;
+                if (onLabelTextChange) {
+                  onLabelTextChange(id, target.value);
+                }
+              },
+              onblur: () => {
+                canvasState.editingLabel = null;
+                m.redraw();
+              },
+              oncreate: (textVnode: m.VnodeDOM) => {
+                // Auto-focus and select text when entering edit mode
+                const textarea = textVnode.dom as HTMLTextAreaElement;
+                textarea.focus();
+                textarea.select();
+              },
+              onkeydown: (e: KeyboardEvent) => {
+                if (e.key === 'Escape') {
+                  canvasState.editingLabel = null;
+                  m.redraw();
+                  e.stopPropagation();
+                } else if (e.key === 'Enter' && e.ctrlKey) {
+                  canvasState.editingLabel = null;
+                  m.redraw();
+                  e.stopPropagation();
+                }
+                // Stop propagation to prevent canvas keyboard handlers
+                e.stopPropagation();
+              },
+            })
+          : // Text content when not editing
+            m('.pf-label-text', text),
+        // Resize handle (always rendered)
+        m('.pf-label-resize-handle', {
+          onpointerdown: (e: PointerEvent) => {
+            // Start resizing
+            canvasState.resizingLabel = id;
+            canvasState.resizeStartWidth = width;
+            canvasState.resizeStartX = canvasState.mousePos.transformedX ?? 0;
+            e.stopPropagation();
+          },
+        }),
+        // Delete button (always rendered, visible on hover/selection)
+        m(
+          '.pf-label-delete-button',
+          {
+            onclick: (e: PointerEvent) => {
+              const {onLabelRemove} = vnode.attrs;
+              if (onLabelRemove !== undefined) {
+                onLabelRemove(id);
+              }
+              e.stopPropagation();
+            },
+          },
+          m(Icon, {icon: 'close'}),
+        ),
+      ],
+    );
+  }
+
   return {
     oncreate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
       latestVnode = vnode;
@@ -1823,6 +2028,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       const {
         nodes,
         selectedNodeIds = new Set<string>(),
+        selectedLabelIds = new Set<string>(),
         hideControls = false,
         multiselect = true,
         contextMenuOnHover = false,
@@ -1831,6 +2037,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
       // Sync internal state with prop
       canvasState.selectedNodes = selectedNodeIds;
+      canvasState.selectedLabels = selectedLabelIds;
 
       const className = classNames(
         fillHeight && 'pf-canvas--fill-height',
@@ -1895,21 +2102,37 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           },
           onkeydown: (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-              // Deselect all nodes with Escape key
-              if (canvasState.selectedNodes.size > 0) {
-                const {onSelectionClear} = vnode.attrs;
-                if (onSelectionClear !== undefined) {
-                  onSelectionClear();
+              // First priority: exit label edit mode if active
+              if (canvasState.editingLabel !== null) {
+                canvasState.editingLabel = null;
+                m.redraw();
+              } else {
+                // Second priority: deselect all nodes and labels
+                const hasSelection =
+                  canvasState.selectedNodes.size > 0 ||
+                  canvasState.selectedLabels.size > 0;
+                if (hasSelection) {
+                  const {onSelectionClear} = vnode.attrs;
+                  if (onSelectionClear !== undefined) {
+                    onSelectionClear();
+                  }
                 }
               }
             } else if (e.key === 'Delete' || e.key === 'Backspace') {
-              const {onNodeRemove} = vnode.attrs;
-              if (canvasState.selectedNodes.size > 0 && onNodeRemove) {
-                // Delete all selected nodes
-                canvasState.selectedNodes.forEach((nodeId) => {
-                  onNodeRemove(nodeId);
-                });
-              }
+              const {onNodeRemove, onLabelRemove} = vnode.attrs;
+
+              // Helper to delete selected items
+              const deleteSelected = (
+                ids: ReadonlySet<string>,
+                onRemove?: (id: string) => void,
+              ) => {
+                if (ids.size > 0 && onRemove !== undefined) {
+                  ids.forEach((id) => onRemove(id));
+                }
+              };
+
+              deleteSelected(canvasState.selectedNodes, onNodeRemove);
+              deleteSelected(canvasState.selectedLabels, onLabelRemove);
             }
           },
           style: {
@@ -2044,6 +2267,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   }
                 })
                 .filter((vnode) => vnode !== null),
+
+              // Render all labels
+              (vnode.attrs.labels ?? []).map((label: Label) => {
+                return renderLabel(label, vnode);
+              }),
             ],
           ),
         ],
