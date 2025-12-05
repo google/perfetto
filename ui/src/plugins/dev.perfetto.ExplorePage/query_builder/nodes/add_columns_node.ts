@@ -884,7 +884,7 @@ export class AddColumnsNode implements QueryNode {
           }),
           m(Button, {
             label: 'If',
-            icon: 'help_outline',
+            icon: 'rule',
             onclick: () => this.showIfModal(),
             variant: ButtonVariant.Outlined,
           }),
