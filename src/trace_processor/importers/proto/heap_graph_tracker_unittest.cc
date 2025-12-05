@@ -439,141 +439,218 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   EXPECT_THAT(counts, UnorderedElementsAre(1, 1));
 }
 
-TEST(HeapGraphTrackerTest, ShortestPathStability) {
-  // Root -> ParentA (Class A) -> Child
-  // Root -> ParentB (Class B) -> Child
-  // We want to see Child attributed to ParentA if A < B alphabetically.
+constexpr uint64_t kRoot = 1;
 
-  constexpr uint64_t kSeqId = 1;
-  constexpr UniquePid kPid = 1;
-  constexpr int64_t kTimestamp = 1;
+class HeapGraphStabilityTest : public ::testing::Test {
+ public:
+  class Helper {
+   public:
+    Helper() {
+      context_.storage.reset(new TraceStorage());
+      context_.process_tracker.reset(new ProcessTracker(&context_));
+      context_.process_tracker->GetOrCreateProcess(kPid);
+      tracker_ = std::make_unique<HeapGraphTracker>(context_.storage.get());
 
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.process_tracker.reset(new ProcessTracker(&context));
-  context.process_tracker->GetOrCreateProcess(kPid);
+      tracker_->AddInternedLocationName(kSeqId, kLocation,
+                                        context_.storage->InternString("location"));
+      tracker_->AddInternedFieldName(kSeqId, kField, base::StringView("foo"));
+    }
 
-  HeapGraphTracker tracker(context.storage.get());
-
-  constexpr uint64_t kField = 1;
-  constexpr uint64_t kLocation = 0;
-
-  constexpr uint64_t kRoot = 1;
-  constexpr uint64_t kParentA = 3;  // ID 3, but Class A
-  constexpr uint64_t kParentB = 2;  // ID 2, but Class B
-  constexpr uint64_t kChild = 4;
-
-  auto field = base::StringView("foo");
-  StringPool::Id root_class = context.storage->InternString("RootClass");
-  StringPool::Id a_class = context.storage->InternString("A_Parent");
-  StringPool::Id b_class = context.storage->InternString("B_Parent");
-  StringPool::Id child_class = context.storage->InternString("ChildClass");
-
-  tracker.AddInternedFieldName(kSeqId, kField, field);
-  tracker.AddInternedLocationName(kSeqId, kLocation,
-                                  context.storage->InternString("location"));
-
-  tracker.AddInternedType(kSeqId, kRoot, root_class, kLocation, 0, {}, 0, 0,
-                          false, protos::pbzero::HeapGraphType::KIND_NORMAL);
-  tracker.AddInternedType(kSeqId, kParentA, a_class, kLocation, 0, {}, 0, 0,
-                          false, protos::pbzero::HeapGraphType::KIND_NORMAL);
-  tracker.AddInternedType(kSeqId, kParentB, b_class, kLocation, 0, {}, 0, 0,
-                          false, protos::pbzero::HeapGraphType::KIND_NORMAL);
-  tracker.AddInternedType(kSeqId, kChild, child_class, kLocation, 0, {}, 0, 0,
-                          false, protos::pbzero::HeapGraphType::KIND_NORMAL);
-
-  // Object 1: Root
-  {
-    HeapGraphTracker::SourceObject obj;
-    obj.object_id = 1;
-    obj.self_size = 1;
-    obj.type_id = kRoot;
-    obj.field_name_ids = {kField, kField};
-    obj.referred_objects = {2, 3};  // ParentB, ParentA
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
-  }
-  // Object 2: ParentB
-  {
-    HeapGraphTracker::SourceObject obj;
-    obj.object_id = 2;
-    obj.self_size = 100;
-    obj.type_id = kParentB;
-    obj.field_name_ids = {kField};
-    obj.referred_objects = {4};  // Child
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
-  }
-  // Object 3: ParentA
-  {
-    HeapGraphTracker::SourceObject obj;
-    obj.object_id = 3;
-    obj.self_size = 10;
-    obj.type_id = kParentA;
-    obj.field_name_ids = {kField};
-    obj.referred_objects = {4};  // Child
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
-  }
-  // Object 4: Child
-  {
-    HeapGraphTracker::SourceObject obj;
-    obj.object_id = 4;
-    obj.self_size = 1000;
-    obj.type_id = kChild;
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
-  }
-
-  HeapGraphTracker::SourceRoot root;
-  root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
-  root.object_ids.emplace_back(1);
-  root.object_ids.emplace_back(2);  // ParentB is also a root
-  root.object_ids.emplace_back(3);  // ParentA is also a root
-  tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
-
-  tracker.FinalizeAllProfiles();
-  std::unique_ptr<tables::ExperimentalFlamegraphTable> flame =
-      tracker.BuildFlamegraph(kPid, kTimestamp);
-  ASSERT_NE(flame, nullptr);
-
-  // Check that Child (size 1000) is under ParentA (A_Parent) and not ParentB
-  // (B_Parent).
-  // Flamegraph structure:
-  // Root (size 1)
-  //   A_Parent (size 10)
-  //     ChildClass (size 1000)
-  //   B_Parent (size 100)
-
-  bool found_child_under_a = false;
-  bool found_child_under_b = false;
-
-  for (auto it = flame->IterateRows(); it; ++it) {
-    auto name = context.storage->string_pool().Get(it.name());
-    auto parent_id = it.parent_id();
-    if (name == "ChildClass") {
-      ASSERT_TRUE(parent_id.has_value());
-      // To get the parent name, we need to find the parent row.
-      // Since we don't have an easy way to lookup by ID on the flame table
-      // without building an index, and we know the parent is likely before the
-      // child, we can just iterate again or store names.
-      // For simplicity in this test, let's just iterate and find the parent
-      // name by its ID.
-      std::optional<std::string> parent_name;
-      for (auto pit = flame->IterateRows(); pit; ++pit) {
-        if (pit.id().value == parent_id->value) {
-          parent_name =
-              context.storage->string_pool().Get(pit.name()).ToStdString();
-          break;
-        }
+    uint64_t GetOrCreateTypeId(const std::string& name) {
+      if (auto it = class_name_to_id_.find(name); it != class_name_to_id_.end()) {
+        return it->second;
       }
-      ASSERT_TRUE(parent_name.has_value());
-      if (*parent_name == "A_Parent [ROOT_UNKNOWN]") {
-        found_child_under_a = true;
-      } else if (*parent_name == "B_Parent [ROOT_UNKNOWN]") {
-        found_child_under_b = true;
+      uint64_t id = next_type_id_++;
+      class_name_to_id_[name] = id;
+      RegisterType(id, name);
+      return id;
+    }
+
+    void RegisterType(uint64_t id, const std::string& name) {
+      tracker_->AddInternedType(kSeqId, id,
+                                context_.storage->InternString(base::StringView(name)),
+                                kLocation, 0, {}, 0, 0, false,
+                                protos::pbzero::HeapGraphType::KIND_NORMAL);
+    }
+
+    void RegisterObject(uint64_t id, uint64_t type_id) {
+      object_type_ids_[id] = type_id;
+    }
+
+    void Link(uint64_t parent_id, uint64_t child_id) {
+      if (parent_id == kRoot) {
+        roots_.push_back(child_id);
+      } else {
+        object_refs_[parent_id].push_back(child_id);
       }
     }
+
+    void BuildFlamegraph() {
+      for (const auto& [id, type_id] : object_type_ids_) {
+        HeapGraphTracker::SourceObject obj;
+        obj.object_id = id;
+        obj.self_size = 1; // Default size
+        obj.type_id = type_id;
+        
+        auto it = object_refs_.find(id);
+        if (it != object_refs_.end()) {
+          obj.referred_objects = it->second;
+          obj.field_name_ids.resize(obj.referred_objects.size(), kField);
+        }
+        
+        tracker_->AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+      }
+
+      HeapGraphTracker::SourceRoot root;
+      root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
+      for (uint64_t id : roots_) {
+        root.object_ids.push_back(id);
+      }
+      tracker_->AddRoot(kSeqId, kPid, kTimestamp, root);
+
+      tracker_->FinalizeAllProfiles();
+      flame_ = tracker_->BuildFlamegraph(kPid, kTimestamp);
+      ASSERT_NE(flame_, nullptr);
+    }
+
+    void AssertParent(const std::string& child_name,
+                      const std::string& expected_parent_name) {
+      bool found_child = false;
+      for (auto it = flame_->IterateRows(); it; ++it) {
+        auto name = context_.storage->string_pool().Get(it.name());
+        if (name.ToStdString() == child_name) {
+          found_child = true;
+          auto parent_id = it.parent_id();
+          ASSERT_TRUE(parent_id.has_value());
+          
+          std::optional<std::string> parent_name;
+          for (auto pit = flame_->IterateRows(); pit; ++pit) {
+            if (pit.id().value == parent_id->value) {
+              parent_name =
+                  context_.storage->string_pool().Get(pit.name()).ToStdString();
+              break;
+            }
+          }
+          ASSERT_TRUE(parent_name.has_value());
+          EXPECT_THAT(*parent_name, testing::HasSubstr(expected_parent_name));
+        }
+      }
+      EXPECT_TRUE(found_child) << "Child " << child_name << " not found";
+    }
+
+    uint64_t root_id = 0;
+
+   private:
+    static constexpr uint64_t kSeqId = 1;
+    static constexpr UniquePid kPid = 1;
+    static constexpr int64_t kTimestamp = 1;
+    static constexpr uint64_t kLocation = 0;
+    static constexpr uint64_t kField = 1;
+
+    TraceProcessorContext context_;
+    std::unique_ptr<HeapGraphTracker> tracker_;
+    std::unique_ptr<tables::ExperimentalFlamegraphTable> flame_;
+
+    std::map<uint64_t, uint64_t> object_type_ids_;
+    std::map<uint64_t, std::vector<uint64_t>> object_refs_;
+    std::vector<uint64_t> roots_;
+    std::map<std::string, uint64_t> class_name_to_id_;
+    uint64_t next_type_id_ = 1;
+  };
+};
+
+struct ObjectInfo {
+  uint64_t id;
+  std::string class_name;
+  std::vector<uint64_t> parents;
+};
+
+struct ShortestPathTestCase {
+  std::string name;
+  std::vector<ObjectInfo> objects;
+
+  static std::string ToString(const testing::TestParamInfo<ShortestPathTestCase>& info) {
+    return info.param.name;
   }
-  EXPECT_TRUE(found_child_under_a);
-  EXPECT_FALSE(found_child_under_b);
+};
+
+class ShortestPathStabilityTest
+    : public HeapGraphStabilityTest,
+      public testing::WithParamInterface<ShortestPathTestCase> {};
+
+TEST_P(ShortestPathStabilityTest, Run) {
+  const auto& test = GetParam();
+  Helper helper;
+  
+  for (const auto& obj : test.objects) {
+    uint64_t type_id = helper.GetOrCreateTypeId(obj.class_name);
+    helper.RegisterObject(obj.id, type_id);
+    for (uint64_t parent : obj.parents) {
+      helper.Link(parent, obj.id);
+    }
+  }
+
+  helper.BuildFlamegraph();
+  helper.AssertParent("ChildClass", "A_Parent");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    StabilityCases,
+    ShortestPathStabilityTest,
+    testing::Values(
+        ShortestPathTestCase{
+            .name = "Aid_greater_than_Bid__B_references_earlier_A",
+            .objects = {
+                {.id = 2,
+                 .class_name = "B_Parent",
+                 .parents = {kRoot}},  // B_Parent (id=2), parent=Root(1)
+                {.id = 3,
+                 .class_name = "A_Parent",
+                 .parents = {kRoot}},  // A_Parent (id=3), parent=Root(1)
+                {.id = 4,
+                 .class_name = "ChildClass",
+                 .parents = {2, 3}}  // Child (id=4), parents=B(2), A(3)
+            }},
+        ShortestPathTestCase{
+            .name = "Aid_greater_than_Bid__A_references_earlier_B",
+            .objects = {
+                {.id = 3,
+                 .class_name = "A_Parent",
+                 .parents = {kRoot}},  // A_Parent (id=3), parent=Root(1)
+                {.id = 2,
+                 .class_name = "B_Parent",
+                 .parents = {kRoot}},  // B_Parent (id=2), parent=Root(1)
+                {.id = 4,
+                 .class_name = "ChildClass",
+                 .parents = {3, 2}}  // Child (id=4), parents=A(3), B(2)
+            }},
+        ShortestPathTestCase{
+            .name = "Aid_less_than_Bid__B_references_earlier_A",
+            .objects = {
+                {.id = 3,
+                 .class_name = "B_Parent",
+                 .parents = {kRoot}},  // B_Parent (id=3), parent=Root(1)
+                {.id = 2,
+                 .class_name = "A_Parent",
+                 .parents = {kRoot}},  // A_Parent (id=2), parent=Root(1)
+                {.id = 4,
+                 .class_name = "ChildClass",
+                 .parents = {2, 3}}  // Child (id=4), parents=A(2), B(3)
+            }},
+        ShortestPathTestCase{
+            .name = "Aid_less_than_Bid__A_references_earlier_B",
+            .objects = {
+                {.id = 2,
+                 .class_name = "A_Parent",
+                 .parents = {kRoot}},  // A_Parent (id=2), parent=Root(1)
+                {.id = 3,
+                 .class_name = "B_Parent",
+                 .parents = {kRoot}},  // B_Parent (id=3), parent=Root(1)
+                {.id = 4,
+                 .class_name = "ChildClass",
+                 .parents = {2, 3}}  // Child (id=4), parents=A(2), B(3)
+            }}),
+    &ShortestPathTestCase::ToString);
 
 constexpr char kArray[] = "X[]";
 constexpr char kDoubleArray[] = "X[][]";
