@@ -170,9 +170,9 @@ export class SqlSourceNode implements QueryNode {
       query: protos.PerfettoSqlStructuredQuery | undefined;
     }> = [];
 
-    // Pass empty array for column names - the engine will discover them when analyzing the query
-    // Using this.finalCols here would pass stale columns from the previous execution
-    const columnNames: string[] = [];
+    // Use the column names discovered from the last query execution
+    // These are populated by onQueryExecuted() when the query is run
+    const columnNames: string[] = this.finalCols.map((c) => c.column.name);
 
     const sq = StructuredQueryBuilder.fromSql(
       this.state.sql || '',
