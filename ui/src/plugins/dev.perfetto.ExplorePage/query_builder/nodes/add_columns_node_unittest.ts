@@ -205,14 +205,13 @@ describe('AddColumnsNode', () => {
       const selectCols = query?.selectColumns ?? [];
       const aliases = selectCols
         .map((col) => col.alias)
-        .filter((a): a is string => a !== undefined);
+        .filter((a): a is string => !!a && a.trim() !== '');
 
       // Should have the valid column 'dur_ms'
       expect(aliases).toContain('dur_ms');
 
       // Should NOT have the invalid columns
       expect(aliases).not.toContain('invalid');
-      expect(aliases).not.toContain('');
     });
 
     it('should generate query with both JOIN columns and computed columns', () => {

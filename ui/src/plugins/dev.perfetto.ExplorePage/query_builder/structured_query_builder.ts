@@ -347,7 +347,7 @@ export class StructuredQueryBuilder {
     query.selectColumns = columns.map((col) => {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
       selectCol.columnNameOrExpression = col.columnNameOrExpression;
-      if (col.alias) {
+      if (col.alias && col.alias.trim() !== '') {
         selectCol.alias = col.alias;
       }
       return selectCol;
@@ -609,13 +609,13 @@ export class StructuredQueryBuilder {
 
     // Step 2: Add computed columns on top if we have any
     if (hasComputedColumns) {
-      // Build all columns: base columns + joined columns + computed columns
+      // Build columns to include: base columns + joined columns (if any) + computed columns
       const allColumns: ColumnSpec[] = [
         ...allBaseColumns,
-        // For joined columns, use their alias if provided, otherwise use the original name.
-        // This is because after the JOIN, the column is referenced by its alias in the outer SELECT.
+        // For joined columns, reference them by their alias and preserve the alias in the outer SELECT
         ...joinColumns.map((col) => ({
           columnNameOrExpression: col.alias ?? col.columnNameOrExpression,
+          alias: col.alias,
         })),
         ...computedColumns,
       ];

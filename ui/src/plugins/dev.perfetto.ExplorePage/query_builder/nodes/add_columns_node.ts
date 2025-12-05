@@ -1997,6 +1997,7 @@ export class AddColumnsNode implements QueryNode {
       const allColumns: ColumnSpec[] = [
         ...this.sourceCols.map((col) => ({
           columnNameOrExpression: col.column.name,
+          alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
         })),
         ...computedColumns,
       ];
@@ -2020,10 +2021,15 @@ export class AddColumnsNode implements QueryNode {
     // Prepare columns to add from the JOIN
     const joinColumns: ColumnSpec[] = (this.state.selectedColumns ?? []).map(
       (colName) => {
-        const alias = this.state.columnAliases?.get(colName);
+        const explicitAlias = this.state.columnAliases?.get(colName);
+        // Use explicit alias if provided, otherwise default to the column name
+        const alias =
+          explicitAlias && explicitAlias.trim() !== ''
+            ? explicitAlias.trim()
+            : colName;
         return {
           columnNameOrExpression: colName,
-          alias: alias && alias.trim() !== '' ? alias.trim() : undefined,
+          alias: alias,
         };
       },
     );
@@ -2057,15 +2063,19 @@ export class AddColumnsNode implements QueryNode {
       return this.primaryInput.getStructuredQuery();
     }
 
-    // Get all base columns from the source
-    const allBaseColumns: ColumnSpec[] = this.sourceCols.map((col) => ({
-      columnNameOrExpression: col.column.name,
-    }));
-
     // Collect referenced modules from computed columns
     const referencedModules = this.state.computedColumns
       ?.map((col) => col.module)
       .filter((mod): mod is string => mod !== undefined);
+
+    // Get all base columns from the source (needed when we have JOIN or computed columns)
+    const allBaseColumns: ColumnSpec[] =
+      joinColumns.length > 0 || computedColumns.length > 0
+        ? this.sourceCols.map((col) => ({
+            columnNameOrExpression: col.column.name,
+            alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
+          }))
+        : [];
 
     // Use the builder to handle the complexity of composing JOIN + computed columns
     return StructuredQueryBuilder.withAddColumnsAndExpressions(
