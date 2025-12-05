@@ -494,6 +494,19 @@ TEST(EventConfigTest, GroupMultipleType) {
   EXPECT_TRUE(tracepoint.sample_type & PERF_SAMPLE_READ);
 }
 
+TEST(EventConfigTest, RawEventRejectsTypeAndPmu) {
+  protos::gen::PerfEventConfig cfg;
+  auto* follower = cfg.add_followers();
+  follower->set_name("raw");
+  auto* raw_event = follower->mutable_raw_event();
+  raw_event->set_type(8);
+  raw_event->set_config(8);
+  raw_event->set_perf_device("armv8_pmuv3");
+
+  std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+  EXPECT_FALSE(event_config.has_value());
+}
+
 TEST(EventConfigTest, EventModifiers) {
   protos::gen::PerfEventConfig cfg;
   {
