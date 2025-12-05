@@ -388,6 +388,81 @@ class ProfilingHeapGraph(TestSuite):
         """,
         out=Path('heap_graph_flamegraph_system-server-heap-graph.out'))
 
+  def test_heap_graph_class_tree_system_server_heap_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('system-server-heap-graph-new.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+        SELECT
+          ifnull(name, '[Unknown]') as name,
+          self_size,
+          self_count
+        FROM _heap_graph_class_tree
+        WHERE graph_sample_ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+          AND upid = (SELECT max(upid) FROM heap_graph_object)
+        ORDER BY self_size DESC, name
+        LIMIT 10;
+        """,
+        out=Csv('''
+          "name","self_size","self_count"
+          "java.lang.String",1845640,41197
+          "java.lang.String",675400,348
+          "android.content.pm.parsing.component.ParsedActivity",577760,3611
+          "int[]",455868,1
+          "byte[]",271266,2
+          "java.lang.String",268496,3375
+          "byte[]",260021,216
+          "android.content.pm.parsing.component.ParsedActivity",212640,1329
+          "java.lang.Object[]",212348,4008
+          "android.content.pm.parsing.component.ParsedService",150400,1880
+        '''))
+
+  def test_heap_graph_root_sorting(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_root_sorting.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+        SELECT
+          id,
+          parent_id,
+          ifnull(name, '[Unknown]') as name,
+          self_size,
+          self_count
+        FROM _heap_graph_class_tree
+        WHERE graph_sample_ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+          AND upid = (SELECT max(upid) FROM heap_graph_object)
+        ORDER BY name;
+        """,
+        out=Csv('''
+          "id","parent_id","name","self_size","self_count"
+          0,2,"Child",100,1
+          2,"[NULL]","RootA",10,1
+          1,"[NULL]","RootB",10,1
+        '''))
+
+  def test_heap_graph_root_sorting_reverse(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_root_sorting_reverse.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+        SELECT
+          id,
+          parent_id,
+          ifnull(name, '[Unknown]') as name,
+          self_size,
+          self_count
+        FROM _heap_graph_class_tree
+        WHERE graph_sample_ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+          AND upid = (SELECT max(upid) FROM heap_graph_object)
+        ORDER BY name;
+        """,
+        out=Csv('''
+          "id","parent_id","name","self_size","self_count"
+          0,1,"Child",100,1
+          1,"[NULL]","RootA",10,1
+          2,"[NULL]","RootB",10,1
+        '''))
+
   def test_heap_profile_flamegraph_system_server_native_profile(self):
     return DiffTestBlueprint(
         trace=DataPath('system-server-native-profile'),

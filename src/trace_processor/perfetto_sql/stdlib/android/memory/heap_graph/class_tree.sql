@@ -34,9 +34,12 @@ FROM graph_reachable_bfs!(
     ORDER BY ref.owned_id
   ),
   (
-    SELECT id AS node_id
-    FROM heap_graph_object
-    WHERE root_type IS NOT NULL
+    SELECT
+      o.id AS node_id
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    WHERE o.root_type IS NOT NULL
+    ORDER BY c.name, o.id
   )
 )
 ORDER BY
