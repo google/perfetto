@@ -145,18 +145,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
     });
 
-    // Add materialization indicator icon with tooltip
-    const materializationIndicator =
-      attrs.node.state.materialized && attrs.node.state.materializationTableName
-        ? m(
-            Tooltip,
-            {
-              trigger: m(Icon, {icon: 'database'}),
-            },
-            `Materialized as ${attrs.node.state.materializationTableName}`,
-          )
-        : null;
-
     // Helper to create separator dot
     const separator = () =>
       m(
@@ -197,6 +185,21 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             attrs.node.state.materialized
           ),
         }),
+        m(MenuItem, {
+          label: 'Copy Materialized Table Name',
+          icon: 'content_copy',
+          onclick: () => {
+            const tableName = attrs.node.state.materializationTableName;
+            if (tableName) {
+              navigator.clipboard.writeText(tableName);
+            }
+          },
+          title: 'Copy the materialized table name to clipboard',
+          disabled: !(
+            attrs.node.state.materialized &&
+            attrs.node.state.materializationTableName
+          ),
+        }),
       ],
     );
 
@@ -204,11 +207,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       runButton,
       statusIndicator,
       queryStats,
-      queryStats !== null && materializationIndicator !== null
-        ? separator()
-        : null,
-      materializationIndicator,
-      materializationIndicator !== null ? separator() : null,
+      queryStats !== null ? separator() : null,
       autoExecuteSwitch,
       positionMenu,
     ];
