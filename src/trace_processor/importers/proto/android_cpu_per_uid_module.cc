@@ -46,7 +46,7 @@ uint64_t MakeKey(uint32_t uid, uint32_t cluster) {
 static constexpr auto kCpuPerUidBlueprint = tracks::CounterBlueprint(
     "android_cpu_per_uid",
     tracks::StaticUnitBlueprint("ms"),
-    tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("uid"),
+    tracks::DimensionBlueprints(tracks::kUidDimensionBlueprint,
                                 tracks::UintDimensionBlueprint("cluster")),
     tracks::FnNameBlueprint([](uint32_t uid, uint32_t cluster) {
       return base::StackString<128>("CPU for UID %d CL%d", uid, cluster);
@@ -55,6 +55,8 @@ static constexpr auto kCpuPerUidBlueprint = tracks::CounterBlueprint(
 static constexpr auto kCpuTotalsBlueprint = tracks::CounterBlueprint(
     "android_cpu_per_uid_totals",
     tracks::StaticUnitBlueprint("ms"),
+    // TODO(lalitm): allow FnNameBlueprint and StringIdDimensionBlueprint to
+    // work together.
     tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("type"),
                                 tracks::UintDimensionBlueprint("cluster")),
     tracks::FnNameBlueprint([](base::StringView type, uint32_t cluster) {
