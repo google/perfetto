@@ -96,6 +96,13 @@ export interface SerializedGraph {
   rootNodeIds: string[];
   selectedNodeId?: string;
   nodeLayouts?: {[key: string]: {x: number; y: number}};
+  labels?: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    text: string;
+  }>;
 }
 
 function serializeNode(node: QueryNode): SerializedNode {
@@ -133,6 +140,7 @@ export function serializeState(state: ExplorePageState): string {
     rootNodeIds: state.rootNodes.map((n) => n.nodeId),
     selectedNodeId: state.selectedNode?.nodeId,
     nodeLayouts: Object.fromEntries(state.nodeLayouts),
+    labels: state.labels,
   };
 
   const replacer = (key: string, value: unknown) => {
@@ -435,6 +443,7 @@ export function deserializeState(
     rootNodes,
     selectedNode,
     nodeLayouts,
+    labels: serializedGraph.labels,
   };
 }
 

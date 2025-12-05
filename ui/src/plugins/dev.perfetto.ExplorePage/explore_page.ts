@@ -151,6 +151,13 @@ export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
+  labels?: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    text: string;
+  }>;
 }
 
 interface ExplorePageAttrs {
@@ -891,6 +898,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
+        labels: state.labels,
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
@@ -911,6 +919,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               nodeLayouts: newNodeLayouts,
             };
           });
+        },
+        onLabelsChange: (labels) => {
+          wrappedAttrs.onStateUpdate((currentState) => ({
+            ...currentState,
+            labels,
+          }));
         },
         onAddSourceNode: (id) => {
           this.handleAddSourceNode(wrappedAttrs, id);
