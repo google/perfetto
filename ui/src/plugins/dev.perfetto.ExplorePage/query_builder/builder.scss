@@ -144,6 +144,7 @@
     background-color: var(--pf-color-danger);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     transition: all 0.2s ease;
+    cursor: pointer;
 
     &:hover {
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
@@ -339,4 +340,18 @@
     color: var(--pf-color-text-muted);
     text-align: center;
   }
+}
+
+.pf-error-details {
+  min-width: 300px;
+  max-width: 500px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--pf-color-on-surface);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--pf-font-family-monospace, "Roboto Mono", monospace);
 }

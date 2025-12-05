@@ -884,7 +884,7 @@ export class AddColumnsNode implements QueryNode {
           }),
           m(Button, {
             label: 'If',
-            icon: 'help_outline',
+            icon: 'rule',
             onclick: () => this.showIfModal(),
             variant: ButtonVariant.Outlined,
           }),
@@ -1280,53 +1280,71 @@ export class AddColumnsNode implements QueryNode {
           );
         }
 
-        // No args found
-        if (availableKeys.length === 0) {
-          return m(
-            Form,
-            columnSelector,
-            m(
-              Callout,
-              {icon: 'info'},
-              'No args found for the current data. The source may not have any args associated with it.',
-            ),
-          );
-        }
+        // No args found - but still allow manual entry
+        const noArgsFound = availableKeys.length === 0;
 
         return m(
           Form,
           nameError && m(Callout, {icon: 'error'}, nameError),
-          m(
-            'p',
-            'Select an arg key to add as a column. The column will contain the value of that arg for each row.',
-          ),
+          noArgsFound &&
+            m(
+              Callout,
+              {icon: 'info'},
+              'No args found for the current data. You can still manually enter an arg key to fetch.',
+            ),
+          !noArgsFound &&
+            m(
+              'p',
+              'Select an arg key to add as a column. The column will contain the value of that arg for each row.',
+            ),
           columnSelector,
           m(FormSection, {label: 'Arg Key'}, [
-            m(
-              Select,
-              {
-                onchange: (e: Event) => {
-                  const value = (e.target as HTMLSelectElement).value;
-                  selectedKey = value || undefined;
-                  // Auto-generate column name from key (replace special chars)
-                  if (selectedKey && !columnName) {
-                    columnName = selectedKey
-                      .replace(/[.\[\]]/g, '_')
-                      .replace(/_+/g, '_')
-                      .replace(/^_|_$/g, '');
-                  }
-                  redrawModal();
-                },
-              },
-              m(
-                'option',
-                {value: '', selected: !selectedKey},
-                'Select an arg key',
-              ),
-              availableKeys.map((key) =>
-                m('option', {value: key, selected: key === selectedKey}, key),
-              ),
-            ),
+            noArgsFound
+              ? m(TextInput, {
+                  placeholder: 'Enter arg key (e.g., display_frame_token)',
+                  value: selectedKey || '',
+                  oninput: (e: Event) => {
+                    const value = (e.target as HTMLInputElement).value;
+                    selectedKey = value || undefined;
+                    // Auto-generate column name from key (replace special chars)
+                    if (selectedKey && !columnName) {
+                      columnName = selectedKey
+                        .replace(/[.\[\]]/g, '_')
+                        .replace(/_+/g, '_')
+                        .replace(/^_|_$/g, '');
+                    }
+                    redrawModal();
+                  },
+                })
+              : m(
+                  Select,
+                  {
+                    onchange: (e: Event) => {
+                      const value = (e.target as HTMLSelectElement).value;
+                      selectedKey = value || undefined;
+                      // Auto-generate column name from key (replace special chars)
+                      if (selectedKey && !columnName) {
+                        columnName = selectedKey
+                          .replace(/[.\[\]]/g, '_')
+                          .replace(/_+/g, '_')
+                          .replace(/^_|_$/g, '');
+                      }
+                      redrawModal();
+                    },
+                  },
+                  m(
+                    'option',
+                    {value: '', selected: !selectedKey},
+                    'Select an arg key',
+                  ),
+                  availableKeys.map((key) =>
+                    m(
+                      'option',
+                      {value: key, selected: key === selectedKey},
+                      key,
+                    ),
+                  ),
+                ),
           ]),
           m(FormSection, {label: 'Column Name'}, [
             m(TextInput, {
