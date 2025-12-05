@@ -40,6 +40,7 @@ import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {NodeDetailsMessage} from '../node_styling_widgets';
 import {Icons} from '../../../../base/semantic_icons';
+import {loadNodeDoc} from '../node_doc_loader';
 
 // Maximum length for truncated SQL display
 const SQL_TRUNCATE_LENGTH = 50;
@@ -396,37 +397,7 @@ export class FilterNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Keep only rows that match conditions you specify. Supports operators like ',
-        m('code', '='),
-        ', ',
-        m('code', '>'),
-        ', ',
-        m('code', '<'),
-        ', ',
-        m('code', 'glob'),
-        ', and null checks.',
-      ),
-      m(
-        'p',
-        'Combine multiple conditions with ',
-        m('code', 'AND'),
-        ' or ',
-        m('code', 'OR'),
-        ' logic. To use both AND and OR together, use multiple filter nodes.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Keep slices where ',
-        m('code', 'dur > 1000000'),
-        ' AND ',
-        m('code', 'name glob "*render*"'),
-      ),
-    );
+    return loadNodeDoc('filter');
   }
 
   validate(): boolean {

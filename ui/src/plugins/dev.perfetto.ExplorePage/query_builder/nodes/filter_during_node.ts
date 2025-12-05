@@ -90,6 +90,7 @@ import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
+import {loadNodeDoc} from '../node_doc_loader';
 import {
   ListItem,
   InfoBox,
@@ -407,61 +408,7 @@ export class FilterDuringNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    const clipToIntervals = this.state.clipToIntervals ?? true;
-    const modeDescription = clipToIntervals
-      ? 'Clip to intervals (using intersected ts/dur)'
-      : 'Use original timestamps (from primary input)';
-
-    return m(
-      'div',
-      m(
-        'p',
-        'Filter intervals to only those that occurred during intervals from one or more sources. The output preserves all columns from the primary input, with ts and dur values representing the actual overlap period.',
-      ),
-      m(
-        'p',
-        m('strong', 'Multiple sources:'),
-        ' When multiple secondary inputs are connected, they are combined via UNION ALL before filtering, meaning intervals are kept if they overlap with ANY of the secondary sources.',
-      ),
-      m(
-        'p',
-        m('strong', 'Partition:'),
-        ' Optionally partition the intersection by common columns (e.g., ',
-        m('code', 'utid'),
-        '). When partitioned, intervals are matched only within the same partition values.',
-      ),
-      m(
-        'p',
-        m('strong', 'Clip to intervals:'),
-        ' When enabled (default), output ',
-        m('code', 'ts'),
-        ' and ',
-        m('code', 'dur'),
-        ' represent the actual overlap period. When disabled, output uses the original primary input timestamps.',
-      ),
-      m(
-        'p',
-        m('strong', 'Required columns:'),
-        ' All inputs must have ',
-        m('code', 'id'),
-        ', ',
-        m('code', 'ts'),
-        ', and ',
-        m('code', 'dur'),
-        ' columns.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Filter CPU slices to only those that occurred during app startup, or filter memory allocations during multiple user interactions.',
-      ),
-      m(
-        'p',
-        m('strong', 'Note:'),
-        ' If a primary interval overlaps with multiple secondary intervals, multiple output rows will be produced (one for each overlap).',
-      ),
-      m('.pf-filter-during-info-mode', `Mode: ${modeDescription}`),
-    );
+    return loadNodeDoc('filter_during');
   }
 
   validate(): boolean {
