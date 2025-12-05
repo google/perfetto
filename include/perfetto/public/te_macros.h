@@ -102,11 +102,23 @@ struct PerfettoTeHlMacroNameAndType {
 
 // A string or bytes protobuf field (with field id `ID`) and value `VAL` (a null
 // terminated string).
-#define PERFETTO_TE_PROTO_FIELD_CSTR(ID, VAL)                    \
-  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlProtoField*,      \
-                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR( \
-                                PerfettoTeHlProtoFieldCstr,      \
-                                {{PERFETTO_TE_HL_PROTO_TYPE_CSTR, ID}, VAL}))
+#define PERFETTO_TE_PROTO_FIELD_CSTR(ID, VAL) \
+  PERFETTO_REINTERPRET_CAST(                  \
+      struct PerfettoTeHlProtoField*,         \
+      PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(    \
+          PerfettoTeHlProtoFieldCstr,         \
+          {{PERFETTO_TE_HL_PROTO_TYPE_CSTR, ID}, VAL, 0}))
+
+// A string or bytes protobuf field (with field id `ID`) and value `VAL` (a null
+// terminated string). `VAL` will be interned. `INTERNED_TYPE_ID` is the field
+// id of one of the repeated messages in InternedData (e.g.
+// InternedData.event_names).
+#define PERFETTO_TE_PROTO_FIELD_CSTR_INTERNED(ID, VAL, INTERNED_TYPE_ID) \
+  PERFETTO_REINTERPRET_CAST(                                             \
+      struct PerfettoTeHlProtoField*,                                    \
+      PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(                               \
+          PerfettoTeHlProtoFieldCstr,                                    \
+          {{PERFETTO_TE_HL_PROTO_TYPE_CSTR, ID}, VAL, (INTERNED_TYPE_ID)}))
 
 // A string or bytes protobuf field (with field id `ID`) with a `SIZE` long
 // value starting from `VAL`.

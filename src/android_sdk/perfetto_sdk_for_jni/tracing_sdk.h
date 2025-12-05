@@ -398,15 +398,22 @@ class ProtoField {
   }
 
   void set_value(uint32_t id, T value) {
-    if constexpr (std::is_same_v<T, int64_t>) {
+    if constexpr (std::is_same_v<T, const char*>) {
+      set_value(id, value, 0);
+    } else if constexpr (std::is_same_v<T, int64_t>) {
       arg_.header.id = id;
       arg_.value = value;
     } else if constexpr (std::is_same_v<T, double>) {
       arg_.header.id = id;
       arg_.value = value;
-    } else if constexpr (std::is_same_v<T, const char*>) {
+    }
+  }
+
+  void set_value(uint32_t id, T value, uint32_t interned_type_id) {
+    if constexpr (std::is_same_v<T, const char*>) {
       arg_.header.id = id;
       arg_.str = value;
+      arg_.interned_type_id = interned_type_id;
     }
   }
 

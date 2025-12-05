@@ -365,6 +365,20 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value(
   field->set_value(id, StringBuffer::utf16_to_ascii(env, val).data());
 }
 
+static void
+dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value_with_interning(
+    JNIEnv* env,
+    jclass,
+    jlong ptr,
+    jlong id,
+    jstring val,
+    jlong interned_type_id) {
+  sdk_for_jni::ProtoField<const char*>* field =
+      toPointer<sdk_for_jni::ProtoField<const char*>>(ptr);
+  field->set_value(id, StringBuffer::utf16_to_ascii(env, val).data(),
+                   interned_type_id);
+}
+
 static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_add_field(
     jlong field_ptr,
     jlong arg_ptr) {
@@ -654,6 +668,9 @@ static const JNINativeMethod gFieldStringMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_get_extra_ptr},
     {"native_set_value", "(JJLjava/lang/String;)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value},
+    {"native_set_value_with_interning", "(JJLjava/lang/String;J)V",
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value_with_interning},
 };
 
 static const JNINativeMethod gFieldNestedMethods[] = {

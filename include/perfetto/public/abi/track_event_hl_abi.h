@@ -60,6 +60,11 @@ struct PerfettoTeHlProtoFieldCstr {
   struct PerfettoTeHlProtoField header;
   // Null terminated string.
   const char* str;
+  // If non-zero, this is the field id of the interned data message (e.g.
+  // InternedData.event_names). `str` will be interned and the resulting iid
+  // will be written in the proto field `header.id`. If zero, `str` is written
+  // directly.
+  uint32_t interned_type_id;
 };
 
 // PERFETTO_TE_HL_PROTO_TYPE_BYTES

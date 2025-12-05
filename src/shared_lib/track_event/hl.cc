@@ -15,7 +15,7 @@
  */
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
-
+#include "perfetto/public/protos/trace/interned_data/interned_data.pzc.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
 #include "src/shared_lib/track_event/serialization.h"
@@ -42,13 +42,31 @@ protos::pbzero::TrackEvent::Type EventType(int32_t type) {
 }
 
 // Appends the fields described by `fields` to `msg`.
-void AppendHlProtoFields(protozero::Message* msg,
+void AppendHlProtoFields(TrackEventIncrementalState* incr,
+                         protozero::Message* msg,
                          PerfettoTeHlProtoField* const* fields) {
   for (PerfettoTeHlProtoField* const* p = fields; *p != nullptr; p++) {
     switch ((*p)->type) {
       case PERFETTO_TE_HL_PROTO_TYPE_CSTR: {
         auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstr*>(*p);
-        msg->AppendString(field->header.id, field->str);
+        if (field->interned_type_id) {
+          const void* str = field->str;
+          size_t len = strlen(field->str);
+          auto res = incr->iids.FindOrAssign(
+              static_cast<int32_t>(field->interned_type_id), str, len);
+          if (res.newly_assigned) {
+            auto* ser = incr->serialized_interned_data
+                            ->BeginNestedMessage<protozero::Message>(
+                                field->interned_type_id);
+            ser->AppendVarInt(perfetto_protos_AndroidJobName_iid_field_number,
+                              res.iid);
+            ser->AppendString(perfetto_protos_AndroidJobName_name_field_number,
+                              field->str);
+          }
+          msg->AppendVarInt(field->header.id, res.iid);
+        } else {
+          msg->AppendString(field->header.id, field->str);
+        }
         break;
       }
       case PERFETTO_TE_HL_PROTO_TYPE_BYTES: {
@@ -60,7 +78,7 @@ void AppendHlProtoFields(protozero::Message* msg,
         auto field = reinterpret_cast<PerfettoTeHlProtoFieldNested*>(*p);
         auto* nested =
             msg->BeginNestedMessage<protozero::Message>(field->header.id);
-        AppendHlProtoFields(nested, field->fields);
+        AppendHlProtoFields(incr, nested, field->fields);
         break;
       }
       case PERFETTO_TE_HL_PROTO_TYPE_VARINT: {
@@ -248,7 +266,7 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
       const auto* fields =
           reinterpret_cast<const struct PerfettoTeHlExtraProtoFields&>(extra)
               .fields;
-      AppendHlProtoFields(event, fields);
+      AppendHlProtoFields(incr, event, fields);
     }
   }
 }
@@ -294,7 +312,7 @@ uint64_t EmitProtoTrack(uint64_t uuid,
     auto packet = trace_writer->NewTracePacket();
     auto* track_descriptor = packet->set_track_descriptor();
     track_descriptor->set_uuid(uuid);
-    AppendHlProtoFields(track_descriptor, fields);
+    AppendHlProtoFields(incr_state, track_descriptor, fields);
   }
   return uuid;
 }
@@ -310,7 +328,7 @@ uint64_t EmitProtoTrackWithParentUuid(
     auto* track_descriptor = packet->set_track_descriptor();
     track_descriptor->set_uuid(uuid);
     track_descriptor->set_parent_uuid(parent_uuid);
-    AppendHlProtoFields(track_descriptor, fields);
+    AppendHlProtoFields(incr_state, track_descriptor, fields);
   }
   return uuid;
 }
