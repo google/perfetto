@@ -22,6 +22,7 @@ describe('AddColumnsNode', () => {
     sq.id = 'primary';
     const table = new protos.PerfettoSqlStructuredQuery.Table();
     table.tableName = 'primary_table';
+    table.columnNames = ['id', 'ts', 'dur'];
     sq.table = table;
 
     return {
@@ -65,6 +66,7 @@ describe('AddColumnsNode', () => {
     sq.id = 'secondary';
     const table = new protos.PerfettoSqlStructuredQuery.Table();
     table.tableName = 'secondary_table';
+    table.columnNames = ['id', 'name', 'category'];
     sq.table = table;
 
     return {
