@@ -15,7 +15,7 @@ setup(
         'perfetto.trace_processor': ['*.descriptor'],
     },
     include_package_data=True,
-    version='0.15.0',
+    version='0.16.0',
     license='apache-2.0',
     description='Python APIs and bindings for Perfetto (perfetto.dev)',
     author='Perfetto',
