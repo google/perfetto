@@ -158,7 +158,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
   private dataSource?: DataGridDataSource;
-  private drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+  private drawerVisibility = SplitPanelDrawerVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
   private sidebarWidth: number = 500; // Default width in pixels
   private readonly MIN_SIDEBAR_WIDTH = 250;
