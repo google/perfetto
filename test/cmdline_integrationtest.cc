@@ -1232,6 +1232,67 @@ TEST_F(PerfettoCmdlineTest, UnavailableBugreportLeavesNoEmptyFiles) {
   EXPECT_NE(base::GetFileSize(GetBugreportTracePath()), 0);
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+TEST_F(PerfettoCmdlineTest, DoNotDeleteNotEmptyWriteIntoFileTraceOnError) {
+  // We call `test_helper().RestartService()` to simulate `traced` dropping
+  // the connection to the `perfetto_cmd`, so we run this test only in
+  // `PERFETTO_START_DAEMONS` mode.
+  // FakeProducer crashes is this case, so we just don't start it. Even without
+  // a data source, the tracing session writes some data on disk, that is enough
+  // for us.
+  TraceConfig trace_config;
+  trace_config.set_unique_session_name("my_write_into_file_session");
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10);
+
+  const std::string write_into_file_path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(write_into_file_path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          write_into_file_path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  std::string perfetto_cmd_stderr;
+  std::thread background_trace([&perfetto_proc, &perfetto_cmd_stderr]() {
+    EXPECT_EQ(0, perfetto_proc.Run(&perfetto_cmd_stderr))
+        << perfetto_cmd_stderr;
+  });
+
+  // Wait until some data is written into the trace file.
+  bool write_into_file_data_ready = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    protos::gen::Trace trace;
+    if (ParseNotEmptyTraceFromFile(write_into_file_path, trace)) {
+      write_into_file_data_ready = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(write_into_file_data_ready);
+
+  // Tracing session is still running, now simulate `traced` dropping the
+  // connection to the `perfetto_cmd`
+  test_helper().RestartService();
+
+  background_trace.join();
+  // Assert perfetto_cmd disconnected with an error.
+  ASSERT_THAT(
+      perfetto_cmd_stderr,
+      HasSubstr("Service error: EnableTracing IPC request rejected. This is "
+                "likely due to a loss of the traced connection"));
+  // Assert trace file exists and not empty.
+  protos::gen::Trace trace;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
+}
+#endif
+
 // Tests that SaveTraceForBugreport() works also if the trace has triggers
 // defined and those triggers have not been hit. This is a regression test for
 // b/188008375 .

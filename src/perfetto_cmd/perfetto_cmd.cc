@@ -1187,10 +1187,11 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
     // be marked as "E" in the event log. Hence why LOG and not ELOG here.
     PERFETTO_LOG("Service error: %s", error.c_str());
 
+    uint64_t bytes_written = GetBytesWritten();
     // In case of errors don't leave a partial file around. This happens
     // frequently in the case of --save-for-bugreport if there is no eligible
     // trace. See also b/279753347 .
-    if (bytes_written_ == 0 && !trace_out_path_.empty() &&
+    if (bytes_written == 0 && !trace_out_path_.empty() &&
         trace_out_path_ != "-") {
       remove(trace_out_path_.c_str());
     }
@@ -1228,13 +1229,6 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   LogUploadEvent(PerfettoStatsdAtom::kFinalizeTraceAndExit);
   packet_writer_.reset();
 
-  if (trace_out_stream_) {
-    fseek(*trace_out_stream_, 0, SEEK_END);
-    off_t sz = ftell(*trace_out_stream_);
-    if (sz > 0)
-      bytes_written_ = static_cast<size_t>(sz);
-  }
-
   if (save_to_incidentd_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     SaveTraceIntoIncidentOrCrash();
@@ -1244,12 +1238,13 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     ReportTraceToAndroidFrameworkOrCrash();
 #endif
   } else {
+    uint64_t bytes_written = GetBytesWritten();
     trace_out_stream_.reset();
     if (trace_config_->write_into_file()) {
       // trace_out_path_ might be empty in the case of --attach.
       PERFETTO_LOG("Trace written into the output file");
     } else {
-      PERFETTO_LOG("Wrote %" PRIu64 " bytes into %s", bytes_written_,
+      PERFETTO_LOG("Wrote %" PRIu64 " bytes into %s", bytes_written,
                    trace_out_path_ == "-" ? "stdout" : trace_out_path_.c_str());
     }
   }
@@ -1280,6 +1275,20 @@ bool PerfettoCmd::OpenOutputFile() {
   trace_out_stream_.reset(fdopen(fd.release(), "wb"));
   PERFETTO_CHECK(trace_out_stream_);
   return true;
+}
+
+uint64_t PerfettoCmd::GetBytesWritten() {
+  if (!trace_out_stream_)
+    return 0;
+  // Seek to the end of the file in case |trace_out_stream_| points to the file
+  // written by traced.
+  if (fseek(*trace_out_stream_, 0, SEEK_END) < 0) {
+    return 0;
+  }
+  off_t bytes_written = ftell(*trace_out_stream_);
+  if (bytes_written < 0)
+    return 0;
+  return static_cast<uint64_t>(bytes_written);
 }
 
 void PerfettoCmd::SetupCtrlCSignalHandler() {
