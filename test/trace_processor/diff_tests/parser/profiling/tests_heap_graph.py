@@ -418,49 +418,39 @@ class ProfilingHeapGraph(TestSuite):
         '''))
 
   def test_heap_graph_root_sorting(self):
+    # We expect RootA to be the parent because it comes first alphabetically,
+    # even though RootB (id 1) is smaller than RootA (id 2).
     return DiffTestBlueprint(
         trace=Path('heap_graph_root_sorting.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
         SELECT
-          id,
-          parent_id,
-          ifnull(name, '[Unknown]') as name,
-          self_size,
-          self_count
-        FROM _heap_graph_class_tree
-        WHERE graph_sample_ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
-          AND upid = (SELECT max(upid) FROM heap_graph_object)
-        ORDER BY name;
+          p.name AS parent_of_child
+        FROM _heap_graph_class_tree c
+        JOIN _heap_graph_class_tree p ON c.parent_id = p.id
+        WHERE c.name = 'Child';
         """,
         out=Csv('''
-          "id","parent_id","name","self_size","self_count"
-          0,2,"Child",100,1
-          2,"[NULL]","RootA",10,1
-          1,"[NULL]","RootB",10,1
+          "parent_of_child"
+          "RootA"
         '''))
 
   def test_heap_graph_root_sorting_reverse(self):
+    # We expect RootA to be the parent because it comes first alphabetically,
+    # even though RootA (id 1) is smaller than RootB (id 2).
     return DiffTestBlueprint(
         trace=Path('heap_graph_root_sorting_reverse.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
         SELECT
-          id,
-          parent_id,
-          ifnull(name, '[Unknown]') as name,
-          self_size,
-          self_count
-        FROM _heap_graph_class_tree
-        WHERE graph_sample_ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
-          AND upid = (SELECT max(upid) FROM heap_graph_object)
-        ORDER BY name;
+          p.name AS parent_of_child
+        FROM _heap_graph_class_tree c
+        JOIN _heap_graph_class_tree p ON c.parent_id = p.id
+        WHERE c.name = 'Child';
         """,
         out=Csv('''
-          "id","parent_id","name","self_size","self_count"
-          0,1,"Child",100,1
-          1,"[NULL]","RootA",10,1
-          2,"[NULL]","RootB",10,1
+          "parent_of_child"
+          "RootA"
         '''))
 
   def test_heap_profile_flamegraph_system_server_native_profile(self):

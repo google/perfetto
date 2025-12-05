@@ -451,13 +451,14 @@ class HeapGraphStabilityTest : public ::testing::Test {
       context_.process_tracker->GetOrCreateProcess(kPid);
       tracker_ = std::make_unique<HeapGraphTracker>(context_.storage.get());
 
-      tracker_->AddInternedLocationName(kSeqId, kLocation,
-                                        context_.storage->InternString("location"));
+      tracker_->AddInternedLocationName(
+          kSeqId, kLocation, context_.storage->InternString("location"));
       tracker_->AddInternedFieldName(kSeqId, kField, base::StringView("foo"));
     }
 
     uint64_t GetOrCreateTypeId(const std::string& name) {
-      if (auto it = class_name_to_id_.find(name); it != class_name_to_id_.end()) {
+      if (auto it = class_name_to_id_.find(name);
+          it != class_name_to_id_.end()) {
         return it->second;
       }
       uint64_t id = next_type_id_++;
@@ -467,10 +468,10 @@ class HeapGraphStabilityTest : public ::testing::Test {
     }
 
     void RegisterType(uint64_t id, const std::string& name) {
-      tracker_->AddInternedType(kSeqId, id,
-                                context_.storage->InternString(base::StringView(name)),
-                                kLocation, 0, {}, 0, 0, false,
-                                protos::pbzero::HeapGraphType::KIND_NORMAL);
+      tracker_->AddInternedType(
+          kSeqId, id, context_.storage->InternString(base::StringView(name)),
+          kLocation, 0, {}, 0, 0, false,
+          protos::pbzero::HeapGraphType::KIND_NORMAL);
     }
 
     void RegisterObject(uint64_t id, uint64_t type_id) {
@@ -489,15 +490,15 @@ class HeapGraphStabilityTest : public ::testing::Test {
       for (const auto& [id, type_id] : object_type_ids_) {
         HeapGraphTracker::SourceObject obj;
         obj.object_id = id;
-        obj.self_size = 1; // Default size
+        obj.self_size = 1;  // Default size
         obj.type_id = type_id;
-        
+
         auto it = object_refs_.find(id);
         if (it != object_refs_.end()) {
           obj.referred_objects = it->second;
           obj.field_name_ids.resize(obj.referred_objects.size(), kField);
         }
-        
+
         tracker_->AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
       }
 
@@ -522,7 +523,7 @@ class HeapGraphStabilityTest : public ::testing::Test {
           found_child = true;
           auto parent_id = it.parent_id();
           ASSERT_TRUE(parent_id.has_value());
-          
+
           std::optional<std::string> parent_name;
           for (auto pit = flame_->IterateRows(); pit; ++pit) {
             if (pit.id().value == parent_id->value) {
@@ -569,7 +570,8 @@ struct ShortestPathTestCase {
   std::string name;
   std::vector<ObjectInfo> objects;
 
-  static std::string ToString(const testing::TestParamInfo<ShortestPathTestCase>& info) {
+  static std::string ToString(
+      const testing::TestParamInfo<ShortestPathTestCase>& info) {
     return info.param.name;
   }
 };
@@ -581,7 +583,7 @@ class ShortestPathStabilityTest
 TEST_P(ShortestPathStabilityTest, Run) {
   const auto& test = GetParam();
   Helper helper;
-  
+
   for (const auto& obj : test.objects) {
     uint64_t type_id = helper.GetOrCreateTypeId(obj.class_name);
     helper.RegisterObject(obj.id, type_id);
@@ -600,56 +602,60 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         ShortestPathTestCase{
             .name = "Aid_greater_than_Bid__B_references_earlier_A",
-            .objects = {
-                {.id = 2,
-                 .class_name = "B_Parent",
-                 .parents = {kRoot}},  // B_Parent (id=2), parent=Root(1)
-                {.id = 3,
-                 .class_name = "A_Parent",
-                 .parents = {kRoot}},  // A_Parent (id=3), parent=Root(1)
-                {.id = 4,
-                 .class_name = "ChildClass",
-                 .parents = {2, 3}}  // Child (id=4), parents=B(2), A(3)
-            }},
+            .objects =
+                {
+                    {.id = 2,
+                     .class_name = "B_Parent",
+                     .parents = {kRoot}},  // B_Parent (id=2), parent=Root(1)
+                    {.id = 3,
+                     .class_name = "A_Parent",
+                     .parents = {kRoot}},  // A_Parent (id=3), parent=Root(1)
+                    {.id = 4,
+                     .class_name = "ChildClass",
+                     .parents = {2, 3}}  // Child (id=4), parents=B(2), A(3)
+                }},
         ShortestPathTestCase{
             .name = "Aid_greater_than_Bid__A_references_earlier_B",
-            .objects = {
-                {.id = 3,
-                 .class_name = "A_Parent",
-                 .parents = {kRoot}},  // A_Parent (id=3), parent=Root(1)
-                {.id = 2,
-                 .class_name = "B_Parent",
-                 .parents = {kRoot}},  // B_Parent (id=2), parent=Root(1)
-                {.id = 4,
-                 .class_name = "ChildClass",
-                 .parents = {3, 2}}  // Child (id=4), parents=A(3), B(2)
-            }},
+            .objects =
+                {
+                    {.id = 3,
+                     .class_name = "A_Parent",
+                     .parents = {kRoot}},  // A_Parent (id=3), parent=Root(1)
+                    {.id = 2,
+                     .class_name = "B_Parent",
+                     .parents = {kRoot}},  // B_Parent (id=2), parent=Root(1)
+                    {.id = 4,
+                     .class_name = "ChildClass",
+                     .parents = {3, 2}}  // Child (id=4), parents=A(3), B(2)
+                }},
         ShortestPathTestCase{
             .name = "Aid_less_than_Bid__B_references_earlier_A",
-            .objects = {
-                {.id = 3,
-                 .class_name = "B_Parent",
-                 .parents = {kRoot}},  // B_Parent (id=3), parent=Root(1)
-                {.id = 2,
-                 .class_name = "A_Parent",
-                 .parents = {kRoot}},  // A_Parent (id=2), parent=Root(1)
-                {.id = 4,
-                 .class_name = "ChildClass",
-                 .parents = {2, 3}}  // Child (id=4), parents=A(2), B(3)
-            }},
+            .objects =
+                {
+                    {.id = 3,
+                     .class_name = "B_Parent",
+                     .parents = {kRoot}},  // B_Parent (id=3), parent=Root(1)
+                    {.id = 2,
+                     .class_name = "A_Parent",
+                     .parents = {kRoot}},  // A_Parent (id=2), parent=Root(1)
+                    {.id = 4,
+                     .class_name = "ChildClass",
+                     .parents = {2, 3}}  // Child (id=4), parents=A(2), B(3)
+                }},
         ShortestPathTestCase{
             .name = "Aid_less_than_Bid__A_references_earlier_B",
-            .objects = {
-                {.id = 2,
-                 .class_name = "A_Parent",
-                 .parents = {kRoot}},  // A_Parent (id=2), parent=Root(1)
-                {.id = 3,
-                 .class_name = "B_Parent",
-                 .parents = {kRoot}},  // B_Parent (id=3), parent=Root(1)
-                {.id = 4,
-                 .class_name = "ChildClass",
-                 .parents = {2, 3}}  // Child (id=4), parents=A(2), B(3)
-            }}),
+            .objects =
+                {
+                    {.id = 2,
+                     .class_name = "A_Parent",
+                     .parents = {kRoot}},  // A_Parent (id=2), parent=Root(1)
+                    {.id = 3,
+                     .class_name = "B_Parent",
+                     .parents = {kRoot}},  // B_Parent (id=3), parent=Root(1)
+                    {.id = 4,
+                     .class_name = "ChildClass",
+                     .parents = {2, 3}}  // Child (id=4), parents=A(2), B(3)
+                }}),
     &ShortestPathTestCase::ToString);
 
 constexpr char kArray[] = "X[]";
