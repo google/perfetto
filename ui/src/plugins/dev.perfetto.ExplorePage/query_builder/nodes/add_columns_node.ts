@@ -2017,8 +2017,8 @@ export class AddColumnsNode implements QueryNode {
       );
     }
 
-    // Prepare input columns (for JOIN)
-    const inputColumns: ColumnSpec[] = (this.state.selectedColumns ?? []).map(
+    // Prepare columns to add from the JOIN
+    const joinColumns: ColumnSpec[] = (this.state.selectedColumns ?? []).map(
       (colName) => {
         const alias = this.state.columnAliases?.get(colName);
         return {
@@ -2028,33 +2028,56 @@ export class AddColumnsNode implements QueryNode {
       },
     );
 
-    // Add computed columns to the JOIN
+    // Prepare computed columns (expressions)
+    const computedColumns: ColumnSpec[] = [];
     for (const col of this.state.computedColumns ?? []) {
       if (!this.isComputedColumnValid(col)) continue;
-      inputColumns.push({
+      computedColumns.push({
         columnNameOrExpression: col.expression,
         alias: col.name,
         referencedModule: col.module,
       });
     }
 
-    // If no columns are selected from the JOIN and no computed columns, just pass through
-    if (inputColumns.length === 0) {
+    // Prepare join condition (if we have columns to join)
+    let condition: JoinCondition | undefined;
+    if (
+      joinColumns.length > 0 &&
+      this.state.leftColumn !== undefined &&
+      this.state.rightColumn !== undefined
+    ) {
+      condition = {
+        type: 'equality',
+        leftColumn: this.state.leftColumn,
+        rightColumn: this.state.rightColumn,
+      };
+    } else if (joinColumns.length > 0) {
+      // If we have JOIN columns but no condition, this is an invalid state
+      // Fall back to just returning the base query
       return this.primaryInput.getStructuredQuery();
     }
 
-    // Prepare join condition
-    const condition: JoinCondition = {
-      type: 'equality',
-      leftColumn: this.state.leftColumn!,
-      rightColumn: this.state.rightColumn!,
-    };
+    // Get all base columns from the source
+    const allBaseColumns: ColumnSpec[] = this.sourceCols.map((col) => ({
+      columnNameOrExpression: col.column.name,
+    }));
 
-    return StructuredQueryBuilder.withAddColumns(
+    // Collect referenced modules from computed columns
+    const referencedModules = this.state.computedColumns
+      ?.map((col) => col.module)
+      .filter((mod): mod is string => mod !== undefined);
+
+    // Use the builder to handle the complexity of composing JOIN + computed columns
+    return StructuredQueryBuilder.withAddColumnsAndExpressions(
       this.primaryInput,
       this.rightNode,
-      inputColumns,
+      joinColumns,
       condition,
+      computedColumns,
+      allBaseColumns,
+      referencedModules && referencedModules.length > 0
+        ? referencedModules
+        : undefined,
       this.nodeId,
     );
   }
