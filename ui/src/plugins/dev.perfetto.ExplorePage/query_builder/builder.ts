@@ -335,6 +335,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         startingHeight: 300,
         drawerContent: selectedNode
           ? m(DataExplorer, {
+              trace: this.trace,
               query: this.query,
               node: selectedNode,
               response: this.response,
