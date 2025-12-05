@@ -39,6 +39,7 @@ import {NodeDetailsAttrs} from '../../node_explorer_types';
 import {findRef, toHTMLElement} from '../../../../../base/dom_utils';
 import {assertExists} from '../../../../../base/logging';
 import {ResizeHandle} from '../../../../../widgets/resize_handle';
+import {loadNodeDoc} from '../../node_doc_loader';
 
 export interface SqlSourceSerializedState {
   sql?: string;
@@ -220,27 +221,7 @@ export class SqlSourceNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Write custom queries to access any data in the trace. Use ',
-        m('code', '$node_id'),
-        ' to reference other nodes in your query.',
-      ),
-      m(
-        'p',
-        'Most flexible option for complex logic or operations not available through other nodes.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Write ',
-        m('code', 'SELECT * FROM slice WHERE dur > 1000'),
-        ' or reference another node with ',
-        m('code', 'SELECT * FROM $other_node WHERE ...'),
-      ),
-    );
+    return loadNodeDoc('sql_source');
   }
 
   findDependencies(): string[] {

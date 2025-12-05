@@ -35,6 +35,7 @@ import {showModal} from '../../../../../widgets/modal';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
+import {loadNodeDoc} from '../../node_doc_loader';
 
 // Poll interval for dynamic mode selection updates (in milliseconds)
 const SELECTION_POLL_INTERVAL_MS = 200;
@@ -472,62 +473,67 @@ export class TimeRangeSourceNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    if (!this.validate()) {
-      return m(
-        'div',
-        m(
-          '.pf-node-info-empty',
-          'No time range set. Use "Update from Timeline" or enter times manually.',
-        ),
-      );
+    // Show general documentation
+    const docContent = loadNodeDoc('timerange_source');
+
+    // If valid, also show current time range data
+    if (this.validate()) {
+      const start = this.state.start;
+      const end = this.state.end;
+      if (start !== undefined && end !== undefined) {
+        const dur = end - start;
+        const isDynamic = this.state.isDynamic ?? false;
+        const title = isDynamic ? 'Current time selection' : 'Time selection';
+
+        return m(
+          'div',
+          docContent,
+          m(
+            '.pf-timerange-current-data',
+            m('h2', title),
+            m(
+              'table.pf-table.pf-table-striped',
+              m(
+                'thead',
+                m(
+                  'tr',
+                  m('th', 'Column'),
+                  m('th', 'Value'),
+                  m('th', 'Description'),
+                ),
+              ),
+              m(
+                'tbody',
+                m(
+                  'tr',
+                  m('td', 'id'),
+                  m('td', '0'),
+                  m('td', 'Row identifier (always 0)'),
+                ),
+                m(
+                  'tr',
+                  m('td', 'ts'),
+                  m('td', start.toString()),
+                  m('td', 'Start timestamp (ns)'),
+                ),
+                m(
+                  'tr',
+                  m('td', 'dur'),
+                  m('td', dur.toString()),
+                  m('td', 'Duration (ns)'),
+                ),
+              ),
+            ),
+            m(
+              '.pf-timerange-info-mode',
+              `Mode: ${isDynamic ? 'Dynamic (synced with selection)' : 'Static'}`,
+            ),
+          ),
+        );
+      }
     }
 
-    const start = this.state.start;
-    const end = this.state.end;
-    if (start === undefined || end === undefined) {
-      return m('div', m('.pf-node-info-empty', 'No time range set.'));
-    }
-
-    const dur = end - start;
-    const isDynamic = this.state.isDynamic ?? false;
-    const title = isDynamic ? 'Current time selection' : 'Time selection';
-
-    return m(
-      'div',
-      m('h3.pf-timerange-info-title', title),
-      m(
-        'table.pf-table.pf-table-striped',
-        m(
-          'thead',
-          m('tr', m('th', 'Column'), m('th', 'Value'), m('th', 'Description')),
-        ),
-        m(
-          'tbody',
-          m(
-            'tr',
-            m('td', 'id'),
-            m('td', '0'),
-            m('td', 'Row identifier (always 0)'),
-          ),
-          m(
-            'tr',
-            m('td', 'ts'),
-            m('td', start.toString()),
-            m('td', 'Start timestamp (ns)'),
-          ),
-          m(
-            'tr',
-            m('td', 'dur'),
-            m('td', dur.toString()),
-            m('td', 'Duration (ns)'),
-          ),
-        ),
-      ),
-      m(
-        '.pf-timerange-info-mode',
-        `Mode: ${this.state.isDynamic ? 'Dynamic (synced with selection)' : 'Static'}`,
-      ),
-    );
+    return docContent;
   }
 
   // Cleanup when node is destroyed. This is called by CleanupManager

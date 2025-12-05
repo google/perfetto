@@ -60,6 +60,7 @@ import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {Spinner} from '../../../../widgets/spinner';
 import {STR} from '../../../../trace_processor/query_result';
 import {sqliteString} from '../../../../base/string_utils';
+import {loadNodeDoc} from '../node_doc_loader';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -1886,24 +1887,7 @@ export class AddColumnsNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Enrich your data by adding columns from another table or query. Connect the additional source to the left port.',
-      ),
-      m(
-        'p',
-        'Specify which columns to match (join key) and which columns to add. In Guided mode, get suggestions based on JOINID columns.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Add process details to slices by joining ',
-        m('code', 'upid'),
-        ' with the process table.',
-      ),
-    );
+    return loadNodeDoc('add_columns');
   }
 
   validate(): boolean {

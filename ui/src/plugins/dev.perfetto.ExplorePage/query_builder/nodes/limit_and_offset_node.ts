@@ -28,6 +28,7 @@ import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
 import {createErrorSections} from '../widgets';
 import {showModal} from '../../../../widgets/modal';
 import {TextInput} from '../../../../widgets/text_input';
+import {loadNodeDoc} from '../node_doc_loader';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
   limit?: number;
@@ -182,23 +183,7 @@ export class LimitAndOffsetNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Limit the number of rows returned and optionally skip rows. Useful for sampling data or pagination.',
-      ),
-      m(
-        'p',
-        m('strong', 'Tip:'),
-        ' Combine with Sort to get meaningful results like "top 10 longest slices" or "rows 100-150".',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Set limit to 10 to see first 10 rows, or set offset to 100 and limit to 50 to see rows 100-150.',
-      ),
-    );
+    return loadNodeDoc('limit_and_offset');
   }
 
   validate(): boolean {
