@@ -159,7 +159,7 @@ void PackageLookup::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   auto* storage = GetUserData(ctx)->storage;
   auto& cursor = GetUserData(ctx)->package_list_cursor;
 
-  // Use package list of installed packates (>= 10000).
+  // Resolve using the package list for installed applications (>= 10000).
   if (pkgid >= 10000) {
     cursor.SetFilterValueUnchecked(0, pkgid);
     cursor.Execute();
