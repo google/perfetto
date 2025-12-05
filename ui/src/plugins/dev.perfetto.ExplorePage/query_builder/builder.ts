@@ -164,6 +164,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private sidebarWidth: number = 500; // Default width in pixels
   private readonly MIN_SIDEBAR_WIDTH = 250;
   private readonly MAX_SIDEBAR_WIDTH = 800;
+  private hasEverSelectedNode = false;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.trace = attrs.trace;
@@ -258,6 +259,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.resetQueryState();
       this.isQueryRunning = false;
       this.isAnalyzing = false;
+
+      // Show drawer the first time any node is selected
+      if (!this.hasEverSelectedNode) {
+        this.drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+        this.hasEverSelectedNode = true;
+      }
+
       const hasModifyPanel = selectedNode.nodeSpecificModify() != null;
       // If current view is Info, switch to Modify (if available) when selecting a new node
       if (this.selectedView === SelectedView.kInfo && hasModifyPanel) {
