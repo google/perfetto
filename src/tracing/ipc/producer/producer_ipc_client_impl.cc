@@ -417,7 +417,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
       task_runner_->PostTask([weak_this]() {
         if (weak_this) {
           weak_this->shared_memory_arbiter_->ScrapeEmulatedSharedMemoryBuffer(
-              weak_this->writers_);
+              weak_this->writers_for_scraping_);
         }
       });
     }
@@ -498,7 +498,7 @@ void ProducerIPCClientImpl::RegisterTraceWriter(uint32_t writer_id,
   }
   if (use_shmem_emulation_ &&
       smb_scraping_mode_ == TracingService::ProducerSMBScrapingMode::kEnabled) {
-    writers_[static_cast<WriterID>(writer_id)] =
+    writers_for_scraping_[static_cast<WriterID>(writer_id)] =
         static_cast<BufferID>(target_buffer);
   }
   protos::gen::RegisterTraceWriterRequest req;
@@ -517,7 +517,7 @@ void ProducerIPCClientImpl::UnregisterTraceWriter(uint32_t writer_id) {
   }
   if (use_shmem_emulation_ &&
       smb_scraping_mode_ == TracingService::ProducerSMBScrapingMode::kEnabled) {
-    writers_.erase(static_cast<WriterID>(writer_id));
+    writers_for_scraping_.erase(static_cast<WriterID>(writer_id));
   }
   protos::gen::UnregisterTraceWriterRequest req;
   req.set_trace_writer_id(writer_id);

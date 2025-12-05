@@ -129,7 +129,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   // needs the mapping of writer to buffer in order to do producer-side
   // SMB scraping as it cannot rely on the map stored in the tracing
   // service.
-  std::map<WriterID, BufferID> writers_;
+  std::map<WriterID, BufferID> writers_for_scraping_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;

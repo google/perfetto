@@ -156,7 +156,7 @@ class TracingServiceImpl : public TracingService {
       return std::nullopt;
     }
 
-    bool IsShmemEmulated() { return shmem_abi_.is_shmem_emulated(); }
+    bool IsShmemEmulated() { return shmem_abi_.use_shmem_emulation(); }
 
     bool IsAndroidProcessFrozen();
     uid_t uid() const { return client_identity_.uid(); }
