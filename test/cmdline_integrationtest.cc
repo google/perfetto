@@ -1283,13 +1283,13 @@ TEST_F(PerfettoCmdlineTest, DoNotDeleteNotEmptyWriteIntoFileTraceOnError) {
 
   background_trace.join();
   // Assert perfetto_cmd disconnected with an error.
-  ASSERT_THAT(
+  EXPECT_THAT(
       perfetto_cmd_stderr,
       HasSubstr("Service error: EnableTracing IPC request rejected. This is "
                 "likely due to a loss of the traced connection"));
   // Assert trace file exists and not empty.
   protos::gen::Trace trace;
-  ASSERT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
+  EXPECT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
 }
 #endif
 
