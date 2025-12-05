@@ -86,6 +86,7 @@ import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
+import {Popup, PopupPosition} from '../../../widgets/popup';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
@@ -180,6 +181,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     );
     m.redraw();
   }
+
 
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
     const sourceNodes = nodeRegistry
@@ -406,13 +408,24 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             '.pf-qb-floating-controls',
             !selectedNode.validate() &&
               m(
-                '.pf-qb-floating-warning',
-                m(Icon, {
-                  icon: Icons.Warning,
-                  filled: true,
-                  className: 'pf-qb-warning-icon',
-                  title: `Invalid node: ${selectedNode.state.issues?.getTitle() ?? ''}`,
-                }),
+                Popup,
+                {
+                  trigger: m(
+                    '.pf-qb-floating-warning',
+                    m(Icon, {
+                      icon: Icons.Warning,
+                      filled: true,
+                      className: 'pf-qb-warning-icon',
+                      title: 'Click to see error details',
+                    }),
+                  ),
+                  position: PopupPosition.BottomEnd,
+                  showArrow: true,
+                },
+                m(
+                  '.pf-error-details',
+                  selectedNode.state.issues?.getTitle() ?? 'No error details',
+                ),
               ),
           ),
         m(
