@@ -1516,7 +1516,7 @@ export class AddColumnsNode implements QueryNode {
                       value: s.suggestedTable,
                       selected: s.suggestedTable === selectedTable,
                     },
-                    s.suggestedTable,
+                    `${s.suggestedTable} (on ${s.colName})`,
                   ),
                 ),
               ),
