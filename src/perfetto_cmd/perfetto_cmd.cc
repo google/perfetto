@@ -1187,10 +1187,10 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
     // be marked as "E" in the event log. Hence why LOG and not ELOG here.
     PERFETTO_LOG("Service error: %s", error.c_str());
 
-    uint64_t bytes_written = GetBytesWritten();
     // In case of errors don't leave a partial file around. This happens
     // frequently in the case of --save-for-bugreport if there is no eligible
     // trace. See also b/279753347 .
+    uint64_t bytes_written = GetBytesWritten();
     if (bytes_written == 0 && !trace_out_path_.empty() &&
         trace_out_path_ != "-") {
       remove(trace_out_path_.c_str());
