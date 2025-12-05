@@ -25,13 +25,11 @@ import {time, TimeSpan, Time} from '../../../../../base/time';
 import {PerfettoSqlTypes} from '../../../../../trace_processor/perfetto_sql_type';
 import {Trace} from '../../../../../public/trace';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
-import {TextInput} from '../../../../../widgets/text_input';
 import {Switch} from '../../../../../widgets/switch';
 import {Anchor} from '../../../../../widgets/anchor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import protos from '../../../../../protos';
-import {ListItem, InfoBox} from '../../widgets';
-import {showModal} from '../../../../../widgets/modal';
+import {InlineField, InfoBox} from '../../widgets';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
@@ -245,127 +243,6 @@ export class TimeRangeSourceNode implements QueryNode {
     m.redraw();
   }
 
-  private showEditStartModal(): void {
-    let tempValue = this.state.start?.toString() ?? '';
-
-    showModal({
-      title: 'Edit Start Time',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'Start timestamp (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              this.state.start = Time.fromRaw(parsed);
-              this.state.onchange?.();
-            } catch (e) {
-              console.warn('Invalid start timestamp:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
-  private showEditEndModal(): void {
-    let tempValue = this.state.end?.toString() ?? '';
-
-    showModal({
-      title: 'Edit End Time',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'End timestamp (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              this.state.end = Time.fromRaw(parsed);
-              this.state.onchange?.();
-            } catch (e) {
-              console.warn('Invalid end timestamp:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
-  private showEditDurationModal(): void {
-    const currentDur =
-      this.state.start && this.state.end
-        ? this.state.end - this.state.start
-        : 0n;
-    let tempValue = currentDur.toString();
-
-    showModal({
-      title: 'Edit Duration',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'Duration (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              if (this.state.start !== undefined) {
-                // Keep start fixed, update end based on duration
-                this.state.end = Time.fromRaw(this.state.start + parsed);
-                this.state.onchange?.();
-              }
-            } catch (e) {
-              console.warn('Invalid duration:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
   nodeSpecificModify(): NodeModifyAttrs {
     const isDynamic = this.state.isDynamic ?? false;
     const isValid = this.validate();
@@ -426,45 +303,89 @@ export class TimeRangeSourceNode implements QueryNode {
     sections.push({
       content: m(
         '.pf-timerange-list',
-        m(ListItem, {
+        m(InlineField, {
+          label: 'Start (ns)',
           icon: 'start',
-          name: 'Start (ns)',
-          description: this.state.start?.toString() ?? 'Not set',
-          actions: !isDynamic
-            ? [
-                {
-                  icon: 'edit',
-                  onclick: () => this.showEditStartModal(),
-                },
-              ]
-            : undefined,
+          value: this.state.start?.toString() ?? 'Not set',
+          editable: !isDynamic,
+          placeholder: 'Start timestamp (ns)',
+          type: 'number',
+          validate: (value: string) => {
+            if (value === 'Not set') return true;
+            try {
+              BigInt(value.trim());
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          errorMessage: 'Must be a valid integer timestamp',
+          onchange: (value: string) => {
+            try {
+              const parsed = BigInt(value.trim());
+              this.state.start = Time.fromRaw(parsed);
+            } catch (e) {
+              // Keep current value if invalid
+            }
+            this.state.onchange?.();
+          },
         }),
-        m(ListItem, {
+        m(InlineField, {
+          label: 'End (ns)',
           icon: 'stop',
-          name: 'End (ns)',
-          description: this.state.end?.toString() ?? 'Not set',
-          actions: !isDynamic
-            ? [
-                {
-                  icon: 'edit',
-                  onclick: () => this.showEditEndModal(),
-                },
-              ]
-            : undefined,
+          value: this.state.end?.toString() ?? 'Not set',
+          editable: !isDynamic,
+          placeholder: 'End timestamp (ns)',
+          type: 'number',
+          validate: (value: string) => {
+            if (value === 'Not set') return true;
+            try {
+              BigInt(value.trim());
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          errorMessage: 'Must be a valid integer timestamp',
+          onchange: (value: string) => {
+            try {
+              const parsed = BigInt(value.trim());
+              this.state.end = Time.fromRaw(parsed);
+            } catch (e) {
+              // Keep current value if invalid
+            }
+            this.state.onchange?.();
+          },
         }),
         isValid &&
-          m(ListItem, {
+          m(InlineField, {
+            label: 'Duration (ns)',
             icon: 'timelapse',
-            name: 'Duration (ns)',
-            description: dur.toString(),
-            actions: !isDynamic
-              ? [
-                  {
-                    icon: 'edit',
-                    onclick: () => this.showEditDurationModal(),
-                  },
-                ]
-              : undefined,
+            value: dur.toString(),
+            editable: !isDynamic,
+            placeholder: 'Duration (ns)',
+            type: 'number',
+            validate: (value: string) => {
+              try {
+                BigInt(value.trim());
+                return true;
+              } catch {
+                return false;
+              }
+            },
+            errorMessage: 'Must be a valid integer duration',
+            onchange: (value: string) => {
+              try {
+                const parsed = BigInt(value.trim());
+                if (this.state.start !== undefined) {
+                  // Keep start fixed, update end based on duration
+                  this.state.end = Time.fromRaw(this.state.start + parsed);
+                }
+              } catch (e) {
+                // Keep current value if invalid
+              }
+              this.state.onchange?.();
+            },
           }),
       ),
     });
