@@ -36,6 +36,10 @@ import {Trace} from '../../../../../public/trace';
 import {ColumnInfo} from '../../column_info';
 import {setValidationError} from '../../node_issues';
 import {NodeDetailsAttrs} from '../../node_explorer_types';
+import {findRef, toHTMLElement} from '../../../../../base/dom_utils';
+import {assertExists} from '../../../../../base/logging';
+import {ResizeHandle} from '../../../../../widgets/resize_handle';
+import {loadNodeDoc} from '../../node_doc_loader';
 
 export interface SqlSourceSerializedState {
   sql?: string;
@@ -45,6 +49,43 @@ export interface SqlSourceSerializedState {
 export interface SqlSourceState extends QueryNodeState {
   sql?: string;
   trace: Trace;
+}
+
+interface SqlEditorAttrs {
+  sql: string;
+  onUpdate: (text: string) => void;
+  onExecute: (text: string) => void;
+}
+
+class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
+  private editorHeight: number = 0;
+  private editorElement?: HTMLElement;
+
+  oncreate({dom}: m.VnodeDOM<SqlEditorAttrs>) {
+    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
+    this.editorElement.style.height = '400px';
+  }
+
+  view({attrs}: m.CVnode<SqlEditorAttrs>) {
+    return [
+      m(Editor, {
+        ref: 'editor',
+        text: attrs.sql,
+        onUpdate: attrs.onUpdate,
+        onExecute: attrs.onExecute,
+        autofocus: true,
+      }),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          this.editorHeight += deltaPx;
+          this.editorElement!.style.height = `${this.editorHeight}px`;
+        },
+        onResizeStart: () => {
+          this.editorHeight = this.editorElement!.clientHeight;
+        },
+      }),
+    ];
+  }
 }
 
 export class SqlSourceNode implements QueryNode {
@@ -153,31 +194,20 @@ export class SqlSourceNode implements QueryNode {
 
     return m(
       '.sql-source-node',
-      m(
-        'div',
-        {
-          style: {
-            minHeight: '400px',
-            backgroundColor: '#282c34',
-            position: 'relative',
-          },
+      m(SqlEditor, {
+        sql: this.state.sql ?? '',
+        onUpdate: (text: string) => {
+          this.state.sql = text;
+          m.redraw();
         },
-        m(Editor, {
-          text: this.state.sql ?? '',
-          onUpdate: (text: string) => {
-            this.state.sql = text;
-            m.redraw();
-          },
-          onExecute: (text: string) => {
-            queryHistoryStorage.saveQuery(text);
-            this.state.sql = text.trim();
-            // Note: Execution is now handled by the Run button in DataExplorer
-            // This callback only saves to query history and updates the SQL text
-            m.redraw();
-          },
-          autofocus: true,
-        }),
-      ),
+        onExecute: (text: string) => {
+          queryHistoryStorage.saveQuery(text);
+          this.state.sql = text.trim();
+          // Note: Execution is now handled by the Run button in DataExplorer
+          // This callback only saves to query history and updates the SQL text
+          m.redraw();
+        },
+      }),
       m(QueryHistoryComponent, {
         className: '.pf-query-history-container',
         trace: this.state.trace,
@@ -191,27 +221,7 @@ export class SqlSourceNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Write custom queries to access any data in the trace. Use ',
-        m('code', '$node_id'),
-        ' to reference other nodes in your query.',
-      ),
-      m(
-        'p',
-        'Most flexible option for complex logic or operations not available through other nodes.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Write ',
-        m('code', 'SELECT * FROM slice WHERE dur > 1000'),
-        ' or reference another node with ',
-        m('code', 'SELECT * FROM $other_node WHERE ...'),
-      ),
-    );
+    return loadNodeDoc('sql_source');
   }
 
   findDependencies(): string[] {

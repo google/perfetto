@@ -87,6 +87,9 @@ import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
 
+// Side panel width - must match --pf-qb-side-panel-width in builder.scss
+const SIDE_PANEL_WIDTH = 60;
+
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
@@ -126,7 +129,7 @@ export interface BuilderAttrs {
   readonly onImport: () => void;
   readonly onExport: () => void;
 
-  readonly onImportWithStatement: () => void;
+  readonly onLoadExample: () => void;
 
   // Node state change callback
   readonly onNodeStateChange?: () => void;
@@ -213,11 +216,36 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         );
       });
 
+    // Add Examples card at the end
+    const examplesCard = m(
+      Card,
+      {
+        'interactive': true,
+        'onclick': () => attrs.onLoadExample(),
+        'tabindex': 0,
+        'role': 'button',
+        'aria-label': 'Load example graph',
+        'className': 'pf-source-card',
+        'onkeydown': (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            attrs.onLoadExample();
+          }
+        },
+      },
+      m(
+        '.pf-source-card-clickable',
+        m(Icon, {icon: 'auto_stories'}),
+        m('h3', 'Examples'),
+      ),
+      m('p', 'Load an example graph'),
+    );
+
     if (sourceNodes.length === 0) {
-      return m('p', 'No source nodes available');
+      return [examplesCard];
     }
 
-    return sourceNodes;
+    return [examplesCard, ...sourceNodes];
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -307,6 +335,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         startingHeight: 300,
         drawerContent: selectedNode
           ? m(DataExplorer, {
+              trace: this.trace,
               query: this.query,
               node: selectedNode,
               response: this.response,
@@ -370,7 +399,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onDeleteNode: attrs.onDeleteNode,
           onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,
-          onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
         }),
         selectedNode &&
@@ -421,14 +449,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         '.pf-qb-explorer',
         {
           style: {
-            width: this.isExplorerCollapsed ? '0' : `${this.sidebarWidth}px`,
+            width: this.isExplorerCollapsed
+              ? '0'
+              : `${this.sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
           },
         },
         explorer,
       ),
-      m(
-        '.pf-qb-side-panel',
-        selectedNode &&
+      selectedNode &&
+        m(
+          '.pf-qb-side-panel',
           m(Button, {
             icon: Icons.Info,
             title: 'Info',
@@ -449,29 +479,27 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
-        selectedNode &&
           selectedNode.nodeSpecificModify() != null &&
-          m(Button, {
-            icon: Icons.Edit,
-            title: 'Edit',
-            className:
-              this.selectedView === SelectedView.kModify &&
-              !this.isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
+            m(Button, {
+              icon: Icons.Edit,
+              title: 'Edit',
+              className:
                 this.selectedView === SelectedView.kModify &&
                 !this.isExplorerCollapsed
-              ) {
-                this.isExplorerCollapsed = true;
-              } else {
-                this.selectedView = SelectedView.kModify;
-                this.isExplorerCollapsed = false;
-              }
-            },
-          }),
-        selectedNode &&
+                  ? 'pf-active'
+                  : '',
+              onclick: () => {
+                if (
+                  this.selectedView === SelectedView.kModify &&
+                  !this.isExplorerCollapsed
+                ) {
+                  this.isExplorerCollapsed = true;
+                } else {
+                  this.selectedView = SelectedView.kModify;
+                  this.isExplorerCollapsed = false;
+                }
+              },
+            }),
           m(Button, {
             icon: 'code',
             title: 'Result',
@@ -492,7 +520,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
-      ),
+        ),
     );
   }
 

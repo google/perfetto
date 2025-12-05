@@ -36,7 +36,7 @@ import {
   DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
 import {DataGridApi} from './widgets/data_grid/data_grid';
-import {DataGridExportButton} from './widgets/data_grid/export_buttons';
+import {DataGridExportButton} from './widgets/data_grid/export_button';
 
 export interface AggregationData {
   readonly tableName: string;

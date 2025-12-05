@@ -33,6 +33,7 @@ import {
   StructuredQueryBuilder,
   JoinCondition,
 } from '../structured_query_builder';
+import {loadNodeDoc} from '../node_doc_loader';
 import {FormRow} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle, ColumnName} from '../node_styling_widgets';
@@ -245,24 +246,7 @@ export class MergeNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Combine two data sources by matching rows based on a condition. Connect sources to the two top ports.',
-      ),
-      m(
-        'p',
-        'Choose equality mode to join on matching column values, or custom SQL mode for complex conditions.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Join process info with thread info where ',
-        m('code', 'process.id = thread.upid'),
-        ' to see which threads belong to each process.',
-      ),
-    );
+    return loadNodeDoc('merge');
   }
 
   getInputLabels(): string[] {

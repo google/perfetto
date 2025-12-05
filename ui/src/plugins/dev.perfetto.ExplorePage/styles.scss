@@ -30,3 +30,144 @@
     align-items: center;
   }
 }
+
+// Styles for node documentation (loaded from markdown)
+.pf-node-info {
+  line-height: 1.6;
+
+  h1 {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--stroke);
+    padding-bottom: 0.5rem;
+  }
+
+  h2 {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  h3 {
+    font-size: 1.1em;
+    font-weight: 600;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+
+  strong {
+    font-weight: 600;
+    color: var(--content-primary);
+  }
+
+  code {
+    background-color: var(--surface-2);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-family: var(--monospace-font);
+    font-size: 0.9em;
+  }
+
+  pre {
+    background-color: var(--surface-2);
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 1rem 0;
+
+    code {
+      background-color: transparent;
+      padding: 0;
+    }
+  }
+
+  ul,
+  ol {
+    margin: 0.5rem 0 1rem 1.5rem;
+    padding-left: 0;
+  }
+
+  li {
+    margin-bottom: 0.25rem;
+  }
+
+  &-loading {
+    color: var(--content-secondary);
+    font-style: italic;
+  }
+
+  &-error {
+    color: var(--intent-error);
+  }
+}
+
+// Table source specific styling
+.pf-table-source-selected {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--stroke);
+
+  h2 {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+
+  .pf-details-box {
+    background-color: var(--surface-1);
+    padding: 1rem;
+    border-radius: 4px;
+    border: 1px solid var(--stroke);
+  }
+}
+
+// Time range source specific styling
+.pf-timerange-current-data {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--stroke);
+
+  h2 {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+
+  .pf-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+
+    th,
+    td {
+      padding: 0.5rem;
+      text-align: left;
+      border: 1px solid var(--stroke);
+    }
+
+    th {
+      background-color: var(--surface-2);
+      font-weight: 600;
+    }
+
+    &.pf-table-striped tbody tr:nth-child(even) {
+      background-color: var(--surface-1);
+    }
+  }
+
+  .pf-timerange-info-mode {
+    font-style: italic;
+    color: var(--content-secondary);
+    margin-top: 0.5rem;
+  }
+}

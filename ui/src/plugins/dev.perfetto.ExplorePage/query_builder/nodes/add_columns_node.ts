@@ -60,6 +60,7 @@ import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {Spinner} from '../../../../widgets/spinner';
 import {STR} from '../../../../trace_processor/query_result';
 import {sqliteString} from '../../../../base/string_utils';
+import {loadNodeDoc} from '../node_doc_loader';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -1516,7 +1517,7 @@ export class AddColumnsNode implements QueryNode {
                       value: s.suggestedTable,
                       selected: s.suggestedTable === selectedTable,
                     },
-                    s.suggestedTable,
+                    `${s.suggestedTable} (on ${s.colName})`,
                   ),
                 ),
               ),
@@ -1886,24 +1887,7 @@ export class AddColumnsNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Enrich your data by adding columns from another table or query. Connect the additional source to the left port.',
-      ),
-      m(
-        'p',
-        'Specify which columns to match (join key) and which columns to add. In Guided mode, get suggestions based on JOINID columns.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Add process details to slices by joining ',
-        m('code', 'upid'),
-        ' with the process table.',
-      ),
-    );
+    return loadNodeDoc('add_columns');
   }
 
   validate(): boolean {
@@ -1997,6 +1981,7 @@ export class AddColumnsNode implements QueryNode {
       const allColumns: ColumnSpec[] = [
         ...this.sourceCols.map((col) => ({
           columnNameOrExpression: col.column.name,
+          alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
         })),
         ...computedColumns,
       ];
@@ -2017,44 +2002,76 @@ export class AddColumnsNode implements QueryNode {
       );
     }
 
-    // Prepare input columns (for JOIN)
-    const inputColumns: ColumnSpec[] = (this.state.selectedColumns ?? []).map(
+    // Prepare columns to add from the JOIN
+    const joinColumns: ColumnSpec[] = (this.state.selectedColumns ?? []).map(
       (colName) => {
-        const alias = this.state.columnAliases?.get(colName);
+        const explicitAlias = this.state.columnAliases?.get(colName);
+        // Use explicit alias if provided, otherwise default to the column name
+        const alias =
+          explicitAlias && explicitAlias.trim() !== ''
+            ? explicitAlias.trim()
+            : colName;
         return {
           columnNameOrExpression: colName,
-          alias: alias && alias.trim() !== '' ? alias.trim() : undefined,
+          alias: alias,
         };
       },
     );
 
-    // Add computed columns to the JOIN
+    // Prepare computed columns (expressions)
+    const computedColumns: ColumnSpec[] = [];
     for (const col of this.state.computedColumns ?? []) {
       if (!this.isComputedColumnValid(col)) continue;
-      inputColumns.push({
+      computedColumns.push({
         columnNameOrExpression: col.expression,
         alias: col.name,
         referencedModule: col.module,
       });
     }
 
-    // If no columns are selected from the JOIN and no computed columns, just pass through
-    if (inputColumns.length === 0) {
+    // Prepare join condition (if we have columns to join)
+    let condition: JoinCondition | undefined;
+    if (
+      joinColumns.length > 0 &&
+      this.state.leftColumn !== undefined &&
+      this.state.rightColumn !== undefined
+    ) {
+      condition = {
+        type: 'equality',
+        leftColumn: this.state.leftColumn,
+        rightColumn: this.state.rightColumn,
+      };
+    } else if (joinColumns.length > 0) {
+      // If we have JOIN columns but no condition, this is an invalid state
+      // Fall back to just returning the base query
       return this.primaryInput.getStructuredQuery();
     }
 
-    // Prepare join condition
-    const condition: JoinCondition = {
-      type: 'equality',
-      leftColumn: this.state.leftColumn!,
-      rightColumn: this.state.rightColumn!,
-    };
+    // Collect referenced modules from computed columns
+    const referencedModules = this.state.computedColumns
+      ?.map((col) => col.module)
+      .filter((mod): mod is string => mod !== undefined);
 
-    return StructuredQueryBuilder.withAddColumns(
+    // Get all base columns from the source (needed when we have JOIN or computed columns)
+    const allBaseColumns: ColumnSpec[] =
+      joinColumns.length > 0 || computedColumns.length > 0
+        ? this.sourceCols.map((col) => ({
+            columnNameOrExpression: col.column.name,
+            alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
+          }))
+        : [];
+
+    // Use the builder to handle the complexity of composing JOIN + computed columns
+    return StructuredQueryBuilder.withAddColumnsAndExpressions(
       this.primaryInput,
       this.rightNode,
-      inputColumns,
+      joinColumns,
       condition,
+      computedColumns,
+      allBaseColumns,
+      referencedModules && referencedModules.length > 0
+        ? referencedModules
+        : undefined,
       this.nodeId,
     );
   }

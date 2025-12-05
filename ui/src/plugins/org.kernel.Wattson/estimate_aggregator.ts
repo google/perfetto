@@ -103,11 +103,13 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
         title: 'Power (estimated mW)',
         columnId: 'power_mw',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Energy (estimated mWs)',
         columnId: 'energy_mws',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

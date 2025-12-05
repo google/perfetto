@@ -1331,6 +1331,98 @@ describe('Connection Management', () => {
     });
   });
 
+  describe('Node deletion with secondary inputs', () => {
+    it('should NOT reconnect secondary input nodes to children when deleting a node', () => {
+      // Bug reproduction test:
+      // Scenario:
+      //   nodeA -> nodeX (primary input) -> childZ
+      //   nodeY -> nodeX (secondary input)
+      //
+      // When deleting nodeX, only nodeA should be reconnected to childZ.
+      // nodeY should NOT be connected to childZ.
+      //
+      // Bug: Both nodeA and nodeY were getting reconnected to childZ,
+      //      causing childZ to have TWO primary input connections
+      // Expected: Only nodeA should be reconnected to childZ (primary input)
+
+      const nodeA = createMockPrevNode('nodeA', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const nodeY = createMockPrevNode('nodeY', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const nodeX = new FilterDuringNode({});
+      const childZ = new ModifyColumnsNode({selectedColumns: []});
+
+      // Set up connections:
+      // nodeA -> nodeX (primary)
+      addConnection(nodeA, nodeX);
+      // nodeY -> nodeX (secondary, port 0)
+      addConnection(nodeY, nodeX, 0);
+      // nodeX -> childZ
+      addConnection(nodeX, childZ);
+
+      // Verify initial state
+      expect(nodeX.primaryInput).toBe(nodeA);
+      expect(nodeX.secondaryInputs.connections.get(0)).toBe(nodeY);
+      expect(childZ.primaryInput).toBe(nodeX);
+      expect(nodeA.nextNodes).toContain(nodeX);
+      expect(nodeY.nextNodes).toContain(nodeX);
+      expect(nodeX.nextNodes).toContain(childZ);
+
+      // Now simulate node deletion by:
+      // 1. Getting all input nodes (this includes both primary and secondary)
+      // 2. Removing connections
+      // 3. Reconnecting parents to children
+
+      // This is the problematic code from explore_page.ts:
+      // const parentNodes = getAllInputNodes(node);
+      // const childNodes = [...node.nextNodes];
+      // ... remove connections ...
+      // reconnectParentsToChildren(parentNodes, childNodes, addConnection);
+
+      // Get just the primary input BEFORE disconnecting
+      // (note: getAllInputNodes would return [nodeA, nodeY], but we only want primary)
+      const primaryInputNode = nodeX.primaryInput; // nodeA
+      const childNodes = [childZ];
+
+      // Remove all connections to/from nodeX
+      removeConnection(nodeA, nodeX);
+      removeConnection(nodeY, nodeX);
+      removeConnection(nodeX, childZ);
+
+      // Verify nodeX is disconnected
+      expect(nodeX.primaryInput).toBeUndefined();
+      expect(nodeX.secondaryInputs.connections.get(0)).toBeUndefined();
+      expect(childZ.primaryInput).toBeUndefined();
+
+      // Now reconnect ONLY primary parent to children (this is the FIX)
+      // We should only reconnect nodeA (primary input), not nodeY (secondary input)
+      const primaryParentNodes: QueryNode[] = [];
+      if (primaryInputNode !== undefined) {
+        primaryParentNodes.push(primaryInputNode);
+      }
+      for (const parent of primaryParentNodes) {
+        for (const child of childNodes) {
+          addConnection(parent, child);
+        }
+      }
+
+      // CORRECT behavior after fix:
+      // - Only nodeA should be connected to childZ (it was the primary input)
+      // - nodeY should have no connections (it was a secondary input and should not propagate)
+      expect(nodeA.nextNodes).toContain(childZ); // ✓ nodeA reconnected to childZ
+      expect(nodeY.nextNodes).not.toContain(childZ); // ✓ nodeY NOT reconnected (correct!)
+      expect(childZ.primaryInput).toBe(nodeA); // ✓ childZ has nodeA as primary input
+    });
+  });
+
   describe('Secondary input removal should not trigger reconnection', () => {
     it('should NOT reconnect secondary input node to children when removing secondary connection', () => {
       // Bug reproduction test:

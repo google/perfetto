@@ -28,6 +28,7 @@ import {NodeIssues} from '../node_issues';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder} from '../structured_query_builder';
+import {loadNodeDoc} from '../node_doc_loader';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 
 export interface UnionSerializedState {
@@ -181,22 +182,7 @@ export class UnionNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Stack rows from multiple sources into a single result. All connected sources must have compatible column names and types.',
-      ),
-      m(
-        'p',
-        'Select which common columns to include in the result. Connect at least two sources to the input ports.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Combine CPU slices from multiple processes to analyze them together.',
-      ),
-    );
+    return loadNodeDoc('union');
   }
 
   nodeDetails(): NodeDetailsAttrs {

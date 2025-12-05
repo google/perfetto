@@ -45,6 +45,7 @@ import {
   MultiSelectDiff,
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {loadNodeDoc} from '../node_doc_loader';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -344,7 +345,10 @@ export class AggregationNode implements QueryNode {
       },
       addButtonLabel: 'Add aggregation',
       addButtonIcon: 'add',
-      emptyItem: () => ({}),
+      emptyItem: () => ({
+        aggregationOp: 'COUNT(*)',
+        newColumnName: 'count',
+      }),
     });
   }
 
@@ -467,49 +471,7 @@ export class AggregationNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Compute summary statistics like ',
-        m('code', 'SUM'),
-        ', ',
-        m('code', 'COUNT'),
-        ', ',
-        m('code', 'MIN'),
-        ', ',
-        m('code', 'MAX'),
-        ', ',
-        m('code', 'AVG'),
-        ', ',
-        m('code', 'MEDIAN'),
-        ', or ',
-        m('code', 'PERCENTILE'),
-        '. Optionally group rows by one or more columns.',
-      ),
-      m(
-        'p',
-        'Add aggregation functions to create new columns. Optionally select GROUP BY columns to group the results.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example 1:'),
-        ' Aggregate without grouping: ',
-        m('code', 'COUNT(*)'),
-        ' to count all rows, or ',
-        m('code', 'AVG(dur)'),
-        ' to get average duration across all slices.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example 2:'),
-        ' Group slices by ',
-        m('code', 'name'),
-        ' and compute ',
-        m('code', 'AVG(dur)'),
-        ' to find average duration per slice name.',
-      ),
-    );
+    return loadNodeDoc('aggregation');
   }
 
   clone(): QueryNode {
