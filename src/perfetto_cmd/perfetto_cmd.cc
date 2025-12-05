@@ -127,6 +127,9 @@ PerfettoCmd::PerfettoCmd() {
 
 PerfettoCmd::~PerfettoCmd() {
   PerfettoCmd* self = this;
+  // The clear will Quit() and join the task runner threads. We need to do this
+  // before tearing down the main instance to prevent races like b/465349270.
+  snapshot_threads_.clear();
   if (g_perfetto_cmd.compare_exchange_strong(self, nullptr)) {
     if (ctrl_c_handler_installed_) {
       task_runner_.RemoveFileDescriptorWatch(ctrl_c_evt_.fd());

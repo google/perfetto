@@ -17,8 +17,14 @@ import {findRef, toHTMLElement} from '../../base/dom_utils';
 import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
-import {DataGridDataSource} from '../../components/widgets/data_grid/common';
-import {DataGrid} from '../../components/widgets/data_grid/data_grid';
+import {
+  CellRenderer,
+  DataGridDataSource,
+} from '../../components/widgets/data_grid/common';
+import {
+  DataGrid,
+  renderCell,
+} from '../../components/widgets/data_grid/data_grid';
 import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import {Trace} from '../../public/trace';
@@ -32,6 +38,7 @@ import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
+import {getSliceId, isSliceish} from '../../components/query_table/query_table';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -177,7 +184,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       }),
       this.dataSource &&
         attrs.queryResult &&
-        this.renderQueryResult(attrs.queryResult, this.dataSource),
+        this.renderQueryResult(attrs.trace, attrs.queryResult, this.dataSource),
       m(QueryHistoryComponent, {
         className: 'pf-query-page__history',
         trace: attrs.trace,
@@ -192,6 +199,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   private renderQueryResult(
+    trace: Trace,
     queryResult: QueryResponse,
     dataSource: DataGridDataSource,
   ) {
@@ -214,8 +222,40 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         m(DataGrid, {
           className: 'pf-query-page__results',
           data: dataSource,
-          columns: queryResult.columns.map((c) => ({name: c})),
-          showExportButtons: true,
+          columns: queryResult.columns.map((column) => {
+            const cellRenderer: CellRenderer | undefined =
+              column === 'id'
+                ? (value, row) => {
+                    const sliceId = getSliceId(row);
+                    const cell = renderCell(value, column);
+                    if (sliceId !== undefined && isSliceish(row)) {
+                      return m(
+                        Anchor,
+                        {
+                          title: 'Go to slice on the timeline',
+                          icon: Icons.UpdateSelection,
+                          onclick: () => {
+                            // Navigate to the timeline page
+                            trace.navigate('#!/viewer');
+                            trace.selection.selectSqlEvent('slice', sliceId, {
+                              switchToCurrentSelectionTab: false,
+                              scrollToSelection: true,
+                            });
+                          },
+                        },
+                        cell,
+                      );
+                    } else {
+                      return renderCell(value, column);
+                    }
+                  }
+                : undefined;
+            return {
+              name: column,
+              cellRenderer,
+            };
+          }),
+          showExportButton: true,
           toolbarItemsLeft: m(
             'span.pf-query-page__results-summary',
             `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,

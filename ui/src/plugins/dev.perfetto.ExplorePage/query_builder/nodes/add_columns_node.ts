@@ -18,18 +18,24 @@ import {
   nextNodeId,
   NodeType,
   getSecondaryInput,
+  analyzeNode,
+  isAQuery,
 } from '../../query_node';
-import {ColumnInfo, columnInfoFromName} from '../column_info';
+import {
+  ColumnInfo,
+  columnInfoFromName,
+  columnInfoFromSqlColumn,
+} from '../column_info';
+import {
+  PerfettoSqlTypes,
+  parsePerfettoSqlTypeFromString,
+} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import m from 'mithril';
-import {
-  PopupMultiSelect,
-  MultiSelectDiff,
-} from '../../../../widgets/multiselect';
 import {Select} from '../../../../widgets/select';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {TextInput} from '../../../../widgets/text_input';
-import {showModal, redrawModal} from '../../../../widgets/modal';
+import {showModal, redrawModal, closeModal} from '../../../../widgets/modal';
 import {Switch} from '../../../../widgets/switch';
 import {Icon} from '../../../../widgets/icon';
 import {
@@ -43,11 +49,17 @@ import {
   LabeledControl,
   TableDescription,
   IssueList,
+  OutlinedMultiSelect,
+  MultiSelectDiff,
 } from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 import {Form, FormLabel, FormSection} from '../../../../widgets/form';
-import {NodeModifyAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
+import {Spinner} from '../../../../widgets/spinner';
+import {STR} from '../../../../trace_processor/query_result';
+import {sqliteString} from '../../../../base/string_utils';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -471,12 +483,24 @@ export class AddColumnsNode implements QueryNode {
 
   // Called when a node is connected/disconnected to inputNodes
   onPrevNodesUpdated(): void {
-    // Reset column selection when the right node changes
-    this.state.selectedColumns = [];
-
-    // If node is disconnected, reset the guided connection flag
+    // If node is disconnected, reset everything
     if (!this.rightNode) {
+      this.state.selectedColumns = [];
       this.state.isGuidedConnection = false;
+      this.state.onchange?.();
+      return;
+    }
+
+    // Check if the join column is still valid
+    if (this.state.rightColumn) {
+      const rightColExists = this.rightCols.some(
+        (c) => c.column.name === this.state.rightColumn,
+      );
+      if (!rightColExists) {
+        // Join column no longer exists - reset selection
+        this.state.selectedColumns = [];
+        this.state.rightColumn = undefined;
+      }
     }
 
     this.state.onchange?.();
@@ -504,7 +528,16 @@ export class AddColumnsNode implements QueryNode {
       const newCols =
         this.state.selectedColumns?.map((c) => {
           const alias = this.state.columnAliases?.get(c);
-          // If an alias is provided, use it as the column name
+          // Find the column in rightCols to preserve type information
+          const sourceCol = this.rightCols.find((col) => col.name === c);
+          if (sourceCol) {
+            // Preserve type information from the source column
+            return columnInfoFromSqlColumn({
+              name: alias ?? c,
+              type: sourceCol.column.type,
+            });
+          }
+          // Fallback if column not found (shouldn't happen in valid state)
           return columnInfoFromName(alias ?? c);
         }) ?? [];
       cols = [...cols, ...newCols];
@@ -517,18 +550,36 @@ export class AddColumnsNode implements QueryNode {
         .map((col) => {
           // Use stored sqlType if available (from deserialization)
           if (col.sqlType) {
-            return columnInfoFromName(col.name);
+            // Parse the stored type string and use it
+            const parsedType = parsePerfettoSqlTypeFromString({
+              type: col.sqlType,
+            });
+            if (!parsedType.ok) {
+              console.warn(
+                `Failed to parse stored type '${col.sqlType}' for column '${col.name}', defaulting to INT`,
+              );
+            }
+            return columnInfoFromSqlColumn({
+              name: col.name,
+              type: parsedType.ok ? parsedType.value : PerfettoSqlTypes.INT,
+            });
           }
           // Try to preserve type information if the expression is a simple column reference
           const sourceCol = this.sourceCols.find(
             (c) => c.column.name === col.expression,
           );
-          if (sourceCol) {
+          if (sourceCol && sourceCol.column.type) {
             col.sqlType = sourceCol.type;
-            return columnInfoFromName(col.name);
+            return columnInfoFromSqlColumn({
+              name: col.name,
+              type: sourceCol.column.type,
+            });
           }
-          // For complex expressions, use 'NA' as type
-          return columnInfoFromName(col.name, true);
+          // For complex expressions, we can't infer the type, use INT as default
+          return columnInfoFromSqlColumn({
+            name: col.name,
+            type: PerfettoSqlTypes.INT,
+          });
         }) ?? [];
 
     return [...cols, ...computedCols];
@@ -621,6 +672,45 @@ export class AddColumnsNode implements QueryNode {
     if (!this.state.sqlModules) return undefined;
 
     return this.state.sqlModules.listTables().find((t) => t.name === tableName);
+  }
+
+  // Find all arg_set_id columns in source columns
+  getArgSetIdColumns(): ColumnInfo[] {
+    return this.sourceCols.filter(
+      (col) => col.column.type?.kind === 'arg_set_id',
+    );
+  }
+
+  // Fetch available arg keys for the given arg_set_id column
+  async fetchAvailableArgKeys(argSetIdCol: ColumnInfo): Promise<string[]> {
+    const trace = this.state.trace;
+    if (!trace) return [];
+
+    // We need to analyze the current node to get the SQL query
+    // that includes the arg_set_id column
+    const query = await analyzeNode(this, trace.engine);
+    if (!isAQuery(query)) return [];
+
+    // Query for distinct arg keys using the current data
+    const argColName = argSetIdCol.column.name;
+    const sql = `
+      SELECT DISTINCT args.flat_key as key
+      FROM (${query.sql}) data
+      JOIN args ON args.arg_set_id = data.${argColName}
+      ORDER BY key
+    `;
+
+    try {
+      const result = await trace.engine.query(sql);
+      const keys: string[] = [];
+      const it = result.iter({key: STR});
+      for (; it.valid(); it.next()) {
+        keys.push(it.key);
+      }
+      return keys;
+    } catch {
+      return [];
+    }
   }
 
   getTitle(): string {
@@ -716,14 +806,16 @@ export class AddColumnsNode implements QueryNode {
     return error?.error;
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
     const hasConnectedNode = this.rightNode !== undefined;
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
     const hasSelectedColumns =
       this.state.selectedColumns && this.state.selectedColumns.length > 0;
 
     if (!hasSelectedColumns && !hasComputedColumns) {
-      return m('.pf-exp-node-details-message', 'No columns added');
+      return {
+        content: NodeDetailsMessage('No columns added'),
+      };
     }
 
     const items: m.Child[] = [];
@@ -733,12 +825,7 @@ export class AddColumnsNode implements QueryNode {
       for (const col of this.state.selectedColumns ?? []) {
         const alias = this.state.columnAliases?.get(col);
         const displayName = alias || col;
-        items.push(
-          m('div', [
-            m('span.pf-exp-column-name', displayName),
-            ': column from input',
-          ]),
-        );
+        items.push(m('div', [ColumnName(displayName), ': column from input']));
       }
     }
 
@@ -756,16 +843,18 @@ export class AddColumnsNode implements QueryNode {
         description = col.expression || '(empty)';
       }
 
-      items.push(
-        m('div', [m('span.pf-exp-column-name', name), `: ${description}`]),
-      );
+      items.push(m('div', [ColumnName(name), `: ${description}`]));
     }
 
-    return m('div', items);
+    return {
+      content: m('div', items),
+    };
   }
 
   nodeSpecificModify(): NodeModifyAttrs {
     const hasConnectedNode = this.rightNode !== undefined;
+    const argSetIdCols = this.getArgSetIdColumns();
+    const hasArgSetId = argSetIdCols.length > 0;
 
     // Build sections
     const sections: NodeModifyAttrs['sections'] = [
@@ -797,6 +886,16 @@ export class AddColumnsNode implements QueryNode {
             icon: 'help_outline',
             onclick: () => this.showIfModal(),
             variant: ButtonVariant.Outlined,
+          }),
+          m(Button, {
+            label: 'From args',
+            icon: 'list',
+            onclick: () => this.showArgsModal(),
+            variant: ButtonVariant.Outlined,
+            disabled: !hasArgSetId,
+            title: hasArgSetId
+              ? 'Add a column from args'
+              : 'Source must have an arg_set_id column',
           }),
         ),
       },
@@ -1054,6 +1153,225 @@ export class AddColumnsNode implements QueryNode {
     });
   }
 
+  private showArgsModal() {
+    const modalKey = 'add-args-modal';
+    const argSetIdCols = this.getArgSetIdColumns();
+
+    if (argSetIdCols.length === 0) {
+      return;
+    }
+
+    // State for the modal
+    let isLoading = false;
+    let availableKeys: string[] = [];
+    let selectedKey: string | undefined;
+    let columnName = '';
+    // For multiple arg_set_id columns, let user select which one to use
+    let selectedArgSetIdCol: ColumnInfo | undefined =
+      argSetIdCols.length === 1 ? argSetIdCols[0] : undefined;
+
+    const fetchKeysForColumn = (col: ColumnInfo) => {
+      isLoading = true;
+      availableKeys = [];
+      selectedKey = undefined;
+      columnName = '';
+      redrawModal();
+
+      this.fetchAvailableArgKeys(col).then((keys) => {
+        isLoading = false;
+        availableKeys = keys;
+        redrawModal();
+      });
+    };
+
+    // If only one column, fetch keys immediately
+    if (selectedArgSetIdCol) {
+      fetchKeysForColumn(selectedArgSetIdCol);
+    }
+
+    const getColumnNameError = (): string | undefined => {
+      if (!columnName.trim()) return undefined;
+      return this.getColumnNameError(columnName.trim());
+    };
+
+    const isValid = (): boolean => {
+      return (
+        selectedArgSetIdCol !== undefined &&
+        selectedKey !== undefined &&
+        columnName.trim() !== '' &&
+        getColumnNameError() === undefined
+      );
+    };
+
+    const getArgSetIdColDisplayName = (col: ColumnInfo): string => {
+      return col.alias ?? col.column.name;
+    };
+
+    showModal({
+      title: 'Add Column from Args',
+      key: modalKey,
+      content: () => {
+        const nameError = getColumnNameError();
+        const hasMultipleArgSetIdCols = argSetIdCols.length > 1;
+
+        // Show column selector if there are multiple arg_set_id columns
+        const columnSelector = hasMultipleArgSetIdCols
+          ? m(FormSection, {label: 'Arg Set ID Column'}, [
+              m(
+                Select,
+                {
+                  onchange: (e: Event) => {
+                    const value = (e.target as HTMLSelectElement).value;
+                    selectedArgSetIdCol = argSetIdCols.find(
+                      (col) => col.column.name === value,
+                    );
+                    if (selectedArgSetIdCol) {
+                      fetchKeysForColumn(selectedArgSetIdCol);
+                    } else {
+                      availableKeys = [];
+                      selectedKey = undefined;
+                      columnName = '';
+                      redrawModal();
+                    }
+                  },
+                },
+                m(
+                  'option',
+                  {value: '', selected: !selectedArgSetIdCol},
+                  'Select a column',
+                ),
+                argSetIdCols.map((col) =>
+                  m(
+                    'option',
+                    {
+                      value: col.column.name,
+                      selected: col === selectedArgSetIdCol,
+                    },
+                    getArgSetIdColDisplayName(col),
+                  ),
+                ),
+              ),
+            ])
+          : null;
+
+        // Show loading state
+        if (isLoading) {
+          return m(
+            Form,
+            columnSelector,
+            m(
+              '.pf-args-loading',
+              m(Spinner),
+              m('span', 'Loading available args...'),
+            ),
+          );
+        }
+
+        // If no column selected yet (multiple columns case)
+        if (!selectedArgSetIdCol) {
+          return m(
+            Form,
+            columnSelector,
+            m(
+              'p',
+              'Select which arg_set_id column to use for extracting args.',
+            ),
+          );
+        }
+
+        // No args found
+        if (availableKeys.length === 0) {
+          return m(
+            Form,
+            columnSelector,
+            m(
+              Callout,
+              {icon: 'info'},
+              'No args found for the current data. The source may not have any args associated with it.',
+            ),
+          );
+        }
+
+        return m(
+          Form,
+          nameError && m(Callout, {icon: 'error'}, nameError),
+          m(
+            'p',
+            'Select an arg key to add as a column. The column will contain the value of that arg for each row.',
+          ),
+          columnSelector,
+          m(FormSection, {label: 'Arg Key'}, [
+            m(
+              Select,
+              {
+                onchange: (e: Event) => {
+                  const value = (e.target as HTMLSelectElement).value;
+                  selectedKey = value || undefined;
+                  // Auto-generate column name from key (replace special chars)
+                  if (selectedKey && !columnName) {
+                    columnName = selectedKey
+                      .replace(/[.\[\]]/g, '_')
+                      .replace(/_+/g, '_')
+                      .replace(/^_|_$/g, '');
+                  }
+                  redrawModal();
+                },
+              },
+              m(
+                'option',
+                {value: '', selected: !selectedKey},
+                'Select an arg key',
+              ),
+              availableKeys.map((key) =>
+                m('option', {value: key, selected: key === selectedKey}, key),
+              ),
+            ),
+          ]),
+          m(FormSection, {label: 'Column Name'}, [
+            m(TextInput, {
+              placeholder: 'Enter column name',
+              value: columnName,
+              oninput: (e: Event) => {
+                columnName = (e.target as HTMLInputElement).value;
+                redrawModal();
+              },
+            }),
+          ]),
+        );
+      },
+      buttons: [
+        {
+          text: 'Cancel',
+          action: () => {},
+        },
+        {
+          text: 'Add',
+          primary: true,
+          disabled: () => !isValid(),
+          action: () => {
+            if (!isValid() || !selectedKey || !selectedArgSetIdCol) return;
+
+            const argSetIdColName = selectedArgSetIdCol.column.name;
+            // Create expression using extract_arg
+            const expression = `extract_arg(${argSetIdColName}, ${sqliteString(selectedKey)})`;
+
+            const newColumn: NewColumn = {
+              expression,
+              name: columnName.trim(),
+            };
+
+            this.state.computedColumns = [
+              ...(this.state.computedColumns ?? []),
+              newColumn,
+            ];
+            this.state.onchange?.();
+            closeModal(modalKey);
+          },
+        },
+      ],
+    });
+  }
+
   private renderAddedColumnsList(): m.Child {
     const hasConnectedNode = this.rightNode !== undefined;
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
@@ -1222,7 +1540,7 @@ export class AddColumnsNode implements QueryNode {
               m(
                 LabeledControl,
                 {label: 'Columns:'},
-                m(PopupMultiSelect, {
+                m(OutlinedMultiSelect, {
                   label:
                     selectedColumns.length > 0
                       ? selectedColumns.join(', ')
@@ -1339,7 +1657,7 @@ export class AddColumnsNode implements QueryNode {
       m(
         LabeledControl,
         {label: 'Columns:'},
-        m(PopupMultiSelect, {
+        m(OutlinedMultiSelect, {
           label: selectedColumnsLabel,
           showNumSelected: false,
           compact: true,
@@ -1622,7 +1940,36 @@ export class AddColumnsNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new AddColumnsNode(this.state);
+    const stateCopy: AddColumnsNodeState = {
+      selectedColumns: this.state.selectedColumns
+        ? [...this.state.selectedColumns]
+        : undefined,
+      leftColumn: this.state.leftColumn,
+      rightColumn: this.state.rightColumn,
+      suggestionSelections: this.state.suggestionSelections
+        ? new Map(this.state.suggestionSelections)
+        : undefined,
+      expandedSuggestions: this.state.expandedSuggestions
+        ? new Set(this.state.expandedSuggestions)
+        : undefined,
+      selectedSuggestionTable: this.state.selectedSuggestionTable,
+      columnAliases: this.state.columnAliases
+        ? new Map(this.state.columnAliases)
+        : undefined,
+      suggestionAliases: this.state.suggestionAliases
+        ? new Map(this.state.suggestionAliases)
+        : undefined,
+      isGuidedConnection: this.state.isGuidedConnection,
+      computedColumns: this.state.computedColumns?.map((col) => ({
+        ...col,
+        cases: col.cases?.map((c) => ({...c})),
+        clauses: col.clauses?.map((c) => ({...c})),
+      })),
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new AddColumnsNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

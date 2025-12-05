@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {nodeRegistry} from './node_registry';
-import {TestNode} from './nodes/dev/test_node';
-
-export function registerDevNodes() {
-  nodeRegistry.register('test_source', {
-    name: 'Test Source',
-    description: 'A source for testing purposes.',
-    icon: 'bug_report',
-    type: 'source',
-    factory: (state) => new TestNode(state),
-    devOnly: true,
-  });
+export interface ExampleGraph {
+  name: string;
+  description: string;
+  jsonPath: string;
 }
+
+export const EXAMPLE_GRAPHS: ExampleGraph[] = [
+  {
+    name: 'Slice Analysis Pipeline',
+    description:
+      'Example data analysis of finding the total duration of specific process slices when any CPU was active ',
+    jsonPath: 'assets/explore_page/examples/slices_example.json',
+  },
+];

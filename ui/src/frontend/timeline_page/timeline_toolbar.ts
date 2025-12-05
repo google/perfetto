@@ -112,13 +112,9 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
           },
           `Changes apply to all selected tracks`,
         ),
-        m(MenuTitle, {label: 'Workspace'}),
+        m(MenuDivider, {label: 'Workspace'}),
         this.renderCopySelectedTracksToWorkspace(trace, selection),
-        Boolean(settingsMenuItems) && [
-          m(MenuDivider),
-          m(MenuTitle, {label: 'Bulk track settings'}),
-          settingsMenuItems,
-        ],
+        m(MenuDivider, {label: 'Bulk track settings'}, settingsMenuItems),
       ],
     );
   }
@@ -152,15 +148,14 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         }),
         m(MenuDivider),
         m(MenuItem, {
-          label: 'new workspace',
+          label: 'New workspace',
           icon: 'add',
           onclick: () => {
             const ws = workspaces.createEmptyWorkspace('Untitled Workspace');
             workspaces.switchWorkspace(ws);
           },
         }),
-        m(MenuDivider),
-        m(MenuTitle, {label: 'Current workspace'}),
+        m(MenuDivider, {label: 'Current workspace'}),
         m(MenuItem, {
           icon: 'edit',
           label: 'Rename',
@@ -212,7 +207,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
       Popup,
       {
         trigger: m(Button, {
-          icon: 'filter_alt',
+          icon: Icons.Filter,
           title: 'Track filter',
           compact: COMPACT_BUTTONS,
           iconFilled: trackFilters.areFiltersSet(),
@@ -298,7 +293,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         m(Button, {
           type: 'reset',
           label: 'Clear All Filters',
-          icon: 'filter_alt_off',
+          icon: Icons.FilterOff,
           onclick: () => {
             trackFilters.clearAll();
           },

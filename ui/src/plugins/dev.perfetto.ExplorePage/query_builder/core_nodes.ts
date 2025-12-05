@@ -31,6 +31,10 @@ import {
 } from './nodes/modify_columns_node';
 import {AddColumnsNode, AddColumnsNodeState} from './nodes/add_columns_node';
 import {
+  FilterDuringNode,
+  FilterDuringNodeState,
+} from './nodes/filter_during_node';
+import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
 } from './nodes/interval_intersect_node';
@@ -42,6 +46,7 @@ import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
 } from './nodes/limit_and_offset_node';
+import {Icons} from '../../../base/semantic_icons';
 
 export function registerCoreNodes() {
   nodeRegistry.register('slice', {
@@ -62,12 +67,13 @@ export function registerCoreNodes() {
     type: 'source',
     showOnLandingPage: true,
     preCreate: async ({sqlModules}) => {
-      const selection = await modalForTableSelection(sqlModules);
-      if (selection) {
-        return {
+      const selections = await modalForTableSelection(sqlModules);
+      if (selections && selections.length > 0) {
+        // Return an array of states, one for each selected table
+        return selections.map((selection) => ({
           sqlTable: selection.sqlTable,
           sqlModules,
-        };
+        }));
       }
       return null;
     },
@@ -88,7 +94,7 @@ export function registerCoreNodes() {
   nodeRegistry.register('timerange', {
     name: 'Time Range',
     description:
-      'Import time range from timeline selection. Can be dynamic (syncs with selection) or static (snapshot).',
+      'Use timeline selection as a source node. Can be dynamic (syncs with timeline) or static (snapshot).',
     icon: 'schedule',
     type: 'source',
     showOnLandingPage: false, // Available in menus but not on landing page
@@ -133,6 +139,31 @@ export function registerCoreNodes() {
     },
   });
 
+  nodeRegistry.register('add_columns', {
+    name: 'Add Columns',
+    description:
+      'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
+    icon: 'add_box',
+    type: 'modification',
+    factory: (state) => {
+      const fullState: AddColumnsNodeState = {
+        ...state,
+        selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
+        leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
+        rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
+      };
+      return new AddColumnsNode(fullState);
+    },
+  });
+
+  nodeRegistry.register('modify_columns', {
+    name: 'Modify Columns',
+    description: 'Select, rename, and add new columns to the data.',
+    icon: 'edit',
+    type: 'modification',
+    factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
+  });
+
   nodeRegistry.register('aggregation', {
     name: 'Aggregation',
     description: 'Group and aggregate data from the source node.',
@@ -141,31 +172,30 @@ export function registerCoreNodes() {
     factory: (state) => new AggregationNode(state as AggregationNodeState),
   });
 
-  nodeRegistry.register('modify_columns', {
-    name: 'Modify Columns',
-    description: 'Select, rename, and add new columns to the data.',
-    icon: 'edit',
+  nodeRegistry.register('filter_node', {
+    name: 'Filter',
+    description: 'Filter rows based on column values.',
+    icon: Icons.Filter,
     type: 'modification',
-    category: 'Columns',
-    factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
+    factory: (state) => new FilterNode(state as FilterNodeState),
   });
 
-  nodeRegistry.register('add_columns', {
-    name: 'Add Columns',
+  nodeRegistry.register('filter_during', {
+    name: 'Filter During',
     description:
-      'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
-    icon: 'add_box',
-    type: 'modification',
-    category: 'Columns',
+      'Filter to only show intervals that occurred during intervals from another source.',
+    icon: Icons.Filter,
+    type: 'multisource',
+    category: 'Time',
     factory: (state) => {
-      const fullState: AddColumnsNodeState = {
+      const fullState: FilterDuringNodeState = {
         ...state,
-        selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
-        leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
-        rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
-        autoExecute: true,
+        filterNegativeDurPrimary:
+          (state as FilterDuringNodeState).filterNegativeDurPrimary ?? true,
+        filterNegativeDurSecondary:
+          (state as FilterDuringNodeState).filterNegativeDurSecondary ?? true,
       };
-      return new AddColumnsNode(fullState);
+      return new FilterDuringNode(fullState);
     },
   });
 
@@ -174,6 +204,7 @@ export function registerCoreNodes() {
     description: 'Intersect the intervals with another table.',
     icon: 'timeline',
     type: 'multisource',
+    category: 'Time',
     factory: (state, context) => {
       if (!context) {
         throw new Error(
@@ -216,14 +247,6 @@ export function registerCoreNodes() {
     factory: (state) => new SortNode(state as SortNodeState),
   });
 
-  nodeRegistry.register('filter_node', {
-    name: 'Filter',
-    description: 'Filter rows based on column values.',
-    icon: 'filter_alt',
-    type: 'modification',
-    factory: (state) => new FilterNode(state as FilterNodeState),
-  });
-
   nodeRegistry.register('union_node', {
     name: 'Union',
     description: 'Combine rows from multiple sources.',
@@ -244,7 +267,7 @@ export function registerCoreNodes() {
   nodeRegistry.register('limit_and_offset_node', {
     name: 'Limit and Offset',
     description: 'Limit the number of rows returned and optionally skip rows.',
-    icon: 'filter_list',
+    icon: Icons.Filter,
     type: 'modification',
     factory: (state) =>
       new LimitAndOffsetNode(state as LimitAndOffsetNodeState),

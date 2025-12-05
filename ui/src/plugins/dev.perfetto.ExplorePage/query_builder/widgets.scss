@@ -13,6 +13,7 @@
 // limitations under the License.
 
 @import "./common";
+@import "./node_styling_widgets";
 
 // General widget styles
 
@@ -22,6 +23,7 @@
   gap: 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--pf-color-border);
+  flex-wrap: wrap;
 
   label {
     font-weight: 600;
@@ -29,6 +31,17 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--pf-color-text-muted);
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+
+    label {
+      width: 100%;
+    }
   }
 }
 
@@ -70,10 +83,6 @@
     font-weight: 500;
     margin: 0;
   }
-}
-
-.pf-exp-section-content {
-  // Content fills available space
 }
 
 // List item widget - displays an item with icon, name, description, and action button
@@ -155,12 +164,25 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 
   span {
     font-weight: 500;
     font-size: 12px;
     color: var(--pf-color-text-muted);
     min-width: 100px;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    span {
+      width: 100%;
+      min-width: 0;
+    }
   }
 }
 
@@ -169,12 +191,11 @@
 .pf-exp-labeled-control {
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 0; // Prevent margin stacking with section gaps
 
   span {
-    font-weight: 500;
     color: var(--pf-color-text);
     white-space: nowrap;
     flex-shrink: 0;
@@ -184,6 +205,22 @@
   .pf-text-input {
     min-width: 0;
     flex: 1 1 auto;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    span {
+      width: 100%;
+      white-space: normal;
+    }
+
+    .pf-text-input {
+      width: 100%;
+    }
   }
 }
 
@@ -257,6 +294,28 @@
   }
 }
 
+// Modifiable item list - generic container for lists of editable items
+.pf-modifiable-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  container-type: inline-size;
+}
+
+// Sort criteria list - list of draggable sort items with gaps
+.pf-sort-criteria-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Limit and offset list - list of limit/offset items with gaps
+.pf-limit-offset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 // Equal width row widget - responsive layout for equal-width items
 .pf-exp-equal-width-row {
   display: flex;
@@ -293,4 +352,228 @@
   font-size: 14px;
   font-weight: 500;
   user-select: none;
+}
+
+// Info box widget - displays informational text in a styled box
+.pf-exp-info-box {
+  font-size: 13px;
+  color: var(--pf-color-text-muted);
+  padding: 12px 16px;
+  line-height: 1.5;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+// Secondary inputs container - vertical stack of input items
+.pf-exp-secondary-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Inline edit list container - vertical stack with spacing
+.pf-inline-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  container-type: inline-size;
+}
+
+// Form list item widget - inline form editing in a list item
+.pf-exp-form-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  min-height: 40px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+
+  &.pf-valid {
+    background: var(--pf-color-background-secondary);
+    border-color: var(--pf-color-border);
+
+    &:hover {
+      background: var(--pf-color-background);
+      border-color: var(--pf-color-primary);
+    }
+  }
+
+  &.pf-invalid {
+    background: rgba(255, 100, 100, 0.08);
+    border-color: rgba(255, 100, 100, 0.3);
+
+    &:hover {
+      background: rgba(255, 100, 100, 0.12);
+      border-color: rgba(255, 100, 100, 0.5);
+    }
+  }
+}
+
+.pf-exp-form-list-item-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+
+  // Ensure form controls don't overflow
+  .pf-select,
+  .pf-text-input {
+    min-width: 80px;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    .pf-select,
+    .pf-text-input,
+    .pf-outlined-field,
+    .pf-outlined-multiselect {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+}
+
+.pf-exp-form-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+// Material Design outlined input field with label on border
+.pf-outlined-field {
+  position: relative;
+  min-width: 120px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: border-color 0.15s ease-in-out;
+
+  &:hover:not(:disabled) {
+    border-color: var(--pf-color-text-secondary);
+  }
+
+  &:focus-within:not(:disabled) {
+    // Use thicker border instead of box-shadow to avoid covering the legend
+    border-color: var(--pf-color-primary);
+    border-width: 2px;
+
+    .pf-outlined-field-legend {
+      color: var(--pf-color-primary);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--pf-color-background-secondary);
+  }
+
+  .pf-outlined-field-legend {
+    padding: 0 4px;
+    margin-left: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--pf-color-text-secondary);
+    user-select: none;
+    transition: color 0.15s ease-in-out;
+  }
+
+  .pf-outlined-field-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--pf-color-text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+
+  select.pf-outlined-field-input {
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Outlined multiselect - styles the PopupMultiSelect button to look like a form field
+.pf-outlined-multiselect {
+  flex: 1;
+
+  .pf-button {
+    @extend .pf-exp-column-name;
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--pf-color-border) !important;
+
+    &:hover {
+      border-color: var(--pf-color-primary) !important;
+      background: var(--pf-color-hover) !important;
+    }
+
+    &:focus {
+      border-color: var(--pf-color-primary) !important;
+    }
+  }
+}
+
+// Button styled like a form list item
+.pf-add-item-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  min-height: 40px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--pf-color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+
+  &:hover {
+    border-color: var(--pf-color-primary);
+    background: var(--pf-color-background);
+  }
+
+  &:focus {
+    outline: 2px solid var(--pf-color-primary);
+    outline-offset: 2px;
+  }
+
+  &:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pf-color-primary);
+    outline-offset: 2px;
+  }
+
+  .pf-add-item-placeholder__label {
+    font-weight: 500;
+  }
 }

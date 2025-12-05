@@ -451,8 +451,8 @@ _validate_tags()
 # Table importance levels for documentation.
 # Importance levels help users discover the most relevant tables for their use case.
 # Levels:
-#   'high': Most commonly used, fundamental tables for trace analysis
-#   'mid': Important for specific use cases, moderately common
+#   'high': Very frequent - Most commonly used, fundamental tables for trace analysis
+#   'mid': Frequent - Important for specific use cases, moderately common
 #   'low': Specialized or advanced tables, less frequently needed
 #   None/absent: Normal importance (default)
 TABLE_IMPORTANCE = {
@@ -481,6 +481,8 @@ TABLE_IMPORTANCE = {
     'android_anrs': 'mid',  # Application Not Responding events and diagnostics
     'android_battery_charge': 'mid',  # Battery charge level tracking over time
     'android_charging_states': 'mid',  # Device charging state transitions
+    'android_process_metadata': 'mid',  # Process metadata and information
+    'android_statsd_atoms': 'mid',  # StatsD atom events and counters
 
     # LOW IMPORTANCE - Raw/specialized tables, less frequently needed
     'slices':

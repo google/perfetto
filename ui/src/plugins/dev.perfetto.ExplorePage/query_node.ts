@@ -21,6 +21,7 @@ import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
 import {stringifyJsonWithBigints} from '../../base/json_utils';
+import {NodeDetailsAttrs} from './query_builder/node_explorer_types';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {
@@ -38,6 +39,7 @@ export enum NodeType {
   kAggregation,
   kModifyColumns,
   kAddColumns,
+  kFilterDuring,
   kLimitAndOffset,
   kSort,
   kFilter,
@@ -53,6 +55,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kAggregation:
     case NodeType.kModifyColumns:
     case NodeType.kAddColumns:
+    case NodeType.kFilterDuring:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
     case NodeType.kFilter:
@@ -88,7 +91,8 @@ export interface QueryNodeState {
   sqlTable?: SqlTable;
 
   // Operations
-  filters?: UIFilter[];
+  // Filters can be partial during editing (similar to how Aggregation works)
+  filters?: Partial<UIFilter>[];
   filterOperator?: 'AND' | 'OR'; // How to combine filters (default: AND)
 
   issues?: NodeIssues;
@@ -140,7 +144,7 @@ export interface QueryNode {
   // NodeModifyAttrs allows nodes to declaratively specify sections and corner buttons,
   // while m.Child allows direct rendering for backwards compatibility
   nodeSpecificModify(): unknown;
-  nodeDetails?(): m.Child | undefined;
+  nodeDetails(): NodeDetailsAttrs;
   nodeInfo(): m.Children;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
@@ -256,7 +260,7 @@ export function queryToRun(query?: Query): string {
  * This allows detecting query changes before any SQL execution.
  *
  * This function is relatively expensive (stringifyJsonWithBigints on entire query tree).
- * MaterializationService caches results to avoid recomputation.
+ * QueryExecutionService caches results to avoid recomputation.
  */
 export function hashNodeQuery(node: QueryNode): string | undefined {
   const sq = node.getStructuredQuery();
@@ -279,7 +283,9 @@ export async function analyzeNode(
   if (structuredQueries === undefined) return;
 
   const res = await engine.analyzeStructuredQuery(structuredQueries);
-  if (res.error) return Error(res.error);
+  if (res.error !== undefined && res.error !== null && res.error !== '') {
+    return Error(res.error);
+  }
   if (res.results.length === 0) return Error('No structured query results');
   if (res.results.length !== structuredQueries.length) {
     return Error(
@@ -293,7 +299,11 @@ export async function analyzeNode(
   if (lastRes.sql === null || lastRes.sql === undefined) {
     return;
   }
-  if (!lastRes.textproto) {
+  if (
+    lastRes.textproto === undefined ||
+    lastRes.textproto === null ||
+    lastRes.textproto === ''
+  ) {
     return Error('No textproto in structured query results');
   }
 
@@ -312,7 +322,7 @@ export async function analyzeNode(
  * This indicates the node needs re-validation and re-execution.
  *
  * Note: Does not propagate to children or invalidate caches.
- * Use MaterializationService.invalidateNode() for invalidation with propagation.
+ * Use QueryExecutionService.invalidateNode() for invalidation with propagation.
  */
 export function setOperationChanged(node: QueryNode) {
   node.state.hasOperationChanged = true;

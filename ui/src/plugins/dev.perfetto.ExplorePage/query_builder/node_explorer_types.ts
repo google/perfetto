@@ -48,3 +48,8 @@ export interface NodeModifyAttrs {
   bottomLeftButtons?: NodeModifyButton[];
   bottomRightButtons?: NodeModifyButton[];
 }
+
+// NodeDetails types - for displaying node information in the graph view
+export interface NodeDetailsAttrs {
+  content: m.Children;
+}

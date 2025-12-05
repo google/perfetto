@@ -20,19 +20,21 @@ import {
   nextNodeId,
   createFinalColumns,
 } from '../../../query_node';
-import {ColumnInfo, columnInfoFromName} from '../../column_info';
+import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import {time, TimeSpan, Time} from '../../../../../base/time';
+import {PerfettoSqlTypes} from '../../../../../trace_processor/perfetto_sql_type';
 import {Trace} from '../../../../../public/trace';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {TextInput} from '../../../../../widgets/text_input';
 import {Switch} from '../../../../../widgets/switch';
+import {Anchor} from '../../../../../widgets/anchor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import protos from '../../../../../protos';
-import {ListItem} from '../../widgets';
+import {ListItem, InfoBox} from '../../widgets';
 import {showModal} from '../../../../../widgets/modal';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
-import {NodeModifyAttrs} from '../../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
 
 // Poll interval for dynamic mode selection updates (in milliseconds)
 const SELECTION_POLL_INTERVAL_MS = 200;
@@ -68,9 +70,9 @@ export class TimeRangeSourceNode implements QueryNode {
 
     // Initialize columns: id, ts, dur
     this.finalCols = createFinalColumns([
-      columnInfoFromName('id'),
-      columnInfoFromName('ts'),
-      columnInfoFromName('dur'),
+      columnInfoFromSqlColumn({name: 'id', type: PerfettoSqlTypes.INT}),
+      columnInfoFromSqlColumn({name: 'ts', type: PerfettoSqlTypes.TIMESTAMP}),
+      columnInfoFromSqlColumn({name: 'dur', type: PerfettoSqlTypes.DURATION}),
     ]);
 
     // If dynamic mode is enabled, subscribe to selection changes
@@ -92,7 +94,7 @@ export class TimeRangeSourceNode implements QueryNode {
 
     if (this.state.start === undefined || this.state.end === undefined) {
       this.state.issues.queryError = new Error(
-        'Time range not set. Use "Update from Selection" or enable Dynamic mode to sync with timeline selection.',
+        'Time range not set. Use "Update from Timeline" or enable Dynamic mode to sync with timeline selection.',
       );
       return false;
     }
@@ -120,6 +122,12 @@ export class TimeRangeSourceNode implements QueryNode {
 
   getTitle(): string {
     return this.state.isDynamic ? 'Current time range' : 'Time range';
+  }
+
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: m('.pf-exp-node-title', this.getTitle()),
+    };
   }
 
   serializeState(): TimeRangeSourceSerializedState {
@@ -368,6 +376,16 @@ export class TimeRangeSourceNode implements QueryNode {
 
     const sections: NodeModifyAttrs['sections'] = [];
 
+    // Explanation section - always shown
+    sections.push({
+      content: m(
+        InfoBox,
+        'Time range allows you to make a selection in the ',
+        m(Anchor, {href: '#!/viewer'}, 'timeline'),
+        ' and use it as a source node in the graph.',
+      ),
+    });
+
     // Error message section
     if (error) {
       sections.push({
@@ -379,7 +397,7 @@ export class TimeRangeSourceNode implements QueryNode {
     if (isDynamic) {
       sections.push({
         content: m(
-          '.pf-timerange-dynamic-info',
+          InfoBox,
           'Dynamic mode: Your timeline selection will automatically update this node. Go back to the timeline and select a time range to see it here.',
         ),
       });
@@ -396,7 +414,7 @@ export class TimeRangeSourceNode implements QueryNode {
         }),
         !isDynamic &&
           m(Button, {
-            label: 'Update from Selection',
+            label: 'Update from Timeline',
             onclick: () => this.updateFromSelection(),
             variant: ButtonVariant.Outlined,
           }),
@@ -459,7 +477,7 @@ export class TimeRangeSourceNode implements QueryNode {
         'div',
         m(
           '.pf-node-info-empty',
-          'No time range set. Use "Update from Selection" or enter times manually.',
+          'No time range set. Use "Update from Timeline" or enter times manually.',
         ),
       );
     }

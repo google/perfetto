@@ -14,24 +14,32 @@
 
 import m from 'mithril';
 import {Button} from '../../../../widgets/button';
-import {Checkbox} from '../../../../widgets/checkbox';
 import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
-import {Icon} from '../../../../widgets/icon';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {Stack} from '../../../../widgets/stack';
-import {Icons} from '../../../../base/semantic_icons';
 import {showModal, closeModal} from '../../../../widgets/modal';
 import {Form, FormLabel} from '../../../../widgets/form';
+import {DataGridFilter} from '../../../../components/widgets/data_grid/common';
+
+// ============================================================================
+// Filter Type Definitions
+// ============================================================================
 
 interface FilterValue {
   readonly column: string;
   readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob';
   readonly value: SqlValue;
+  enabled?: boolean; // Default true - controls if filter is active
+}
+
+interface FilterIn {
+  readonly column: string;
+  readonly op: 'in' | 'not in';
+  readonly value: ReadonlyArray<SqlValue>;
   enabled?: boolean; // Default true - controls if filter is active
 }
 
@@ -41,213 +49,89 @@ interface FilterNull {
   enabled?: boolean; // Default true - controls if filter is active
 }
 
-export type UIFilter = FilterValue | FilterNull;
+export type UIFilter = FilterValue | FilterNull | FilterIn;
+
+// ============================================================================
+// Shared Filter Formatting Utilities
+// ============================================================================
 
 /**
- * Attributes for the FilterOperation component.
+ * Maximum number of filter values to display inline before showing a count.
+ * For arrays with more values than this, we show "(N values)" instead of listing them.
+ * This threshold balances readability with information density - showing too many values
+ * clutters the UI, while showing too few loses helpful context.
  */
-export interface FilterAttrs {
-  readonly sourceCols: ColumnInfo[];
-  readonly filters?: ReadonlyArray<UIFilter>;
-  readonly filterOperator?: 'AND' | 'OR';
-  readonly onFiltersChanged?: (filters: ReadonlyArray<UIFilter>) => void;
-  readonly onFilterOperatorChanged?: (operator: 'AND' | 'OR') => void;
-  readonly onchange?: () => void;
-  readonly onEdit?: (filter: UIFilter) => void; // Right-click edit callback
+const MAX_DISPLAY_VALUES = 3;
+
+/**
+ * Formats a filter's value portion for display.
+ * Handles single values, array values, and null operators.
+ *
+ * @param filter The filter to format
+ * @param includeColumn Whether to include the column name (default: false)
+ * @returns Formatted string representation
+ */
+export function formatFilterValue(
+  filter: UIFilter,
+  includeColumn = false,
+): string {
+  const prefix = includeColumn ? `${filter.column} ` : '';
+
+  if ('value' in filter) {
+    if (Array.isArray(filter.value)) {
+      // Format array of values
+      if (filter.value.length > MAX_DISPLAY_VALUES) {
+        return `${prefix}${filter.op} (${filter.value.length} values)`;
+      } else {
+        const formattedValues = filter.value
+          .map((v) => (typeof v === 'string' ? `"${v}"` : String(v)))
+          .join(', ');
+        return `${prefix}${filter.op} (${formattedValues})`;
+      }
+    }
+    // Single value
+    const valueStr =
+      typeof filter.value === 'string'
+        ? `"${filter.value}"`
+        : String(filter.value);
+    return `${prefix}${filter.op} ${valueStr}`;
+  }
+  // Null operators (is null, is not null)
+  return `${prefix}${filter.op}`;
 }
 
-export class FilterOperation implements m.ClassComponent<FilterAttrs> {
-  private error?: string;
-  private uiFilters: UIFilter[] = [];
+/**
+ * Converts a DataGridFilter to an array of UIFilters.
+ * FilterIn types (IN/NOT IN) are expanded into multiple equality filters
+ * since the query builder doesn't support native IN operations yet.
+ *
+ * @param filter The filter from the DataGrid to normalize
+ * @returns Array of UIFilters (single filter unless IN/NOT IN)
+ */
+export function normalizeDataGridFilter(filter: DataGridFilter): UIFilter[] {
+  // Handle IN/NOT IN filters by converting to multiple equality filters
+  if (filter.op === 'in' || filter.op === 'not in') {
+    const values = filter.value as ReadonlyArray<SqlValue>;
 
-  oncreate({attrs}: m.Vnode<FilterAttrs>) {
-    this.uiFilters = [...(attrs.filters ?? [])];
+    // Reject empty arrays - this indicates a programming error
+    if (values.length === 0) {
+      throw new Error(
+        `Cannot add ${filter.op} filter with empty values for column "${filter.column}". ` +
+          `This likely indicates a bug in the filter selection UI.`,
+      );
+    }
+
+    const equalityOp = filter.op === 'in' ? '=' : '!=';
+
+    return values.map((value) => ({
+      column: filter.column,
+      op: equalityOp,
+      value: value,
+    }));
   }
 
-  onbeforeupdate({attrs}: m.Vnode<FilterAttrs>) {
-    // Sync with parent state
-    this.uiFilters = [...(attrs.filters ?? [])];
-  }
-
-  private setFilters(nextFilters: UIFilter[], attrs: FilterAttrs) {
-    this.uiFilters = nextFilters;
-    attrs.onFiltersChanged?.(this.uiFilters);
-    attrs.onchange?.();
-    m.redraw();
-  }
-
-  private renderFilterChip(filter: UIFilter, attrs: FilterAttrs): m.Child {
-    const isEnabled = filter.enabled !== false; // Default to true
-    const label = `${filter.column} ${filter.op} ${'value' in filter ? filter.value : ''}`;
-
-    return m(
-      'div',
-      {
-        className: 'pf-filter-chip-container',
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          opacity: isEnabled ? 1 : 0.5,
-        },
-        onmousedown: (e: MouseEvent) => {
-          // Stop propagation to prevent node undocking when interacting with filters
-          e.stopPropagation();
-        },
-        oncontextmenu: attrs.onEdit
-          ? (e: MouseEvent) => {
-              e.preventDefault();
-              e.stopPropagation();
-              attrs.onEdit!(filter);
-            }
-          : undefined,
-      },
-      m(Checkbox, {
-        checked: isEnabled,
-        onclick: (e: MouseEvent) => {
-          e.stopPropagation();
-        },
-        onmousedown: (e: MouseEvent) => {
-          e.stopPropagation();
-        },
-        onmouseup: (e: MouseEvent) => {
-          e.stopPropagation();
-        },
-        onchange: () => {
-          const nextFilters = this.uiFilters.map((f) =>
-            f === filter ? {...f, enabled: !isEnabled} : f,
-          );
-          this.setFilters(nextFilters, attrs);
-        },
-      }),
-      m(Chip, {
-        label,
-        rounded: true,
-        removable: true,
-        intent: isEnabled ? Intent.Primary : Intent.None,
-        onRemove: () => {
-          const nextFilters = this.uiFilters.filter((f) => f !== filter);
-          this.setFilters(nextFilters, attrs);
-        },
-      }),
-      // Edit icon - always visible in nodeSpecificModify
-      attrs.onEdit &&
-        m(Icon, {
-          'icon': Icons.Edit,
-          'style': {cursor: 'pointer', marginLeft: '2px'},
-          'onclick': (e: MouseEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            attrs.onEdit!(filter);
-          },
-          // Add aria-label for accessibility
-          'aria-label': 'Edit filter',
-          'role': 'button',
-          'tabindex': 0,
-        }),
-    );
-  }
-
-  view({attrs}: m.CVnode<FilterAttrs>) {
-    const {sourceCols} = attrs;
-
-    return m('.pf-exp-query-operations', [
-      // Header section with filter input
-      m(
-        '.pf-exp-filters-header',
-        m(
-          '.pf-exp-filters-input-row',
-          m('label.pf-exp-filters-label', 'Type the filter '),
-          m(TextInput, {
-            placeholder: 'e.g. ts > 1000',
-            disabled: sourceCols.length === 0,
-            onkeydown: (e: KeyboardEvent) => {
-              const target = e.target as HTMLInputElement;
-              if (e.key === 'Enter') {
-                const text = target.value;
-                if (text.length > 0) {
-                  const filter = parseFilterFromText(text, sourceCols);
-                  if (!isFilterDefinitionValid(filter)) {
-                    if (filter.column === undefined) {
-                      this.error = `Column not found in "${text}"`;
-                    } else if (filter.op === undefined) {
-                      this.error = `Operator not found in "${text}"`;
-                    } else {
-                      this.error = `Filter value is missing in "${text}"`;
-                    }
-                    m.redraw();
-                    return;
-                  }
-                  this.error = undefined;
-                  this.setFilters([...this.uiFilters, filter], attrs);
-                  target.value = '';
-                }
-              }
-            },
-          }),
-        ),
-      ),
-      this.error && m('.pf-exp-error-message', this.error),
-      // Filters list
-      m(
-        '.pf-filters-container',
-        m(
-          Stack,
-          {orientation: 'vertical'},
-          this.uiFilters.map((filter) => this.renderFilterChip(filter, attrs)),
-          m(Button, {
-            icon: 'add',
-            label: 'Add Filter',
-            rounded: true,
-            intent: Intent.Primary,
-            disabled: attrs.sourceCols.length === 0,
-            title:
-              attrs.sourceCols.length === 0
-                ? 'No columns available to filter on'
-                : undefined,
-            onclick: () => {
-              // Check if there are any columns available
-              if (attrs.sourceCols.length === 0) {
-                showModal({
-                  title: 'Cannot add filter',
-                  content: m(
-                    'div',
-                    m('p', 'No columns are available to filter on.'),
-                    m(
-                      'p',
-                      'Please select a table or add columns before adding filters.',
-                    ),
-                  ),
-                });
-                return;
-              }
-
-              // Clear any previous errors
-              this.error = undefined;
-
-              // Start with first column and "is not null" operator
-              const defaultColumn = attrs.sourceCols[0].name;
-              const newFilter: Partial<UIFilter> = {
-                column: defaultColumn,
-                op: 'is not null',
-              };
-
-              // showFilterEditModal now accepts Partial<UIFilter>
-              showFilterEditModal(
-                newFilter,
-                attrs.sourceCols,
-                (createdFilter) => {
-                  const nextFilters = [...this.uiFilters, createdFilter];
-                  this.uiFilters = nextFilters;
-                  this.setFilters(nextFilters, attrs);
-                },
-              );
-            },
-          }),
-        ),
-      ),
-    ]);
-  }
+  // All other filter types pass through as-is
+  return [filter as UIFilter];
 }
 
 /**
@@ -562,10 +446,13 @@ export function showFilterEditModal(
                 // Construct the correct filter type based on whether value is required
                 if (isValueRequired(newOp)) {
                   // FilterValue type - ensure value exists
+                  // If converting from array (FilterIn) to single value, take first element
+                  const singleValue = getFirstFilterValue(editedFilter);
+
                   editedFilter = {
                     column: editedFilter.column,
                     op: newOp.displayName as FilterValue['op'],
-                    value: 'value' in editedFilter ? editedFilter.value : '',
+                    value: singleValue,
                     enabled: editedFilter.enabled,
                   };
                 } else {
@@ -621,6 +508,89 @@ export function showFilterEditModal(
 // Proto Generation
 // ============================================================================
 
+/**
+ * Validates that all values in an array are of the same type.
+ * Mixed-type arrays are not supported in the proto format.
+ *
+ * @param values Array of values to validate
+ * @returns The detected type ('string', 'number', or 'mixed'), or 'empty' for empty arrays
+ */
+function detectValueType(
+  values: ReadonlyArray<SqlValue>,
+): 'string' | 'number' | 'mixed' | 'empty' {
+  if (values.length === 0) return 'empty';
+
+  const hasString = values.some((v) => typeof v === 'string');
+  const hasNumber = values.some(
+    (v) => typeof v === 'number' || typeof v === 'bigint',
+  );
+
+  if (hasString && hasNumber) {
+    return 'mixed';
+  } else if (hasString) {
+    return 'string';
+  } else {
+    return 'number';
+  }
+}
+
+/**
+ * Partitions an array of SqlValues by type for proto generation.
+ * Numbers are further split into int64 vs double based on column type.
+ *
+ * @param values Array of values to partition
+ * @param column Optional column info for determining int64 vs double
+ * @returns Object with stringValues, int64Values, and doubleValues arrays
+ */
+function partitionValuesByType(
+  values: ReadonlyArray<SqlValue>,
+  column: ColumnInfo | undefined,
+): {
+  stringValues: string[];
+  int64Values: number[];
+  doubleValues: number[];
+} {
+  const stringValues: string[] = [];
+  const int64Values: number[] = [];
+  const doubleValues: number[] = [];
+
+  for (const value of values) {
+    if (typeof value === 'string') {
+      stringValues.push(value);
+    } else if (typeof value === 'number' || typeof value === 'bigint') {
+      if (column && (column.type === 'long' || column.type === 'int')) {
+        int64Values.push(Number(value));
+      } else {
+        doubleValues.push(Number(value));
+      }
+    }
+  }
+
+  return {stringValues, int64Values, doubleValues};
+}
+
+/**
+ * Extracts the first filter value when converting from array (FilterIn) to single value.
+ * Used when changing operator from IN/NOT IN to a single-value operator.
+ *
+ * @param filter The filter being edited
+ * @returns The first value if available, otherwise empty string
+ */
+function getFirstFilterValue(filter: Partial<UIFilter>): SqlValue {
+  if (!('value' in filter) || filter.value === undefined) {
+    return '';
+  }
+
+  // Handle array values (from FilterIn type)
+  const value = filter.value;
+  if (Array.isArray(value)) {
+    return value[0] ?? '';
+  }
+
+  // Single value case (from FilterValue type) - narrow the type
+  return value as SqlValue;
+}
+
 export function createFiltersProto(
   filters: UIFilter[] | undefined,
   sourceCols: ColumnInfo[],
@@ -641,6 +611,48 @@ export function createFiltersProto(
         const result = new protos.PerfettoSqlStructuredQuery.Filter();
         result.columnName = f.column;
 
+        // Handle 'in' and 'not in' operators specially
+        // Note: The proto uses EQUAL/NOT_EQUAL with array RHS values to represent
+        // OR-ed equality checks. This is because the query builder doesn't have
+        // native IN operator support yet.
+        if (f.op === 'in' || f.op === 'not in') {
+          // Map 'in' to EQUAL with multiple values, 'not in' to NOT_EQUAL
+          result.op =
+            f.op === 'in'
+              ? protos.PerfettoSqlStructuredQuery.Filter.Operator.EQUAL
+              : protos.PerfettoSqlStructuredQuery.Filter.Operator.NOT_EQUAL;
+
+          // Handle array of values
+          const values = f.value;
+          const col = sourceCols.find((c) => c.name === f.column);
+
+          // Validate that all values are the same type - fail fast on mixed types
+          const valueType = detectValueType(values);
+          if (valueType === 'mixed') {
+            throw new Error(
+              `Filter on column "${f.column}" has mixed-type values (strings and numbers). ` +
+                `All values must be of the same type. Values: ${JSON.stringify(values)}`,
+            );
+          }
+
+          // Separate values by type using helper
+          const {stringValues, int64Values, doubleValues} =
+            partitionValuesByType(values, col);
+
+          // Set the appropriate rhs field based on predominant type
+          // Priority: strings > int64 > double
+          if (stringValues.length > 0) {
+            result.stringRhs = stringValues;
+          } else if (int64Values.length > 0) {
+            result.int64Rhs = int64Values;
+          } else if (doubleValues.length > 0) {
+            result.doubleRhs = doubleValues;
+          }
+
+          return result;
+        }
+
+        // Handle other operators
         const op = ALL_FILTER_OPS.find((o) => o.displayName === f.op);
         if (op === undefined) {
           // Should be handled by validation before this.
@@ -698,49 +710,17 @@ export function createExperimentalFiltersProto(
 }
 
 /**
- * Helper to render FilterOperation with standard wiring for any node.
- * This avoids repeating the same pattern in every node type.
- */
-export function renderFilterOperation(
-  filters: UIFilter[] | undefined,
-  filterOperator: 'AND' | 'OR' | undefined,
-  sourceCols: ColumnInfo[],
-  onFiltersChanged: (filters: ReadonlyArray<UIFilter>) => void,
-  onFilterOperatorChanged: (operator: 'AND' | 'OR') => void,
-  onEdit?: (filter: UIFilter) => void,
-): m.Child {
-  return m(FilterOperation, {
-    filters,
-    filterOperator,
-    sourceCols,
-    onFiltersChanged,
-    onFilterOperatorChanged,
-    onEdit,
-  });
-}
-
-/**
  * Helper to format a single filter as a readable string.
  */
 function formatSingleFilter(filter: UIFilter): string {
-  if ('value' in filter) {
-    // FilterValue
-    const valueStr =
-      typeof filter.value === 'string'
-        ? `"${filter.value}"`
-        : String(filter.value);
-    return `${filter.column} ${filter.op} ${valueStr}`;
-  } else {
-    // FilterNull
-    return `${filter.column} ${filter.op}`;
-  }
+  return formatFilterValue(filter, true);
 }
 
 /**
  * Helper to create a toggle callback for filter enable/disable in nodeDetails.
  */
 function createFilterToggleCallback(state: {
-  filters?: UIFilter[];
+  filters?: Partial<UIFilter>[];
   onchange?: () => void;
 }): (filter: UIFilter) => void {
   return (filter: UIFilter) => {
@@ -763,7 +743,7 @@ function createFilterToggleCallback(state: {
 export function formatFilterDetails(
   filters: UIFilter[] | undefined,
   filterOperator: 'AND' | 'OR' | undefined,
-  state?: {filters?: UIFilter[]; onchange?: () => void},
+  state?: {filters?: Partial<UIFilter>[]; onchange?: () => void},
   onRemove?: (filter: UIFilter) => void,
   compact?: boolean,
   onEdit?: (filter: UIFilter) => void,
@@ -838,28 +818,20 @@ export function formatFilterDetails(
 
   // For 4 or fewer filters
   if (count <= 4) {
-    // For OR filters, show chips in visual boundary without summary text
-    if (operator === 'OR') {
-      const orChipsClass = compact
-        ? '.pf-filter-chips.pf-filter-chips--no-count.pf-filter-chips--compact'
-        : '.pf-filter-chips.pf-filter-chips--no-count';
-
-      return m(
-        '.pf-filter-or-group',
-        m('.pf-filter-or-badge', 'OR'),
-        m(
-          orChipsClass,
-          filters.map((filter) => renderFilterChip(filter)),
-        ),
-      );
-    }
-    // For AND filters, just show chips
     const filterChipsClass = compact
       ? '.pf-filter-chips.pf-filter-chips--compact'
       : '.pf-filter-chips';
 
+    // Show operator badge only when there are 2+ filters
+    const showOperatorBadge = count >= 2;
+
     return m(
       '.pf-filter-container',
+      showOperatorBadge &&
+        m(
+          '.pf-filter-operator-header',
+          m('.pf-filter-operator-badge', operator),
+        ),
       m(
         filterChipsClass,
         filters.map((filter) => renderFilterChip(filter)),

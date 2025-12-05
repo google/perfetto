@@ -23,16 +23,20 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Button} from '../../../../widgets/button';
 import {
-  PopupMultiSelect,
-  MultiSelectOption,
-  MultiSelectDiff,
-} from '../../../../widgets/multiselect';
-import {
   StructuredQueryBuilder,
   SortCriterion as BuilderSortCriterion,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {LabeledControl, DraggableItem} from '../widgets';
+import {
+  LabeledControl,
+  DraggableItem,
+  OutlinedMultiSelect,
+  MultiSelectOption,
+  MultiSelectDiff,
+} from '../widgets';
+import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
+import {createErrorSections} from '../widgets';
+import {NodeDetailsMessage} from '../node_styling_widgets';
 
 export interface SortCriterion {
   colName: string;
@@ -51,7 +55,6 @@ export class SortNode implements QueryNode {
   nextNodes: QueryNode[];
   readonly state: SortNodeState;
   sortCols: ColumnInfo[];
-  private showEditControls = false;
 
   constructor(state: SortNodeState) {
     this.nodeId = nextNodeId();
@@ -84,26 +87,106 @@ export class SortNode implements QueryNode {
     return 'Sort';
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
+    if (!this.state.sortCriteria || this.state.sortCriteria.length === 0) {
+      return {
+        content: NodeDetailsMessage('No sort columns'),
+      };
+    }
+
+    const label = this.state.sortCriteria
+      .map((c) =>
+        c.direction === 'DESC' ? `${c.colName} ↓` : `${c.colName} ↑`,
+      )
+      .join(', ');
+
+    return {
+      content: m('div', label),
+    };
+  }
+
+  nodeSpecificModify(): NodeModifyAttrs {
     if (!this.state.sortCriteria) {
       this.state.sortCriteria = [];
     }
 
+    const sections: NodeModifyAttrs['sections'] = [
+      ...createErrorSections(this),
+    ];
+
+    // Column selector section
+    sections.push({
+      content: this.renderColumnSelector(),
+    });
+
+    // Sort criteria list section
+    sections.push({
+      content: this.renderSortCriteriaList(),
+    });
+
+    return {sections};
+  }
+
+  private renderColumnSelector(): m.Child {
+    const sortCriteria = this.state.sortCriteria ?? [];
+
     const sortOptions: MultiSelectOption[] = this.sourceCols.map((col) => ({
       id: col.name,
       name: col.name,
-      checked:
-        this.state.sortCriteria?.some((c) => c.colName === col.name) ?? false,
+      checked: sortCriteria.some((c) => c.colName === col.name),
     }));
 
     const label =
-      this.state.sortCriteria.length > 0
-        ? this.state.sortCriteria
+      sortCriteria.length > 0
+        ? sortCriteria
             .map((c) =>
               c.direction === 'DESC' ? `${c.colName} ↓` : `${c.colName} ↑`,
             )
             .join(', ')
         : 'None';
+
+    return m(
+      LabeledControl,
+      {
+        label: 'Sort by:',
+      },
+      m(OutlinedMultiSelect, {
+        label,
+        options: sortOptions,
+        showNumSelected: false,
+        onChange: (diffs: MultiSelectDiff[]) => {
+          if (!this.state.sortCriteria) {
+            this.state.sortCriteria = [];
+          }
+          for (const diff of diffs) {
+            if (diff.checked) {
+              // Add column if not already present
+              if (!this.state.sortCriteria.some((c) => c.colName === diff.id)) {
+                this.state.sortCriteria.push({
+                  colName: diff.id,
+                  direction: 'ASC',
+                });
+              }
+            } else {
+              // Remove column
+              this.state.sortCriteria = this.state.sortCriteria.filter(
+                (c) => c.colName !== diff.id,
+              );
+            }
+          }
+          this.sortCols = this.resolveSortCols();
+          this.state.onchange?.();
+        },
+      }),
+    );
+  }
+
+  private renderSortCriteriaList(): m.Child {
+    const sortCriteria = this.state.sortCriteria ?? [];
+
+    if (sortCriteria.length === 0) {
+      return null;
+    }
 
     const handleReorder = (from: number, to: number) => {
       if (!this.state.sortCriteria) return;
@@ -116,80 +199,30 @@ export class SortNode implements QueryNode {
       m.redraw();
     };
 
-    return m('div', [
-      m(
-        LabeledControl,
-        {
-          label: 'Sort by:',
-        },
-        m(PopupMultiSelect, {
-          label,
-          options: sortOptions,
-          showNumSelected: false,
-          compact: true,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            if (!this.state.sortCriteria) {
-              this.state.sortCriteria = [];
-            }
-            for (const diff of diffs) {
-              if (diff.checked) {
-                // Add column if not already present
-                if (
-                  !this.state.sortCriteria.some((c) => c.colName === diff.id)
-                ) {
-                  this.state.sortCriteria.push({
-                    colName: diff.id,
-                    direction: 'ASC',
-                  });
-                }
-              } else {
-                // Remove column
-                this.state.sortCriteria = this.state.sortCriteria.filter(
-                  (c) => c.colName !== diff.id,
-                );
-              }
-            }
-            this.sortCols = this.resolveSortCols();
-            this.state.onchange?.();
+    return m(
+      '.pf-sort-criteria-list',
+      sortCriteria.map((criterion, index) =>
+        m(
+          DraggableItem,
+          {
+            index,
+            onReorder: handleReorder,
           },
-        }),
-        this.state.sortCriteria.length > 0 &&
+          m('span', criterion.colName),
           m(Button, {
-            icon: 'edit',
-            minimal: true,
+            label: criterion.direction,
             onclick: () => {
-              this.showEditControls = !this.showEditControls;
-              m.redraw();
+              if (this.state.sortCriteria) {
+                this.state.sortCriteria[index].direction =
+                  criterion.direction === 'ASC' ? 'DESC' : 'ASC';
+                this.state.onchange?.();
+                m.redraw();
+              }
             },
           }),
-      ),
-      this.showEditControls &&
-        this.state.sortCriteria?.map((criterion, index) =>
-          m(
-            DraggableItem,
-            {
-              index,
-              onReorder: handleReorder,
-            },
-            m('span', criterion.colName),
-            m(Button, {
-              label: criterion.direction,
-              onclick: () => {
-                if (this.state.sortCriteria) {
-                  this.state.sortCriteria[index].direction =
-                    criterion.direction === 'ASC' ? 'DESC' : 'ASC';
-                  this.state.onchange?.();
-                  m.redraw();
-                }
-              },
-            }),
-          ),
         ),
-    ]);
-  }
-
-  nodeSpecificModify(): m.Child {
-    return null;
+      ),
+    );
   }
 
   nodeInfo(): m.Children {
@@ -240,7 +273,16 @@ export class SortNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new SortNode(this.state);
+    const stateCopy: SortNodeState = {
+      sortColNames: this.state.sortColNames
+        ? [...this.state.sortColNames]
+        : undefined,
+      sortCriteria: this.state.sortCriteria?.map((c) => ({...c})),
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new SortNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

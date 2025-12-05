@@ -77,7 +77,7 @@ export class SliceSelectionAggregator implements Aggregator {
         if (sliceDatasets.length > 0) {
           const query = await this.buildSliceQuery(
             engine,
-            UnionDataset.create(sliceDatasets).optimize(),
+            UnionDataset.create(sliceDatasets),
             area,
             trash,
           );
@@ -87,7 +87,7 @@ export class SliceSelectionAggregator implements Aggregator {
         if (slicelikeDatasets.length > 0) {
           const query = await this.buildSlicelikeQuery(
             engine,
-            UnionDataset.create(slicelikeDatasets).optimize(),
+            UnionDataset.create(slicelikeDatasets),
             area,
             trash,
           );
@@ -211,6 +211,7 @@ export class SliceSelectionAggregator implements Aggregator {
         title: 'Occurrences',
         columnId: 'occurrences',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

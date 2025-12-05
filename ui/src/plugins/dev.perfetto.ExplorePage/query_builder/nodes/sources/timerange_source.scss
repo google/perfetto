@@ -22,15 +22,6 @@
   letter-spacing: 0.5px;
 }
 
-// Dynamic mode helper text
-.pf-timerange-dynamic-info {
-  font-size: 13px;
-  color: var(--secondary-foreground-color);
-  padding: 12px 0;
-  line-height: 1.5;
-  font-style: italic;
-}
-
 // Mode selection section
 .pf-timerange-mode-section {
   padding: 16px;
@@ -67,7 +58,7 @@
 
 // Duration display (read-only)
 .pf-timerange-duration-display {
-  font-family: var(--monospace-font);
+  font-family: var(--pf-font-monospace);
   font-size: 13px;
   color: var(--primary-foreground-color);
   padding: 4px 0;

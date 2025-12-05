@@ -24,6 +24,38 @@
 
   &__toolbar {
     border-bottom: solid 1px var(--pf-color-border);
+    background-color: var(--pf-color-background);
+  }
+
+  &__toolbar-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--pf-spacing-small);
+    width: 100%;
+  }
+
+  &__toolbar-left {
+    flex: 1;
+    min-width: 0; // Allow shrinking
+
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  &__toolbar-right {
+    flex: none; // Don't shrink
+
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  &__row-count {
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+    margin-right: 2px;
   }
 
   &__table {

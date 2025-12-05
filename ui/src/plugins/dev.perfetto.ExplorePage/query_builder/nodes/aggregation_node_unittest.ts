@@ -37,6 +37,7 @@ describe('AggregationNode', () => {
       validate: () => true,
       getTitle: () => 'Mock',
       nodeSpecificModify: () => null,
+      nodeDetails: () => ({content: null}),
       nodeInfo: () => null,
       clone: () => createMockPrevNode(cols),
       getStructuredQuery: () => undefined,
@@ -70,9 +71,9 @@ describe('AggregationNode', () => {
   }
 
   describe('placeholderNewColumnName', () => {
-    it('should generate placeholder for COUNT_ALL without column', () => {
+    it('should generate placeholder for COUNT(*) without column', () => {
       const agg: Aggregation = {
-        aggregationOp: 'COUNT_ALL',
+        aggregationOp: 'COUNT(*)',
       };
       expect(placeholderNewColumnName(agg)).toBe('count');
     });
@@ -145,10 +146,10 @@ describe('AggregationNode', () => {
       );
     });
 
-    it('should validate COUNT_ALL without column', () => {
+    it('should validate COUNT(*) without column', () => {
       node.state.aggregations = [
         {
-          aggregationOp: 'COUNT_ALL',
+          aggregationOp: 'COUNT(*)',
           isValid: false,
         },
       ];
@@ -156,7 +157,7 @@ describe('AggregationNode', () => {
       // Simulate validation
       for (const agg of node.state.aggregations) {
         agg.isValid =
-          agg.aggregationOp === 'COUNT_ALL' ||
+          agg.aggregationOp === 'COUNT(*)' ||
           (agg.column !== undefined && agg.aggregationOp !== undefined);
       }
 
@@ -269,7 +270,7 @@ describe('AggregationNode', () => {
       // Simulate validation
       for (const agg of node.state.aggregations) {
         if (
-          agg.aggregationOp !== 'COUNT_ALL' &&
+          agg.aggregationOp !== 'COUNT(*)' &&
           agg.aggregationOp !== 'PERCENTILE'
         ) {
           agg.isValid =
@@ -291,7 +292,7 @@ describe('AggregationNode', () => {
       // Simulate validation
       for (const agg of node.state.aggregations) {
         if (
-          agg.aggregationOp !== 'COUNT_ALL' &&
+          agg.aggregationOp !== 'COUNT(*)' &&
           agg.aggregationOp !== 'PERCENTILE'
         ) {
           agg.isValid =
@@ -314,7 +315,7 @@ describe('AggregationNode', () => {
       // Simulate validation
       for (const agg of node.state.aggregations) {
         if (
-          agg.aggregationOp !== 'COUNT_ALL' &&
+          agg.aggregationOp !== 'COUNT(*)' &&
           agg.aggregationOp !== 'PERCENTILE'
         ) {
           agg.isValid =
@@ -356,7 +357,7 @@ describe('AggregationNode', () => {
       expect(serialized.aggregations[0].newColumnName).toBe('p95_dur');
     });
 
-    it('should serialize COUNT_ALL aggregation without column', () => {
+    it('should serialize COUNT(*) aggregation without column', () => {
       const node = createAggregationNodeWithInput(
         {
           trace: createMockTrace(),
@@ -368,7 +369,7 @@ describe('AggregationNode', () => {
 
       node.state.aggregations = [
         {
-          aggregationOp: 'COUNT_ALL',
+          aggregationOp: 'COUNT(*)',
           newColumnName: 'total_count',
           isValid: true,
         },
@@ -378,7 +379,7 @@ describe('AggregationNode', () => {
 
       expect(serialized.aggregations).toBeDefined();
       expect(serialized.aggregations.length).toBe(1);
-      expect(serialized.aggregations[0].aggregationOp).toBe('COUNT_ALL');
+      expect(serialized.aggregations[0].aggregationOp).toBe('COUNT(*)');
       expect(serialized.aggregations[0].column).toBeUndefined();
       expect(serialized.aggregations[0].newColumnName).toBe('total_count');
     });
@@ -423,7 +424,7 @@ describe('AggregationNode', () => {
 
       node.state.aggregations = [
         {
-          aggregationOp: 'COUNT_ALL',
+          aggregationOp: 'COUNT(*)',
           newColumnName: 'count',
           isValid: true,
         },
@@ -445,7 +446,7 @@ describe('AggregationNode', () => {
       const serialized = node.serializeState();
 
       expect(serialized.aggregations.length).toBe(3);
-      expect(serialized.aggregations[0].aggregationOp).toBe('COUNT_ALL');
+      expect(serialized.aggregations[0].aggregationOp).toBe('COUNT(*)');
       expect(serialized.aggregations[1].aggregationOp).toBe('MEDIAN');
       expect(serialized.aggregations[2].aggregationOp).toBe('PERCENTILE');
       expect(serialized.aggregations[2].percentile).toBe(99);
@@ -477,14 +478,14 @@ describe('AggregationNode', () => {
       expect(node.state.aggregations[0].newColumnName).toBe('p95_dur');
     });
 
-    it('should deserialize COUNT_ALL aggregation without column', () => {
+    it('should deserialize COUNT(*) aggregation without column', () => {
       const node = createAggregationNodeWithInput(
         {
           trace: createMockTrace(),
           groupByColumns: [],
           aggregations: [
             {
-              aggregationOp: 'COUNT_ALL',
+              aggregationOp: 'COUNT(*)',
               newColumnName: 'total_count',
               isValid: true,
             },
@@ -494,7 +495,7 @@ describe('AggregationNode', () => {
       );
 
       expect(node.state.aggregations.length).toBe(1);
-      expect(node.state.aggregations[0].aggregationOp).toBe('COUNT_ALL');
+      expect(node.state.aggregations[0].aggregationOp).toBe('COUNT(*)');
       expect(node.state.aggregations[0].column).toBeUndefined();
       expect(node.state.aggregations[0].newColumnName).toBe('total_count');
     });
@@ -520,6 +521,30 @@ describe('AggregationNode', () => {
       expect(node.state.aggregations[0].aggregationOp).toBe('MEDIAN');
       expect(node.state.aggregations[0].column?.name).toBe('value');
       expect(node.state.aggregations[0].newColumnName).toBe('median_value');
+    });
+
+    it('should migrate old COUNT_ALL to COUNT(*) for backward compatibility', () => {
+      const serializedState = {
+        groupByColumns: [],
+        aggregations: [
+          {
+            aggregationOp: 'COUNT_ALL', // Simulate old saved state
+            newColumnName: 'total_count',
+            isValid: true,
+          },
+        ],
+      };
+      const deserializedState =
+        AggregationNode.deserializeState(serializedState);
+      const node = createAggregationNodeWithInput(
+        deserializedState,
+        createMockPrevNode(),
+      );
+
+      expect(node.state.aggregations.length).toBe(1);
+      expect(node.state.aggregations[0].aggregationOp).toBe('COUNT(*)');
+      expect(node.state.aggregations[0].column).toBeUndefined();
+      expect(node.state.aggregations[0].newColumnName).toBe('total_count');
     });
   });
 
@@ -560,7 +585,7 @@ describe('AggregationNode', () => {
           ],
           aggregations: [
             {
-              aggregationOp: 'COUNT_ALL',
+              aggregationOp: 'COUNT(*)',
               isValid: true,
             },
           ],
@@ -642,7 +667,7 @@ describe('AggregationNode', () => {
           ],
           aggregations: [
             {
-              aggregationOp: 'COUNT_ALL',
+              aggregationOp: 'COUNT(*)',
               isValid: true,
             },
             {
@@ -688,7 +713,7 @@ describe('AggregationNode', () => {
         groupByColumns: [],
         aggregations: [
           {
-            aggregationOp: 'COUNT_ALL',
+            aggregationOp: 'COUNT(*)',
             isValid: true,
           },
         ],
@@ -698,6 +723,270 @@ describe('AggregationNode', () => {
       expect(node.state.issues?.queryError?.message).toBe(
         'No input node connected',
       );
+    });
+  });
+
+  describe('column type propagation', () => {
+    it('should set INT type for COUNT aggregation', () => {
+      const inputCols = [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('dur', 'DURATION'),
+      ];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: inputCols.map((c) => ({...c, checked: false})),
+          aggregations: [
+            {
+              aggregationOp: 'COUNT',
+              column: inputCols[1],
+              newColumnName: 'count_dur',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      expect(node.finalCols.length).toBe(1);
+      expect(node.finalCols[0].name).toBe('count_dur');
+      expect(node.finalCols[0].type).toBe('INT');
+    });
+
+    it('should set INT type for COUNT(*) aggregation', () => {
+      const inputCols = [createColumnInfo('id', 'INT')];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: inputCols.map((c) => ({...c, checked: false})),
+          aggregations: [
+            {
+              aggregationOp: 'COUNT(*)',
+              newColumnName: 'total_count',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      expect(node.finalCols.length).toBe(1);
+      expect(node.finalCols[0].name).toBe('total_count');
+      expect(node.finalCols[0].type).toBe('INT');
+    });
+
+    it('should preserve type for SUM aggregation', () => {
+      const inputCols = [
+        {
+          name: 'dur',
+          type: 'DURATION',
+          checked: false,
+          column: {
+            name: 'dur',
+            type: {kind: 'duration' as const},
+          },
+        },
+      ];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'SUM',
+              column: inputCols[0],
+              newColumnName: 'total_dur',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      expect(node.finalCols.length).toBe(1);
+      expect(node.finalCols[0].name).toBe('total_dur');
+      expect(node.finalCols[0].type).toBe('DURATION');
+    });
+
+    it('should preserve type for MIN/MAX aggregations', () => {
+      const inputCols = [
+        {
+          name: 'ts',
+          type: 'TIMESTAMP',
+          checked: false,
+          column: {
+            name: 'ts',
+            type: {kind: 'timestamp' as const},
+          },
+        },
+      ];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'MIN',
+              column: inputCols[0],
+              newColumnName: 'min_ts',
+              isValid: true,
+            },
+            {
+              aggregationOp: 'MAX',
+              column: inputCols[0],
+              newColumnName: 'max_ts',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      expect(node.finalCols.length).toBe(2);
+      expect(node.finalCols[0].name).toBe('min_ts');
+      expect(node.finalCols[0].type).toBe('TIMESTAMP');
+      expect(node.finalCols[1].name).toBe('max_ts');
+      expect(node.finalCols[1].type).toBe('TIMESTAMP');
+    });
+
+    it('should set DOUBLE type for MEAN aggregation', () => {
+      const inputCols = [createColumnInfo('value', 'INT')];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'MEAN',
+              column: inputCols[0],
+              newColumnName: 'avg_value',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      expect(node.finalCols.length).toBe(1);
+      expect(node.finalCols[0].name).toBe('avg_value');
+      expect(node.finalCols[0].type).toBe('DOUBLE');
+    });
+
+    it('should set DOUBLE type for MEDIAN aggregation', () => {
+      const inputCols = [createColumnInfo('dur', 'INT')];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'MEDIAN',
+              column: inputCols[0],
+              newColumnName: 'median_dur',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      expect(node.finalCols.length).toBe(1);
+      expect(node.finalCols[0].name).toBe('median_dur');
+      expect(node.finalCols[0].type).toBe('DOUBLE');
+    });
+
+    it('should set DOUBLE type for DURATION_WEIGHTED_MEAN aggregation', () => {
+      const inputCols = [createColumnInfo('dur', 'DURATION')];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'DURATION_WEIGHTED_MEAN',
+              column: inputCols[0],
+              newColumnName: 'weighted_avg_dur',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      expect(node.finalCols.length).toBe(1);
+      expect(node.finalCols[0].name).toBe('weighted_avg_dur');
+      expect(node.finalCols[0].type).toBe('DOUBLE');
+    });
+
+    it('should set DOUBLE type for PERCENTILE aggregation', () => {
+      const inputCols = [createColumnInfo('dur', 'INT')];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: [],
+          aggregations: [
+            {
+              aggregationOp: 'PERCENTILE',
+              column: inputCols[0],
+              percentile: 95,
+              newColumnName: 'p95_dur',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      expect(node.finalCols.length).toBe(1);
+      expect(node.finalCols[0].name).toBe('p95_dur');
+      expect(node.finalCols[0].type).toBe('DOUBLE');
+    });
+
+    it('should include GROUP BY columns with their original types', () => {
+      const inputCols = [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: {
+            name: 'name',
+            type: {kind: 'string' as const},
+          },
+        },
+        createColumnInfo('value', 'INT'),
+      ];
+      const mockInput = createMockPrevNode(inputCols);
+      const node = createAggregationNodeWithInput(
+        {
+          trace: createMockTrace(),
+          groupByColumns: inputCols.map((c) => ({...c})),
+          aggregations: [
+            {
+              aggregationOp: 'SUM',
+              column: inputCols[1],
+              newColumnName: 'total_value',
+              isValid: true,
+            },
+          ],
+        },
+        mockInput,
+      );
+
+      // First column should be the GROUP BY column (name) with preserved STRING type
+      // Second column should be the aggregation result (total_value) with INT type
+      expect(node.finalCols.length).toBe(2);
+      expect(node.finalCols[0].name).toBe('name');
+      expect(node.finalCols[0].type).toBe('STRING');
+      expect(node.finalCols[1].name).toBe('total_value');
+      expect(node.finalCols[1].type).toBe('INT');
     });
   });
 

@@ -141,3 +141,143 @@ export function findNodeById(
   const allNodes = getAllNodes(rootNodes);
   return allNodes.find((n) => n.nodeId === nodeId);
 }
+
+// ============================================================================
+// Graph Manipulation Utilities
+// ============================================================================
+
+/**
+ * Inserts a new node between a parent node and its children.
+ * This is used when adding single-input operation nodes (like filters,
+ * aggregations) that should be inserted into an existing pipeline.
+ *
+ * The operation:
+ * 1. Disconnects parent from all its children
+ * 2. Connects parent -> newNode
+ * 3. Connects newNode -> each child
+ *
+ * **IMPORTANT**: This function mutates the parentNode's nextNodes array.
+ *
+ * @param parentNode The parent node (will be mutated)
+ * @param newNode The node to insert
+ * @param addConnection Function to add connections between nodes
+ * @param removeConnection Function to remove connections between nodes
+ */
+export function insertNodeBetween(
+  parentNode: QueryNode,
+  newNode: QueryNode,
+  addConnection: (from: QueryNode, to: QueryNode, portIndex?: number) => void,
+  removeConnection: (from: QueryNode, to: QueryNode) => void,
+): void {
+  // Prevent self-referential insert
+  if (parentNode === newNode) {
+    throw new Error('Cannot insert a node between itself');
+  }
+
+  // Store the existing child nodes along with their connection info
+  // We need to preserve the port index for secondary input connections
+  const existingChildren: Array<{
+    child: QueryNode;
+    portIndex: number | undefined;
+  }> = [];
+
+  for (const child of parentNode.nextNodes) {
+    if (child !== undefined) {
+      // Check if parentNode is connected to child's secondary inputs
+      // and find the port index if so
+      let portIndex: number | undefined = undefined;
+      if (child.secondaryInputs) {
+        for (const [port, inputNode] of child.secondaryInputs.connections) {
+          if (inputNode === parentNode) {
+            portIndex = port;
+            break;
+          }
+        }
+      }
+      existingChildren.push({child, portIndex});
+    }
+  }
+
+  // Clear parent's next nodes (we'll reconnect through newNode)
+  parentNode.nextNodes = [];
+
+  // Connect: parent -> newNode
+  addConnection(parentNode, newNode);
+
+  // Connect: newNode -> each existing child, preserving port indices
+  for (const {child, portIndex} of existingChildren) {
+    // Remove old connection from parent to child (if it still exists)
+    removeConnection(parentNode, child);
+    // Add connection from newNode to child, preserving the port index
+    addConnection(newNode, child, portIndex);
+  }
+}
+
+/**
+ * Reconnects parent nodes to child nodes, bypassing a node being deleted.
+ * Used when removing a node from the graph to maintain connectivity.
+ *
+ * If either parentNodes or childNodes is empty, this function becomes a no-op
+ * (no connections are created). This is expected behavior when deleting terminal
+ * nodes (no parents or no children).
+ *
+ * @param parentNodes The parent nodes to reconnect (empty array is valid)
+ * @param childNodes The child nodes to reconnect to (empty array is valid)
+ * @param addConnection Function to add connections between nodes
+ */
+export function reconnectParentsToChildren(
+  parentNodes: QueryNode[],
+  childNodes: QueryNode[],
+  addConnection: (from: QueryNode, to: QueryNode, portIndex?: number) => void,
+): void {
+  for (const parent of parentNodes) {
+    for (const child of childNodes) {
+      addConnection(parent, child);
+    }
+  }
+}
+
+// ============================================================================
+// Node Navigation Utilities
+// ============================================================================
+
+/**
+ * Gets the input node at a specific port index.
+ * Only applicable for nodes with secondary inputs (multi-source nodes).
+ *
+ * @param node The node to get input from
+ * @param portIndex The port index
+ * @returns The input node at that port, or undefined if not found
+ */
+export function getInputNodeAtPort(
+  node: QueryNode,
+  portIndex: number,
+): QueryNode | undefined {
+  if ('secondaryInputs' in node && node.secondaryInputs) {
+    return node.secondaryInputs.connections.get(portIndex);
+  }
+  return undefined;
+}
+
+/**
+ * Gets all parent nodes (both primary and secondary inputs).
+ * This is useful for finding all nodes that feed into a given node.
+ *
+ * @param node The node to get parents for
+ * @returns Array of all parent nodes
+ */
+export function getAllInputNodes(node: QueryNode): QueryNode[] {
+  const inputs: QueryNode[] = [];
+
+  if ('primaryInput' in node && node.primaryInput) {
+    inputs.push(node.primaryInput);
+  }
+
+  if ('secondaryInputs' in node && node.secondaryInputs) {
+    for (const inputNode of node.secondaryInputs.connections.values()) {
+      inputs.push(inputNode);
+    }
+  }
+
+  return inputs;
+}

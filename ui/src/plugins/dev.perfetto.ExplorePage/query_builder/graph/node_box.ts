@@ -15,11 +15,12 @@
 import m from 'mithril';
 
 import {classNames} from '../../../../base/classnames';
-import {PopupMenu} from '../../../../widgets/menu';
-import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
+import {PopupMenu, MenuDivider, MenuTitle} from '../../../../widgets/menu';
+import {QueryNode, NodeType} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
-import {nodeRegistry} from '../node_registry';
-import {buildCategorizedMenuItems} from './menu_utils';
+import {buildMenuItems} from './menu_utils';
+import {NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeDetailsContent} from '../node_styling_widgets';
 
 export interface NodeBoxAttrs {
   readonly node: QueryNode;
@@ -40,17 +41,26 @@ export function renderWarningIcon(node: QueryNode): m.Child {
 
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   const {node, onAddOperationNode} = attrs;
-  const operationNodes = nodeRegistry
-    .list()
-    .filter(([_id, descriptor]) => descriptor.type === 'modification');
 
-  if (operationNodes.length === 0) {
+  const multisourceMenuItems = buildMenuItems('multisource', (id) =>
+    onAddOperationNode(id, node),
+  );
+
+  const modificationMenuItems = buildMenuItems('modification', (id) =>
+    onAddOperationNode(id, node),
+  );
+
+  if (modificationMenuItems.length === 0 && multisourceMenuItems.length === 0) {
     return null;
   }
 
-  const menuItems = buildCategorizedMenuItems(operationNodes, (id) =>
-    onAddOperationNode(id, node),
-  );
+  const menuItems = [
+    m(MenuTitle, {label: 'Modification nodes'}),
+    ...modificationMenuItems,
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Operations'}),
+    ...multisourceMenuItems,
+  ];
 
   return m(
     PopupMenu,
@@ -64,10 +74,14 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   );
 }
 
+function renderDetailsView(node: QueryNode): m.Child {
+  const attrs: NodeDetailsAttrs = node.nodeDetails();
+  return NodeDetailsContent(attrs.content);
+}
+
 export const NodeBox: m.Component<NodeBoxAttrs> = {
   view({attrs}) {
     const {node} = attrs;
-    const shouldShowTitle = !singleNodeOperation(node.type);
 
     return [
       m(
@@ -75,8 +89,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         {
           class: classNames(NodeType[node.type]),
         },
-        shouldShowTitle && m('span.pf-exp-node-box__title', node.getTitle()),
-        m('.pf-exp-node-box__details', node.nodeDetails?.()),
+        m('.pf-exp-node-box__details', renderDetailsView(node)),
       ),
       m(
         '.pf-exp-node-box__actions',

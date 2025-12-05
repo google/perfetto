@@ -30,6 +30,7 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
+import {Icons} from '../../base/semantic_icons';
 
 export interface SettingsPageAttrs {
   readonly subpage?: string;
@@ -190,12 +191,11 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       return m(
         EmptyState,
         {
-          icon: 'filter_alt_off',
           title: 'No settings match your search criteria',
         },
         m(Button, {
           label: 'Clear filter',
-          icon: 'clear',
+          icon: Icons.FilterOff,
           variant: ButtonVariant.Filled,
           intent: Intent.Primary,
           onclick: () => {

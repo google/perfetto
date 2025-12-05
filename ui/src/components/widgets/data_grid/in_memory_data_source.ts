@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
+import {assertUnreachable} from '../../../base/logging';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {
   DataGridDataSource,
@@ -254,12 +255,23 @@ export class InMemoryDataSource implements DataGridDataSource {
               return regex.test(value);
             }
             return false;
+          case 'not glob':
+            if (typeof value === 'string' && typeof filter.value === 'string') {
+              // Simple glob matching - convert glob to regex and negate
+              const regexPattern = filter.value
+                .replace(/\*/g, '.*')
+                .replace(/\?/g, '.')
+                .replace(/\[!([^\]]+)\]/g, '[^$1]');
+              const regex = new RegExp(`^${regexPattern}$`);
+              return !regex.test(value);
+            }
+            return false;
           case 'in':
             return filter.value.findIndex((v) => valuesEqual(v, value)) !== -1;
           case 'not in':
             return filter.value.findIndex((v) => valuesEqual(v, value)) === -1;
           default:
-            return false;
+            assertUnreachable(filter);
         }
       });
     });

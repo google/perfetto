@@ -154,6 +154,9 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly padding?: boolean;
   readonly wrap?: boolean;
   readonly label?: string;
+  readonly indent?: number;
+  readonly chevron?: 'expanded' | 'collapsed' | 'leaf';
+  readonly onChevronClick?: () => void;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -165,8 +168,44 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       className,
       padding = true,
       wrap,
+      indent,
+      chevron,
+      onChevronClick,
       ...htmlAttrs
     } = attrs;
+
+    const renderChevron = () => {
+      if (chevron === undefined) return undefined;
+
+      const icon = chevron === 'expanded' ? Icons.ExpandDown : Icons.GoForward;
+      const ariaLabel = chevron === 'expanded' ? 'Collapse row' : 'Expand row';
+
+      return m(Button, {
+        className: classNames(
+          'pf-grid-cell__chevron',
+          chevron === 'leaf' && 'pf-grid-cell__chevron--leaf',
+        ),
+        icon,
+        rounded: true,
+        ariaLabel,
+        onclick: (e: MouseEvent) => {
+          if (onChevronClick) {
+            onChevronClick();
+            e.stopPropagation();
+          }
+        },
+      });
+    };
+
+    const renderIndent = () => {
+      if (indent === undefined || indent === 0) return undefined;
+
+      return m('.pf-grid-cell__indent', {
+        style: {
+          width: `${indent * 16}px`,
+        },
+      });
+    };
 
     return m(
       '.pf-grid-cell',
@@ -174,13 +213,15 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
         ...htmlAttrs,
         className: classNames(
           className,
-          align === 'right' && 'pf-grid-cell--align-right',
+          align === 'right' && !chevron && 'pf-grid-cell--align-right',
           padding && 'pf-grid-cell--padded',
           nullish && 'pf-grid-cell--nullish',
           wrap && 'pf-grid-cell--wrap',
         ),
         role: 'cell',
       },
+      renderIndent(),
+      renderChevron(),
       m('.pf-grid-cell__content', children),
       Boolean(menuItems) &&
         m(
@@ -889,32 +930,42 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       return;
     }
 
+    // First, clear any previously set widths to allow natural sizing
     columns.forEach((column) => {
       const columnId = this.getColumnId(column.key);
-
-      // Clear the existing width to allow natural sizing
       gridClone.style.setProperty(`--pf-grid-col-${columnId}`, 'fit-content');
-
-      // Find all the cells in this column
-      const cellsInThisColumn = Array.from(allCells).filter(
-        (cell) => (cell as HTMLElement).dataset['columnId'] === `${columnId}`,
-      );
-
-      const widths = cellsInThisColumn.map((c) => {
-        return c.scrollWidth;
-      });
-      const maxCellWidth = Math.max(...widths);
-      const unboundedWidth = maxCellWidth + CELL_PADDING_PX;
-      const width = Math.min(
-        column.maxWidth,
-        Math.max(column.minWidth, unboundedWidth),
-      );
-
-      gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${width}px`);
-
-      // Store the width
-      this.sizedColumns.add(column.key);
     });
+
+    // Now measure then set widths
+    columns
+      // Now, measure all the cells we have available
+      .map((column) => {
+        const columnId = this.getColumnId(column.key);
+
+        // Find all the cells in this column
+        const cellsInThisColumn = Array.from(allCells).filter(
+          (cell) => (cell as HTMLElement).dataset['columnId'] === `${columnId}`,
+        );
+
+        const widths = cellsInThisColumn.map((c) => {
+          return c.scrollWidth;
+        });
+        const maxCellWidth = Math.max(...widths);
+        const unboundedWidth = maxCellWidth + CELL_PADDING_PX;
+        const width = Math.min(
+          column.maxWidth,
+          Math.max(column.minWidth, unboundedWidth),
+        );
+
+        // Store the width
+        this.sizedColumns.add(column.key);
+
+        return {columnId, width};
+      })
+      // Set all the variables in one go to avoid forced reflows
+      .forEach(({columnId, width}) => {
+        gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${width}px`);
+      });
 
     gridClone.remove();
   }

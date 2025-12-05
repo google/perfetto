@@ -63,16 +63,9 @@ import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {Card} from '../../../widgets/card';
 import {Keycap} from '../../../widgets/hotkey_glyphs';
-import {NUM} from '../../../trace_processor/query_result';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {
-  QueryNode,
-  Query,
-  isAQuery,
-  queryToRun,
-  hashNodeQuery,
-} from '../query_node';
+import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
@@ -85,27 +78,26 @@ import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_sour
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
 import {SqlSourceNode} from './nodes/sources/sql_source';
-import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
+import {DataExplorerEmptyState} from './widgets';
 import {UIFilter} from './operations/filter';
-import {MaterializationService} from './materialization_service';
+import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
 
+// Side panel width - must match --pf-qb-side-panel-width in builder.scss
+const SIDE_PANEL_WIDTH = 60;
+
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
-  readonly materializationService: MaterializationService;
-
-  readonly devMode?: boolean;
+  readonly queryExecutionService: QueryExecutionService;
 
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
-
-  readonly onDevModeChange?: (enabled: boolean) => void;
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
@@ -122,14 +114,22 @@ export interface BuilderAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
-  readonly onFilterAdd: (node: QueryNode, filter: UIFilter) => void;
+  readonly onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void;
+  readonly onFilterAdd: (
+    node: QueryNode,
+    filter: UIFilter | UIFilter[],
+    filterOperator?: 'AND' | 'OR',
+  ) => void;
 
   // Import / Export JSON
   readonly onImport: () => void;
   readonly onExport: () => void;
 
-  readonly onImportWithStatement: () => void;
+  readonly onLoadExample: () => void;
 
   // Node state change callback
   readonly onNodeStateChange?: () => void;
@@ -149,8 +149,7 @@ enum SelectedView {
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
   private trace: Trace;
-  private queryService: QueryService;
-  private materializationService: MaterializationService;
+  private queryExecutionService: QueryExecutionService;
   private query?: Query | Error;
   private queryExecuted: boolean = false;
   private isQueryRunning: boolean = false;
@@ -167,9 +166,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.trace = attrs.trace;
-    this.queryService = new QueryService(attrs.trace.engine);
-    // Use the shared MaterializationService from parent
-    this.materializationService = attrs.materializationService;
+    // Use the shared QueryExecutionService from parent
+    this.queryExecutionService = attrs.queryExecutionService;
   }
 
   private handleSidebarResize(deltaPx: number) {
@@ -218,11 +216,36 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         );
       });
 
+    // Add Examples card at the end
+    const examplesCard = m(
+      Card,
+      {
+        'interactive': true,
+        'onclick': () => attrs.onLoadExample(),
+        'tabindex': 0,
+        'role': 'button',
+        'aria-label': 'Load example graph',
+        'className': 'pf-source-card',
+        'onkeydown': (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            attrs.onLoadExample();
+          }
+        },
+      },
+      m(
+        '.pf-source-card-clickable',
+        m(Icon, {icon: 'auto_stories'}),
+        m('h3', 'Examples'),
+      ),
+      m('p', 'Load an example graph'),
+    );
+
     if (sourceNodes.length === 0) {
-      return m('p', 'No source nodes available');
+      return [examplesCard];
     }
 
-    return sourceNodes;
+    return [examplesCard, ...sourceNodes];
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -262,30 +285,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         this.isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
 
-    // When no nodes exist, show only the graph (which renders EmptyGraph)
-    // without any panels or split layout
-    if (rootNodes.length === 0) {
-      return m(Graph, {
-        rootNodes,
-        selectedNode,
-        onNodeSelected,
-        nodeLayouts: attrs.nodeLayouts,
-        onNodeLayoutChange: attrs.onNodeLayoutChange,
-        onDeselect: attrs.onDeselect,
-        onAddSourceNode: attrs.onAddSourceNode,
-        onClearAllNodes,
-        onDuplicateNode: attrs.onDuplicateNode,
-        onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
-        devMode: attrs.devMode,
-        onDevModeChange: attrs.onDevModeChange,
-        onDeleteNode: attrs.onDeleteNode,
-        onConnectionRemove: attrs.onConnectionRemove,
-        onImport: attrs.onImport,
-        onImportWithStatement: attrs.onImportWithStatement,
-        onExport: attrs.onExport,
-      });
-    }
-
     const explorer = selectedNode
       ? m(NodeExplorer, {
           // The key to force mithril to re-create the component when the
@@ -297,29 +296,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           resolveNode: (nodeId: string) => this.resolveNode(nodeId, rootNodes),
           onQueryAnalyzed: (query: Query | Error) => {
             this.query = query;
-            const shouldAutoExecute = selectedNode.state.autoExecute ?? true;
-            // Don't execute if validation fails (e.g., duplicate column names)
             if (isAQuery(this.query) && selectedNode.validate()) {
-              // Compute and cache hash after successful analysis
-              const currentQueryHash = hashNodeQuery(selectedNode);
-              if (currentQueryHash !== undefined) {
-                attrs.materializationService.setCachedQueryHash(
-                  selectedNode,
-                  currentQueryHash,
-                );
-              }
-
-              // Check if we have an existing materialized table for this exact query
-              const hasMatchingMaterialization = this.canReuseMaterialization(
-                selectedNode,
-                currentQueryHash,
-              );
-
-              if (hasMatchingMaterialization || shouldAutoExecute) {
-                // Either we have materialized data to reuse, or auto-execute is on
-                this.queryExecuted = false;
-                this.runQuery(selectedNode);
-              }
+              this.runQuery(selectedNode, this.query, {manualExecution: false});
             }
           },
           onAnalysisStateChange: (isAnalyzing: boolean) => {
@@ -350,16 +328,14 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       SplitPanel,
       {
         className: layoutClasses,
-        visibility: selectedNode
-          ? this.drawerVisibility
-          : SplitPanelDrawerVisibility.COLLAPSED,
+        visibility: this.drawerVisibility,
         onVisibilityChange: (v) => {
           this.drawerVisibility = v;
         },
         startingHeight: 300,
         drawerContent: selectedNode
           ? m(DataExplorer, {
-              queryService: this.queryService,
+              trace: this.trace,
               query: this.query,
               node: selectedNode,
               response: this.response,
@@ -369,8 +345,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onchange: () => {
                 attrs.onNodeStateChange?.();
               },
-              onFilterAdd: (filter) => {
-                attrs.onFilterAdd(selectedNode, filter);
+              onFilterAdd: (filter, filterOperator) => {
+                attrs.onFilterAdd(selectedNode, filter, filterOperator);
               },
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
@@ -385,20 +361,27 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 }
               },
               onExecute: () => {
-                // Don't execute if validation fails (e.g., duplicate column names)
-                if (!selectedNode.validate()) {
+                if (
+                  !selectedNode.validate() ||
+                  this.query === undefined ||
+                  this.query instanceof Error ||
+                  !isAQuery(this.query)
+                ) {
                   return;
                 }
-                // Reset queryExecuted flag to allow execution
-                // Analysis has already happened, this.query is already set
                 this.queryExecuted = false;
-                this.runQuery(selectedNode);
+                this.runQuery(selectedNode, this.query, {
+                  manualExecution: true,
+                });
               },
               onExportToTimeline: () => {
                 this.exportToTimeline(selectedNode);
               },
             })
-          : null,
+          : m(DataExplorerEmptyState, {
+              icon: 'info',
+              title: 'Select a node to see the data',
+            }),
       },
       m(
         '.pf-qb-node-graph',
@@ -413,12 +396,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
           onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
-          devMode: attrs.devMode,
-          onDevModeChange: attrs.onDevModeChange,
           onDeleteNode: attrs.onDeleteNode,
           onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,
-          onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
         }),
         selectedNode &&
@@ -469,14 +449,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         '.pf-qb-explorer',
         {
           style: {
-            width: this.isExplorerCollapsed ? '0' : `${this.sidebarWidth}px`,
+            width: this.isExplorerCollapsed
+              ? '0'
+              : `${this.sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
           },
         },
         explorer,
       ),
-      m(
-        '.pf-qb-side-panel',
-        selectedNode &&
+      selectedNode &&
+        m(
+          '.pf-qb-side-panel',
           m(Button, {
             icon: Icons.Info,
             title: 'Info',
@@ -497,29 +479,27 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
-        selectedNode &&
           selectedNode.nodeSpecificModify() != null &&
-          m(Button, {
-            icon: Icons.Edit,
-            title: 'Edit',
-            className:
-              this.selectedView === SelectedView.kModify &&
-              !this.isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
+            m(Button, {
+              icon: Icons.Edit,
+              title: 'Edit',
+              className:
                 this.selectedView === SelectedView.kModify &&
                 !this.isExplorerCollapsed
-              ) {
-                this.isExplorerCollapsed = true;
-              } else {
-                this.selectedView = SelectedView.kModify;
-                this.isExplorerCollapsed = false;
-              }
-            },
-          }),
-        selectedNode &&
+                  ? 'pf-active'
+                  : '',
+              onclick: () => {
+                if (
+                  this.selectedView === SelectedView.kModify &&
+                  !this.isExplorerCollapsed
+                ) {
+                  this.isExplorerCollapsed = true;
+                } else {
+                  this.selectedView = SelectedView.kModify;
+                  this.isExplorerCollapsed = false;
+                }
+              },
+            }),
           m(Button, {
             icon: 'code',
             title: 'Result',
@@ -540,7 +520,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
           }),
-      ),
+        ),
     );
   }
 
@@ -567,121 +547,54 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     return undefined;
   }
 
-  /**
-   * Checks if a node's materialized table can be reused based on query hash.
-   */
-  private canReuseMaterialization(
+  private async runQuery(
     node: QueryNode,
-    queryHash: string | undefined,
-  ): boolean {
-    return (
-      queryHash !== undefined &&
-      node.state.materialized === true &&
-      node.state.materializationTableName !== undefined &&
-      node.state.materializedQueryHash === queryHash
-    );
-  }
+    query: Query,
+    options: {manualExecution: boolean},
+  ) {
+    await this.queryExecutionService.executeNodeQuery(node, query, {
+      shouldAutoExecute: options.manualExecution
+        ? true
+        : node.state.autoExecute ?? true,
+      hasExistingResult: this.queryExecuted,
+      onStart: () => {
+        this.isQueryRunning = true;
+        this.queryExecuted = false;
+      },
+      onSuccess: (result) => {
+        const engine = this.queryExecutionService.getEngine();
 
-  private async runQuery(node: QueryNode) {
-    if (
-      this.query === undefined ||
-      this.query instanceof Error ||
-      this.queryExecuted
-    ) {
-      return;
-    }
+        this.response = {
+          query: queryToRun(query),
+          totalRowCount: result.rowCount,
+          durationMs: result.durationMs,
+          columns: result.columns,
+          rows: [],
+          statementCount: 1,
+          statementWithOutputCount: 1,
+          lastStatementSql: query.sql,
+        };
 
-    this.isQueryRunning = true;
-    const queryStartMs = performance.now();
-    let tableName: string | undefined;
-    let createdNewMaterialization = false;
-    // Use cached hash - it was already computed during analysis
-    const currentQueryHash =
-      this.materializationService.getCachedQueryHash(node);
-
-    // If we can't get a hash, something is wrong with the node
-    if (currentQueryHash === undefined) {
-      this.handleQueryError(
-        node,
-        new Error('Cannot generate query hash - invalid node structure'),
-      );
-      this.isQueryRunning = false;
-      return;
-    }
-
-    try {
-      const engine = this.materializationService.getEngine();
-
-      // Check if we can reuse existing materialization
-      if (this.canReuseMaterialization(node, currentQueryHash)) {
-        // Query hasn't changed, reuse existing materialized table
-        tableName = node.state.materializationTableName!;
-        console.log(
-          `Reusing materialized table ${tableName} for node ${node.nodeId}`,
+        this.dataSource = new SQLDataSource(
+          engine,
+          `SELECT * FROM ${result.tableName}`,
         );
-      } else {
-        // Query changed - drop old materialization if it exists
-        if (node.state.materialized) {
-          await this.materializationService.dropMaterialization(node);
+        this.queryExecuted = true;
+        this.isQueryRunning = false;
+        this.setNodeIssuesFromResponse(node, query, this.response);
+
+        if (node instanceof SqlSourceNode && this.response !== undefined) {
+          node.onQueryExecuted(this.response.columns);
         }
 
-        // Materialize the new query
-        tableName = await this.materializationService.materializeNode(
-          node,
-          this.query,
-          currentQueryHash,
-        );
-        createdNewMaterialization = true;
-      }
-
-      // Fetch metadata: count and columns (we need both for the UI)
-      // If these fail, we want to clean up the materialized table
-      const [countQueryResult, schemaQueryResult] = await Promise.all([
-        engine.query(`SELECT COUNT(*) as count FROM ${tableName}`),
-        engine.query(`SELECT * FROM ${tableName} LIMIT 1`),
-      ]);
-
-      // Build response object with metadata
-      const response: QueryResponse = {
-        query: queryToRun(this.query),
-        totalRowCount: Number(countQueryResult.firstRow({count: NUM}).count),
-        durationMs: performance.now() - queryStartMs,
-        columns: schemaQueryResult.columns(),
-        rows: [], // SQLDataSource fetches rows on-demand
-        statementCount: 1,
-        statementWithOutputCount: 1,
-        lastStatementSql: this.query.sql,
-      };
-      this.response = response;
-
-      // Create data source for server-side pagination/filtering/sorting
-      this.dataSource = new SQLDataSource(engine, `SELECT * FROM ${tableName}`);
-
-      // Handle errors and warnings
-      this.queryExecuted = true;
-      this.setNodeIssuesFromResponse(node, this.query, this.response);
-
-      // Update columns for SQL source nodes
-      if (node instanceof SqlSourceNode && this.response !== undefined) {
-        node.onQueryExecuted(this.response.columns);
-        // Note: onQueryExecuted() calls notifyNextNodes() which triggers
-        // re-analysis for downstream nodes without marking this node as changed.
-        // We don't need to resetQueryState() here as that would clear the results display.
-      }
-    } catch (e) {
-      // If we created a new materialization and it failed, clean it up
-      if (createdNewMaterialization && tableName !== undefined) {
-        try {
-          await this.materializationService.dropMaterialization(node);
-        } catch (dropError) {
-          console.error('Failed to clean up materialized table:', dropError);
-        }
-      }
-      this.handleQueryError(node, e);
-    } finally {
-      this.isQueryRunning = false;
-      m.redraw();
-    }
+        m.redraw();
+      },
+      onError: (error) => {
+        this.handleQueryError(node, error);
+        this.isQueryRunning = false;
+        m.redraw();
+      },
+    });
   }
 
   private exportToTimeline(node: QueryNode) {
@@ -738,6 +651,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.response = undefined;
     this.query = undefined;
     this.queryExecuted = false;
+    // Clear any pending execution in the service
+    this.queryExecutionService.clearPendingExecution();
   }
 
   private handleQueryError(node: QueryNode, e: unknown) {

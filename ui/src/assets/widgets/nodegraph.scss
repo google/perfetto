@@ -85,6 +85,15 @@
   cursor: move;
   pointer-events: auto;
   width: 100%;
+
+  // Hide elements with this class, show on node hover
+  .pf-show-on-hover {
+    visibility: hidden;
+  }
+
+  &:hover .pf-show-on-hover {
+    visibility: visible;
+  }
 }
 
 .pf-node--has-accent-bar::before {
@@ -377,4 +386,35 @@
   background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
   pointer-events: none;
   z-index: 2; // Render selection rectangle above nodes.
+}
+
+.pf-node.pf-invalid {
+  border-color: var(--pf-color-danger);
+  background: color-mix(
+    in srgb,
+    var(--pf-color-danger) 8%,
+    var(--pf-color-background-secondary)
+  );
+
+  .pf-node-header {
+    background: color-mix(
+      in srgb,
+      var(--pf-color-danger) 15%,
+      var(--pf-color-background)
+    );
+    border-bottom-color: var(--pf-color-danger);
+  }
+}
+
+// Invalid nodes override hue-based styling
+.pf-node.pf-invalid[style*="--pf-node-hue"] .pf-node-header {
+  background: color-mix(
+    in srgb,
+    var(--pf-color-danger) 15%,
+    var(--pf-color-background)
+  );
+}
+
+.pf-node.pf-invalid.pf-node--has-accent-bar::before {
+  background-color: var(--pf-color-danger);
 }

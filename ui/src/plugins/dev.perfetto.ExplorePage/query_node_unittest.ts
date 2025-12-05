@@ -80,6 +80,7 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
         nodeInfo: () => null,
         clone: () => createMockNode(columns),
         getStructuredQuery: () => undefined,
@@ -306,6 +307,7 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
         nodeInfo: () => null,
         clone: () => createMockNode(nodeId, state),
         getStructuredQuery: () => undefined,
@@ -337,7 +339,7 @@ describe('query_node utilities', () => {
       setOperationChanged(node1);
 
       // Only the node itself should be marked, not children
-      // (propagation is handled by MaterializationService.invalidateNode)
+      // (propagation is handled by QueryExecutionService.invalidateNode)
       expect(state1.hasOperationChanged).toBe(true);
       expect(state2.hasOperationChanged).toBe(false);
       expect(state3.hasOperationChanged).toBe(false);
@@ -398,6 +400,7 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
         nodeInfo: () => null,
         clone: () => createPartialNode(nodeId, onPrevNodesUpdated),
         getStructuredQuery: () => undefined,
@@ -422,6 +425,7 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
         nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
@@ -444,6 +448,7 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
         nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
@@ -463,6 +468,7 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
         nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
