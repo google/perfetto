@@ -203,6 +203,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
         kind: 'string',
       },
     },
+    {
+      name: 'arg_set_id',
+      type: {
+        kind: 'arg_set_id',
+      },
+    },
   ];
   return cols.map((c) => columnInfoFromSqlColumn(c, checked));
 }
