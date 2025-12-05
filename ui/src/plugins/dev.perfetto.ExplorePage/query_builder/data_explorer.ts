@@ -26,8 +26,6 @@ import {Query, QueryNode, isAQuery} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {Icon} from '../../../widgets/icon';
-import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
 import {UIFilter, normalizeDataGridFilter} from './operations/filter';
 import {DataExplorerEmptyState} from './widgets';

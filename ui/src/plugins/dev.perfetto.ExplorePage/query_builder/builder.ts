@@ -183,7 +183,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     m.redraw();
   }
 
-
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
     const sourceNodes = nodeRegistry
       .list()
@@ -635,6 +634,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       },
       'explore_page',
     );
+
+    // Navigate to the timeline page
+    this.trace.navigate('#!/viewer');
   }
 
   private setNodeIssuesFromResponse(
