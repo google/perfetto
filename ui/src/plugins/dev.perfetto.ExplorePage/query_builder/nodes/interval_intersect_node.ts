@@ -557,7 +557,7 @@ export class IntervalIntersectNode implements QueryNode {
     sections.push({
       content: m(
         InfoBox,
-        'Finds overlapping time intervals between two inputs. Filters rows from the primary input to only those that overlap with intervals in the secondary input. Useful for time-based filtering.',
+        'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
       ),
     });
 
