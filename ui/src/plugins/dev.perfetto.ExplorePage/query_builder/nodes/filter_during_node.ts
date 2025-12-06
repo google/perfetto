@@ -418,18 +418,18 @@ export class FilterDuringNode implements QueryNode {
     }
 
     if (this.primaryInput === undefined) {
-      setValidationError(this.state, 'No primary input connected');
+      setValidationError(this.state, 'Connect a node to be filtered to the top port');
       return false;
     }
 
     if (!this.primaryInput.validate()) {
-      setValidationError(this.state, 'Primary input is invalid');
+      setValidationError(this.state, 'Node to be filtered is invalid');
       return false;
     }
 
     const secondaryNodes = this.secondaryNodes;
     if (secondaryNodes.length === 0) {
-      setValidationError(this.state, 'No interval sources connected');
+      setValidationError(this.state, 'Connect a node with intervals to the left port');
       return false;
     }
 
@@ -437,7 +437,7 @@ export class FilterDuringNode implements QueryNode {
     for (let i = 0; i < secondaryNodes.length; i++) {
       const node = secondaryNodes[i];
       if (!node.validate()) {
-        setValidationError(this.state, `Interval source ${i + 1} is invalid`);
+        setValidationError(this.state, `Input at port ${i + 1} is invalid`);
         return false;
       }
     }
@@ -449,7 +449,7 @@ export class FilterDuringNode implements QueryNode {
     if (missingPrimary.length > 0) {
       setValidationError(
         this.state,
-        `Primary input is missing required columns: ${missingPrimary.join(', ')}`,
+        `Node to be filtered is missing required columns: ${missingPrimary.join(', ')}`,
       );
       return false;
     }
@@ -464,7 +464,7 @@ export class FilterDuringNode implements QueryNode {
       if (missingSecondary.length > 0) {
         setValidationError(
           this.state,
-          `Interval source ${i + 1} is missing required columns: ${missingSecondary.join(', ')}`,
+          `Input at port ${i + 1} is missing required columns: ${missingSecondary.join(', ')}`,
         );
         return false;
       }
