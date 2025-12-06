@@ -124,6 +124,7 @@ export class ThreadStateByCpuAggregator implements Aggregator {
       {
         title: 'PID',
         columnId: 'pid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Thread',
@@ -132,10 +133,12 @@ export class ThreadStateByCpuAggregator implements Aggregator {
       {
         title: 'TID',
         columnId: 'tid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'CPU',
         columnId: 'ucpu',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'State',
@@ -161,6 +164,7 @@ export class ThreadStateByCpuAggregator implements Aggregator {
         title: 'Occurrences',
         columnId: 'occurrences',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

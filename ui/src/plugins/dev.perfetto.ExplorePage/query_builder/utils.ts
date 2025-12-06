@@ -77,7 +77,7 @@ export function isColumnValidForAggregation(
       // GLOB requires string types
       return isString;
     case 'COUNT':
-    case 'COUNT_ALL':
+    case 'COUNT(*)':
     case 'SUM':
     case 'MIN':
     case 'MAX':
@@ -102,7 +102,7 @@ export function getAggregationTypeRequirements(op: string): string {
       return 'Requires numeric column';
     case 'GLOB':
       return 'Requires string column';
-    case 'COUNT_ALL':
+    case 'COUNT(*)':
       return 'No column required';
     case 'COUNT':
     case 'SUM':

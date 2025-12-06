@@ -33,6 +33,7 @@
 
 import m from 'mithril';
 
+import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
@@ -53,16 +54,13 @@ import {
 import {
   QueryNode,
   singleNodeOperation,
-  SourceNode,
-  MultiSourceNode,
-  ModificationNode,
   NodeType,
   addConnection,
   removeConnection,
 } from '../../query_node';
-import {EmptyGraph} from '../empty_graph';
-import {nodeRegistry} from '../node_registry';
 import {NodeBox} from './node_box';
+import {buildMenuItems} from './menu_utils';
+import {getAllNodes, findNodeById} from '../graph_utils';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -77,27 +75,18 @@ type LayoutMap = Map<string, Position>;
 const LAYOUT_CONSTANTS = {
   INITIAL_X: 100,
   INITIAL_Y: 100,
+  BATCH_NODE_HORIZONTAL_OFFSET: 250,
 };
 
 // ========================================
 // TYPE GUARDS
 // ========================================
 
-function isSourceNode(node: QueryNode): node is SourceNode {
-  return (
-    node.type === NodeType.kTable ||
-    node.type === NodeType.kSimpleSlices ||
-    node.type === NodeType.kSqlSource
-  );
-}
-
-// Multi-input nodes (have prevNodes array, cannot be docked)
-function isMultiSourceNode(node: QueryNode): node is MultiSourceNode {
-  return (
-    node.type === NodeType.kIntervalIntersect ||
-    node.type === NodeType.kUnion ||
-    node.type === NodeType.kMerge
-  );
+// Check if a node should show a top port based on its type (capabilities)
+// rather than its current connection state
+function shouldShowTopPort(node: QueryNode): boolean {
+  // Single-input operation nodes always have a top port, even when disconnected
+  return singleNodeOperation(node.type);
 }
 
 // ========================================
@@ -116,54 +105,21 @@ export interface GraphAttrs {
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
+  readonly onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void;
   readonly onImport: () => void;
-  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly devMode?: boolean;
-  readonly onDevModeChange?: (enabled: boolean) => void;
 }
 
 // ========================================
 // UTILITY FUNCTIONS
 // ========================================
 
-// Traverses the graph using BFS with cycle detection (visited set prevents infinite loops)
-export function getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
-  const allNodes: QueryNode[] = [];
-  const visited = new Set<string>();
-
-  for (const root of rootNodes) {
-    const queue: QueryNode[] = [root];
-
-    while (queue.length > 0) {
-      const curr = queue.shift();
-      if (!curr) continue;
-
-      if (visited.has(curr.nodeId)) {
-        continue;
-      }
-
-      visited.add(curr.nodeId);
-      allNodes.push(curr);
-
-      for (const child of curr.nextNodes) {
-        if (child !== undefined && !visited.has(child.nodeId)) {
-          queue.push(child);
-        }
-      }
-    }
-  }
-  return allNodes;
-}
-
-function findQueryNode(
-  nodeId: string,
-  rootNodes: QueryNode[],
-): QueryNode | undefined {
-  const allNodes = getAllNodes(rootNodes);
-  return allNodes.find((n) => n.nodeId === nodeId);
-}
+// Alias for consistency with existing code in this file
+const findQueryNode = findNodeById;
 
 // A node is "docked" if it has no layout (rendered as part of parent's chain via 'next' property)
 function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
@@ -175,111 +131,71 @@ function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
 // ========================================
 
 function getInputLabels(node: QueryNode): NodePort[] {
-  if (isSourceNode(node)) {
-    return [];
+  // Single-input operation nodes always have a top port (even when disconnected)
+  if (singleNodeOperation(node.type)) {
+    // Check if node also has secondaryInputs (like AddColumnsNode)
+    if (node.secondaryInputs) {
+      // Show both top port and side ports
+      const labels: NodePort[] = [];
+      labels.push({content: 'Input', direction: 'top'});
+
+      // For AddColumnsNode, show exactly one left-side port
+      if (node.type === NodeType.kAddColumns) {
+        labels.push({content: 'Table', direction: 'left'});
+      } else {
+        // For other nodes with secondaryInputs (like FilterDuring) - show dynamic ports
+        const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
+        for (let i = 0; i < numPorts; i++) {
+          labels.push({content: `Input ${i}`, direction: 'left'});
+        }
+      }
+      return labels;
+    }
+
+    // Single-input only (Sort, Filter, etc.) - show just top port
+    return [{content: 'Input', direction: 'top'}];
   }
 
-  if (isMultiSourceNode(node)) {
-    const multiSourceNode = node as MultiSourceNode;
-
+  // Multi-source nodes (IntervalIntersect, Merge, Union) - no primaryInput
+  if (node.secondaryInputs) {
     // Check if node has custom input labels
-    if (
-      'getInputLabels' in multiSourceNode &&
-      typeof multiSourceNode.getInputLabels === 'function'
-    ) {
-      return (
-        multiSourceNode as MultiSourceNode & {getInputLabels: () => string[]}
-      )
+    if ('getInputLabels' in node && typeof node.getInputLabels === 'function') {
+      return (node as QueryNode & {getInputLabels: () => string[]})
         .getInputLabels()
-        .map((label) => ({content: label, direction: 'left'}));
+        .map((label) => ({content: label, direction: 'left' as const}));
     }
 
     // Always show one extra empty port for adding new connections
-    const numPorts = multiSourceNode.prevNodes.length + 1;
+    const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
     const labels: NodePort[] = [];
     for (let i = 0; i < numPorts; i++) {
-      labels.push({content: `Input ${i + 1}`, direction: 'left'});
+      labels.push({content: `Input ${i}`, direction: 'left'});
     }
     return labels;
   }
 
-  // Check if ModificationNode has inputNodes (additional left-side inputs)
-  if ('inputNodes' in node) {
-    const modNode = node as ModificationNode;
-    if (modNode.inputNodes !== undefined && Array.isArray(modNode.inputNodes)) {
-      // Check if node has custom input labels
-      if (
-        'getInputLabels' in modNode &&
-        typeof modNode.getInputLabels === 'function'
-      ) {
-        return modNode.getInputLabels();
-      }
-
-      const labels: NodePort[] = [];
-
-      // Add top port for prevNode (main data flow)
-      labels.push({content: 'Input', direction: 'top'});
-
-      // For AddColumnsNode, show exactly one left-side port
-      // (it only supports connecting one table to add columns from)
-      if ('type' in modNode && modNode.type === NodeType.kAddColumns) {
-        labels.push({content: 'Table', direction: 'left'});
-        return labels;
-      }
-
-      // For other nodes with inputNodes, dynamically show ports
-      const numConnected = modNode.inputNodes.filter(
-        (it: QueryNode | undefined) => it,
-      ).length;
-      // Always show one extra empty port for adding new connections
-      const numLeftPorts = numConnected + 1;
-
-      // Add left-side ports for inputNodes (additional table inputs)
-      for (let i = 0; i < numLeftPorts; i++) {
-        labels.push({content: `Table ${i + 1}`, direction: 'left'});
-      }
-      return labels;
-    }
-  }
-
-  return [{content: 'Input', direction: 'top'}];
-}
-
-function buildMenuItems(
-  nodeType: 'source' | 'multisource' | 'modification',
-  devMode: boolean | undefined,
-  onAddNode: (id: string) => void,
-): m.Children[] {
-  return nodeRegistry
-    .list()
-    .filter(([_id, descriptor]) => descriptor.type === nodeType)
-    .map(([id, descriptor]) => {
-      if (descriptor.devOnly && !devMode) {
-        return null;
-      }
-      return m(MenuItem, {
-        label: descriptor.name,
-        onclick: () => onAddNode(id),
-      });
-    });
+  // Source nodes have no inputs
+  return [];
 }
 
 function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const modificationItems = buildMenuItems('modification', undefined, (id) =>
+  const multisourceItems = buildMenuItems('multisource', (id) =>
     onAddOperationNode(id, targetNode),
   );
-  const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
+  const modificationItems = buildMenuItems('modification', (id) =>
     onAddOperationNode(id, targetNode),
   );
 
-  // Add a divider between modification and multisource nodes if both exist
-  if (modificationItems.length > 0 && multisourceItems.length > 0) {
-    return [...modificationItems, m(MenuDivider), ...multisourceItems];
-  }
-  return [...modificationItems, ...multisourceItems];
+  return [
+    m(MenuTitle, {label: 'Modification nodes'}),
+    ...modificationItems,
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Operations'}),
+    ...multisourceItems,
+  ];
 }
 
 // ========================================
@@ -295,13 +211,13 @@ function getRootNodes(
 
   // A node is docked (not a root) if:
   // 1. It's a single-node operation (modification node)
-  // 2. It has a prevNode (parent in the primary flow)
+  // 2. It has a primaryInput (parent in the primary flow)
   // 3. It doesn't have a layout position (purely visual property)
   for (const node of allNodes) {
     if (
       singleNodeOperation(node.type) &&
-      'prevNode' in node &&
-      node.prevNode !== undefined &&
+      'primaryInput' in node &&
+      node.primaryInput !== undefined &&
       isChildDocked(node, nodeLayouts)
     ) {
       dockedNodes.add(node);
@@ -317,6 +233,7 @@ function ensureNodeLayouts(
   nodeGraphApi: NodeGraphApi | null,
 ): void {
   // Assign layouts to new nodes using smart placement
+  let nodeOffset = 0;
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
       let placement: Position;
@@ -325,7 +242,7 @@ function ensureNodeLayouts(
       if (nodeGraphApi) {
         // Create a simple node config without 'next' to get accurate placement
         // The 'next' property would include docked children and affect size calculation
-        const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+        const canDockTop = shouldShowTopPort(qnode);
         const nodeTemplate: Omit<Node, 'x' | 'y'> = {
           id: qnode.nodeId,
           inputs: getInputLabels(qnode),
@@ -336,13 +253,11 @@ function ensureNodeLayouts(
             },
           ],
           canDockBottom: true,
-          canDockTop: !noTopPort,
+          canDockTop,
           hue: getNodeHue(qnode),
           accentBar: true,
           content: m(NodeBox, {
             node: qnode,
-            onDuplicateNode: attrs.onDuplicateNode,
-            onDeleteNode: attrs.onDeleteNode,
             onAddOperationNode: attrs.onAddOperationNode,
           }),
           // Don't include 'next' here - we want placement for just this node
@@ -350,10 +265,15 @@ function ensureNodeLayouts(
         placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
       } else {
         // Fallback to default position if API not ready yet
+        // Offset nodes horizontally by BATCH_NODE_HORIZONTAL_OFFSET
+        // when multiple nodes are created in a batch to prevent overlap
         placement = {
-          x: LAYOUT_CONSTANTS.INITIAL_X,
+          x:
+            LAYOUT_CONSTANTS.INITIAL_X +
+            nodeOffset * LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
           y: LAYOUT_CONSTANTS.INITIAL_Y,
         };
+        nodeOffset++;
       }
 
       attrs.onNodeLayoutChange(qnode.nodeId, placement);
@@ -374,20 +294,28 @@ function getNodeHue(node: QueryNode): number {
       return 122; // Green (#c8e6c9)
     case NodeType.kSqlSource:
       return 199; // Cyan/Light Blue (#b3e5fc)
+    case NodeType.kTimeRangeSource:
+      return 33; // Orange (#ffe0b2)
     case NodeType.kAggregation:
       return 339; // Pink (#f8bbd0)
     case NodeType.kModifyColumns:
       return 261; // Purple (#d1c4e9)
     case NodeType.kAddColumns:
       return 232; // Indigo (#c5cae9)
+    case NodeType.kFilterDuring:
+      return 88; // Light Green (#dcedc8)
     case NodeType.kLimitAndOffset:
       return 175; // Teal (#b2dfdb)
     case NodeType.kSort:
       return 54; // Yellow (#fff9c4)
+    case NodeType.kFilter:
+      return 207; // Blue (#bbdefb)
     case NodeType.kIntervalIntersect:
       return 45; // Amber/Orange (#ffecb3)
     case NodeType.kUnion:
       return 187; // Cyan (#b2ebf2)
+    case NodeType.kMerge:
+      return 14; // Deep Orange (#ffccbc)
     default:
       return 65; // Lime (#f0f4c3)
   }
@@ -406,19 +334,35 @@ function getNextDockedNode(
   ) {
     const child = qnode.nextNodes[0];
     // Only dock the child if it's part of the primary flow chain
-    // (i.e., the child's prevNode points back to this parent)
-    if ('prevNode' in child && child.prevNode === qnode) {
+    // (i.e., the child's primaryInput points back to this parent)
+    if ('primaryInput' in child && child.primaryInput === qnode) {
       return renderChildNode(child, attrs);
     }
   }
   return undefined;
 }
 
+function buildNodeContextMenuItems(
+  qnode: QueryNode,
+  attrs: GraphAttrs,
+): m.Children {
+  return [
+    m(MenuItem, {
+      label: 'Duplicate',
+      onclick: () => attrs.onDuplicateNode(qnode),
+    }),
+    m(MenuItem, {
+      label: 'Delete',
+      onclick: () => attrs.onDeleteNode(qnode),
+    }),
+  ];
+}
+
 function createNodeConfig(
   qnode: QueryNode,
   attrs: GraphAttrs,
 ): Omit<Node, 'x' | 'y'> {
-  const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+  const canDockTop = shouldShowTopPort(qnode);
 
   return {
     id: qnode.nodeId,
@@ -431,16 +375,16 @@ function createNodeConfig(
       },
     ],
     canDockBottom: true,
-    canDockTop: !noTopPort,
+    canDockTop,
     hue: getNodeHue(qnode),
     accentBar: true,
+    contextMenuItems: buildNodeContextMenuItems(qnode, attrs),
     content: m(NodeBox, {
       node: qnode,
-      onDuplicateNode: attrs.onDuplicateNode,
-      onDeleteNode: attrs.onDeleteNode,
       onAddOperationNode: attrs.onAddOperationNode,
     }),
     next: getNextDockedNode(qnode, attrs),
+    invalid: !qnode.validate(),
   };
 }
 
@@ -490,30 +434,36 @@ function renderNodes(
 // CONNECTION HANDLING
 // ========================================
 
-// For multi-source nodes, finds which input port (0-indexed) the parent is connected to
-function calculateInputPort(child: QueryNode, parent: QueryNode): number {
-  if (isMultiSourceNode(child)) {
-    const index = child.prevNodes.indexOf(parent);
-    return index !== -1 ? index : 0;
-  }
+// Single-input nodes use port 0 for primaryInput, multi-source nodes don't have primaryInput
+function hasPrimaryInputPort(node: QueryNode): boolean {
+  return singleNodeOperation(node.type);
+}
 
-  // Check if modification node has inputNodes (additional left-side inputs)
-  if ('inputNodes' in child && 'prevNode' in child) {
-    const modNode = child as ModificationNode;
-    if (modNode.inputNodes !== undefined && Array.isArray(modNode.inputNodes)) {
-      // Check if parent is the main prevNode (port 0)
-      if (modNode.prevNode === parent) {
-        return 0;
-      }
-      // Check if parent is in inputNodes array (ports 1+)
-      const index = modNode.inputNodes.indexOf(parent);
-      if (index !== -1) {
-        return index + 1; // Port 1 = inputNodes[0], Port 2 = inputNodes[1], etc.
+// Find which visual port a parent node is connected to
+function getInputPort(child: QueryNode, parent: QueryNode): number {
+  if (child.primaryInput === parent) {
+    return 0;
+  }
+  if (child.secondaryInputs) {
+    const offset = hasPrimaryInputPort(child) ? 1 : 0;
+    for (const [index, node] of child.secondaryInputs.connections) {
+      if (node === parent) {
+        return index + offset;
       }
     }
   }
-
   return 0;
+}
+
+// Convert visual port to secondary input index (undefined means primary input)
+function toSecondaryIndex(
+  node: QueryNode,
+  visualPort: number,
+): number | undefined {
+  if (hasPrimaryInputPort(node)) {
+    return visualPort === 0 ? undefined : visualPort - 1;
+  }
+  return visualPort;
 }
 
 // Builds visual connections between nodes (skips docked chains since they use 'next' property)
@@ -529,13 +479,13 @@ function buildConnections(
       if (child === undefined) continue;
 
       // Skip docked children - they're rendered via 'next' property, not as connections
-      // But only skip if it's part of the primary flow chain (child's prevNode points back)
+      // But only skip if it's part of the primary flow chain (child's primaryInput points back)
       if (
         qnode.nextNodes.length === 1 &&
         singleNodeOperation(child.type) &&
         isChildDocked(child, nodeLayouts) &&
-        'prevNode' in child &&
-        child.prevNode === qnode
+        'primaryInput' in child &&
+        child.primaryInput === qnode
       ) {
         continue;
       }
@@ -544,7 +494,7 @@ function buildConnections(
         fromNode: qnode.nodeId,
         fromPort: 0,
         toNode: child.nodeId,
-        toPort: calculateInputPort(child, qnode),
+        toPort: getInputPort(child, qnode),
       });
     }
   }
@@ -561,15 +511,8 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
     return;
   }
 
-  // For multisource nodes, all ports are left-side and 0-indexed (port 0 = prevNodes[0])
-  // For modification nodes, port 0 is top (prevNode), ports 1+ are left-side (inputNodes[0], inputNodes[1], ...)
-  let portIndex: number | undefined;
-  if (isMultiSourceNode(toNode)) {
-    portIndex = conn.toPort;
-  } else {
-    portIndex = conn.toPort > 0 ? conn.toPort - 1 : undefined;
-  }
-  addConnection(fromNode, toNode, portIndex);
+  const secondaryIndex = toSecondaryIndex(toNode, conn.toPort);
+  addConnection(fromNode, toNode, secondaryIndex);
 
   m.redraw();
 }
@@ -578,7 +521,11 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
 function handleConnectionRemove(
   conn: Connection,
   rootNodes: QueryNode[],
-  onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void,
+  onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void,
 ): void {
   const fromNode = findQueryNode(conn.fromNode, rootNodes);
   const toNode = findQueryNode(conn.toNode, rootNodes);
@@ -587,11 +534,22 @@ function handleConnectionRemove(
     return;
   }
 
+  // Check BEFORE removal if this is a secondary input connection
+  let isSecondaryInput = false;
+  if (toNode.secondaryInputs?.connections) {
+    for (const node of toNode.secondaryInputs.connections.values()) {
+      if (node === fromNode) {
+        isSecondaryInput = true;
+        break;
+      }
+    }
+  }
+
   // Use the helper function to cleanly remove the connection
   removeConnection(fromNode, toNode);
 
   // Call the parent callback for any additional cleanup (e.g., state management)
-  onConnectionRemove(fromNode, toNode);
+  onConnectionRemove(fromNode, toNode, isSecondaryInput);
 }
 
 // ========================================
@@ -602,29 +560,16 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
 
-  private renderEmptyNodeGraph(attrs: GraphAttrs) {
-    return m(EmptyGraph, {
-      onAddSourceNode: attrs.onAddSourceNode,
-      onImport: attrs.onImport,
-    });
-  }
-
   private renderControls(attrs: GraphAttrs) {
-    const sourceMenuItems = buildMenuItems(
-      'source',
-      attrs.devMode,
-      attrs.onAddSourceNode,
-    );
+    const sourceMenuItems = buildMenuItems('source', attrs.onAddSourceNode);
 
     const modificationMenuItems = buildMenuItems(
       'modification',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
     const operationMenuItems = buildMenuItems(
       'multisource',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
@@ -641,9 +586,14 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     const moreMenuItems = [
       m(MenuItem, {
-        label: 'Export',
+        label: 'Export to JSON',
         icon: Icons.Download,
         onclick: attrs.onExport,
+      }),
+      m(MenuItem, {
+        label: 'Import from JSON',
+        icon: 'file_upload',
+        onclick: attrs.onImport,
       }),
       m(MenuItem, {
         label: 'Clear All Nodes',
@@ -672,7 +622,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           trigger: m(Button, {
             icon: Icons.ContextMenuAlt,
             variant: ButtonVariant.Minimal,
-            style: {marginLeft: '8px'},
+            className: classNames('pf-exp-more-menu-button'),
           }),
         },
         moreMenuItems,
@@ -682,22 +632,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
   view({attrs}: m.CVnode<GraphAttrs>) {
     const {rootNodes, selectedNode} = attrs;
-    const allNodes = getAllNodes(rootNodes);
-
-    if (allNodes.length === 0) {
-      return m(
-        '.pf-exp-node-graph',
-        {
-          tabindex: 0,
-          onclick: (e: MouseEvent) => {
-            if (e.target === e.currentTarget) {
-              attrs.onDeselect();
-            }
-          },
-        },
-        this.renderEmptyNodeGraph(attrs),
-      );
-    }
 
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
@@ -784,12 +718,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             const childQueryNode = findQueryNode(childNode.id, rootNodes);
 
             if (parentNode && childQueryNode) {
-              // Add connection (this will update both nextNodes and prevNode/prevNodes)
+              // Add connection (this will update both nextNodes and primaryInput/secondaryInputs)
               addConnection(parentNode, childQueryNode);
             }
 
             m.redraw();
           },
+          contextMenuOnHover: true,
         } satisfies NodeGraphAttrs),
         this.renderControls(attrs),
       ],

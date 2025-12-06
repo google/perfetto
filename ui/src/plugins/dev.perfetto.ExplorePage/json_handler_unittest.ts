@@ -32,7 +32,10 @@ import {FilterNode} from './query_builder/nodes/filter_node';
 import {MergeNode} from './query_builder/nodes/merge_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
-import {QueryNode, NodeType} from './query_node';
+import {NodeType, addConnection, removeConnection} from './query_node';
+import {FilterDuringNode} from './query_builder/nodes/filter_during_node';
+import {TimeRangeSourceNode} from './query_builder/nodes/sources/timerange_source';
+import {Time} from '../../base/time';
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -56,6 +59,7 @@ describe('JSON serialization/deserialization', () => {
       description: '',
       type: 'table',
       includeKey: '',
+      importance: undefined,
       getTableColumns: () => [],
       columns: [
         {
@@ -100,11 +104,9 @@ describe('JSON serialization/deserialization', () => {
       sqlModules,
     });
     const modifyNode = new ModifyColumnsNode({
-      prevNode: tableNode,
-      newColumns: [],
       selectedColumns: [],
     });
-    tableNode.nextNodes.push(modifyNode);
+    addConnection(tableNode, modifyNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -121,9 +123,9 @@ describe('JSON serialization/deserialization', () => {
     const deserializedTableNode = deserializedState.rootNodes[0];
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedModifyNode = deserializedTableNode.nextNodes[0];
-    expect((deserializedModifyNode as ModifyColumnsNode).prevNode?.nodeId).toBe(
-      deserializedTableNode.nodeId,
-    );
+    expect(
+      (deserializedModifyNode as ModifyColumnsNode).primaryInput?.nodeId,
+    ).toBe(deserializedTableNode.nodeId);
     expect(
       deserializedState.nodeLayouts.get(deserializedTableNode.nodeId),
     ).toEqual({x: 10, y: 20});
@@ -138,7 +140,6 @@ describe('JSON serialization/deserialization', () => {
 
     const sliceTable = sqlModules.getTable('slice')!;
     const aggregationNode = new AggregationNode({
-      prevNode: tableNode,
       groupByColumns: [
         {
           name: 'name',
@@ -160,7 +161,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    tableNode.nextNodes.push(aggregationNode);
+    addConnection(tableNode, aggregationNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -175,7 +176,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedAggregationNode = deserializedTableNode
       .nextNodes[0] as AggregationNode;
-    expect(deserializedAggregationNode.prevNode?.nodeId).toBe(
+    expect(deserializedAggregationNode.primaryInput?.nodeId).toBe(
       deserializedTableNode.nodeId,
     );
     expect(deserializedAggregationNode.state.groupByColumns[0].name).toBe(
@@ -205,7 +206,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedNode = deserializedState.rootNodes[0] as SqlSourceNode;
     expect(deserializedNode.state.sql).toBe('SELECT * FROM slice');
-    expect(deserializedNode.prevNodes).toEqual([]);
   });
 
   test('serializes and deserializes interval intersect node', () => {
@@ -222,7 +222,7 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const intervalIntersectNode = new IntervalIntersectNode({
-      prevNodes: [tableNode1, tableNode2],
+      inputNodes: [tableNode1, tableNode2],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
@@ -241,14 +241,20 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedIntervalIntersectNode = deserializedTableNode1
       .nextNodes[0] as IntervalIntersectNode;
-    expect(deserializedIntervalIntersectNode.prevNodes).toBeDefined();
-    expect(deserializedIntervalIntersectNode.prevNodes?.length).toBe(2);
-    expect(deserializedIntervalIntersectNode.prevNodes?.[0].nodeId).toBe(
-      deserializedTableNode1.nodeId,
-    );
-    expect(deserializedIntervalIntersectNode.prevNodes?.[1].nodeId).toBe(
-      deserializedTableNode2.nodeId,
-    );
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections,
+    ).toBeDefined();
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections.size,
+    ).toBe(2);
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections.get(0)
+        ?.nodeId,
+    ).toBe(deserializedTableNode1.nodeId);
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections.get(1)
+        ?.nodeId,
+    ).toBe(deserializedTableNode2.nodeId);
   });
 
   test('serializes and deserializes interval intersect node with partition columns and filters', () => {
@@ -271,10 +277,9 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const intervalIntersectNode = new IntervalIntersectNode({
-      prevNodes: [tableNode1, tableNode2, tableNode3],
+      inputNodes: [tableNode1, tableNode2, tableNode3],
       partitionColumns: ['name'],
       filterNegativeDur: [true, false, true],
-      comment: 'Intersect intervals partitioned by name',
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
@@ -296,18 +301,25 @@ describe('JSON serialization/deserialization', () => {
     const deserializedIntervalIntersectNode = deserializedTableNode1
       .nextNodes[0] as IntervalIntersectNode;
 
-    // Verify prevNodes connections
-    expect(deserializedIntervalIntersectNode.prevNodes).toBeDefined();
-    expect(deserializedIntervalIntersectNode.prevNodes?.length).toBe(3);
-    expect(deserializedIntervalIntersectNode.prevNodes?.[0].nodeId).toBe(
-      deserializedTableNode1.nodeId,
-    );
-    expect(deserializedIntervalIntersectNode.prevNodes?.[1].nodeId).toBe(
-      deserializedTableNode2.nodeId,
-    );
-    expect(deserializedIntervalIntersectNode.prevNodes?.[2].nodeId).toBe(
-      deserializedTableNode3.nodeId,
-    );
+    // Verify secondaryInputs connections
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections,
+    ).toBeDefined();
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections.size,
+    ).toBe(3);
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections.get(0)
+        ?.nodeId,
+    ).toBe(deserializedTableNode1.nodeId);
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections.get(1)
+        ?.nodeId,
+    ).toBe(deserializedTableNode2.nodeId);
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections.get(2)
+        ?.nodeId,
+    ).toBe(deserializedTableNode3.nodeId);
 
     // Verify partition columns
     expect(
@@ -336,11 +348,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[2]).toBe(
       true,
     );
-
-    // Verify comment
-    expect(deserializedIntervalIntersectNode.state.comment).toBe(
-      'Intersect intervals partitioned by name',
-    );
   });
 
   test('interval intersect node initializes filter to true by default', () => {
@@ -358,9 +365,10 @@ describe('JSON serialization/deserialization', () => {
 
     // Create interval intersect node WITHOUT specifying filterNegativeDur
     const intervalIntersectNode = new IntervalIntersectNode({
-      prevNodes: [tableNode1, tableNode2],
+      inputNodes: [tableNode1, tableNode2],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
+    tableNode2.nextNodes.push(intervalIntersectNode);
 
     // Verify that filterNegativeDur is initialized to true for all inputs
     // This is the key fix - the array should be initialized with explicit true values
@@ -406,11 +414,9 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const modifyNode = new ModifyColumnsNode({
-      prevNode: tableNode,
-      newColumns: [],
       selectedColumns: [],
     });
-    tableNode.nextNodes.push(modifyNode);
+    addConnection(tableNode, modifyNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -425,7 +431,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedModifyNode = deserializedTableNode
       .nextNodes[0] as ModifyColumnsNode;
-    expect(deserializedModifyNode.prevNode?.nodeId).toBe(
+    expect(deserializedModifyNode.primaryInput?.nodeId).toBe(
       deserializedTableNode.nodeId,
     );
   });
@@ -438,7 +444,6 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const filterNode = new FilterNode({
-      prevNode: tableNode,
       filters: [
         {
           column: 'name',
@@ -447,7 +452,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    tableNode.nextNodes.push(filterNode);
+    addConnection(tableNode, filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -513,7 +518,6 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const filterNode = new FilterNode({
-      prevNode: tableNode,
       filters: [
         {
           column: 'id',
@@ -522,7 +526,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    tableNode.nextNodes.push(filterNode);
+    addConnection(tableNode, filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -566,35 +570,34 @@ describe('JSON serialization/deserialization', () => {
     expect(() => deserializeState(invalidJson, trace, sqlModules)).toThrow();
   });
 
-  test('deserializes graph with and without prevNodes', () => {
+  test('deserializes graph with primaryInput connections', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),
       trace,
       sqlModules,
     });
     const modifyNode = new ModifyColumnsNode({
-      prevNode: tableNode,
-      newColumns: [],
       selectedColumns: [],
     });
-    tableNode.nextNodes.push(modifyNode);
+    addConnection(tableNode, modifyNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
     };
 
-    // Test with prevNode
-    const jsonWithPrevNode = serializeState(initialState);
-    const deserializedStateWithPrevNode = deserializeState(
-      jsonWithPrevNode,
+    // Test with primaryInput
+    const jsonWithPrimaryInput = serializeState(initialState);
+    const deserializedStateWithPrimaryInput = deserializeState(
+      jsonWithPrimaryInput,
       trace,
       sqlModules,
     );
-    const deserializedTableNode1 = deserializedStateWithPrevNode.rootNodes[0];
+    const deserializedTableNode1 =
+      deserializedStateWithPrimaryInput.rootNodes[0];
     const deserializedModifyNode1 = deserializedTableNode1
       .nextNodes[0] as ModifyColumnsNode;
-    expect(deserializedModifyNode1.prevNode?.nodeId).toBe(
+    expect(deserializedModifyNode1.primaryInput?.nodeId).toBe(
       deserializedTableNode1.nodeId,
     );
   });
@@ -607,14 +610,11 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const modifyColumnsNode = new ModifyColumnsNode({
-      prevNode: tableNode,
-      newColumns: [{expression: '1', name: 'new_col'}],
       selectedColumns: [],
     });
-    tableNode.nextNodes.push(modifyColumnsNode);
+    addConnection(tableNode, modifyColumnsNode);
 
     const filterNode = new FilterNode({
-      prevNode: modifyColumnsNode,
       filters: [
         {
           column: 'new_col',
@@ -623,7 +623,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    modifyColumnsNode.nextNodes.push(filterNode);
+    addConnection(modifyColumnsNode, filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -638,8 +638,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedModifyNode = deserializedTableNode
       .nextNodes[0] as ModifyColumnsNode;
-    expect(deserializedModifyNode.state.newColumns.length).toBe(1);
-    expect(deserializedModifyNode.state.newColumns[0].name).toBe('new_col');
     expect(deserializedModifyNode.nextNodes.length).toBe(1);
     const deserializedFilterNode = deserializedModifyNode
       .nextNodes[0] as FilterNode;
@@ -656,10 +654,12 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const addColumnsNode = new AddColumnsNode({
-      prevNode: tableNode,
       selectedColumns: ['name'],
     });
+    // Manually connect without triggering onPrevNodesUpdated to preserve
+    // the test's explicitly provided selectedColumns
     tableNode.nextNodes.push(addColumnsNode);
+    addColumnsNode.primaryInput = tableNode;
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -687,13 +687,14 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const addColumnsNode = new AddColumnsNode({
-      prevNode: tableNode1,
       selectedColumns: ['name', 'ts'],
       leftColumn: 'id',
       rightColumn: 'id',
-      mode: 'guided',
     });
+    // Manually connect without triggering onPrevNodesUpdated to preserve
+    // the test's explicitly provided selectedColumns
     tableNode1.nextNodes.push(addColumnsNode);
+    addColumnsNode.primaryInput = tableNode1;
 
     // Create the side input: tableNode2 connected to inputNodes[0]
     const tableNode2 = new TableSourceNode({
@@ -702,11 +703,8 @@ describe('JSON serialization/deserialization', () => {
       sqlModules,
     });
 
-    // Connect tableNode2 to addColumnsNode's inputNodes[0] (left-side port)
-    if (!addColumnsNode.inputNodes) {
-      addColumnsNode.inputNodes = [];
-    }
-    addColumnsNode.inputNodes[0] = tableNode2;
+    // Connect tableNode2 to addColumnsNode's secondaryInputs port 0 (left-side port)
+    addColumnsNode.secondaryInputs.connections.set(0, tableNode2);
     tableNode2.nextNodes.push(addColumnsNode);
 
     const initialState: ExplorePageState = {
@@ -726,20 +724,24 @@ describe('JSON serialization/deserialization', () => {
     const deserializedTableNode1 = deserializedState.rootNodes[0];
     const deserializedTableNode2 = deserializedState.rootNodes[1];
 
-    // Verify main connection (prevNode)
+    // Verify main connection (primaryInput)
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedAddColumnsNode = deserializedTableNode1
       .nextNodes[0] as AddColumnsNode;
-    expect(deserializedAddColumnsNode.prevNode?.nodeId).toBe(
+    expect(deserializedAddColumnsNode.primaryInput?.nodeId).toBe(
       deserializedTableNode1.nodeId,
     );
 
-    // Verify inputNodes connection (THIS IS THE BUG - this will fail before the fix)
-    expect(deserializedAddColumnsNode.inputNodes).toBeDefined();
-    expect(deserializedAddColumnsNode.inputNodes?.length).toBeGreaterThan(0);
-    expect(deserializedAddColumnsNode.inputNodes?.[0]?.nodeId).toBe(
-      deserializedTableNode2.nodeId,
-    );
+    // Verify secondaryInputs connection (THIS IS THE BUG - this will fail before the fix)
+    expect(
+      deserializedAddColumnsNode.secondaryInputs.connections,
+    ).toBeDefined();
+    expect(
+      deserializedAddColumnsNode.secondaryInputs.connections.size,
+    ).toBeGreaterThan(0);
+    expect(
+      deserializedAddColumnsNode.secondaryInputs.connections.get(0)?.nodeId,
+    ).toBe(deserializedTableNode2.nodeId);
 
     // Verify tableNode2 has the connection back to addColumnsNode
     expect(deserializedTableNode2.nextNodes.length).toBe(1);
@@ -754,7 +756,6 @@ describe('JSON serialization/deserialization', () => {
     ]);
     expect(deserializedAddColumnsNode.state.leftColumn).toBe('id');
     expect(deserializedAddColumnsNode.state.rightColumn).toBe('id');
-    expect(deserializedAddColumnsNode.state.mode).toBe('guided');
 
     // Verify layouts are preserved
     expect(
@@ -781,18 +782,20 @@ describe('JSON serialization/deserialization', () => {
     // Find a column to rename (let's use the first one)
     const columnToRename = allColumns[0];
 
-    // Create modify columns node that renames a column
+    // Create modify columns node that renames a column using alias
+    const selectedColumnsWithAlias = [
+      {
+        ...allColumns[0],
+        alias: 'renamed_column',
+        checked: true,
+      },
+      ...allColumns.slice(1, 3).map((col) => ({...col, checked: true})),
+    ];
+
     const modifyColumnsNode = new ModifyColumnsNode({
-      prevNode: tableNode1,
-      newColumns: [
-        {
-          expression: columnToRename.column.name,
-          name: 'renamed_column',
-        },
-      ],
-      selectedColumns: allColumns.slice(1, 3), // Select some other columns
+      selectedColumns: selectedColumnsWithAlias,
     });
-    tableNode1.nextNodes.push(modifyColumnsNode);
+    addConnection(tableNode1, modifyColumnsNode);
 
     // Create another table to join with
     const tableNode2 = new TableSourceNode({
@@ -803,17 +806,12 @@ describe('JSON serialization/deserialization', () => {
 
     // Create add columns node that should see the renamed column 'duration_ns'
     const addColumnsNode = new AddColumnsNode({
-      prevNode: tableNode2,
       selectedColumns: [],
-      mode: 'guided',
     });
-    tableNode2.nextNodes.push(addColumnsNode);
+    addConnection(tableNode2, addColumnsNode);
 
-    // Connect modifyColumnsNode to addColumnsNode's inputNodes[0]
-    if (!addColumnsNode.inputNodes) {
-      addColumnsNode.inputNodes = [];
-    }
-    addColumnsNode.inputNodes[0] = modifyColumnsNode;
+    // Connect modifyColumnsNode to addColumnsNode's secondaryInputs port 0
+    addColumnsNode.secondaryInputs.connections.set(0, modifyColumnsNode);
     modifyColumnsNode.nextNodes.push(addColumnsNode);
 
     // Check that addColumnsNode can see the renamed column
@@ -853,9 +851,15 @@ describe('JSON serialization/deserialization', () => {
       .nextNodes[0] as AddColumnsNode;
 
     // Verify the connection is restored
-    expect(deserializedAddColumnsNode.inputNodes).toBeDefined();
-    expect(deserializedAddColumnsNode.inputNodes?.length).toBeGreaterThan(0);
-    expect(deserializedAddColumnsNode.inputNodes?.[0]).toBeDefined();
+    expect(
+      deserializedAddColumnsNode.secondaryInputs.connections,
+    ).toBeDefined();
+    expect(
+      deserializedAddColumnsNode.secondaryInputs.connections.size,
+    ).toBeGreaterThan(0);
+    expect(
+      deserializedAddColumnsNode.secondaryInputs.connections.get(0),
+    ).toBeDefined();
 
     // Most importantly: verify that renamed columns are still accessible
     const deserializedRightCols = deserializedAddColumnsNode.rightCols;
@@ -884,7 +888,6 @@ describe('JSON serialization/deserialization', () => {
 
     // Create a ModifyColumnsNode that aliases a column
     const modifyNode = new ModifyColumnsNode({
-      prevNode: tableNode,
       selectedColumns: tableNode.finalCols.map((col) => {
         // Alias the 'ts' column to 'timestamp_alias'
         if (col.name === 'ts') {
@@ -892,9 +895,11 @@ describe('JSON serialization/deserialization', () => {
         }
         return col;
       }),
-      newColumns: [],
     });
+    // Manually connect without triggering onPrevNodesUpdated to preserve
+    // the test's explicitly provided selectedColumns
     tableNode.nextNodes.push(modifyNode);
+    modifyNode.primaryInput = tableNode;
 
     // Verify that the alias is in finalCols and the original name is not
     const tsColumn = modifyNode.finalCols.find((c) => c.name === 'ts');
@@ -907,11 +912,13 @@ describe('JSON serialization/deserialization', () => {
 
     // Create an AggregationNode that groups by the aliased column
     const aggregationNode = new AggregationNode({
-      prevNode: modifyNode,
       groupByColumns: [aliasedColumn!],
       aggregations: [],
     });
+    // Manually connect without triggering onPrevNodesUpdated to preserve
+    // the test's explicitly provided groupByColumns
     modifyNode.nextNodes.push(aggregationNode);
+    aggregationNode.primaryInput = modifyNode;
 
     // Verify the aggregation node sees the aliased column
     expect(aggregationNode.state.groupByColumns.length).toBe(1);
@@ -977,11 +984,10 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const limitAndOffsetNode = new LimitAndOffsetNode({
-      prevNode: tableNode,
       limit: 100,
       offset: 20,
     });
-    tableNode.nextNodes.push(limitAndOffsetNode);
+    addConnection(tableNode, limitAndOffsetNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -1008,10 +1014,9 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const sortNode = new SortNode({
-      prevNode: tableNode,
       sortColNames: ['name', 'ts'],
     });
-    tableNode.nextNodes.push(sortNode);
+    addConnection(tableNode, sortNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -1036,7 +1041,6 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const filterNode = new FilterNode({
-      prevNode: tableNode,
       filters: [
         {
           column: 'name',
@@ -1050,9 +1054,8 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
       filterOperator: 'AND',
-      comment: 'Filter by name and duration',
     });
-    tableNode.nextNodes.push(filterNode);
+    addConnection(tableNode, filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -1090,11 +1093,8 @@ describe('JSON serialization/deserialization', () => {
     // Verify filter operator
     expect(deserializedNode.state.filterOperator).toBe('AND');
 
-    // Verify comment
-    expect(deserializedNode.state.comment).toBe('Filter by name and duration');
-
-    // Verify prevNode connection
-    expect(deserializedNode.prevNode?.nodeId).toBe(
+    // Verify primaryInput connection
+    expect(deserializedNode.primaryInput?.nodeId).toBe(
       deserializedTableNode.nodeId,
     );
   });
@@ -1107,7 +1107,6 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const filterNode = new FilterNode({
-      prevNode: tableNode,
       filters: [
         {
           column: 'name',
@@ -1115,7 +1114,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    tableNode.nextNodes.push(filterNode);
+    addConnection(tableNode, filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -1153,7 +1152,8 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const mergeNode = new MergeNode({
-      prevNodes: [tableNode1, tableNode2],
+      leftNode: tableNode1,
+      rightNode: tableNode2,
       leftQueryAlias: 'left',
       rightQueryAlias: 'right',
       conditionType: 'equality',
@@ -1178,14 +1178,14 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedMergeNode = deserializedTableNode1
       .nextNodes[0] as MergeNode;
-    expect(deserializedMergeNode.prevNodes).toBeDefined();
-    expect(deserializedMergeNode.prevNodes?.length).toBe(2);
-    expect(deserializedMergeNode.prevNodes?.[0].nodeId).toBe(
-      deserializedTableNode1.nodeId,
-    );
-    expect(deserializedMergeNode.prevNodes?.[1].nodeId).toBe(
-      deserializedTableNode2.nodeId,
-    );
+    expect(deserializedMergeNode.secondaryInputs.connections).toBeDefined();
+    expect(deserializedMergeNode.secondaryInputs.connections.size).toBe(2);
+    expect(
+      deserializedMergeNode.secondaryInputs.connections.get(0)?.nodeId,
+    ).toBe(deserializedTableNode1.nodeId);
+    expect(
+      deserializedMergeNode.secondaryInputs.connections.get(1)?.nodeId,
+    ).toBe(deserializedTableNode2.nodeId);
     expect(deserializedMergeNode.state.leftQueryAlias).toBe('left');
     expect(deserializedMergeNode.state.rightQueryAlias).toBe('right');
     expect(deserializedMergeNode.state.conditionType).toBe('equality');
@@ -1207,7 +1207,8 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const mergeNode = new MergeNode({
-      prevNodes: [tableNode1, tableNode2],
+      leftNode: tableNode1,
+      rightNode: tableNode2,
       leftQueryAlias: 't1',
       rightQueryAlias: 't2',
       conditionType: 'freeform',
@@ -1260,7 +1261,7 @@ describe('JSON serialization/deserialization', () => {
 
     const sliceTable = sqlModules.getTable('slice')!;
     const unionNode = new UnionNode({
-      prevNodes: [tableNode1, tableNode2, tableNode3],
+      inputNodes: [tableNode1, tableNode2, tableNode3],
       selectedColumns: [
         {
           name: 'name',
@@ -1295,17 +1296,17 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedUnionNode = deserializedTableNode1
       .nextNodes[0] as UnionNode;
-    expect(deserializedUnionNode.prevNodes).toBeDefined();
-    expect(deserializedUnionNode.prevNodes?.length).toBe(3);
-    expect(deserializedUnionNode.prevNodes?.[0].nodeId).toBe(
-      deserializedTableNode1.nodeId,
-    );
-    expect(deserializedUnionNode.prevNodes?.[1].nodeId).toBe(
-      deserializedTableNode2.nodeId,
-    );
-    expect(deserializedUnionNode.prevNodes?.[2].nodeId).toBe(
-      deserializedTableNode3.nodeId,
-    );
+    expect(deserializedUnionNode.secondaryInputs.connections).toBeDefined();
+    expect(deserializedUnionNode.secondaryInputs.connections.size).toBe(3);
+    expect(
+      deserializedUnionNode.secondaryInputs.connections.get(0)?.nodeId,
+    ).toBe(deserializedTableNode1.nodeId);
+    expect(
+      deserializedUnionNode.secondaryInputs.connections.get(1)?.nodeId,
+    ).toBe(deserializedTableNode2.nodeId);
+    expect(
+      deserializedUnionNode.secondaryInputs.connections.get(2)?.nodeId,
+    ).toBe(deserializedTableNode3.nodeId);
     expect(deserializedUnionNode.state.selectedColumns.length).toBe(2);
     expect(deserializedUnionNode.state.selectedColumns[0].name).toBe('name');
     expect(deserializedUnionNode.state.selectedColumns[0].checked).toBe(true);
@@ -1327,20 +1328,19 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const mergeNode = new MergeNode({
-      prevNodes: [tableNode1, tableNode2],
+      leftNode: tableNode1,
+      rightNode: tableNode2,
       leftQueryAlias: 'left',
       rightQueryAlias: 'right',
       conditionType: 'equality',
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
-      comment: 'Join on matching names with duration filter',
     });
     tableNode1.nextNodes.push(mergeNode);
     tableNode2.nextNodes.push(mergeNode);
 
     const filterNode = new FilterNode({
-      prevNode: mergeNode,
       filters: [
         {
           column: 'dur',
@@ -1349,7 +1349,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    mergeNode.nextNodes.push(filterNode);
+    addConnection(mergeNode, filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
@@ -1364,9 +1364,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedMergeNode = deserializedTableNode1
       .nextNodes[0] as MergeNode;
-    expect(deserializedMergeNode.state.comment).toBe(
-      'Join on matching names with duration filter',
-    );
     expect(deserializedMergeNode.nextNodes.length).toBe(1);
     const deserializedFilterNode = deserializedMergeNode
       .nextNodes[0] as FilterNode;
@@ -1391,7 +1388,7 @@ describe('JSON serialization/deserialization', () => {
 
     const sliceTable = sqlModules.getTable('slice')!;
     const unionNode = new UnionNode({
-      prevNodes: [tableNode1, tableNode2],
+      inputNodes: [tableNode1, tableNode2],
       selectedColumns: [
         {
           name: 'name',
@@ -1424,9 +1421,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedUnionNode = deserializedTableNode1
       .nextNodes[0] as UnionNode;
-    expect(deserializedUnionNode.comment).toBe(
-      'Union of slice sources excluding idle',
-    );
     // Verify unchecked column is preserved
     expect(deserializedUnionNode.state.selectedColumns[1].checked).toBe(false);
   });
@@ -1449,7 +1443,8 @@ describe('JSON serialization/deserialization', () => {
     // - Include 'name' once (the equality column)
     // - Exclude 'ts' and 'dur' (duplicated across both inputs)
     const mergeNode = new MergeNode({
-      prevNodes: [tableNode1, tableNode2],
+      leftNode: tableNode1,
+      rightNode: tableNode2,
       leftQueryAlias: 'left',
       rightQueryAlias: 'right',
       conditionType: 'equality',
@@ -1491,8 +1486,6 @@ describe('JSON serialization/deserialization', () => {
 
     const sliceTable = sqlModules.getTable('slice')!;
     const modifyColumnsNode = new ModifyColumnsNode({
-      prevNode: tableNode,
-      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
       selectedColumns: [
         {
           name: 'name',
@@ -1508,7 +1501,10 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
+    // Manually connect without triggering onPrevNodesUpdated to preserve
+    // the test's explicitly provided selectedColumns
     tableNode.nextNodes.push(modifyColumnsNode);
+    modifyColumnsNode.primaryInput = tableNode;
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -1526,15 +1522,11 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode.state.selectedColumns.length).toBe(2);
     expect(deserializedNode.state.selectedColumns[0].name).toBe('name');
     expect(deserializedNode.state.selectedColumns[1].name).toBe('ts');
-    expect(deserializedNode.state.newColumns.length).toBe(1);
-    expect(deserializedNode.state.newColumns[0].expression).toBe('dur / 1000');
   });
 
-  test('serializes modify columns node without prevNode', () => {
-    // Create a modify columns node without a prevNode (edge case)
+  test('serializes modify columns node without primaryInput', () => {
+    // Create a modify columns node without a primaryInput (edge case)
     const modifyColumnsNode = new ModifyColumnsNode({
-      prevNode: undefined as unknown as QueryNode,
-      newColumns: [{expression: '42', name: 'constant'}],
       selectedColumns: [],
     });
 
@@ -1547,14 +1539,12 @@ describe('JSON serialization/deserialization', () => {
     const json = serializeState(initialState);
     const serialized = JSON.parse(json);
 
-    // Verify prevNodeId is undefined in serialized state
+    // Verify primaryInputId is undefined in serialized state
     const serializedNode = serialized.nodes.find(
       (n: SerializedNode) => n.nodeId === modifyColumnsNode.nodeId,
     );
     expect(serializedNode).toBeDefined();
-    expect(serializedNode.state.prevNodeId).toBeUndefined();
-    expect(serializedNode.state.newColumns.length).toBe(1);
-    expect(serializedNode.state.newColumns[0].name).toBe('constant');
+    expect(serializedNode.state.primaryInputId).toBeUndefined();
   });
 
   test('serializes and deserializes aggregation node with multiple aggregations', () => {
@@ -1566,7 +1556,6 @@ describe('JSON serialization/deserialization', () => {
 
     const sliceTable = sqlModules.getTable('slice')!;
     const aggregationNode = new AggregationNode({
-      prevNode: tableNode,
       groupByColumns: [
         {
           name: 'name',
@@ -1614,7 +1603,10 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
+    // Manually connect without triggering onPrevNodesUpdated to preserve
+    // the test's explicitly provided groupByColumns
     tableNode.nextNodes.push(aggregationNode);
+    aggregationNode.primaryInput = tableNode;
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -1657,7 +1649,6 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const filterNode = new FilterNode({
-      prevNode: tableNode,
       filters: [
         {
           column: 'name',
@@ -1666,12 +1657,10 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    tableNode.nextNodes.push(filterNode);
+    addConnection(tableNode, filterNode);
 
     const sliceTable = sqlModules.getTable('slice')!;
     const modifyNode = new ModifyColumnsNode({
-      prevNode: filterNode,
-      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
       selectedColumns: [
         {
           name: 'name',
@@ -1681,10 +1670,9 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    filterNode.nextNodes.push(modifyNode);
+    addConnection(filterNode, modifyNode);
 
     const aggregationNode = new AggregationNode({
-      prevNode: modifyNode,
       groupByColumns: [
         {
           name: 'name',
@@ -1706,20 +1694,18 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    modifyNode.nextNodes.push(aggregationNode);
+    addConnection(modifyNode, aggregationNode);
 
     const sortNode = new SortNode({
-      prevNode: aggregationNode,
       sortColNames: ['total_dur_ms'],
     });
-    aggregationNode.nextNodes.push(sortNode);
+    addConnection(aggregationNode, sortNode);
 
     const limitNode = new LimitAndOffsetNode({
-      prevNode: sortNode,
       limit: 10,
       offset: 0,
     });
-    sortNode.nextNodes.push(limitNode);
+    addConnection(sortNode, limitNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -1742,24 +1728,24 @@ describe('JSON serialization/deserialization', () => {
     expect(node1.nextNodes.length).toBe(1);
 
     const node2 = node1.nextNodes[0] as FilterNode;
-    expect(node2.prevNode?.nodeId).toBe(node1.nodeId);
+    expect(node2.primaryInput?.nodeId).toBe(node1.nodeId);
     expect(node2.state.filters?.length).toBe(1);
     expect(node2.nextNodes.length).toBe(1);
 
     const node3 = node2.nextNodes[0] as ModifyColumnsNode;
-    expect(node3.prevNode?.nodeId).toBe(node2.nodeId);
+    expect(node3.primaryInput?.nodeId).toBe(node2.nodeId);
     expect(node3.nextNodes.length).toBe(1);
 
     const node4 = node3.nextNodes[0] as AggregationNode;
-    expect(node4.prevNode?.nodeId).toBe(node3.nodeId);
+    expect(node4.primaryInput?.nodeId).toBe(node3.nodeId);
     expect(node4.nextNodes.length).toBe(1);
 
     const node5 = node4.nextNodes[0] as SortNode;
-    expect(node5.prevNode?.nodeId).toBe(node4.nodeId);
+    expect(node5.primaryInput?.nodeId).toBe(node4.nodeId);
     expect(node5.nextNodes.length).toBe(1);
 
     const node6 = node5.nextNodes[0] as LimitAndOffsetNode;
-    expect(node6.prevNode?.nodeId).toBe(node5.nodeId);
+    expect(node6.primaryInput?.nodeId).toBe(node5.nodeId);
     expect(node6.state.limit).toBe(10);
 
     // Verify all layouts preserved
@@ -1775,8 +1761,6 @@ describe('JSON serialization/deserialization', () => {
 
     const sliceTable = sqlModules.getTable('slice')!;
     const modifyNode1 = new ModifyColumnsNode({
-      prevNode: tableNode,
-      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
       selectedColumns: [
         {
           name: 'name',
@@ -1786,10 +1770,9 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
+    addConnection(tableNode, modifyNode1);
 
     const modifyNode2 = new ModifyColumnsNode({
-      prevNode: tableNode,
-      newColumns: [{expression: 'ts / 1000000', name: 'ts_ms'}],
       selectedColumns: [
         {
           name: 'ts',
@@ -1799,8 +1782,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-
-    tableNode.nextNodes.push(modifyNode1, modifyNode2);
+    addConnection(tableNode, modifyNode2);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -1817,10 +1799,8 @@ describe('JSON serialization/deserialization', () => {
     const branch1 = deserializedTableNode.nextNodes[0] as ModifyColumnsNode;
     const branch2 = deserializedTableNode.nextNodes[1] as ModifyColumnsNode;
 
-    expect(branch1.prevNode?.nodeId).toBe(deserializedTableNode.nodeId);
-    expect(branch2.prevNode?.nodeId).toBe(deserializedTableNode.nodeId);
-    expect(branch1.state.newColumns[0].name).toBe('dur_ms');
-    expect(branch2.state.newColumns[0].name).toBe('ts_ms');
+    expect(branch1.primaryInput?.nodeId).toBe(deserializedTableNode.nodeId);
+    expect(branch2.primaryInput?.nodeId).toBe(deserializedTableNode.nodeId);
   });
 
   test('deserializes graph without nodeLayouts field (auto-layout)', () => {
@@ -1847,5 +1827,589 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.nodeLayouts.size).toBe(0);
     const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
     expect(deserializedNode).toBeInstanceOf(SlicesSourceNode);
+  });
+
+  // ========================================
+  // FilterDuringNode Serialization Tests
+  // ========================================
+
+  test('serializes and deserializes filter during node with single secondary input', () => {
+    const slicesNode = new SlicesSourceNode({});
+    const timeRangeNode = new TimeRangeSourceNode({trace});
+
+    const filterDuringNode = new FilterDuringNode({
+      filterNegativeDurPrimary: true,
+      filterNegativeDurSecondary: false,
+    });
+
+    // Connect slicesNode as primaryInput (from above)
+    slicesNode.nextNodes.push(filterDuringNode);
+    filterDuringNode.primaryInput = slicesNode;
+
+    // Connect timeRangeNode as secondaryInput (from left)
+    timeRangeNode.nextNodes.push(filterDuringNode);
+    filterDuringNode.secondaryInputs.connections.set(0, timeRangeNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [slicesNode, timeRangeNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(2);
+
+    // Find the deserialized slices node (first root)
+    const deserializedSlicesNode = deserializedState.rootNodes[0];
+    expect(deserializedSlicesNode).toBeInstanceOf(SlicesSourceNode);
+    expect(deserializedSlicesNode.nextNodes.length).toBe(1);
+
+    // Find the deserialized filter during node
+    const deserializedFilterDuringNode = deserializedSlicesNode
+      .nextNodes[0] as FilterDuringNode;
+    expect(deserializedFilterDuringNode).toBeInstanceOf(FilterDuringNode);
+
+    // Verify primaryInput connection
+    expect(deserializedFilterDuringNode.primaryInput?.nodeId).toBe(
+      deserializedSlicesNode.nodeId,
+    );
+
+    // Verify secondaryInputs connection
+    expect(deserializedFilterDuringNode.secondaryInputs.connections.size).toBe(
+      1,
+    );
+
+    // Verify filter settings preserved
+    expect(deserializedFilterDuringNode.state.filterNegativeDurPrimary).toBe(
+      true,
+    );
+    expect(deserializedFilterDuringNode.state.filterNegativeDurSecondary).toBe(
+      false,
+    );
+  });
+
+  test('serializes and deserializes filter during node with multiple secondary inputs', () => {
+    const slicesNode = new SlicesSourceNode({});
+    const timeRangeNode1 = new TimeRangeSourceNode({trace});
+    const timeRangeNode2 = new TimeRangeSourceNode({trace});
+    const timeRangeNode3 = new TimeRangeSourceNode({trace});
+
+    const filterDuringNode = new FilterDuringNode({});
+
+    // Connect slicesNode as primaryInput
+    slicesNode.nextNodes.push(filterDuringNode);
+    filterDuringNode.primaryInput = slicesNode;
+
+    // Connect multiple timeRangeNodes as secondaryInputs
+    timeRangeNode1.nextNodes.push(filterDuringNode);
+    filterDuringNode.secondaryInputs.connections.set(0, timeRangeNode1);
+
+    timeRangeNode2.nextNodes.push(filterDuringNode);
+    filterDuringNode.secondaryInputs.connections.set(1, timeRangeNode2);
+
+    timeRangeNode3.nextNodes.push(filterDuringNode);
+    filterDuringNode.secondaryInputs.connections.set(2, timeRangeNode3);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [slicesNode, timeRangeNode1, timeRangeNode2, timeRangeNode3],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(4);
+
+    // Find the deserialized filter during node
+    const deserializedSlicesNode = deserializedState.rootNodes[0];
+    const deserializedFilterDuringNode = deserializedSlicesNode
+      .nextNodes[0] as FilterDuringNode;
+
+    // Verify all secondary inputs are preserved
+    expect(deserializedFilterDuringNode.secondaryInputs.connections.size).toBe(
+      3,
+    );
+    expect(
+      deserializedFilterDuringNode.secondaryInputs.connections.get(0)?.nodeId,
+    ).toBe(deserializedState.rootNodes[1].nodeId);
+    expect(
+      deserializedFilterDuringNode.secondaryInputs.connections.get(1)?.nodeId,
+    ).toBe(deserializedState.rootNodes[2].nodeId);
+    expect(
+      deserializedFilterDuringNode.secondaryInputs.connections.get(2)?.nodeId,
+    ).toBe(deserializedState.rootNodes[3].nodeId);
+  });
+
+  // ========================================
+  // Complex Connection Scenarios
+  // ========================================
+
+  test('serializes and deserializes complex graph with diamond pattern', () => {
+    // Diamond pattern: table -> filter -> |
+    //                  table -> sort   -> | -> union
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      filters: [{column: 'name', op: '=', value: 'foo'}],
+    });
+    addConnection(tableNode1, filterNode);
+
+    const sortNode = new SortNode({sortColNames: ['ts']});
+    addConnection(tableNode2, sortNode);
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const unionNode = new UnionNode({
+      inputNodes: [filterNode, sortNode],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+      ],
+    });
+    filterNode.nextNodes.push(unionNode);
+    sortNode.nextNodes.push(unionNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(2);
+
+    // Verify the diamond converges at union
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedTableNode2 = deserializedState.rootNodes[1];
+
+    const deserializedFilterNode = deserializedTableNode1
+      .nextNodes[0] as FilterNode;
+    const deserializedSortNode = deserializedTableNode2
+      .nextNodes[0] as SortNode;
+
+    expect(deserializedFilterNode.nextNodes.length).toBe(1);
+    expect(deserializedSortNode.nextNodes.length).toBe(1);
+
+    // Both should converge to the same union node
+    const deserializedUnionNode1 = deserializedFilterNode.nextNodes[0];
+    const deserializedUnionNode2 = deserializedSortNode.nextNodes[0];
+    expect(deserializedUnionNode1.nodeId).toBe(deserializedUnionNode2.nodeId);
+  });
+
+  test('serializes and deserializes deep chain with 6+ nodes', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const filterNode1 = new FilterNode({
+      filters: [{column: 'name', op: '!=', value: 'idle'}],
+    });
+    addConnection(tableNode, filterNode1);
+
+    const filterNode2 = new FilterNode({
+      filters: [{column: 'dur', op: '>', value: 1000}],
+    });
+    addConnection(filterNode1, filterNode2);
+
+    const sortNode = new SortNode({sortColNames: ['ts']});
+    addConnection(filterNode2, sortNode);
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const aggregationNode = new AggregationNode({
+      groupByColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+      ],
+      aggregations: [
+        {
+          column: {
+            name: 'dur',
+            type: 'TIMESTAMP_NS',
+            checked: true,
+            column: sliceTable.columns[2],
+          },
+          aggregationOp: 'SUM',
+          newColumnName: 'total_dur',
+        },
+      ],
+    });
+    addConnection(sortNode, aggregationNode);
+
+    const limitNode = new LimitAndOffsetNode({limit: 100, offset: 0});
+    addConnection(aggregationNode, limitNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+
+    // Walk the chain and verify all connections
+    let currentNode = deserializedState.rootNodes[0];
+    expect(currentNode).toBeInstanceOf(TableSourceNode);
+
+    currentNode = currentNode.nextNodes[0];
+    expect(currentNode).toBeInstanceOf(FilterNode);
+    expect((currentNode as FilterNode).primaryInput).toBeDefined();
+
+    currentNode = currentNode.nextNodes[0];
+    expect(currentNode).toBeInstanceOf(FilterNode);
+    expect((currentNode as FilterNode).primaryInput).toBeDefined();
+
+    currentNode = currentNode.nextNodes[0];
+    expect(currentNode).toBeInstanceOf(SortNode);
+    expect((currentNode as SortNode).primaryInput).toBeDefined();
+
+    currentNode = currentNode.nextNodes[0];
+    expect(currentNode).toBeInstanceOf(AggregationNode);
+    expect((currentNode as AggregationNode).primaryInput).toBeDefined();
+
+    currentNode = currentNode.nextNodes[0];
+    expect(currentNode).toBeInstanceOf(LimitAndOffsetNode);
+    expect((currentNode as LimitAndOffsetNode).primaryInput).toBeDefined();
+    expect(currentNode.nextNodes.length).toBe(0); // End of chain
+  });
+
+  test('serializes and deserializes graph with interval intersect and union combined', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode3 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    // Create interval intersect with first two tables
+    const intervalIntersectNode = new IntervalIntersectNode({
+      inputNodes: [tableNode1, tableNode2],
+    });
+    tableNode1.nextNodes.push(intervalIntersectNode);
+    tableNode2.nextNodes.push(intervalIntersectNode);
+
+    // Create union with interval intersect result and third table
+    const sliceTable = sqlModules.getTable('slice')!;
+    const unionNode = new UnionNode({
+      inputNodes: [intervalIntersectNode, tableNode3],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+      ],
+    });
+    intervalIntersectNode.nextNodes.push(unionNode);
+    tableNode3.nextNodes.push(unionNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2, tableNode3],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(3);
+
+    // Find interval intersect node
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedIntervalIntersectNode = deserializedTableNode1
+      .nextNodes[0] as IntervalIntersectNode;
+    expect(deserializedIntervalIntersectNode).toBeInstanceOf(
+      IntervalIntersectNode,
+    );
+
+    // Verify interval intersect has 2 secondary inputs
+    expect(
+      deserializedIntervalIntersectNode.secondaryInputs.connections.size,
+    ).toBe(2);
+
+    // Find union node
+    expect(deserializedIntervalIntersectNode.nextNodes.length).toBe(1);
+    const deserializedUnionNode = deserializedIntervalIntersectNode
+      .nextNodes[0] as UnionNode;
+    expect(deserializedUnionNode).toBeInstanceOf(UnionNode);
+
+    // Union should have 2 inputs: interval intersect and tableNode3
+    expect(deserializedUnionNode.secondaryInputs.connections.size).toBe(2);
+  });
+
+  // ========================================
+  // Connection Removal Tests
+  // ========================================
+
+  test('handles removing connection from middle of chain', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      filters: [{column: 'name', op: '=', value: 'foo'}],
+    });
+    addConnection(tableNode, filterNode);
+
+    const sortNode = new SortNode({sortColNames: ['ts']});
+    addConnection(filterNode, sortNode);
+
+    const limitNode = new LimitAndOffsetNode({limit: 10, offset: 0});
+    addConnection(sortNode, limitNode);
+
+    // Remove the filter node from the chain
+    removeConnection(tableNode, filterNode);
+    removeConnection(filterNode, sortNode);
+
+    // Reconnect directly
+    addConnection(tableNode, sortNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    // Table -> Sort -> Limit (filter should be orphaned)
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+
+    const deserializedSortNode = deserializedTableNode.nextNodes[0] as SortNode;
+    expect(deserializedSortNode).toBeInstanceOf(SortNode);
+    expect(deserializedSortNode.primaryInput?.nodeId).toBe(
+      deserializedTableNode.nodeId,
+    );
+
+    expect(deserializedSortNode.nextNodes.length).toBe(1);
+    const deserializedLimitNode = deserializedSortNode
+      .nextNodes[0] as LimitAndOffsetNode;
+    expect(deserializedLimitNode).toBeInstanceOf(LimitAndOffsetNode);
+  });
+
+  test('handles removing one input from multi-input node', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode3 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const unionNode = new UnionNode({
+      inputNodes: [tableNode1, tableNode2, tableNode3],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+      ],
+    });
+    tableNode1.nextNodes.push(unionNode);
+    tableNode2.nextNodes.push(unionNode);
+    tableNode3.nextNodes.push(unionNode);
+
+    // Remove the second table from union
+    removeConnection(tableNode2, unionNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2, tableNode3],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    // Find union node
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedUnionNode = deserializedTableNode1
+      .nextNodes[0] as UnionNode;
+
+    // Union should only have 2 inputs now
+    expect(deserializedUnionNode.secondaryInputs.connections.size).toBe(2);
+
+    // tableNode2 should have no nextNodes
+    const deserializedTableNode2 = deserializedState.rootNodes[1];
+    expect(deserializedTableNode2.nextNodes.length).toBe(0);
+  });
+
+  test('handles removing all inputs from multi-input node', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const unionNode = new UnionNode({
+      inputNodes: [tableNode1, tableNode2],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+      ],
+    });
+    tableNode1.nextNodes.push(unionNode);
+    tableNode2.nextNodes.push(unionNode);
+
+    // Remove all inputs
+    removeConnection(tableNode1, unionNode);
+    removeConnection(tableNode2, unionNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2, unionNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    // Union should be a root node now with no inputs
+    expect(deserializedState.rootNodes.length).toBe(3);
+
+    // Find the union node (should be the third root)
+    const deserializedUnionNode = deserializedState.rootNodes.find(
+      (n) => n.type === NodeType.kUnion,
+    ) as UnionNode;
+    expect(deserializedUnionNode).toBeDefined();
+    expect(deserializedUnionNode.secondaryInputs.connections.size).toBe(0);
+  });
+
+  test('handles graph with multiple disconnected subgraphs', () => {
+    // First subgraph: table1 -> filter
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const filterNode = new FilterNode({
+      filters: [{column: 'name', op: '=', value: 'foo'}],
+    });
+    addConnection(tableNode1, filterNode);
+
+    // Second subgraph: table2 -> sort -> limit
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const sortNode = new SortNode({sortColNames: ['ts']});
+    addConnection(tableNode2, sortNode);
+    const limitNode = new LimitAndOffsetNode({limit: 100, offset: 0});
+    addConnection(sortNode, limitNode);
+
+    // Third subgraph: standalone slices source
+    const slicesNode = new SlicesSourceNode({});
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2, slicesNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(3);
+
+    // Verify first subgraph
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    expect(deserializedTableNode1.nextNodes[0]).toBeInstanceOf(FilterNode);
+
+    // Verify second subgraph
+    const deserializedTableNode2 = deserializedState.rootNodes[1];
+    expect(deserializedTableNode2.nextNodes.length).toBe(1);
+    const deserializedSortNode = deserializedTableNode2.nextNodes[0];
+    expect(deserializedSortNode).toBeInstanceOf(SortNode);
+    expect(deserializedSortNode.nextNodes.length).toBe(1);
+    expect(deserializedSortNode.nextNodes[0]).toBeInstanceOf(
+      LimitAndOffsetNode,
+    );
+
+    // Verify third subgraph
+    const deserializedSlicesNode = deserializedState.rootNodes[2];
+    expect(deserializedSlicesNode).toBeInstanceOf(SlicesSourceNode);
+    expect(deserializedSlicesNode.nextNodes.length).toBe(0);
+  });
+
+  test('serializes and deserializes time range source node', () => {
+    const timeRangeNode = new TimeRangeSourceNode({
+      trace,
+      start: Time.fromRaw(1000n),
+      end: Time.fromRaw(2000n),
+    });
+
+    const initialState: ExplorePageState = {
+      rootNodes: [timeRangeNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedNode = deserializedState
+      .rootNodes[0] as TimeRangeSourceNode;
+    expect(deserializedNode).toBeInstanceOf(TimeRangeSourceNode);
+    expect(deserializedNode.state.start).toEqual(Time.fromRaw(1000n));
+    expect(deserializedNode.state.end).toEqual(Time.fromRaw(2000n));
   });
 });

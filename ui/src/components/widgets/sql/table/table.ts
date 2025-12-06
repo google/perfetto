@@ -16,7 +16,7 @@ import m from 'mithril';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
+import {Row} from '../../../../trace_processor/query_result';
 import {Spinner} from '../../../../widgets/spinner';
 import {
   Grid,
@@ -62,20 +62,9 @@ function renderCell(
   state: SqlTableState,
 ): RenderedCell {
   const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.column)]];
+  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]];
 
-  const additionalValues: {[key: string]: SqlValue} = {};
-  const supportingColumns: {[key: string]: SqlColumn} =
-    column.supportingColumns?.() ?? {};
-  for (const [key, col] of Object.entries(supportingColumns)) {
-    additionalValues[key] = row[columns[sqlColumnId(col)]];
-  }
-
-  const result = column.renderCell(
-    sqlValue,
-    getTableManager(state),
-    additionalValues,
-  );
+  const result = column.renderCell(sqlValue, getTableManager(state));
 
   return result;
 }

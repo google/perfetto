@@ -18,12 +18,12 @@
 .pf-exp-input {
   width: 100%;
   padding: 0.75rem;
-  margin-bottom: 1rem;
   border: 1px solid var(--pf-color-border);
-  border-radius: 0.375rem;
-  font-size: 1em;
+  border-radius: 4px;
+  font-size: 0.875rem;
   transition: border-color 0.2s ease-in-out;
   background: var(--pf-color-background);
+  color: inherit;
 
   &:focus {
     border-color: var(--pf-color-primary);
@@ -51,8 +51,8 @@
 
 // Common editor style
 .pf-exp-editor {
-  padding: 1rem;
-  border-radius: 6px;
+  padding: 0.75rem;
+  border-radius: 4px;
   border: 1px solid var(--pf-color-border);
 }
 
@@ -60,7 +60,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 1rem;
+  padding: 0.75rem;
   border: 1px solid var(--pf-color-border);
-  border-radius: 8px;
+  border-radius: 4px;
 }

@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk-sys"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["David Reveman <dreveman@gmail.com>"]
 build = "build.rs"
 description = "Low-level FFI bindings for Perfetto"
@@ -15,7 +15,15 @@ categories = ["external-ffi-bindings"]
 license = "Apache-2.0"
 homepage = "https://www.perfetto.dev"
 repository = "https://github.com/google/perfetto"
-exclude = ["include/perfetto/public/abi/BUILD.gn"]
+include = [
+    "build.rs",
+    "Cargo.toml",
+    "include/**",
+    "libperfetto_c/**",
+    "README.md",
+    "src/**",
+    "wrapper.h",
+]
 
 [features]
 default = ["vendored"]

@@ -15,16 +15,18 @@
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 import {download} from '../../../base/download_utils';
+import {FuzzyFinder} from '../../../base/fuzzy';
 import {Icons} from '../../../base/semantic_icons';
 import {exists} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
-import {Box} from '../../../widgets/box';
-import {Button} from '../../../widgets/button';
-import {Chip} from '../../../widgets/chip';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {EmptyState} from '../../../widgets/empty_state';
+import {Form} from '../../../widgets/form';
+import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
-import {MenuDivider, MenuItem, MenuTitle} from '../../../widgets/menu';
-import {Stack, StackAuto} from '../../../widgets/stack';
+import {MenuDivider, MenuItem} from '../../../widgets/menu';
+import {TextInput} from '../../../widgets/text_input';
 import {
   renderSortMenuItems,
   Grid,
@@ -38,33 +40,19 @@ import {
   ColumnDefinition,
   DataGridDataSource,
   DataGridFilter,
+  DEFAULT_SUPPORTED_FILTERS,
+  FilterType,
   RowDef,
   Sorting,
 } from './common';
 import {InMemoryDataSource} from './in_memory_data_source';
-
-export class GridFilterBar implements m.ClassComponent {
-  view({children}: m.Vnode) {
-    return m(Stack, {orientation: 'horizontal', wrap: true}, children);
-  }
-}
-
-export interface GridFilterAttrs {
-  readonly content: string;
-  onRemove(): void;
-}
-
-export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
-  view({attrs}: m.Vnode<GridFilterAttrs>): m.Children {
-    return m(Chip, {
-      className: 'pf-grid-filter',
-      label: attrs.content,
-      removable: true,
-      onRemove: attrs.onRemove,
-      title: attrs.content,
-    });
-  }
-}
+import {
+  defaultValueFormatter,
+  formatAsTSV,
+  formatAsJSON,
+  formatAsMarkdown,
+} from './export_utils';
+import {DataGridToolbar} from './data_grid_toolbar';
 
 export interface AggregationCellAttrs extends m.Attributes {
   readonly symbol?: string;
@@ -104,15 +92,10 @@ export class AggregationCell implements m.ClassComponent<AggregationCellAttrs> {
  */
 
 type OnFilterAdd = (filter: DataGridFilter) => void;
-type OnFilterRemove = (index: number) => void;
+export type OnFilterRemove = (index: number) => void;
 type OnSortingChanged = (sorting: Sorting) => void;
 type ColumnOrder = ReadonlyArray<string>;
 type OnColumnOrderChanged = (columnOrder: ColumnOrder) => void;
-type CellRenderer = (
-  value: SqlValue,
-  columnName: string,
-  row: RowDef,
-) => m.Children;
 
 function noOp() {}
 
@@ -186,6 +169,7 @@ export interface DataGridAttrs {
    */
   readonly onFilterAdd?: OnFilterAdd;
   readonly onFilterRemove?: OnFilterRemove;
+  readonly clearFilters?: () => void;
 
   /**
    * Order of columns to display - can operate in controlled or uncontrolled
@@ -221,16 +205,6 @@ export interface DataGridAttrs {
   readonly columnReordering?: boolean;
 
   /**
-   * Optional custom cell renderer function.
-   * Allows customization of how cell values are displayed.
-   * @param value The raw value from the data source
-   * @param columnName The name of the column being rendered
-   * @param row The complete row data
-   * @returns Renderable Mithril content for the cell
-   */
-  readonly cellRenderer?: CellRenderer;
-
-  /**
    * Display applied filters in the toolbar. Set to false to hide them, for
    * example, if filters are displayed elsewhere in the UI. This does not
    * disable filtering functionality.
@@ -243,12 +217,6 @@ export interface DataGridAttrs {
    * Fill parent container vertically.
    */
   readonly fillHeight?: boolean;
-
-  /**
-   * Whether to show a 'reset' button on the toolbar, which resets filters and
-   * sorting state. Default = false.
-   */
-  readonly showResetButton?: boolean;
 
   /**
    * Extra items to place on the toolbar.
@@ -264,6 +232,52 @@ export interface DataGridAttrs {
    * Optional class name added to the root element of the data grid.
    */
   readonly className?: string;
+
+  /**
+   * Enable export buttons in toolbar. When enabled, adds Copy and Download
+   * buttons that export the current filtered/sorted data.
+   * Default = false.
+   */
+  readonly showExportButton?: boolean;
+
+  /**
+   * Show row count in toolbar. Displays the number of filtered rows and total rows.
+   * Default = false.
+   */
+  readonly showRowCount?: boolean;
+
+  /**
+   * Callback that receives the DataGrid API when the grid is ready.
+   * Allows parent components to programmatically export data.
+   */
+  readonly onReady?: (api: DataGridApi) => void;
+
+  /**
+   * Specify which filter types should be available in the column filter menu.
+   * Default includes all filter types: ['null', 'equals', 'contains', 'glob']
+   *
+   * Available filter types:
+   * - 'null': Filter out nulls / Only show nulls
+   * - 'equals': Equals to... / Not equals to... (uses distinct values)
+   * - 'contains': Contains... / Not contains...
+   * - 'glob': Glob... / Not glob...
+   */
+  readonly supportedFilters?: ReadonlyArray<FilterType>;
+}
+
+export interface DataGridApi {
+  /**
+   * Export all filtered and sorted data from the grid.
+   * @param format The format to export in
+   * @returns Promise<string> The formatted data as a string
+   */
+  exportData(format: 'tsv' | 'json' | 'markdown'): Promise<string>;
+
+  /**
+   * Get the total number of rows in the current filtered dataset.
+   * @returns The total row count
+   */
+  getRowCount(): number;
 }
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
@@ -277,6 +291,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
   private gridApi?: GridApi;
+  // Track columns needing distinct values
+  private distinctValuesColumns = new Set<string>();
+  private dataGridApi: DataGridApi = {
+    exportData: async (format) => {
+      if (!this.currentDataSource || !this.currentColumns) {
+        throw new Error('DataGrid not ready for export');
+      }
+      return await this.formatData(
+        this.currentDataSource,
+        this.currentColumns,
+        format,
+      );
+    },
+    getRowCount: () => {
+      return this.currentDataSource?.rows?.totalRows ?? 0;
+    },
+  };
+  private currentDataSource?: DataGridDataSource;
+  private currentColumns?: ReadonlyArray<ColumnDefinition>;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -318,18 +351,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             this.filters = newFilters;
           }
         : noOp,
+      clearFilters = filters === this.filters
+        ? () => {
+            this.filters = [];
+          }
+        : noOp,
       columnOrder = this.columnOrder,
       onColumnOrderChanged = columnOrder === this.columnOrder
         ? (x) => (this.columnOrder = x)
         : noOp,
       columnReordering = onColumnOrderChanged !== noOp,
-      cellRenderer = renderCell,
       showFiltersInToolbar = true,
       fillHeight = false,
-      showResetButton = false,
       toolbarItemsLeft,
       toolbarItemsRight,
       className,
+      showExportButton = false,
+      showRowCount = false,
+      onReady,
+      supportedFilters = DEFAULT_SUPPORTED_FILTERS,
     } = attrs;
 
     // In uncontrolled mode, sync columnOrder with truly new columns
@@ -372,7 +412,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       aggregates: columns
         .filter((c) => c.aggregation)
         .map((c) => ({col: c.name, func: c.aggregation!})),
+      distinctValuesColumns: this.distinctValuesColumns,
     });
+
+    // Store current state for API access
+    this.currentDataSource = dataSource;
+    this.currentColumns = orderedColumns;
+
+    // Create and expose DataGrid API if needed
+    onReady?.(this.dataGridApi);
 
     const sortControls = onSort !== noOp;
     const filtersUncontrolled = filters === this.filters;
@@ -392,10 +440,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         }
       })();
 
-      const menuItems: m.Children = [];
-      sortControls && menuItems.push(m(MenuTitle, {label: 'Sorting'}));
-      sortControls &&
-        menuItems.push(
+      // Build default menu groups
+      const defaultGroups: {
+        sorting?: m.Children;
+        filters?: m.Children;
+        fitToContent?: m.Children;
+        columnManagement?: m.Children;
+      } = {};
+
+      // Sorting group
+      if (sortControls) {
+        defaultGroups.sorting = [
           ...renderSortMenuItems(sort, (direction) => {
             if (direction) {
               onSort({
@@ -408,123 +463,388 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               });
             }
           }),
-        );
-
-      if (filterControls && sortControls && menuItems.length > 0) {
-        menuItems.push(m(MenuDivider));
-        menuItems.push(m(MenuTitle, {label: 'Filters'}));
+        ];
       }
 
+      // Filters group
       if (filterControls) {
-        menuItems.push(
+        const distinctState = dataSource.rows?.distinctValues?.get(column.name);
+
+        // Build filter submenu - just add dividers freely, CSS will clean them up
+        const filterSubmenuItems: m.Children = [
+          // Null filters
+          supportedFilters.includes('is not null') &&
+            m(MenuItem, {
+              label: 'Filter out nulls',
+              onclick: () => {
+                onFilterAdd({column: column.name, op: 'is not null'});
+              },
+            }),
+          supportedFilters.includes('is null') &&
+            m(MenuItem, {
+              label: 'Only show nulls',
+              onclick: () => {
+                onFilterAdd({column: column.name, op: 'is null'});
+              },
+            }),
+          m(MenuDivider),
+          // Value-based filters for columns with distinct values enabled
+          (column.distinctValues ?? true) &&
+            supportedFilters.includes('in') &&
+            m(
+              MenuItem,
+              {
+                label: 'Equals to...',
+                onChange: (isOpen) => {
+                  if (isOpen === true) {
+                    this.distinctValuesColumns.add(column.name);
+                  } else {
+                    this.distinctValuesColumns.delete(column.name);
+                  }
+                },
+              },
+              m(DistinctValuesSubmenu, {
+                columnName: column.name,
+                distinctState,
+                formatValue: this.formatDistinctValue.bind(this),
+                onApply: (selectedValues) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: 'in',
+                    value: Array.from(selectedValues),
+                  });
+                },
+              }),
+            ),
+          (column.distinctValues ?? true) &&
+            supportedFilters.includes('not in') &&
+            m(
+              MenuItem,
+              {
+                label: 'Not equals to...',
+                onChange: (isOpen) => {
+                  if (isOpen === true) {
+                    this.distinctValuesColumns.add(column.name);
+                  } else {
+                    this.distinctValuesColumns.delete(column.name);
+                  }
+                },
+              },
+              m(DistinctValuesSubmenu, {
+                columnName: column.name,
+                distinctState,
+                formatValue: this.formatDistinctValue.bind(this),
+                onApply: (selectedValues) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: 'not in',
+                    value: Array.from(selectedValues),
+                  });
+                },
+              }),
+            ),
+          m(MenuDivider),
+          // Free-text equals/not equals filters for columns without distinct values
+          !(column.distinctValues ?? true) &&
+            supportedFilters.includes('=') &&
+            m(
+              MenuItem,
+              {
+                label: 'Equals to...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '=',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '=',
+                    value,
+                  });
+                },
+              }),
+            ),
+          !(column.distinctValues ?? true) &&
+            supportedFilters.includes('!=') &&
+            m(
+              MenuItem,
+              {
+                label: 'Not equals to...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '!=',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '!=',
+                    value,
+                  });
+                },
+              }),
+            ),
+          m(MenuDivider),
+          // Numeric comparison filters (only for numeric columns)
+          column.filterType === 'numeric' &&
+            supportedFilters.includes('>') &&
+            m(
+              MenuItem,
+              {
+                label: 'Greater than...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '>',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '>',
+                    value,
+                  });
+                },
+              }),
+            ),
+          column.filterType === 'numeric' &&
+            supportedFilters.includes('>=') &&
+            m(
+              MenuItem,
+              {
+                label: 'Greater than or equal...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '>=',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '>=',
+                    value,
+                  });
+                },
+              }),
+            ),
+          column.filterType === 'numeric' &&
+            supportedFilters.includes('<') &&
+            m(
+              MenuItem,
+              {
+                label: 'Less than...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '<',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '<',
+                    value,
+                  });
+                },
+              }),
+            ),
+          column.filterType === 'numeric' &&
+            supportedFilters.includes('<=') &&
+            m(
+              MenuItem,
+              {
+                label: 'Less than or equal...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: '<=',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: '<=',
+                    value,
+                  });
+                },
+              }),
+            ),
+          m(MenuDivider),
+          // Text-based filters (only if filterType is not 'numeric')
+          column.filterType !== 'numeric' &&
+            supportedFilters.includes('glob') &&
+            m(
+              MenuItem,
+              {
+                label: 'Contains...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: 'contains',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: 'glob',
+                    value: toCaseInsensitiveGlob(String(value)),
+                  });
+                },
+              }),
+            ),
+          column.filterType !== 'numeric' &&
+            supportedFilters.includes('not glob') &&
+            m(
+              MenuItem,
+              {
+                label: 'Not contains...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: 'not contains',
+                onApply: (value) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: 'not glob',
+                    value: toCaseInsensitiveGlob(String(value)),
+                  });
+                },
+              }),
+            ),
+          column.filterType !== 'numeric' &&
+            supportedFilters.includes('glob') &&
+            m(
+              MenuItem,
+              {
+                label: 'Glob...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: 'glob',
+                onApply: (value) => {
+                  onFilterAdd({column: column.name, op: 'glob', value});
+                },
+              }),
+            ),
+          column.filterType !== 'numeric' &&
+            supportedFilters.includes('not glob') &&
+            m(
+              MenuItem,
+              {
+                label: 'Not glob...',
+              },
+              m(TextFilterSubmenu, {
+                columnName: column.name,
+                operator: 'not glob',
+                onApply: (value) => {
+                  onFilterAdd({column: column.name, op: 'not glob', value});
+                },
+              }),
+            ),
+        ];
+
+        // Only set filters group if there are any filter options
+        // (filterSubmenuItems will be empty array if all conditions are false)
+        if (filterSubmenuItems.some((item) => item !== false)) {
+          defaultGroups.filters = [
+            m(
+              MenuItem,
+              {label: 'Add filter...', icon: Icons.Filter},
+              filterSubmenuItems,
+            ),
+          ];
+        }
+      }
+
+      // Fit to content button (separate from column management)
+      if (this.gridApi) {
+        const gridApi = this.gridApi;
+        defaultGroups.fitToContent = m(MenuItem, {
+          label: 'Fit to content',
+          icon: 'fit_width',
+          onclick: () => gridApi.autoFitColumn(column.name),
+        });
+      }
+
+      // Column management options
+      const columnManagementItems: m.Children[] = [];
+
+      // Hide current column (only if more than 1 visible)
+      if (orderedColumns.length > 1) {
+        columnManagementItems.push(
           m(MenuItem, {
-            label: 'Filter out nulls',
+            label: 'Hide column',
+            icon: Icons.Hide,
             onclick: () => {
-              onFilterAdd({column: column.name, op: 'is not null'});
-            },
-          }),
-          m(MenuItem, {
-            label: 'Only show nulls',
-            onclick: () => {
-              onFilterAdd({column: column.name, op: 'is null'});
+              const newOrder = columnOrder.filter(
+                (name) => name !== column.name,
+              );
+              onColumnOrderChanged(newOrder);
             },
           }),
         );
       }
 
-      if (Boolean(column.headerMenuItems)) {
-        if (menuItems.length > 0) {
-          menuItems.push(m(MenuDivider));
-        }
-        menuItems.push(column.headerMenuItems);
-      }
+      const allColumnsShowing = columns.every((col) =>
+        columnOrder.includes(col.name),
+      );
 
-      // Add column visibility options if column reordering is enabled
-      if (columnReordering) {
-        if (menuItems.length > 0) {
-          menuItems.push(m(MenuDivider));
-          menuItems.push(m(MenuTitle, {label: 'Column'}));
-        }
-
-        if (this.gridApi) {
-          const gridApi = this.gridApi;
-          menuItems.push(
+      // Show/hide columns submenu
+      columnManagementItems.push(
+        m(
+          MenuItem,
+          {
+            label: 'Manage columns',
+            icon: 'view_column',
+          },
+          [
+            // Show all
             m(MenuItem, {
-              label: 'Fit to content',
-              icon: 'fit_width',
-              onclick: () => gridApi.autoFitColumn(column.name),
-            }),
-          );
-        }
-
-        // Hide current column (only if more than 1 visible)
-        if (orderedColumns.length > 1) {
-          menuItems.push(
-            m(MenuItem, {
-              label: 'Hide',
-              icon: Icons.Hide,
+              label: 'Show all',
+              icon: allColumnsShowing ? Icons.Checkbox : Icons.BlankCheckbox,
+              closePopupOnClick: false,
               onclick: () => {
-                const newOrder = columnOrder.filter(
-                  (name) => name !== column.name,
-                );
+                const newOrder = columns.map((c) => c.name);
                 onColumnOrderChanged(newOrder);
               },
             }),
-          );
-        }
-
-        const allColumnsShowing = columns.every((col) =>
-          columnOrder.includes(col.name),
-        );
-
-        // Show/hide columns submenu
-        menuItems.push(
-          m(
-            MenuItem,
-            {
-              label: 'Manage columns',
-              icon: 'view_column',
-            },
-            [
-              // Show all
-              m(MenuItem, {
-                label: 'Show all',
-                icon: allColumnsShowing ? Icons.Checkbox : Icons.BlankCheckbox,
+            m(MenuDivider),
+            // Individual columns
+            columns.map((col) => {
+              const isVisible = columnOrder.includes(col.name);
+              const columnLabel =
+                col.title !== undefined ? String(col.title) : col.name;
+              return m(MenuItem, {
+                label: columnLabel,
                 closePopupOnClick: false,
+                icon: isVisible ? Icons.Checkbox : Icons.BlankCheckbox,
                 onclick: () => {
-                  const newOrder = columns.map((c) => c.name);
-                  onColumnOrderChanged(newOrder);
-                },
-              }),
-              m(MenuDivider),
-              // Individual columns
-              columns.map((col) => {
-                const isVisible = columnOrder.includes(col.name);
-                return m(MenuItem, {
-                  label: col.name,
-                  closePopupOnClick: false,
-                  icon: isVisible ? Icons.Checkbox : Icons.BlankCheckbox,
-                  onclick: () => {
-                    if (isVisible) {
-                      // Hide: remove from order (but keep at least 1 column)
-                      if (columnOrder.length > 1) {
-                        const newOrder = columnOrder.filter(
-                          (name) => name !== col.name,
-                        );
-                        onColumnOrderChanged(newOrder);
-                      }
-                    } else {
-                      // Show: add to end of order
-                      const newOrder = [...columnOrder, col.name];
+                  if (isVisible) {
+                    // Hide: remove from order (but keep at least 1 column)
+                    if (columnOrder.length > 1) {
+                      const newOrder = columnOrder.filter(
+                        (name) => name !== col.name,
+                      );
                       onColumnOrderChanged(newOrder);
                     }
-                  },
-                });
-              }),
-            ],
-          ),
-        );
+                  } else {
+                    // Show: add to end of order
+                    const newOrder = [...columnOrder, col.name];
+                    onColumnOrderChanged(newOrder);
+                  }
+                },
+              });
+            }),
+          ],
+        ),
+      );
+
+      if (columnManagementItems.length > 0) {
+        defaultGroups.columnManagement = columnManagementItems;
       }
+
+      // Build final menu items using contextMenuRenderer if provided
+      const menuItems: m.Children = column.contextMenuRenderer
+        ? column.contextMenuRenderer(defaultGroups)
+        : [
+            defaultGroups.sorting,
+            m(MenuDivider),
+            defaultGroups.filters,
+            m(MenuDivider),
+            defaultGroups.fitToContent,
+            m(MenuDivider),
+            defaultGroups.columnManagement,
+          ];
 
       // Build aggregation sub-content if needed
       const subContent =
@@ -534,11 +854,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               {
                 symbol: aggregationFunIcon(column.aggregation),
               },
-              cellRenderer(
-                dataSource.rows.aggregates[column.name],
-                column.name,
-                dataSource.rows.aggregates,
-              ),
+              column.cellRenderer
+                ? column.cellRenderer(
+                    dataSource.rows.aggregates[column.name],
+                    dataSource.rows.aggregates,
+                  )
+                : renderCell(
+                    dataSource.rows.aggregates[column.name],
+                    column.name,
+                  ),
             )
           : undefined;
 
@@ -548,6 +872,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           GridHeaderCell,
           {
             sort,
+            hintSortDirection:
+              sorting.direction === 'UNSORTED' ? undefined : sorting.direction,
             onSort: sortControls
               ? (direction) => {
                   onSort({
@@ -556,9 +882,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   });
                 }
               : undefined,
-            menuItems: menuItems.length > 0 ? menuItems : undefined,
+            menuItems:
+              menuItems !== undefined &&
+              Array.isArray(menuItems) &&
+              menuItems.length > 0
+                ? menuItems
+                : menuItems !== undefined
+                  ? menuItems
+                  : undefined,
             subContent,
-            label: column.name,
           },
           column.title ?? column.name,
         ),
@@ -597,36 +929,49 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
             // Build filter menu items if filtering is enabled
             if (filterControls) {
+              const cellFilterItems: m.Children[] = [];
+
               if (value !== null) {
-                menuItems.push(
-                  m(MenuItem, {
-                    label: 'Filter equal to this',
-                    onclick: () => {
-                      onFilterAdd({
-                        column: column.name,
-                        op: '=',
-                        value: value,
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Filter not equal to this',
-                    onclick: () => {
-                      onFilterAdd({
-                        column: column.name,
-                        op: '!=',
-                        value: value,
-                      });
-                    },
-                  }),
-                );
+                if (supportedFilters.includes('=')) {
+                  cellFilterItems.push(
+                    m(MenuItem, {
+                      label: 'Equal to this',
+                      onclick: () => {
+                        onFilterAdd({
+                          column: column.name,
+                          op: '=',
+                          value: value,
+                        });
+                      },
+                    }),
+                  );
+                }
+                if (supportedFilters.includes('!=')) {
+                  cellFilterItems.push(
+                    m(MenuItem, {
+                      label: 'Not equal to this',
+                      onclick: () => {
+                        onFilterAdd({
+                          column: column.name,
+                          op: '!=',
+                          value: value,
+                        });
+                      },
+                    }),
+                  );
+                }
               }
 
               // Add glob filter option for string columns with text selection
-              if (typeof value === 'string') {
+              // Only show if filterType is not 'numeric'
+              if (
+                typeof value === 'string' &&
+                supportedFilters.includes('glob') &&
+                column.filterType !== 'numeric'
+              ) {
                 const selectedText = window.getSelection()?.toString().trim();
                 if (selectedText && selectedText.length > 0) {
-                  menuItems.push(
+                  cellFilterItems.push(
                     m(
                       MenuItem,
                       {
@@ -667,83 +1012,118 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 }
               }
 
-              if (isNumeric(value)) {
-                menuItems.push(
-                  m(MenuItem, {
-                    label: 'Filter greater than this',
-                    onclick: () => {
-                      onFilterAdd({
-                        column: column.name,
-                        op: '>',
-                        value: value,
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Filter greater than or equal to this',
-                    onclick: () => {
-                      onFilterAdd({
-                        column: column.name,
-                        op: '>=',
-                        value: value,
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Filter less than this',
-                    onclick: () => {
-                      onFilterAdd({
-                        column: column.name,
-                        op: '<',
-                        value: value,
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Filter less than or equal to this',
-                    onclick: () => {
-                      onFilterAdd({
-                        column: column.name,
-                        op: '<=',
-                        value: value,
-                      });
-                    },
-                  }),
-                );
+              // Numeric comparison filters - only show if filterType is not 'string'
+              if (isNumeric(value) && column.filterType !== 'string') {
+                if (supportedFilters.includes('>')) {
+                  cellFilterItems.push(
+                    m(MenuItem, {
+                      label: 'Greater than this',
+                      onclick: () => {
+                        onFilterAdd({
+                          column: column.name,
+                          op: '>',
+                          value: value,
+                        });
+                      },
+                    }),
+                  );
+                }
+                if (supportedFilters.includes('>=')) {
+                  cellFilterItems.push(
+                    m(MenuItem, {
+                      label: 'Greater than or equal to this',
+                      onclick: () => {
+                        onFilterAdd({
+                          column: column.name,
+                          op: '>=',
+                          value: value,
+                        });
+                      },
+                    }),
+                  );
+                }
+                if (supportedFilters.includes('<')) {
+                  cellFilterItems.push(
+                    m(MenuItem, {
+                      label: 'Less than this',
+                      onclick: () => {
+                        onFilterAdd({
+                          column: column.name,
+                          op: '<',
+                          value: value,
+                        });
+                      },
+                    }),
+                  );
+                }
+                if (supportedFilters.includes('<=')) {
+                  cellFilterItems.push(
+                    m(MenuItem, {
+                      label: 'Less than or equal to this',
+                      onclick: () => {
+                        onFilterAdd({
+                          column: column.name,
+                          op: '<=',
+                          value: value,
+                        });
+                      },
+                    }),
+                  );
+                }
               }
 
               if (value === null) {
-                menuItems.push(
-                  m(MenuItem, {
-                    label: 'Filter out nulls',
-                    onclick: () => {
-                      onFilterAdd({
-                        column: column.name,
-                        op: 'is not null',
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Only show nulls',
-                    onclick: () => {
-                      onFilterAdd({
-                        column: column.name,
-                        op: 'is null',
-                      });
-                    },
-                  }),
-                );
-              }
-            }
-
-            // Add custom cell menu items if provided
-            if (column.cellMenuItems !== undefined) {
-              const extraItems = column.cellMenuItems(value, row);
-              if (extraItems !== undefined) {
-                if (menuItems.length > 0) {
-                  menuItems.push(m(MenuDivider));
+                if (supportedFilters.includes('is not null')) {
+                  cellFilterItems.push(
+                    m(MenuItem, {
+                      label: 'Filter out nulls',
+                      onclick: () => {
+                        onFilterAdd({
+                          column: column.name,
+                          op: 'is not null',
+                        });
+                      },
+                    }),
+                  );
                 }
-                menuItems.push(extraItems);
+                if (supportedFilters.includes('is null')) {
+                  cellFilterItems.push(
+                    m(MenuItem, {
+                      label: 'Only show nulls',
+                      onclick: () => {
+                        onFilterAdd({
+                          column: column.name,
+                          op: 'is null',
+                        });
+                      },
+                    }),
+                  );
+                }
+              }
+
+              // Build "Add filter..." menu item to pass to renderer
+              const addFilterItem =
+                cellFilterItems.length > 0
+                  ? m(
+                      MenuItem,
+                      {label: 'Add filter...', icon: Icons.Filter},
+                      cellFilterItems,
+                    )
+                  : undefined;
+
+              // Use custom cell context menu renderer if provided
+              if (column.cellContextMenuRenderer) {
+                const customMenuItems = column.cellContextMenuRenderer(
+                  value,
+                  row,
+                  {addFilter: addFilterItem},
+                );
+                if (customMenuItems !== undefined && customMenuItems !== null) {
+                  menuItems.push(customMenuItems);
+                }
+              } else if (addFilterItem !== undefined) {
+                // Use default: just add the filter menu
+                menuItems.push(addFilterItem);
               }
             }
 
@@ -760,7 +1140,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   nullish: value === null,
                   menuItems: menuItems.length > 0 ? menuItems : undefined,
                 },
-                cellRenderer(value, column.name, row),
+                column.cellRenderer
+                  ? column.cellRenderer(value, row)
+                  : renderCell(value, column.name),
               ),
             );
           });
@@ -778,16 +1160,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           className,
         ),
       },
-      this.renderTableToolbar(
+      m(DataGridToolbar, {
         filters,
-        sorting,
-        onSort,
-        onFilterRemove,
-        showFiltersInToolbar,
-        showResetButton,
+        columns,
+        totalRows: rows?.totalRows ?? 0,
+        showFilters: showFiltersInToolbar,
+        showRowCount,
+        showExportButton,
         toolbarItemsLeft,
         toolbarItemsRight,
-      ),
+        dataGridApi: this.dataGridApi,
+        onFilterRemove,
+        formatFilter: this.formatFilter.bind(this),
+      }),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
         state: dataSource.isLoading ? 'indeterminate' : 'none',
@@ -824,65 +1209,139 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         onReady: (api) => {
           this.gridApi = api;
         },
+        emptyState:
+          rows?.totalRows === 0 && !dataSource.isLoading
+            ? m(
+                EmptyState,
+                {
+                  title:
+                    filters.length > 0
+                      ? 'No results match your filters'
+                      : 'No data available',
+                  fillHeight: true,
+                },
+                filters.length > 0 &&
+                  m(Button, {
+                    variant: ButtonVariant.Filled,
+                    icon: Icons.FilterOff,
+                    label: 'Clear filters',
+                    onclick: clearFilters,
+                  }),
+              )
+            : undefined,
       }),
     );
   }
 
-  private renderTableToolbar(
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
-    onSort: OnSortingChanged,
-    onFilterRemove: OnFilterRemove,
-    showFilters: boolean,
-    showResetButton: boolean,
-    toolbarItemsLeft: m.Children,
-    toolbarItemsRight: m.Children,
-  ) {
-    if (
-      filters.length === 0 &&
-      !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
-      showResetButton === false
-    ) {
-      return undefined;
+  private formatDistinctValue(value: SqlValue): string {
+    if (value === null) {
+      return 'NULL';
     }
-
-    return m(Box, {className: 'pf-data-grid__toolbar', spacing: 'small'}, [
-      m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
-        toolbarItemsLeft,
-        showResetButton &&
-          m(Button, {
-            icon: Icons.ResetState,
-            label: 'Reset',
-            disabled: filters.length === 0 && sorting.direction === 'UNSORTED',
-            title: 'Reset grid state',
-            onclick: () => {
-              onSort({direction: 'UNSORTED'});
-            },
-          }),
-        m(StackAuto, [
-          showFilters &&
-            m(GridFilterBar, [
-              filters.map((filter) => {
-                return m(GridFilterChip, {
-                  content: this.formatFilter(filter),
-                  onRemove: () => {
-                    const filterIndex = filters.indexOf(filter);
-                    onFilterRemove(filterIndex);
-                  },
-                });
-              }),
-            ]),
-        ]),
-        toolbarItemsRight,
-      ]),
-    ]);
+    if (value instanceof Uint8Array) {
+      return `Blob (${value.length} bytes)`;
+    }
+    return String(value);
   }
 
-  private formatFilter(filter: DataGridFilter) {
+  private async formatData(
+    dataSource: DataGridDataSource,
+    columns: ReadonlyArray<ColumnDefinition>,
+    format: 'tsv' | 'json' | 'markdown' = 'tsv',
+  ): Promise<string> {
+    // Get all rows from the data source
+    const rows = await dataSource.exportData();
+
+    // Format the data based on the requested format
+    switch (format) {
+      case 'tsv':
+        return this.formatAsTSV(rows, columns);
+      case 'json':
+        return this.formatAsJSON(rows, columns);
+      case 'markdown':
+        return this.formatAsMarkdown(rows, columns);
+    }
+  }
+
+  private formatAsTSV(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns);
+    const columnNames = this.buildColumnNames(columns);
+    return formatAsTSV(
+      columns.map((c) => c.name),
+      columnNames,
+      formattedRows,
+    );
+  }
+
+  private formatAsJSON(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns);
+    return formatAsJSON(formattedRows);
+  }
+
+  private formatAsMarkdown(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns);
+    const columnNames = this.buildColumnNames(columns);
+    return formatAsMarkdown(
+      columns.map((c) => c.name),
+      columnNames,
+      formattedRows,
+    );
+  }
+
+  private formatRows(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+  ): Array<Record<string, string>> {
+    return rows.map((row) => {
+      const formattedRow: Record<string, string> = {};
+      for (const col of columns) {
+        const value = row[col.name];
+        const formatter = col.valueFormatter ?? defaultValueFormatter;
+        formattedRow[col.name] = formatter(value, col.name);
+      }
+      return formattedRow;
+    });
+  }
+
+  private buildColumnNames(
+    columns: ReadonlyArray<ColumnDefinition>,
+  ): Record<string, string> {
+    const columnNames: Record<string, string> = {};
+    for (const col of columns) {
+      columnNames[col.name] = String(col.title ?? col.name);
+    }
+    return columnNames;
+  }
+
+  private formatFilter(
+    filter: DataGridFilter,
+    columns: ReadonlyArray<ColumnDefinition>,
+  ) {
+    // Find the column definition to get the title
+    const column = columns.find((c) => c.name === filter.column);
+    const columnDisplay =
+      column?.title !== undefined ? String(column.title) : filter.column;
+
     if ('value' in filter) {
-      return `${filter.column} ${filter.op} ${filter.value}`;
+      // Handle array values
+      if (Array.isArray(filter.value)) {
+        if (filter.value.length > 3) {
+          return `${columnDisplay} ${filter.op} (${filter.value.length} values)`;
+        } else {
+          return `${columnDisplay} ${filter.op} (${filter.value.join(', ')})`;
+        }
+      }
+      return `${columnDisplay} ${filter.op} ${filter.value}`;
     } else {
-      return `${filter.column} ${filter.op}`;
+      return `${columnDisplay} ${filter.op}`;
     }
   }
 
@@ -934,6 +1393,27 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 }
 
+/**
+ * Converts a string to a case-insensitive glob pattern.
+ * For example: "abc" becomes "*[aA][bB][cC]*"
+ */
+function toCaseInsensitiveGlob(text: string): string {
+  const pattern = text
+    .split('')
+    .map((char) => {
+      const lower = char.toLowerCase();
+      const upper = char.toUpperCase();
+      // Only create character class for letters
+      if (lower !== upper) {
+        return `[${lower}${upper}]`;
+      }
+      // Non-letters remain as-is
+      return char;
+    })
+    .join('');
+  return `*${pattern}*`;
+}
+
 export function renderCell(value: SqlValue, columnName: string) {
   if (value instanceof Uint8Array) {
     return m(
@@ -973,5 +1453,242 @@ function aggregationFunIcon(func: AggregationFunction): string {
       return '↑';
     default:
       throw new Error(`Unknown aggregation function: ${func}`);
+  }
+}
+
+// Helper component to manage distinct values selection
+interface DistinctValuesSubmenuAttrs {
+  readonly columnName: string;
+  readonly distinctState: ReadonlyArray<SqlValue> | undefined;
+  readonly formatValue: (value: SqlValue) => string;
+  readonly onApply: (selectedValues: Set<SqlValue>) => void;
+}
+
+class DistinctValuesSubmenu
+  implements m.ClassComponent<DistinctValuesSubmenuAttrs>
+{
+  private selectedValues = new Set<SqlValue>();
+  private searchQuery = '';
+  private static readonly MAX_VISIBLE_ITEMS = 100;
+
+  view({attrs}: m.Vnode<DistinctValuesSubmenuAttrs>) {
+    const {distinctState, formatValue, onApply} = attrs;
+
+    if (distinctState === undefined) {
+      return m('.pf-distinct-values-menu', [
+        m(MenuItem, {label: 'Loading...', disabled: true}),
+      ]);
+    }
+
+    // Use fuzzy search to filter and get highlighted segments
+    const fuzzyResults = (() => {
+      if (this.searchQuery === '') {
+        // No search - show all values without highlighting
+        return distinctState.map((value) => ({
+          value,
+          segments: [{matching: false, value: formatValue(value)}],
+        }));
+      } else {
+        // Fuzzy search with highlighting
+        const finder = new FuzzyFinder(distinctState, (v) => formatValue(v));
+        return finder.find(this.searchQuery).map((result) => ({
+          value: result.item,
+          segments: result.segments,
+        }));
+      }
+    })();
+
+    // Limit the number of items rendered
+    const visibleResults = fuzzyResults.slice(
+      0,
+      DistinctValuesSubmenu.MAX_VISIBLE_ITEMS,
+    );
+    const remainingCount =
+      fuzzyResults.length - DistinctValuesSubmenu.MAX_VISIBLE_ITEMS;
+
+    return m('.pf-distinct-values-menu', [
+      m(
+        '.pf-distinct-values-menu__search',
+        {
+          onclick: (e: MouseEvent) => {
+            // Prevent menu from closing when clicking search box
+            e.stopPropagation();
+          },
+        },
+        m(TextInput, {
+          placeholder: 'Search...',
+          value: this.searchQuery,
+          oninput: (e: InputEvent) => {
+            this.searchQuery = (e.target as HTMLInputElement).value;
+          },
+          onkeydown: (e: KeyboardEvent) => {
+            if (this.searchQuery !== '' && e.key === 'Escape') {
+              this.searchQuery = '';
+              e.stopPropagation(); // Prevent menu from closing
+            }
+          },
+        }),
+      ),
+      m(
+        '.pf-distinct-values-menu__list',
+        fuzzyResults.length > 0
+          ? [
+              visibleResults.map((result) => {
+                const isSelected = this.selectedValues.has(result.value);
+                // Render highlighted label
+                const labelContent = result.segments.map((segment) => {
+                  if (segment.matching) {
+                    return m('strong.pf-fuzzy-match', segment.value);
+                  } else {
+                    return segment.value;
+                  }
+                });
+
+                // Render custom menu item with highlighted content
+                return m(
+                  'button.pf-menu-item',
+                  {
+                    onclick: () => {
+                      if (isSelected) {
+                        this.selectedValues.delete(result.value);
+                      } else {
+                        this.selectedValues.add(result.value);
+                      }
+                    },
+                  },
+                  m(Icon, {
+                    className: 'pf-menu-item__left-icon',
+                    icon: isSelected ? Icons.Checkbox : Icons.BlankCheckbox,
+                  }),
+                  m('.pf-menu-item__label', labelContent),
+                );
+              }),
+              remainingCount > 0 &&
+                m(MenuItem, {
+                  label: `...and ${remainingCount} more`,
+                  disabled: true,
+                }),
+            ]
+          : m(EmptyState, {
+              title: 'No matches',
+            }),
+      ),
+      m('.pf-distinct-values-menu__footer', [
+        m(MenuItem, {
+          label: 'Apply',
+          icon: 'check',
+          disabled: this.selectedValues.size === 0,
+          onclick: () => {
+            if (this.selectedValues.size > 0) {
+              onApply(this.selectedValues);
+              this.selectedValues.clear();
+              this.searchQuery = '';
+            }
+          },
+        }),
+        m(MenuItem, {
+          label: 'Clear selection',
+          icon: 'close',
+          disabled: this.selectedValues.size === 0,
+          closePopupOnClick: false,
+          onclick: () => {
+            this.selectedValues.clear();
+            m.redraw();
+          },
+        }),
+      ]),
+    ]);
+  }
+}
+
+// Helper component for text-based filter input
+interface TextFilterSubmenuAttrs {
+  readonly columnName: string;
+  readonly operator:
+    | 'glob'
+    | 'not glob'
+    | 'contains'
+    | 'not contains'
+    | '='
+    | '!='
+    | '>'
+    | '>='
+    | '<'
+    | '<=';
+  readonly onApply: (value: string | number) => void;
+}
+
+class TextFilterSubmenu implements m.ClassComponent<TextFilterSubmenuAttrs> {
+  private inputValue = '';
+
+  view({attrs}: m.Vnode<TextFilterSubmenuAttrs>) {
+    const {operator, onApply} = attrs;
+
+    const placeholder = (() => {
+      switch (operator) {
+        case 'glob':
+          return 'Enter glob pattern (e.g., *text*)...';
+        case 'not glob':
+          return 'Enter glob pattern to exclude...';
+        case 'contains':
+          return 'Enter text to include...';
+        case 'not contains':
+          return 'Enter text to exclude...';
+        case '=':
+          return 'Enter value to match...';
+        case '!=':
+          return 'Enter value to exclude...';
+        case '>':
+          return 'Enter number...';
+        case '>=':
+          return 'Enter number...';
+        case '<':
+          return 'Enter number...';
+        case '<=':
+          return 'Enter number...';
+      }
+    })();
+
+    // Check if this is a numeric comparison operator
+    const isNumericOperator = ['>', '>=', '<', '<='].includes(operator);
+
+    const applyFilter = () => {
+      if (this.inputValue.trim().length > 0) {
+        let value: string | number = this.inputValue.trim();
+
+        // For numeric operators, try to parse as number
+        if (isNumericOperator) {
+          const numValue = Number(value);
+          if (!isNaN(numValue)) {
+            value = numValue;
+          }
+        }
+
+        onApply(value);
+        this.inputValue = '';
+      }
+    };
+
+    return m(
+      Form,
+      {
+        className: 'pf-data-grid__text-filter-form',
+        submitLabel: 'Add Filter',
+        submitIcon: 'check',
+        onSubmit: (e: Event) => {
+          e.preventDefault();
+          applyFilter();
+        },
+        validation: () => this.inputValue.trim().length > 0,
+      },
+      m(TextInput, {
+        placeholder,
+        value: this.inputValue,
+        autofocus: true,
+        oninput: (e: InputEvent) => {
+          this.inputValue = (e.target as HTMLInputElement).value;
+        },
+      }),
+    );
   }
 }

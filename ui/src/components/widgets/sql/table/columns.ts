@@ -42,6 +42,7 @@ import {
   PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
+import {parseJsonWithBigints} from '../../../../base/json_utils';
 
 function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   return renderError(
@@ -462,8 +463,9 @@ export class ProcessIdColumn implements TableColumn {
   }
 }
 
-class ArgColumn implements TableColumn<{type: SqlColumn}> {
+class ArgColumn implements TableColumn {
   public readonly column: SqlColumn;
+  public readonly display: SqlColumn;
   public readonly type: PerfettoSqlType | undefined = undefined;
   private id: string;
 
@@ -481,14 +483,34 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
       ],
       this.id,
     );
-  }
-
-  supportingColumns() {
-    return {type: this.getRawColumn('value_type')};
+    this.display = new SqlExpression(
+      (cols: string[]) => `json_object(
+          'id', ${cols[0]},
+          'int_value', ${cols[1]},
+          'real_value', ${cols[2]},
+          'string_value', ${cols[3]},
+          'display_value', ${cols[4]}
+      )`,
+      (
+        [
+          'id',
+          'int_value',
+          'real_value',
+          'string_value',
+          'display_value',
+        ] as const
+      ).map((c) => this.getRawColumn(c)),
+    );
   }
 
   private getRawColumn(
-    type: 'string_value' | 'int_value' | 'real_value' | 'id' | 'value_type',
+    type:
+      | 'string_value'
+      | 'int_value'
+      | 'real_value'
+      | 'id'
+      | 'type'
+      | 'display_value',
   ): SqlColumn {
     return {
       column: type,
@@ -503,41 +525,40 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
     };
   }
 
-  renderCell(
-    value: SqlValue,
-    tableManager?: TableManager,
-    values?: {type: SqlValue},
-  ) {
-    // If the value is NULL, then filters can check for id column for better performance.
-    if (value === null) {
-      return renderStandardCell(
-        value,
-        this.getRawColumn('value_type'),
-        tableManager,
-      );
+  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell {
+    if (tableManager === undefined) {
+      return renderStandardCell(value, this.column, tableManager);
     }
-    if (values?.type === 'int') {
+    if (typeof value !== 'string') {
+      return {
+        content: renderError(
+          `Wrong type: expected string, ${typeof value} found`,
+        ),
+      };
+    }
+    const argValue = parseJsonWithBigints(value);
+    if (argValue['id'] === null) {
+      return renderStandardCell(null, this.getRawColumn('id'), tableManager);
+    }
+    if (argValue['int_value'] !== null) {
       return renderStandardCell(
-        value,
+        argValue['int_value'],
         this.getRawColumn('int_value'),
         tableManager,
       );
-    }
-    if (values?.type === 'string') {
+    } else if (argValue['real_value'] !== null) {
       return renderStandardCell(
-        value,
+        argValue['real_value'],
+        this.getRawColumn('real_value'),
+        tableManager,
+      );
+    } else {
+      return renderStandardCell(
+        argValue['string_value'],
         this.getRawColumn('string_value'),
         tableManager,
       );
     }
-    if (values?.type === 'real') {
-      return renderStandardCell(
-        value,
-        this.getRawColumn('real_value'),
-        tableManager,
-      );
-    }
-    return renderStandardCell(value, this.column, tableManager);
   }
 }
 

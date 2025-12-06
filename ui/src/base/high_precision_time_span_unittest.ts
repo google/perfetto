@@ -176,4 +176,36 @@ describe('HighPrecisionTimeSpan', () => {
     expect(span.overlaps(t(19n), t(21n))).toBe(true);
     expect(span.overlaps(t(20n), t(21n))).toBe(false);
   });
+
+  test('containedBy', () => {
+    const span = new HPTimeSpan(hptime('10'), 10);
+
+    // Span completely contained within bounds
+    expect(span.containedBy(t(5n), t(25n))).toBe(true);
+    expect(span.containedBy(t(0n), t(100n))).toBe(true);
+
+    // Span exactly matches bounds
+    expect(span.containedBy(t(10n), t(20n))).toBe(true);
+
+    // Span starts before bounds
+    expect(span.containedBy(t(15n), t(25n))).toBe(false);
+
+    // Span ends after bounds
+    expect(span.containedBy(t(5n), t(15n))).toBe(false);
+
+    // Span larger than bounds (extends both sides)
+    expect(span.containedBy(t(12n), t(18n))).toBe(false);
+
+    // Span partially overlaps start
+    expect(span.containedBy(t(15n), t(30n))).toBe(false);
+
+    // Span partially overlaps end
+    expect(span.containedBy(t(5n), t(12n))).toBe(false);
+
+    // Span completely outside (before)
+    expect(span.containedBy(t(0n), t(5n))).toBe(false);
+
+    // Span completely outside (after)
+    expect(span.containedBy(t(25n), t(30n))).toBe(false);
+  });
 });

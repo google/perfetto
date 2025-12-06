@@ -19,9 +19,12 @@
 #include <vector>
 
 #include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
+#include "protos/perfetto/trace/android/windowmanager.pbzero.h"
 
 namespace perfetto::trace_processor::winscope::windowmanager_proto_clone {
 
+std::vector<uint8_t> CloneEntryProtoPruningChildren(
+    const protos::pbzero::WindowManagerTraceEntry::Decoder&);
 std::vector<uint8_t> CloneRootWindowContainerProtoPruningChildren(
     const protos::pbzero::RootWindowContainerProto::Decoder&);
 std::vector<uint8_t> CloneWindowContainerChildProtoPruningChildren(

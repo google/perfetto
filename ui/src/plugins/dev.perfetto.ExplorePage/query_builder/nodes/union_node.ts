@@ -18,7 +18,7 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  MultiSourceNode,
+  SecondaryInputSpec,
   notifyNextNodes,
 } from '../../query_node';
 import protos from '../../../../protos';
@@ -28,6 +28,8 @@ import {NodeIssues} from '../node_issues';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder} from '../structured_query_builder';
+import {loadNodeDoc} from '../node_doc_loader';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 
 export interface UnionSerializedState {
   unionNodes: string[];
@@ -36,17 +38,23 @@ export interface UnionSerializedState {
 }
 
 export interface UnionNodeState extends QueryNodeState {
-  readonly prevNodes: QueryNode[];
+  inputNodes: QueryNode[];
   selectedColumns: ColumnInfo[];
 }
 
-export class UnionNode implements MultiSourceNode {
+export class UnionNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kUnion;
-  readonly prevNodes: QueryNode[];
+  secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
   readonly state: UnionNodeState;
   comment?: string;
+
+  get inputNodesList(): QueryNode[] {
+    return [...this.secondaryInputs.connections.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, node]) => node);
+  }
 
   get finalCols(): ColumnInfo[] {
     return this.state.selectedColumns.filter((col) => col.checked);
@@ -58,7 +66,15 @@ export class UnionNode implements MultiSourceNode {
       ...state,
       autoExecute: state.autoExecute ?? false,
     };
-    this.prevNodes = state.prevNodes;
+    this.secondaryInputs = {
+      connections: new Map(),
+      min: 2,
+      max: 'unbounded',
+    };
+    // Initialize connections from state.inputNodes
+    for (let i = 0; i < state.inputNodes.length; i++) {
+      this.secondaryInputs.connections.set(i, state.inputNodes[i]);
+    }
     this.nextNodes = [];
 
     const userOnChange = this.state.onchange;
@@ -85,11 +101,11 @@ export class UnionNode implements MultiSourceNode {
   }
 
   private getCommonColumns(): ColumnInfo[] {
-    if (this.prevNodes.length === 0) {
+    if (this.inputNodesList.length === 0) {
       return [];
     }
     // Filter out undefined entries before processing
-    const validPrevNodes = this.prevNodes.filter(
+    const validPrevNodes = this.inputNodesList.filter(
       (node): node is QueryNode => node !== undefined,
     );
     if (validPrevNodes.length === 0) {
@@ -115,18 +131,18 @@ export class UnionNode implements MultiSourceNode {
     }
 
     // Check for undefined entries (disconnected inputs)
-    const validPrevNodes = this.prevNodes.filter(
+    const validPrevNodes = this.inputNodesList.filter(
       (node): node is QueryNode => node !== undefined,
     );
 
-    if (validPrevNodes.length < this.prevNodes.length) {
+    if (validPrevNodes.length < this.inputNodesList.length) {
       this.setValidationError(
         'Union node has disconnected inputs. Please connect all inputs or remove this node.',
       );
       return false;
     }
 
-    if (this.prevNodes.length < 2) {
+    if (this.inputNodesList.length < 2) {
       this.setValidationError('Union node requires at least two sources.');
       return false;
     }
@@ -138,14 +154,14 @@ export class UnionNode implements MultiSourceNode {
       return false;
     }
 
-    for (const prevNode of this.prevNodes) {
+    for (const inputNode of this.inputNodesList) {
       // Skip undefined entries (already handled above)
-      if (prevNode === undefined) continue;
+      if (inputNode === undefined) continue;
 
-      if (!prevNode.validate()) {
+      if (!inputNode.validate()) {
         this.setValidationError(
-          prevNode.state.issues?.queryError?.message ??
-            `Previous node '${prevNode.getTitle()}' is invalid`,
+          inputNode.state.issues?.queryError?.message ??
+            `Input node '${inputNode.getTitle()}' is invalid`,
         );
         return false;
       }
@@ -166,76 +182,63 @@ export class UnionNode implements MultiSourceNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Stack rows from multiple sources into a single result. All connected sources must have compatible column names and types.',
-      ),
-      m(
-        'p',
-        'Select which common columns to include in the result. Connect at least two sources to the input ports.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Combine CPU slices from multiple processes to analyze them together.',
-      ),
-    );
+    return loadNodeDoc('union');
   }
 
-  nodeDetails(): m.Child {
-    const cards: m.Child[] = [];
+  nodeDetails(): NodeDetailsAttrs {
     const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
-    if (selectedCols.length > 0) {
-      // If more than 3 columns, just show the count
-      if (selectedCols.length > 3) {
-        cards.push(
-          m(
-            Card,
-            {className: 'pf-node-details-card'},
-            m('div', `${selectedCols.length} common columns`),
-          ),
-        );
-      } else {
-        // Show individual column names for 3 or fewer
-        const selectedItems = selectedCols.map((c) => {
-          return m('div', c.column.name);
-        });
-        cards.push(
-          m(Card, {className: 'pf-node-details-card'}, ...selectedItems),
-        );
-      }
+
+    if (selectedCols.length === 0) {
+      return {
+        content: [
+          m('.pf-exp-node-title', this.getTitle()),
+          m('.pf-exp-node-details-message', 'No common columns'),
+        ],
+      };
     }
 
-    if (cards.length === 0) {
-      return m('.pf-node-details-message', 'No common columns');
+    const cards: m.Child[] = [];
+    // If more than 3 columns, just show the count
+    if (selectedCols.length > 3) {
+      cards.push(m(Card, m('div', `${selectedCols.length} common columns`)));
+    } else {
+      // Show individual column names for 3 or fewer
+      const selectedItems = selectedCols.map((c) => m('div', c.column.name));
+      cards.push(m(Card, ...selectedItems));
     }
 
-    return m(CardStack, cards);
+    return {
+      content: [m('.pf-exp-node-title', this.getTitle()), m(CardStack, cards)],
+    };
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
     const error = this.state.issues?.queryError;
 
-    return m(
-      '.pf-exp-query-operations',
-      error && m(Callout, {icon: 'error'}, error.message),
-      m(
-        CardStack,
-        m(
-          Card,
-          m('h2.pf-columns-box-title', 'Selected Columns'),
-          m(
-            'div.pf-column-list',
-            this.state.selectedColumns.map((col, index) =>
-              this.renderSelectedColumn(col, index),
-            ),
-          ),
+    const sections: NodeModifyAttrs['sections'] = [];
+
+    // Add error if present
+    if (error) {
+      sections.push({
+        content: m(Callout, {icon: 'error'}, error.message),
+      });
+    }
+
+    // Selected columns section
+    sections.push({
+      title: 'Selected Columns',
+      content: m(
+        'div.pf-column-list',
+        this.state.selectedColumns.map((col, index) =>
+          this.renderSelectedColumn(col, index),
         ),
       ),
-    );
+    });
+
+    return {
+      sections,
+    };
   }
 
   private renderSelectedColumn(col: ColumnInfo, index: number): m.Child {
@@ -259,7 +262,7 @@ export class UnionNode implements MultiSourceNode {
 
   clone(): QueryNode {
     const stateCopy: UnionNodeState = {
-      prevNodes: [...this.state.prevNodes],
+      inputNodes: [...this.state.inputNodes],
       selectedColumns: this.state.selectedColumns.map((c) => ({...c})),
     };
     const clone = new UnionNode(stateCopy);
@@ -268,35 +271,46 @@ export class UnionNode implements MultiSourceNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (this.prevNodes.length < 2) return undefined;
+    if (this.inputNodesList.length < 2) return undefined;
 
     // Check for undefined entries
-    for (const prevNode of this.prevNodes) {
-      if (prevNode === undefined) return undefined;
+    for (const inputNode of this.inputNodesList) {
+      if (inputNode === undefined) return undefined;
     }
 
-    return StructuredQueryBuilder.withUnion(this.prevNodes, true, this.nodeId);
+    return StructuredQueryBuilder.withUnion(
+      this.inputNodesList,
+      true,
+      this.nodeId,
+    );
   }
 
   serializeState(): UnionSerializedState {
     return {
-      unionNodes: this.prevNodes.slice(1).map((n) => n.nodeId),
+      // Store ALL input node IDs for reliable deserialization
+      unionNodes: this.inputNodesList.map((n) => n.nodeId),
       selectedColumns: this.state.selectedColumns,
       comment: this.comment,
     };
   }
 
-  static deserializeState(
+  static deserializeState(state: UnionSerializedState): UnionNodeState {
+    return {
+      inputNodes: [],
+      selectedColumns: state.selectedColumns,
+    };
+  }
+
+  static deserializeConnections(
     nodes: Map<string, QueryNode>,
     state: UnionSerializedState,
-    baseNode: QueryNode,
-  ): {prevNodes: QueryNode[]; selectedColumns: ColumnInfo[]} {
-    const unionNodes = state.unionNodes
+  ): {inputNodes: QueryNode[]} {
+    // Resolve all input nodes from their IDs
+    const inputNodes = state.unionNodes
       .map((id) => nodes.get(id))
       .filter((node): node is QueryNode => node !== undefined);
     return {
-      prevNodes: [baseNode, ...unionNodes],
-      selectedColumns: state.selectedColumns,
+      inputNodes,
     };
   }
 }

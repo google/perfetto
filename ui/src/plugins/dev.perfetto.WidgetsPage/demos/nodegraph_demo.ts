@@ -29,6 +29,7 @@ import {
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
+import {Icons} from '../../../base/semantic_icons';
 
 // Base node data interface
 interface BaseNodeData {
@@ -89,6 +90,7 @@ type NodeData =
 interface NodeGraphStore {
   readonly nodes: Map<string, NodeData>;
   readonly connections: Connection[];
+  readonly invalidNodes: Set<string>; // Track which nodes are marked as invalid
 }
 
 // Node metadata configuration
@@ -422,6 +424,7 @@ interface NodeGraphDemoAttrs {
   readonly accentBars?: boolean;
   readonly colors?: boolean;
   readonly contextMenus?: boolean;
+  readonly contextMenuOnHover?: boolean;
 }
 
 export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
@@ -432,6 +435,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   let store: NodeGraphStore = {
     nodes: new Map([[initialId, createTableNode(initialId, 150, 100)]]),
     connections: [],
+    invalidNodes: new Set<string>(),
   };
 
   // History management
@@ -566,6 +570,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       // Clear existing state
       draft.nodes.clear();
       draft.connections.length = 0;
+      draft.invalidNodes.clear();
 
       // Node factory options
       const nodeFactories = [
@@ -797,7 +802,24 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   }
 
   function renderNodeContextMenu(node: NodeData) {
+    const isInvalid = store.invalidNodes.has(node.id);
     return [
+      m(MenuItem, {
+        label: isInvalid ? 'Mark as Valid' : 'Mark as Invalid',
+        icon: isInvalid ? 'check_circle' : 'error',
+        onclick: () => {
+          updateStore((draft) => {
+            if (draft.invalidNodes.has(node.id)) {
+              draft.invalidNodes.delete(node.id);
+            } else {
+              draft.invalidNodes.add(node.id);
+            }
+          });
+          console.log(
+            `Context Menu: Toggle invalid state for ${node.id}: ${!isInvalid}`,
+          );
+        },
+      }),
       m(MenuItem, {
         label: 'Delete',
         icon: 'delete',
@@ -836,7 +858,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         return [
           m(MenuItem, {
             label: 'Select',
-            icon: 'filter_alt',
+            icon: Icons.Filter,
             onclick: () => addNode(createSelectNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -844,7 +866,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           }),
           m(MenuItem, {
             label: 'Filter',
-            icon: 'filter_list',
+            icon: Icons.Filter,
             onclick: () => addNode(createFilterNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
@@ -982,6 +1004,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           contextMenuItems: attrs.contextMenus
             ? renderNodeContextMenu(nodeData)
             : undefined,
+          invalid: store.invalidNodes.has(nodeData.id),
         };
       }
 
@@ -1014,6 +1037,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           contextMenuItems: attrs.contextMenus
             ? renderNodeContextMenu(nodeData)
             : undefined,
+          invalid: store.invalidNodes.has(nodeData.id),
         };
       }
 
@@ -1063,7 +1087,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
               m(MenuItem, {
                 label: 'Select',
-                icon: 'filter_alt',
+                icon: Icons.Filter,
                 onclick: () => addNode(createSelectNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -1071,7 +1095,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
               m(MenuItem, {
                 label: 'Filter',
-                icon: 'filter_list',
+                icon: Icons.Filter,
                 onclick: () => addNode(createFilterNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
@@ -1123,6 +1147,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         connections: store.connections,
         selectedNodeIds: selectedNodeIds,
         multiselect: attrs.multiselect,
+        contextMenuOnHover: attrs.contextMenuOnHover,
         onReady: (api: NodeGraphApi) => {
           graphApi = api;
         },
@@ -1236,6 +1261,7 @@ export function renderNodeGraph() {
         titleBars: false,
         colors: true,
         contextMenus: true,
+        contextMenuOnHover: false,
       },
     }),
 

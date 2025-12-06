@@ -16,6 +16,25 @@ import m from 'mithril';
 import {SqlValue} from '../../../trace_processor/query_result';
 
 export type AggregationFunction = 'SUM' | 'AVG' | 'COUNT' | 'MIN' | 'MAX';
+
+export type FilterType = DataGridFilter['op'];
+
+export const DEFAULT_SUPPORTED_FILTERS: ReadonlyArray<FilterType> = [
+  '=',
+  '!=',
+  '<',
+  '<=',
+  '>',
+  '>=',
+  'glob',
+  'not glob',
+  'in',
+  'not in',
+  'is null',
+  'is not null',
+];
+export type CellRenderer = (value: SqlValue, row: RowDef) => m.Children;
+
 export interface ColumnDefinition {
   // Name/id of the column - this should match the key in the data.
   readonly name: string;
@@ -23,22 +42,59 @@ export interface ColumnDefinition {
   // Human readable title to display instead of the name.
   readonly title?: m.Children;
 
+  // Custom renderer for this column's cells
+  readonly cellRenderer?: CellRenderer;
+
   // An optional aggregation for data in this column displayed in the header
   // bar.
   readonly aggregation?: AggregationFunction;
 
-  // Optional extra menu items to add to the header column's context menu.
-  readonly headerMenuItems?: m.Children;
+  // Optional function that receives default menu item groups and returns
+  // the complete menu structure. This allows full control over menu organization.
+  // Default groups provided:
+  // - sorting: Sort ascending/descending/clear items
+  // - filters: Filter options (null filters, equals, contains, etc.)
+  // - fitToContent: Fit column to content width
+  // - columnManagement: Hide column, manage columns visibility
+  readonly contextMenuRenderer?: (builtins: {
+    readonly sorting?: m.Children;
+    readonly filters?: m.Children;
+    readonly fitToContent?: m.Children;
+    readonly columnManagement?: m.Children;
+  }) => m.Children;
 
-  // Optional function that returns extra menu items to add to each data cell's
-  // context menu. The function receives the cell value and the complete row
-  // data.
-  readonly cellMenuItems?: (value: SqlValue, row: RowDef) => m.Children;
+  // Optional function that receives the default filter menu item and returns
+  // the complete cell context menu structure. This allows full control over
+  // the cell menu organization.
+  // Default item provided:
+  // - addFilter: "Add filter..." menu item with context-sensitive filter options
+  readonly cellContextMenuRenderer?: (
+    value: SqlValue,
+    row: RowDef,
+    builtins: {
+      addFilter?: m.Children;
+    },
+  ) => m.Children;
+
+  // Enable distinct values filtering for this column. When enabled, adds a
+  // "Filter by values..." menu item that shows all distinct values. Only
+  // enable for columns with low cardinality (e.g., strings, enums).
+  readonly distinctValues?: boolean;
+
+  // Control which types of filters are available for this column.
+  // - 'numeric': Shows comparison filters (=, !=, <, <=, >, >=) and null filters
+  // - 'string': Shows text filters (contains, glob) and equals/null filters
+  // - undefined: Shows all applicable filters based on other settings
+  readonly filterType?: 'numeric' | 'string';
+
+  // Optional value formatter for this column. This is used when exporting
+  // data to format the value as a string.
+  readonly valueFormatter?: ValueFormatter;
 }
 
 export interface FilterValue {
   readonly column: string;
-  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob';
+  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
   readonly value: SqlValue;
 }
 
@@ -72,6 +128,7 @@ export interface DataSourceResult {
   readonly rows: ReadonlyArray<RowDef>;
   readonly aggregates: RowDef;
   readonly isLoading?: boolean;
+  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
 }
 
 export type RowDef = {[key: string]: SqlValue};
@@ -92,13 +149,29 @@ export interface DataGridModel {
   readonly filters?: ReadonlyArray<DataGridFilter>;
   readonly pagination?: Pagination;
   readonly aggregates?: ReadonlyArray<AggregateSpec>;
+  readonly distinctValuesColumns?: ReadonlySet<string>;
 }
 
 export interface DataGridDataSource {
   readonly rows?: DataSourceResult;
   readonly isLoading?: boolean;
   notifyUpdate(model: DataGridModel): void;
+
+  /**
+   * Export all data with current filters/sorting applied.
+   * Returns a promise that resolves to all filtered and sorted rows.
+   */
+  exportData(): Promise<readonly RowDef[]>;
 }
+
+/**
+ * Function to format a value as a string for export/clipboard.
+ */
+export type ValueFormatter = (
+  value: SqlValue,
+  columnName: string,
+  formatHint?: string,
+) => string;
 
 /**
  * Compares two arrays of AggregateSpec objects for equality.

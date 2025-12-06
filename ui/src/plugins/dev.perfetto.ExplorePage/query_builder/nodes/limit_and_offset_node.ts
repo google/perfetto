@@ -18,41 +18,37 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
-  ModificationNode,
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {TextInput} from '../../../../widgets/text_input';
-import {Button} from '../../../../widgets/button';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
+import {InlineField} from '../widgets';
+import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
+import {createErrorSections} from '../widgets';
+import {loadNodeDoc} from '../node_doc_loader';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
-  prevNode: QueryNode;
   limit?: number;
   offset?: number;
 }
-export class LimitAndOffsetNode implements ModificationNode {
+export class LimitAndOffsetNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kLimitAndOffset;
-  readonly prevNode: QueryNode;
+  primaryInput?: QueryNode;
   nextNodes: QueryNode[];
   readonly state: LimitAndOffsetNodeState;
-  private showOffset = false;
 
   constructor(state: LimitAndOffsetNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNode = state.prevNode;
     this.nextNodes = [];
     this.state.limit = this.state.limit ?? 10;
     this.state.offset = this.state.offset ?? 0;
-    // Show offset if it's already set to a non-zero value
-    this.showOffset = this.state.offset !== undefined && this.state.offset > 0;
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNode?.finalCols ?? [];
+    return this.primaryInput?.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -63,119 +59,71 @@ export class LimitAndOffsetNode implements ModificationNode {
     return 'Limit and Offset';
   }
 
-  nodeDetails(): m.Child {
+  nodeDetails(): NodeDetailsAttrs {
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
+    const limitText = `Limit: ${this.state.limit ?? 10}`;
+    const offsetText = hasOffset ? `, Offset: ${this.state.offset}` : '';
 
-    return m('div', [
-      m(
-        '.limit-row',
-        {
-          style: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: '8px',
-          },
-        },
-        [
-          m('label', 'Limit'),
-          m(TextInput, {
-            style: {width: '40px'},
-            oninput: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              this.state.limit = Number(target.value);
-              m.redraw();
-            },
-            onblur: () => {
-              this.state.onchange?.();
-            },
-            onkeydown: (e: KeyboardEvent) => {
-              if (e.key === 'Enter') {
-                this.state.onchange?.();
-              }
-            },
-            value: this.state.limit?.toString() ?? '10',
-          }),
-          !this.showOffset &&
-            m(Button, {
-              icon: 'edit',
-              minimal: true,
-              onclick: () => {
-                this.showOffset = true;
-                // Set offset to 10 when showing for the first time
-                if (
-                  this.state.offset === 0 ||
-                  this.state.offset === undefined
-                ) {
-                  this.state.offset = 10;
-                }
-                this.state.onchange?.();
-                m.redraw();
-              },
-            }),
-        ],
-      ),
-      (this.showOffset || hasOffset) &&
-        m(
-          '.offset-row',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            },
-          },
-          [
-            m('label', 'Offset'),
-            m(TextInput, {
-              style: {width: '40px'},
-              oninput: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                const value = Number(target.value);
-                this.state.offset = value;
-                // Hide offset when set to 0
-                if (value === 0) {
-                  this.showOffset = false;
-                }
-                m.redraw();
-              },
-              onblur: () => {
-                this.state.onchange?.();
-              },
-              onkeydown: (e: KeyboardEvent) => {
-                if (e.key === 'Enter') {
-                  this.state.onchange?.();
-                }
-              },
-              value: this.state.offset?.toString() ?? '10',
-            }),
-          ],
-        ),
-    ]);
+    return {
+      content: m('div', limitText + offsetText),
+    };
   }
 
-  nodeSpecificModify(): m.Child {
-    return null;
+  nodeSpecificModify(): NodeModifyAttrs {
+    const sections: NodeModifyAttrs['sections'] = [
+      ...createErrorSections(this),
+    ];
+
+    // Limit and Offset inline fields
+    sections.push({
+      content: m(
+        '.pf-limit-offset-list',
+        m(InlineField, {
+          label: 'Limit',
+          icon: 'filter_list',
+          value: this.state.limit?.toString() ?? '10',
+          placeholder: 'Number of rows',
+          type: 'number',
+          validate: (value: string) => {
+            const parsed = parseInt(value.trim(), 10);
+            return !isNaN(parsed) && parsed >= 0;
+          },
+          errorMessage: 'Must be a non-negative integer',
+          onchange: (value: string) => {
+            const parsed = parseInt(value.trim(), 10);
+            // Save the parsed value if valid, otherwise keep current value
+            this.state.limit =
+              !isNaN(parsed) && parsed >= 0 ? parsed : this.state.limit;
+            this.state.onchange?.();
+          },
+        }),
+        m(InlineField, {
+          label: 'Offset',
+          icon: 'skip_next',
+          value: this.state.offset?.toString() ?? '0',
+          placeholder: 'Number of rows to skip',
+          type: 'number',
+          validate: (value: string) => {
+            const parsed = parseInt(value.trim(), 10);
+            return !isNaN(parsed) && parsed >= 0;
+          },
+          errorMessage: 'Must be a non-negative integer',
+          onchange: (value: string) => {
+            const parsed = parseInt(value.trim(), 10);
+            // Save the parsed value if valid, otherwise keep current value
+            this.state.offset =
+              !isNaN(parsed) && parsed >= 0 ? parsed : this.state.offset;
+            this.state.onchange?.();
+          },
+        }),
+      ),
+    });
+
+    return {sections};
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Limit the number of rows returned and optionally skip rows. Useful for sampling data or pagination.',
-      ),
-      m(
-        'p',
-        m('strong', 'Tip:'),
-        ' Combine with Sort to get meaningful results like "top 10 longest slices" or "rows 100-150".',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Set limit to 10 to see first 10 rows, or set offset to 100 and limit to 50 to see rows 100-150.',
-      ),
-    );
+    return loadNodeDoc('limit_and_offset');
   }
 
   validate(): boolean {
@@ -184,12 +132,12 @@ export class LimitAndOffsetNode implements ModificationNode {
       this.state.issues.clear();
     }
 
-    if (this.prevNode === undefined) {
+    if (this.primaryInput === undefined) {
       setValidationError(this.state, 'No input node connected');
       return false;
     }
 
-    if (!this.prevNode.validate()) {
+    if (!this.primaryInput.validate()) {
       setValidationError(this.state, 'Previous node is invalid');
       return false;
     }
@@ -198,21 +146,28 @@ export class LimitAndOffsetNode implements ModificationNode {
   }
 
   clone(): QueryNode {
-    return new LimitAndOffsetNode(this.state);
+    const stateCopy: LimitAndOffsetNodeState = {
+      limit: this.state.limit,
+      offset: this.state.offset,
+      filters: this.state.filters?.map((f) => ({...f})),
+      filterOperator: this.state.filterOperator,
+      onchange: this.state.onchange,
+    };
+    return new LimitAndOffsetNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (this.prevNode === undefined) return undefined;
+    if (this.primaryInput === undefined) return undefined;
 
     const hasLimit = this.state.limit !== undefined && this.state.limit >= 0;
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
 
     if (!hasLimit && !hasOffset) {
-      return this.prevNode.getStructuredQuery();
+      return this.primaryInput.getStructuredQuery();
     }
 
     return StructuredQueryBuilder.withLimitOffset(
-      this.prevNode,
+      this.primaryInput,
       this.state.limit,
       this.state.offset,
       this.nodeId,
@@ -223,18 +178,15 @@ export class LimitAndOffsetNode implements ModificationNode {
     // Only return serializable fields, excluding callbacks and objects
     // that might contain circular references
     return {
+      primaryInputId: this.primaryInput?.nodeId,
       limit: this.state.limit,
       offset: this.state.offset,
-      comment: this.state.comment,
     };
   }
 
   static deserializeState(
     state: LimitAndOffsetNodeState,
   ): LimitAndOffsetNodeState {
-    return {
-      ...state,
-      prevNode: undefined as unknown as QueryNode,
-    };
+    return {...state};
   }
 }

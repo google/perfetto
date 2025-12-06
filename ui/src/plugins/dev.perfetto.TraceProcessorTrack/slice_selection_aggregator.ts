@@ -20,7 +20,7 @@ import {
   createIITable,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
-import {Dataset, createUnionDataset} from '../../trace_processor/dataset';
+import {Dataset, UnionDataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
@@ -77,7 +77,7 @@ export class SliceSelectionAggregator implements Aggregator {
         if (sliceDatasets.length > 0) {
           const query = await this.buildSliceQuery(
             engine,
-            createUnionDataset(sliceDatasets).optimize(),
+            UnionDataset.create(sliceDatasets),
             area,
             trash,
           );
@@ -87,7 +87,7 @@ export class SliceSelectionAggregator implements Aggregator {
         if (slicelikeDatasets.length > 0) {
           const query = await this.buildSlicelikeQuery(
             engine,
-            createUnionDataset(slicelikeDatasets).optimize(),
+            UnionDataset.create(slicelikeDatasets),
             area,
             trash,
           );
@@ -211,6 +211,7 @@ export class SliceSelectionAggregator implements Aggregator {
         title: 'Occurrences',
         columnId: 'occurrences',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

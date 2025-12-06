@@ -14,23 +14,29 @@
 
 @import "common";
 @import "./graph/graph.scss";
-@import "./empty_graph.scss";
 @import "./help.scss";
 @import "./graph/node_box.scss";
+@import "./node_styling_widgets.scss";
 @import "./node_explorer.scss";
 @import "./operations/operation_component.scss";
 @import "./nodes/sources/slices_source.scss";
 @import "./nodes/sources/table_source.scss";
+@import "./nodes/sources/timerange_source.scss";
 @import "./nodes/aggregation_node.scss";
 @import "./nodes/modify_columns_node.scss";
+@import "./table_list.scss";
+@import "./widgets.scss";
 
 .pf-query-builder-layout {
+  // CSS variable for side panel width, used in both SCSS and TypeScript
+  --pf-qb-side-panel-width: 60px;
+
   height: 100%;
 
   // SplitPanel's main section needs to have the grid layout
   .pf-split-panel__main {
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto auto auto;
     overflow: hidden;
   }
 
@@ -40,19 +46,21 @@
     position: relative;
   }
 
-  .pf-qb-explorer {
+  // Position the resize handle in the grid, but let the widget handle its own styling
+  .pf-resize-handle {
     grid-column: 2;
+  }
+
+  .pf-qb-explorer {
+    grid-column: 3;
     overflow: hidden;
-    width: 500px;
     height: 100%;
-    transition:
-      width 0.3s ease,
-      border-left 0.3s ease;
+    // Width is controlled by inline style for smooth resizing
   }
 
   .pf-qb-side-panel {
-    grid-column: 3;
-    width: 60px;
+    grid-column: 4;
+    width: var(--pf-qb-side-panel-width);
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -136,6 +144,7 @@
     background-color: var(--pf-color-danger);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     transition: all 0.2s ease;
+    cursor: pointer;
 
     &:hover {
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
@@ -149,8 +158,11 @@
   }
 
   &.explorer-collapsed {
+    .pf-resize-handle {
+      display: none;
+    }
+
     .pf-qb-explorer {
-      width: 0;
       border-left: none;
       overflow: hidden;
     }
@@ -178,4 +190,168 @@
   font-size: 14px;
   line-height: 1.5;
   color: var(--pf-color-on-surface);
+}
+
+.pf-query-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+
+  .pf-query-stats-separator {
+    user-select: none;
+  }
+}
+
+.pf-unselected-explorer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  height: 100%;
+  padding: 24px;
+  overflow-y: auto;
+
+  // Center content when small, scroll when large
+  &::before {
+    content: "";
+    flex-grow: 1;
+  }
+
+  &::after {
+    content: "";
+    flex-grow: 1;
+  }
+}
+
+.pf-source-card {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .pf-source-card-clickable {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    transition: transform 0.1s ease;
+
+    .pf-icon {
+      font-size: 32px;
+      color: var(--pf-color-primary);
+      transition: color 0.1s ease;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--pf-color-on-surface);
+      transition: color 0.1s ease;
+    }
+  }
+
+  &:hover .pf-source-card-clickable,
+  &:focus-within .pf-source-card-clickable {
+    transform: translateY(-2px);
+
+    .pf-icon {
+      color: var(--pf-color-accent);
+    }
+
+    h3 {
+      color: var(--pf-color-accent);
+    }
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--pf-color-text-muted);
+    text-align: center;
+  }
+
+  .pf-source-card-hotkey {
+    align-self: flex-end;
+    margin-top: 4px;
+  }
+}
+
+.pf-examples-modal {
+  padding: 16px;
+}
+
+.pf-examples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  max-width: 800px;
+}
+
+.pf-example-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .pf-example-card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    transition: transform 0.1s ease;
+
+    .pf-icon {
+      font-size: 32px;
+      color: var(--pf-color-primary);
+      transition: color 0.1s ease;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--pf-color-on-surface);
+      transition: color 0.1s ease;
+    }
+  }
+
+  &:hover .pf-example-card-content,
+  &:focus-within .pf-example-card-content {
+    transform: translateY(-2px);
+
+    .pf-icon {
+      color: var(--pf-color-accent);
+    }
+
+    h3 {
+      color: var(--pf-color-accent);
+    }
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--pf-color-text-muted);
+    text-align: center;
+  }
+}
+
+.pf-error-details {
+  min-width: 300px;
+  max-width: 500px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--pf-color-on-surface);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--pf-font-family-monospace, "Roboto Mono", monospace);
 }

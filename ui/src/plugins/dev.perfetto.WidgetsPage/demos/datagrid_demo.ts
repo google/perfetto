@@ -18,11 +18,12 @@ import {
   DataGridAttrs,
 } from '../../../components/widgets/data_grid/data_grid';
 import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
+import {FilterType} from '../../../components/widgets/data_grid/common';
 import {Engine} from '../../../trace_processor/engine';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
 import {languages} from '../sample_data';
-import {MenuItem} from '../../../widgets/menu';
+import {MenuItem, MenuDivider} from '../../../widgets/menu';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
@@ -61,9 +62,37 @@ export function renderDataGrid(app: App): m.Children {
         readonlySorting,
         aggregation,
         demoToolbarItems,
+        distinctValues,
+        filterIsNull,
+        filterIsNotNull,
+        filterIn,
+        filterNotIn,
+        filterGlob,
+        filterNotGlob,
+        filterEquals,
+        filterNotEquals,
+        filterLessThan,
+        filterLessThanOrEqual,
+        filterGreaterThan,
+        filterGreaterThanOrEqual,
         ...rest
-      }) =>
-        m(DataGrid, {
+      }) => {
+        // Build supportedFilters array based on selected options
+        const supportedFilters: FilterType[] = [];
+        if (filterIsNull) supportedFilters.push('is null');
+        if (filterIsNotNull) supportedFilters.push('is not null');
+        if (filterIn) supportedFilters.push('in');
+        if (filterNotIn) supportedFilters.push('not in');
+        if (filterGlob) supportedFilters.push('glob');
+        if (filterNotGlob) supportedFilters.push('not glob');
+        if (filterEquals) supportedFilters.push('=');
+        if (filterNotEquals) supportedFilters.push('!=');
+        if (filterLessThan) supportedFilters.push('<');
+        if (filterLessThanOrEqual) supportedFilters.push('<=');
+        if (filterGreaterThan) supportedFilters.push('>');
+        if (filterGreaterThanOrEqual) supportedFilters.push('>=');
+
+        return m(DataGrid, {
           ...rest,
           toolbarItemsLeft: demoToolbarItems
             ? m(Button, {
@@ -80,43 +109,87 @@ export function renderDataGrid(app: App): m.Children {
           fillHeight: true,
           filters: readonlyFilters ? [] : undefined,
           sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
+          supportedFilters,
           columns: [
             {
               name: 'id',
               title: 'ID',
               aggregation: aggregation ? 'COUNT' : undefined,
-              headerMenuItems: m(MenuItem, {
-                label: 'Log column name',
-                icon: 'info',
-                onclick: () => console.log('Column: id'),
-              }),
+              distinctValues,
+              filterType: 'numeric',
+              contextMenuRenderer: (defaultGroups) => {
+                return [
+                  defaultGroups.sorting,
+                  m(MenuDivider),
+                  defaultGroups.filters,
+                  m(MenuDivider),
+                  defaultGroups.fitToContent,
+                  m(MenuDivider),
+                  defaultGroups.columnManagement,
+                  m(MenuDivider),
+                  m(MenuItem, {
+                    label: 'Custom menu item',
+                    icon: 'info',
+                    onclick: () => console.log('Column: id'),
+                  }),
+                ];
+              },
             },
             {
               name: 'lang',
               title: 'Language',
+              distinctValues,
+              filterType: 'string',
             },
             {
               name: 'year',
               title: 'Year',
+              distinctValues,
+              filterType: 'numeric',
             },
             {
               name: 'creator',
               title: 'Creator',
+              distinctValues,
+              filterType: 'string',
             },
             {
               name: 'typing',
               title: 'Typing',
+              distinctValues,
+              filterType: 'string',
+            },
+            {
+              name: 'execution',
+              title: 'Execution',
+              distinctValues,
+              filterType: 'string',
             },
           ],
           data: languages,
-        }),
+        });
+      },
       initialOpts: {
         showFiltersInToolbar: true,
         readonlyFilters: false,
         readonlySorting: false,
         aggregation: false,
-        showResetButton: false,
+        distinctValues: true,
         demoToolbarItems: false,
+        showExportButton: false,
+        showRowCount: true,
+        filterIsNull: true,
+        filterIsNotNull: true,
+        filterIn: true,
+        filterNotIn: true,
+        filterGlob: true,
+        filterNotGlob: true,
+        filterEquals: true,
+        filterNotEquals: true,
+        filterLessThan: true,
+        filterLessThanOrEqual: true,
+        filterGreaterThan: true,
+        filterGreaterThanOrEqual: true,
       },
       noPadding: true,
     }),
@@ -133,6 +206,7 @@ export function renderDataGrid(app: App): m.Children {
         readonlyFilters,
         readonlySorting,
         aggregation,
+        distinctValues,
         ...rest
       }) => {
         const trace = app.trace;
@@ -160,16 +234,40 @@ export function renderDataGrid(app: App): m.Children {
                 name: 'id',
                 title: 'ID',
                 aggregation: aggregation ? 'COUNT' : undefined,
+                distinctValues,
+                filterType: 'numeric',
               },
               {
                 name: 'dur',
                 title: 'Duration',
                 aggregation: aggregation ? 'SUM' : undefined,
+                distinctValues,
+                filterType: 'numeric',
               },
-              {name: 'state', title: 'State'},
-              {name: 'thread_name', title: 'Thread'},
-              {name: 'ucpu', title: 'CPU'},
-              {name: 'io_wait', title: 'IO Wait'},
+              {
+                name: 'state',
+                title: 'State',
+                distinctValues,
+                filterType: 'string',
+              },
+              {
+                name: 'thread_name',
+                title: 'Thread',
+                distinctValues,
+                filterType: 'string',
+              },
+              {
+                name: 'ucpu',
+                title: 'CPU',
+                distinctValues,
+                filterType: 'numeric',
+              },
+              {
+                name: 'io_wait',
+                title: 'IO Wait',
+                distinctValues,
+                filterType: 'numeric',
+              },
             ],
           });
         } else {
@@ -179,7 +277,6 @@ export function renderDataGrid(app: App): m.Children {
               style: {
                 height: '100%',
               },
-              icon: 'search_off',
             },
             'Load a trace to start',
           );
@@ -190,6 +287,8 @@ export function renderDataGrid(app: App): m.Children {
         readonlyFilters: false,
         readonlySorting: false,
         aggregation: false,
+        distinctValues: true,
+        showRowCount: true,
       },
       noPadding: true,
     }),

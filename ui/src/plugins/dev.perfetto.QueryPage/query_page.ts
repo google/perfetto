@@ -14,17 +14,17 @@
 
 import m from 'mithril';
 import {findRef, toHTMLElement} from '../../base/dom_utils';
-import {download} from '../../base/download_utils';
-import {stringifyJsonWithBigints} from '../../base/json_utils';
 import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
+import {QueryResponse} from '../../components/query_table/queries';
 import {
-  formatAsDelimited,
-  formatAsMarkdownTable,
-  QueryResponse,
-} from '../../components/query_table/queries';
-import {DataGridDataSource} from '../../components/widgets/data_grid/common';
-import {DataGrid} from '../../components/widgets/data_grid/data_grid';
+  CellRenderer,
+  DataGridDataSource,
+} from '../../components/widgets/data_grid/common';
+import {
+  DataGrid,
+  renderCell,
+} from '../../components/widgets/data_grid/data_grid';
 import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import {Trace} from '../../public/trace';
@@ -34,14 +34,11 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {
-  CopyHelper,
-  CopyToClipboardButton,
-} from '../../widgets/copy_to_clipboard_button';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
+import {getSliceId, isSliceish} from '../../components/query_table/query_table';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -60,7 +57,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private dataSource?: DataGridDataSource;
   private editorHeight: number = 0;
   private editorElement?: HTMLElement;
-  private dataGridCopyHelper = new CopyHelper();
 
   oncreate({dom}: m.VnodeDOM<QueryPageAttrs>) {
     this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
@@ -188,7 +184,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       }),
       this.dataSource &&
         attrs.queryResult &&
-        this.renderQueryResult(attrs.queryResult, this.dataSource),
+        this.renderQueryResult(attrs.trace, attrs.queryResult, this.dataSource),
       m(QueryHistoryComponent, {
         className: 'pf-query-page__history',
         trace: attrs.trace,
@@ -203,6 +199,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   private renderQueryResult(
+    trace: Trace,
     queryResult: QueryResponse,
     dataSource: DataGridDataSource,
   ) {
@@ -225,108 +222,52 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         m(DataGrid, {
           className: 'pf-query-page__results',
           data: dataSource,
-          columns: queryResult.columns.map((c) => ({name: c})),
+          columns: queryResult.columns.map((column) => {
+            const cellRenderer: CellRenderer | undefined =
+              column === 'id'
+                ? (value, row) => {
+                    const sliceId = getSliceId(row);
+                    const cell = renderCell(value, column);
+                    if (sliceId !== undefined && isSliceish(row)) {
+                      return m(
+                        Anchor,
+                        {
+                          title: 'Go to slice on the timeline',
+                          icon: Icons.UpdateSelection,
+                          onclick: () => {
+                            // Navigate to the timeline page
+                            trace.navigate('#!/viewer');
+                            trace.selection.selectSqlEvent('slice', sliceId, {
+                              switchToCurrentSelectionTab: false,
+                              scrollToSelection: true,
+                            });
+                          },
+                        },
+                        cell,
+                      );
+                    } else {
+                      return renderCell(value, column);
+                    }
+                  }
+                : undefined;
+            return {
+              name: column,
+              cellRenderer,
+            };
+          }),
+          showExportButton: true,
           toolbarItemsLeft: m(
             'span.pf-query-page__results-summary',
             `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
           ),
-          toolbarItemsRight: [
-            this.renderCopyButton(queryResult),
-            this.renderDownloadButton(queryResult),
-          ],
+          toolbarItemsRight: m(CopyToClipboardButton, {
+            textToCopy: queryResult.query,
+            title: 'Copy executed query to clipboard',
+            label: 'Copy Query',
+          }),
         }),
       ];
     }
-  }
-
-  private renderCopyButton(resp: QueryResponse) {
-    const helper = this.dataGridCopyHelper;
-    const label = helper.copied ? 'Copied' : 'Copy';
-    const icon = helper.copied ? Icons.Check : Icons.Copy;
-    const intent = helper.copied ? Intent.Success : Intent.None;
-
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Button, {
-          icon,
-          intent,
-          title: 'Copy results to clipboard',
-          label,
-        }),
-      },
-      [
-        m(MenuItem, {
-          label: 'TSV',
-          onclick: async () => {
-            const content = formatAsDelimited(resp);
-            await helper.copy(content);
-          },
-        }),
-        m(MenuItem, {
-          label: 'Markdown',
-          onclick: async () => {
-            const content = formatAsMarkdownTable(resp);
-            await helper.copy(content);
-          },
-        }),
-        m(MenuItem, {
-          label: 'JSON',
-          onclick: async () => {
-            const content = stringifyJsonWithBigints(resp.rows);
-            await helper.copy(content);
-          },
-        }),
-      ],
-    );
-  }
-
-  private renderDownloadButton(resp: QueryResponse) {
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Button, {
-          icon: Icons.Download,
-          title: 'Download data',
-          label: 'Download',
-        }),
-      },
-      [
-        m(MenuItem, {
-          label: 'TSV',
-          onclick: () => {
-            const content = formatAsDelimited(resp);
-            download({
-              content,
-              mimeType: 'text/tab-separated-values',
-              fileName: 'query_result.tsv',
-            });
-          },
-        }),
-        m(MenuItem, {
-          label: 'Markdown',
-          onclick: () => {
-            const content = formatAsMarkdownTable(resp);
-            download({
-              content,
-              mimeType: 'text/markdown',
-              fileName: 'query_result.md',
-            });
-          },
-        }),
-        m(MenuItem, {
-          label: 'JSON',
-          onclick: () => {
-            const content = stringifyJsonWithBigints(resp.rows, 2);
-            download({
-              content,
-              mimeType: 'text/json',
-              fileName: 'query_result.json',
-            });
-          },
-        }),
-      ],
-    );
   }
 
   private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {

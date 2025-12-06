@@ -38,7 +38,7 @@ function getThreadDisplayName(
 }
 
 // This plugin is responsible for organizing all process and thread groups
-// including the kernel groups, sorting, and adding summary tracks.
+// (including kernel threads), sorting, and adding summary tracks.
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ProcessThreadGroups';
 
@@ -88,43 +88,26 @@ export default class implements PerfettoPlugin {
     // Identify kernel threads if this is a linux system trace, and sufficient
     // process information is available. Kernel threads are identified by being
     // children of kthreadd (always pid 2).
-    // The query will return the kthreadd process row first, which must exist
-    // for any other kthreads to be returned by the query.
     // TODO(rsavitski): figure out how to handle the idle process (swapper),
     // which has pid 0 but appears as a distinct process (with its own comm) on
     // each cpu. It'd make sense to exclude its thread state track, but still
     // put process-scoped tracks in this group.
     const result = await this.ctx.engine.query(`
-      select
-        t.utid, p.upid, (case p.pid when 2 then 1 else 0 end) isKthreadd
-      from
-        thread t
-        join process p using (upid)
-        left join process parent on (p.parent_upid = parent.upid)
-        join
-          (select true from metadata m
-             where (m.name = 'system_name' and m.str_value = 'Linux')
-           union
-           select 1 from (select true from sched limit 1))
-      where
-        p.pid = 2 or parent.pid = 2
-      order by isKthreadd desc
+       include perfetto module viz.threads;
+
+       select utid, upid
+       from _threads_with_kernel_flag
+       where is_kernel_thread
     `);
 
     const it = result.iter({
       utid: NUM,
       upid: NUM,
     });
-
-    // Not applying kernel thread grouping.
     if (!it.valid()) {
-      return;
+      return; // no kernel thread grouping
     }
 
-    // Create the track group. Use kthreadd's PROCESS_SUMMARY_TRACK for the
-    // main track. It doesn't summarise the kernel threads within the group,
-    // but creating a dedicated track type is out of scope at the time of
-    // writing.
     const kernelThreadsGroup = new TrackNode({
       name: 'Kernel threads',
       uri: '/kernel',
@@ -135,7 +118,7 @@ export default class implements PerfettoPlugin {
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
-      const {utid} = it;
+      const {utid, upid} = it;
 
       const threadGroup = new TrackNode({
         uri: `thread${utid}`,
@@ -144,6 +127,7 @@ export default class implements PerfettoPlugin {
         headless: true,
       });
       kernelThreadsGroup.addChildInOrder(threadGroup);
+      this.processGroups.set(upid, threadGroup);
       this.threadGroups.set(utid, threadGroup);
     }
   }
@@ -250,7 +234,7 @@ export default class implements PerfettoPlugin {
       const {kind, uid, id, name} = it;
 
       if (kind === 'process') {
-        // Ignore kernel process groups
+        // Skip pre-grouped kthread tracks.
         if (this.processGroups.has(uid)) {
           continue;
         }
@@ -281,7 +265,7 @@ export default class implements PerfettoPlugin {
         this.ctx.defaultWorkspace.addChildInOrder(group);
         this.processGroups.set(uid, group);
       } else {
-        // Ignore kernel process groups
+        // Skip pre-grouped kthread tracks.
         if (this.threadGroups.has(uid)) {
           continue;
         }
@@ -351,7 +335,7 @@ export default class implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       const {utid, tid, upid, threadName} = it;
 
-      // Ignore kernel thread groups
+      // Skip pre-grouped kthread tracks.
       if (this.threadGroups.has(utid)) {
         continue;
       }

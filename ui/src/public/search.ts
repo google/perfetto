@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {time} from '../base/time';
+import {SqlValue} from '../trace_processor/query_result';
 import {Track} from './track';
 
 export type SearchSource = 'cpu' | 'log' | 'slice' | 'track' | 'event';
@@ -38,6 +39,13 @@ export interface FilterExpression {
    * 'join' keyword is added automatically.
    */
   readonly join?: string;
+
+  /**
+   * Optional columns schema needed by the filter but not in the result.
+   * These columns will be available in the query for the WHERE clause to
+   * reference, but won't be included in the final result set.
+   */
+  readonly columns?: Readonly<Record<string, SqlValue>>;
 }
 
 export interface SearchProvider {

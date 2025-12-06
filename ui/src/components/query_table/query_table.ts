@@ -13,25 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {copyToClipboard} from '../../base/clipboard';
-import {
-  formatAsDelimited,
-  formatAsMarkdownTable,
-  QueryResponse,
-} from './queries';
+import {QueryResponse} from './queries';
 import {Row} from '../../trace_processor/query_result';
-import {Button} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Router} from '../../core/router';
 import {Trace} from '../../public/trace';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Icons} from '../../base/semantic_icons';
-import {DataGrid, renderCell} from '../widgets/data_grid/data_grid';
-import {DataGridDataSource} from '../widgets/data_grid/common';
+import {
+  DataGrid,
+  renderCell,
+  DataGridApi,
+} from '../widgets/data_grid/data_grid';
+import {DataGridDataSource, CellRenderer} from '../widgets/data_grid/common';
 import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
+import {DataGridExportButton} from '../widgets/data_grid/export_button';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 
 type Numeric = bigint | number;
 
@@ -89,6 +87,7 @@ interface QueryTableAttrs {
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   private readonly trace: Trace;
   private dataSource?: DataGridDataSource;
+  private dataGridApi?: DataGridApi;
 
   constructor({attrs}: m.CVnode<QueryTableAttrs>) {
     this.trace = attrs.trace;
@@ -119,7 +118,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         className: 'pf-query-table',
         title: this.renderTitle(resp),
         description: query,
-        buttons: this.renderButtons(query, contextButtons, resp),
+        buttons: this.renderButtons(query, contextButtons),
         fillHeight,
       },
       resp && this.dataSource && this.renderTableContent(resp, this.dataSource),
@@ -134,43 +133,15 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 
-  private renderButtons(
-    query: string,
-    contextButtons: m.Child[],
-    resp?: QueryResponse,
-  ) {
+  private renderButtons(query: string, contextButtons: m.Child[]) {
     return [
       contextButtons,
-      m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            label: 'Copy',
-            rightIcon: Icons.ContextMenu,
-          }),
-        },
-        m(MenuItem, {
-          label: 'Query',
-          onclick: () => copyToClipboard(query),
-        }),
-        resp &&
-          resp.error === undefined && [
-            m(MenuItem, {
-              label: 'Result (.tsv)',
-              onclick: async () => {
-                const tsv = formatAsDelimited(resp);
-                await copyToClipboard(tsv);
-              },
-            }),
-            m(MenuItem, {
-              label: 'Result (.md)',
-              onclick: async () => {
-                const markdown = formatAsMarkdownTable(resp);
-                await copyToClipboard(markdown);
-              },
-            }),
-          ],
-      ),
+      m(CopyToClipboardButton, {
+        textToCopy: query,
+        title: 'Copy executed query to clipboard',
+        label: 'Copy Query',
+      }),
+      this.dataGridApi && m(DataGridExportButton, {api: this.dataGridApi}),
     ];
   }
 
@@ -197,38 +168,42 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }
 
-    const onTimelinePage =
-      Router.parseUrl(window.location.href).page === '/viewer';
-
     return m(DataGrid, {
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
       fillHeight: true,
       filters: [],
-      columns: resp.columns.map((c) => ({name: c})),
+      columns: resp.columns.map((column) => {
+        const cellRenderer: CellRenderer | undefined =
+          column === 'id'
+            ? (value, row) => {
+                const sliceId = getSliceId(row);
+                const cell = renderCell(value, column);
+                if (sliceId !== undefined && isSliceish(row)) {
+                  return m(
+                    Anchor,
+                    {
+                      title: 'Go to slice',
+                      icon: Icons.UpdateSelection,
+                      onclick: () => this.goToSlice(sliceId, false),
+                      ondblclick: () => this.goToSlice(sliceId, true),
+                    },
+                    cell,
+                  );
+                } else {
+                  return renderCell(value, column);
+                }
+              }
+            : undefined;
+
+        return {
+          name: column,
+          cellRenderer,
+        };
+      }),
       data: dataSource,
-      cellRenderer: (value, name, row) => {
-        const sliceId = getSliceId(row);
-        const cell = renderCell(value, name);
-        if (
-          name === 'id' &&
-          sliceId !== undefined &&
-          onTimelinePage &&
-          isSliceish(row)
-        ) {
-          return m(
-            Anchor,
-            {
-              title: 'Go to slice',
-              icon: Icons.UpdateSelection,
-              onclick: () => this.goToSlice(sliceId, false),
-              ondblclick: () => this.goToSlice(sliceId, true),
-            },
-            cell,
-          );
-        } else {
-          return cell;
-        }
+      onReady: (api) => {
+        this.dataGridApi = api;
       },
     });
   }
@@ -237,6 +212,8 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     sliceId: number,
     switchToCurrentSelectionTab: boolean,
   ): void {
+    // Navigate to the timeline page
+    this.trace.navigate('#!/viewer');
     this.trace.selection.selectSqlEvent('slice', sliceId, {
       switchToCurrentSelectionTab,
       scrollToSelection: true,

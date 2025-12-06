@@ -19,9 +19,8 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  MultiSourceNode,
   nextNodeId,
-  setOperationChanged,
+  notifyNextNodes,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -36,6 +35,11 @@ import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
 import {setValidationError} from '../../node_issues';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
+import {findRef, toHTMLElement} from '../../../../../base/dom_utils';
+import {assertExists} from '../../../../../base/logging';
+import {ResizeHandle} from '../../../../../widgets/resize_handle';
+import {loadNodeDoc} from '../../node_doc_loader';
 
 export interface SqlSourceSerializedState {
   sql?: string;
@@ -47,10 +51,46 @@ export interface SqlSourceState extends QueryNodeState {
   trace: Trace;
 }
 
-export class SqlSourceNode implements MultiSourceNode {
+interface SqlEditorAttrs {
+  sql: string;
+  onUpdate: (text: string) => void;
+  onExecute: (text: string) => void;
+}
+
+class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
+  private editorHeight: number = 0;
+  private editorElement?: HTMLElement;
+
+  oncreate({dom}: m.VnodeDOM<SqlEditorAttrs>) {
+    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
+    this.editorElement.style.height = '400px';
+  }
+
+  view({attrs}: m.CVnode<SqlEditorAttrs>) {
+    return [
+      m(Editor, {
+        ref: 'editor',
+        text: attrs.sql,
+        onUpdate: attrs.onUpdate,
+        onExecute: attrs.onExecute,
+        autofocus: true,
+      }),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          this.editorHeight += deltaPx;
+          this.editorElement!.style.height = `${this.editorHeight}px`;
+        },
+        onResizeStart: () => {
+          this.editorHeight = this.editorElement!.clientHeight;
+        },
+      }),
+    ];
+  }
+}
+
+export class SqlSourceNode implements QueryNode {
   readonly nodeId: string;
   readonly state: SqlSourceState;
-  prevNodes: QueryNode[] = [];
   finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
 
@@ -63,7 +103,6 @@ export class SqlSourceNode implements MultiSourceNode {
     };
     this.finalCols = createFinalColumns([]);
     this.nextNodes = [];
-    this.prevNodes = attrs.prevNodes ?? [];
   }
 
   get type() {
@@ -79,8 +118,10 @@ export class SqlSourceNode implements MultiSourceNode {
 
   onQueryExecuted(columns: string[]) {
     this.setSourceColumns(columns);
-    // Mark node as changed to trigger re-analysis with updated columns
-    setOperationChanged(this);
+    // Notify downstream nodes that our columns have changed, but don't mark
+    // this node as having an operation change (which would cause hash to change
+    // and trigger re-execution). Column discovery is metadata, not a query change.
+    notifyNextNodes(this);
   }
 
   clone(): QueryNode {
@@ -110,22 +151,28 @@ export class SqlSourceNode implements MultiSourceNode {
     return 'Sql source';
   }
 
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: m('.pf-exp-node-title', this.getTitle()),
+    };
+  }
+
   serializeState(): SqlSourceSerializedState {
     return {
       sql: this.state.sql,
-      comment: this.state.comment,
     };
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    const dependencies = this.prevNodes.map((prevNode) => ({
-      alias: prevNode.nodeId,
-      query: prevNode.getStructuredQuery(),
-    }));
+    // Source nodes don't have dependencies
+    const dependencies: Array<{
+      alias: string;
+      query: protos.PerfettoSqlStructuredQuery | undefined;
+    }> = [];
 
-    // Pass empty array for column names - the engine will discover them when analyzing the query
-    // Using this.finalCols here would pass stale columns from the previous execution
-    const columnNames: string[] = [];
+    // Use the column names discovered from the last query execution
+    // These are populated by onQueryExecuted() when the query is run
+    const columnNames: string[] = this.finalCols.map((c) => c.column.name);
 
     const sq = StructuredQueryBuilder.fromSql(
       this.state.sql || '',
@@ -147,31 +194,20 @@ export class SqlSourceNode implements MultiSourceNode {
 
     return m(
       '.sql-source-node',
-      m(
-        'div',
-        {
-          style: {
-            minHeight: '400px',
-            backgroundColor: '#282c34',
-            position: 'relative',
-          },
+      m(SqlEditor, {
+        sql: this.state.sql ?? '',
+        onUpdate: (text: string) => {
+          this.state.sql = text;
+          m.redraw();
         },
-        m(Editor, {
-          text: this.state.sql ?? '',
-          onUpdate: (text: string) => {
-            this.state.sql = text;
-            m.redraw();
-          },
-          onExecute: (text: string) => {
-            queryHistoryStorage.saveQuery(text);
-            this.state.sql = text.trim();
-            // Note: Execution is now handled by the Run button in DataExplorer
-            // This callback only saves to query history and updates the SQL text
-            m.redraw();
-          },
-          autofocus: true,
-        }),
-      ),
+        onExecute: (text: string) => {
+          queryHistoryStorage.saveQuery(text);
+          this.state.sql = text.trim();
+          // Note: Execution is now handled by the Run button in DataExplorer
+          // This callback only saves to query history and updates the SQL text
+          m.redraw();
+        },
+      }),
       m(QueryHistoryComponent, {
         className: '.pf-query-history-container',
         trace: this.state.trace,
@@ -185,27 +221,7 @@ export class SqlSourceNode implements MultiSourceNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Write custom queries to access any data in the trace. Use ',
-        m('code', '$node_id'),
-        ' to reference other nodes in your query.',
-      ),
-      m(
-        'p',
-        'Most flexible option for complex logic or operations not available through other nodes.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Write ',
-        m('code', 'SELECT * FROM slice WHERE dur > 1000'),
-        ' or reference another node with ',
-        m('code', 'SELECT * FROM $other_node WHERE ...'),
-      ),
-    );
+    return loadNodeDoc('sql_source');
   }
 
   findDependencies(): string[] {

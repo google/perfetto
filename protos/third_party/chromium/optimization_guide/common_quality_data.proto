@@ -221,6 +221,9 @@ message AnnotatedPageContent {
 
   // The rect of the viewport for the tab. i.e., screenshot dimensions.
   // Dimensions are in captured pixels.
+  // This coordinate system should be used for coordinate based browser actions.
+  // This uses device independent pixels, i.e., doesn't include the device
+  // scale factor while other dimensions in APC are based on that.
   BoundingRect viewport_geometry = 5 [features = { field_presence: EXPLICIT }];
 
   // The id of the tab that the page content was extracted from. Guaranteed to
@@ -909,13 +912,14 @@ message Point {
 }
 
 // Represents a popup window that is open on a web page.
-// Next ID: 5
+// Next ID: 6
 message PopupWindow {
   // Root node for the document in the window.
   ContentNode root_node = 1 [features = { field_presence: EXPLICIT }];
 
-  // Metadata for the document in the window.
-  FrameData frame_data = 2 [features = { field_presence: EXPLICIT }];
+  // The bounding box of the popup window relative to the viewport. The popup is
+  // not clipped by any ancestor except the viewport clipping the screenshot.
+  BoundingRect visible_bounding_box = 5 [features = { field_presence: EXPLICIT }];
 
   // Unique identifier for the document which opened this popup window.
   DocumentIdentifier opener_document_id = 3 [features = { field_presence: EXPLICIT }];
@@ -923,6 +927,8 @@ message PopupWindow {
   // Unique identifier for the node which opened this popup window. Relies on
   // opener_document_id to determine which document contains the node.
   int32 opener_common_ancestor_dom_node_id = 4 [features = { field_presence: EXPLICIT }];
+
+  reserved 2;
 }
 
 // Information that pertains the user's Chrome profile.
@@ -1099,11 +1105,35 @@ message SiteEngagement {
 }
 
 // The coordinates of a point.
-// Next ID: 3
+// Next ID: 4
 message Coordinate {
   int32 x = 1 [features = { field_presence: EXPLICIT }];
 
   int32 y = 2 [features = { field_presence: EXPLICIT }];
+
+  // The type of the coordinate. If not specified, the coordinate is assumed to
+  // be relative to the viewport dimensions or screenshot dimensions depending
+  // on the context.
+  PixelType pixel_type = 3 [features = { field_presence: EXPLICIT }];
+
+  enum PixelType {
+    // The coordinate type is not specified. Assumed to be viewport.
+    PIXEL_TYPE_UNSPECIFIED = 0;
+
+    // Density independent pixels (DIPs).
+    // The coordinate is in DIPs which are independent of OS-level UI scaling.
+    // e.g., The coordinate is relative to the viewport dimensions set in APC.
+    PIXEL_TYPE_DIPS = 1;
+
+    // Physical pixels.
+    // The coordinate is provided in physical screen pixels. Values provided in
+    // physical pixels depend on UI scaling factor so must not be used when the
+    // scaling factor changes (e.g. APC generated, window moved to a higher
+    // density monitor; physical coordinate values must now be invalidated).
+    // e.g., The coordinate is relative to the dimensions of the annotated page
+    // content root node.
+    PIXEL_TYPE_PHYSICAL_PIXELS = 2;
+  }
 }
 
 // A meta tag (https://developer.mozilla.org/en-US/docs/Wecrbug.com/HTML/Element/meta).
