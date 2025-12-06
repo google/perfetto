@@ -956,22 +956,25 @@ base::StatusOr<std::string> GeneratorImpl::CreateSlices(
 
   // Build the SQL to create slices
   // For each start, find the first end that comes after it
-  std::string sql = "(WITH starts AS (SELECT * FROM " + starts_table +
-                    "),\n     ends AS (SELECT * FROM " + ends_table +
-                    "),\n     matched AS (\n       SELECT \n" +
-                    "         starts." + starts_ts_col +
-                    " AS start_ts,\n"
-                    "         (SELECT MIN(ends." +
-                    ends_ts_col + ") FROM ends WHERE ends." + ends_ts_col +
-                    " > starts." + starts_ts_col +
-                    ") AS end_ts\n"
-                    "       FROM starts\n     )\nSELECT \n" +
-                    "  start_ts AS ts,\n"
-                    "  end_ts - start_ts AS dur\n"
-                    "FROM matched\n"
-                    "WHERE end_ts IS NOT NULL)";
-
-  return sql;
+  return base::StackString<1024>(
+             R"(
+(WITH starts AS (SELECT * FROM %s),
+     ends AS (SELECT * FROM %s),
+     matched AS (
+       SELECT
+         starts.%s AS start_ts,
+         (SELECT MIN(ends.%s) FROM ends WHERE ends.%s > starts.%s) AS end_ts
+       FROM starts
+     )
+SELECT
+  start_ts AS ts,
+  end_ts - start_ts AS dur
+FROM matched
+WHERE end_ts IS NOT NULL)
+)",
+             starts_table.c_str(), ends_table.c_str(), starts_ts_col.c_str(),
+             ends_ts_col.c_str(), ends_ts_col.c_str(), starts_ts_col.c_str())
+      .ToStdString();
 }
 
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
