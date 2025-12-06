@@ -42,10 +42,11 @@ export default class implements PerfettoPlugin {
       },
       columns: {ts: 'ts', value: 'value'},
       options: {
-        unit: '%',
+        unit: 'ms',
         yOverrideMaximum: 100,
         yOverrideMinimum: 0,
         yRangeSharingKey: sharing,
+        yMode: 'rate',
       },
       materialize: false,
     });
@@ -67,25 +68,18 @@ export default class implements PerfettoPlugin {
 
   async addSummaryCpuCounters(ctx: Trace): Promise<void> {
     const e = ctx.engine;
-    await e.query(
-      `CREATE PERFETTO TABLE _android_cpu_per_uid_summary AS
-      select
-        case when t.uid % 100000 < 10000 then 'System' else 'Apps' end as type,
-        cluster,
-        ts,
-        sum(100 * max(0, cpu_ratio)) as value
-      from android_cpu_per_uid_track t join android_cpu_per_uid_counter c on t.id = c.track_id
-      group by type, cluster, ts
-      order by type, cluster, ts;`,
-    );
 
     const tracks = await e.query(
-      `select distinct type, cluster
-        from _android_cpu_per_uid_summary
-        order by type, cluster`,
+      `select distinct
+         id,
+         extract_arg(dimension_arg_set_id, 'type') as type,
+         extract_arg(dimension_arg_set_id, 'cluster') as cluster
+       from track
+       where type = 'android_cpu_per_uid_totals'
+       order by type, cluster`,
     );
 
-    const it = tracks.iter({type: STR, cluster: NUM});
+    const it = tracks.iter({id: NUM, type: STR, cluster: NUM});
     if (it.valid()) {
       const group = new TrackNode({
         name: 'Summary',
@@ -98,8 +92,8 @@ export default class implements PerfettoPlugin {
         await this.addCpuPerUidTrack(
           ctx,
           `select ts, value
-          from _android_cpu_per_uid_summary
-          where type = '${it.type}' and cluster = ${it.cluster}`,
+          from counter
+          where track_id = ${it.id}`,
           name,
           `/cpu_per_uid_summary_${it.type}_${it.cluster}`,
           group,
@@ -117,15 +111,13 @@ export default class implements PerfettoPlugin {
   ): Promise<void> {
     const e = ctx.engine;
     const tracks = await e.query(
-      `select 
-          t.id,
-          t.cluster,
-          ifnull(package_name, 'UID ' || uid) as name,
-          sum(diff_ms) as total_cpu_ms
-        from android_cpu_per_uid_track t join android_cpu_per_uid_counter c on t.id = c.track_id
-        group by t.id, cluster, name
-        having total_cpu_ms > ${thresholdMs}
-        order by name, cluster`,
+      `select
+         id,
+         cluster,
+         IFNULL(package_name, 'UID ' || uid) AS name
+       from android_cpu_per_uid_track
+       where total_cpu_millis > ${thresholdMs}
+       order by name, cluster`,
     );
     const it = tracks.iter({id: NUM, cluster: NUM, name: STR});
     if (it.valid()) {
@@ -141,8 +133,8 @@ export default class implements PerfettoPlugin {
           ctx,
           `select
            ts,
-           min(100, 100 * cpu_ratio) as value
-         from android_cpu_per_uid_counter
+           value
+         from counter
          where track_id = ${it.id}`,
           name,
           `/${uriPrefix}_${it.id}`,
