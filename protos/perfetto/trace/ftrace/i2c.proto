@@ -18,7 +18,7 @@ message I2cWriteFtraceEvent {
   optional uint32 addr = 3;
   optional uint32 flags = 4;
   optional uint32 len = 5;
-  optional uint32 buf = 6;
+  optional bytes buf = 6;
 }
 message I2cResultFtraceEvent {
   optional int32 adapter_nr = 1;
@@ -31,7 +31,7 @@ message I2cReplyFtraceEvent {
   optional uint32 addr = 3;
   optional uint32 flags = 4;
   optional uint32 len = 5;
-  optional uint32 buf = 6;
+  optional bytes buf = 6;
 }
 message SmbusReadFtraceEvent {
   optional int32 adapter_nr = 1;

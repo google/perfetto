@@ -230,7 +230,7 @@ std::array<FtraceMessageDescriptor, 600> descriptors{{
             {"addr", ProtoSchemaType::kUint32},
             {"flags", ProtoSchemaType::kUint32},
             {"len", ProtoSchemaType::kUint32},
-            {"buf", ProtoSchemaType::kUint32},
+            {"buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -253,7 +253,7 @@ std::array<FtraceMessageDescriptor, 600> descriptors{{
             {"addr", ProtoSchemaType::kUint32},
             {"flags", ProtoSchemaType::kUint32},
             {"len", ProtoSchemaType::kUint32},
-            {"buf", ProtoSchemaType::kUint32},
+            {"buf", ProtoSchemaType::kBytes},
         },
     },
     {
