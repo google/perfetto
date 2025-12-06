@@ -12,6 +12,9 @@ Unreleased:
       `slices.stack` stdlib module. These features were poorly named and often
       misused. See https://perfetto.dev/docs/analysis/perfetto-sql-backcompat
       for migration guidance.
+    * Breaking change: TrackEvent log messages are now parsed into
+      "track_event.log_message.message" arg instead of "track_event.log_message"
+      to ensure that arg set can be converted into a valid json.
   UI:
     * Added snap-to-boundaries feature for precise time selection. When
       dragging selection handles or creating area selections, the cursor
