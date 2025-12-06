@@ -35,7 +35,7 @@ import {
   JoinCondition,
 } from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
-import {FormRow} from '../widgets';
+import {FormRow, InfoBox} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle, ColumnName} from '../node_styling_widgets';
 
@@ -293,6 +293,14 @@ export class JoinNode implements QueryNode {
     const rightCols = this.rightNode?.finalCols ?? [];
 
     const sections: NodeModifyAttrs['sections'] = [];
+
+    // InfoBox
+    sections.push({
+      content: m(
+        InfoBox,
+        'Combines rows from exactly two inputs side-by-side by matching on a join key. Each row from the first input is matched with rows from the second input where the join column values are equal.',
+      ),
+    });
 
     // Add error if present
     if (error) {

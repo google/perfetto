@@ -30,6 +30,7 @@ import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {InfoBox} from '../widgets';
 
 export interface UnionSerializedState {
   unionNodes: string[];
@@ -224,6 +225,14 @@ export class UnionNode implements QueryNode {
         content: m(Callout, {icon: 'error'}, error.message),
       });
     }
+
+    // InfoBox
+    sections.push({
+      content: m(
+        InfoBox,
+        'Stacks rows from multiple inputs vertically (UNION ALL). All inputs must have compatible column schemas. Useful for combining similar data from different sources.',
+      ),
+    });
 
     // Selected columns section
     sections.push({

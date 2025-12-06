@@ -35,6 +35,7 @@ import {
   OutlinedMultiSelect,
   MultiSelectOption,
   MultiSelectDiff,
+  InfoBox,
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle} from '../node_styling_widgets';
@@ -551,6 +552,14 @@ export class IntervalIntersectNode implements QueryNode {
         content: m(Callout, {icon: 'error'}, error.message),
       });
     }
+
+    // InfoBox
+    sections.push({
+      content: m(
+        InfoBox,
+        'Finds overlapping time intervals between two inputs. Filters rows from the primary input to only those that overlap with intervals in the secondary input. Useful for time-based filtering.',
+      ),
+    });
 
     // Add duplicate warnings if present
     if (duplicateWarnings.length > 0) {
