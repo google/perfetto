@@ -22,6 +22,8 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- Converts the heap graph into a tree by performing a BFS on the graph from
 -- the roots. This basically ends up with all paths being the shortest path
 -- from the root to the node (with lower ids being picked in the case of ties).
+-- Root nodes are sorted by class name before traversal to make the output
+-- more deterministic.
 CREATE PERFETTO TABLE _heap_graph_object_min_depth_tree AS
 SELECT
   node_id AS id,
@@ -34,9 +36,11 @@ FROM graph_reachable_bfs!(
     ORDER BY ref.owned_id
   ),
   (
-    SELECT id AS node_id
-    FROM heap_graph_object
-    WHERE root_type IS NOT NULL
+    SELECT o.id AS node_id
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    WHERE o.root_type IS NOT NULL
+    ORDER BY c.name, o.id
   )
 )
 ORDER BY
