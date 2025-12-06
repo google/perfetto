@@ -118,7 +118,7 @@ export class FilterDuringNode implements QueryNode {
   secondaryInputs: {
     connections: Map<number, QueryNode>;
     min: 1;
-    max: -1;
+    max: 6;
   };
   nextNodes: QueryNode[];
   readonly state: FilterDuringNodeState;
@@ -129,7 +129,7 @@ export class FilterDuringNode implements QueryNode {
     this.secondaryInputs = {
       connections: new Map(),
       min: 1,
-      max: -1,
+      max: 6,
     };
     this.nextNodes = [];
     this.state.autoExecute = this.state.autoExecute ?? false;

@@ -86,11 +86,11 @@ describe('FilterDuringNode', () => {
       expect(node.type).toBe(NodeType.kFilterDuring);
     });
 
-    it('should initialize secondary inputs with min=1, max=-1 (unlimited)', () => {
+    it('should initialize secondary inputs with min=1, max=6', () => {
       const node = new FilterDuringNode({});
 
       expect(node.secondaryInputs.min).toBe(1);
-      expect(node.secondaryInputs.max).toBe(-1);
+      expect(node.secondaryInputs.max).toBe(6);
       expect(node.secondaryInputs.connections.size).toBe(0);
     });
   });
@@ -148,7 +148,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'No primary input',
+        'Connect a node to be filtered to the top port',
       );
     });
 
@@ -164,7 +164,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'No interval source',
+        'Connect a node with intervals to the left port',
       );
     });
 
@@ -184,7 +184,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Primary input is invalid',
+        'Node to be filtered is invalid',
       );
     });
 
@@ -204,7 +204,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Interval source 1 is invalid',
+        'Input at port 1 is invalid',
       );
     });
 
@@ -225,7 +225,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Primary input is missing required columns',
+        'Node to be filtered is missing required columns',
       );
     });
 
@@ -246,7 +246,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Interval source 1 is missing required columns',
+        'Input at port 1 is missing required columns',
       );
     });
 

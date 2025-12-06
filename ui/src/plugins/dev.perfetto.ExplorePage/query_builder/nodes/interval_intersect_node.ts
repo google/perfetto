@@ -239,7 +239,7 @@ export class IntervalIntersectNode implements QueryNode {
     this.secondaryInputs = {
       connections: new Map(),
       min: 2,
-      max: 'unbounded',
+      max: 6,
     };
     // Initialize connections from state.inputNodes
     for (let i = 0; i < state.inputNodes.length; i++) {
