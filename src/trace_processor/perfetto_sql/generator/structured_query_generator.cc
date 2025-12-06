@@ -445,17 +445,20 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
       SqlSource::FromTraceProcessorImplementation("");
   if (sql.has_preamble()) {
     // If preambles are specified, we assume that the SQL is a single statement.
+    auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql.sql());
+    if (!parsed_preamble.sql().empty()) {
+      return base::ErrStatus(
+          "Sql source specifies both `preamble` and has multiple statements in "
+          "the `sql` field. This is not supported - please don't use "
+          "`preamble` "
+          "and pass all the SQL you want to execute in the `sql` field.");
+    }
     preambles_.push_back(sql.preamble().ToStdString());
     final_sql_statement = source_sql;
   } else {
     auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql.sql());
     if (!parsed_preamble.sql().empty()) {
       preambles_.push_back(parsed_preamble.sql());
-    } else if (sql.has_preamble()) {
-      return base::ErrStatus(
-          "Sql source specifies both `preamble` and has multiple statements in "
-          "the `sql` field. This is not supported - plase don't use `preamble` "
-          "and pass all the SQL you want to execute in the `sql` field.");
     }
     final_sql_statement = main_sql;
   }
@@ -1313,6 +1316,14 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
     return std::string("COUNT(*)");
   }
 
+  if (op == StructuredQuery::GroupBy::Aggregate::CUSTOM) {
+    if (!aggregate.has_custom_sql_expression()) {
+      return base::ErrStatus(
+          "Custom SQL expression not specified for CUSTOM aggregation");
+    }
+    return aggregate.custom_sql_expression().ToStdString();
+  }
+
   if (!aggregate.has_column_name()) {
     return base::ErrStatus("Column name not specified for aggregation");
   }
@@ -1321,6 +1332,8 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
   switch (op) {
     case StructuredQuery::GroupBy::Aggregate::COUNT:
       return "COUNT(" + column_name + ")";
+    case StructuredQuery::GroupBy::Aggregate::COUNT_DISTINCT:
+      return "COUNT(DISTINCT " + column_name + ")";
     case StructuredQuery::GroupBy::Aggregate::SUM:
       return "SUM(" + column_name + ")";
     case StructuredQuery::GroupBy::Aggregate::MIN:
@@ -1340,6 +1353,8 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
     case StructuredQuery::GroupBy::Aggregate::DURATION_WEIGHTED_MEAN:
       return "SUM(cast_double!(" + column_name +
              " * dur)) / cast_double!(SUM(dur))";
+    case StructuredQuery::GroupBy::Aggregate::CUSTOM:
+      PERFETTO_FATAL("CUSTOM aggregation should have been handled above");
     case StructuredQuery::GroupBy::Aggregate::UNSPECIFIED:
       return base::ErrStatus("Invalid aggregate operator %d", op);
   }
