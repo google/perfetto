@@ -908,6 +908,23 @@ void SharedMemoryArbiterImpl::NotifyFlushComplete(FlushRequestID req_id) {
   }
 }
 
+void SharedMemoryArbiterImpl::ScrapeEmulatedSharedMemoryBuffer(
+    const std::map<WriterID, BufferID>& buffer_for_writers) {
+  PERFETTO_CHECK(use_shmem_emulation_);
+
+  ForEachScrapableChunk(
+      &shmem_abi_, [&](SharedMemoryABI::Chunk* chunk, auto, auto) {
+        const auto writer = buffer_for_writers.find(chunk->writer_id());
+        if (writer == buffer_for_writers.end())
+          return;
+
+        BufferID target_buffer_id = writer->second;
+        PatchList ignored;
+
+        ReturnCompletedChunk(std::move(*chunk), target_buffer_id, &ignored);
+      });
+}
+
 std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
     MaybeUnboundBufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy) {
