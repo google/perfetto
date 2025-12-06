@@ -404,13 +404,7 @@
   }
 
   &.pf-invalid {
-    background: rgba(255, 100, 100, 0.08);
-    border-color: rgba(255, 100, 100, 0.3);
-
-    &:hover {
-      background: rgba(255, 100, 100, 0.12);
-      border-color: rgba(255, 100, 100, 0.5);
-    }
+    border-color: var(--pf-color-danger);
   }
 }
 
@@ -463,7 +457,7 @@
   transition: border-color 0.15s ease-in-out;
 
   &:hover:not(:disabled) {
-    border-color: var(--pf-color-text-secondary);
+    border-color: var(--pf-color-text-muted);
   }
 
   &:focus-within:not(:disabled) {
@@ -487,7 +481,7 @@
     margin-left: 8px;
     font-size: 12px;
     font-weight: 500;
-    color: var(--pf-color-text-secondary);
+    color: var(--pf-color-text-muted);
     user-select: none;
     transition: color 0.15s ease-in-out;
   }
@@ -528,7 +522,7 @@
 
     &:hover {
       border-color: var(--pf-color-primary) !important;
-      background: var(--pf-color-hover) !important;
+      background: var(--pf-color-background-secondary) !important;
     }
 
     &:focus {
@@ -595,13 +589,7 @@
   }
 
   &.pf-invalid {
-    background: rgba(255, 100, 100, 0.08);
-    border-color: rgba(255, 100, 100, 0.3);
-
-    &:hover {
-      background: rgba(255, 100, 100, 0.12);
-      border-color: rgba(255, 100, 100, 0.5);
-    }
+    border-color: var(--pf-color-danger);
   }
 
   .pf-inline-field__label {
