@@ -28,7 +28,7 @@ import {NodeIssues} from '../node_issues';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {Button, ButtonVariant} from '../../../../widgets/button';
-import {StructuredQueryBuilder} from '../structured_query_builder';
+import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {InfoBox, DraggableItem} from '../widgets';
@@ -354,11 +354,32 @@ export class UnionNode implements QueryNode {
       if (inputNode === undefined) return undefined;
     }
 
-    return StructuredQueryBuilder.withUnion(
-      this.inputNodesList,
-      true,
-      this.nodeId,
-    );
+    // Get the list of checked common columns
+    const selectedColumns = this.state.selectedColumns.filter((c) => c.checked);
+    if (selectedColumns.length === 0) return undefined;
+
+    // Build column specifications for the SELECT
+    const columnSpecs: ColumnSpec[] = selectedColumns.map((col) => ({
+      columnNameOrExpression: col.column.name,
+    }));
+
+    // Create wrapper queries for each input that selects only the common columns
+    const wrappedNodes: QueryNode[] = [];
+    for (const inputNode of this.inputNodesList) {
+      // Create a temporary wrapper that selects only common columns
+      const wrapper = {
+        getStructuredQuery: () =>
+          StructuredQueryBuilder.withSelectColumns(
+            inputNode,
+            columnSpecs,
+            undefined,
+          ),
+      } as QueryNode;
+      wrappedNodes.push(wrapper);
+    }
+
+    // Create the union from the wrapped queries
+    return StructuredQueryBuilder.withUnion(wrappedNodes, true, this.nodeId);
   }
 
   serializeState(): UnionSerializedState {
