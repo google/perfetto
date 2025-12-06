@@ -933,21 +933,22 @@ base::StatusOr<std::string> GeneratorImpl::CreateSlices(
   if (!create_slices.has_ends_query()) {
     return base::ErrStatus("CreateSlices must specify an ends_query");
   }
-  if (!create_slices.has_starts_ts_column()) {
-    return base::ErrStatus("CreateSlices must specify starts_ts_column");
-  }
-  if (!create_slices.has_ends_ts_column()) {
-    return base::ErrStatus("CreateSlices must specify ends_ts_column");
-  }
 
-  std::string starts_ts_col = create_slices.starts_ts_column().ToStdString();
-  std::string ends_ts_col = create_slices.ends_ts_column().ToStdString();
+  // Default to "ts" if not specified or empty
+  std::string starts_ts_col =
+      create_slices.has_starts_ts_column()
+          ? create_slices.starts_ts_column().ToStdString()
+          : "ts";
+  std::string ends_ts_col = create_slices.has_ends_ts_column()
+                                ? create_slices.ends_ts_column().ToStdString()
+                                : "ts";
 
+  // If explicitly set to empty string, also default to "ts"
   if (starts_ts_col.empty()) {
-    return base::ErrStatus("starts_ts_column cannot be empty");
+    starts_ts_col = "ts";
   }
   if (ends_ts_col.empty()) {
-    return base::ErrStatus("ends_ts_column cannot be empty");
+    ends_ts_col = "ts";
   }
 
   // Generate nested sources

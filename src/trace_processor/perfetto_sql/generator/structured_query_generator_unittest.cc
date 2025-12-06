@@ -4405,7 +4405,7 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesMissingEndsQuery) {
 }
 
 TEST(StructuredQueryGeneratorTest,
-     ExperimentalCreateSlicesMissingStartsTsColumn) {
+     ExperimentalCreateSlicesDefaultStartsTsColumn) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
     experimental_create_slices: {
@@ -4425,13 +4425,13 @@ TEST(StructuredQueryGeneratorTest,
     }
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
-  ASSERT_FALSE(ret.ok());
-  EXPECT_THAT(ret.status().message(),
-              testing::HasSubstr("CreateSlices must specify starts_ts_column"));
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should default starts_ts_column to "ts"
+  EXPECT_THAT(res, testing::HasSubstr("starts.ts AS start_ts"));
 }
 
 TEST(StructuredQueryGeneratorTest,
-     ExperimentalCreateSlicesMissingEndsTsColumn) {
+     ExperimentalCreateSlicesDefaultEndsTsColumn) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
     experimental_create_slices: {
@@ -4451,9 +4451,56 @@ TEST(StructuredQueryGeneratorTest,
     }
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
-  ASSERT_FALSE(ret.ok());
-  EXPECT_THAT(ret.status().message(),
-              testing::HasSubstr("CreateSlices must specify ends_ts_column"));
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should default ends_ts_column to "ts"
+  EXPECT_THAT(res, testing::HasSubstr("ends.ts"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalCreateSlicesDefaultBothTsColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_create_slices: {
+      starts_query: {
+        table: {
+          table_name: "start_events"
+          column_names: "ts"
+        }
+      }
+      ends_query: {
+        table: {
+          table_name: "end_events"
+          column_names: "ts"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should default both columns to "ts"
+  EXPECT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM end_events),
+    sq_1 AS (SELECT * FROM start_events),
+    sq_0 AS (
+      SELECT * FROM (
+        WITH starts AS (SELECT * FROM sq_1),
+             ends AS (SELECT * FROM sq_2),
+             matched AS (
+               SELECT
+                 starts.ts AS start_ts,
+                 (SELECT MIN(ends.ts) FROM ends WHERE ends.ts > starts.ts) AS end_ts
+               FROM starts
+             )
+        SELECT
+          start_ts AS ts,
+          end_ts - start_ts AS dur
+        FROM matched
+        WHERE end_ts IS NOT NULL
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
 }
 
 TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesWithSqlSource) {
@@ -4536,9 +4583,9 @@ TEST(StructuredQueryGeneratorTest,
     }
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
-  ASSERT_FALSE(ret.ok());
-  EXPECT_THAT(ret.status().message(),
-              testing::HasSubstr("starts_ts_column cannot be empty"));
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Empty string should default to "ts"
+  EXPECT_THAT(res, testing::HasSubstr("starts.ts AS start_ts"));
 }
 
 TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesEmptyEndsTsColumn) {
@@ -4562,9 +4609,9 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesEmptyEndsTsColumn) {
     }
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
-  ASSERT_FALSE(ret.ok());
-  EXPECT_THAT(ret.status().message(),
-              testing::HasSubstr("ends_ts_column cannot be empty"));
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Empty string should default to "ts"
+  EXPECT_THAT(res, testing::HasSubstr("ends.ts"));
 }
 
 TEST(StructuredQueryGeneratorTest,

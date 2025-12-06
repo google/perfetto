@@ -368,10 +368,12 @@ message PerfettoSqlStructuredQuery {
     // The query containing end timestamps. Required.
     optional PerfettoSqlStructuredQuery ends_query = 2;
 
-    // The column name in starts_query containing the timestamp. Required.
+    // The column name in starts_query containing the timestamp.
+    // Optional, defaults to "ts".
     optional string starts_ts_column = 3;
 
-    // The column name in ends_query containing the timestamp. Required.
+    // The column name in ends_query containing the timestamp.
+    // Optional, defaults to "ts".
     optional string ends_ts_column = 4;
   }
 
