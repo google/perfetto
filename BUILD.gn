@@ -198,6 +198,9 @@ if (perfetto_build_standalone) {
     # Checks that the "fake" backend implementations build.
     "src/tracing:client_api_no_backends_compile_test",
   ]
+
+  # TODO: Fix build for Windows
+  # https://github.com/google/perfetto/issues/3772
   if (is_linux || is_android || is_mac) {
     all_targets += [ "src/tracebox" ]
   }
