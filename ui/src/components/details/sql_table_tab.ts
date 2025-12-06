@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
-import {exists} from '../../base/utils';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
@@ -38,6 +37,7 @@ import {sqlColumnId} from '../widgets/sql/table/sql_column';
 import {TabOption, TabStrip} from '../../widgets/tabs';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
+import {exists} from '../../base/utils';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -74,23 +74,6 @@ class SqlTableTab implements Tab {
   private histograms: SqlHistogramState[] = [];
 
   private getTableButtons() {
-    const range = this.tableState.getDisplayedRange();
-    const rowCount = this.tableState.getTotalRowCount();
-    const navigation = [
-      exists(range) &&
-        exists(rowCount) &&
-        `Showing rows ${range.from}-${range.to} of ${rowCount}`,
-      m(Button, {
-        icon: Icons.GoBack,
-        disabled: !this.tableState.canGoBack(),
-        onclick: () => this.tableState.goBack(),
-      }),
-      m(Button, {
-        icon: Icons.GoForward,
-        disabled: !this.tableState.canGoForward(),
-        onclick: () => this.tableState.goForward(),
-      }),
-    ];
     const {selectStatement, columns} = this.tableState.getCurrentRequest();
     const debugTrackColumns = Object.values(columns).filter(
       (c) => !c.startsWith('__'),
@@ -107,8 +90,11 @@ class SqlTableTab implements Tab {
         availableColumns: debugTrackColumns,
       }),
     );
+
+    const rowCount = this.tableState.getTotalRowCount();
+
     return [
-      ...navigation,
+      exists(rowCount) && `${rowCount.toLocaleString()} rows`,
       addDebugTrack,
       m(
         PopupMenu,
@@ -320,7 +306,8 @@ class SqlTableTab implements Tab {
 
   getTitle(): string {
     const rowCount = this.tableState.getTotalRowCount();
-    const rows = rowCount === undefined ? '' : ` (${rowCount})`;
+    const rows =
+      rowCount === undefined ? '' : ` (${rowCount.toLocaleString()})`;
     return `Table ${this.getDisplayName()}${rows}`;
   }
 

@@ -39,11 +39,6 @@ export interface TableColumnParams {
 export interface TableColumn {
   readonly column: SqlColumn;
   readonly type: PerfettoSqlType | undefined;
-  // In some cases, the UI needs additional information to be able to render a given cell (e.g. for display arg values,
-  // we need to know arg type as well as arg value to generate a correct filter). In these cases, the common solution is fetch a JSON value
-  // or a protobuf from the SQL and render it accordingly, so if set, `display` column overrides which value is going to be passed to `renderCell`.
-  // `column` is still always going to be used for sorting, aggregation and casting.
-  readonly display?: SqlColumn;
 
   // Column title to be displayed.
   // If not set, then `alias` will be used if it's unique.
