@@ -310,6 +310,7 @@ class SharedMemoryABI {
   // There is one Chunk header per chunk (hence PageLayout per page) at the
   // beginning of each chunk.
   struct ChunkHeader {
+    inline static constexpr uint8_t kFlagsMask = 0x7;
     enum Flags : uint8_t {
       // If set, the first TracePacket in the chunk is partial and continues
       // from |chunk_id| - 1 (within the same |writer_id|).
