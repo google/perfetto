@@ -418,7 +418,10 @@ export class FilterDuringNode implements QueryNode {
     }
 
     if (this.primaryInput === undefined) {
-      setValidationError(this.state, 'Connect a node to be filtered to the top port');
+      setValidationError(
+        this.state,
+        'Connect a node to be filtered to the top port',
+      );
       return false;
     }
 
@@ -429,7 +432,10 @@ export class FilterDuringNode implements QueryNode {
 
     const secondaryNodes = this.secondaryNodes;
     if (secondaryNodes.length === 0) {
-      setValidationError(this.state, 'Connect a node with intervals to the left port');
+      setValidationError(
+        this.state,
+        'Connect a node with intervals to the left port',
+      );
       return false;
     }
 

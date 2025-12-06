@@ -245,7 +245,7 @@ export class AggregationNode implements QueryNode {
     const details: m.Child[] = [
       m(
         LabeledControl,
-        {label: 'Group by:'},
+        {label: 'Grouping columns:'},
         m(OutlinedMultiSelect, {
           label,
           options: groupByOptions,
@@ -316,7 +316,7 @@ export class AggregationNode implements QueryNode {
 
     return m(
       LabeledControl,
-      {label: 'GROUP BY columns:'},
+      {label: 'Grouping columns:'},
       m(OutlinedMultiSelect, {
         label,
         options: groupByOptions,
