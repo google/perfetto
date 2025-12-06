@@ -48,29 +48,32 @@ export class AggregationPanel
     columns: ReadonlyArray<ColumnDef>,
     onReady?: (api: DataGridApi) => void,
   ) {
-    const columnsById = new Map(columns.map((c) => [c.columnId, c]));
-
     return m(DataGrid, {
       fillHeight: true,
-      showResetButton: false,
       columns: columns.map((c): ColumnDefinition => {
         return {
           name: c.columnId,
           title: c.title,
           aggregation: c.sum ? 'SUM' : undefined,
+          filterType: filterTypeForColumnDef(c.formatHint),
+          cellRenderer: (value) => {
+            if (c.formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+              return Duration.humanise(value);
+            } else if (
+              c.formatHint === 'PERCENT' &&
+              typeof value === 'number'
+            ) {
+              return `${(value * 100).toFixed(2)}%`;
+            } else {
+              return renderCell(value, c.columnId);
+            }
+          },
+          valueFormatter: (value) => valueFormatter(value, c.formatHint),
         };
       }),
       data: dataSource,
       initialSorting: sorting,
       onReady,
-      cellRenderer: (value: SqlValue, columnName: string) => {
-        const formatHint = columnsById.get(columnName)?.formatHint;
-        return this.renderCell(value, columnName, formatHint);
-      },
-      valueFormatter: (value: SqlValue, columnName: string) => {
-        const formatHint = columnsById.get(columnName)?.formatHint;
-        return valueFormatter(value, formatHint);
-      },
     });
   }
 
@@ -95,16 +98,6 @@ export class AggregationPanel
       }),
     );
   }
-
-  private renderCell(value: SqlValue, colName: string, formatHint?: string) {
-    if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
-      return Duration.humanise(value);
-    } else if (formatHint === 'PERCENT' && typeof value === 'number') {
-      return `${(value * 100).toFixed(2)}%`;
-    } else {
-      return renderCell(value, colName);
-    }
-  }
 }
 
 function valueFormatter(value: SqlValue, formatHint?: string): string {
@@ -114,5 +107,21 @@ function valueFormatter(value: SqlValue, formatHint?: string): string {
     return `${(value * 100).toFixed(2)}%`;
   } else {
     return defaultValueFormatter(value);
+  }
+}
+
+function filterTypeForColumnDef(
+  formatHint: string | undefined,
+): 'numeric' | 'string' | undefined {
+  switch (formatHint) {
+    case undefined:
+      return undefined;
+    case 'NUMERIC':
+    case 'DURATION_NS':
+    case 'PERCENT':
+      return 'numeric';
+    case 'STRING':
+    default:
+      return 'string';
   }
 }

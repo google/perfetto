@@ -86,6 +86,7 @@ import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
+import {Popup, PopupPosition} from '../../../widgets/popup';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
@@ -129,6 +130,8 @@ export interface BuilderAttrs {
   readonly onImport: () => void;
   readonly onExport: () => void;
 
+  readonly onLoadExample: () => void;
+
   // Node state change callback
   readonly onNodeStateChange?: () => void;
 
@@ -156,11 +159,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
   private dataSource?: DataGridDataSource;
-  private drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+  private drawerVisibility = SplitPanelDrawerVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
   private sidebarWidth: number = 500; // Default width in pixels
   private readonly MIN_SIDEBAR_WIDTH = 250;
   private readonly MAX_SIDEBAR_WIDTH = 800;
+  private hasEverSelectedNode = false;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.trace = attrs.trace;
@@ -214,11 +218,36 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         );
       });
 
+    // Add Examples card at the end
+    const examplesCard = m(
+      Card,
+      {
+        'interactive': true,
+        'onclick': () => attrs.onLoadExample(),
+        'tabindex': 0,
+        'role': 'button',
+        'aria-label': 'Load example graph',
+        'className': 'pf-source-card',
+        'onkeydown': (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            attrs.onLoadExample();
+          }
+        },
+      },
+      m(
+        '.pf-source-card-clickable',
+        m(Icon, {icon: 'auto_stories'}),
+        m('h3', 'Examples'),
+      ),
+      m('p', 'Load an example graph'),
+    );
+
     if (sourceNodes.length === 0) {
-      return m('p', 'No source nodes available');
+      return [examplesCard];
     }
 
-    return sourceNodes;
+    return [examplesCard, ...sourceNodes];
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -229,6 +258,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.resetQueryState();
       this.isQueryRunning = false;
       this.isAnalyzing = false;
+
+      // Show drawer the first time any node is selected
+      if (!this.hasEverSelectedNode) {
+        this.drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+        this.hasEverSelectedNode = true;
+      }
+
       const hasModifyPanel = selectedNode.nodeSpecificModify() != null;
       // If current view is Info, switch to Modify (if available) when selecting a new node
       if (this.selectedView === SelectedView.kInfo && hasModifyPanel) {
@@ -308,6 +344,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         startingHeight: 300,
         drawerContent: selectedNode
           ? m(DataExplorer, {
+              trace: this.trace,
               query: this.query,
               node: selectedNode,
               response: this.response,
@@ -378,13 +415,24 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             '.pf-qb-floating-controls',
             !selectedNode.validate() &&
               m(
-                '.pf-qb-floating-warning',
-                m(Icon, {
-                  icon: Icons.Warning,
-                  filled: true,
-                  className: 'pf-qb-warning-icon',
-                  title: `Invalid node: ${selectedNode.state.issues?.getTitle() ?? ''}`,
-                }),
+                Popup,
+                {
+                  trigger: m(
+                    '.pf-qb-floating-warning',
+                    m(Icon, {
+                      icon: Icons.Warning,
+                      filled: true,
+                      className: 'pf-qb-warning-icon',
+                      title: 'Click to see error details',
+                    }),
+                  ),
+                  position: PopupPosition.BottomEnd,
+                  showArrow: true,
+                },
+                m(
+                  '.pf-error-details',
+                  selectedNode.state.issues?.getTitle() ?? 'No error details',
+                ),
               ),
           ),
         m(
@@ -586,6 +634,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       },
       'explore_page',
     );
+
+    // Navigate to the timeline page
+    this.trace.navigate('#!/viewer');
   }
 
   private setNodeIssuesFromResponse(

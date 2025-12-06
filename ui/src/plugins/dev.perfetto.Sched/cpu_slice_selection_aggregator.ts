@@ -91,6 +91,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       {
         title: 'PID',
         columnId: 'pid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Thread',
@@ -99,6 +100,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       {
         title: 'TID',
         columnId: 'tid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Wall duration',
@@ -120,6 +122,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         title: 'Occurrences',
         columnId: 'occurrences',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

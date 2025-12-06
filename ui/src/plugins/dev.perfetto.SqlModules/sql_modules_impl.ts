@@ -78,10 +78,6 @@ export class SqlModulesImpl implements SqlModules {
       }
     }
 
-    console.log(
-      `[SqlModules] Found ${modulesWithChecks.size} modules with data checks`,
-    );
-
     // Check data availability for modules with checks
     const missingDataModules = new Set<string>();
     for (const [moduleName, checkSql] of modulesWithChecks) {
@@ -98,21 +94,14 @@ export class SqlModulesImpl implements SqlModules {
               ? hasDataValue !== 0n
               : Number(hasDataValue) !== 0;
           if (!hasData) {
-            console.log(`[SqlModules] Module "${moduleName}" has no data`);
             missingDataModules.add(moduleName);
           }
         }
       } catch (e) {
         // If query fails, assume no data
-        console.warn(`[SqlModules] Data check failed for "${moduleName}":`, e);
         missingDataModules.add(moduleName);
       }
     }
-
-    console.log(
-      `[SqlModules] ${missingDataModules.size} modules with missing data:`,
-      Array.from(missingDataModules),
-    );
 
     // BFS to find all transitive dependents of modules with missing data
     const queue = Array.from(missingDataModules);
@@ -133,10 +122,6 @@ export class SqlModulesImpl implements SqlModules {
     }
 
     this.disabledModules = disabled;
-    console.log(
-      `[SqlModules] Total disabled modules (including transitive deps): ${disabled.size}`,
-      Array.from(disabled),
-    );
   }
 
   isModuleDisabled(moduleName: string): boolean {

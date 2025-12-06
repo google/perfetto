@@ -102,6 +102,7 @@ export class FrameSelectionAggregator implements Aggregator {
         title: 'Occurrences',
         columnId: 'occurrences',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

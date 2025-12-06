@@ -25,16 +25,15 @@ import {time, TimeSpan, Time} from '../../../../../base/time';
 import {PerfettoSqlTypes} from '../../../../../trace_processor/perfetto_sql_type';
 import {Trace} from '../../../../../public/trace';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
-import {TextInput} from '../../../../../widgets/text_input';
 import {Switch} from '../../../../../widgets/switch';
 import {Anchor} from '../../../../../widgets/anchor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import protos from '../../../../../protos';
-import {ListItem, InfoBox} from '../../widgets';
-import {showModal} from '../../../../../widgets/modal';
+import {InlineField, InfoBox} from '../../widgets';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
+import {loadNodeDoc} from '../../node_doc_loader';
 
 // Poll interval for dynamic mode selection updates (in milliseconds)
 const SELECTION_POLL_INTERVAL_MS = 200;
@@ -244,127 +243,6 @@ export class TimeRangeSourceNode implements QueryNode {
     m.redraw();
   }
 
-  private showEditStartModal(): void {
-    let tempValue = this.state.start?.toString() ?? '';
-
-    showModal({
-      title: 'Edit Start Time',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'Start timestamp (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              this.state.start = Time.fromRaw(parsed);
-              this.state.onchange?.();
-            } catch (e) {
-              console.warn('Invalid start timestamp:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
-  private showEditEndModal(): void {
-    let tempValue = this.state.end?.toString() ?? '';
-
-    showModal({
-      title: 'Edit End Time',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'End timestamp (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              this.state.end = Time.fromRaw(parsed);
-              this.state.onchange?.();
-            } catch (e) {
-              console.warn('Invalid end timestamp:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
-  private showEditDurationModal(): void {
-    const currentDur =
-      this.state.start && this.state.end
-        ? this.state.end - this.state.start
-        : 0n;
-    let tempValue = currentDur.toString();
-
-    showModal({
-      title: 'Edit Duration',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'Duration (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              if (this.state.start !== undefined) {
-                // Keep start fixed, update end based on duration
-                this.state.end = Time.fromRaw(this.state.start + parsed);
-                this.state.onchange?.();
-              }
-            } catch (e) {
-              console.warn('Invalid duration:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
   nodeSpecificModify(): NodeModifyAttrs {
     const isDynamic = this.state.isDynamic ?? false;
     const isValid = this.validate();
@@ -425,45 +303,89 @@ export class TimeRangeSourceNode implements QueryNode {
     sections.push({
       content: m(
         '.pf-timerange-list',
-        m(ListItem, {
+        m(InlineField, {
+          label: 'Start (ns)',
           icon: 'start',
-          name: 'Start (ns)',
-          description: this.state.start?.toString() ?? 'Not set',
-          actions: !isDynamic
-            ? [
-                {
-                  icon: 'edit',
-                  onclick: () => this.showEditStartModal(),
-                },
-              ]
-            : undefined,
+          value: this.state.start?.toString() ?? 'Not set',
+          editable: !isDynamic,
+          placeholder: 'Start timestamp (ns)',
+          type: 'number',
+          validate: (value: string) => {
+            if (value === 'Not set') return true;
+            try {
+              BigInt(value.trim());
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          errorMessage: 'Must be a valid integer timestamp',
+          onchange: (value: string) => {
+            try {
+              const parsed = BigInt(value.trim());
+              this.state.start = Time.fromRaw(parsed);
+            } catch (e) {
+              // Keep current value if invalid
+            }
+            this.state.onchange?.();
+          },
         }),
-        m(ListItem, {
+        m(InlineField, {
+          label: 'End (ns)',
           icon: 'stop',
-          name: 'End (ns)',
-          description: this.state.end?.toString() ?? 'Not set',
-          actions: !isDynamic
-            ? [
-                {
-                  icon: 'edit',
-                  onclick: () => this.showEditEndModal(),
-                },
-              ]
-            : undefined,
+          value: this.state.end?.toString() ?? 'Not set',
+          editable: !isDynamic,
+          placeholder: 'End timestamp (ns)',
+          type: 'number',
+          validate: (value: string) => {
+            if (value === 'Not set') return true;
+            try {
+              BigInt(value.trim());
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          errorMessage: 'Must be a valid integer timestamp',
+          onchange: (value: string) => {
+            try {
+              const parsed = BigInt(value.trim());
+              this.state.end = Time.fromRaw(parsed);
+            } catch (e) {
+              // Keep current value if invalid
+            }
+            this.state.onchange?.();
+          },
         }),
         isValid &&
-          m(ListItem, {
+          m(InlineField, {
+            label: 'Duration (ns)',
             icon: 'timelapse',
-            name: 'Duration (ns)',
-            description: dur.toString(),
-            actions: !isDynamic
-              ? [
-                  {
-                    icon: 'edit',
-                    onclick: () => this.showEditDurationModal(),
-                  },
-                ]
-              : undefined,
+            value: dur.toString(),
+            editable: !isDynamic,
+            placeholder: 'Duration (ns)',
+            type: 'number',
+            validate: (value: string) => {
+              try {
+                BigInt(value.trim());
+                return true;
+              } catch {
+                return false;
+              }
+            },
+            errorMessage: 'Must be a valid integer duration',
+            onchange: (value: string) => {
+              try {
+                const parsed = BigInt(value.trim());
+                if (this.state.start !== undefined) {
+                  // Keep start fixed, update end based on duration
+                  this.state.end = Time.fromRaw(this.state.start + parsed);
+                }
+              } catch (e) {
+                // Keep current value if invalid
+              }
+              this.state.onchange?.();
+            },
           }),
       ),
     });
@@ -472,62 +394,67 @@ export class TimeRangeSourceNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    if (!this.validate()) {
-      return m(
-        'div',
-        m(
-          '.pf-node-info-empty',
-          'No time range set. Use "Update from Timeline" or enter times manually.',
-        ),
-      );
+    // Show general documentation
+    const docContent = loadNodeDoc('timerange_source');
+
+    // If valid, also show current time range data
+    if (this.validate()) {
+      const start = this.state.start;
+      const end = this.state.end;
+      if (start !== undefined && end !== undefined) {
+        const dur = end - start;
+        const isDynamic = this.state.isDynamic ?? false;
+        const title = isDynamic ? 'Current time selection' : 'Time selection';
+
+        return m(
+          'div',
+          docContent,
+          m(
+            '.pf-timerange-current-data',
+            m('h2', title),
+            m(
+              'table.pf-table.pf-table-striped',
+              m(
+                'thead',
+                m(
+                  'tr',
+                  m('th', 'Column'),
+                  m('th', 'Value'),
+                  m('th', 'Description'),
+                ),
+              ),
+              m(
+                'tbody',
+                m(
+                  'tr',
+                  m('td', 'id'),
+                  m('td', '0'),
+                  m('td', 'Row identifier (always 0)'),
+                ),
+                m(
+                  'tr',
+                  m('td', 'ts'),
+                  m('td', start.toString()),
+                  m('td', 'Start timestamp (ns)'),
+                ),
+                m(
+                  'tr',
+                  m('td', 'dur'),
+                  m('td', dur.toString()),
+                  m('td', 'Duration (ns)'),
+                ),
+              ),
+            ),
+            m(
+              '.pf-timerange-info-mode',
+              `Mode: ${isDynamic ? 'Dynamic (synced with selection)' : 'Static'}`,
+            ),
+          ),
+        );
+      }
     }
 
-    const start = this.state.start;
-    const end = this.state.end;
-    if (start === undefined || end === undefined) {
-      return m('div', m('.pf-node-info-empty', 'No time range set.'));
-    }
-
-    const dur = end - start;
-    const isDynamic = this.state.isDynamic ?? false;
-    const title = isDynamic ? 'Current time selection' : 'Time selection';
-
-    return m(
-      'div',
-      m('h3.pf-timerange-info-title', title),
-      m(
-        'table.pf-table.pf-table-striped',
-        m(
-          'thead',
-          m('tr', m('th', 'Column'), m('th', 'Value'), m('th', 'Description')),
-        ),
-        m(
-          'tbody',
-          m(
-            'tr',
-            m('td', 'id'),
-            m('td', '0'),
-            m('td', 'Row identifier (always 0)'),
-          ),
-          m(
-            'tr',
-            m('td', 'ts'),
-            m('td', start.toString()),
-            m('td', 'Start timestamp (ns)'),
-          ),
-          m(
-            'tr',
-            m('td', 'dur'),
-            m('td', dur.toString()),
-            m('td', 'Duration (ns)'),
-          ),
-        ),
-      ),
-      m(
-        '.pf-timerange-info-mode',
-        `Mode: ${this.state.isDynamic ? 'Dynamic (synced with selection)' : 'Static'}`,
-      ),
-    );
+    return docContent;
   }
 
   // Cleanup when node is destroyed. This is called by CleanupManager

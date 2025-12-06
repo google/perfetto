@@ -33,12 +33,17 @@ export const DEFAULT_SUPPORTED_FILTERS: ReadonlyArray<FilterType> = [
   'is null',
   'is not null',
 ];
+export type CellRenderer = (value: SqlValue, row: RowDef) => m.Children;
+
 export interface ColumnDefinition {
   // Name/id of the column - this should match the key in the data.
   readonly name: string;
 
   // Human readable title to display instead of the name.
   readonly title?: m.Children;
+
+  // Custom renderer for this column's cells
+  readonly cellRenderer?: CellRenderer;
 
   // An optional aggregation for data in this column displayed in the header
   // bar.
@@ -81,6 +86,10 @@ export interface ColumnDefinition {
   // - 'string': Shows text filters (contains, glob) and equals/null filters
   // - undefined: Shows all applicable filters based on other settings
   readonly filterType?: 'numeric' | 'string';
+
+  // Optional value formatter for this column. This is used when exporting
+  // data to format the value as a string.
+  readonly valueFormatter?: ValueFormatter;
 }
 
 export interface FilterValue {

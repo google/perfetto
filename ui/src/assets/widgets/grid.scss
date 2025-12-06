@@ -69,6 +69,11 @@ $indent-guide-offset: 12px;
   &__sort-button {
     // Eliminate the extra space added by the button element.
     margin-left: -$inline-padding;
+
+    // Muted color for the sort button when not actively sorted (hint state)
+    &.pf-grid-cell--hint {
+      color: var(--pf-color-text-hint);
+    }
   }
 }
 
@@ -193,6 +198,7 @@ $indent-guide-offset: 12px;
     top: 0;
     z-index: 1; // Ensure header is above body rows when scrolling.
     background: var(--pf-color-background);
+    font-weight: 500;
   }
 
   &__puck {

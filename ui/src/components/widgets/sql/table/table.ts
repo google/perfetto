@@ -16,12 +16,11 @@ import m from 'mithril';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
-import {Row} from '../../../../trace_processor/query_result';
+import {SqlValue} from '../../../../trace_processor/query_result';
 
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {
-  RenderedCell,
   TableColumn,
   TableManager,
   tableColumnId,
@@ -31,7 +30,7 @@ import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './menus/select_column_menu';
 import {renderCastColumnMenu} from './menus/cast_column_menu';
 import {renderTransformColumnMenu} from './menus/transform_column_menu';
-import {DataGrid} from '../../data_grid/data_grid';
+import {DataGrid, DataGridAttrs} from '../../data_grid/data_grid';
 import {
   ColumnDefinition,
   DataGridFilter,
@@ -46,19 +45,6 @@ export interface SqlTableConfig {
   readonly state: SqlTableState;
   // For additional menu items to add to the column header menus
   readonly addColumnMenuItems?: (column: TableColumn) => m.Children;
-}
-
-function renderCell(
-  column: TableColumn,
-  row: Row,
-  state: SqlTableState,
-): RenderedCell {
-  const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]];
-
-  const result = column.renderCell(sqlValue, getTableManager(state));
-
-  return result;
 }
 
 export function columnTitle(column: TableColumn): string {
@@ -188,10 +174,18 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
             }),
           ];
         },
-        cellContextMenuRenderer: (_value, row, builtins) => {
+        cellContextMenuRenderer: (value, _row, builtins) => {
           // Get the menu from renderCell to allow column-specific context menus
-          const {menu} = renderCell(column, row as Row, this.state);
+          const {menu} = column.renderCell(value, getTableManager(this.state));
           return [menu, builtins.addFilter];
+        },
+        // Custom cell renderer that uses TableColumn's renderCell
+        cellRenderer: (value: SqlValue) => {
+          const {content} = column.renderCell(
+            value,
+            getTableManager(this.state),
+          );
+          return content;
         },
       };
       return columnDef;
@@ -307,16 +301,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     // Convert column order - use aliases to match DataGrid column names
     const columnOrder = columns.map((c) => tableColumnAlias(c));
 
-    // Custom cell renderer that uses TableColumn's renderCell
-    const cellRenderer = (value: unknown, columnName: string, row: unknown) => {
-      // columnName is the aliased name, so compare with aliases
-      const column = columns.find((c) => tableColumnAlias(c) === columnName);
-      if (!column) return String(value);
-
-      const {content} = renderCell(column, row as Row, this.state);
-      return content;
-    };
-
     return m(DataGrid, {
       columns: dataGridColumns,
       data: this.dataSource,
@@ -374,12 +358,11 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       clearFilters: () => {
         this.state.filters.clear();
       },
-      cellRenderer,
       fillHeight: true,
       className: 'sql-table',
       columnReordering: true,
       showFiltersInToolbar: false,
-    });
+    } satisfies DataGridAttrs);
   }
 }
 

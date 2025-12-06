@@ -16,7 +16,7 @@ import m from 'mithril';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
 import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
 import {SqlValue} from '../../../../trace_processor/query_result';
-import {GridFilterChip, GridFilterBar} from '../../data_grid/data_grid';
+import {GridFilterChip, GridFilterBar} from '../../data_grid/data_grid_toolbar';
 
 // A filter which can be applied to the table.
 export interface Filter {

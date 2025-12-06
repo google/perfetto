@@ -221,6 +221,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> AddColumns(
       const StructuredQuery::ExperimentalAddColumns::Decoder&);
 
+  base::StatusOr<std::string> CreateSlices(
+      const StructuredQuery::ExperimentalCreateSlices::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
   static base::StatusOr<std::string> ExperimentalFilterGroup(
@@ -348,6 +351,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       StructuredQuery::ExperimentalAddColumns::Decoder add_columns_decoder(
           q.experimental_add_columns());
       ASSIGN_OR_RETURN(source, AddColumns(add_columns_decoder));
+    } else if (q.has_experimental_create_slices()) {
+      StructuredQuery::ExperimentalCreateSlices::Decoder create_slices_decoder(
+          q.experimental_create_slices());
+      ASSIGN_OR_RETURN(source, CreateSlices(create_slices_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -915,6 +922,60 @@ base::StatusOr<std::string> GeneratorImpl::AddColumns(
                     condition + ")";
 
   return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::CreateSlices(
+    const StructuredQuery::ExperimentalCreateSlices::Decoder& create_slices) {
+  // Validate required fields
+  if (!create_slices.has_starts_query()) {
+    return base::ErrStatus("CreateSlices must specify a starts_query");
+  }
+  if (!create_slices.has_ends_query()) {
+    return base::ErrStatus("CreateSlices must specify an ends_query");
+  }
+
+  // Default to "ts" if not specified or empty
+  std::string starts_ts_col =
+      create_slices.has_starts_ts_column()
+          ? create_slices.starts_ts_column().ToStdString()
+          : "ts";
+  std::string ends_ts_col = create_slices.has_ends_ts_column()
+                                ? create_slices.ends_ts_column().ToStdString()
+                                : "ts";
+
+  // If explicitly set to empty string, also default to "ts"
+  if (starts_ts_col.empty()) {
+    starts_ts_col = "ts";
+  }
+  if (ends_ts_col.empty()) {
+    ends_ts_col = "ts";
+  }
+
+  // Generate nested sources
+  std::string starts_table = NestedSource(create_slices.starts_query());
+  std::string ends_table = NestedSource(create_slices.ends_query());
+
+  // Build the SQL to create slices
+  // For each start, find the first end that comes after it
+  return base::StackString<1024>(
+             R"(
+(WITH starts AS (SELECT * FROM %s),
+     ends AS (SELECT * FROM %s),
+     matched AS (
+       SELECT
+         starts.%s AS start_ts,
+         (SELECT MIN(ends.%s) FROM ends WHERE ends.%s > starts.%s) AS end_ts
+       FROM starts
+     )
+SELECT
+  start_ts AS ts,
+  end_ts - start_ts AS dur
+FROM matched
+WHERE end_ts IS NOT NULL)
+)",
+             starts_table.c_str(), ends_table.c_str(), starts_ts_col.c_str(),
+             ends_ts_col.c_str(), ends_ts_col.c_str(), starts_ts_col.c_str())
+      .ToStdString();
 }
 
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(

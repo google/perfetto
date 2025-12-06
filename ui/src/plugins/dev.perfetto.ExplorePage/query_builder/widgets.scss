@@ -577,3 +577,66 @@
     font-weight: 500;
   }
 }
+
+// Inline field widget - label on left, editable/read-only value on right
+.pf-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+
+  &:hover {
+    background: var(--pf-color-background);
+    border-color: var(--pf-color-primary);
+  }
+
+  &.pf-invalid {
+    background: rgba(255, 100, 100, 0.08);
+    border-color: rgba(255, 100, 100, 0.3);
+
+    &:hover {
+      background: rgba(255, 100, 100, 0.12);
+      border-color: rgba(255, 100, 100, 0.5);
+    }
+  }
+
+  .pf-inline-field__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+    white-space: nowrap;
+    min-width: 100px;
+  }
+
+  .pf-inline-field__value {
+    flex: 1;
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+    font-family: "Roboto Mono", monospace;
+  }
+
+  .pf-text-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    .pf-inline-field__label {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .pf-text-input {
+      width: 100%;
+    }
+  }
+}

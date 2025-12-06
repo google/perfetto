@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {assetSrc} from '../../base/assets';
 
 import {Builder} from './query_builder/builder';
 import {
@@ -28,7 +29,11 @@ import {
 import {UIFilter} from './query_builder/operations/filter';
 import {Trace} from '../../public/trace';
 
-import {exportStateAsJson, importStateFromJson} from './json_handler';
+import {
+  exportStateAsJson,
+  importStateFromJson,
+  deserializeState,
+} from './json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry, PreCreateState} from './query_builder/node_registry';
 import {QueryExecutionService} from './query_builder/query_execution_service';
@@ -42,6 +47,7 @@ import {
   getAllInputNodes,
 } from './query_builder/graph_utils';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import {showExamplesModal} from './examples_modal';
 
 registerCoreNodes();
 
@@ -757,6 +763,30 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
+  private async handleLoadExample(attrs: ExplorePageAttrs) {
+    const {trace, sqlModulesPlugin, onStateUpdate} = attrs;
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    const selectedExample = await showExamplesModal();
+    if (!selectedExample) return;
+
+    try {
+      // Fetch the JSON file from assets using assetSrc for proper path resolution
+      const response = await fetch(assetSrc(selectedExample.jsonPath));
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load example: ${response.status} ${response.statusText}`,
+        );
+      }
+      const json = await response.text();
+      const newState = deserializeState(json, trace, sqlModules);
+      onStateUpdate(newState);
+    } catch (error) {
+      console.error('Failed to load example:', error);
+    }
+  }
+
   private handleUndo(attrs: ExplorePageAttrs) {
     if (!this.historyManager) return;
 
@@ -909,6 +939,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onImport: () => this.handleImport(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
+        onLoadExample: () => this.handleLoadExample(wrappedAttrs),
         onFilterAdd: (node, filter, filterOperator) => {
           this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);
         },

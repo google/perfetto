@@ -90,12 +90,25 @@ import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
-import {ListItem, InfoBox} from '../widgets';
+import {loadNodeDoc} from '../node_doc_loader';
+import {
+  ListItem,
+  InfoBox,
+  LabeledControl,
+  OutlinedMultiSelect,
+  MultiSelectOption,
+  MultiSelectDiff,
+} from '../widgets';
+import {Switch} from '../../../../widgets/switch';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeTitle} from '../node_styling_widgets';
+import {notifyNextNodes} from '../../query_node';
 
 export interface FilterDuringNodeState extends QueryNodeState {
   filterNegativeDurPrimary?: boolean; // Filter negative durations in primary input
   filterNegativeDurSecondary?: boolean; // Filter negative durations in secondary input
+  partitionColumns?: string[]; // Columns to partition by during interval intersection
+  clipToIntervals?: boolean; // When true (default), use intersected ts/dur; when false, use original ts/dur from primary
 }
 
 export class FilterDuringNode implements QueryNode {
@@ -133,6 +146,7 @@ export class FilterDuringNode implements QueryNode {
 
   get finalCols(): ColumnInfo[] {
     // Return the same columns as the primary input
+    // Partition columns are preserved through the interval intersection
     return this.primaryInput?.finalCols ?? [];
   }
 
@@ -141,16 +155,123 @@ export class FilterDuringNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
-    const count = this.secondaryNodes.length;
-    const message =
-      count === 0
-        ? 'No interval sources'
-        : count === 1
-          ? 'Filter during intervals'
-          : `Filter during ${count} interval sources`;
     return {
-      content: m('.pf-exp-node-details-message', message),
+      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
     };
+  }
+
+  private getCommonColumns(): string[] {
+    const EXCLUDED_COLUMNS = new Set(['id', 'ts', 'dur']);
+    const EXCLUDED_TYPES = new Set(['STRING', 'BYTES']);
+
+    // Need both primary input and at least one secondary input
+    if (this.primaryInput === undefined || this.secondaryNodes.length === 0) {
+      return [];
+    }
+
+    // Start with columns from the primary input
+    const commonColumns = new Set(
+      this.primaryInput.finalCols
+        .filter(
+          (c) => !EXCLUDED_COLUMNS.has(c.name) && !EXCLUDED_TYPES.has(c.type),
+        )
+        .map((c) => c.name),
+    );
+
+    // Intersect with columns from all secondary inputs
+    for (const node of this.secondaryNodes) {
+      const nodeColumns = new Map(node.finalCols.map((c) => [c.name, c.type]));
+      // Keep only columns that exist in this node too with a non-excluded type
+      for (const col of commonColumns) {
+        const colType = nodeColumns.get(col);
+        if (colType === undefined || EXCLUDED_TYPES.has(colType)) {
+          commonColumns.delete(col);
+        }
+      }
+    }
+
+    return Array.from(commonColumns).sort();
+  }
+
+  private cleanupPartitionColumns(): void {
+    if (
+      !this.state.partitionColumns ||
+      this.state.partitionColumns.length === 0
+    ) {
+      return;
+    }
+
+    const commonColumns = new Set(this.getCommonColumns());
+
+    // Remove partition columns that no longer exist in all inputs
+    const validPartitionCols = this.state.partitionColumns.filter((colName) =>
+      commonColumns.has(colName),
+    );
+
+    if (validPartitionCols.length !== this.state.partitionColumns.length) {
+      const removed = this.state.partitionColumns.filter(
+        (c) => !validPartitionCols.includes(c),
+      );
+      console.warn(
+        `[FilterDuring] Removing partition columns no longer available in all inputs: ${removed.join(', ')}`,
+      );
+      this.state.partitionColumns = validPartitionCols;
+    }
+  }
+
+  private renderPartitionSelector(compact: boolean = false): m.Child {
+    // Initialize partition columns if needed
+    if (!this.state.partitionColumns) {
+      this.state.partitionColumns = [];
+    }
+
+    // Get common columns for partition selection
+    const commonColumns = this.getCommonColumns();
+    if (commonColumns.length === 0) {
+      return null;
+    }
+
+    const partitionOptions: MultiSelectOption[] = commonColumns.map((col) => ({
+      id: col,
+      name: col,
+      checked: this.state.partitionColumns?.includes(col) ?? false,
+    }));
+
+    const label =
+      this.state.partitionColumns.length > 0
+        ? this.state.partitionColumns.join(', ')
+        : 'None';
+
+    return m(
+      LabeledControl,
+      {label: 'Partition by:'},
+      m(OutlinedMultiSelect, {
+        label,
+        options: partitionOptions,
+        showNumSelected: false,
+        compact,
+        onChange: (diffs: MultiSelectDiff[]) => {
+          if (!this.state.partitionColumns) {
+            this.state.partitionColumns = [];
+          }
+          for (const diff of diffs) {
+            if (diff.checked) {
+              if (!this.state.partitionColumns.includes(diff.id)) {
+                this.state.partitionColumns.push(diff.id);
+              }
+            } else {
+              const index = this.state.partitionColumns.indexOf(diff.id);
+              if (index !== -1) {
+                this.state.partitionColumns.splice(index, 1);
+              }
+            }
+          }
+          // Notify downstream nodes about the column change
+          notifyNextNodes(this);
+          this.state.onchange?.();
+        },
+      }),
+    );
   }
 
   nodeSpecificModify(): NodeModifyAttrs {
@@ -188,10 +309,38 @@ export class FilterDuringNode implements QueryNode {
     // Add info about the operation (first section after error)
     const infoText =
       secondaryNodes.length === 1
-        ? 'Filters the primary input to only show intervals that occurred during the intervals from the secondary input. Output ts/dur values represent the actual overlap.'
-        : `Filters the primary input to only show intervals that occurred during intervals from any of the ${secondaryNodes.length} secondary inputs (combined via UNION ALL). Output ts/dur values represent the actual overlap.`;
+        ? 'Filters the primary input to only show intervals that occurred during the intervals from the secondary input.'
+        : `Filters the primary input to only show intervals that occurred during intervals from any of the ${secondaryNodes.length} secondary inputs (combined via UNION ALL).`;
     sections.push({
       content: m(InfoBox, infoText),
+    });
+
+    // Get clipToIntervals for use in switch below
+    const clipToIntervals = this.state.clipToIntervals ?? true;
+
+    // Add partition selector
+    const partitionSelector = this.renderPartitionSelector(false);
+    if (partitionSelector !== null) {
+      sections.push({
+        content: partitionSelector,
+      });
+    }
+
+    // Add "Clip to intervals" switch
+    sections.push({
+      content: m(
+        '.pf-filter-during-clip-row',
+        m(Switch, {
+          checked: clipToIntervals,
+          label: clipToIntervals
+            ? 'Clip to intervals (use intersected ts/dur)'
+            : 'Use original timestamps (from primary input)',
+          onchange: () => {
+            this.state.clipToIntervals = !clipToIntervals;
+            this.state.onchange?.();
+          },
+        }),
+      ),
     });
 
     // Add filter toggle for primary input
@@ -259,39 +408,7 @@ export class FilterDuringNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Filter intervals to only those that occurred during intervals from one or more sources. The output preserves all columns from the primary input, with ts and dur values representing the actual overlap period.',
-      ),
-      m(
-        'p',
-        m('strong', 'Multiple sources:'),
-        ' When multiple secondary inputs are connected, they are combined via UNION ALL before filtering, meaning intervals are kept if they overlap with ANY of the secondary sources.',
-      ),
-      m(
-        'p',
-        m('strong', 'Required columns:'),
-        ' All inputs must have ',
-        m('code', 'id'),
-        ', ',
-        m('code', 'ts'),
-        ', and ',
-        m('code', 'dur'),
-        ' columns.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Filter CPU slices to only those that occurred during app startup, or filter memory allocations during multiple user interactions.',
-      ),
-      m(
-        'p',
-        m('strong', 'Note:'),
-        ' If a primary interval overlaps with multiple secondary intervals, multiple output rows will be produced (one for each overlap).',
-      ),
-    );
+    return loadNodeDoc('filter_during');
   }
 
   validate(): boolean {
@@ -360,6 +477,10 @@ export class FilterDuringNode implements QueryNode {
     const stateCopy: FilterDuringNodeState = {
       filterNegativeDurPrimary: this.state.filterNegativeDurPrimary,
       filterNegativeDurSecondary: this.state.filterNegativeDurSecondary,
+      partitionColumns: this.state.partitionColumns
+        ? [...this.state.partitionColumns]
+        : undefined,
+      clipToIntervals: this.state.clipToIntervals,
       filters: this.state.filters?.map((f) => ({...f})),
       filterOperator: this.state.filterOperator,
       onchange: this.state.onchange,
@@ -390,12 +511,16 @@ export class FilterDuringNode implements QueryNode {
 
     if (combinedSecondaryQuery === undefined) return undefined;
 
-    // Step 2: Wrap the combined secondary to only select id, ts, dur
-    // This avoids column conflicts in the interval intersection
+    // Step 2: Wrap the combined secondary to select id, ts, dur, and partition columns
+    // This avoids column conflicts in the interval intersection while preserving partition columns
     const secondaryColumnsOnly: ColumnSpec[] = [
       {columnNameOrExpression: 'id'},
       {columnNameOrExpression: 'ts'},
       {columnNameOrExpression: 'dur'},
+      // Add partition columns so they're available for interval intersect
+      ...(this.state.partitionColumns ?? []).map((col) => ({
+        columnNameOrExpression: col,
+      })),
     ];
 
     // Create a temporary QueryNode wrapper for the combined secondary query
@@ -469,6 +594,13 @@ export class FilterDuringNode implements QueryNode {
           checked: true,
           column: {name: 'dur'},
         },
+        // Add partition columns
+        ...(this.state.partitionColumns ?? []).map((col) => ({
+          name: col,
+          type: 'NA' as const,
+          checked: true,
+          column: {name: col},
+        })),
       ],
       getTitle: () => 'Wrapped Secondary',
       validate: () => true,
@@ -480,7 +612,7 @@ export class FilterDuringNode implements QueryNode {
       serializeState: () => ({}),
     };
 
-    // Step 3: Build interval intersect with filterNegativeDur
+    // Step 3: Build interval intersect with filterNegativeDur and partition columns
     const filterNegativeDur = [
       this.state.filterNegativeDurPrimary ?? true,
       this.state.filterNegativeDurSecondary ?? true,
@@ -489,7 +621,7 @@ export class FilterDuringNode implements QueryNode {
     const intervalIntersectQuery = StructuredQueryBuilder.withIntervalIntersect(
       this.primaryInput,
       [wrappedSecondaryNode],
-      undefined, // No partition columns
+      this.state.partitionColumns, // Partition columns from state
       filterNegativeDur,
       `${this.nodeId}_intersect`,
     );
@@ -498,18 +630,25 @@ export class FilterDuringNode implements QueryNode {
 
     // Step 4: Select columns to match primary input's schema
     // IntervalIntersect returns: ts, dur (intersected), id_0, ts_0, dur_0, id_1, ts_1, dur_1, plus other primary columns
-    // We want to return: all primary columns in their original order, with ts/dur being intersected values
+    // Depending on clipToIntervals setting:
+    //   - true (default): Use intersected ts/dur
+    //   - false: Use original ts_0/dur_0 from primary
+    const clipToIntervals = this.state.clipToIntervals ?? true;
     const selectColumns: ColumnSpec[] = this.primaryInput.finalCols.map(
       (col) => {
         if (col.name === 'id') {
           // Use id_0 (from primary) and alias it back to 'id'
           return {columnNameOrExpression: 'id_0', alias: 'id'};
         } else if (col.name === 'ts') {
-          // Use intersected ts (no suffix)
-          return {columnNameOrExpression: 'ts'};
+          // Use intersected ts or original ts_0 based on clipToIntervals setting
+          return clipToIntervals
+            ? {columnNameOrExpression: 'ts'}
+            : {columnNameOrExpression: 'ts_0', alias: 'ts'};
         } else if (col.name === 'dur') {
-          // Use intersected dur (no suffix)
-          return {columnNameOrExpression: 'dur'};
+          // Use intersected dur or original dur_0 based on clipToIntervals setting
+          return clipToIntervals
+            ? {columnNameOrExpression: 'dur'}
+            : {columnNameOrExpression: 'dur_0', alias: 'dur'};
         } else {
           // Use the column as-is (IntervalIntersect preserves unique columns from primary)
           return {columnNameOrExpression: col.name};
@@ -554,6 +693,8 @@ export class FilterDuringNode implements QueryNode {
       secondaryInputNodeIds,
       filterNegativeDurPrimary: this.state.filterNegativeDurPrimary,
       filterNegativeDurSecondary: this.state.filterNegativeDurSecondary,
+      partitionColumns: this.state.partitionColumns,
+      clipToIntervals: this.state.clipToIntervals,
     };
   }
 
@@ -563,6 +704,8 @@ export class FilterDuringNode implements QueryNode {
     return {
       filterNegativeDurPrimary: serializedState.filterNegativeDurPrimary,
       filterNegativeDurSecondary: serializedState.filterNegativeDurSecondary,
+      partitionColumns: serializedState.partitionColumns,
+      clipToIntervals: serializedState.clipToIntervals,
     };
   }
 
@@ -580,6 +723,12 @@ export class FilterDuringNode implements QueryNode {
 
   // Called when a node is connected/disconnected to secondary inputs
   onPrevNodesUpdated(): void {
+    // Validate and clean up partition columns
+    this.cleanupPartitionColumns();
+
+    // Notify next nodes that our columns have changed
+    notifyNextNodes(this);
     this.state.onchange?.();
+    m.redraw();
   }
 }

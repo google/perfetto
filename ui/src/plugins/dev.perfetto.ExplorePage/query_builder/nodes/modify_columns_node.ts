@@ -39,6 +39,7 @@ import {
   NodeDetailsSpacer,
   ColumnName,
 } from '../node_styling_widgets';
+import {loadNodeDoc} from '../node_doc_loader';
 
 export interface ModifyColumnsSerializedState {
   primaryInputId?: string;
@@ -432,26 +433,7 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Select which columns to include from the previous node, rename columns using aliases, and reorder columns using drag and drop.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Select only ',
-        m('code', 'id'),
-        ' and ',
-        m('code', 'ts'),
-        ' columns, and rename ',
-        m('code', 'ts'),
-        ' to ',
-        m('code', 'timestamp'),
-        ' using an alias.',
-      ),
-    );
+    return loadNodeDoc('modify_columns');
   }
 
   clone(): QueryNode {
