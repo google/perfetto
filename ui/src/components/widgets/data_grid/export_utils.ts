@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {SqlValue} from '../../../trace_processor/query_result';
-import {DataGridDataSource, ValueFormatter} from './common';
+import {CellFormatter} from './common';
 
 /**
  * Default value formatter that converts SqlValue to string.
@@ -33,51 +33,8 @@ export interface ExportOptions {
   readonly columns: ReadonlyArray<string>;
   readonly columnNames?: Record<string, string>;
   readonly format: 'tsv' | 'json' | 'markdown';
-  readonly valueFormatter?: ValueFormatter;
+  readonly valueFormatter?: CellFormatter;
   readonly formatHints?: Record<string, string>;
-}
-
-/**
- * Export data from a DataGridDataSource in the specified format.
- * Respects the current filters and sorting of the data source.
- */
-export async function exportDataSource(
-  dataSource: DataGridDataSource,
-  options: ExportOptions,
-): Promise<string> {
-  const {
-    columns,
-    columnNames = {},
-    format,
-    valueFormatter = defaultValueFormatter,
-    formatHints = {},
-  } = options;
-
-  // Get all rows from the data source
-  const rows = await dataSource.exportData();
-
-  // Format rows as strings
-  const formattedRows = rows.map((row) => {
-    const formattedRow: Record<string, string> = {};
-    for (const col of columns) {
-      const value = row[col];
-      const formatHint = formatHints[col];
-      formattedRow[col] = valueFormatter(value, col, formatHint);
-    }
-    return formattedRow;
-  });
-
-  // Convert to the requested format
-  switch (format) {
-    case 'tsv':
-      return formatAsTSV(columns, columnNames, formattedRows);
-    case 'json':
-      return formatAsJSON(formattedRows);
-    case 'markdown':
-      return formatAsMarkdown(columns, columnNames, formattedRows);
-    default:
-      throw new Error(`Unknown export format: ${format}`);
-  }
 }
 
 /**

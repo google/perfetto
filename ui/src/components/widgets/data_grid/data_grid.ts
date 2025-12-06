@@ -1304,8 +1304,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       const formattedRow: Record<string, string> = {};
       for (const col of columns) {
         const value = row[col.name];
-        const formatter = col.valueFormatter ?? defaultValueFormatter;
-        formattedRow[col.name] = formatter(value, col.name);
+        const formatter = col.cellFormatter ?? defaultValueFormatter;
+        formattedRow[col.name] = formatter(value, row);
       }
       return formattedRow;
     });

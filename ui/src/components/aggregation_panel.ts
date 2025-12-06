@@ -68,7 +68,7 @@ export class AggregationPanel
               return renderCell(value, c.columnId);
             }
           },
-          valueFormatter: (value) => valueFormatter(value, c.formatHint),
+          cellFormatter: (value) => valueFormatter(value, c.formatHint),
         };
       }),
       data: dataSource,
