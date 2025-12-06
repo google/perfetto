@@ -29,7 +29,7 @@ import {addEphemeralTab} from './add_ephemeral_tab';
 import {Tab} from '../../public/tab';
 import {Filter, Filters, renderFilters} from '../widgets/sql/table/filters';
 import {PivotTableState} from '../widgets/sql/pivot_table/pivot_table_state';
-import {TableColumn} from '../widgets/sql/table/table_column';
+import {TableColumn, tableColumnAlias} from '../widgets/sql/table/table_column';
 import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
@@ -38,6 +38,7 @@ import {sqlColumnId} from '../widgets/sql/table/sql_column';
 import {TabOption, TabStrip} from '../../widgets/tabs';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
+import {SQLDataSource} from '../widgets/data_grid/sql_data_source';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -63,21 +64,46 @@ function addSqlTableTabWithState(trace: Trace, state: SqlTableState) {
 }
 
 class SqlTableTab implements Tab {
-  constructor(private readonly tableState: SqlTableState) {
-    this.selectedTab = tableState.uuid;
-  }
-
   private selectedTab: string;
-
   private pivots: PivotTableState[] = [];
   private barCharts: SqlBarChartState[] = [];
   private histograms: SqlHistogramState[] = [];
+  private dataSource: SQLDataSource;
+  private lastBaseQuery: string;
+
+  constructor(private readonly tableState: SqlTableState) {
+    this.selectedTab = tableState.uuid;
+    this.lastBaseQuery = tableState.getBaseQuery();
+    this.dataSource = new SQLDataSource(
+      tableState.trace.engine,
+      this.lastBaseQuery,
+      tableState.getSqlImports(),
+    );
+  }
+
+  // Recreate the data source if the base query has changed (e.g., columns
+  // added/removed that require different JOINs).
+  private maybeRecreateDataSource(): void {
+    const currentBaseQuery = this.tableState.getBaseQuery();
+    if (currentBaseQuery !== this.lastBaseQuery) {
+      this.lastBaseQuery = currentBaseQuery;
+      this.dataSource = new SQLDataSource(
+        this.tableState.trace.engine,
+        currentBaseQuery,
+        this.tableState.getSqlImports(),
+      );
+    }
+  }
 
   private getTableButtons() {
-    const {selectStatement, columns} = this.tableState.getCurrentRequest();
-    const debugTrackColumns = Object.values(columns).filter(
-      (c) => !c.startsWith('__'),
-    );
+    // Get column names from selected columns for debug track
+    const columns = this.tableState.getSelectedColumns();
+    // Use aliased names for SQL query (these are the actual column names in the result)
+    const debugTrackColumns = columns
+      .map((c) => tableColumnAlias(c))
+      .filter((c) => !c.startsWith('__'));
+
+    const baseQuery = this.tableState.getBaseQuery();
     const addDebugTrack = m(
       Popup,
       {
@@ -86,12 +112,12 @@ class SqlTableTab implements Tab {
       },
       m(AddDebugTrackMenu, {
         trace: this.tableState.trace,
-        query: `SELECT ${debugTrackColumns.join(', ')} FROM (${selectStatement})`,
+        query: `SELECT ${debugTrackColumns.join(', ')} FROM (${baseQuery})`,
         availableColumns: debugTrackColumns,
       }),
     );
 
-    const rowCount = this.tableState.getTotalRowCount();
+    const rowCount = this.dataSource.rows?.totalRows;
 
     return [
       exists(rowCount) && `${rowCount.toLocaleString()} rows`,
@@ -115,8 +141,13 @@ class SqlTableTab implements Tab {
         m(MenuItem, {
           label: 'Copy SQL query',
           icon: Icons.Copy,
-          onclick: () =>
-            copyToClipboard(this.tableState.getNonPaginatedSQLQuery()),
+          onclick: () => {
+            const imports = this.dataSource.getSqlImports();
+            const query = imports
+              ? `${imports}\n${this.dataSource.getQuery()}`
+              : this.dataSource.getQuery();
+            copyToClipboard(query);
+          },
         }),
       ),
     ];
@@ -176,6 +207,9 @@ class SqlTableTab implements Tab {
   }
 
   render() {
+    // Recreate data source if derived columns have been added/removed
+    this.maybeRecreateDataSource();
+
     const hasFilters = this.tableState.filters.get().length > 0;
 
     const tabs: (TabOption & {content: m.Children})[] = [
@@ -184,6 +218,7 @@ class SqlTableTab implements Tab {
         title: 'Table',
         content: m(SqlTable, {
           state: this.tableState,
+          dataSource: this.dataSource,
           addColumnMenuItems: this.tableMenuItems.bind(this),
         }),
       },
@@ -305,10 +340,10 @@ class SqlTableTab implements Tab {
   }
 
   getTitle(): string {
-    const rowCount = this.tableState.getTotalRowCount();
-    const rows =
+    const rowCount = this.dataSource.rows?.totalRows;
+    const rowCountStr =
       rowCount === undefined ? '' : ` (${rowCount.toLocaleString()})`;
-    return `Table ${this.getDisplayName()}${rows}`;
+    return `Table ${this.getDisplayName()}${rowCountStr}`;
   }
 
   private getDisplayName(): string {
@@ -316,6 +351,6 @@ class SqlTableTab implements Tab {
   }
 
   isLoading(): boolean {
-    return this.tableState.isLoading();
+    return this.dataSource.isLoading;
   }
 }

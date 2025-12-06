@@ -33,15 +33,23 @@ export class SQLDataSource implements DataGridDataSource {
   private readonly engine: Engine;
   private readonly limiter = new AsyncLimiter();
   private readonly baseQuery: string;
-  private workingQuery = '';
+  private readonly sqlImports?: string;
+  private importsExecuted = false;
+
+  // Track query components separately to avoid unnecessary re-fetches
+  private lastFilterQuery = ''; // Query with just filters (for row count)
+  private lastSortedQuery = ''; // Query with filters + sorting (for rows)
+  private lastColumns?: ReadonlyArray<string>; // Column order (for SELECT)
+
   private pagination?: Pagination;
   private aggregates?: ReadonlyArray<AggregateSpec>;
   private cachedResult?: DataSourceResult;
   private isLoadingFlag = false;
 
-  constructor(engine: Engine, query: string) {
+  constructor(engine: Engine, query: string, sqlImports?: string) {
     this.engine = engine;
     this.baseQuery = query;
+    this.sqlImports = sqlImports;
   }
 
   /**
@@ -67,22 +75,34 @@ export class SQLDataSource implements DataGridDataSource {
     distinctValuesColumns,
   }: DataGridModel): void {
     this.limiter.schedule(async () => {
-      this.isLoadingFlag = true;
-
       try {
-        // If the working query has changed, we need to invalidate the cache and
-        // reload everything, including the page count.
-        const workingQuery = this.buildWorkingQuery(columns, filters, sorting);
-        if (workingQuery !== this.workingQuery) {
-          this.workingQuery = workingQuery;
+        // Ensure SQL imports are executed before any queries
+        if (!this.importsExecuted) {
+          this.isLoadingFlag = true;
+          this.sqlImports && (await this.engine.query(this.sqlImports));
+          this.importsExecuted = true;
+        }
 
-          // Clear the cache
+        // Build query components separately to minimize re-fetches:
+        // - filterQuery: affects row count and aggregates
+        // - sortedQuery: affects row ordering (needs re-fetch of rows)
+        // - columns: only affects SELECT clause (no re-fetch needed if data cached)
+        const filterQuery = this.buildFilterQuery(filters);
+        const sortedQuery = this.buildSortedQuery(filterQuery, sorting);
+
+        // Only re-fetch row count if filters changed
+        const filtersChanged = filterQuery !== this.lastFilterQuery;
+        if (filtersChanged) {
+          this.lastFilterQuery = filterQuery;
+
+          // Clear the cache since filters affect everything
           this.cachedResult = undefined;
           this.pagination = undefined;
           this.aggregates = undefined;
 
           // Update the cache with the total row count
-          const rowCount = await this.getRowCount(workingQuery);
+          this.isLoadingFlag = true;
+          const rowCount = await this.getRowCount(filterQuery);
           this.cachedResult = {
             rowOffset: 0,
             totalRows: rowCount,
@@ -92,11 +112,35 @@ export class SQLDataSource implements DataGridDataSource {
           };
         }
 
+        // Check if sorting changed (but not filters)
+        const sortingChanged = sortedQuery !== this.lastSortedQuery;
+        if (sortingChanged) {
+          this.lastSortedQuery = sortedQuery;
+
+          // Sorting changed - need to re-fetch rows but not row count
+          if (!filtersChanged) {
+            // Only clear pagination cache, keep row count
+            this.pagination = undefined;
+          }
+        }
+
+        // Track column changes (only affects what we SELECT, not what we fetch)
+        const columnsChanged = !areColumnsEqual(this.lastColumns, columns);
+        if (columnsChanged) {
+          this.lastColumns = columns;
+          // Column order changed - need to re-fetch rows with new column order
+          // but row count and aggregates stay the same
+          if (!filtersChanged && !sortingChanged) {
+            this.pagination = undefined;
+          }
+        }
+
         if (!areAggregateArraysEqual(this.aggregates, aggregates)) {
           this.aggregates = aggregates;
           if (aggregates) {
+            this.isLoadingFlag = true;
             const aggregateResults = await this.getAggregates(
-              workingQuery,
+              filterQuery,
               aggregates,
             );
             this.cachedResult = {
@@ -106,10 +150,15 @@ export class SQLDataSource implements DataGridDataSource {
           }
         }
 
-        // Fetch data if pagination has changed.
+        // Fetch data if pagination has changed or we need to re-fetch rows
         if (!comparePagination(this.pagination, pagination)) {
           this.pagination = pagination;
-          const {offset, rows} = await this.getRows(workingQuery, pagination);
+          this.isLoadingFlag = true;
+          const {offset, rows} = await this.getRows(
+            sortedQuery,
+            columns,
+            pagination,
+          );
           this.cachedResult = {
             ...this.cachedResult!,
             rowOffset: offset,
@@ -127,6 +176,7 @@ export class SQLDataSource implements DataGridDataSource {
                 FROM (${this.baseQuery})
                 ORDER BY ${column} IS NULL, ${column}
               `;
+              this.isLoadingFlag = true;
               const result = await runQueryForQueryTable(query, this.engine);
               const values = result.rows.map((r) => r['value']);
               this.cachedResult = {
@@ -147,15 +197,30 @@ export class SQLDataSource implements DataGridDataSource {
   }
 
   /**
+   * Returns the current query with filters and sorting applied.
+   * Returns the base query if no filters/sorting have been applied yet.
+   */
+  getQuery(): string {
+    return this.lastSortedQuery || this.baseQuery;
+  }
+
+  /**
+   * Returns the SQL imports needed for this data source's queries.
+   */
+  getSqlImports(): string | undefined {
+    return this.sqlImports;
+  }
+
+  /**
    * Export all data with current filters/sorting applied.
    */
   async exportData(): Promise<Row[]> {
-    if (!this.workingQuery) {
+    if (!this.lastSortedQuery) {
       // If no working query exists yet, we can't export anything
       return [];
     }
 
-    const query = `SELECT * FROM (${this.workingQuery})`;
+    const query = `SELECT * FROM (${this.lastSortedQuery})`;
     const result = await runQueryForQueryTable(query, this.engine);
 
     // Return all rows
@@ -163,26 +228,27 @@ export class SQLDataSource implements DataGridDataSource {
   }
 
   /**
-   * Builds a complete SQL query that defines the working dataset (ignores
-   * pagination).
+   * Builds a query with just filters applied (no sorting or column selection).
+   * Used for row count and aggregates which don't depend on sort order.
    */
-  private buildWorkingQuery(
-    columns: ReadonlyArray<string> | undefined,
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
-  ): string {
-    const colDefs = columns ?? ['*'];
+  private buildFilterQuery(filters: ReadonlyArray<DataGridFilter>): string {
+    let query = `SELECT * FROM (${this.baseQuery})`;
 
-    let query = `\nSELECT ${colDefs.join()} FROM (${this.baseQuery})`;
-
-    // Add WHERE clause if there are filters
     if (filters.length > 0) {
       const whereConditions = filters.map(filter2Sql).join(' AND ');
-
       query += `\nWHERE ${whereConditions}`;
     }
 
-    // Add ORDER BY clause for sorting
+    return query;
+  }
+
+  /**
+   * Builds a query with filters and sorting applied.
+   * Used for fetching rows in the correct order.
+   */
+  private buildSortedQuery(filterQuery: string, sorting: Sorting): string {
+    let query = filterQuery;
+
     if (sorting.direction !== 'UNSORTED') {
       const {column, direction} = sorting as SortByColumn;
       query += `\nORDER BY ${column} ${direction.toUpperCase()}`;
@@ -216,12 +282,14 @@ export class SQLDataSource implements DataGridDataSource {
   }
 
   private async getRows(
-    workingQuery: string,
+    sortedQuery: string,
+    columns: ReadonlyArray<string> | undefined,
     pagination?: Pagination,
   ): Promise<{offset: number; rows: Row[]}> {
+    const colDefs = columns?.join(', ') ?? '*';
     let query = `
-      WITH data AS (${workingQuery})
-      SELECT *
+      WITH data AS (${sortedQuery})
+      SELECT ${colDefs}
       FROM data
     `;
 
@@ -287,4 +355,14 @@ function comparePagination(a?: Pagination, b?: Pagination): boolean {
 
   // Both exist - compare their properties
   return a.limit === b.limit && a.offset === b.offset;
+}
+
+function areColumnsEqual(
+  a: ReadonlyArray<string> | undefined,
+  b: ReadonlyArray<string> | undefined,
+): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  return a.every((col, i) => col === b[i]);
 }

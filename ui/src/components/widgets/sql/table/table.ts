@@ -20,24 +20,19 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
-import {TableColumn, tableColumnId, tableColumnAlias} from './table_column';
+import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './menus/select_column_menu';
 import {renderCastColumnMenu} from './menus/cast_column_menu';
 import {renderTransformColumnMenu} from './menus/transform_column_menu';
 import {DataGrid, DataGridAttrs} from '../../data_grid/data_grid';
-import {
-  ColumnDefinition,
-  DataGridFilter,
-  Sorting,
-} from '../../data_grid/common';
-import {SqlTableDataSource} from './sql_table_data_source';
-import {Filter} from './filters';
-import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
+import {ColumnDefinition} from '../../data_grid/common';
+import {SQLDataSource} from '../../data_grid/sql_data_source';
 import {isQuantitativeType} from '../../../../trace_processor/perfetto_sql_type';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
+  readonly dataSource: SQLDataSource;
   // For additional menu items to add to the column header menus
   readonly addColumnMenuItems?: (column: TableColumn) => m.Children;
 }
@@ -85,12 +80,10 @@ class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
   private state: SqlTableState;
-  private dataSource: SqlTableDataSource;
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
     this.table = this.state.config;
-    this.dataSource = new SqlTableDataSource(this.state);
   }
 
   renderAddColumnOptions(addColumn: (column: TableColumn) => void): m.Children {
@@ -116,7 +109,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           table: this.state.config.name,
           columns,
           filters: this.state.filters.get(),
-          orderBy: this.state.getOrderedBy(),
         }),
       existingColumnIds,
       onColumnSelected: addColumn,
@@ -192,176 +184,24 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     });
   }
 
-  private sqlFilterToDataGridFilter(
-    sqlFilter: Filter,
-  ): DataGridFilter | undefined {
-    // Try to convert SqlTable Filter back to DataGridFilter
-    // This is best-effort - some complex filters may not convert
-    if (sqlFilter.columns.length !== 1) {
-      // DataGrid filters work on single columns
-      return undefined;
-    }
-
-    const columnName = sqlColumnId(sqlFilter.columns[0]);
-    const sqlExp = sqlFilter.op([columnName]);
-
-    // Parse common filter patterns
-    if (sqlExp === `${columnName} IS NULL`) {
-      return {column: columnName, op: 'is null'};
-    }
-    if (sqlExp === `${columnName} IS NOT NULL`) {
-      return {column: columnName, op: 'is not null'};
-    }
-
-    // Try to match basic operators with values
-    const match = sqlExp.match(
-      new RegExp(`^${columnName}\\s+(=|!=|<|<=|>|>=|glob|not glob)\\s+(.+)$`),
-    );
-    if (match) {
-      const op = match[1];
-      const value = match[2];
-
-      // Return properly typed filter based on operator
-      if (
-        op === '=' ||
-        op === '!=' ||
-        op === '<' ||
-        op === '<=' ||
-        op === '>' ||
-        op === '>=' ||
-        op === 'glob' ||
-        op === 'not glob'
-      ) {
-        return {column: columnName, op, value};
-      }
-    }
-
-    // Can't convert this filter
-    return undefined;
-  }
-
-  private convertSortingToDataGrid(): Sorting {
-    const orderBy = this.state.getOrderedBy();
-    if (orderBy.length === 0) {
-      return {direction: 'UNSORTED'};
-    }
-    const firstOrder = orderBy[0];
-    // Find the column to get its alias
-    const columns = this.state.getSelectedColumns();
-    const column = columns.find(
-      (c) => tableColumnId(c) === sqlColumnId(firstOrder.column),
-    );
-    return {
-      column: column
-        ? tableColumnAlias(column)
-        : sqlColumnId(firstOrder.column),
-      direction: firstOrder.direction,
-    };
-  }
-
-  private dataGridFilterToSqlFilter(
-    dgFilter: DataGridFilter,
-    column: TableColumn,
-  ): Filter {
-    if ('value' in dgFilter) {
-      if (Array.isArray(dgFilter.value)) {
-        // Handle 'in' and 'not in' operators
-        const values = dgFilter.value.map(sqlValueToSqliteString).join(', ');
-        return {
-          op: (cols) =>
-            dgFilter.op === 'in'
-              ? `${cols[0]} IN (${values})`
-              : `${cols[0]} NOT IN (${values})`,
-          columns: [column.column],
-        };
-      } else {
-        // Handle operators with single values
-        const value = sqlValueToSqliteString(dgFilter.value);
-        return {
-          op: (cols) => `${cols[0]} ${dgFilter.op} ${value}`,
-          columns: [column.column],
-        };
-      }
-    } else {
-      // Handle 'is null' and 'is not null'
-      return {
-        op: (cols) => `${cols[0]} ${dgFilter.op.toUpperCase()}`,
-        columns: [column.column],
-      };
-    }
-  }
-
   view({attrs}: m.Vnode<SqlTableConfig>) {
     const columns = this.state.getSelectedColumns();
+
     const dataGridColumns = this.convertTableColumnsToDataGridColumns(
       columns,
       attrs.addColumnMenuItems,
     );
 
-    // Convert column order - use aliases to match DataGrid column names
-    const columnOrder = columns.map((c) => tableColumnAlias(c));
-
     return m(DataGrid, {
       columns: dataGridColumns,
-      data: this.dataSource,
-      columnOrder,
-      onColumnOrderChanged: (newOrder: ReadonlyArray<string>) => {
-        // Handle column reordering - find which column moved and where
-        for (let i = 0; i < newOrder.length; i++) {
-          if (newOrder[i] !== columnOrder[i]) {
-            const movedColumn = newOrder[i];
-            const fromIndex = columnOrder.indexOf(movedColumn);
-            const toIndex = i;
-            if (fromIndex !== -1 && fromIndex !== toIndex) {
-              this.state.moveColumn(fromIndex, toIndex);
-            }
-            return;
-          }
-        }
+      data: attrs.dataSource,
+      onColumnMoved: (fromIndex, toIndex) => {
+        this.state.moveColumn(fromIndex, toIndex);
       },
-      sorting: this.convertSortingToDataGrid(),
-      onSort: (sorting: Sorting) => {
-        if (sorting.direction === 'UNSORTED') {
-          // Clear all sorting
-          this.state.clearAllSorting();
-        } else {
-          // sorting.column is the aliased name
-          const column = columns.find(
-            (c) => tableColumnAlias(c) === sorting.column,
-          );
-          if (column) {
-            this.state.sortBy({column, direction: sorting.direction});
-          }
-        }
-      },
-      // Use DataGrid's filter system and sync to SqlTable state
-      filters: this.state.filters
-        .get()
-        .map((f) => this.sqlFilterToDataGridFilter(f))
-        .filter((f): f is DataGridFilter => f !== undefined),
-      onFilterAdd: (dgFilter: DataGridFilter) => {
-        // dgFilter.column is the aliased name
-        const column = columns.find(
-          (c) => tableColumnAlias(c) === dgFilter.column,
-        );
-        if (column) {
-          const sqlFilter = this.dataGridFilterToSqlFilter(dgFilter, column);
-          this.state.filters.addFilter(sqlFilter);
-        }
-      },
-      onFilterRemove: (index: number) => {
-        const currentFilters = this.state.filters.get();
-        if (index >= 0 && index < currentFilters.length) {
-          this.state.filters.removeFilter(currentFilters[index]);
-        }
-      },
-      clearFilters: () => {
-        this.state.filters.clear();
-      },
+      // SQLDataSource handles filtering and sorting internally
       fillHeight: true,
       className: 'sql-table',
       columnReordering: true,
-      showFiltersInToolbar: false,
     } satisfies DataGridAttrs);
   }
 }
