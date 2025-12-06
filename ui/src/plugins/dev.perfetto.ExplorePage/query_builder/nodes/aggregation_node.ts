@@ -88,7 +88,12 @@ export class AggregationNode implements QueryNode {
       return [];
     }
     const selected = this.state.groupByColumns.filter((c) => c.checked);
+    // IMPORTANT: Only include VALID aggregations in output
+    // This prevents incomplete/invalid aggregations from propagating downstream
     for (const agg of this.state.aggregations) {
+      if (!validateAggregation(agg)) {
+        continue; // Skip invalid aggregations
+      }
       const resultType = getAggregationResultType(agg);
       const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
       selected.push(
@@ -339,15 +344,21 @@ export class AggregationNode implements QueryNode {
         this.renderAggregationFormControls(agg, onUpdate),
       onUpdate: (aggregations) => {
         this.state.aggregations = aggregations;
+        // IMPORTANT: Trigger downstream updates whenever aggregations change
+        // This ensures that changes like renaming columns propagate to downstream nodes
+        this.state.onchange?.();
       },
       onValidChange: () => {
+        // This is called when validation state changes (invalid -> valid)
+        // But we also need onchange in onUpdate for valid -> valid changes
         this.state.onchange?.();
       },
       addButtonLabel: 'Add aggregation',
       addButtonIcon: 'add',
       emptyItem: () => ({
         aggregationOp: 'COUNT(*)',
-        newColumnName: 'count',
+        // Don't pre-fill newColumnName - let the placeholder show
+        newColumnName: undefined,
       }),
     });
   }
@@ -708,7 +719,8 @@ export function placeholderNewColumnName(agg: Aggregation) {
   }
 
   if (agg.column && agg.aggregationOp) {
-    return `${agg.column.name}_${agg.aggregationOp.toLowerCase()}`;
+    // Use operation_column format (e.g., "sum_value") to match UI placeholder
+    return `${agg.aggregationOp.toLowerCase()}_${agg.column.name}`;
   }
 
   // Fallback for incomplete aggregations
