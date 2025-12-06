@@ -15,18 +15,14 @@
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 import {download} from '../../../base/download_utils';
-import {FuzzyFinder} from '../../../base/fuzzy';
 import {Icons} from '../../../base/semantic_icons';
 import {exists} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
-import {Form} from '../../../widgets/form';
-import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
-import {TextInput} from '../../../widgets/text_input';
 import {
   renderSortMenuItems,
   Grid,
@@ -37,11 +33,15 @@ import {
 } from '../../../widgets/grid';
 import {
   AggregationFunction,
+  BuiltinMenuItems,
   ColumnDefinition,
   DataGridDataSource,
   DataGridFilter,
   DEFAULT_SUPPORTED_FILTERS,
   FilterType,
+  isNumeric,
+  PivotModel,
+  PivotValue,
   RowDef,
   Sorting,
 } from './common';
@@ -53,25 +53,12 @@ import {
   formatAsMarkdown,
 } from './export_utils';
 import {DataGridToolbar} from './data_grid_toolbar';
-
-export interface AggregationCellAttrs extends m.Attributes {
-  readonly symbol?: string;
-}
-
-export class AggregationCell implements m.ClassComponent<AggregationCellAttrs> {
-  view({attrs, children}: m.Vnode<AggregationCellAttrs>) {
-    const {className, symbol, ...rest} = attrs;
-    return m(
-      '.pf-aggr-cell',
-      {
-        ...rest,
-        className: classNames(className),
-      },
-      m('.pf-aggr-cell__symbol', symbol),
-      m('.pf-aggr-cell__content', children),
-    );
-  }
-}
+import {SortDirection} from '../../../base/comparison_utils';
+import {AggregationCell} from './aggregation_cell';
+import {renderPivotMenu, renderAggregateActions} from './pivot_menu';
+import {renderFilterSubmenuItems} from './filter_menu';
+import {renderColumnManagementMenu} from './column_menu';
+import {buildCellContextMenu} from './cell_filter_menu';
 
 /**
  * DataGrid is designed to be a flexible and efficient data viewing and analysis
@@ -94,6 +81,7 @@ export class AggregationCell implements m.ClassComponent<AggregationCellAttrs> {
 type OnFilterAdd = (filter: DataGridFilter) => void;
 export type OnFilterRemove = (index: number) => void;
 type OnSortingChanged = (sorting: Sorting) => void;
+type OnPivotChanged = (pivot: PivotModel | undefined) => void;
 type ColumnOrder = ReadonlyArray<string>;
 type OnColumnOrderChanged = (columnOrder: ColumnOrder) => void;
 
@@ -127,6 +115,34 @@ export interface DataGridAttrs {
    * not provided, defaults to internal state with direction 'unsorted'.
    */
   readonly sorting?: Sorting;
+
+  /**
+   * Defines how data should be pivoted - can operate in controlled or
+   * uncontrolled mode.
+   *
+   * In controlled mode: Provide this prop along with onPivotChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage pivot state
+   * internally.
+   *
+   * Specifies groupBy columns and aggregation values for pivoting.
+   * If not provided, defaults to undefined (no pivoting).
+   */
+  readonly pivot?: PivotModel;
+
+  /**
+   * Initial pivot configuration to apply on first load.
+   * This is ignored in controlled mode (i.e. when `pivot` is provided).
+   */
+  readonly initialPivot?: PivotModel;
+
+  /**
+   * Callback triggered when the pivot configuration changes.
+   * Allows parent components to react to pivot changes.
+   * Required for controlled mode - when provided with pivot,
+   * the parent component becomes responsible for updating the pivot prop.
+   * @param pivot The new pivot configuration (or undefined to disable pivoting)
+   */
+  readonly onPivotChanged?: OnPivotChanged;
 
   /**
    * Initial sorting to apply to the grid on first load.
@@ -284,6 +300,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Internal state
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<DataGridFilter> = [];
+  private pivot: PivotModel | undefined = undefined;
   private columnOrder: ColumnOrder = [];
   // Track all columns we've ever seen to distinguish hidden vs new columns
   private seenColumns: Set<string> = new Set();
@@ -318,6 +335,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     if (attrs.initialFilters) {
       this.filters = attrs.initialFilters;
+    }
+
+    if (attrs.initialPivot) {
+      this.pivot = attrs.initialPivot;
     }
 
     // Initialize column order from initial prop or columns array
@@ -356,11 +377,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             this.filters = [];
           }
         : noOp,
+      pivot = this.pivot,
+
+      onPivotChanged = pivot === this.pivot
+        ? (x: PivotModel | undefined) => (this.pivot = x)
+        : noOp,
       columnOrder = this.columnOrder,
       onColumnOrderChanged = columnOrder === this.columnOrder
         ? (x) => (this.columnOrder = x)
         : noOp,
-      columnReordering = onColumnOrderChanged !== noOp,
+      columnReordering = onColumnOrderChanged !== noOp ||
+        onPivotChanged !== noOp,
       showFiltersInToolbar = true,
       fillHeight = false,
       toolbarItemsLeft,
@@ -386,8 +413,55 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       }
     }
 
-    // Reorder columns based on columnOrder array
-    const orderedColumns = this.getOrderedColumns(columns, columnOrder);
+    let orderedColumns: ReadonlyArray<ColumnDefinition>;
+    const isDrillDown = pivot?.drillDown !== undefined;
+    if (pivot && !isDrillDown) {
+      // Pivot mode (not drill-down): show pivot columns
+      const columnMap = new Map(columns.map((c) => [c.name, c]));
+      const pivotColumns: ColumnDefinition[] = [];
+
+      // Add groupBy columns
+      for (const colName of pivot.groupBy) {
+        const colDef = columnMap.get(colName);
+        if (colDef) {
+          pivotColumns.push(colDef);
+        }
+      }
+
+      // Add value columns
+      for (const [alias, value] of Object.entries(pivot.values)) {
+        if (value.func === 'COUNT') {
+          // Handle COUNT which doesn't have a source column
+          const newColDef: ColumnDefinition = {
+            name: alias,
+            title: 'Count',
+            aggregation: value.func,
+          };
+          pivotColumns.push(newColDef);
+        } else {
+          if (value.col) {
+            const sourceColDef = columnMap.get(value.col);
+            if (sourceColDef) {
+              // Create a new, synthetic column definition for the pivoted value
+              const newColDef: ColumnDefinition = {
+                ...sourceColDef, // Inherit properties from the source column
+                name: alias, // The name (key) of this column is the alias
+                title: sourceColDef.title ?? sourceColDef.name,
+                aggregation: value.func,
+              };
+              pivotColumns.push(newColDef);
+            }
+          }
+        }
+      }
+      orderedColumns = pivotColumns;
+    } else if (isDrillDown) {
+      // Drill-down mode: show ALL original columns (ignore column hiding)
+      orderedColumns = columns;
+    } else {
+      // Normal mode: show columns according to columnOrder (respects hiding)
+      orderedColumns = this.getOrderedColumns(columns, columnOrder);
+    }
 
     // Initialize the datasource if required
     let dataSource: DataGridDataSource;
@@ -409,9 +483,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         offset: this.paginationOffset,
         limit: this.paginationLimit,
       },
-      aggregates: columns
+      aggregates: orderedColumns
         .filter((c) => c.aggregation)
         .map((c) => ({col: c.name, func: c.aggregation!})),
+      pivot,
       distinctValuesColumns: this.distinctValuesColumns,
     });
 
@@ -428,9 +503,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       filtersUncontrolled || onFilterAdd !== noOp || onFilterRemove !== noOp,
     );
 
+    const lastGroupByColName =
+      pivot && pivot.groupBy.length > 0
+        ? pivot.groupBy[pivot.groupBy.length - 1]
+        : undefined;
+
     // Build VirtualGrid columns with all DataGrid features
     const virtualGridColumns = orderedColumns.map((column) => {
-      const sort = (() => {
+      const sortDirection = (() => {
         if (sorting.direction === 'UNSORTED') {
           return undefined;
         } else if (sorting.column === column.name) {
@@ -440,438 +520,67 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         }
       })();
 
-      // Build default menu groups
-      const defaultGroups: {
-        sorting?: m.Children;
-        filters?: m.Children;
-        fitToContent?: m.Children;
-        columnManagement?: m.Children;
-      } = {};
-
-      // Sorting group
-      if (sortControls) {
-        defaultGroups.sorting = [
-          ...renderSortMenuItems(sort, (direction) => {
-            if (direction) {
-              onSort({
-                column: column.name,
-                direction: direction,
-              });
-            } else {
-              onSort({
-                direction: 'UNSORTED',
-              });
-            }
-          }),
-        ];
-      }
-
-      // Filters group
-      if (filterControls) {
-        const distinctState = dataSource.rows?.distinctValues?.get(column.name);
-
-        // Build filter submenu - just add dividers freely, CSS will clean them up
-        const filterSubmenuItems: m.Children = [
-          // Null filters
-          supportedFilters.includes('is not null') &&
-            m(MenuItem, {
-              label: 'Filter out nulls',
-              onclick: () => {
-                onFilterAdd({column: column.name, op: 'is not null'});
-              },
-            }),
-          supportedFilters.includes('is null') &&
-            m(MenuItem, {
-              label: 'Only show nulls',
-              onclick: () => {
-                onFilterAdd({column: column.name, op: 'is null'});
-              },
-            }),
-          m(MenuDivider),
-          // Value-based filters for columns with distinct values enabled
-          (column.distinctValues ?? true) &&
-            supportedFilters.includes('in') &&
-            m(
-              MenuItem,
-              {
-                label: 'Equals to...',
-                onChange: (isOpen) => {
-                  if (isOpen === true) {
-                    this.distinctValuesColumns.add(column.name);
-                  } else {
-                    this.distinctValuesColumns.delete(column.name);
-                  }
-                },
-              },
-              m(DistinctValuesSubmenu, {
-                columnName: column.name,
-                distinctState,
-                formatValue: this.formatDistinctValue.bind(this),
-                onApply: (selectedValues) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: 'in',
-                    value: Array.from(selectedValues),
-                  });
-                },
-              }),
-            ),
-          (column.distinctValues ?? true) &&
-            supportedFilters.includes('not in') &&
-            m(
-              MenuItem,
-              {
-                label: 'Not equals to...',
-                onChange: (isOpen) => {
-                  if (isOpen === true) {
-                    this.distinctValuesColumns.add(column.name);
-                  } else {
-                    this.distinctValuesColumns.delete(column.name);
-                  }
-                },
-              },
-              m(DistinctValuesSubmenu, {
-                columnName: column.name,
-                distinctState,
-                formatValue: this.formatDistinctValue.bind(this),
-                onApply: (selectedValues) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: 'not in',
-                    value: Array.from(selectedValues),
-                  });
-                },
-              }),
-            ),
-          m(MenuDivider),
-          // Free-text equals/not equals filters for columns without distinct values
-          !(column.distinctValues ?? true) &&
-            supportedFilters.includes('=') &&
-            m(
-              MenuItem,
-              {
-                label: 'Equals to...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: '=',
-                onApply: (value) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: '=',
-                    value,
-                  });
-                },
-              }),
-            ),
-          !(column.distinctValues ?? true) &&
-            supportedFilters.includes('!=') &&
-            m(
-              MenuItem,
-              {
-                label: 'Not equals to...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: '!=',
-                onApply: (value) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: '!=',
-                    value,
-                  });
-                },
-              }),
-            ),
-          m(MenuDivider),
-          // Numeric comparison filters (only for numeric columns)
-          column.filterType === 'numeric' &&
-            supportedFilters.includes('>') &&
-            m(
-              MenuItem,
-              {
-                label: 'Greater than...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: '>',
-                onApply: (value) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: '>',
-                    value,
-                  });
-                },
-              }),
-            ),
-          column.filterType === 'numeric' &&
-            supportedFilters.includes('>=') &&
-            m(
-              MenuItem,
-              {
-                label: 'Greater than or equal...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: '>=',
-                onApply: (value) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: '>=',
-                    value,
-                  });
-                },
-              }),
-            ),
-          column.filterType === 'numeric' &&
-            supportedFilters.includes('<') &&
-            m(
-              MenuItem,
-              {
-                label: 'Less than...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: '<',
-                onApply: (value) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: '<',
-                    value,
-                  });
-                },
-              }),
-            ),
-          column.filterType === 'numeric' &&
-            supportedFilters.includes('<=') &&
-            m(
-              MenuItem,
-              {
-                label: 'Less than or equal...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: '<=',
-                onApply: (value) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: '<=',
-                    value,
-                  });
-                },
-              }),
-            ),
-          m(MenuDivider),
-          // Text-based filters (only if filterType is not 'numeric')
-          column.filterType !== 'numeric' &&
-            supportedFilters.includes('glob') &&
-            m(
-              MenuItem,
-              {
-                label: 'Contains...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: 'contains',
-                onApply: (value) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: 'glob',
-                    value: toCaseInsensitiveGlob(String(value)),
-                  });
-                },
-              }),
-            ),
-          column.filterType !== 'numeric' &&
-            supportedFilters.includes('not glob') &&
-            m(
-              MenuItem,
-              {
-                label: 'Not contains...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: 'not contains',
-                onApply: (value) => {
-                  onFilterAdd({
-                    column: column.name,
-                    op: 'not glob',
-                    value: toCaseInsensitiveGlob(String(value)),
-                  });
-                },
-              }),
-            ),
-          column.filterType !== 'numeric' &&
-            supportedFilters.includes('glob') &&
-            m(
-              MenuItem,
-              {
-                label: 'Glob...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: 'glob',
-                onApply: (value) => {
-                  onFilterAdd({column: column.name, op: 'glob', value});
-                },
-              }),
-            ),
-          column.filterType !== 'numeric' &&
-            supportedFilters.includes('not glob') &&
-            m(
-              MenuItem,
-              {
-                label: 'Not glob...',
-              },
-              m(TextFilterSubmenu, {
-                columnName: column.name,
-                operator: 'not glob',
-                onApply: (value) => {
-                  onFilterAdd({column: column.name, op: 'not glob', value});
-                },
-              }),
-            ),
-        ];
-
-        // Only set filters group if there are any filter options
-        // (filterSubmenuItems will be empty array if all conditions are false)
-        if (filterSubmenuItems.some((item) => item !== false)) {
-          defaultGroups.filters = [
-            m(
-              MenuItem,
-              {label: 'Add filter...', icon: Icons.Filter},
-              filterSubmenuItems,
-            ),
-          ];
-        }
-      }
-
-      // Fit to content button (separate from column management)
-      if (this.gridApi) {
-        const gridApi = this.gridApi;
-        defaultGroups.fitToContent = m(MenuItem, {
-          label: 'Fit to content',
-          icon: 'fit_width',
-          onclick: () => gridApi.autoFitColumn(column.name),
-        });
-      }
-
-      // Column management options
-      const columnManagementItems: m.Children[] = [];
-
-      // Hide current column (only if more than 1 visible)
-      if (orderedColumns.length > 1) {
-        columnManagementItems.push(
-          m(MenuItem, {
-            label: 'Hide column',
-            icon: Icons.Hide,
-            onclick: () => {
-              const newOrder = columnOrder.filter(
-                (name) => name !== column.name,
-              );
-              onColumnOrderChanged(newOrder);
-            },
-          }),
-        );
-      }
-
-      const allColumnsShowing = columns.every((col) =>
-        columnOrder.includes(col.name),
+      const menuItems = this.renderColumnContextMenuItems(
+        column,
+        columns,
+        sortDirection,
+        dataSource,
+        onSort,
+        onFilterAdd,
+        supportedFilters,
+        sortControls,
+        filterControls,
+        columnOrder,
+        orderedColumns,
+        onColumnOrderChanged,
+        pivot,
+        onPivotChanged,
       );
 
-      // Show/hide columns submenu
-      columnManagementItems.push(
-        m(
-          MenuItem,
-          {
-            label: 'Manage columns',
-            icon: 'view_column',
-          },
-          [
-            // Show all
-            m(MenuItem, {
-              label: 'Show all',
-              icon: allColumnsShowing ? Icons.Checkbox : Icons.BlankCheckbox,
-              closePopupOnClick: false,
-              onclick: () => {
-                const newOrder = columns.map((c) => c.name);
-                onColumnOrderChanged(newOrder);
-              },
-            }),
-            m(MenuDivider),
-            // Individual columns
-            columns.map((col) => {
-              const isVisible = columnOrder.includes(col.name);
-              const columnLabel =
-                col.title !== undefined ? String(col.title) : col.name;
-              return m(MenuItem, {
-                label: columnLabel,
-                closePopupOnClick: false,
-                icon: isVisible ? Icons.Checkbox : Icons.BlankCheckbox,
-                onclick: () => {
-                  if (isVisible) {
-                    // Hide: remove from order (but keep at least 1 column)
-                    if (columnOrder.length > 1) {
-                      const newOrder = columnOrder.filter(
-                        (name) => name !== col.name,
-                      );
-                      onColumnOrderChanged(newOrder);
-                    }
-                  } else {
-                    // Show: add to end of order
-                    const newOrder = [...columnOrder, col.name];
-                    onColumnOrderChanged(newOrder);
-                  }
-                },
-              });
-            }),
-          ],
-        ),
-      );
-
-      if (columnManagementItems.length > 0) {
-        defaultGroups.columnManagement = columnManagementItems;
-      }
-
-      // Build final menu items using contextMenuRenderer if provided
-      const menuItems: m.Children = column.contextMenuRenderer
-        ? column.contextMenuRenderer(defaultGroups)
-        : [
-            defaultGroups.sorting,
-            m(MenuDivider),
-            defaultGroups.filters,
-            m(MenuDivider),
-            defaultGroups.fitToContent,
-            m(MenuDivider),
-            defaultGroups.columnManagement,
-          ];
-
-      // Build aggregation sub-content if needed
+      // Build aggregation sub-content if needed (but not for ANY which is just a passthrough)
       const subContent =
-        column.aggregation && dataSource.rows?.aggregates
+        column.aggregation && column.aggregation !== 'ANY'
           ? m(
               AggregationCell,
               {
-                symbol: aggregationFunIcon(column.aggregation),
+                symbol: aggregationFunctionSymbol(column.aggregation),
               },
-              column.cellRenderer
+              column.cellRenderer &&
+                exists(dataSource.rows?.aggregates?.[column.name])
                 ? column.cellRenderer(
-                    dataSource.rows.aggregates[column.name],
+                    dataSource.rows?.aggregates[column.name],
                     dataSource.rows.aggregates,
                   )
                 : renderCell(
-                    dataSource.rows.aggregates[column.name],
+                    dataSource.rows?.aggregates?.[column.name],
                     column.name,
                   ),
             )
           : undefined;
+
+      const isLastGroupBy = lastGroupByColName === column.name;
+      const isGroupByColumn = pivot?.groupBy.includes(column.name) ?? false;
+      const isAggregateColumn = pivot?.values?.[column.name] !== undefined;
+
+      // Determine the reorder group:
+      // - In pivot mode: separate groups for groupBy and aggregate columns
+      // - In normal mode: single group for all columns
+      const reorderGroup = (() => {
+        if (!columnReordering) return undefined;
+        if (pivot) {
+          if (isGroupByColumn) return 'datagrid-pivot-groupby';
+          if (isAggregateColumn) return 'datagrid-pivot-aggregates';
+          return undefined; // Shouldn't happen in pivot mode
+        }
+        return 'datagrid-columns';
+      })();
 
       const gridColumn: GridColumn = {
         key: column.name,
         header: m(
           GridHeaderCell,
           {
-            sort,
+            sort: sortDirection,
             hintSortDirection:
               sorting.direction === 'UNSORTED' ? undefined : sorting.direction,
             onSort: sortControls
@@ -894,13 +603,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           },
           column.title ?? column.name,
         ),
-        reorderable: columnReordering
-          ? {handle: 'datagrid-columns'}
-          : undefined,
+        thickRightBorder: isLastGroupBy && !isDrillDown,
+        reorderable: reorderGroup ? {handle: reorderGroup} : undefined,
       };
 
       return gridColumn;
     });
+
+    // Add drill-down column when in pivot mode (not drill-down mode)
+    const pivotControls = onPivotChanged !== noOp;
+    const showDrillDownColumn = pivot && !isDrillDown && pivotControls;
+    if (showDrillDownColumn) {
+      virtualGridColumns.push({
+        key: '__drilldown__',
+        header: m(GridHeaderCell, ''),
+        // width: 40,
+      });
+    }
 
     const rows = dataSource.rows;
     const virtualGridRows = (() => {
@@ -925,207 +644,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
           orderedColumns.forEach((column) => {
             const value = row[column.name];
-            const menuItems: m.Children = [];
-
-            // Build filter menu items if filtering is enabled
-            if (filterControls) {
-              const cellFilterItems: m.Children[] = [];
-
-              if (value !== null) {
-                if (supportedFilters.includes('=')) {
-                  cellFilterItems.push(
-                    m(MenuItem, {
-                      label: 'Equal to this',
-                      onclick: () => {
-                        onFilterAdd({
-                          column: column.name,
-                          op: '=',
-                          value: value,
-                        });
-                      },
-                    }),
-                  );
-                }
-                if (supportedFilters.includes('!=')) {
-                  cellFilterItems.push(
-                    m(MenuItem, {
-                      label: 'Not equal to this',
-                      onclick: () => {
-                        onFilterAdd({
-                          column: column.name,
-                          op: '!=',
-                          value: value,
-                        });
-                      },
-                    }),
-                  );
-                }
-              }
-
-              // Add glob filter option for string columns with text selection
-              // Only show if filterType is not 'numeric'
-              if (
-                typeof value === 'string' &&
-                supportedFilters.includes('glob') &&
-                column.filterType !== 'numeric'
-              ) {
-                const selectedText = window.getSelection()?.toString().trim();
-                if (selectedText && selectedText.length > 0) {
-                  cellFilterItems.push(
-                    m(
-                      MenuItem,
-                      {
-                        label: 'Filter glob',
-                      },
-                      m(MenuItem, {
-                        label: `"${selectedText}*"`,
-                        onclick: () => {
-                          onFilterAdd({
-                            column: column.name,
-                            op: 'glob',
-                            value: `${selectedText}*`,
-                          });
-                        },
-                      }),
-                      m(MenuItem, {
-                        label: `"*${selectedText}"`,
-                        onclick: () => {
-                          onFilterAdd({
-                            column: column.name,
-                            op: 'glob',
-                            value: `*${selectedText}`,
-                          });
-                        },
-                      }),
-                      m(MenuItem, {
-                        label: `"*${selectedText}*"`,
-                        onclick: () => {
-                          onFilterAdd({
-                            column: column.name,
-                            op: 'glob',
-                            value: `*${selectedText}*`,
-                          });
-                        },
-                      }),
-                    ),
-                  );
-                }
-              }
-
-              // Numeric comparison filters - only show if filterType is not 'string'
-              if (isNumeric(value) && column.filterType !== 'string') {
-                if (supportedFilters.includes('>')) {
-                  cellFilterItems.push(
-                    m(MenuItem, {
-                      label: 'Greater than this',
-                      onclick: () => {
-                        onFilterAdd({
-                          column: column.name,
-                          op: '>',
-                          value: value,
-                        });
-                      },
-                    }),
-                  );
-                }
-                if (supportedFilters.includes('>=')) {
-                  cellFilterItems.push(
-                    m(MenuItem, {
-                      label: 'Greater than or equal to this',
-                      onclick: () => {
-                        onFilterAdd({
-                          column: column.name,
-                          op: '>=',
-                          value: value,
-                        });
-                      },
-                    }),
-                  );
-                }
-                if (supportedFilters.includes('<')) {
-                  cellFilterItems.push(
-                    m(MenuItem, {
-                      label: 'Less than this',
-                      onclick: () => {
-                        onFilterAdd({
-                          column: column.name,
-                          op: '<',
-                          value: value,
-                        });
-                      },
-                    }),
-                  );
-                }
-                if (supportedFilters.includes('<=')) {
-                  cellFilterItems.push(
-                    m(MenuItem, {
-                      label: 'Less than or equal to this',
-                      onclick: () => {
-                        onFilterAdd({
-                          column: column.name,
-                          op: '<=',
-                          value: value,
-                        });
-                      },
-                    }),
-                  );
-                }
-              }
-
-              if (value === null) {
-                if (supportedFilters.includes('is not null')) {
-                  cellFilterItems.push(
-                    m(MenuItem, {
-                      label: 'Filter out nulls',
-                      onclick: () => {
-                        onFilterAdd({
-                          column: column.name,
-                          op: 'is not null',
-                        });
-                      },
-                    }),
-                  );
-                }
-                if (supportedFilters.includes('is null')) {
-                  cellFilterItems.push(
-                    m(MenuItem, {
-                      label: 'Only show nulls',
-                      onclick: () => {
-                        onFilterAdd({
-                          column: column.name,
-                          op: 'is null',
-                        });
-                      },
-                    }),
-                  );
-                }
-              }
-
-              // Build "Add filter..." menu item to pass to renderer
-              const addFilterItem =
-                cellFilterItems.length > 0
-                  ? m(
-                      MenuItem,
-                      {label: 'Add filter...', icon: Icons.Filter},
-                      cellFilterItems,
-                    )
-                  : undefined;
-
-              // Use custom cell context menu renderer if provided
-              if (column.cellContextMenuRenderer) {
-                const customMenuItems = column.cellContextMenuRenderer(
-                  value,
-                  row,
-                  {addFilter: addFilterItem},
-                );
-                if (customMenuItems !== undefined && customMenuItems !== null) {
-                  menuItems.push(customMenuItems);
-                }
-              } else if (addFilterItem !== undefined) {
-                // Use default: just add the filter menu
-                menuItems.push(addFilterItem);
-              }
-            }
+            const menuItems = buildCellContextMenu(
+              column,
+              value,
+              row,
+              supportedFilters,
+              onFilterAdd,
+              filterControls,
+            );
 
             // Build cell - use GridDataCell when we have menus or special rendering
             cellRow.push(
@@ -1146,6 +672,27 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               ),
             );
           });
+
+          // Add drill-down button cell when in pivot mode
+          if (showDrillDownColumn) {
+            // Build the drillDown values from the groupBy columns
+            const drillDownValues: RowDef = {};
+            for (const colName of pivot.groupBy) {
+              drillDownValues[colName] = row[colName];
+            }
+            cellRow.push(
+              m(Button, {
+                icon: Icons.GoTo,
+                title: 'Drill down into this group',
+                onclick: () => {
+                  onPivotChanged({
+                    ...pivot,
+                    drillDown: drillDownValues,
+                  });
+                },
+              }),
+            );
+          }
 
           return cellRow;
         })
@@ -1172,6 +719,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         dataGridApi: this.dataGridApi,
         onFilterRemove,
         formatFilter: this.formatFilter.bind(this),
+        pivot:
+          pivot && pivotControls
+            ? {
+                groupByColumns: pivot.groupBy,
+                onExit: () => {
+                  // Exit pivot mode entirely
+                  onPivotChanged(undefined);
+                },
+              }
+            : undefined,
+        drillDown:
+          pivot?.drillDown && pivotControls
+            ? {
+                drillDown: pivot.drillDown,
+                groupByColumns: pivot.groupBy,
+                onBack: () => {
+                  // Remove drillDown from pivot to return to pivot view
+                  const {drillDown: _, ...pivotWithoutDrillDown} = pivot;
+                  onPivotChanged(pivotWithoutDrillDown as typeof pivot);
+                },
+              }
+            : undefined,
       }),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
@@ -1197,13 +766,24 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         fillHeight: true,
         onColumnReorder: columnReordering
           ? (from, to, position) => {
-              const newOrder = this.reorderColumns(
-                columnOrder,
-                from,
-                to,
-                position,
-              );
-              onColumnOrderChanged(newOrder);
+              if (pivot) {
+                // In pivot mode, reorder within the pivot model
+                const newPivot = this.reorderPivotColumns(
+                  pivot,
+                  from,
+                  to,
+                  position,
+                );
+                onPivotChanged(newPivot);
+              } else {
+                const newOrder = this.reorderColumns(
+                  columnOrder,
+                  from,
+                  to,
+                  position,
+                );
+                onColumnOrderChanged(newOrder);
+              }
             }
           : undefined,
         onReady: (api) => {
@@ -1233,14 +813,131 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     );
   }
 
-  private formatDistinctValue(value: SqlValue): string {
-    if (value === null) {
-      return 'NULL';
-    }
-    if (value instanceof Uint8Array) {
-      return `Blob (${value.length} bytes)`;
-    }
-    return String(value);
+  private renderColumnContextMenuItems(
+    column: ColumnDefinition,
+    columns: ReadonlyArray<ColumnDefinition>,
+    sort: SortDirection | undefined,
+    dataSource: DataGridDataSource,
+    onSort: OnSortingChanged,
+    onFilterAdd: OnFilterAdd,
+    supportedFilters: ReadonlyArray<FilterType>,
+    sortControls: boolean,
+    filterControls: boolean,
+    columnOrder: ColumnOrder,
+    orderedColumns: ReadonlyArray<ColumnDefinition>,
+    onColumnOrderChanged: OnColumnOrderChanged,
+    pivot: PivotModel | undefined,
+    onPivotChanged: OnPivotChanged,
+  ): m.Children | undefined {
+    const pivotControls = onPivotChanged !== noOp;
+    const isCurrentColumnAggregate = pivot?.values?.[column.name] !== undefined;
+    const currentGroupBy = pivot?.groupBy ?? [];
+    const isCurrentColumnGrouped = currentGroupBy.includes(column.name);
+
+    const builtins: Partial<BuiltinMenuItems> = {
+      sorting: sortControls && [
+        ...renderSortMenuItems(sort, (direction) => {
+          if (direction) {
+            onSort({
+              column: column.name,
+              direction: direction,
+            });
+          } else {
+            onSort({
+              direction: 'UNSORTED',
+            });
+          }
+        }),
+      ],
+      // Column management is only available when not in pivot mode
+      // In pivot mode, column visibility is controlled by the pivot state
+      columnManagement: !pivot && [
+        orderedColumns.length > 1 &&
+          m(MenuItem, {
+            label: 'Hide column',
+            icon: Icons.Hide,
+            onclick: () => {
+              const newOrder = columnOrder.filter(
+                (name) => name !== column.name,
+              );
+              onColumnOrderChanged(newOrder);
+            },
+          }),
+        renderColumnManagementMenu(columns, columnOrder, onColumnOrderChanged),
+      ],
+      fitToContent: m(MenuItem, {
+        label: 'Fit to content',
+        icon: 'fit_width',
+        onclick: () => this.gridApi?.autoFitColumn(column.name),
+      }),
+      filters: filterControls && [
+        m(
+          MenuItem,
+          {label: 'Add filter...', icon: Icons.Filter},
+          renderFilterSubmenuItems(
+            column,
+            onFilterAdd,
+            dataSource.rows?.distinctValues?.get(column.name),
+            supportedFilters,
+            this.distinctValuesColumns,
+          ),
+        ),
+      ],
+      pivot: pivotControls && [
+        renderPivotMenu(columns, pivot, onPivotChanged, column),
+      ],
+    };
+
+    // Build final menu items using contextMenuRenderer if provided
+    const menuItems: m.Children = column.contextMenuRenderer
+      ? column.contextMenuRenderer(builtins)
+      : [
+          builtins.sorting,
+          m(MenuDivider),
+          builtins.filters,
+          m(MenuDivider),
+          // All pivot-related items grouped together
+          // If current column is an aggregate, show remove/change at top level
+          isCurrentColumnAggregate &&
+            renderAggregateActions(
+              column,
+              pivot!,
+              onPivotChanged,
+              currentGroupBy,
+              columns,
+            ),
+          // If current column is grouped, show remove pivot at top level
+          isCurrentColumnGrouped &&
+            m(MenuItem, {
+              label: 'Remove',
+              icon: Icons.Delete,
+              onclick: () => {
+                const newGroupBy = currentGroupBy.filter(
+                  (name) => name !== column.name,
+                );
+                if (
+                  newGroupBy.length === 0 &&
+                  Object.keys(pivot?.values ?? {}).length === 0
+                ) {
+                  // If no groupBy and no values, clear the pivot entirely
+                  onPivotChanged(undefined);
+                } else {
+                  const newPivot: PivotModel = {
+                    groupBy: newGroupBy,
+                    values: pivot?.values ?? {},
+                  };
+                  onPivotChanged(newPivot);
+                }
+              },
+            }),
+          builtins.pivot,
+          m(MenuDivider),
+          builtins.fitToContent,
+          m(MenuDivider),
+          builtins.columnManagement,
+        ];
+
+    return menuItems;
   }
 
   private async formatData(
@@ -1391,30 +1088,74 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     return newOrder;
   }
-}
 
-/**
- * Converts a string to a case-insensitive glob pattern.
- * For example: "abc" becomes "*[aA][bB][cC]*"
- */
-function toCaseInsensitiveGlob(text: string): string {
-  const pattern = text
-    .split('')
-    .map((char) => {
-      const lower = char.toLowerCase();
-      const upper = char.toUpperCase();
-      // Only create character class for letters
-      if (lower !== upper) {
-        return `[${lower}${upper}]`;
+  private reorderPivotColumns(
+    pivot: PivotModel,
+    fromKey: string | number | undefined,
+    toKey: string | number | undefined,
+    position: 'before' | 'after',
+  ): PivotModel {
+    if (typeof fromKey !== 'string' || typeof toKey !== 'string') {
+      return pivot;
+    }
+
+    // Can't drag a column relative to itself
+    if (fromKey === toKey) return pivot;
+
+    const groupBy = [...pivot.groupBy];
+    const valueKeys = Object.keys(pivot.values);
+
+    const fromInGroupBy = groupBy.indexOf(fromKey);
+    const toInGroupBy = groupBy.indexOf(toKey);
+    const fromInValues = valueKeys.indexOf(fromKey);
+    const toInValues = valueKeys.indexOf(toKey);
+
+    // Case 1: Reordering within groupBy columns
+    if (fromInGroupBy !== -1 && toInGroupBy !== -1) {
+      groupBy.splice(fromInGroupBy, 1);
+      let insertIndex = toInGroupBy;
+      if (fromInGroupBy < toInGroupBy) insertIndex--;
+      if (position === 'after') insertIndex++;
+      groupBy.splice(insertIndex, 0, fromKey);
+
+      return {
+        groupBy,
+        values: pivot.values,
+      };
+    }
+
+    // Case 2: Reordering within value columns
+    if (fromInValues !== -1 && toInValues !== -1) {
+      // Need to rebuild values object with new order
+      const newValueKeys = [...valueKeys];
+      newValueKeys.splice(fromInValues, 1);
+      let insertIndex = toInValues;
+      if (fromInValues < toInValues) insertIndex--;
+      if (position === 'after') insertIndex++;
+      newValueKeys.splice(insertIndex, 0, fromKey);
+
+      // Rebuild values object in new order
+      const newValues: {[key: string]: PivotValue} = {};
+      for (const key of newValueKeys) {
+        newValues[key] = pivot.values[key];
       }
-      // Non-letters remain as-is
-      return char;
-    })
-    .join('');
-  return `*${pattern}*`;
+
+      return {
+        groupBy: pivot.groupBy,
+        values: newValues,
+      };
+    }
+
+    // Case 3: Moving from groupBy to values or vice versa is not supported
+    // (would change the semantics of the column)
+    return pivot;
+  }
 }
 
-export function renderCell(value: SqlValue, columnName: string) {
+export function renderCell(value: SqlValue | undefined, columnName: string) {
+  if (value === undefined) {
+    return '';
+  }
   if (value instanceof Uint8Array) {
     return m(
       Anchor,
@@ -1428,267 +1169,15 @@ export function renderCell(value: SqlValue, columnName: string) {
       },
       `Blob (${value.length} bytes)`,
     );
+  } else if (typeof value === 'number' || typeof value === 'bigint') {
+    return value.toString();
   } else {
-    return String(value);
+    return value;
   }
 }
 
-// Check if the value is numeric (number or bigint)
-export function isNumeric(value: SqlValue): value is number | bigint {
-  return typeof value === 'number' || typeof value === 'bigint';
-}
-
-// Creates a unicode icon for the aggregation function.
-function aggregationFunIcon(func: AggregationFunction): string {
-  switch (func) {
-    case 'SUM':
-      return 'Σ';
-    case 'COUNT':
-      return '#';
-    case 'AVG':
-      return '⌀';
-    case 'MIN':
-      return '↓';
-    case 'MAX':
-      return '↑';
-    default:
-      throw new Error(`Unknown aggregation function: ${func}`);
-  }
-}
-
-// Helper component to manage distinct values selection
-interface DistinctValuesSubmenuAttrs {
-  readonly columnName: string;
-  readonly distinctState: ReadonlyArray<SqlValue> | undefined;
-  readonly formatValue: (value: SqlValue) => string;
-  readonly onApply: (selectedValues: Set<SqlValue>) => void;
-}
-
-class DistinctValuesSubmenu
-  implements m.ClassComponent<DistinctValuesSubmenuAttrs>
-{
-  private selectedValues = new Set<SqlValue>();
-  private searchQuery = '';
-  private static readonly MAX_VISIBLE_ITEMS = 100;
-
-  view({attrs}: m.Vnode<DistinctValuesSubmenuAttrs>) {
-    const {distinctState, formatValue, onApply} = attrs;
-
-    if (distinctState === undefined) {
-      return m('.pf-distinct-values-menu', [
-        m(MenuItem, {label: 'Loading...', disabled: true}),
-      ]);
-    }
-
-    // Use fuzzy search to filter and get highlighted segments
-    const fuzzyResults = (() => {
-      if (this.searchQuery === '') {
-        // No search - show all values without highlighting
-        return distinctState.map((value) => ({
-          value,
-          segments: [{matching: false, value: formatValue(value)}],
-        }));
-      } else {
-        // Fuzzy search with highlighting
-        const finder = new FuzzyFinder(distinctState, (v) => formatValue(v));
-        return finder.find(this.searchQuery).map((result) => ({
-          value: result.item,
-          segments: result.segments,
-        }));
-      }
-    })();
-
-    // Limit the number of items rendered
-    const visibleResults = fuzzyResults.slice(
-      0,
-      DistinctValuesSubmenu.MAX_VISIBLE_ITEMS,
-    );
-    const remainingCount =
-      fuzzyResults.length - DistinctValuesSubmenu.MAX_VISIBLE_ITEMS;
-
-    return m('.pf-distinct-values-menu', [
-      m(
-        '.pf-distinct-values-menu__search',
-        {
-          onclick: (e: MouseEvent) => {
-            // Prevent menu from closing when clicking search box
-            e.stopPropagation();
-          },
-        },
-        m(TextInput, {
-          placeholder: 'Search...',
-          value: this.searchQuery,
-          oninput: (e: InputEvent) => {
-            this.searchQuery = (e.target as HTMLInputElement).value;
-          },
-          onkeydown: (e: KeyboardEvent) => {
-            if (this.searchQuery !== '' && e.key === 'Escape') {
-              this.searchQuery = '';
-              e.stopPropagation(); // Prevent menu from closing
-            }
-          },
-        }),
-      ),
-      m(
-        '.pf-distinct-values-menu__list',
-        fuzzyResults.length > 0
-          ? [
-              visibleResults.map((result) => {
-                const isSelected = this.selectedValues.has(result.value);
-                // Render highlighted label
-                const labelContent = result.segments.map((segment) => {
-                  if (segment.matching) {
-                    return m('strong.pf-fuzzy-match', segment.value);
-                  } else {
-                    return segment.value;
-                  }
-                });
-
-                // Render custom menu item with highlighted content
-                return m(
-                  'button.pf-menu-item',
-                  {
-                    onclick: () => {
-                      if (isSelected) {
-                        this.selectedValues.delete(result.value);
-                      } else {
-                        this.selectedValues.add(result.value);
-                      }
-                    },
-                  },
-                  m(Icon, {
-                    className: 'pf-menu-item__left-icon',
-                    icon: isSelected ? Icons.Checkbox : Icons.BlankCheckbox,
-                  }),
-                  m('.pf-menu-item__label', labelContent),
-                );
-              }),
-              remainingCount > 0 &&
-                m(MenuItem, {
-                  label: `...and ${remainingCount} more`,
-                  disabled: true,
-                }),
-            ]
-          : m(EmptyState, {
-              title: 'No matches',
-            }),
-      ),
-      m('.pf-distinct-values-menu__footer', [
-        m(MenuItem, {
-          label: 'Apply',
-          icon: 'check',
-          disabled: this.selectedValues.size === 0,
-          onclick: () => {
-            if (this.selectedValues.size > 0) {
-              onApply(this.selectedValues);
-              this.selectedValues.clear();
-              this.searchQuery = '';
-            }
-          },
-        }),
-        m(MenuItem, {
-          label: 'Clear selection',
-          icon: 'close',
-          disabled: this.selectedValues.size === 0,
-          closePopupOnClick: false,
-          onclick: () => {
-            this.selectedValues.clear();
-            m.redraw();
-          },
-        }),
-      ]),
-    ]);
-  }
-}
-
-// Helper component for text-based filter input
-interface TextFilterSubmenuAttrs {
-  readonly columnName: string;
-  readonly operator:
-    | 'glob'
-    | 'not glob'
-    | 'contains'
-    | 'not contains'
-    | '='
-    | '!='
-    | '>'
-    | '>='
-    | '<'
-    | '<=';
-  readonly onApply: (value: string | number) => void;
-}
-
-class TextFilterSubmenu implements m.ClassComponent<TextFilterSubmenuAttrs> {
-  private inputValue = '';
-
-  view({attrs}: m.Vnode<TextFilterSubmenuAttrs>) {
-    const {operator, onApply} = attrs;
-
-    const placeholder = (() => {
-      switch (operator) {
-        case 'glob':
-          return 'Enter glob pattern (e.g., *text*)...';
-        case 'not glob':
-          return 'Enter glob pattern to exclude...';
-        case 'contains':
-          return 'Enter text to include...';
-        case 'not contains':
-          return 'Enter text to exclude...';
-        case '=':
-          return 'Enter value to match...';
-        case '!=':
-          return 'Enter value to exclude...';
-        case '>':
-          return 'Enter number...';
-        case '>=':
-          return 'Enter number...';
-        case '<':
-          return 'Enter number...';
-        case '<=':
-          return 'Enter number...';
-      }
-    })();
-
-    // Check if this is a numeric comparison operator
-    const isNumericOperator = ['>', '>=', '<', '<='].includes(operator);
-
-    const applyFilter = () => {
-      if (this.inputValue.trim().length > 0) {
-        let value: string | number = this.inputValue.trim();
-
-        // For numeric operators, try to parse as number
-        if (isNumericOperator) {
-          const numValue = Number(value);
-          if (!isNaN(numValue)) {
-            value = numValue;
-          }
-        }
-
-        onApply(value);
-        this.inputValue = '';
-      }
-    };
-
-    return m(
-      Form,
-      {
-        className: 'pf-data-grid__text-filter-form',
-        submitLabel: 'Add Filter',
-        submitIcon: 'check',
-        onSubmit: (e: Event) => {
-          e.preventDefault();
-          applyFilter();
-        },
-        validation: () => this.inputValue.trim().length > 0,
-      },
-      m(TextInput, {
-        placeholder,
-        value: this.inputValue,
-        autofocus: true,
-        oninput: (e: InputEvent) => {
-          this.inputValue = (e.target as HTMLInputElement).value;
-        },
-      }),
-    );
-  }
+// Creates a symbol for the aggregation function.
+function aggregationFunctionSymbol(func: AggregationFunction): string {
+  if (func === 'COUNT') return '#';
+  return func;
 }

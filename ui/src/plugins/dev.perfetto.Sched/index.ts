@@ -52,9 +52,6 @@ import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregato
 import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
 import {Cpu} from '../../components/cpu';
-import {ThreadStateByCpuAggregator} from './thread_state_by_cpu_aggregator';
-import {App} from '../../public/app';
-import {Flag} from '../../public/feature_flag';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -72,17 +69,6 @@ function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
 export default class SchedPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Sched';
   static readonly dependencies = [ProcessThreadGroupsPlugin, ThreadPlugin];
-  static threadStateByCpuFlag: Flag;
-
-  static onActivate(app: App) {
-    SchedPlugin.threadStateByCpuFlag = app.featureFlags.register({
-      id: 'threadStateByCpu',
-      name: 'Thread State by CPU Aggregation',
-      description:
-        'Add a new area selection aggregation tab showing thread states broken down by CPU.',
-      defaultValue: false,
-    });
-  }
 
   private _schedCpus: Cpu[] = [];
 
@@ -254,12 +240,6 @@ export default class SchedPlugin implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ThreadStateSelectionAggregator()),
     );
-
-    if (SchedPlugin.threadStateByCpuFlag.get()) {
-      ctx.selection.registerAreaSelectionTab(
-        createAggregationTab(ctx, new ThreadStateByCpuAggregator()),
-      );
-    }
 
     const result = await engine.query(`
       include perfetto module viz.threads;

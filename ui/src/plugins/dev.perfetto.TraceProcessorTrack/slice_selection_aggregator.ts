@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {Sorting} from '../../components/aggregation';
 import {
+  AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
@@ -97,13 +98,11 @@ export class SliceSelectionAggregator implements Aggregator {
         await engine.query(`
           CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
           SELECT
+            id,
             name,
-            SUM(dur) AS total_dur,
-            SUM(dur) / COUNT() AS avg_dur,
-            COUNT() AS occurrences,
-            SUM(self_dur) AS total_self_dur
+            dur,
+            self_dur
           FROM (${unionQueries.join(' UNION ALL ')})
-          GROUP BY name
         `);
 
         return {tableName: this.id};
@@ -181,38 +180,39 @@ export class SliceSelectionAggregator implements Aggregator {
   }
 
   getDefaultSorting(): Sorting {
-    return {column: 'total_dur', direction: 'DESC'};
+    return {column: 'sum_dur', direction: 'DESC'};
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Name',
-        columnId: 'name',
+  getColumnDefinitions(): AggregatePivotModel {
+    return {
+      groupBy: ['name'],
+      values: {
+        count: {func: 'COUNT'},
+        sum_dur: {col: 'dur', func: 'SUM'},
+        sum_self_dur: {col: 'self_dur', func: 'SUM'},
+        avg_dur: {col: 'dur', func: 'AVG'},
       },
-      {
-        title: 'Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'total_dur',
-        sum: true,
-      },
-      {
-        title: 'Self duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'total_self_dur',
-        sum: true,
-      },
-      {
-        title: 'Avg Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'avg_dur',
-      },
-      {
-        title: 'Occurrences',
-        columnId: 'occurrences',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-    ];
+      columns: [
+        {
+          title: 'ID',
+          columnId: 'id',
+          formatHint: 'ID',
+        },
+        {
+          title: 'Name',
+          columnId: 'name',
+        },
+        {
+          title: 'Wall duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'dur',
+        },
+        {
+          title: 'Self duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'self_dur',
+        },
+      ],
+    };
   }
 }

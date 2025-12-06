@@ -15,7 +15,13 @@
 import m from 'mithril';
 import {SqlValue} from '../../../trace_processor/query_result';
 
-export type AggregationFunction = 'SUM' | 'AVG' | 'COUNT' | 'MIN' | 'MAX';
+export type AggregationFunction =
+  | 'SUM'
+  | 'AVG'
+  | 'COUNT'
+  | 'MIN'
+  | 'MAX'
+  | 'ANY';
 
 export type FilterType = DataGridFilter['op'];
 
@@ -34,6 +40,14 @@ export const DEFAULT_SUPPORTED_FILTERS: ReadonlyArray<FilterType> = [
   'is not null',
 ];
 export type CellRenderer = (value: SqlValue, row: RowDef) => m.Children;
+
+export interface BuiltinMenuItems {
+  readonly sorting: m.Children;
+  readonly filters: m.Children;
+  readonly pivot: m.Children;
+  readonly fitToContent: m.Children;
+  readonly columnManagement: m.Children;
+}
 
 export interface ColumnDefinition {
   // Name/id of the column - this should match the key in the data.
@@ -54,14 +68,12 @@ export interface ColumnDefinition {
   // Default groups provided:
   // - sorting: Sort ascending/descending/clear items
   // - filters: Filter options (null filters, equals, contains, etc.)
+  // - pivot: Pivot options (add group by, manage aggregations)
   // - fitToContent: Fit column to content width
   // - columnManagement: Hide column, manage columns visibility
-  readonly contextMenuRenderer?: (builtins: {
-    readonly sorting?: m.Children;
-    readonly filters?: m.Children;
-    readonly fitToContent?: m.Children;
-    readonly columnManagement?: m.Children;
-  }) => m.Children;
+  readonly contextMenuRenderer?: (
+    builtins: Partial<BuiltinMenuItems>,
+  ) => m.Children;
 
   // Optional function that receives the default filter menu item and returns
   // the complete cell context menu structure. This allows full control over
@@ -143,12 +155,35 @@ export interface AggregateSpec {
   readonly func: AggregationFunction;
 }
 
+interface PivotValueWithCol {
+  readonly col: string;
+  readonly func: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'ANY';
+}
+
+interface PivotValueCount {
+  readonly func: 'COUNT';
+}
+
+export type PivotValue = PivotValueWithCol | PivotValueCount;
+
+export interface PivotModel {
+  readonly groupBy: ReadonlyArray<string>;
+  readonly values: {
+    readonly [key: string]: PivotValue;
+  };
+  // When set, shows raw rows filtered by these groupBy column values.
+  // This allows drilling down into a specific pivot group to see the
+  // underlying data. The keys are the groupBy column names.
+  readonly drillDown?: RowDef;
+}
+
 export interface DataGridModel {
   readonly columns?: ReadonlyArray<string>;
   readonly sorting?: Sorting;
   readonly filters?: ReadonlyArray<DataGridFilter>;
   readonly pagination?: Pagination;
   readonly aggregates?: ReadonlyArray<AggregateSpec>;
+  readonly pivot?: PivotModel;
   readonly distinctValuesColumns?: ReadonlySet<string>;
 }
 
@@ -214,4 +249,9 @@ export function areAggregatesEqual(
   b: AggregateSpec,
 ): boolean {
   return a.col === b.col && a.func === b.func;
+}
+
+// Check if the value is numeric (number or bigint)
+export function isNumeric(value: SqlValue): value is number | bigint {
+  return typeof value === 'number' || typeof value === 'bigint';
 }

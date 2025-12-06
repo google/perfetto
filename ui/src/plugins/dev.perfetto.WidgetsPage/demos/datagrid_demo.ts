@@ -63,6 +63,7 @@ export function renderDataGrid(app: App): m.Children {
         aggregation,
         demoToolbarItems,
         distinctValues,
+        pivotExample,
         filterIsNull,
         filterIsNotNull,
         filterIn,
@@ -92,7 +93,7 @@ export function renderDataGrid(app: App): m.Children {
         if (filterGreaterThan) supportedFilters.push('>');
         if (filterGreaterThanOrEqual) supportedFilters.push('>=');
 
-        return m(DataGrid, {
+        const attrs: DataGridAttrs = {
           ...rest,
           toolbarItemsLeft: demoToolbarItems
             ? m(Button, {
@@ -110,6 +111,15 @@ export function renderDataGrid(app: App): m.Children {
           filters: readonlyFilters ? [] : undefined,
           sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
           supportedFilters,
+          pivot: pivotExample
+            ? {
+                groupBy: ['creator'],
+                values: {
+                  count: {func: 'COUNT'},
+                  loc_sum: {col: 'loc', func: 'SUM'},
+                },
+              }
+            : undefined,
           columns: [
             {
               name: 'id',
@@ -165,9 +175,18 @@ export function renderDataGrid(app: App): m.Children {
               distinctValues,
               filterType: 'string',
             },
+            {
+              name: 'loc',
+              title: 'GitHub LoC',
+              aggregation: aggregation ? 'SUM' : undefined,
+              distinctValues,
+              filterType: 'numeric',
+            },
           ],
           data: languages,
-        });
+        };
+
+        return m(DataGrid, attrs);
       },
       initialOpts: {
         showFiltersInToolbar: true,
@@ -178,6 +197,8 @@ export function renderDataGrid(app: App): m.Children {
         demoToolbarItems: false,
         showExportButton: false,
         showRowCount: true,
+        pivotExample: false,
+
         filterIsNull: true,
         filterIsNotNull: true,
         filterIn: true,

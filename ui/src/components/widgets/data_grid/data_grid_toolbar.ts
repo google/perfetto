@@ -13,10 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../../base/semantic_icons';
+import {SqlValue} from '../../../trace_processor/query_result';
 import {Box} from '../../../widgets/box';
+import {Button} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Stack, StackAuto} from '../../../widgets/stack';
-import {ColumnDefinition, DataGridFilter} from './common';
+import {ColumnDefinition, DataGridFilter, RowDef} from './common';
 import {DataGridApi} from './data_grid';
 import {DataGridExportButton} from './export_button';
 
@@ -46,6 +49,22 @@ export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
 
 export type OnFilterRemove = (index: number) => void;
 
+export interface DrillDownIndicatorAttrs {
+  // The drill-down values (groupBy column values)
+  readonly drillDown: RowDef;
+  // The groupBy column names in order
+  readonly groupByColumns: ReadonlyArray<string>;
+  // Callback to exit drill-down mode
+  readonly onBack: () => void;
+}
+
+export interface PivotIndicatorAttrs {
+  // The groupBy column names
+  readonly groupByColumns: ReadonlyArray<string>;
+  // Callback to exit pivot mode
+  readonly onExit: () => void;
+}
+
 export interface DataGridToolbarAttrs {
   readonly filters: ReadonlyArray<DataGridFilter>;
   readonly columns: ReadonlyArray<ColumnDefinition>;
@@ -61,6 +80,16 @@ export interface DataGridToolbarAttrs {
     filter: DataGridFilter,
     columns: ReadonlyArray<ColumnDefinition>,
   ) => string;
+  // Optional pivot mode indicator props
+  readonly pivot?: PivotIndicatorAttrs;
+  // Optional drill-down indicator props
+  readonly drillDown?: DrillDownIndicatorAttrs;
+}
+
+function formatDrillDownValue(value: SqlValue): string {
+  if (value === null) return 'NULL';
+  if (typeof value === 'string') return `"${value}"`;
+  return String(value);
 }
 
 export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
@@ -77,10 +106,59 @@ export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
       dataGridApi,
       onFilterRemove,
       formatFilter,
+      pivot,
+      drillDown,
     } = attrs;
 
     // Build left-side toolbar items
     const leftItems: m.Children[] = [];
+
+    // Pivot mode indicator (only show when in pivot mode, not drilldown)
+    if (pivot && !drillDown) {
+      const pivotText = `Grouped by: ${pivot.groupByColumns.join(', ')}`;
+
+      leftItems.push(
+        m(
+          Stack,
+          {orientation: 'horizontal', spacing: 'small', gap: 4},
+          m(Chip, {
+            className: 'pf-grid-pivot',
+            label: pivotText,
+            title: pivotText,
+            removable: true,
+            onRemove: pivot.onExit,
+            removeButtonTitle: 'Exit pivot mode',
+          }),
+        ),
+      );
+    }
+
+    // Drill-down indicator with back button
+    if (drillDown) {
+      const drillDownText = drillDown.groupByColumns
+        .map(
+          (col) => `${col}=${formatDrillDownValue(drillDown.drillDown[col])}`,
+        )
+        .join(', ');
+
+      leftItems.push(
+        m(
+          Stack,
+          {orientation: 'horizontal', spacing: 'small', gap: 4},
+          m(Button, {
+            icon: Icons.GoBack,
+            label: 'Back to pivot',
+            compact: true,
+            onclick: drillDown.onBack,
+          }),
+          m(Chip, {
+            className: 'pf-grid-drilldown',
+            label: drillDownText,
+            title: `Drill-down: ${drillDownText}`,
+          }),
+        ),
+      );
+    }
 
     if (Boolean(toolbarItemsLeft)) {
       leftItems.push(toolbarItemsLeft);
