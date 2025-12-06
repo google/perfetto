@@ -90,9 +90,8 @@
 .pf-exp-node-box__content {
   display: flex;
   flex-direction: column;
-  max-width: 100%;
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
   // Reserve space for the absolutely-positioned actions menu that appears on hover
   // This prevents node content from being obscured by action buttons
   // Value accommodates 2-3 icon buttons (each ~1.5rem) plus gaps

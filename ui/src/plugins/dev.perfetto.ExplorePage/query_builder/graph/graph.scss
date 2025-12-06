@@ -25,6 +25,17 @@
   .pf-canvas {
     height: 100%;
   }
+
+  // Wrapper sizes to widest node (up to 300px), all nodes in block share that width
+  .pf-node-wrapper {
+    width: max-content;
+    max-width: 300px;
+  }
+
+  // Nodes fill wrapper width (default is 100%), ensuring uniform width in blocks
+  .pf-node {
+    min-width: 0;
+  }
 }
 
 .pf-exp-node-graph__controls {
