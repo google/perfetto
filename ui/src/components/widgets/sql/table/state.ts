@@ -148,15 +148,12 @@ export class SqlTableState {
   }
 
   // We need column names to pass to the debug track creation logic.
-  private buildSqlSelectStatement(mode: 'display' | 'data'): {
+  private buildSqlSelectStatement(): {
     selectStatement: string;
     columns: {[key: string]: string};
   } {
     const columns: {[key: string]: SqlColumn} = Object.fromEntries(
-      this.columns.map((c) => [
-        tableColumnAlias(c),
-        mode === 'data' ? c.column : c.display ?? c.column,
-      ]),
+      this.columns.map((c) => [tableColumnAlias(c), c.column]),
     );
 
     return {
@@ -174,7 +171,7 @@ export class SqlTableState {
     return `
       ${this.getSQLImports()}
 
-      ${this.buildSqlSelectStatement('data').selectStatement}
+      ${this.buildSqlSelectStatement().selectStatement}
     `;
   }
 
@@ -189,7 +186,7 @@ export class SqlTableState {
   }
 
   private buildRequest(): Request {
-    const {selectStatement, columns} = this.buildSqlSelectStatement('display');
+    const {selectStatement, columns} = this.buildSqlSelectStatement();
     const query = `
       ${this.getSQLImports()}
       ${selectStatement}
