@@ -156,8 +156,10 @@ public class PerfettoTraceTest {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     PerfettoTrace.instant(FOO_CATEGORY, "event")
-        .setFlow(2)
-        .setTerminatingFlow(3)
+        .addFlow(2)
+        .addFlow(3)
+        .addTerminatingFlow(4)
+        .addTerminatingFlow(5)
         .addArg("long_val", 10000000000L)
         .addArg("bool_val", true)
         .addArg("double_val", 3.14)
@@ -188,6 +190,9 @@ public class PerfettoTraceTest {
           assertThat(annotations.get(1).getBoolValue()).isTrue();
           assertThat(annotations.get(2).getDoubleValue()).isEqualTo(3.14);
           assertThat(annotations.get(3).getStringValue()).isEqualTo(FOO);
+
+          assertThat(event.getFlowIdsList()).containsExactly(2, 3);
+          assertThat(event.getTerminatingFlowIdsList()).containsExactly(4, 5);
         }
       }
 
