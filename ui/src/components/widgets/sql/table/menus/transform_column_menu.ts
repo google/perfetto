@@ -29,13 +29,12 @@ import {
   PerfettoSqlTypes,
   typesEqual,
 } from '../../../../../trace_processor/perfetto_sql_type';
-import {createTableColumn} from '../create_column';
 import {SqlColumn, SqlExpression} from '../sql_column';
 import {SqlValue} from '../../../../../trace_processor/query_result';
 import {uuidv4} from '../../../../../base/uuid';
 import {range} from '../../../../../base/array_utils';
 import {Trace} from '../../../../../public/trace';
-import {PrintArgsColumn} from '../columns';
+import {createTableColumn, PrintArgsColumn} from '../columns';
 
 type Transform = {
   apply: (trace: Trace, column: SqlColumn, ...params: string[]) => TableColumn;

@@ -13,17 +13,7 @@
 // limitations under the License.
 
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
-import {
-  ArgSetIdColumn,
-  DurationColumn,
-  ProcessIdColumn,
-  SchedIdColumn,
-  SliceIdColumn,
-  StandardColumn,
-  ThreadIdColumn,
-  ThreadStateIdColumn,
-  TimestampColumn,
-} from '../../components/widgets/sql/table/columns';
+import {createTableColumn} from '../../components/widgets/sql/table/columns';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Trace} from '../../public/trace';
 
@@ -31,13 +21,33 @@ export function getThreadTable(trace: Trace): SqlTableDescription {
   return {
     name: 'thread',
     columns: [
-      new ThreadIdColumn(trace, 'utid', {type: 'id'}),
-      new StandardColumn('tid', PerfettoSqlTypes.INT),
-      new StandardColumn('name', PerfettoSqlTypes.STRING),
-      new TimestampColumn(trace, 'start_ts'),
-      new TimestampColumn(trace, 'end_ts'),
-      new ProcessIdColumn(trace, 'upid', {notNull: true}),
-      new StandardColumn('is_main_thread', PerfettoSqlTypes.BOOLEAN),
+      createTableColumn({
+        trace,
+        column: 'utid',
+        type: {kind: 'id', source: {table: 'thread', column: 'id'}},
+      }),
+      createTableColumn({trace, column: 'tid', type: PerfettoSqlTypes.INT}),
+      createTableColumn({trace, column: 'name', type: PerfettoSqlTypes.STRING}),
+      createTableColumn({
+        trace,
+        column: 'start_ts',
+        type: PerfettoSqlTypes.TIMESTAMP,
+      }),
+      createTableColumn({
+        trace,
+        column: 'end_ts',
+        type: PerfettoSqlTypes.TIMESTAMP,
+      }),
+      createTableColumn({
+        trace,
+        column: 'upid',
+        type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'is_main_thread',
+        type: PerfettoSqlTypes.BOOLEAN,
+      }),
     ],
   };
 }
@@ -46,19 +56,50 @@ export function getProcessTable(trace: Trace): SqlTableDescription {
   return {
     name: 'process',
     columns: [
-      new ProcessIdColumn(trace, 'upid', {type: 'id'}),
-      new StandardColumn('pid', PerfettoSqlTypes.INT),
-      new StandardColumn('name', PerfettoSqlTypes.STRING),
-      new TimestampColumn(trace, 'start_ts'),
-      new TimestampColumn(trace, 'end_ts'),
-      new ProcessIdColumn(trace, 'parent_upid'),
-      new StandardColumn('uid', PerfettoSqlTypes.INT),
-      new StandardColumn('android_appid', PerfettoSqlTypes.INT),
-      new StandardColumn('cmdline', PerfettoSqlTypes.STRING, {
+      createTableColumn({
+        trace,
+        column: 'upid',
+        type: {kind: 'id', source: {table: 'process', column: 'id'}},
+      }),
+      createTableColumn({trace, column: 'pid', type: PerfettoSqlTypes.INT}),
+      createTableColumn({trace, column: 'name', type: PerfettoSqlTypes.STRING}),
+      createTableColumn({
+        trace,
+        column: 'start_ts',
+        type: PerfettoSqlTypes.TIMESTAMP,
+      }),
+      createTableColumn({
+        trace,
+        column: 'end_ts',
+        type: PerfettoSqlTypes.TIMESTAMP,
+      }),
+      createTableColumn({
+        trace,
+        column: 'parent_upid',
+        type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
+      }),
+      createTableColumn({trace, column: 'uid', type: PerfettoSqlTypes.INT}),
+      createTableColumn({
+        trace,
+        column: 'android_appid',
+        type: PerfettoSqlTypes.INT,
+      }),
+      createTableColumn({
+        trace,
+        column: 'cmdline',
+        type: PerfettoSqlTypes.STRING,
         startsHidden: true,
       }),
-      new StandardColumn('machine_id', PerfettoSqlTypes.INT),
-      new ArgSetIdColumn('arg_set_id'),
+      createTableColumn({
+        trace,
+        column: 'machine_id',
+        type: PerfettoSqlTypes.INT,
+      }),
+      createTableColumn({
+        trace,
+        column: 'arg_set_id',
+        type: PerfettoSqlTypes.ARG_SET_ID,
+      }),
     ],
   };
 }
@@ -69,19 +110,59 @@ export function getSliceTable(trace: Trace): SqlTableDescription {
     name: '_viz_slices_for_ui_table',
     displayName: 'Slices',
     columns: [
-      new SliceIdColumn(trace, 'id', {notNull: true, type: 'id'}),
-      new TimestampColumn(trace, 'ts'),
-      new DurationColumn(trace, 'dur'),
-      new StandardColumn('category', PerfettoSqlTypes.STRING),
-      new StandardColumn('name', PerfettoSqlTypes.STRING),
-      new StandardColumn('track_id', PerfettoSqlTypes.INT, {
+      createTableColumn({
+        trace,
+        column: 'id',
+        type: {kind: 'id', source: {table: 'slice', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'ts',
+        type: PerfettoSqlTypes.TIMESTAMP,
+      }),
+      createTableColumn({
+        trace,
+        column: 'dur',
+        type: PerfettoSqlTypes.DURATION,
+      }),
+      createTableColumn({
+        trace,
+        column: 'category',
+        type: PerfettoSqlTypes.STRING,
+      }),
+      createTableColumn({trace, column: 'name', type: PerfettoSqlTypes.STRING}),
+      createTableColumn({
+        trace,
+        column: 'utid',
+        type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'upid',
+        type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'track_id',
+        type: {kind: 'joinid', source: {table: 'track', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'arg_set_id',
+        type: PerfettoSqlTypes.ARG_SET_ID,
+      }),
+      createTableColumn({
+        trace,
+        column: 'depth',
+        type: PerfettoSqlTypes.INT,
         startsHidden: true,
       }),
-      new ThreadIdColumn(trace, 'utid'),
-      new ProcessIdColumn(trace, 'upid'),
-      new StandardColumn('depth', PerfettoSqlTypes.INT, {startsHidden: true}),
-      new SliceIdColumn(trace, 'parent_id'),
-      new ArgSetIdColumn('arg_set_id'),
+      createTableColumn({
+        trace,
+        column: 'parent_id',
+        type: {kind: 'joinid', source: {table: 'slice', column: 'id'}},
+        startsHidden: true,
+      }),
     ],
   };
 }
@@ -90,19 +171,20 @@ export function getAndroidLogsTable(trace: Trace): SqlTableDescription {
   return {
     name: 'android_logs',
     columns: [
-      new StandardColumn('id', PerfettoSqlTypes.INT),
-      new TimestampColumn(trace, 'ts'),
-      new StandardColumn('tag', PerfettoSqlTypes.STRING),
-      new StandardColumn('prio', PerfettoSqlTypes.INT),
-      new ThreadIdColumn(trace, 'utid'),
-      new ProcessIdColumn(trace, {
-        column: 'upid',
-        source: {
-          table: 'thread',
-          joinOn: {utid: 'utid'},
-        },
+      createTableColumn({trace, column: 'id', type: PerfettoSqlTypes.INT}),
+      createTableColumn({
+        trace,
+        column: 'ts',
+        type: PerfettoSqlTypes.TIMESTAMP,
       }),
-      new StandardColumn('msg', PerfettoSqlTypes.STRING),
+      createTableColumn({trace, column: 'tag', type: PerfettoSqlTypes.STRING}),
+      createTableColumn({trace, column: 'prio', type: PerfettoSqlTypes.INT}),
+      createTableColumn({
+        trace,
+        column: 'utid',
+        type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
+      }),
+      createTableColumn({trace, column: 'msg', type: PerfettoSqlTypes.STRING}),
     ],
   };
 }
@@ -111,21 +193,38 @@ export function getSchedTable(trace: Trace): SqlTableDescription {
   return {
     name: 'sched',
     columns: [
-      new SchedIdColumn(trace, 'id'),
-      new TimestampColumn(trace, 'ts'),
-      new DurationColumn(trace, 'dur'),
-      new StandardColumn('cpu', PerfettoSqlTypes.INT),
-      new StandardColumn('priority', PerfettoSqlTypes.INT),
-      new ThreadIdColumn(trace, 'utid'),
-      new ProcessIdColumn(trace, {
-        column: 'upid',
-        source: {
-          table: 'thread',
-          joinOn: {utid: 'utid'},
-        },
+      createTableColumn({
+        trace,
+        column: 'id',
+        type: {kind: 'id', source: {table: 'sched', column: 'id'}},
       }),
-      new StandardColumn('end_state', PerfettoSqlTypes.STRING),
-      new StandardColumn('ucpu', PerfettoSqlTypes.INT, {startsHidden: true}),
+      createTableColumn({
+        trace,
+        column: 'ts',
+        type: PerfettoSqlTypes.TIMESTAMP,
+      }),
+      createTableColumn({
+        trace,
+        column: 'dur',
+        type: PerfettoSqlTypes.DURATION,
+      }),
+      createTableColumn({trace, column: 'cpu', type: PerfettoSqlTypes.INT}),
+      createTableColumn({
+        trace,
+        column: 'priority',
+        type: PerfettoSqlTypes.INT,
+      }),
+      createTableColumn({
+        trace,
+        column: 'utid',
+        type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'end_state',
+        type: PerfettoSqlTypes.STRING,
+      }),
+      createTableColumn({trace, column: 'ucpu', type: PerfettoSqlTypes.INT}),
     ],
   };
 }
@@ -134,25 +233,58 @@ export function getThreadStateTable(trace: Trace): SqlTableDescription {
   return {
     name: 'thread_state',
     columns: [
-      new ThreadStateIdColumn(trace, 'id'),
-      new TimestampColumn(trace, 'ts'),
-      new DurationColumn(trace, 'dur'),
-      new StandardColumn('state', PerfettoSqlTypes.STRING),
-      new StandardColumn('cpu', PerfettoSqlTypes.INT),
-      new ThreadIdColumn(trace, 'utid'),
-      new ProcessIdColumn(trace, {
-        column: 'upid',
-        source: {
-          table: 'thread',
-          joinOn: {utid: 'utid'},
-        },
+      createTableColumn({
+        trace,
+        column: 'id',
+        type: {kind: 'id', source: {table: 'thread_state', column: 'id'}},
       }),
-      new StandardColumn('io_wait', PerfettoSqlTypes.BOOLEAN),
-      new StandardColumn('blocked_function', PerfettoSqlTypes.STRING),
-      new ThreadIdColumn(trace, 'waker_utid'),
-      new ThreadStateIdColumn(trace, 'waker_id'),
-      new StandardColumn('irq_context', PerfettoSqlTypes.INT),
-      new StandardColumn('ucpu', PerfettoSqlTypes.INT, {startsHidden: true}),
+      createTableColumn({
+        trace,
+        column: 'ts',
+        type: PerfettoSqlTypes.TIMESTAMP,
+      }),
+      createTableColumn({
+        trace,
+        column: 'dur',
+        type: PerfettoSqlTypes.DURATION,
+      }),
+      createTableColumn({
+        trace,
+        column: 'state',
+        type: PerfettoSqlTypes.STRING,
+      }),
+      createTableColumn({trace, column: 'cpu', type: PerfettoSqlTypes.INT}),
+      createTableColumn({
+        trace,
+        column: 'utid',
+        type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'io_wait',
+        type: PerfettoSqlTypes.BOOLEAN,
+      }),
+      createTableColumn({
+        trace,
+        column: 'blocked_function',
+        type: PerfettoSqlTypes.STRING,
+      }),
+      createTableColumn({
+        trace,
+        column: 'waker_utid',
+        type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'waker_id',
+        type: {kind: 'joinid', source: {table: 'thread_state', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'irq_context',
+        type: PerfettoSqlTypes.INT,
+      }),
+      createTableColumn({trace, column: 'ucpu', type: PerfettoSqlTypes.INT}),
     ],
   };
 }
