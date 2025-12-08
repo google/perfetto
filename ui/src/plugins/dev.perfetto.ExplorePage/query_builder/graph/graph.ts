@@ -667,6 +667,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             selectedNode?.nodeId ? [selectedNode.nodeId] : [],
           ),
           hideControls: true,
+          fillHeight: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
           },

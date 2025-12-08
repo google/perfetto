@@ -24,7 +24,7 @@ import {
   SqlTable,
   SqlTableFunction,
 } from './sql_modules';
-import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {TableColumn} from '../../components/widgets/sql/table/table_column';
 import {Trace} from '../../public/trace';
 import {
@@ -207,11 +207,11 @@ export class StdlibPackageImpl implements SqlPackage {
     return undefined;
   }
 
-  getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
+  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined {
     for (const module of this.modules) {
       for (const t of module.tables) {
         if (t.name == tableName) {
-          return module.getSqlTableDescription(tableName);
+          return module.getSqlTableDefinition(tableName);
         }
       }
     }
@@ -258,7 +258,7 @@ export class StdlibModuleImpl implements SqlModule {
     return undefined;
   }
 
-  getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
+  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined {
     const sqlTable = this.getTable(tableName);
     if (sqlTable === undefined) {
       return undefined;
@@ -266,7 +266,10 @@ export class StdlibModuleImpl implements SqlModule {
     return {
       imports: [this.includeKey],
       name: sqlTable.name,
-      columns: sqlTable.getTableColumns(),
+      columns: sqlTable.columns.map((col) => ({
+        column: col.name,
+        type: col.type,
+      })),
     };
   }
 }

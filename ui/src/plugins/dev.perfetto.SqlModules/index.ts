@@ -93,7 +93,7 @@ export default class implements PerfettoPlugin {
           }
         }
 
-        const sqlTable = module.getSqlTableDescription(actualTableName);
+        const sqlTable = module.getSqlTableDefinition(actualTableName);
         sqlTable &&
           extensions.addLegacySqlTableTab(trace, {
             table: sqlTable,

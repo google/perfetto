@@ -43,6 +43,7 @@ import {
   OutlinedMultiSelect,
   MultiSelectOption,
   MultiSelectDiff,
+  InfoBox,
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {loadNodeDoc} from '../node_doc_loader';
@@ -55,7 +56,6 @@ export interface AggregationSerializedState {
     newColumnName?: string;
     percentile?: number;
     isValid?: boolean;
-    isEditing?: boolean;
   }[];
   comment?: string;
 }
@@ -71,7 +71,6 @@ export interface Aggregation {
   newColumnName?: string;
   percentile?: number;
   isValid?: boolean;
-  isEditing?: boolean;
 }
 
 export class AggregationNode implements QueryNode {
@@ -245,7 +244,7 @@ export class AggregationNode implements QueryNode {
     const details: m.Child[] = [
       m(
         LabeledControl,
-        {label: 'Group by:'},
+        {label: 'Grouping columns:'},
         m(OutlinedMultiSelect, {
           label,
           options: groupByOptions,
@@ -286,6 +285,14 @@ export class AggregationNode implements QueryNode {
   nodeSpecificModify(): NodeModifyAttrs {
     const sections: NodeModifyAttrs['sections'] = [];
 
+    // Info box
+    sections.push({
+      content: m(
+        InfoBox,
+        'Groups rows by selected columns and computes aggregations (SUM, COUNT, AVG, etc.). Select columns to group by, then add aggregations to compute summary statistics.',
+      ),
+    });
+
     // Group by section
     sections.push({
       content: this.renderGroupBySection(),
@@ -316,7 +323,7 @@ export class AggregationNode implements QueryNode {
 
     return m(
       LabeledControl,
-      {label: 'GROUP BY columns:'},
+      {label: 'Grouping columns:'},
       m(OutlinedMultiSelect, {
         label,
         options: groupByOptions,
@@ -344,13 +351,10 @@ export class AggregationNode implements QueryNode {
         this.renderAggregationFormControls(agg, onUpdate),
       onUpdate: (aggregations) => {
         this.state.aggregations = aggregations;
-        // IMPORTANT: Trigger downstream updates whenever aggregations change
-        // This ensures that changes like renaming columns propagate to downstream nodes
         this.state.onchange?.();
       },
       onValidChange: () => {
-        // This is called when validation state changes (invalid -> valid)
-        // But we also need onchange in onUpdate for valid -> valid changes
+        // Also trigger when validation state changes (invalid -> valid)
         this.state.onchange?.();
       },
       addButtonLabel: 'Add aggregation',
@@ -602,7 +606,6 @@ export class AggregationNode implements QueryNode {
         newColumnName: a.newColumnName,
         percentile: a.percentile,
         isValid: a.isValid,
-        isEditing: a.isEditing,
       })),
     };
   }
@@ -625,7 +628,6 @@ export class AggregationNode implements QueryNode {
         newColumnName: a.newColumnName,
         percentile: a.percentile,
         isValid: a.isValid,
-        isEditing: a.isEditing,
       };
     });
     return {
@@ -756,6 +758,7 @@ function getAggregationResultType(agg: Aggregation): PerfettoSqlType {
   switch (agg.aggregationOp) {
     case 'COUNT':
     case 'COUNT(*)':
+    case 'COUNT_DISTINCT':
       return PerfettoSqlTypes.INT;
 
     case 'SUM':
@@ -791,6 +794,11 @@ function getAggregationDisplay(agg: Aggregation): string {
   if (isCountAll(agg)) {
     return 'COUNT(*)';
   } else if (
+    agg.aggregationOp === 'COUNT_DISTINCT' &&
+    agg.column !== undefined
+  ) {
+    return `COUNT(DISTINCT ${agg.column.name})`;
+  } else if (
     agg.aggregationOp === 'PERCENTILE' &&
     agg.percentile !== undefined
   ) {
@@ -803,6 +811,7 @@ function getAggregationDisplay(agg: Aggregation): string {
 const AGGREGATION_OPS = [
   'COUNT',
   'COUNT(*)',
+  'COUNT_DISTINCT',
   'SUM',
   'MIN',
   'MAX',

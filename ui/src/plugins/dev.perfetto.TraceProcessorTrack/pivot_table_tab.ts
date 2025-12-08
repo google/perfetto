@@ -17,7 +17,6 @@ import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {PivotTable} from '../../components/widgets/sql/pivot_table/pivot_table';
 import {PivotTableState} from '../../components/widgets/sql/pivot_table/pivot_table_state';
-import {getSqlTableDescription} from '../../components/widgets/sql/table/sql_table_registry';
 import {
   AreaSelection,
   areaSelectionsEqual,
@@ -27,6 +26,8 @@ import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Button} from '../../widgets/button';
 import {Trace} from '../../public/trace';
 import {extensions} from '../../components/extensions';
+import {SLICE_TABLE} from '../../components/widgets/sql/table_definitions';
+import {resolveTableDefinition} from '../../components/widgets/sql/table/columns';
 
 export class PivotTableTab implements AreaSelectionTab {
   readonly id = 'pivot_table';
@@ -72,9 +73,7 @@ export class PivotTableTab implements AreaSelectionTab {
             icon: Icons.GoTo,
             onclick: () => {
               extensions.addLegacySqlTableTab(this.trace, {
-                table: assertExists(
-                  getSqlTableDescription(this.trace, 'slice'),
-                ),
+                table: SLICE_TABLE,
                 filters: [
                   ...(state?.filters.get() ?? []),
                   ...node.getFilters(),
@@ -88,9 +87,7 @@ export class PivotTableTab implements AreaSelectionTab {
 
   private getOrCreateState(): PivotTableState {
     if (this.state !== undefined) return this.state;
-    const sliceTable = assertExists(
-      getSqlTableDescription(this.trace, 'slice'),
-    );
+    const sliceTable = resolveTableDefinition(this.trace, SLICE_TABLE);
     const name = assertExists(
       sliceTable.columns.find((c) => c.column === 'name'),
     );

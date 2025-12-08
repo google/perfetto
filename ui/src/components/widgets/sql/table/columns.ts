@@ -55,6 +55,30 @@ import {copyToClipboard} from '../../../../base/clipboard';
 import {Args} from '../../../sql_utils/args';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 
+import {SqlTableDefinition, SqlTableDescription} from './table_description';
+
+// Converts a raw SqlTableDefinition (just data) into a SqlTableDescription
+// with fully constructed TableColumn objects that have rendering logic.
+export function resolveTableDefinition(
+  trace: Trace,
+  def: SqlTableDefinition,
+): SqlTableDescription {
+  return {
+    imports: def.imports,
+    prefix: def.prefix,
+    name: def.name,
+    displayName: def.displayName,
+    columns: def.columns.map((col) =>
+      createTableColumn({
+        trace,
+        column: col.column,
+        type: col.type,
+        startsHidden: col.startsHidden,
+      }),
+    ),
+  };
+}
+
 export function createTableColumn(args: {
   trace: Trace;
   column: SqlColumn;

@@ -30,10 +30,9 @@ import {DurationWidget} from '../widgets/duration';
 import {renderProcessRef} from '../widgets/process';
 import {renderThreadRef} from '../widgets/thread';
 import {Timestamp} from '../widgets/timestamp';
-import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
-import {assertExists} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {extensions} from '../extensions';
+import {SLICE_TABLE} from '../widgets/sql/table_definitions';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
@@ -58,7 +57,7 @@ export function renderDetails(
             label: 'Slices with the same name',
             onclick: () => {
               extensions.addLegacySqlTableTab(trace, {
-                table: assertExists(getSqlTableDescription(trace, 'slice')),
+                table: SLICE_TABLE,
                 filters: [
                   {
                     op: (cols) =>
