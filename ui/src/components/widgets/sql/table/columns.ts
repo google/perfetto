@@ -619,9 +619,7 @@ export class ArgSetIdColumn implements TableColumn {
   }
 
   initialColumns() {
-    return this.params?.startsHidden === true
-      ? []
-      : [new PrintArgsColumn(this.column), this];
+    return this.params?.startsHidden === true ? [] : [this];
   }
 }
 

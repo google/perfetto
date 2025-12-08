@@ -133,6 +133,12 @@ export function getSliceTable(trace: Trace): SqlTableDescription {
       createTableColumn({trace, column: 'name', type: PerfettoSqlTypes.STRING}),
       createTableColumn({
         trace,
+        column: 'track_id',
+        type: PerfettoSqlTypes.INT,
+        startsHidden: true,
+      }),
+      createTableColumn({
+        trace,
         column: 'utid',
         type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
       }),
@@ -140,16 +146,6 @@ export function getSliceTable(trace: Trace): SqlTableDescription {
         trace,
         column: 'upid',
         type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
-      }),
-      createTableColumn({
-        trace,
-        column: 'track_id',
-        type: {kind: 'joinid', source: {table: 'track', column: 'id'}},
-      }),
-      createTableColumn({
-        trace,
-        column: 'arg_set_id',
-        type: PerfettoSqlTypes.ARG_SET_ID,
       }),
       createTableColumn({
         trace,
@@ -161,6 +157,11 @@ export function getSliceTable(trace: Trace): SqlTableDescription {
         trace,
         column: 'parent_id',
         type: {kind: 'joinid', source: {table: 'slice', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: 'arg_set_id',
+        type: PerfettoSqlTypes.ARG_SET_ID,
         startsHidden: true,
       }),
     ],
@@ -221,6 +222,17 @@ export function getSchedTable(trace: Trace): SqlTableDescription {
       }),
       createTableColumn({
         trace,
+        column: {
+          column: 'upid',
+          source: {
+            table: 'thread',
+            joinOn: {utid: 'utid'},
+          },
+        },
+        type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
         column: 'end_state',
         type: PerfettoSqlTypes.STRING,
       }),
@@ -258,6 +270,17 @@ export function getThreadStateTable(trace: Trace): SqlTableDescription {
         trace,
         column: 'utid',
         type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
+      }),
+      createTableColumn({
+        trace,
+        column: {
+          column: 'upid',
+          source: {
+            table: 'thread',
+            joinOn: {utid: 'utid'},
+          },
+        },
+        type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
       }),
       createTableColumn({
         trace,
