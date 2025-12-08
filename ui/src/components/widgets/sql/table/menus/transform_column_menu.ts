@@ -17,7 +17,12 @@ import {MenuItem} from '../../../../../widgets/menu';
 import {Form, FormLabel} from '../../../../../widgets/form';
 import {TextInput} from '../../../../../widgets/text_input';
 import {Icons} from '../../../../../base/semantic_icons';
-import {TableColumn, RenderedCell, TableManager} from '../table_column';
+import {
+  TableColumn,
+  RenderedCell,
+  RenderCellContext,
+  ListColumnsContext,
+} from '../table_column';
 import {SqlTableState} from '../state';
 import {
   PerfettoSqlType,
@@ -29,14 +34,13 @@ import {SqlColumn, SqlExpression} from '../sql_column';
 import {SqlValue} from '../../../../../trace_processor/query_result';
 import {uuidv4} from '../../../../../base/uuid';
 import {range} from '../../../../../base/array_utils';
+import {Trace} from '../../../../../public/trace';
+import {PrintArgsColumn} from '../columns';
 
 type Transform = {
-  // The SQL expresssion to apply.
-  expression: (colExpr: string, ...params: string[]) => string;
-  // Optional parameters for the transform
+  apply: (trace: Trace, column: SqlColumn, ...params: string[]) => TableColumn;
   parameters?: TransformParameter[];
   requiredType?: PerfettoSqlType;
-  resultType: PerfettoSqlType;
 };
 
 type TransformParameter = {
@@ -46,19 +50,37 @@ type TransformParameter = {
   validate?: (value: string) => boolean;
 };
 
+// Helper function to create a transform from a SQL expression.
+function fromExpression(
+  exprFn: (col: string, ...params: string[]) => string,
+  resultType: PerfettoSqlType,
+): (trace: Trace, column: SqlColumn, ...params: string[]) => TableColumn {
+  return (trace: Trace, column: SqlColumn, ...params: string[]) => {
+    const sqlExpr = new SqlExpression(
+      (cols: string[]) => exprFn(cols[0], ...params),
+      [column],
+    );
+    return createTableColumn({
+      trace,
+      column: sqlExpr,
+      type: resultType,
+    });
+  };
+}
+
 const TRANSFORMS = {
   'length': {
-    expression: (col) => `length(${col})`,
+    apply: fromExpression((col) => `length(${col})`, PerfettoSqlTypes.INT),
     requiredType: PerfettoSqlTypes.STRING,
-    resultType: {kind: 'int'},
   },
   'substring': {
-    expression: (col, start, length) => {
-      if (length) {
-        return `substr(${col}, ${start}, ${length})`;
-      }
-      return `substr(${col}, ${start})`;
-    },
+    apply: fromExpression(
+      (col, start, length) =>
+        length
+          ? `substr(${col}, ${start}, ${length})`
+          : `substr(${col}, ${start})`,
+      PerfettoSqlTypes.STRING,
+    ),
     parameters: [
       {
         name: 'start',
@@ -85,10 +107,12 @@ const TRANSFORMS = {
       },
     ],
     requiredType: PerfettoSqlTypes.STRING,
-    resultType: PerfettoSqlTypes.STRING,
   },
   'extract regex': {
-    expression: (col, pattern) => `regexp_extract(${col}, '${pattern}')`,
+    apply: fromExpression(
+      (col, pattern) => `regexp_extract(${col}, '${pattern}')`,
+      PerfettoSqlTypes.STRING,
+    ),
     parameters: [
       {
         name: 'pattern',
@@ -96,11 +120,13 @@ const TRANSFORMS = {
       },
     ],
     requiredType: PerfettoSqlTypes.STRING,
-    resultType: PerfettoSqlTypes.STRING,
   },
   'strip prefix': {
-    expression: (col, prefix) =>
-      `CASE WHEN ${col} GLOB '${prefix}*' THEN substr(${col}, ${prefix.length + 1}) ELSE ${col} END`,
+    apply: fromExpression(
+      (col, prefix) =>
+        `CASE WHEN ${col} GLOB '${prefix}*' THEN substr(${col}, ${prefix.length + 1}) ELSE ${col} END`,
+      PerfettoSqlTypes.STRING,
+    ),
     parameters: [
       {
         name: 'prefix',
@@ -108,11 +134,13 @@ const TRANSFORMS = {
       },
     ],
     requiredType: PerfettoSqlTypes.STRING,
-    resultType: PerfettoSqlTypes.STRING,
   },
   'strip suffix': {
-    expression: (col, suffix) =>
-      `CASE WHEN ${col} GLOB '*${suffix}' THEN substr(${col}, 1, length(${col}) - ${suffix.length}) ELSE ${col} END`,
+    apply: fromExpression(
+      (col, suffix) =>
+        `CASE WHEN ${col} GLOB '*${suffix}' THEN substr(${col}, 1, length(${col}) - ${suffix.length}) ELSE ${col} END`,
+      PerfettoSqlTypes.STRING,
+    ),
     parameters: [
       {
         name: 'suffix',
@@ -120,7 +148,10 @@ const TRANSFORMS = {
       },
     ],
     requiredType: PerfettoSqlTypes.STRING,
-    resultType: PerfettoSqlTypes.STRING,
+  },
+  'print_args': {
+    apply: (_trace: Trace, column: SqlColumn) => new PrintArgsColumn(column),
+    requiredType: PerfettoSqlTypes.ARG_SET_ID,
   },
 } satisfies Record<string, Transform>;
 
@@ -139,19 +170,19 @@ export class TransformColumn implements TableColumn {
     },
   ) {
     this.column = args.transformed.column;
-    this.type = TRANSFORMS[args.transformType].resultType;
+    this.type = args.transformed.type;
   }
 
   getTitle(): string | undefined {
     return this.args.transformed.getTitle?.();
   }
 
-  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell {
-    return this.args.transformed.renderCell(value, tableManager);
+  renderCell(value: SqlValue, context?: RenderCellContext): RenderedCell {
+    return this.args.transformed.renderCell(value, context);
   }
 
-  listDerivedColumns(manager: TableManager) {
-    return this.args.transformed.listDerivedColumns?.(manager);
+  listDerivedColumns(context: ListColumnsContext) {
+    return this.args.transformed.listDerivedColumns?.(context);
   }
 
   getColumnSpecificMenuItems(args: {
@@ -190,17 +221,14 @@ function applyTransform(args: {
   state: SqlTableState;
 }): TableColumn {
   const transform: Transform = TRANSFORMS[args.transformType];
-  const values = args.values;
-  const transformExpression = (cols: string[]) =>
-    transform.expression(cols[0], ...values);
 
   return new TransformColumn({
     source: args.column,
-    transformed: createTableColumn({
-      trace: args.state.trace,
-      column: new SqlExpression(transformExpression, [args.column.column]),
-      type: transform.resultType,
-    }),
+    transformed: transform.apply(
+      args.state.trace,
+      args.column.column,
+      ...args.values,
+    ),
     state: args.state,
     transformType: args.transformType,
     transformParams: args.values,
