@@ -27,11 +27,10 @@ import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
-import {Button, ButtonVariant} from '../../../../widgets/button';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {InfoBox, DraggableItem} from '../widgets';
+import {InfoBox, DraggableItem, SelectDeselectAllButtons} from '../widgets';
 import {
   NodeDetailsMessage,
   NodeTitle,
@@ -252,37 +251,26 @@ export class UnionNode implements QueryNode {
       title: `Select Common Columns (${selectedCount} / ${totalCount} selected)`,
       content: m(
         '.pf-modify-columns-content',
-        m(
-          '.pf-modify-columns-actions',
-          m(Button, {
-            label: 'Select All',
-            onclick: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: true,
-                }),
-              );
-              this.state.onchange?.();
-            },
-            variant: ButtonVariant.Outlined,
-            compact: true,
-          }),
-          m(Button, {
-            label: 'Deselect All',
-            onclick: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: false,
-                }),
-              );
-              this.state.onchange?.();
-            },
-            variant: ButtonVariant.Outlined,
-            compact: true,
-          }),
-        ),
+        m(SelectDeselectAllButtons, {
+          onSelectAll: () => {
+            this.state.selectedColumns = this.state.selectedColumns.map(
+              (col) => ({
+                ...col,
+                checked: true,
+              }),
+            );
+            this.state.onchange?.();
+          },
+          onDeselectAll: () => {
+            this.state.selectedColumns = this.state.selectedColumns.map(
+              (col) => ({
+                ...col,
+                checked: false,
+              }),
+            );
+            this.state.onchange?.();
+          },
+        }),
         m(
           '.pf-modify-columns-node',
           m(

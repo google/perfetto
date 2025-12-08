@@ -635,3 +635,39 @@
     }
   }
 }
+
+// Column list container - used by modify columns and union nodes
+.pf-column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Column type selector - aligns to the right in modify columns rows
+.pf-column-type {
+  margin-left: auto;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--pf-color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease-in-out;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--pf-color-primary);
+  }
+
+  &:focus {
+    outline: 2px solid var(--pf-color-primary);
+    outline-offset: 2px;
+  }
+}
+
+// Select/Deselect All buttons - aligns to the right with gap between buttons
+.pf-select-deselect-all-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
