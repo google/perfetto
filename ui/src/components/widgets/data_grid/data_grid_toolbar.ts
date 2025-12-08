@@ -16,7 +16,7 @@ import m from 'mithril';
 import {Box} from '../../../widgets/box';
 import {Chip} from '../../../widgets/chip';
 import {Stack, StackAuto} from '../../../widgets/stack';
-import {ColumnDefinition, DataGridFilter} from './common';
+import {DataGridFilter} from './common';
 import {DataGridApi} from './data_grid';
 import {DataGridExportButton} from './export_button';
 
@@ -48,7 +48,8 @@ export type OnFilterRemove = (index: number) => void;
 
 export interface DataGridToolbarAttrs {
   readonly filters: ReadonlyArray<DataGridFilter>;
-  readonly columns: ReadonlyArray<ColumnDefinition>;
+  readonly schema: unknown; // SchemaRegistry - avoid circular import
+  readonly rootSchema: string;
   readonly totalRows: number;
   readonly showFilters: boolean;
   readonly showRowCount: boolean;
@@ -57,17 +58,13 @@ export interface DataGridToolbarAttrs {
   readonly toolbarItemsRight?: m.Children;
   readonly dataGridApi: DataGridApi;
   readonly onFilterRemove: OnFilterRemove;
-  readonly formatFilter: (
-    filter: DataGridFilter,
-    columns: ReadonlyArray<ColumnDefinition>,
-  ) => string;
+  readonly formatFilter: (filter: DataGridFilter) => string;
 }
 
 export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
   view({attrs}: m.Vnode<DataGridToolbarAttrs>): m.Children {
     const {
       filters,
-      columns,
       totalRows,
       showFilters,
       showRowCount,
@@ -93,7 +90,7 @@ export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
           m(GridFilterBar, [
             filters.map((filter) => {
               return m(GridFilterChip, {
-                content: formatFilter(filter, columns),
+                content: formatFilter(filter),
                 onRemove: () => {
                   const filterIndex = filters.indexOf(filter);
                   onFilterRemove(filterIndex);

@@ -17,6 +17,23 @@ import {SqlValue} from '../../../trace_processor/query_result';
 
 export type AggregationFunction = 'SUM' | 'AVG' | 'COUNT' | 'MIN' | 'MAX';
 
+/**
+ * Represents a column that can be added to the grid via the "Add Column" menu.
+ * Used to build hierarchical menus of available columns, supporting both static
+ * columns and dynamically-discovered ones (e.g., arg keys, parent chains).
+ */
+export interface AvailableColumn {
+  // Display name for the menu item
+  readonly label: string;
+
+  // The column name to add when selected (e.g., "parent.ts", "arg[foo]")
+  readonly columnName: string;
+
+  // If defined, this item has a submenu with lazy-loaded children.
+  // The function is called when the user expands the submenu.
+  readonly getChildren?: () => Promise<AvailableColumn[]>;
+}
+
 export type CellRenderer = (value: SqlValue, row: RowDef) => m.Children;
 export type CellFormatter = (value: SqlValue, row: RowDef) => string;
 
@@ -114,6 +131,8 @@ export interface DataSourceResult {
   readonly aggregates: RowDef;
   readonly isLoading?: boolean;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
+  // Available parameter keys for parameterized columns (e.g., for 'args' -> ['foo', 'bar'])
+  readonly parameterKeys?: ReadonlyMap<string, readonly string[]>;
 }
 
 export type RowDef = {[key: string]: SqlValue};
@@ -135,6 +154,8 @@ export interface DataGridModel {
   readonly pagination?: Pagination;
   readonly aggregates?: ReadonlyArray<AggregateSpec>;
   readonly distinctValuesColumns?: ReadonlySet<string>;
+  // Request parameter keys for these parameterized column prefixes (e.g., 'args', 'skills')
+  readonly parameterKeyColumns?: ReadonlySet<string>;
 }
 
 export interface DataGridDataSource {

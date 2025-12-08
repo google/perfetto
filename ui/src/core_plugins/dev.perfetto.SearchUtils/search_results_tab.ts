@@ -17,7 +17,10 @@ import {SearchManagerImpl} from '../../core/search_manager';
 import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
-import {DataGrid} from '../../components/widgets/data_grid/data_grid';
+import {
+  DataGrid,
+  columnsToSchema,
+} from '../../components/widgets/data_grid/data_grid';
 import {
   ColumnDefinition,
   RowDef,
@@ -99,7 +102,7 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
         fillHeight: true,
       },
       m(DataGrid, {
-        columns,
+        ...columnsToSchema(columns),
         data: rowData,
         fillHeight: true,
       }),

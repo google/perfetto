@@ -19,11 +19,13 @@ import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
 import {
   CellRenderer,
+  ColumnDefinition,
   DataGridDataSource,
 } from '../../components/widgets/data_grid/common';
 import {
   DataGrid,
   renderCell,
+  columnsToSchema,
 } from '../../components/widgets/data_grid/data_grid';
 import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
@@ -219,53 +221,58 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               'Only the results for the last statement are displayed.',
             ]),
           ]),
-        m(DataGrid, {
-          className: 'pf-query-page__results',
-          data: dataSource,
-          columns: queryResult.columns.map((column) => {
-            const cellRenderer: CellRenderer | undefined =
-              column === 'id'
-                ? (value, row) => {
-                    const sliceId = getSliceId(row);
-                    const cell = renderCell(value, column);
-                    if (sliceId !== undefined && isSliceish(row)) {
-                      return m(
-                        Anchor,
-                        {
-                          title: 'Go to slice on the timeline',
-                          icon: Icons.UpdateSelection,
-                          onclick: () => {
-                            // Navigate to the timeline page
-                            trace.navigate('#!/viewer');
-                            trace.selection.selectSqlEvent('slice', sliceId, {
-                              switchToCurrentSelectionTab: false,
-                              scrollToSelection: true,
-                            });
+        (() => {
+          const columnDefs: ColumnDefinition[] = queryResult.columns.map(
+            (column) => {
+              const cellRenderer: CellRenderer | undefined =
+                column === 'id'
+                  ? (value, row) => {
+                      const sliceId = getSliceId(row);
+                      const cell = renderCell(value, column);
+                      if (sliceId !== undefined && isSliceish(row)) {
+                        return m(
+                          Anchor,
+                          {
+                            title: 'Go to slice on the timeline',
+                            icon: Icons.UpdateSelection,
+                            onclick: () => {
+                              // Navigate to the timeline page
+                              trace.navigate('#!/viewer');
+                              trace.selection.selectSqlEvent('slice', sliceId, {
+                                switchToCurrentSelectionTab: false,
+                                scrollToSelection: true,
+                              });
+                            },
                           },
-                        },
-                        cell,
-                      );
-                    } else {
-                      return renderCell(value, column);
+                          cell,
+                        );
+                      } else {
+                        return renderCell(value, column);
+                      }
                     }
-                  }
-                : undefined;
-            return {
-              name: column,
-              cellRenderer,
-            };
-          }),
-          showExportButton: true,
-          toolbarItemsLeft: m(
-            'span.pf-query-page__results-summary',
-            `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
-          ),
-          toolbarItemsRight: m(CopyToClipboardButton, {
-            textToCopy: queryResult.query,
-            title: 'Copy executed query to clipboard',
-            label: 'Copy Query',
-          }),
-        }),
+                  : undefined;
+              return {
+                name: column,
+                cellRenderer,
+              };
+            },
+          );
+          return m(DataGrid, {
+            ...columnsToSchema(columnDefs),
+            className: 'pf-query-page__results',
+            data: dataSource,
+            showExportButton: true,
+            toolbarItemsLeft: m(
+              'span.pf-query-page__results-summary',
+              `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
+            ),
+            toolbarItemsRight: m(CopyToClipboardButton, {
+              textToCopy: queryResult.query,
+              title: 'Copy executed query to clipboard',
+              label: 'Copy Query',
+            }),
+          });
+        })(),
       ];
     }
   }

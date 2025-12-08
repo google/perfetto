@@ -122,3 +122,10 @@
   font-weight: 600;
   color: var(--pf-color-primary);
 }
+
+.pf-data-grid__title-separator {
+  font-size: 14px;
+  color: var(--pf-color-text-muted);
+  vertical-align: middle;
+  margin: 0 2px;
+}

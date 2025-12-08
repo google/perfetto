@@ -23,8 +23,13 @@ import {
   DataGrid,
   renderCell,
   DataGridApi,
+  columnsToSchema,
 } from '../widgets/data_grid/data_grid';
-import {DataGridDataSource, CellRenderer} from '../widgets/data_grid/common';
+import {
+  DataGridDataSource,
+  CellRenderer,
+  ColumnDefinition,
+} from '../widgets/data_grid/common';
 import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
@@ -168,39 +173,41 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }
 
+    const columnDefs: ColumnDefinition[] = resp.columns.map((column) => {
+      const cellRenderer: CellRenderer | undefined =
+        column === 'id'
+          ? (value, row) => {
+              const sliceId = getSliceId(row);
+              const cell = renderCell(value, column);
+              if (sliceId !== undefined && isSliceish(row)) {
+                return m(
+                  Anchor,
+                  {
+                    title: 'Go to slice',
+                    icon: Icons.UpdateSelection,
+                    onclick: () => this.goToSlice(sliceId, false),
+                    ondblclick: () => this.goToSlice(sliceId, true),
+                  },
+                  cell,
+                );
+              } else {
+                return renderCell(value, column);
+              }
+            }
+          : undefined;
+
+      return {
+        name: column,
+        cellRenderer,
+      };
+    });
+
     return m(DataGrid, {
+      ...columnsToSchema(columnDefs),
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
       fillHeight: true,
       filters: [],
-      columns: resp.columns.map((column) => {
-        const cellRenderer: CellRenderer | undefined =
-          column === 'id'
-            ? (value, row) => {
-                const sliceId = getSliceId(row);
-                const cell = renderCell(value, column);
-                if (sliceId !== undefined && isSliceish(row)) {
-                  return m(
-                    Anchor,
-                    {
-                      title: 'Go to slice',
-                      icon: Icons.UpdateSelection,
-                      onclick: () => this.goToSlice(sliceId, false),
-                      ondblclick: () => this.goToSlice(sliceId, true),
-                    },
-                    cell,
-                  );
-                } else {
-                  return renderCell(value, column);
-                }
-              }
-            : undefined;
-
-        return {
-          name: column,
-          cellRenderer,
-        };
-      }),
       data: dataSource,
       onReady: (api) => {
         this.dataGridApi = api;
