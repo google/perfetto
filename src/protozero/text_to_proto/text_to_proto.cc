@@ -150,6 +150,7 @@ struct ParserDelegateContext {
   const DescriptorProto* descriptor;
   protozero::Message* message;
   std::set<std::string> seen_fields;
+  bool skip_unknown;  // True when we're inside an unknown nested message
 };
 
 class ErrorReporter {
@@ -217,10 +218,14 @@ class ParserDelegate {
         name_to_descriptor_(std::move(name_to_descriptor)),
         name_to_enum_(std::move(name_to_enum)),
         allow_unknown_fields_(allow_unknown_fields) {
-    ctx_.push(ParserDelegateContext{descriptor, message, {}});
+    ctx_.push(ParserDelegateContext{descriptor, message, {}, false});
   }
 
   void NumericField(const Token& key, const Token& value) {
+    // Skip all field operations if we're inside an unknown nested message
+    if (ctx_.top().skip_unknown)
+      return;
+
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
@@ -276,6 +281,10 @@ class ParserDelegate {
   }
 
   void StringField(const Token& key, const Token& value) {
+    // Skip all field operations if we're inside an unknown nested message
+    if (ctx_.top().skip_unknown)
+      return;
+
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
@@ -387,6 +396,10 @@ class ParserDelegate {
   }
 
   void IdentifierField(const Token& key, const Token& value) {
+    // Skip all field operations if we're inside an unknown nested message
+    if (ctx_.top().skip_unknown)
+      return;
+
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
@@ -440,12 +453,23 @@ class ParserDelegate {
   }
 
   bool BeginNestedMessage(const Token& key, const Token& value) {
+    // If we're already skipping, push another skip context
+    if (ctx_.top().skip_unknown) {
+      ctx_.push(ParserDelegateContext{nullptr, nullptr, {}, true});
+      return true;
+    }
+
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
                             FieldDescriptorProto::TYPE_MESSAGE,
                         });
     if (!field) {
+      // If unknown fields are allowed, push a skip context and continue
+      if (allow_unknown_fields_) {
+        ctx_.push(ParserDelegateContext{nullptr, nullptr, {}, true});
+        return true;
+      }
       // FindFieldByName adds an error.
       return false;
     }
@@ -454,12 +478,15 @@ class ParserDelegate {
     const DescriptorProto* nested_descriptor = name_to_descriptor_[type_name];
     PERFETTO_CHECK(nested_descriptor);
     auto* nested_msg = msg()->BeginNestedMessage<protozero::Message>(field_id);
-    ctx_.push(ParserDelegateContext{nested_descriptor, nested_msg, {}});
+    ctx_.push(ParserDelegateContext{nested_descriptor, nested_msg, {}, false});
     return true;
   }
 
   void EndNestedMessage() {
-    msg()->Finalize();
+    // Only finalize if we're not in skip mode
+    if (!ctx_.top().skip_unknown) {
+      msg()->Finalize();
+    }
     ctx_.pop();
   }
 
