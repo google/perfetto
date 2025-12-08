@@ -58,15 +58,15 @@
   color: var(--pf-color-text);
 }
 
-// Merge node condition styling
-.pf-exp-merge-condition {
+// Join node condition styling
+.pf-exp-join-condition {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
 
-.pf-exp-merge-equals {
+.pf-exp-join-equals {
   color: var(--pf-color-text-muted);
   font-weight: 500;
 }

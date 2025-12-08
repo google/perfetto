@@ -29,10 +29,11 @@ import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
 import {LimitAndOffsetNode} from './query_builder/nodes/limit_and_offset_node';
 import {SortNode} from './query_builder/nodes/sort_node';
 import {FilterNode} from './query_builder/nodes/filter_node';
-import {MergeNode} from './query_builder/nodes/merge_node';
+import {JoinNode} from './query_builder/nodes/join_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import {NodeType, addConnection, removeConnection} from './query_node';
+import {ColumnInfo} from './query_builder/column_info';
 import {FilterDuringNode} from './query_builder/nodes/filter_during_node';
 import {TimeRangeSourceNode} from './query_builder/nodes/sources/timerange_source';
 import {Time} from '../../base/time';
@@ -816,7 +817,7 @@ describe('JSON serialization/deserialization', () => {
 
     // Check that addColumnsNode can see the renamed column
     const rightCols = addColumnsNode.rightCols;
-    const colNames = rightCols.map((c) => c.column.name);
+    const colNames = rightCols.map((c: ColumnInfo) => c.column.name);
 
     // Should see the renamed column
     expect(colNames).toContain('renamed_column');
@@ -1151,18 +1152,19 @@ describe('JSON serialization/deserialization', () => {
       sqlModules,
     });
 
-    const mergeNode = new MergeNode({
+    const joinNode = new JoinNode({
       leftNode: tableNode1,
       rightNode: tableNode2,
       leftQueryAlias: 'left',
       rightQueryAlias: 'right',
       conditionType: 'equality',
+      joinType: 'INNER',
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
     });
-    tableNode1.nextNodes.push(mergeNode);
-    tableNode2.nextNodes.push(mergeNode);
+    tableNode1.nextNodes.push(joinNode);
+    tableNode2.nextNodes.push(joinNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
@@ -1176,21 +1178,21 @@ describe('JSON serialization/deserialization', () => {
     const deserializedTableNode1 = deserializedState.rootNodes[0];
     const deserializedTableNode2 = deserializedState.rootNodes[1];
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
-    const deserializedMergeNode = deserializedTableNode1
-      .nextNodes[0] as MergeNode;
-    expect(deserializedMergeNode.secondaryInputs.connections).toBeDefined();
-    expect(deserializedMergeNode.secondaryInputs.connections.size).toBe(2);
+    const deserializedJoinNode = deserializedTableNode1
+      .nextNodes[0] as JoinNode;
+    expect(deserializedJoinNode.secondaryInputs.connections).toBeDefined();
+    expect(deserializedJoinNode.secondaryInputs.connections.size).toBe(2);
     expect(
-      deserializedMergeNode.secondaryInputs.connections.get(0)?.nodeId,
+      deserializedJoinNode.secondaryInputs.connections.get(0)?.nodeId,
     ).toBe(deserializedTableNode1.nodeId);
     expect(
-      deserializedMergeNode.secondaryInputs.connections.get(1)?.nodeId,
+      deserializedJoinNode.secondaryInputs.connections.get(1)?.nodeId,
     ).toBe(deserializedTableNode2.nodeId);
-    expect(deserializedMergeNode.state.leftQueryAlias).toBe('left');
-    expect(deserializedMergeNode.state.rightQueryAlias).toBe('right');
-    expect(deserializedMergeNode.state.conditionType).toBe('equality');
-    expect(deserializedMergeNode.state.leftColumn).toBe('name');
-    expect(deserializedMergeNode.state.rightColumn).toBe('name');
+    expect(deserializedJoinNode.state.leftQueryAlias).toBe('left');
+    expect(deserializedJoinNode.state.rightQueryAlias).toBe('right');
+    expect(deserializedJoinNode.state.conditionType).toBe('equality');
+    expect(deserializedJoinNode.state.leftColumn).toBe('name');
+    expect(deserializedJoinNode.state.rightColumn).toBe('name');
   });
 
   test('serializes and deserializes merge node with freeform condition', () => {
@@ -1206,18 +1208,19 @@ describe('JSON serialization/deserialization', () => {
       sqlModules,
     });
 
-    const mergeNode = new MergeNode({
+    const joinNode = new JoinNode({
       leftNode: tableNode1,
       rightNode: tableNode2,
       leftQueryAlias: 't1',
       rightQueryAlias: 't2',
       conditionType: 'freeform',
+      joinType: 'INNER',
       leftColumn: '',
       rightColumn: '',
       sqlExpression: 't1.id = t2.parent_id',
     });
-    tableNode1.nextNodes.push(mergeNode);
-    tableNode2.nextNodes.push(mergeNode);
+    tableNode1.nextNodes.push(joinNode);
+    tableNode2.nextNodes.push(joinNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
@@ -1230,14 +1233,86 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(2);
     const deserializedTableNode1 = deserializedState.rootNodes[0];
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
-    const deserializedMergeNode = deserializedTableNode1
-      .nextNodes[0] as MergeNode;
-    expect(deserializedMergeNode.state.leftQueryAlias).toBe('t1');
-    expect(deserializedMergeNode.state.rightQueryAlias).toBe('t2');
-    expect(deserializedMergeNode.state.conditionType).toBe('freeform');
-    expect(deserializedMergeNode.state.sqlExpression).toBe(
+    const deserializedJoinNode = deserializedTableNode1
+      .nextNodes[0] as JoinNode;
+    expect(deserializedJoinNode.state.leftQueryAlias).toBe('t1');
+    expect(deserializedJoinNode.state.rightQueryAlias).toBe('t2');
+    expect(deserializedJoinNode.state.conditionType).toBe('freeform');
+    expect(deserializedJoinNode.state.sqlExpression).toBe(
       't1.id = t2.parent_id',
     );
+  });
+
+  test('deserializes old JSON with NodeType.kMerge as JoinNode (backward compatibility)', () => {
+    // Simulate an old saved JSON that used NodeType.kMerge
+    // Since kMerge is an alias for kJoin, this should deserialize correctly
+    const oldJson = `{
+      "nodes": [
+        {
+          "nodeId": "0",
+          "type": ${NodeType.kMerge},
+          "state": {
+            "leftQueryAlias": "left",
+            "rightQueryAlias": "right",
+            "conditionType": "equality",
+            "leftColumn": "id",
+            "rightColumn": "id",
+            "sqlExpression": "",
+            "leftNodeId": "1",
+            "rightNodeId": "2"
+          },
+          "nextNodes": []
+        },
+        {
+          "nodeId": "1",
+          "type": ${NodeType.kTable},
+          "state": {
+            "tableName": "slice",
+            "columnNames": ["id", "ts", "dur", "name"]
+          },
+          "nextNodes": ["0"]
+        },
+        {
+          "nodeId": "2",
+          "type": ${NodeType.kTable},
+          "state": {
+            "tableName": "slice",
+            "columnNames": ["id", "ts", "dur", "name"]
+          },
+          "nextNodes": ["0"]
+        }
+      ],
+      "rootNodeIds": ["1", "2"]
+    }`;
+
+    const deserializedState = deserializeState(oldJson, trace, sqlModules);
+
+    // Verify the graph structure
+    expect(deserializedState.rootNodes.length).toBe(2);
+
+    // Find the join node
+    const table1 = deserializedState.rootNodes[0];
+    const table2 = deserializedState.rootNodes[1];
+    expect(table1.nextNodes.length).toBe(1);
+    expect(table2.nextNodes.length).toBe(1);
+    expect(table1.nextNodes[0]).toBe(table2.nextNodes[0]); // Same join node
+
+    // Verify it's actually a JoinNode (not just any node)
+    const joinNode = table1.nextNodes[0] as JoinNode;
+    expect(joinNode).toBeInstanceOf(JoinNode);
+    expect(joinNode.type).toBe(NodeType.kJoin); // kMerge should equal kJoin
+
+    // Verify the state was preserved
+    expect(joinNode.state.leftQueryAlias).toBe('left');
+    expect(joinNode.state.rightQueryAlias).toBe('right');
+    expect(joinNode.state.conditionType).toBe('equality');
+    expect(joinNode.state.leftColumn).toBe('id');
+    expect(joinNode.state.rightColumn).toBe('id');
+
+    // Verify the connections are correct
+    expect(joinNode.secondaryInputs.connections.size).toBe(2);
+    expect(joinNode.secondaryInputs.connections.get(0)).toBe(table1);
+    expect(joinNode.secondaryInputs.connections.get(1)).toBe(table2);
   });
 
   test('serializes and deserializes union node', () => {
@@ -1327,18 +1402,19 @@ describe('JSON serialization/deserialization', () => {
       sqlModules,
     });
 
-    const mergeNode = new MergeNode({
+    const joinNode = new JoinNode({
       leftNode: tableNode1,
       rightNode: tableNode2,
       leftQueryAlias: 'left',
       rightQueryAlias: 'right',
       conditionType: 'equality',
+      joinType: 'INNER',
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
     });
-    tableNode1.nextNodes.push(mergeNode);
-    tableNode2.nextNodes.push(mergeNode);
+    tableNode1.nextNodes.push(joinNode);
+    tableNode2.nextNodes.push(joinNode);
 
     const filterNode = new FilterNode({
       filters: [
@@ -1349,7 +1425,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    addConnection(mergeNode, filterNode);
+    addConnection(joinNode, filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
@@ -1362,10 +1438,10 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(2);
     const deserializedTableNode1 = deserializedState.rootNodes[0];
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
-    const deserializedMergeNode = deserializedTableNode1
-      .nextNodes[0] as MergeNode;
-    expect(deserializedMergeNode.nextNodes.length).toBe(1);
-    const deserializedFilterNode = deserializedMergeNode
+    const deserializedJoinNode = deserializedTableNode1
+      .nextNodes[0] as JoinNode;
+    expect(deserializedJoinNode.nextNodes.length).toBe(1);
+    const deserializedFilterNode = deserializedJoinNode
       .nextNodes[0] as FilterNode;
     expect(deserializedFilterNode.state.filters).toBeDefined();
     expect(deserializedFilterNode.state.filters?.length).toBe(1);
@@ -1442,22 +1518,23 @@ describe('JSON serialization/deserialization', () => {
     // When joining on 'name', the final columns should:
     // - Include 'name' once (the equality column)
     // - Exclude 'ts' and 'dur' (duplicated across both inputs)
-    const mergeNode = new MergeNode({
+    const joinNode = new JoinNode({
       leftNode: tableNode1,
       rightNode: tableNode2,
       leftQueryAlias: 'left',
       rightQueryAlias: 'right',
       conditionType: 'equality',
+      joinType: 'INNER',
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
     });
-    tableNode1.nextNodes.push(mergeNode);
-    tableNode2.nextNodes.push(mergeNode);
+    tableNode1.nextNodes.push(joinNode);
+    tableNode2.nextNodes.push(joinNode);
 
     // Verify finalCols behavior
-    const finalCols = mergeNode.finalCols;
-    const colNames = finalCols.map((c) => c.name);
+    const finalCols = joinNode.finalCols;
+    const colNames = finalCols.map((c: ColumnInfo) => c.name);
 
     // Should include the equality column once
     expect(colNames).toContain('name');
@@ -1468,7 +1545,7 @@ describe('JSON serialization/deserialization', () => {
     expect(colNames).not.toContain('dur');
 
     // Verify the structured query includes select_columns
-    const sq = mergeNode.getStructuredQuery();
+    const sq = joinNode.getStructuredQuery();
     expect(sq).toBeDefined();
     expect(sq?.selectColumns).toBeDefined();
     expect(sq?.selectColumns?.length).toBe(finalCols.length);
