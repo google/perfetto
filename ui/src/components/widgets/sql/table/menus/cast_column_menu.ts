@@ -30,7 +30,7 @@ import {
 } from '../../../../../trace_processor/perfetto_sql_type';
 import {SqlColumn, sqlColumnId, SqlExpression} from '../sql_column';
 import {SqlValue} from '../../../../../trace_processor/query_result';
-import {createTableColumn} from '../create_column';
+import {createTableColumn} from '../columns';
 
 type CastParams = {
   type: PerfettoSqlType;

@@ -32,7 +32,7 @@ import {
   PerfettoSqlType,
 } from '../../trace_processor/perfetto_sql_type';
 import {unwrapResult} from '../../base/result';
-import {createTableColumn} from '../../components/widgets/sql/table/create_column';
+import {createTableColumn} from '../../components/widgets/sql/table/columns';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];

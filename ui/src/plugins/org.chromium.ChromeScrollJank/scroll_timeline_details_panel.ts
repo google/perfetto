@@ -33,37 +33,36 @@ import {fromSqlBool, renderSliceRef, renderSqlRef} from './utils';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {
   TableColumn,
+  RenderedCell,
   RenderCellContext,
 } from '../../components/widgets/sql/table/table_column';
 import {renderStandardCell} from '../../components/widgets/sql/table/render_cell_utils';
 import {ScrollTimelineModel} from './scroll_timeline_model';
-import {
-  DurationColumn,
-  StandardColumn,
-  TimestampColumn,
-} from '../../components/widgets/sql/table/columns';
+import {createTableColumn} from '../../components/widgets/sql/table/columns';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 
-function createPluginSliceIdColumn(
-  trace: Trace,
-  trackUri: string,
-  name: string,
-): TableColumn {
-  const col = new StandardColumn(name, undefined);
-  col.renderCell = (value: SqlValue, context?: RenderCellContext) => {
+class PluginSliceIdColumn implements TableColumn {
+  public readonly type = undefined;
+
+  constructor(
+    private readonly trace: Trace,
+    private readonly trackUri: string,
+    public readonly column: string,
+  ) {}
+
+  renderCell(value: SqlValue, context?: RenderCellContext): RenderedCell {
     if (value === null || typeof value !== 'bigint') {
-      return renderStandardCell(value, name, context);
+      return renderStandardCell(value, this.column, context);
     }
     return {
       content: renderSliceRef({
-        trace: trace,
+        trace: this.trace,
         id: Number(value),
-        trackUri: trackUri,
+        trackUri: this.trackUri,
         title: `${value}`,
       }),
     };
-  };
-  return col;
+  }
 }
 
 function createScrollTimelineTableColumns(
@@ -71,12 +70,20 @@ function createScrollTimelineTableColumns(
   trackUri: string,
 ): TableColumn[] {
   return [
-    createPluginSliceIdColumn(trace, trackUri, 'id'),
-    new StandardColumn('scroll_update_id', PerfettoSqlTypes.INT),
-    new TimestampColumn(trace, 'ts'),
-    new DurationColumn(trace, 'dur'),
-    new StandardColumn('name', PerfettoSqlTypes.STRING),
-    new StandardColumn('classification', PerfettoSqlTypes.STRING),
+    new PluginSliceIdColumn(trace, trackUri, 'id'),
+    createTableColumn({
+      trace,
+      column: 'scroll_update_id',
+      type: PerfettoSqlTypes.INT,
+    }),
+    createTableColumn({trace, column: 'ts', type: PerfettoSqlTypes.TIMESTAMP}),
+    createTableColumn({trace, column: 'dur', type: PerfettoSqlTypes.DURATION}),
+    createTableColumn({trace, column: 'name', type: PerfettoSqlTypes.STRING}),
+    createTableColumn({
+      trace,
+      column: 'classification',
+      type: PerfettoSqlTypes.STRING,
+    }),
   ];
 }
 
