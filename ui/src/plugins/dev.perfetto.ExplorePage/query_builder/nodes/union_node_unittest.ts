@@ -233,12 +233,8 @@ describe('UnionNode', () => {
     });
 
     it('should return empty array when no columns are checked', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
@@ -329,9 +325,7 @@ describe('UnionNode', () => {
 
   describe('validate', () => {
     it('should fail when there are fewer than 2 input nodes', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1],
@@ -345,12 +339,8 @@ describe('UnionNode', () => {
     });
 
     it('should fail when there are no common columns', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node2 = createMockNode('node2', [createColumnInfo('value', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
@@ -364,9 +354,7 @@ describe('UnionNode', () => {
     });
 
     it('should fail when input nodes have disconnected inputs', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1],
@@ -374,7 +362,10 @@ describe('UnionNode', () => {
       });
 
       // Manually add undefined to connections
-      unionNode.secondaryInputs.connections.set(1, undefined as any);
+      unionNode.secondaryInputs.connections.set(
+        1,
+        undefined as unknown as QueryNode,
+      );
 
       expect(unionNode.validate()).toBe(false);
       expect(unionNode.state.issues?.queryError?.message).toContain(
@@ -404,12 +395,8 @@ describe('UnionNode', () => {
     });
 
     it('should clear previous errors on successful validation', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
@@ -442,12 +429,8 @@ describe('UnionNode', () => {
 
   describe('clone', () => {
     it('should create a deep copy of the node', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
@@ -464,12 +447,8 @@ describe('UnionNode', () => {
     });
 
     it('should not share state with original', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
@@ -488,9 +467,7 @@ describe('UnionNode', () => {
 
   describe('getStructuredQuery', () => {
     it('should return undefined when there are fewer than 2 inputs', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1],
@@ -501,12 +478,8 @@ describe('UnionNode', () => {
     });
 
     it('should return undefined when there are no checked columns', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
@@ -517,16 +490,17 @@ describe('UnionNode', () => {
     });
 
     it('should return undefined when any input node is undefined', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1],
         selectedColumns: [createColumnInfo('id', 'INT')],
       });
 
-      unionNode.secondaryInputs.connections.set(1, undefined as any);
+      unionNode.secondaryInputs.connections.set(
+        1,
+        undefined as unknown as QueryNode,
+      );
 
       expect(unionNode.getStructuredQuery()).toBeUndefined();
     });
@@ -602,12 +576,8 @@ describe('UnionNode', () => {
 
   describe('serializeState', () => {
     it('should serialize all input node IDs and selected columns', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],

@@ -496,7 +496,7 @@ export class JoinNode implements QueryNode {
       this.nodeId,
     );
 
-    if (!sq) return undefined;
+    if (sq === undefined) return undefined;
 
     // Add select_columns to explicitly specify which columns to return
     // This ensures we only expose the clean, well-defined columns from finalCols
