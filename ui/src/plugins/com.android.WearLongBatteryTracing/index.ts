@@ -26,7 +26,7 @@ const VALID_SUBSCRIPTION_IDS = [
   -3150162163527618090n,
   -5078517658656926822n,
   -897258217068735442n,
-  -4914190112721760517n
+  -4914190112721760517n,
 ];
 
 export default class WearLongBatteryTracingPlugin implements PerfettoPlugin {
@@ -212,7 +212,9 @@ export default class WearLongBatteryTracingPlugin implements PerfettoPlugin {
    * guarantee those tracks will have been added yet.
    */
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const result = await ctx.engine.query(`SELECT int_value FROM metadata WHERE name = 'statsd_triggering_subscription_id'`);
+    const result = await ctx.engine.query(
+      `SELECT int_value FROM metadata WHERE name = 'statsd_triggering_subscription_id'`,
+    );
     const it = result.iter({int_value: LONG});
     for (; it.valid(); it.next()) {
       // Verify the trace is a Wear trace
