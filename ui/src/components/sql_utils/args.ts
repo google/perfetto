@@ -21,6 +21,10 @@ export type ArgValue = string | number | boolean | bigint | null;
 export type Args = ArgValue | Args[] | ArgsDict;
 export type ArgsDict = {[key: string]: Args};
 
+export function parseArgs(args: string): ArgsDict {
+  return parseJsonWithBigints(args) as ArgsDict;
+}
+
 export async function getArgs(
   engine: Engine,
   argSetId: ArgSetId,

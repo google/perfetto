@@ -15,12 +15,11 @@
 import m from 'mithril';
 import {Time} from '../../base/time';
 import {renderArguments} from '../../components/details/args';
-import {ArgsDict, getArgs} from '../../components/sql_utils/args';
-import {asArgSetId} from '../../components/sql_utils/core_types';
+import {ArgsDict, parseArgs} from '../../components/sql_utils/args';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import {NUM_NULL} from '../../trace_processor/query_result';
+import {NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
@@ -94,18 +93,21 @@ export class FtraceEventDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private async loadArgs() {
-    const queryRes = await this.trace.engine.query(`
-      SELECT arg_set_id
+    const res = (
+      await this.trace.engine.query(`
+      SELECT
+        arg_set_id,
+        __intrinsic_arg_set_to_json(arg_set_id) as args
       FROM ftrace_event
       WHERE ftrace_event.id = ${this.row.id}
-    `);
-
-    const it = queryRes.iter({
+    `)
+    ).maybeFirstRow({
       arg_set_id: NUM_NULL,
+      args: STR,
     });
 
-    if (it.valid() && it.arg_set_id !== null) {
-      this.args = await getArgs(this.trace.engine, asArgSetId(it.arg_set_id));
+    if (res !== undefined && res.arg_set_id !== null) {
+      this.args = parseArgs(res.args);
     }
   }
 }
