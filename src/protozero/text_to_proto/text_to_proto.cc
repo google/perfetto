@@ -211,10 +211,12 @@ class ParserDelegate {
       protozero::Message* message,
       ErrorReporter* reporter,
       std::map<std::string, const DescriptorProto*> name_to_descriptor,
-      std::map<std::string, const EnumDescriptorProto*> name_to_enum)
+      std::map<std::string, const EnumDescriptorProto*> name_to_enum,
+      bool allow_unknown_fields)
       : reporter_(reporter),
         name_to_descriptor_(std::move(name_to_descriptor)),
-        name_to_enum_(std::move(name_to_enum)) {
+        name_to_enum_(std::move(name_to_enum)),
+        allow_unknown_fields_(allow_unknown_fields) {
     ctx_.push(ParserDelegateContext{descriptor, message, {}});
   }
 
@@ -530,11 +532,13 @@ class ParserDelegate {
     }
 
     if (!field_descriptor) {
-      AddError(key, "No field named \"$n\" in proto $p",
-               {
-                   {"$n", field_name},
-                   {"$p", descriptor_name()},
-               });
+      if (!allow_unknown_fields_) {
+        AddError(key, "No field named \"$n\" in proto $p",
+                 {
+                     {"$n", field_name},
+                     {"$p", descriptor_name()},
+                 });
+      }
       return nullptr;
     }
 
@@ -580,6 +584,7 @@ class ParserDelegate {
   ErrorReporter* reporter_;
   std::map<std::string, const DescriptorProto*> name_to_descriptor_;
   std::map<std::string, const EnumDescriptorProto*> name_to_enum_;
+  bool allow_unknown_fields_;
 };
 
 void Parse(std::string_view input, ParserDelegate* delegate) {
@@ -776,7 +781,8 @@ perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
     size_t descriptor_set_size,
     const std::string& root_type,
     const std::string& file_name,
-    std::string_view input) {
+    std::string_view input,
+    bool allow_unknown_fields) {
   std::map<std::string, const DescriptorProto*> name_to_descriptor;
   std::map<std::string, const EnumDescriptorProto*> name_to_enum;
   FileDescriptorSet file_descriptor_set;
@@ -806,7 +812,7 @@ perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
   ErrorReporter reporter(file_name, input);
   ParserDelegate delegate(descriptor, message.get(), &reporter,
                           std::move(name_to_descriptor),
-                          std::move(name_to_enum));
+                          std::move(name_to_enum), allow_unknown_fields);
   Parse(input, &delegate);
   if (!reporter.success())
     return perfetto::base::ErrStatus("%s", reporter.error().c_str());

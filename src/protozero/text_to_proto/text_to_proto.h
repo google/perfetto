@@ -33,12 +33,16 @@ namespace protozero {
 //
 // `file_name` is an opaque string used to print good error messages: it is not
 // used otherwise.
+//
+// If `allow_unknown_fields` is true, unknown fields in the input will be
+// silently ignored instead of causing an error.
 perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
     const uint8_t* descriptor_set_ptr,
     size_t descriptor_set_size,
     const std::string& root_type,
     const std::string& file_name,
-    std::string_view input);
+    std::string_view input,
+    bool allow_unknown_fields = false);
 
 }  // namespace protozero
 
