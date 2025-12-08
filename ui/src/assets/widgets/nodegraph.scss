@@ -184,13 +184,14 @@
 .pf-node-header {
   /* Default background when hue is not set */
   background: var(--pf-color-background);
-  padding: 6px 6px;
+  padding: 4px 6px;
   border-radius: 6px 6px 0 0;
   display: flex;
   border-bottom: 1px solid var(--pf-color-border);
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  font-size: 12px;
 }
 
 /* Override with hue-based color when --pf-node-hue is set via inline styles */
@@ -225,7 +226,10 @@
 
 .pf-node-title {
   flex: 1;
-  padding-left: 6px;
+}
+
+.pf-node-title-icon {
+  font-size: 16px;
 }
 
 .pf-node-context-menu {

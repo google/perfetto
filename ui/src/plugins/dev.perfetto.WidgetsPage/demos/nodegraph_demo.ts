@@ -16,7 +16,6 @@ import m from 'mithril';
 import {produce} from 'immer';
 import {uuidv4} from '../../../base/uuid';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Checkbox} from '../../../widgets/checkbox';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
   Connection,
@@ -41,14 +40,14 @@ interface BaseNodeData {
 }
 
 // Individual node type interfaces
-interface TableNodeData extends BaseNodeData {
-  readonly type: 'table';
+interface FromNodeData extends BaseNodeData {
+  readonly type: 'from';
   readonly table: string;
 }
 
 interface SelectNodeData extends BaseNodeData {
   readonly type: 'select';
-  readonly columns: Record<string, boolean>;
+  readonly columns: ReadonlyArray<string>;
 }
 
 interface FilterNodeData extends BaseNodeData {
@@ -79,7 +78,7 @@ interface ResultNodeData extends BaseNodeData {
 
 // Discriminated union of all node types
 type NodeData =
-  | TableNodeData
+  | FromNodeData
   | SelectNodeData
   | FilterNodeData
   | SortNodeData
@@ -102,20 +101,23 @@ interface NodeConfig {
   readonly canDockTop?: boolean;
   readonly canDockBottom?: boolean;
   readonly hue: number;
+  readonly icon: string;
 }
 
 const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
-  table: {
+  from: {
     outputs: [{content: 'Output', direction: 'bottom'}],
     canDockBottom: true,
-    hue: 200,
+    hue: 100,
+    icon: 'table_chart',
   },
   select: {
     inputs: [{content: 'Input', direction: 'top'}],
     outputs: [{content: 'Output', direction: 'bottom'}],
     canDockTop: true,
     canDockBottom: true,
-    hue: 100,
+    hue: 200,
+    icon: 'checklist',
   },
   filter: {
     inputs: [{content: 'Input', direction: 'top'}],
@@ -123,6 +125,7 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 50,
+    icon: 'filter_alt',
   },
   sort: {
     inputs: [{content: 'Input', direction: 'top'}],
@@ -130,6 +133,7 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 150,
+    icon: 'sort',
   },
   join: {
     inputs: [
@@ -140,6 +144,7 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 300,
+    icon: 'join',
   },
   union: {
     inputs: [
@@ -150,18 +155,20 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 240,
+    icon: 'merge',
   },
   result: {
     inputs: [{content: 'Input', direction: 'top'}],
     canDockTop: true,
     hue: 0,
+    icon: 'output',
   },
 };
 
 // Factory functions for creating node data
-function createTableNode(id: string, x: number, y: number): TableNodeData {
+function createFromNode(id: string, x: number, y: number): FromNodeData {
   return {
-    type: 'table',
+    type: 'from',
     id,
     x,
     y,
@@ -175,13 +182,7 @@ function createSelectNode(id: string, x: number, y: number): SelectNodeData {
     id,
     x,
     y,
-    columns: {
-      id: true,
-      name: true,
-      cpu: false,
-      duration: false,
-      timestamp: false,
-    },
+    columns: ['id', 'name'],
   };
 }
 
@@ -237,9 +238,9 @@ function createResultNode(id: string, x: number, y: number): ResultNodeData {
 }
 
 // Pure render functions for each node type
-function renderTableNode(
-  node: TableNodeData,
-  updateNode: (updates: Partial<Omit<TableNodeData, 'type' | 'id'>>) => void,
+function renderFromNode(
+  node: FromNodeData,
+  updateNode: (updates: Partial<Omit<FromNodeData, 'type' | 'id'>>) => void,
 ): m.Children {
   return m(
     Select,
@@ -265,20 +266,44 @@ function renderSelectNode(
   return m(
     '',
     {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
-    Object.entries(node.columns).map(([col, checked]) =>
-      m(Checkbox, {
-        label: col,
-        checked,
-        onchange: () => {
-          updateNode({
-            columns: {
-              ...node.columns,
-              [col]: !checked,
-            },
-          });
+    [
+      ...node.columns.map((col, index) =>
+        m(
+          '',
+          {
+            style: {display: 'flex', alignItems: 'center', gap: '4px'},
+            key: index,
+          },
+          [
+            m(TextInput, {
+              value: col,
+              oninput: (e: InputEvent) => {
+                const target = e.target as HTMLInputElement;
+                const newColumns = [...node.columns];
+                newColumns[index] = target.value;
+                updateNode({columns: newColumns});
+              },
+            }),
+            m(Button, {
+              icon: 'close',
+              minimal: true,
+              onclick: () => {
+                const newColumns = node.columns.filter((_, i) => i !== index);
+                updateNode({columns: newColumns});
+              },
+            }),
+          ],
+        ),
+      ),
+      m(Button, {
+        key: 'add-button',
+        icon: 'add',
+        label: 'Add',
+        onclick: () => {
+          updateNode({columns: [...node.columns, '']});
         },
       }),
-    ),
+    ],
   );
 }
 
@@ -403,8 +428,8 @@ function renderNodeContent(
   updateNode: (updates: Partial<Omit<NodeData, 'id'>>) => void,
 ): m.Children {
   switch (node.type) {
-    case 'table':
-      return renderTableNode(node, updateNode);
+    case 'from':
+      return renderFromNode(node, updateNode);
     case 'select':
       return renderSelectNode(node, updateNode);
     case 'filter':
@@ -432,10 +457,10 @@ interface NodeGraphDemoAttrs {
 export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   let graphApi: NodeGraphApi | undefined;
 
-  // Initialize store with a single table node
+  // Initialize store with a single from node
   const initialId = uuidv4();
   let store: NodeGraphStore = {
-    nodes: new Map([[initialId, createTableNode(initialId, 150, 100)]]),
+    nodes: new Map([[initialId, createFromNode(initialId, 150, 100)]]),
     connections: [],
     labels: [
       {
@@ -614,7 +639,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
       // Node factory options
       const nodeFactories = [
-        createTableNode,
+        createFromNode,
         createSelectNode,
         createFilterNode,
         createSortNode,
@@ -743,37 +768,47 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     const connectedInputs = findConnectedInputs(nodes, connections, nodeId);
 
     switch (node.type) {
-      case 'table': {
+      case 'from': {
         return node.table || 'unknown_table';
       }
 
       case 'select': {
-        const selectedCols = Object.entries(node.columns)
-          .filter(([_, checked]) => checked)
-          .map(([col]) => col);
-        const colList = selectedCols.length > 0 ? selectedCols.join(', ') : '*';
+        const validCols = node.columns.filter((col) => col.trim() !== '');
+        const colList = validCols.length > 0 ? validCols.join(', ') : '*';
 
-        const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
-            : '';
+        const inputNode = dockedParent ?? connectedInputs.get(0);
+        if (!inputNode) return `SELECT ${colList}`;
 
+        const inputSql = buildSqlFromNode(nodes, connections, inputNode.id);
         if (!inputSql) return `SELECT ${colList}`;
+
+        // If input is a raw table name (from 'from' node), use it directly
+        if (inputNode.type === 'from') {
+          return `SELECT ${colList} FROM ${inputSql}`;
+        }
         return `SELECT ${colList} FROM (${inputSql})`;
       }
 
       case 'filter': {
         const filterExpr = node.filterExpression || '';
 
-        const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
-            : '';
+        const inputNode = dockedParent ?? connectedInputs.get(0);
+        if (!inputNode) return '';
 
+        const inputSql = buildSqlFromNode(nodes, connections, inputNode.id);
         if (!inputSql) return '';
-        if (!filterExpr) return inputSql;
+        if (!filterExpr) {
+          // If input is a raw table name, wrap it in SELECT *
+          if (inputNode.type === 'from') {
+            return `SELECT * FROM ${inputSql}`;
+          }
+          return inputSql;
+        }
+
+        // If input is a raw table name (from 'from' node), use it directly
+        if (inputNode.type === 'from') {
+          return `SELECT * FROM ${inputSql} WHERE ${filterExpr}`;
+        }
         return `SELECT * FROM (${inputSql}) WHERE ${filterExpr}`;
       }
 
@@ -781,14 +816,23 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const sortColumn = node.sortColumn || '';
         const sortOrder = node.sortOrder || 'ASC';
 
-        const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
-            : '';
+        const inputNode = dockedParent ?? connectedInputs.get(0);
+        if (!inputNode) return '';
 
+        const inputSql = buildSqlFromNode(nodes, connections, inputNode.id);
         if (!inputSql) return '';
-        if (!sortColumn) return inputSql;
+        if (!sortColumn) {
+          // If input is a raw table name, wrap it in SELECT *
+          if (inputNode.type === 'from') {
+            return `SELECT * FROM ${inputSql}`;
+          }
+          return inputSql;
+        }
+
+        // If input is a raw table name (from 'from' node), use it directly
+        if (inputNode.type === 'from') {
+          return `SELECT * FROM ${inputSql} ORDER BY ${sortColumn} ${sortOrder}`;
+        }
         return `SELECT * FROM (${inputSql}) ORDER BY ${sortColumn} ${sortOrder}`;
       }
 
@@ -797,45 +841,67 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const joinOn = node.joinOn || 'true';
 
         // Join needs two inputs: one docked (or from top connection) and one from left connection
-        const leftInput = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
-            : '';
+        const leftInputNode = dockedParent ?? connectedInputs.get(0);
+        const rightInputNode = connectedInputs.get(1);
 
-        const rightInput = connectedInputs.get(1)
-          ? buildSqlFromNode(nodes, connections, connectedInputs.get(1)!.id)
+        const leftInput = leftInputNode
+          ? buildSqlFromNode(nodes, connections, leftInputNode.id)
+          : '';
+        const rightInput = rightInputNode
+          ? buildSqlFromNode(nodes, connections, rightInputNode.id)
           : '';
 
         if (!leftInput || !rightInput) return leftInput || rightInput || '';
-        return `SELECT * FROM (${leftInput}) ${joinType} JOIN (${rightInput}) ON ${joinOn}`;
+
+        const leftSql =
+          leftInputNode?.type === 'from' ? leftInput : `(${leftInput})`;
+        const rightSql =
+          rightInputNode?.type === 'from' ? rightInput : `(${rightInput})`;
+        return `SELECT * FROM ${leftSql} ${joinType} JOIN ${rightSql} ON ${joinOn}`;
       }
 
       case 'union': {
         const unionType = node.unionType || '';
 
+        const inputNodes: Array<NodeData | undefined> = [];
         const inputs: string[] = [];
 
         // Collect all inputs (docked + connections)
         if (dockedParent) {
+          inputNodes.push(dockedParent);
           inputs.push(buildSqlFromNode(nodes, connections, dockedParent.id));
         }
         for (const [_, inputNode] of connectedInputs) {
+          inputNodes.push(inputNode);
           inputs.push(buildSqlFromNode(nodes, connections, inputNode.id));
         }
 
-        const validInputs = inputs.filter((sql) => sql);
+        const validInputs = inputs
+          .map((sql, i) => ({sql, node: inputNodes[i]}))
+          .filter(({sql}) => sql);
         if (validInputs.length === 0) return '';
-        if (validInputs.length === 1) return validInputs[0];
-        return validInputs.map((sql) => `(${sql})`).join(` ${unionType} `);
+        if (validInputs.length === 1) {
+          const {sql, node: inputNode} = validInputs[0];
+          return inputNode?.type === 'from' ? `SELECT * FROM ${sql}` : sql;
+        }
+        return validInputs
+          .map(({sql, node: inputNode}) =>
+            inputNode?.type === 'from' ? `SELECT * FROM ${sql}` : `(${sql})`,
+          )
+          .join(` ${unionType} `);
       }
 
       case 'result': {
-        const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
-            : '';
+        const inputNode = dockedParent ?? connectedInputs.get(0);
+        if (!inputNode) return '';
+
+        const inputSql = buildSqlFromNode(nodes, connections, inputNode.id);
+        if (!inputSql) return '';
+
+        // If input is a raw table name, wrap it in SELECT *
+        if (inputNode.type === 'from') {
+          return `SELECT * FROM ${inputSql}`;
+        }
         return inputSql;
       }
     }
@@ -898,7 +964,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         return [
           m(MenuItem, {
             label: 'Select',
-            icon: Icons.Filter,
+            icon: 'checklist',
             onclick: () => addNode(createSelectNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -906,7 +972,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           }),
           m(MenuItem, {
             label: 'Filter',
-            icon: Icons.Filter,
+            icon: 'filter_alt',
             onclick: () => addNode(createFilterNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
@@ -971,7 +1037,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             canDockTop: config.canDockTop,
             accentBar: attrs.accentBars,
             titleBar: attrs.titleBars
-              ? {title: tempNode.type.toUpperCase()}
+              ? {title: tempNode.type.toUpperCase(), icon: config.icon}
               : undefined,
             hue: attrs.colors ? config.hue : undefined,
             contextMenuItems: attrs.contextMenus
@@ -1038,7 +1104,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           next: nextModel ? renderChildNode(nextModel) : undefined,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
-            ? {title: nodeData.type.toUpperCase()}
+            ? {title: nodeData.type.toUpperCase(), icon: config.icon}
             : undefined,
           hue: attrs.colors ? config.hue : undefined,
           contextMenuItems: attrs.contextMenus
@@ -1071,7 +1137,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           next: nextModel ? renderChildNode(nextModel) : undefined,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
-            ? {title: nodeData.type.toUpperCase()}
+            ? {title: nodeData.type.toUpperCase(), icon: config.icon}
             : undefined,
           hue: attrs.colors ? config.hue : undefined,
           contextMenuItems: attrs.contextMenus
@@ -1118,16 +1184,16 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             },
             [
               m(MenuItem, {
-                label: 'Table',
+                label: 'From',
                 icon: 'table_chart',
-                onclick: () => addNode(createTableNode),
+                onclick: () => addNode(createFromNode),
                 style: {
-                  borderLeft: `4px solid hsl(${NODE_CONFIGS.table.hue}, 60%, 50%)`,
+                  borderLeft: `4px solid hsl(${NODE_CONFIGS.from.hue}, 60%, 50%)`,
                 },
               }),
               m(MenuItem, {
                 label: 'Select',
-                icon: Icons.Filter,
+                icon: 'checklist',
                 onclick: () => addNode(createSelectNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -1321,8 +1387,8 @@ export function renderNodeGraph() {
       renderWidget: (opts) => m(NodeGraphDemo, opts),
       initialOpts: {
         multiselect: true,
-        accentBars: true,
-        titleBars: false,
+        accentBars: false,
+        titleBars: true,
         colors: true,
         contextMenus: true,
         contextMenuOnHover: false,
