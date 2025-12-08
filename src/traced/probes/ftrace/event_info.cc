@@ -5072,7 +5072,7 @@ std::vector<Event> GetStaticEventInfo() {
             "reason", 4, ProtoSchemaType::kInt32,
             TranslationStrategy::kInvalidTranslationStrategy},
            {kUnsetOffset, kUnsetSize, FtraceFieldType::kInvalidFtraceFieldType,
-            "dest_msg", 5, ProtoSchemaType::kString,
+            "phase", 5, ProtoSchemaType::kUint32,
             TranslationStrategy::kInvalidTranslationStrategy},
        },
        kUnsetFtraceId,

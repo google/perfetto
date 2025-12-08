@@ -225,7 +225,7 @@ message F2fsWriteCheckpointFtraceEvent {
   optional uint32 is_umount = 2;
   optional string msg = 3;
   optional int32 reason = 4;
-  optional string dest_msg = 5;
+  optional uint32 phase = 5;
 }
 message F2fsWriteEndFtraceEvent {
   optional uint64 dev = 1;

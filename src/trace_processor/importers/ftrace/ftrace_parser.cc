@@ -4411,27 +4411,6 @@ void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
 }
 
 namespace {
-
-enum class CheckpointState {
-  kUnknown,
-  kStart,
-  kFinishBlkOps,
-  kFinish,
-};
-
-CheckpointState GetCheckpointStateFromString(base::StringView msg) {
-  if (msg.find("start block_ops") != base::StringView::npos) {
-    return CheckpointState::kStart;
-  }
-  if (msg.find("finish checkpoint") != base::StringView::npos) {
-    return CheckpointState::kFinish;
-  }
-  if (msg.find("finish block_ops") != base::StringView::npos) {
-    return CheckpointState::kFinishBlkOps;
-  }
-  return CheckpointState::kUnknown;
-}
-
 constexpr auto kF2fsCheckpointBlueprint = tracks::SliceBlueprint(
     "f2fs_write_checkpoint",
     tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("pid")),
@@ -4446,43 +4425,35 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
                                             ConstBytes blob) {
   protos::pbzero::F2fsWriteCheckpointFtraceEvent::Decoder evt(blob);
 
-  base::StringView msg_view(evt.dest_msg());
-  CheckpointState state = GetCheckpointStateFromString(msg_view);
-  if (state != CheckpointState::kStart && state != CheckpointState::kFinish) {
+  uint32_t phase = evt.phase();
+  if (phase == 1) {
     return;
   }
+
   TrackId track_id = context_->track_tracker->InternTrack(
       kF2fsCheckpointBlueprint, tracks::Dimensions(pid));
 
-  switch (state) {
-    case CheckpointState::kStart: {
-      int32_t reason_int = evt.reason();
-      std::string reason_str = GetF2fsCheckpointReasonString(reason_int);
-      StringId reason_str_id =
-          context_->storage->InternString(base::StringView(reason_str));
-      uint64_t dev = evt.dev();
+  if (phase == 0) {
+    int32_t reason_int = evt.reason();
+    std::string reason_str = GetF2fsCheckpointReasonString(reason_int);
+    StringId reason_str_id =
+        context_->storage->InternString(base::StringView(reason_str));
+    uint64_t dev = evt.dev();
 
-      // End the slice first to prevent any open slice existing.
-      context_->slice_tracker->End(ts, track_id);
+    // End the slice first to prevent any open slice existing.
+    context_->slice_tracker->End(ts, track_id);
 
-      context_->slice_tracker->Begin(
-          ts, track_id, kNullStringId, f2fs_checkpoint_name_id_,
-          [&](ArgsTracker::BoundInserter* inserter) {
-            inserter->AddArg(f2fs_dev_arg_id_, Variadic::UnsignedInteger(dev));
-            inserter->AddArg(f2fs_reason_int_arg_id_,
-                             Variadic::Integer(reason_int));
-            inserter->AddArg(f2fs_reason_str_arg_id_,
-                             Variadic::String(reason_str_id));
-          });
-      break;
-    }
-    case CheckpointState::kFinish: {
-      context_->slice_tracker->End(ts, track_id);
-      break;
-    }
-    case CheckpointState::kFinishBlkOps:
-    case CheckpointState::kUnknown:
-      break;
+    context_->slice_tracker->Begin(
+        ts, track_id, kNullStringId, f2fs_checkpoint_name_id_,
+        [&](ArgsTracker::BoundInserter* inserter) {
+          inserter->AddArg(f2fs_dev_arg_id_, Variadic::UnsignedInteger(dev));
+          inserter->AddArg(f2fs_reason_int_arg_id_,
+                           Variadic::Integer(reason_int));
+          inserter->AddArg(f2fs_reason_str_arg_id_,
+                           Variadic::String(reason_str_id));
+        });
+  } else if (phase == 2) {
+    context_->slice_tracker->End(ts, track_id);
   }
 }
 
