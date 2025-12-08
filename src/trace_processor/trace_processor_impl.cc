@@ -97,6 +97,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
@@ -1041,6 +1042,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> tables;
   AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_sample_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_android_cpu_per_uid_track_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_android_dumpstate_table());
   AddUnfinalizedStaticTable(
       tables, storage->mutable_android_game_intervenion_list_table());
@@ -1289,6 +1292,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<Import>(engine.get(), engine.get());
   RegisterFunction<ToFtrace>(engine.get(),
                              std::make_unique<ToFtrace::UserData>(context));
+  RegisterFunction<PackageLookup>(
+      engine.get(), std::make_unique<PackageLookup::Context>(storage));
 
   if constexpr (regex::IsRegexSupported()) {
     RegisterFunction<Regexp>(engine.get());

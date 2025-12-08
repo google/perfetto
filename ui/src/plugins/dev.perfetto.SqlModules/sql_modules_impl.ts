@@ -24,7 +24,7 @@ import {
   SqlTable,
   SqlTableFunction,
 } from './sql_modules';
-import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {TableColumn} from '../../components/widgets/sql/table/table_column';
 import {Trace} from '../../public/trace';
 import {
@@ -32,7 +32,7 @@ import {
   PerfettoSqlType,
 } from '../../trace_processor/perfetto_sql_type';
 import {unwrapResult} from '../../base/result';
-import {createTableColumn} from '../../components/widgets/sql/table/create_column';
+import {createTableColumn} from '../../components/widgets/sql/table/columns';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
@@ -78,10 +78,6 @@ export class SqlModulesImpl implements SqlModules {
       }
     }
 
-    console.log(
-      `[SqlModules] Found ${modulesWithChecks.size} modules with data checks`,
-    );
-
     // Check data availability for modules with checks
     const missingDataModules = new Set<string>();
     for (const [moduleName, checkSql] of modulesWithChecks) {
@@ -98,21 +94,14 @@ export class SqlModulesImpl implements SqlModules {
               ? hasDataValue !== 0n
               : Number(hasDataValue) !== 0;
           if (!hasData) {
-            console.log(`[SqlModules] Module "${moduleName}" has no data`);
             missingDataModules.add(moduleName);
           }
         }
       } catch (e) {
         // If query fails, assume no data
-        console.warn(`[SqlModules] Data check failed for "${moduleName}":`, e);
         missingDataModules.add(moduleName);
       }
     }
-
-    console.log(
-      `[SqlModules] ${missingDataModules.size} modules with missing data:`,
-      Array.from(missingDataModules),
-    );
 
     // BFS to find all transitive dependents of modules with missing data
     const queue = Array.from(missingDataModules);
@@ -133,10 +122,6 @@ export class SqlModulesImpl implements SqlModules {
     }
 
     this.disabledModules = disabled;
-    console.log(
-      `[SqlModules] Total disabled modules (including transitive deps): ${disabled.size}`,
-      Array.from(disabled),
-    );
   }
 
   isModuleDisabled(moduleName: string): boolean {
@@ -222,11 +207,11 @@ export class StdlibPackageImpl implements SqlPackage {
     return undefined;
   }
 
-  getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
+  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined {
     for (const module of this.modules) {
       for (const t of module.tables) {
         if (t.name == tableName) {
-          return module.getSqlTableDescription(tableName);
+          return module.getSqlTableDefinition(tableName);
         }
       }
     }
@@ -273,7 +258,7 @@ export class StdlibModuleImpl implements SqlModule {
     return undefined;
   }
 
-  getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
+  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined {
     const sqlTable = this.getTable(tableName);
     if (sqlTable === undefined) {
       return undefined;
@@ -281,7 +266,10 @@ export class StdlibModuleImpl implements SqlModule {
     return {
       imports: [this.includeKey],
       name: sqlTable.name,
-      columns: sqlTable.getTableColumns(),
+      columns: sqlTable.columns.map((col) => ({
+        column: col.name,
+        type: col.type,
+      })),
     };
   }
 }

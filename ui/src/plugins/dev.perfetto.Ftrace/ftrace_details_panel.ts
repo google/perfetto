@@ -15,25 +15,18 @@
 import m from 'mithril';
 import {Time} from '../../base/time';
 import {renderArguments} from '../../components/details/args';
-import {Arg} from '../../components/sql_utils/args';
-import {asArgId} from '../../components/sql_utils/core_types';
+import {ArgsDict, parseArgs} from '../../components/sql_utils/args';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import {
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 
 export class FtraceEventDetailsPanel implements TrackEventDetailsPanel {
-  private args?: ReadonlyArray<Arg>;
+  private args?: ArgsDict;
 
   constructor(
     readonly trace: Trace,
@@ -100,41 +93,21 @@ export class FtraceEventDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private async loadArgs() {
-    const queryRes = await this.trace.engine.query(`
+    const res = (
+      await this.trace.engine.query(`
       SELECT
-        args.id as id,
-        flat_key as flatKey,
-        key,
-        int_value as intValue,
-        string_value as stringValue,
-        real_value as realValue,
-        value_type as valueType,
-        display_value as displayValue
+        arg_set_id,
+        __intrinsic_arg_set_to_json(arg_set_id) as args
       FROM ftrace_event
-      JOIN args USING(arg_set_id)
       WHERE ftrace_event.id = ${this.row.id}
-    `);
-
-    const it = queryRes.iter({
-      id: NUM,
-      flatKey: STR,
-      key: STR,
-      intValue: LONG_NULL,
-      stringValue: STR_NULL,
-      realValue: NUM_NULL,
-      valueType: STR,
-      displayValue: STR_NULL,
+    `)
+    ).maybeFirstRow({
+      arg_set_id: NUM_NULL,
+      args: STR,
     });
 
-    const args: Arg[] = [];
-    for (; it.valid(); it.next()) {
-      args.push({
-        id: asArgId(it.id),
-        flatKey: it.flatKey,
-        key: it.key,
-        displayValue: it.displayValue ?? 'NULL',
-      });
+    if (res !== undefined && res.arg_set_id !== null) {
+      this.args = parseArgs(res.args);
     }
-    this.args = args;
   }
 }

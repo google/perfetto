@@ -314,7 +314,7 @@ function getNodeHue(node: QueryNode): number {
       return 45; // Amber/Orange (#ffecb3)
     case NodeType.kUnion:
       return 187; // Cyan (#b2ebf2)
-    case NodeType.kMerge:
+    case NodeType.kJoin:
       return 14; // Deep Orange (#ffccbc)
     default:
       return 65; // Lime (#f0f4c3)
@@ -667,6 +667,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             selectedNode?.nodeId ? [selectedNode.nodeId] : [],
           ),
           hideControls: true,
+          fillHeight: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
           },

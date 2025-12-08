@@ -132,6 +132,7 @@
   pointer-events: auto;
   box-shadow: 0 4px 12px var(--pf-color-box-shadow);
   border-radius: 8px;
+  width: max-content;
 
   &--dragging {
     z-index: 1; // Ensure dragging entire chain appears above other nodes.

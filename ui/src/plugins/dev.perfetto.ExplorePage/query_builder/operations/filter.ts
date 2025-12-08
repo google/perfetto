@@ -13,16 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from '../../../../widgets/button';
 import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
-import {Select} from '../../../../widgets/select';
-import {TextInput} from '../../../../widgets/text_input';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {showModal, closeModal} from '../../../../widgets/modal';
-import {Form, FormLabel} from '../../../../widgets/form';
 import {DataGridFilter} from '../../../../components/widgets/data_grid/common';
 
 // ============================================================================
@@ -346,164 +341,6 @@ export const ALL_FILTER_OPS: FilterOp[] = [
   op('GLOB', 'glob', protos.PerfettoSqlStructuredQuery.Filter.Operator.GLOB),
 ];
 
-/**
- * Opens a modal to edit a filter. This provides a unified editing experience
- * across both nodeDetails and nodeSpecificModify.
- *
- * @param filter - The filter to edit (can be partial for new filters)
- * @param sourceCols - Available columns for filtering
- * @param onSave - Callback when filter is saved (only called with valid filters)
- * @param onDelete - Optional callback when filter is deleted
- */
-export function showFilterEditModal(
-  filter: Partial<UIFilter>,
-  sourceCols: ColumnInfo[],
-  onSave: (editedFilter: UIFilter) => void,
-  onDelete?: () => void,
-): void {
-  // Check if there are any columns available
-  if (sourceCols.length === 0) {
-    // Show user-facing error instead of silent failure
-    showModal({
-      title: 'Cannot edit filter',
-      content: m(
-        'div',
-        m('p', 'No columns are available to filter on.'),
-        m('p', 'Please select a table or add columns before editing filters.'),
-      ),
-    });
-    return;
-  }
-
-  // Ensure we start with a valid partial filter
-  let editedFilter: Partial<UIFilter> = {...filter};
-  const modalKey = 'edit-filter-modal';
-
-  showModal({
-    key: modalKey,
-    title: 'Edit Filter',
-    content: () => {
-      const opObject = ALL_FILTER_OPS.find(
-        (o) => o.displayName === editedFilter.op,
-      );
-      const valueRequired = isValueRequired(opObject);
-
-      const colOptions = sourceCols.map((col) => {
-        return m(
-          'option',
-          {value: col.name, selected: col.name === editedFilter.column},
-          col.name,
-        );
-      });
-
-      const opOptions = ALL_FILTER_OPS.map((op) => {
-        return m(
-          'option',
-          {
-            value: op.key,
-            selected: op.displayName === editedFilter.op,
-          },
-          op.displayName,
-        );
-      });
-
-      return m(
-        Form,
-        {
-          submitLabel: 'Save',
-          cancelLabel: 'Cancel',
-          validation: () => isFilterDefinitionValid(editedFilter),
-          onSubmit: () => {
-            if (isFilterDefinitionValid(editedFilter)) {
-              onSave(editedFilter);
-              closeModal(modalKey);
-            }
-          },
-          onCancel: () => closeModal(modalKey),
-        },
-        m(FormLabel, 'Column'),
-        m(
-          Select,
-          {
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              editedFilter = {...editedFilter, column: target.value};
-              m.redraw();
-            },
-          },
-          colOptions,
-        ),
-        m(FormLabel, 'Operator'),
-        m(
-          Select,
-          {
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              const newOp = ALL_FILTER_OPS.find(
-                (op) => op.key === target.value,
-              );
-              if (newOp) {
-                // Construct the correct filter type based on whether value is required
-                if (isValueRequired(newOp)) {
-                  // FilterValue type - ensure value exists
-                  // If converting from array (FilterIn) to single value, take first element
-                  const singleValue = getFirstFilterValue(editedFilter);
-
-                  editedFilter = {
-                    column: editedFilter.column,
-                    op: newOp.displayName as FilterValue['op'],
-                    value: singleValue,
-                    enabled: editedFilter.enabled,
-                  };
-                } else {
-                  // FilterNull type - no value property
-                  editedFilter = {
-                    column: editedFilter.column,
-                    op: newOp.displayName as FilterNull['op'],
-                    enabled: editedFilter.enabled,
-                  };
-                }
-                m.redraw();
-              }
-            },
-          },
-          opOptions,
-        ),
-        valueRequired && m(FormLabel, 'Value'),
-        valueRequired &&
-          m(TextInput, {
-            placeholder: 'Enter filter value',
-            value: 'value' in editedFilter ? String(editedFilter.value) : '',
-            required: true,
-            oninput: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              const parsed = parseFilterValue(target.value);
-              // Always update value to allow free editing (including clearing)
-              // Use parsed value if available, otherwise raw input
-              // Since valueRequired is true, we're working with a FilterValue type
-              editedFilter = {
-                column: editedFilter.column,
-                op: editedFilter.op as FilterValue['op'],
-                value: parsed ?? target.value,
-                enabled: editedFilter.enabled,
-              };
-              m.redraw();
-            },
-          }),
-        onDelete &&
-          m(Button, {
-            label: 'Delete filter',
-            icon: 'delete',
-            onclick: () => {
-              onDelete();
-              closeModal(modalKey);
-            },
-          }),
-      );
-    },
-  });
-}
-
 // ============================================================================
 // Proto Generation
 // ============================================================================
@@ -567,28 +404,6 @@ function partitionValuesByType(
   }
 
   return {stringValues, int64Values, doubleValues};
-}
-
-/**
- * Extracts the first filter value when converting from array (FilterIn) to single value.
- * Used when changing operator from IN/NOT IN to a single-value operator.
- *
- * @param filter The filter being edited
- * @returns The first value if available, otherwise empty string
- */
-function getFirstFilterValue(filter: Partial<UIFilter>): SqlValue {
-  if (!('value' in filter) || filter.value === undefined) {
-    return '';
-  }
-
-  // Handle array values (from FilterIn type)
-  const value = filter.value;
-  if (Array.isArray(value)) {
-    return value[0] ?? '';
-  }
-
-  // Single value case (from FilterValue type) - narrow the type
-  return value as SqlValue;
 }
 
 export function createFiltersProto(

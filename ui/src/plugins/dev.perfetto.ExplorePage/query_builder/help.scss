@@ -21,7 +21,7 @@
 .pf-exp-getting-started {
   position: sticky;
   top: 0;
-  background: var(--perfetto-primary-background);
+  background: var(--pf-color-background);
   padding: 0.5rem;
   z-index: 1;
   margin-bottom: 1rem;
@@ -80,15 +80,15 @@
     }
 
     .pf-importance-high {
-      background-color: #d32f2f; // Red - Very frequent
+      background-color: var(--pf-color-danger);
     }
 
     .pf-importance-mid {
-      background-color: var(--pf-color-primary); // Primary blue - Frequent
+      background-color: var(--pf-color-primary);
     }
 
     .pf-importance-low {
-      background-color: #757575; // Gray - Low
+      background-color: var(--pf-color-text-disabled);
     }
 
     .table-description {

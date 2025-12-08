@@ -50,6 +50,7 @@
 #include "protos/perfetto/trace/ftrace/cpm_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/fwtp_ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
 
@@ -283,6 +284,12 @@ void FtraceTokenizer::TokenizeFtraceEvent(
           event_id ==
           protos::pbzero::FtraceEvent::kParamSetValueCpmFieldNumber)) {
     TokenizeFtraceParamSetValueCpm(cpu, std::move(event), std::move(state));
+    return;
+  }
+  if (PERFETTO_UNLIKELY(
+          event_id ==
+          protos::pbzero::FtraceEvent::kFwtpPerfettoCounterFieldNumber)) {
+    TokenizeFtraceFwtpPerfettoCounter(cpu, std::move(event), std::move(state));
     return;
   }
 
@@ -549,6 +556,30 @@ void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
     return;
   }
   int64_t timestamp = param_set_value_cpm_event.timestamp();
+  module_context_->PushFtraceEvent(
+      cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
+}
+
+void FtraceTokenizer::TokenizeFtraceFwtpPerfettoCounter(
+    uint32_t cpu,
+    TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
+  // Special handling of valid fwtp_perfetto_counter tracepoint events which
+  // contains the right timestamp value nested inside the event data.
+  auto ts_field = GetFtraceEventField(
+      protos::pbzero::FtraceEvent::kFwtpPerfettoCounterFieldNumber, event);
+  if (!ts_field.has_value())
+    return;
+
+  protos::pbzero::FwtpPerfettoCounterFtraceEvent::Decoder
+      fwtp_perfetto_counter_event(ts_field.value().data(),
+                                  ts_field.value().size());
+  if (!fwtp_perfetto_counter_event.has_timestamp()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+  int64_t timestamp =
+      static_cast<int64_t>(fwtp_perfetto_counter_event.timestamp());
   module_context_->PushFtraceEvent(
       cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
 }

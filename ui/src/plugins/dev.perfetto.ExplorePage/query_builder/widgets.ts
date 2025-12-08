@@ -31,6 +31,7 @@ import {
   MultiSelectDiff,
 } from '../../../widgets/multiselect';
 import {classNames} from '../../../base/classnames';
+import {Tooltip} from '../../../widgets/tooltip';
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -803,5 +804,76 @@ export class InlineEditList<T>
     );
 
     return m('.pf-inline-edit-list', itemViews);
+  }
+}
+
+// Widget for inline field with label on left and editable/read-only value on right
+// Simpler alternative to InlineEditList for single-value fields
+export interface InlineFieldAttrs {
+  label: string;
+  value: string;
+  icon?: string;
+  editable?: boolean; // If false, field is read-only (default: true)
+  placeholder?: string;
+  type?: string; // Input type (e.g., 'text', 'number')
+  onchange?: (value: string) => void;
+  validate?: (value: string) => boolean; // Returns true if valid
+  errorMessage?: string; // Tooltip message shown when validation fails
+}
+
+export class InlineField implements m.ClassComponent<InlineFieldAttrs> {
+  private inputValue: string = '';
+  private lastPropValue: string = '';
+
+  view({attrs}: m.Vnode<InlineFieldAttrs>) {
+    const {
+      label,
+      value,
+      icon,
+      editable = true,
+      placeholder,
+      type,
+      onchange,
+      validate,
+      errorMessage,
+    } = attrs;
+
+    // Only sync input value when the prop value actually changes (external update)
+    if (this.lastPropValue !== value) {
+      this.inputValue = value;
+      this.lastPropValue = value;
+    }
+
+    const isValid = validate ? validate(this.inputValue) : true;
+
+    return m(
+      '.pf-inline-field',
+      {
+        className: classNames(!isValid && 'pf-invalid'),
+      },
+      icon && m(Icon, {icon}),
+      m('span.pf-inline-field__label', label),
+      editable
+        ? m(TextInput, {
+            value: this.inputValue,
+            placeholder,
+            type,
+            oninput: (e: Event) => {
+              const newValue = (e.target as HTMLInputElement).value;
+              this.inputValue = newValue;
+              // Always call onchange - validation is just for visual feedback
+              onchange?.(newValue);
+            },
+          })
+        : m('span.pf-inline-field__value', value),
+      !isValid &&
+        m(
+          Tooltip,
+          {
+            trigger: m(Icon, {icon: 'warning'}),
+          },
+          errorMessage ?? 'Invalid value',
+        ),
+    );
   }
 }

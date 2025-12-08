@@ -38,7 +38,7 @@ import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
 } from './nodes/interval_intersect_node';
-import {MergeNode, MergeNodeState} from './nodes/merge_node';
+import {JoinNode, JoinNodeState} from './nodes/join_node';
 import {SortNode, SortNodeState} from './nodes/sort_node';
 import {FilterNode, FilterNodeState} from './nodes/filter_node';
 import {UnionNode, UnionNodeState} from './nodes/union_node';
@@ -219,23 +219,24 @@ export function registerCoreNodes() {
     },
   });
 
-  nodeRegistry.register('merge', {
-    name: 'Merge',
+  nodeRegistry.register('join', {
+    name: 'Join',
     description:
       'Join two tables using equality columns or custom SQL condition.',
     icon: 'merge',
     type: 'multisource',
     factory: (state) => {
-      const fullState: MergeNodeState = {
+      const fullState: JoinNodeState = {
         ...state,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
       };
-      return new MergeNode(fullState);
+      return new JoinNode(fullState);
     },
   });
 

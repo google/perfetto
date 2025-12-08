@@ -84,7 +84,7 @@ describe('AggregationNode', () => {
         column: createColumnInfo('dur', 'INT'),
         percentile: 95,
       };
-      expect(placeholderNewColumnName(agg)).toBe('dur_percentile');
+      expect(placeholderNewColumnName(agg)).toBe('percentile_dur');
     });
 
     it('should generate placeholder for MEDIAN with column', () => {
@@ -92,7 +92,7 @@ describe('AggregationNode', () => {
         aggregationOp: 'MEDIAN',
         column: createColumnInfo('value', 'DOUBLE'),
       };
-      expect(placeholderNewColumnName(agg)).toBe('value_median');
+      expect(placeholderNewColumnName(agg)).toBe('median_value');
     });
 
     it('should generate placeholder for SUM with column', () => {
@@ -100,7 +100,7 @@ describe('AggregationNode', () => {
         aggregationOp: 'SUM',
         column: createColumnInfo('dur', 'INT'),
       };
-      expect(placeholderNewColumnName(agg)).toBe('dur_sum');
+      expect(placeholderNewColumnName(agg)).toBe('sum_dur');
     });
 
     it('should generate placeholder for COUNT with column', () => {
@@ -108,7 +108,7 @@ describe('AggregationNode', () => {
         aggregationOp: 'COUNT',
         column: createColumnInfo('name', 'STRING'),
       };
-      expect(placeholderNewColumnName(agg)).toBe('name_count');
+      expect(placeholderNewColumnName(agg)).toBe('count_name');
     });
 
     it('should handle aggregation without operation', () => {
@@ -128,7 +128,7 @@ describe('AggregationNode', () => {
         aggregationOp: 'MEAN',
         column: createColumnInfo('Value', 'DOUBLE'),
       };
-      expect(placeholderNewColumnName(agg)).toBe('Value_mean');
+      expect(placeholderNewColumnName(agg)).toBe('mean_Value');
     });
   });
 
@@ -998,7 +998,7 @@ describe('AggregationNode', () => {
         percentile: 0,
       };
 
-      expect(placeholderNewColumnName(agg)).toBe('dur_percentile');
+      expect(placeholderNewColumnName(agg)).toBe('percentile_dur');
 
       // Validation
       const isValid =
@@ -1016,7 +1016,7 @@ describe('AggregationNode', () => {
         percentile: 100,
       };
 
-      expect(placeholderNewColumnName(agg)).toBe('dur_percentile');
+      expect(placeholderNewColumnName(agg)).toBe('percentile_dur');
 
       // Validation
       const isValid =
@@ -1049,7 +1049,7 @@ describe('AggregationNode', () => {
         column: createColumnInfo('dur_ns', 'INT'),
       };
 
-      expect(placeholderNewColumnName(agg)).toBe('dur_ns_sum');
+      expect(placeholderNewColumnName(agg)).toBe('sum_dur_ns');
     });
   });
 });
