@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {MergeNode} from './merge_node';
+import {JoinNode} from './join_node';
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 
-describe('MergeNode', () => {
+describe('JoinNode', () => {
   function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
     return {
       nodeId: id,
@@ -60,42 +60,44 @@ describe('MergeNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      expect(mergeNode.state.leftQueryAlias).toBe('left');
-      expect(mergeNode.state.rightQueryAlias).toBe('right');
-      expect(mergeNode.state.conditionType).toBe('equality');
-      expect(mergeNode.state.leftColumn).toBe('id');
-      expect(mergeNode.state.rightColumn).toBe('id');
-      expect(mergeNode.state.autoExecute).toBe(false);
+      expect(joinNode.state.leftQueryAlias).toBe('left');
+      expect(joinNode.state.rightQueryAlias).toBe('right');
+      expect(joinNode.state.conditionType).toBe('equality');
+      expect(joinNode.state.leftColumn).toBe('id');
+      expect(joinNode.state.rightColumn).toBe('id');
+      expect(joinNode.state.autoExecute).toBe(false);
     });
 
     it('should use default aliases when not provided', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: undefined!,
         rightQueryAlias: undefined!,
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
       });
 
-      expect(mergeNode.state.leftQueryAlias).toBe('left');
-      expect(mergeNode.state.rightQueryAlias).toBe('right');
+      expect(joinNode.state.leftQueryAlias).toBe('left');
+      expect(joinNode.state.rightQueryAlias).toBe('right');
     });
   });
 
@@ -105,18 +107,19 @@ describe('MergeNode', () => {
         createColumnInfo('id', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: undefined,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      expect(mergeNode.finalCols).toEqual([]);
+      expect(joinNode.finalCols).toEqual([]);
     });
 
     it('should include equality column once without prefix', () => {
@@ -129,19 +132,20 @@ describe('MergeNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const finalCols = mergeNode.finalCols;
-      const idColumns = finalCols.filter((c) => c.name === 'id');
+      const finalCols = joinNode.finalCols;
+      const idColumns = finalCols.filter((c: ColumnInfo) => c.name === 'id');
 
       expect(idColumns.length).toBe(1);
       expect(idColumns[0].type).toBe('INT');
@@ -159,22 +163,23 @@ describe('MergeNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const finalCols = mergeNode.finalCols;
-      const colNames = finalCols.map((c) => c.name);
+      const finalCols = joinNode.finalCols;
+      const colNames = finalCols.map((c: ColumnInfo) => c.name);
 
       // Should include 'id' once (equality column)
-      expect(colNames.filter((n) => n === 'id').length).toBe(1);
+      expect(colNames.filter((n: string) => n === 'id').length).toBe(1);
 
       // Should NOT include 'name' (duplicated, not the equality column)
       expect(colNames).not.toContain('name');
@@ -198,19 +203,20 @@ describe('MergeNode', () => {
         createColumnInfo('right_only_2', 'INT64'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const finalCols = mergeNode.finalCols;
-      const colNames = finalCols.map((c) => c.name);
+      const finalCols = joinNode.finalCols;
+      const colNames = finalCols.map((c: ColumnInfo) => c.name);
 
       expect(colNames).toContain('id');
       expect(colNames).toContain('left_only_1');
@@ -231,19 +237,20 @@ describe('MergeNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'parent_id',
         sqlExpression: '',
       });
 
-      const finalCols = mergeNode.finalCols;
-      const colNames = finalCols.map((c) => c.name);
+      const finalCols = joinNode.finalCols;
+      const colNames = finalCols.map((c: ColumnInfo) => c.name);
 
       // When joining on different column names (id = parent_id),
       // both should be included if they're not duplicated
@@ -270,23 +277,24 @@ describe('MergeNode', () => {
         createColumnInfo('ts', 'INT64'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const finalCols = mergeNode.finalCols;
-      const colNames = finalCols.map((c) => c.name);
+      const finalCols = joinNode.finalCols;
+      const colNames = finalCols.map((c: ColumnInfo) => c.name);
 
       // Should only include 'id' once (the equality column)
       expect(colNames).toContain('id');
-      expect(colNames.filter((n) => n === 'id').length).toBe(1);
+      expect(colNames.filter((n: string) => n === 'id').length).toBe(1);
 
       // Should NOT include 'name' or 'ts' (duplicated across both inputs)
       expect(colNames).not.toContain('name');
@@ -308,19 +316,20 @@ describe('MergeNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 't1',
         rightQueryAlias: 't2',
         conditionType: 'freeform',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: 't1.id = t2.parent_id',
       });
 
-      const finalCols = mergeNode.finalCols;
-      const colNames = finalCols.map((c) => c.name);
+      const finalCols = joinNode.finalCols;
+      const colNames = finalCols.map((c: ColumnInfo) => c.name);
 
       // In freeform mode, no columns are treated as equality columns
       // id is duplicated, so it should be excluded
@@ -337,18 +346,19 @@ describe('MergeNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
       });
 
-      expect(mergeNode.finalCols).toEqual([]);
+      expect(joinNode.finalCols).toEqual([]);
     });
 
     it('should set all columns as checked', () => {
@@ -361,18 +371,19 @@ describe('MergeNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const finalCols = mergeNode.finalCols;
+      const finalCols = joinNode.finalCols;
 
       expect(finalCols.every((c) => c.checked === true)).toBe(true);
     });
@@ -382,19 +393,20 @@ describe('MergeNode', () => {
     it('should fail when only one node is provided', () => {
       const node1 = createMockPrevNode('node1', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: undefined,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      expect(mergeNode.validate()).toBe(false);
-      expect(mergeNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.validate()).toBe(false);
+      expect(joinNode.state.issues?.queryError?.message).toContain(
         'exactly two sources',
       );
     });
@@ -407,38 +419,40 @@ describe('MergeNode', () => {
         createColumnInfo('id', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: undefined!,
         rightQueryAlias: undefined!,
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
       // Constructor sets default aliases to 'left' and 'right', so this should pass
-      expect(mergeNode.validate()).toBe(true);
+      expect(joinNode.validate()).toBe(true);
     });
 
     it('should fail when equality columns are missing in equality mode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
       });
 
-      expect(mergeNode.validate()).toBe(false);
-      expect(mergeNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.validate()).toBe(false);
+      expect(joinNode.state.issues?.queryError?.message).toContain(
         'Both left and right columns are required',
       );
     });
@@ -447,19 +461,20 @@ describe('MergeNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'freeform',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
       });
 
-      expect(mergeNode.validate()).toBe(false);
-      expect(mergeNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.validate()).toBe(false);
+      expect(joinNode.state.issues?.queryError?.message).toContain(
         'SQL expression',
       );
     });
@@ -472,18 +487,19 @@ describe('MergeNode', () => {
         createColumnInfo('id', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      expect(mergeNode.validate()).toBe(true);
+      expect(joinNode.validate()).toBe(true);
     });
 
     it('should fail when all columns are duplicated', () => {
@@ -499,22 +515,23 @@ describe('MergeNode', () => {
         createColumnInfo('ts', 'INT64'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'freeform',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: 'left.id = right.id',
       });
 
-      expect(mergeNode.validate()).toBe(false);
-      expect(mergeNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.validate()).toBe(false);
+      expect(joinNode.state.issues?.queryError?.message).toContain(
         'No columns to expose',
       );
-      expect(mergeNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.state.issues?.queryError?.message).toContain(
         'Modify Columns',
       );
     });
@@ -527,38 +544,40 @@ describe('MergeNode', () => {
         createColumnInfo('parent_id', 'INT'),
       ]);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 't1',
         rightQueryAlias: 't2',
         conditionType: 'freeform',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: 't1.id = t2.parent_id',
       });
 
-      expect(mergeNode.validate()).toBe(true);
+      expect(joinNode.validate()).toBe(true);
     });
   });
 
   describe('getTitle', () => {
-    it('should return "Merge"', () => {
+    it('should return "Join"', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
       });
 
-      expect(mergeNode.getTitle()).toBe('Merge');
+      expect(joinNode.getTitle()).toBe('Join');
     });
   });
 
@@ -567,18 +586,19 @@ describe('MergeNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'foo',
         rightQueryAlias: 'bar',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
       });
 
-      expect(mergeNode.getInputLabels()).toEqual(['foo', 'bar']);
+      expect(joinNode.getInputLabels()).toEqual(['foo', 'bar']);
     });
   });
 
@@ -587,20 +607,21 @@ describe('MergeNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const cloned = mergeNode.clone() as MergeNode;
+      const cloned = joinNode.clone() as JoinNode;
 
-      expect(cloned).not.toBe(mergeNode);
+      expect(cloned).not.toBe(joinNode);
       expect(cloned.state.leftQueryAlias).toBe('left');
       expect(cloned.state.rightQueryAlias).toBe('right');
       expect(cloned.state.conditionType).toBe('equality');
@@ -612,24 +633,25 @@ describe('MergeNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const cloned = mergeNode.clone() as MergeNode;
+      const cloned = joinNode.clone() as JoinNode;
 
       // Modify the cloned state
       cloned.state.leftQueryAlias = 'modified';
 
       // Original should not be affected
-      expect(mergeNode.state.leftQueryAlias).toBe('left');
+      expect(joinNode.state.leftQueryAlias).toBe('left');
     });
   });
 
@@ -637,18 +659,19 @@ describe('MergeNode', () => {
     it('should return undefined if validation fails', () => {
       const node1 = createMockPrevNode('node1', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: undefined,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
       });
 
-      expect(mergeNode.getStructuredQuery()).toBeUndefined();
+      expect(joinNode.getStructuredQuery()).toBeUndefined();
     });
 
     it('should include select_columns in the structured query', () => {
@@ -672,18 +695,19 @@ describe('MergeNode', () => {
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const sq = mergeNode.getStructuredQuery();
+      const sq = joinNode.getStructuredQuery();
 
       expect(sq).toBeDefined();
       expect(sq?.selectColumns).toBeDefined();
@@ -691,7 +715,7 @@ describe('MergeNode', () => {
       const selectColNames = sq?.selectColumns?.map(
         (c) => c.columnNameOrExpression,
       );
-      const finalColNames = mergeNode.finalCols.map((c) => c.name);
+      const finalColNames = joinNode.finalCols.map((c: ColumnInfo) => c.name);
 
       expect(selectColNames).toEqual(finalColNames);
     });
@@ -711,18 +735,19 @@ describe('MergeNode', () => {
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const sq = mergeNode.getStructuredQuery();
+      const sq = joinNode.getStructuredQuery();
 
       expect(sq).toBeDefined();
       expect(sq?.experimentalJoin).toBeDefined();
@@ -746,18 +771,19 @@ describe('MergeNode', () => {
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 't1',
         rightQueryAlias: 't2',
         conditionType: 'freeform',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: 't1.id = t2.parent_id',
       });
 
-      const sq = mergeNode.getStructuredQuery();
+      const sq = joinNode.getStructuredQuery();
 
       expect(sq).toBeDefined();
       expect(sq?.experimentalJoin).toBeDefined();
@@ -779,18 +805,19 @@ describe('MergeNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const mergeNode = new MergeNode({
+      const joinNode = new JoinNode({
         leftNode: node1,
         rightNode: node2,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
       });
 
-      const serialized = mergeNode.serializeState();
+      const serialized = joinNode.serializeState();
 
       expect(serialized.leftNodeId).toBe('node1');
       expect(serialized.rightNodeId).toBe('node2');
@@ -815,7 +842,7 @@ describe('MergeNode', () => {
         sqlExpression: '',
       };
 
-      const state = MergeNode.deserializeState(serialized);
+      const state = JoinNode.deserializeState(serialized);
 
       expect(state.leftQueryAlias).toBe('left');
       expect(state.rightQueryAlias).toBe('right');
@@ -834,12 +861,13 @@ describe('MergeNode', () => {
         ['node2', node2],
       ]);
 
-      const connections = MergeNode.deserializeConnections(nodes, {
+      const connections = JoinNode.deserializeConnections(nodes, {
         leftNodeId: 'node1',
         rightNodeId: 'node2',
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
@@ -852,12 +880,13 @@ describe('MergeNode', () => {
     it('should handle missing nodes gracefully', () => {
       const nodes = new Map<string, QueryNode>();
 
-      const connections = MergeNode.deserializeConnections(nodes, {
+      const connections = JoinNode.deserializeConnections(nodes, {
         leftNodeId: 'missing1',
         rightNodeId: 'missing2',
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
