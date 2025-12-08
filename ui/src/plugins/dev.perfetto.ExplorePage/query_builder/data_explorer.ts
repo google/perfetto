@@ -140,6 +140,10 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         const target = e.target as HTMLInputElement;
         attrs.node.state.autoExecute = target.checked;
         attrs.onchange?.();
+        // Execute the query when auto-execute is toggled on
+        if (target.checked && isAQuery(attrs.query) && attrs.node.validate()) {
+          attrs.onExecute();
+        }
       },
     });
 
