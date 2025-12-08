@@ -53,7 +53,7 @@ SELECT
   END;
 
 -- Enumerates modules and rel_pcs that have no associated symbol information, broken down by caller process.
-CREATE PERFETTO TABLE _stacks_symbolization_candidates (
+CREATE PERFETTO TABLE stacks_symbolization_candidates (
   -- The process which is using this module
   upid JOINID(process.id),
   -- The module mapping (usually path)

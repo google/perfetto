@@ -36,7 +36,7 @@ SELECT UnsymbolizedFrames_Frame(
 ) AS frame_proto
 FROM (
   SELECT DISTINCT module, build_id, rel_pc, COALESCE(breakpad_module_id, build_id) AS google_lookup_id
-  FROM _stacks_symbolization_candidates
+  FROM stacks_symbolization_candidates
 );
 
 DROP VIEW IF EXISTS unsymbolized_frames_output;

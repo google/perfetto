@@ -161,6 +161,7 @@ from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
+from diff_tests.stdlib.stacks.tests import Stacks
 from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
@@ -322,6 +323,7 @@ def fetch_all_diff_tests(
       SpanJoinOuterJoin,
       SpanJoinRegression,
       SpanJoinSmoke,
+      Stacks,
       StdlibIntervals,
       SystemUICujs,
       IntervalsIntersect,
