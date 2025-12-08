@@ -20,12 +20,7 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
-import {
-  TableColumn,
-  RenderCellContext,
-  tableColumnId,
-  tableColumnAlias,
-} from './table_column';
+import {TableColumn, tableColumnId, tableColumnAlias} from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './menus/select_column_menu';
 import {renderCastColumnMenu} from './menus/cast_column_menu';
@@ -184,15 +179,12 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         },
         cellContextMenuRenderer: (value, _row, builtins) => {
           // Get the menu from renderCell to allow column-specific context menus
-          const {menu} = column.renderCell(value, getTableManager(this.state));
+          const {menu} = column.renderCell(value);
           return [menu, builtins.addFilter];
         },
         // Custom cell renderer that uses TableColumn's renderCell
         cellRenderer: (value: SqlValue) => {
-          const {content} = column.renderCell(
-            value,
-            getTableManager(this.state),
-          );
+          const {content} = column.renderCell(value);
           return content;
         },
       };
@@ -372,28 +364,4 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       showFiltersInToolbar: false,
     } satisfies DataGridAttrs);
   }
-}
-
-function getRenderCellContext(
-  state: SqlTableState,
-  addColumn: (column: TableColumn) => void,
-): RenderCellContext {
-  return {
-    filters: state.filters,
-    trace: state.trace,
-    getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-      buildSqlQuery({
-        table: state.config.name,
-        columns,
-        filters: state.filters.get(),
-        orderBy: state.getOrderedBy(),
-      }),
-    hasColumn: (column: TableColumn) => {
-      const selectedColumns = state.getSelectedColumns();
-      return !selectedColumns.some(
-        (c) => tableColumnId(c) === tableColumnId(column),
-      );
-    },
-    addColumn,
-  };
 }

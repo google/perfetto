@@ -16,7 +16,7 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import {renderStandardCell} from './render_cell_utils';
 import {SqlColumn} from './sql_column';
-import {TableColumn, TableManager} from './table_column';
+import {TableColumn} from './table_column';
 
 export class SimpleColumn implements TableColumn {
   public readonly type: PerfettoSqlType | undefined = undefined;
@@ -27,7 +27,7 @@ export class SimpleColumn implements TableColumn {
     return this.column;
   }
 
-  renderCell(value: SqlValue, tableManager: TableManager | undefined) {
-    return renderStandardCell(value, tableManager);
+  renderCell(value: SqlValue) {
+    return renderStandardCell(value);
   }
 }

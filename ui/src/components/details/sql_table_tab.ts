@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
+import {exists} from '../../base/utils';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
@@ -37,7 +38,6 @@ import {sqlColumnId} from '../widgets/sql/table/sql_column';
 import {TabOption, TabStrip} from '../../widgets/tabs';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
-import {exists} from '../../base/utils';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;

@@ -19,7 +19,7 @@ import {isString} from '../../../../base/object_utils';
 import {Icons} from '../../../../base/semantic_icons';
 import {copyToClipboard} from '../../../../base/clipboard';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
-import {RenderedCell, TableManager} from './table_column';
+import {RenderedCell} from './table_column';
 
 function copyMenuItem(label: string, value: string): m.Child {
   return m(MenuItem, {
@@ -50,19 +50,13 @@ export function displayValue(value: SqlValue): m.Child {
   return sqlValueToReadableString(value);
 }
 
-export function renderStandardCell(
-  value: SqlValue,
-  tableManager: TableManager | undefined,
-): RenderedCell {
+export function renderStandardCell(value: SqlValue): RenderedCell {
   const contentWithFormatting = {
     content: displayValue(value),
     isNumerical: typeof value === 'number' || typeof value === 'bigint',
     isNull: value == null,
   };
 
-  if (tableManager === undefined) {
-    return contentWithFormatting;
-  }
   const contextMenuItems: m.Child[] = getStandardContextMenuItems(value);
   return {
     ...contentWithFormatting,

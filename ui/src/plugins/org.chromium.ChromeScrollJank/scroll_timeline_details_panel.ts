@@ -34,7 +34,6 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {
   TableColumn,
   RenderedCell,
-  RenderCellContext,
 } from '../../components/widgets/sql/table/table_column';
 import {renderStandardCell} from '../../components/widgets/sql/table/render_cell_utils';
 import {ScrollTimelineModel} from './scroll_timeline_model';
@@ -50,9 +49,9 @@ class PluginSliceIdColumn implements TableColumn {
     public readonly column: string,
   ) {}
 
-  renderCell(value: SqlValue, context?: RenderCellContext): RenderedCell {
+  renderCell(value: SqlValue): RenderedCell {
     if (value === null || typeof value !== 'bigint') {
-      return renderStandardCell(value, context);
+      return renderStandardCell(value);
     }
     return {
       content: renderSliceRef({
