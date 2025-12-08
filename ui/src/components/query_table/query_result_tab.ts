@@ -16,7 +16,7 @@ import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 import {assertExists} from '../../base/logging';
 import {QueryResponse, runQueryForQueryTable} from './queries';
-import {QueryError} from '../../trace_processor/query_result';
+import {QueryError, Row, SqlValue} from '../../trace_processor/query_result';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
 import {PopupMenu} from '../../widgets/menu';
@@ -24,6 +24,13 @@ import {PopupPosition} from '../../widgets/popup';
 import {QueryTable} from './query_table';
 import {Trace} from '../../public/trace';
 import {Tab} from '../../public/tab';
+import {addLegacyTableTab} from '../details/sql_table_tab';
+import {createTableColumn} from '../widgets/sql/table/columns';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../trace_processor/perfetto_sql_type';
+import {SqlTableDescription} from '../widgets/sql/table/table_description';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -147,4 +154,117 @@ export class QueryResultTab implements Tab {
 
 export function uuidToViewName(uuid: string): string {
   return `view_${uuid.split('-').join('_')}`;
+}
+
+// Detected value type for a column, based on the actual values in the result.
+type DetectedValueType = 'bigint' | 'number' | 'string' | 'blob' | 'unknown';
+
+// Detects the value type for a column by examining all non-null values.
+// Returns 'unknown' if there are no non-null values or if there are mixed
+// types.
+function detectColumnValueType(
+  rows: Row[],
+  columnName: string,
+): DetectedValueType {
+  let detectedType: DetectedValueType | undefined;
+
+  for (const row of rows) {
+    const value: SqlValue = row[columnName];
+
+    // Skip null values
+    if (value === null) {
+      continue;
+    }
+
+    let valueType: DetectedValueType;
+    if (typeof value === 'bigint') {
+      valueType = 'bigint';
+    } else if (typeof value === 'number') {
+      valueType = 'number';
+    } else if (typeof value === 'string') {
+      valueType = 'string';
+    } else if (value instanceof Uint8Array) {
+      valueType = 'blob';
+    } else {
+      valueType = 'unknown';
+    }
+
+    if (detectedType === undefined) {
+      detectedType = valueType;
+    } else if (detectedType !== valueType) {
+      // Mixed types detected
+      return 'unknown';
+    }
+  }
+
+  return detectedType ?? 'unknown';
+}
+
+// Infers the PerfettoSQL type for a column based on its name and detected
+// value type. For bigint columns:
+// - "ts" or columns ending with "_ts" are treated as timestamps
+// - "dur" or columns ending with "_dur" are treated as durations
+// - "upid" is treated as a process ID reference
+// - "utid" is treated as a thread ID reference
+// - "arg_set_id" is treated as an arg set ID
+function inferColumnType(
+  columnName: string,
+  valueType: DetectedValueType,
+): PerfettoSqlType | undefined {
+  if (valueType !== 'bigint') {
+    return undefined;
+  }
+
+  const lowerName = columnName.toLowerCase();
+
+  // Check for timestamp columns
+  if (lowerName === 'ts' || lowerName.endsWith('_ts')) {
+    return PerfettoSqlTypes.TIMESTAMP;
+  }
+
+  // Check for duration columns
+  if (lowerName === 'dur' || lowerName.endsWith('_dur')) {
+    return PerfettoSqlTypes.DURATION;
+  }
+
+  // Check for process ID columns
+  if (lowerName === 'upid') {
+    return {kind: 'joinid', source: {table: 'process', column: 'id'}};
+  }
+
+  // Check for thread ID columns
+  if (lowerName === 'utid') {
+    return {kind: 'joinid', source: {table: 'thread', column: 'id'}};
+  }
+
+  // Check for arg set ID columns
+  if (lowerName === 'arg_set_id') {
+    return PerfettoSqlTypes.ARG_SET_ID;
+  }
+
+  return undefined;
+}
+
+// Creates a SqlTableDescription from query results by detecting column types.
+function createTableDescriptionFromQueryResults(
+  trace: Trace,
+  viewName: string,
+  columns: string[],
+  rows: Row[],
+): SqlTableDescription {
+  const tableColumns = columns.map((columnName) => {
+    const valueType = detectColumnValueType(rows, columnName);
+    const type = inferColumnType(columnName, valueType);
+    return createTableColumn({
+      trace,
+      column: columnName,
+      type,
+    });
+  });
+
+  return {
+    name: viewName,
+    displayName: 'Query Results',
+    columns: tableColumns,
+  };
 }
