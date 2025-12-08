@@ -71,7 +71,6 @@ export const SLICE_TABLE: SqlTableDefinition = {
     {column: 'dur', type: PerfettoSqlTypes.DURATION},
     {column: 'category', type: PerfettoSqlTypes.STRING},
     {column: 'name', type: PerfettoSqlTypes.STRING},
-    {column: 'track_id', type: PerfettoSqlTypes.INT, startsHidden: true},
     {
       column: 'utid',
       type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
@@ -80,14 +79,15 @@ export const SLICE_TABLE: SqlTableDefinition = {
       column: 'upid',
       type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
     },
+    {
+      column: 'track_id',
+      type: {kind: 'joinid', source: {table: 'track', column: 'id'}},
+    },
+    {column: 'arg_set_id', type: PerfettoSqlTypes.ARG_SET_ID},
     {column: 'depth', type: PerfettoSqlTypes.INT, startsHidden: true},
     {
       column: 'parent_id',
       type: {kind: 'joinid', source: {table: 'slice', column: 'id'}},
-    },
-    {
-      column: 'arg_set_id',
-      type: PerfettoSqlTypes.ARG_SET_ID,
       startsHidden: true,
     },
   ],
