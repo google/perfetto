@@ -43,7 +43,6 @@ import {
   OutlinedMultiSelect,
   MultiSelectOption,
   MultiSelectDiff,
-  InfoBox,
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {loadNodeDoc} from '../node_doc_loader';
@@ -285,14 +284,6 @@ export class AggregationNode implements QueryNode {
   nodeSpecificModify(): NodeModifyAttrs {
     const sections: NodeModifyAttrs['sections'] = [];
 
-    // Info box
-    sections.push({
-      content: m(
-        InfoBox,
-        'Groups rows by selected columns and computes aggregations (SUM, COUNT, AVG, etc.). Select columns to group by, then add aggregations to compute summary statistics.',
-      ),
-    });
-
     // Group by section
     sections.push({
       content: this.renderGroupBySection(),
@@ -303,7 +294,10 @@ export class AggregationNode implements QueryNode {
       content: this.renderAggregationsList(),
     });
 
-    return {sections};
+    return {
+      info: 'Groups rows by selected columns and computes aggregations (SUM, COUNT, AVG, etc.). Select columns to group by, then add aggregations to compute summary statistics.',
+      sections,
+    };
   }
 
   private renderGroupBySection(): m.Child {

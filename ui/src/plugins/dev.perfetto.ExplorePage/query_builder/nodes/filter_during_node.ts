@@ -93,7 +93,6 @@ import {Callout} from '../../../../widgets/callout';
 import {loadNodeDoc} from '../node_doc_loader';
 import {
   ListItem,
-  InfoBox,
   LabeledControl,
   OutlinedMultiSelect,
   MultiSelectOption,
@@ -284,6 +283,7 @@ export class FilterDuringNode implements QueryNode {
     // If no secondary inputs connected, show empty state
     if (secondaryNodes.length === 0) {
       return {
+        info: 'Filters the primary input to only show intervals that occurred during the intervals from the secondary input.',
         sections: [
           {
             content: m(EmptyState, {
@@ -306,14 +306,11 @@ export class FilterDuringNode implements QueryNode {
       });
     }
 
-    // Add info about the operation (first section after error)
+    // Build info text (first section after error)
     const infoText =
       secondaryNodes.length === 1
         ? 'Filters the primary input to only show intervals that occurred during the intervals from the secondary input.'
         : `Filters the primary input to only show intervals that occurred during intervals from any of the ${secondaryNodes.length} secondary inputs (combined via UNION ALL).`;
-    sections.push({
-      content: m(InfoBox, infoText),
-    });
 
     // Get clipToIntervals for use in switch below
     const clipToIntervals = this.state.clipToIntervals ?? true;
@@ -403,6 +400,7 @@ export class FilterDuringNode implements QueryNode {
     });
 
     return {
+      info: infoText,
       sections,
     };
   }

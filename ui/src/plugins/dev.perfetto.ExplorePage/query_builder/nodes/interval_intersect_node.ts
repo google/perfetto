@@ -35,7 +35,6 @@ import {
   OutlinedMultiSelect,
   MultiSelectOption,
   MultiSelectDiff,
-  InfoBox,
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle} from '../node_styling_widgets';
@@ -533,6 +532,7 @@ export class IntervalIntersectNode implements QueryNode {
     // If no inputs connected, show empty state
     if (connectedInputs.length === 0) {
       return {
+        info: 'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
         sections: [
           {
             content: m(EmptyState, {
@@ -552,14 +552,6 @@ export class IntervalIntersectNode implements QueryNode {
         content: m(Callout, {icon: 'error'}, error.message),
       });
     }
-
-    // InfoBox
-    sections.push({
-      content: m(
-        InfoBox,
-        'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
-      ),
-    });
 
     // Add duplicate warnings if present
     if (duplicateWarnings.length > 0) {
@@ -620,6 +612,7 @@ export class IntervalIntersectNode implements QueryNode {
     });
 
     return {
+      info: 'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
       sections,
     };
   }

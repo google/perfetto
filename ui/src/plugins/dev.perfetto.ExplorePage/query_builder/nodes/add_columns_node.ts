@@ -906,6 +906,7 @@ export class AddColumnsNode implements QueryNode {
     ];
 
     return {
+      info: 'Add new columns to your query using expressions, joins, conditional logic, or by extracting values from args. Use the buttons above to select how you want to add columns.',
       sections,
     };
   }
