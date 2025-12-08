@@ -85,5 +85,8 @@ async function getTrackHelpButton(
     await expect(helpButton).toHaveCount(1);
     await helpButton.click();
     await pth.waitForIdleAndScreenshot(testCase.screenshotName);
+
+    // Close the popup.
+    await page.keyboard.press('Escape');
   });
 });

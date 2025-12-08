@@ -21,7 +21,7 @@ import {Router} from '../core/router';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 import {Button} from '../widgets/button';
 import {Intent} from '../widgets/common';
-import {Popup, PopupPosition} from '../widgets/popup';
+import {OutsideClickHandling, Popup, PopupPosition} from '../widgets/popup';
 import {Omnibox} from './omnibox';
 
 class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
@@ -47,6 +47,7 @@ class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
           trigger: m('span'),
           isOpen: !this.tracePopupErrorDismissed,
           position: PopupPosition.Left,
+          closeOnOutsideClickHandling: OutsideClickHandling.NoCaptureAndClose,
           onChange: (shouldOpen) => {
             assertFalse(shouldOpen);
             this.tracePopupErrorDismissed = true;
