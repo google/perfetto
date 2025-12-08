@@ -18,7 +18,6 @@ import {
   DataGridAttrs,
 } from '../../../components/widgets/data_grid/data_grid';
 import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
-import {FilterType} from '../../../components/widgets/data_grid/common';
 import {Engine} from '../../../trace_processor/engine';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
@@ -63,35 +62,9 @@ export function renderDataGrid(app: App): m.Children {
         aggregation,
         demoToolbarItems,
         distinctValues,
-        filterIsNull,
-        filterIsNotNull,
-        filterIn,
-        filterNotIn,
-        filterGlob,
-        filterNotGlob,
-        filterEquals,
-        filterNotEquals,
-        filterLessThan,
-        filterLessThanOrEqual,
-        filterGreaterThan,
-        filterGreaterThanOrEqual,
+        structuredQueryCompatMode,
         ...rest
       }) => {
-        // Build supportedFilters array based on selected options
-        const supportedFilters: FilterType[] = [];
-        if (filterIsNull) supportedFilters.push('is null');
-        if (filterIsNotNull) supportedFilters.push('is not null');
-        if (filterIn) supportedFilters.push('in');
-        if (filterNotIn) supportedFilters.push('not in');
-        if (filterGlob) supportedFilters.push('glob');
-        if (filterNotGlob) supportedFilters.push('not glob');
-        if (filterEquals) supportedFilters.push('=');
-        if (filterNotEquals) supportedFilters.push('!=');
-        if (filterLessThan) supportedFilters.push('<');
-        if (filterLessThanOrEqual) supportedFilters.push('<=');
-        if (filterGreaterThan) supportedFilters.push('>');
-        if (filterGreaterThanOrEqual) supportedFilters.push('>=');
-
         return m(DataGrid, {
           ...rest,
           toolbarItemsLeft: demoToolbarItems
@@ -109,7 +82,7 @@ export function renderDataGrid(app: App): m.Children {
           fillHeight: true,
           filters: readonlyFilters ? [] : undefined,
           sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
-          supportedFilters,
+          structuredQueryCompatMode,
           columns: [
             {
               name: 'id',
@@ -178,18 +151,7 @@ export function renderDataGrid(app: App): m.Children {
         demoToolbarItems: false,
         showExportButton: false,
         showRowCount: true,
-        filterIsNull: true,
-        filterIsNotNull: true,
-        filterIn: true,
-        filterNotIn: true,
-        filterGlob: true,
-        filterNotGlob: true,
-        filterEquals: true,
-        filterNotEquals: true,
-        filterLessThan: true,
-        filterLessThanOrEqual: true,
-        filterGreaterThan: true,
-        filterGreaterThanOrEqual: true,
+        structuredQueryCompatMode: false,
       },
       noPadding: true,
     }),
