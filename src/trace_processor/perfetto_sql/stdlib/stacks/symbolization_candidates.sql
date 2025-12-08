@@ -53,7 +53,7 @@ SELECT
   END;
 
 -- Enumerates modules and rel_pcs that have no associated symbol information, broken down by caller process.
-CREATE PERFETTO TABLE stacks_symbolization_candidates (
+CREATE PERFETTO TABLE _stacks_symbolization_candidates (
   -- The process which is using this module
   upid JOINID(process.id),
   -- The module mapping (usually path)
@@ -62,7 +62,8 @@ CREATE PERFETTO TABLE stacks_symbolization_candidates (
   build_id STRING,
   -- The address corresponding to the frame
   rel_pc LONG,
-  -- For chrome / webview .so, the breakpad module id derived from the build_id
+  -- For chrome / webview .so, the breakpad module id derived from the build_id.
+  -- This is only populated for chrome-like modules.
   breakpad_module_id STRING
 ) AS
 WITH

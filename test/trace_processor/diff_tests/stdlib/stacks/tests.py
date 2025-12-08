@@ -103,7 +103,7 @@ class Stacks(TestSuite):
         """),
         query="""
         INCLUDE PERFETTO MODULE stacks.symbolization_candidates;
-        SELECT * FROM stacks_symbolization_candidates ORDER BY upid, build_id, rel_pc;
+        SELECT * FROM _stacks_symbolization_candidates ORDER BY upid, build_id, rel_pc;
         """,
         out=Csv("""
         "upid","module","build_id","rel_pc","breakpad_module_id"
@@ -174,7 +174,7 @@ class Stacks(TestSuite):
         """),
         query="""
         INCLUDE PERFETTO MODULE stacks.symbolization_candidates;
-        SELECT * FROM stacks_symbolization_candidates ORDER BY upid, build_id, rel_pc;
+        SELECT * FROM _stacks_symbolization_candidates ORDER BY upid, build_id, rel_pc;
         """,
         out=Csv("""
         "upid","module","build_id","rel_pc","breakpad_module_id"
