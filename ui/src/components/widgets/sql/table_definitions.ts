@@ -84,9 +84,12 @@ export const SLICE_TABLE: SqlTableDefinition = {
     {
       column: 'parent_id',
       type: {kind: 'joinid', source: {table: 'slice', column: 'id'}},
+    },
+    {
+      column: 'arg_set_id',
+      type: PerfettoSqlTypes.ARG_SET_ID,
       startsHidden: true,
     },
-    {column: 'arg_set_id', type: PerfettoSqlTypes.ARG_SET_ID},
   ],
 };
 
