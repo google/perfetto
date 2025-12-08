@@ -22,7 +22,7 @@ import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {
   TableColumn,
-  TableManager,
+  RenderCellContext,
   tableColumnId,
   tableColumnAlias,
 } from './table_column';
@@ -114,7 +114,15 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         key: columnTitle(column),
         column,
       })),
-      manager: getTableManager(this.state),
+      filters: this.state.filters,
+      trace: this.state.trace,
+      getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+        buildSqlQuery({
+          table: this.state.config.name,
+          columns,
+          filters: this.state.filters.get(),
+          orderBy: this.state.getOrderedBy(),
+        }),
       existingColumnIds,
       onColumnSelected: addColumn,
     });
@@ -366,7 +374,10 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   }
 }
 
-export function getTableManager(state: SqlTableState): TableManager {
+function getRenderCellContext(
+  state: SqlTableState,
+  addColumn: (column: TableColumn) => void,
+): RenderCellContext {
   return {
     filters: state.filters,
     trace: state.trace,
@@ -377,5 +388,12 @@ export function getTableManager(state: SqlTableState): TableManager {
         filters: state.filters.get(),
         orderBy: state.getOrderedBy(),
       }),
+    hasColumn: (column: TableColumn) => {
+      const selectedColumns = state.getSelectedColumns();
+      return !selectedColumns.some(
+        (c) => tableColumnId(c) === tableColumnId(column),
+      );
+    },
+    addColumn,
   };
 }

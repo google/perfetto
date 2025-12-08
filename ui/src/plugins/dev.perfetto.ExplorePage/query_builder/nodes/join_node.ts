@@ -29,6 +29,7 @@ import {TextInput} from '../../../../widgets/text_input';
 import {TabStrip} from '../../../../widgets/tabs';
 import {Select} from '../../../../widgets/select';
 import {Editor} from '../../../../widgets/editor';
+import {Switch} from '../../../../widgets/switch';
 import {
   StructuredQueryBuilder,
   JoinCondition,
@@ -38,35 +39,37 @@ import {FormRow} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle, ColumnName} from '../node_styling_widgets';
 
-export interface MergeSerializedState {
+export interface JoinSerializedState {
   leftNodeId: string;
   rightNodeId: string;
   leftQueryAlias: string;
   rightQueryAlias: string;
   conditionType: 'equality' | 'freeform';
+  joinType?: 'INNER' | 'LEFT';
   leftColumn?: string;
   rightColumn?: string;
   sqlExpression?: string;
   comment?: string;
 }
 
-export interface MergeNodeState extends QueryNodeState {
+export interface JoinNodeState extends QueryNodeState {
   leftNode?: QueryNode;
   rightNode?: QueryNode;
   leftQueryAlias: string;
   rightQueryAlias: string;
   conditionType: 'equality' | 'freeform';
+  joinType: 'INNER' | 'LEFT';
   leftColumn: string;
   rightColumn: string;
   sqlExpression: string;
 }
 
-export class MergeNode implements QueryNode {
+export class JoinNode implements QueryNode {
   readonly nodeId: string;
-  readonly type = NodeType.kMerge;
+  readonly type = NodeType.kJoin;
   secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
-  readonly state: MergeNodeState;
+  readonly state: JoinNodeState;
 
   get leftNode(): QueryNode | undefined {
     return getSecondaryInput(this, 0);
@@ -77,7 +80,7 @@ export class MergeNode implements QueryNode {
   }
 
   get finalCols(): ColumnInfo[] {
-    // Both nodes must be connected for merge to produce columns
+    // Both nodes must be connected for join to produce columns
     if (!this.leftNode || !this.rightNode) {
       return [];
     }
@@ -140,7 +143,7 @@ export class MergeNode implements QueryNode {
     return result;
   }
 
-  constructor(state: MergeNodeState) {
+  constructor(state: JoinNodeState) {
     this.nodeId = nextNodeId();
     this.state = {
       ...state,
@@ -148,6 +151,7 @@ export class MergeNode implements QueryNode {
       leftQueryAlias: state.leftQueryAlias ?? 'left',
       rightQueryAlias: state.rightQueryAlias ?? 'right',
       conditionType: state.conditionType ?? 'equality',
+      joinType: state.joinType ?? 'INNER',
       leftColumn: state.leftColumn ?? '',
       rightColumn: state.rightColumn ?? '',
       sqlExpression: state.sqlExpression ?? '',
@@ -179,7 +183,7 @@ export class MergeNode implements QueryNode {
       !this.rightNode
     ) {
       this.setValidationError(
-        'Merge node requires exactly two sources (left and right).',
+        'Join node requires exactly two sources (left and right).',
       );
       return false;
     }
@@ -242,11 +246,11 @@ export class MergeNode implements QueryNode {
   }
 
   getTitle(): string {
-    return 'Merge';
+    return 'Join';
   }
 
   nodeInfo(): m.Children {
-    return loadNodeDoc('merge');
+    return loadNodeDoc('join');
   }
 
   getInputLabels(): string[] {
@@ -259,9 +263,9 @@ export class MergeNode implements QueryNode {
     if (this.state.conditionType === 'equality') {
       if (this.state.leftColumn && this.state.rightColumn) {
         content = m(
-          '.pf-exp-merge-condition',
+          '.pf-exp-join-condition',
           ColumnName(`${this.state.leftQueryAlias}.${this.state.leftColumn}`),
-          m('span.pf-exp-merge-equals', ' = '),
+          m('span.pf-exp-join-equals', ' = '),
           ColumnName(`${this.state.rightQueryAlias}.${this.state.rightColumn}`),
         );
       } else {
@@ -328,6 +332,23 @@ export class MergeNode implements QueryNode {
           }),
         ),
       ],
+    });
+
+    // Join type section
+    sections.push({
+      title: 'Join Type',
+      content: m(
+        FormRow,
+        {label: 'Left Join:'},
+        m(Switch, {
+          checked: this.state.joinType === 'LEFT',
+          onchange: (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            this.state.joinType = target.checked ? 'LEFT' : 'INNER';
+            this.state.onchange?.();
+          },
+        }),
+      ),
     });
 
     // Join condition section
@@ -427,18 +448,19 @@ export class MergeNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: MergeNodeState = {
+    const stateCopy: JoinNodeState = {
       leftNode: this.leftNode,
       rightNode: this.rightNode,
       onchange: this.state.onchange,
       leftQueryAlias: this.state.leftQueryAlias,
       rightQueryAlias: this.state.rightQueryAlias,
       conditionType: this.state.conditionType,
+      joinType: this.state.joinType,
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
       sqlExpression: this.state.sqlExpression,
     };
-    return new MergeNode(stateCopy);
+    return new JoinNode(stateCopy);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -461,7 +483,7 @@ export class MergeNode implements QueryNode {
     const sq = StructuredQueryBuilder.withJoin(
       this.leftNode,
       this.rightNode,
-      'INNER',
+      this.state.joinType,
       condition,
       this.nodeId,
     );
@@ -479,24 +501,26 @@ export class MergeNode implements QueryNode {
     return sq;
   }
 
-  serializeState(): MergeSerializedState {
+  serializeState(): JoinSerializedState {
     return {
       leftNodeId: this.leftNode?.nodeId ?? '',
       rightNodeId: this.rightNode?.nodeId ?? '',
       leftQueryAlias: this.state.leftQueryAlias,
       rightQueryAlias: this.state.rightQueryAlias,
       conditionType: this.state.conditionType,
+      joinType: this.state.joinType,
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
       sqlExpression: this.state.sqlExpression,
     };
   }
 
-  static deserializeState(state: MergeSerializedState): MergeNodeState {
+  static deserializeState(state: JoinSerializedState): JoinNodeState {
     return {
       leftQueryAlias: state.leftQueryAlias,
       rightQueryAlias: state.rightQueryAlias,
       conditionType: state.conditionType ?? 'equality',
+      joinType: state.joinType ?? 'INNER',
       leftColumn: state.leftColumn ?? '',
       rightColumn: state.rightColumn ?? '',
       sqlExpression: state.sqlExpression ?? '',
@@ -505,7 +529,7 @@ export class MergeNode implements QueryNode {
 
   static deserializeConnections(
     nodes: Map<string, QueryNode>,
-    state: MergeSerializedState,
+    state: JoinSerializedState,
   ): {
     leftNode?: QueryNode;
     rightNode?: QueryNode;

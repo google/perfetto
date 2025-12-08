@@ -170,8 +170,9 @@ export class SqlSourceNode implements QueryNode {
       query: protos.PerfettoSqlStructuredQuery | undefined;
     }> = [];
 
-    // Use the column names discovered from the last query execution
-    // These are populated by onQueryExecuted() when the query is run
+    // Use columns from the last successful execution. These are populated
+    // by onQueryExecuted() and are cleared when SQL changes (to prevent
+    // stale columns from being used with a different query).
     const columnNames: string[] = this.finalCols.map((c) => c.column.name);
 
     const sq = StructuredQueryBuilder.fromSql(
@@ -189,6 +190,8 @@ export class SqlSourceNode implements QueryNode {
   nodeSpecificModify(): m.Child {
     const runQuery = (sql: string) => {
       this.state.sql = sql.trim();
+      // Clear columns when SQL changes to prevent stale column usage
+      this.finalCols = createFinalColumns([]);
       m.redraw();
     };
 
@@ -198,11 +201,15 @@ export class SqlSourceNode implements QueryNode {
         sql: this.state.sql ?? '',
         onUpdate: (text: string) => {
           this.state.sql = text;
+          // Clear columns when SQL changes to prevent stale column usage
+          this.finalCols = createFinalColumns([]);
           m.redraw();
         },
         onExecute: (text: string) => {
           queryHistoryStorage.saveQuery(text);
           this.state.sql = text.trim();
+          // Clear columns when SQL changes to prevent stale column usage
+          this.finalCols = createFinalColumns([]);
           // Note: Execution is now handled by the Run button in DataExplorer
           // This callback only saves to query history and updates the SQL text
           m.redraw();
@@ -214,6 +221,8 @@ export class SqlSourceNode implements QueryNode {
         runQuery,
         setQuery: (q: string) => {
           this.state.sql = q;
+          // Clear columns when SQL changes to prevent stale column usage
+          this.finalCols = createFinalColumns([]);
           m.redraw();
         },
       }),
