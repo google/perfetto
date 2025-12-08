@@ -35,7 +35,7 @@ import {
   addConnection,
   removeConnection,
 } from '../../query_node';
-import {insertNodeBetween} from '../graph_utils';
+import {insertNodeBetween, reconnectParentsToChildren} from '../graph_utils';
 import {ColumnInfo} from '../column_info';
 import {
   PerfettoSqlType,
@@ -1420,6 +1420,102 @@ describe('Connection Management', () => {
       expect(nodeA.nextNodes).toContain(childZ); // ✓ nodeA reconnected to childZ
       expect(nodeY.nextNodes).not.toContain(childZ); // ✓ nodeY NOT reconnected (correct!)
       expect(childZ.primaryInput).toBe(nodeA); // ✓ childZ has nodeA as primary input
+    });
+  });
+
+  describe('Deleting node connected to secondary input', () => {
+    it('should preserve secondary input connection when deleting middle node in chain', () => {
+      // Bug reproduction test:
+      // Scenario:
+      //   nodeX -> nodeY -> nodeZ (secondary input port 0)
+      //
+      // When deleting nodeY, nodeX should be reconnected to nodeZ's SECONDARY input,
+      // not to nodeZ's primary input.
+      //
+      // Bug: nodeX gets connected to nodeZ's primary input instead of secondary
+      // Expected: nodeX should be connected to nodeZ's secondary input at port 0
+
+      const nodeX = createMockPrevNode('nodeX', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const nodeY = new FilterNode({});
+
+      const nodeZ = new FilterDuringNode({});
+
+      // Set up another node as primary input for nodeZ
+      const primaryNode = createMockPrevNode('primary', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      // Build the chain:
+      // nodeX -> nodeY (primary)
+      addConnection(nodeX, nodeY);
+      // primaryNode -> nodeZ (primary)
+      addConnection(primaryNode, nodeZ);
+      // nodeY -> nodeZ (secondary input at port 0)
+      addConnection(nodeY, nodeZ, 0);
+
+      // Verify initial state
+      expect(nodeY.primaryInput).toBe(nodeX);
+      expect(nodeZ.primaryInput).toBe(primaryNode);
+      expect(nodeZ.secondaryInputs.connections.get(0)).toBe(nodeY);
+      expect(nodeX.nextNodes).toContain(nodeY);
+      expect(nodeY.nextNodes).toContain(nodeZ);
+
+      // Now simulate node deletion of nodeY
+      // This mimics the deletion logic from explore_page.ts:
+      // 1. Get primary parent before removal
+      const primaryParentNodes: QueryNode[] = [];
+      if (nodeY.primaryInput) {
+        primaryParentNodes.push(nodeY.primaryInput);
+      }
+      const childNodes = [...nodeY.nextNodes];
+
+      // 2. Capture port index information BEFORE removing connections
+      const childConnectionInfo: Array<{
+        child: QueryNode;
+        portIndex: number | undefined;
+      }> = [];
+      for (const child of childNodes) {
+        let portIndex: number | undefined = undefined;
+        if (child.secondaryInputs) {
+          for (const [port, inputNode] of child.secondaryInputs.connections) {
+            if (inputNode === nodeY) {
+              portIndex = port;
+              break;
+            }
+          }
+        }
+        childConnectionInfo.push({child, portIndex});
+      }
+
+      // 3. Remove all connections to/from nodeY
+      removeConnection(nodeX, nodeY);
+      removeConnection(nodeY, nodeZ);
+
+      // 4. Verify nodeY is disconnected
+      expect(nodeY.primaryInput).toBeUndefined();
+      expect(nodeY.nextNodes.length).toBe(0);
+
+      // 5. Reconnect parent to children, preserving port indices
+      // This uses the FIXED reconnectParentsToChildren function
+      reconnectParentsToChildren(
+        primaryParentNodes,
+        childConnectionInfo,
+        addConnection,
+      );
+
+      // EXPECTED behavior (after fix):
+      // - nodeX should be connected to nodeZ's SECONDARY input at port 0
+      // - nodeZ's primary input should still be primaryNode (unchanged)
+      expect(nodeZ.primaryInput).toBe(primaryNode); // primary unchanged
+      expect(nodeZ.secondaryInputs.connections.get(0)).toBe(nodeX); // nodeX at secondary port 0
+      expect(nodeX.nextNodes).toContain(nodeZ); // nodeX connected to nodeZ
     });
   });
 

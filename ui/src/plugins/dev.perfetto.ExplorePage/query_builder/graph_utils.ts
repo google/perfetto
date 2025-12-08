@@ -217,22 +217,26 @@ export function insertNodeBetween(
  * Reconnects parent nodes to child nodes, bypassing a node being deleted.
  * Used when removing a node from the graph to maintain connectivity.
  *
- * If either parentNodes or childNodes is empty, this function becomes a no-op
- * (no connections are created). This is expected behavior when deleting terminal
- * nodes (no parents or no children).
+ * IMPORTANT: This function preserves port indices from the deleted node to its
+ * children. If the deleted node was connected to a child's secondary input,
+ * the parent will also be connected to that child's secondary input.
+ *
+ * If either parentNodes or childConnectionInfo is empty, this function becomes
+ * a no-op (no connections are created). This is expected behavior when deleting
+ * terminal nodes (no parents or no children).
  *
  * @param parentNodes The parent nodes to reconnect (empty array is valid)
- * @param childNodes The child nodes to reconnect to (empty array is valid)
+ * @param childConnectionInfo Array of children with their port index information
  * @param addConnection Function to add connections between nodes
  */
 export function reconnectParentsToChildren(
   parentNodes: QueryNode[],
-  childNodes: QueryNode[],
+  childConnectionInfo: Array<{child: QueryNode; portIndex: number | undefined}>,
   addConnection: (from: QueryNode, to: QueryNode, portIndex?: number) => void,
 ): void {
   for (const parent of parentNodes) {
-    for (const child of childNodes) {
-      addConnection(parent, child);
+    for (const {child, portIndex} of childConnectionInfo) {
+      addConnection(parent, child, portIndex);
     }
   }
 }
