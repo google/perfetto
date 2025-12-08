@@ -65,7 +65,6 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    background-color: var(--pf-color-surface);
     border-left: 1px solid var(--pf-color-border);
     padding: 0;
     align-items: stretch;
@@ -79,15 +78,10 @@
       border: none;
       border-radius: 0;
       border-bottom: 1px solid var(--pf-color-border);
-      background-color: var(--pf-color-surface);
-
-      &:hover {
-        background-color: var(--pf-color-hover);
-      }
 
       &.pf-active {
         background-color: var(--pf-color-primary);
-        color: white;
+        color: var(--pf-color-text-on-primary);
       }
     }
   }
@@ -169,41 +163,6 @@
   }
 }
 
-.pf-data-explorer-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 1rem;
-  padding: 2rem;
-}
-
-.pf-data-explorer-warning-icon {
-  color: var(--pf-color-warning);
-  font-size: 64px;
-}
-
-.pf-data-explorer-warning-message {
-  text-align: center;
-  max-width: 600px;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--pf-color-on-surface);
-}
-
-.pf-query-stats {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--pf-color-text-muted);
-
-  .pf-query-stats-separator {
-    user-select: none;
-  }
-}
-
 .pf-unselected-explorer {
   display: flex;
   flex-direction: column;
@@ -249,7 +208,6 @@
       margin: 0;
       font-size: 16px;
       font-weight: 500;
-      color: var(--pf-color-on-surface);
       transition: color 0.1s ease;
     }
   }
@@ -315,7 +273,6 @@
       margin: 0;
       font-size: 16px;
       font-weight: 500;
-      color: var(--pf-color-on-surface);
       transition: color 0.1s ease;
     }
   }
@@ -350,7 +307,6 @@
   padding: 12px;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--pf-color-on-surface);
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--pf-font-family-monospace, "Roboto Mono", monospace);

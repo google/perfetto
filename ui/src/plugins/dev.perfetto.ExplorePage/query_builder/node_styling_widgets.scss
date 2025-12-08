@@ -30,12 +30,12 @@
 
 // Message styling for informational text (e.g., "No columns added")
 .pf-exp-node-details-message {
-  color: var(--pf-color-text-lighter);
+  color: var(--pf-color-text-muted);
 }
 
 // Text styling for secondary/lighter text
 .pf-exp-node-details-text {
-  color: var(--pf-color-text-lighter);
+  color: var(--pf-color-text-muted);
 }
 
 // Spacer for consistent vertical spacing
@@ -53,7 +53,7 @@
   font-family: var(--pf-font-monospace);
   font-size: 0.9em;
   font-weight: 600;
-  background-color: var(--pf-minimal-background);
+  background-color: var(--pf-color-background-secondary);
   border-radius: 3px;
   color: var(--pf-color-text);
 }
@@ -67,7 +67,7 @@
 }
 
 .pf-exp-merge-equals {
-  color: var(--pf-color-text-lighter);
+  color: var(--pf-color-text-muted);
   font-weight: 500;
 }
 
@@ -75,7 +75,7 @@
 .pf-exp-sql-expression {
   font-family: var(--pf-font-monospace);
   font-size: var(--pf-exp-font-size-sm);
-  background-color: var(--pf-minimal-background);
+  background-color: var(--pf-color-background-secondary);
   padding: 0.5rem;
   border-radius: 4px;
   display: block;

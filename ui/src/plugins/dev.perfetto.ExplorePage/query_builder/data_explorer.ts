@@ -34,6 +34,7 @@ import {Timestamp} from '../../../components/widgets/timestamp';
 import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 export interface DataExplorerAttrs {
   readonly trace: Trace;
@@ -97,16 +98,13 @@ function getColumnInfo(
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
     return m(
-      '.pf-exp-data-explorer',
-      m(
-        '.pf-exp-data-explorer__header',
-        m(
-          '.pf-exp-data-explorer__title-row',
-          m('h2', 'Query data'),
-          m('.pf-exp-data-explorer__buttons', this.renderMenu(attrs)),
-        ),
-      ),
-      m('.pf-exp-data-explorer__content', this.renderContent(attrs)),
+      DetailsShell,
+      {
+        title: 'Query data',
+        buttons: this.renderMenu(attrs),
+        fillHeight: true,
+      },
+      this.renderContent(attrs),
     );
   }
 

@@ -12,61 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Consistent padding value used throughout
-$panel-padding: 1rem;
-
-.pf-exp-data-explorer {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--pf-color-surface);
-
-  &__header {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    padding: $panel-padding;
-    border-bottom: 1px solid var(--pf-color-border);
-  }
-
-  &__title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-grow: 1;
-    gap: 0.75rem;
-
-    h2 {
-      font-weight: 600;
-      font-size: 1rem;
-      color: var(--pf-color-text);
-      margin: 0;
-    }
-  }
-
-  &__buttons {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  &__content {
-    flex-grow: 1;
-    flex-shrink: 1;
-    min-height: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-}
-
 .pf-data-explorer-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   height: 100%;
-  padding: $panel-padding;
+  padding: 0.5rem;
   color: var(--pf-color-text-muted);
   overflow-y: auto;
 
@@ -82,17 +34,18 @@ $panel-padding: 1rem;
   }
 
   &__icon {
-    font-size: 48px;
+    font-size: 32px;
   }
 
   &__message {
     text-align: center;
     max-width: 600px;
+    font-size: 0.875rem;
   }
 
   // Style children (spinner, buttons) to be prominent
   .pf-spinner {
-    font-size: 48px;
+    font-size: 32px;
   }
 
   &.pf-warning {
@@ -109,7 +62,7 @@ $panel-padding: 1rem;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
-  color: var(--pf-color-text-secondary);
+  color: var(--pf-color-text-muted);
 }
 
 .pf-query-stats-separator {
