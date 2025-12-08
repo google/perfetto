@@ -502,12 +502,18 @@ message PerfettoSqlStructuredQuery {
         MEAN = 5;
         MEDIAN = 6;
         DURATION_WEIGHTED_MEAN = 7;
+        COUNT_DISTINCT = 9;
 
         // Requires a column_name and a percentile to be specified.
         PERCENTILE = 8;
+
+        // Custom SQL expression. Requires custom_sql_expression to be
+        // specified. Does not require column_name.
+        CUSTOM = 10;
       }
 
-      // The name of the column to aggregate. Not required for COUNT.
+      // The name of the column to aggregate. Not required for COUNT or
+      // CUSTOM.
       optional string column_name = 1;
 
       // Required.
@@ -519,6 +525,10 @@ message PerfettoSqlStructuredQuery {
       // The percentile to compute when `op` is `PERCENTILE`. Must be between 0
       // and 100.
       optional double percentile = 4;
+
+      // The custom SQL expression to use when `op` is `CUSTOM`.
+      // Example: "SUM(dur * priority) / SUM(dur)" for a weighted average.
+      optional string custom_sql_expression = 5;
     }
     repeated Aggregate aggregates = 2;
   }

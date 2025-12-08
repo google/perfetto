@@ -766,6 +766,62 @@ TEST(StructuredQueryGeneratorTest, CountAllAggregation) {
   )"));
 }
 
+TEST(StructuredQueryGeneratorTest, CountDistinctAggregation) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    group_by: {
+      column_names: "track_id"
+      aggregates: {
+        column_name: "name"
+        op: COUNT_DISTINCT
+        result_column_name: "distinct_slice_names"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT
+        track_id,
+        COUNT(DISTINCT name) AS distinct_slice_names
+      FROM slice
+      GROUP BY track_id
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, CustomAggregation) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"pb(
+    table: { table_name: "slice" }
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        op: CUSTOM
+        custom_sql_expression: "SUM(dur * priority) / SUM(dur)"
+        result_column_name: "weighted_avg_dur"
+      }
+    }
+  )pb");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT
+        name,
+        SUM(dur * priority) / SUM(dur) AS weighted_avg_dur
+      FROM slice
+      GROUP BY name
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
 TEST(StructuredQueryGeneratorTest, AggregateToStringValidation) {
   // SUM without column name.
   {
@@ -819,6 +875,44 @@ TEST(StructuredQueryGeneratorTest, AggregateToStringValidation) {
           op: PERCENTILE
           percentile: 99
           result_column_name: "slice_percentile"
+        }
+      }
+    )");
+    auto ret = gen.Generate(proto.data(), proto.size());
+    ASSERT_FALSE(ret.ok());
+  }
+
+  // COUNT_DISTINCT without column name.
+  {
+    StructuredQueryGenerator gen;
+    auto proto = ToProto(R"(
+      table: {
+        table_name: "slice"
+      }
+      group_by: {
+        column_names: "name"
+        aggregates: {
+          op: COUNT_DISTINCT
+          result_column_name: "distinct_count"
+        }
+      }
+    )");
+    auto ret = gen.Generate(proto.data(), proto.size());
+    ASSERT_FALSE(ret.ok());
+  }
+
+  // CUSTOM without custom_sql_expression.
+  {
+    StructuredQueryGenerator gen;
+    auto proto = ToProto(R"(
+      table: {
+        table_name: "slice"
+      }
+      group_by: {
+        column_names: "name"
+        aggregates: {
+          op: CUSTOM
+          result_column_name: "custom_agg"
         }
       }
     )");
