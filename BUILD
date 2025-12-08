@@ -3669,6 +3669,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/stacks/cpu_profiling.sql",
+        "src/trace_processor/perfetto_sql/stdlib/stacks/symbolization_candidates.sql",
     ],
 )
 
