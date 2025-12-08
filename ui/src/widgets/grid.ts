@@ -573,13 +573,60 @@ function isPartialRowData(rowData: GridRowData): rowData is PartialRowData {
 export class Grid implements m.ClassComponent<GridAttrs> {
   private sizedColumns: Set<string> = new Set();
   private renderBounds?: {rowStart: number; rowEnd: number};
-  private columnDragState: Map<
-    string,
-    {count: number; position: ReorderPosition}
-  > = new Map();
   private fieldToId: Map<string, number> = new Map();
   private nextId = 0;
   private boundHandleCopy = this.handleCopy.bind(this);
+
+  // Grid-level drag state for column reordering
+  private dragState?: {
+    fromKey: string;
+    handle: string;
+    targetKey?: string;
+    position: ReorderPosition;
+  };
+
+  // Store column refs for hit testing during drag
+  private columnRefs: Map<string, {left: number; width: number}> = new Map();
+
+  // Find which column is at a given x position within the grid
+  // Only returns columns that have a matching reorderable handle
+  private findColumnAtX(
+    x: number,
+    columns: ReadonlyArray<GridColumn>,
+  ): {key: string; position: ReorderPosition} | undefined {
+    if (!this.dragState) return undefined;
+
+    const handle = this.dragState.handle;
+
+    for (const column of columns) {
+      // Only consider columns with matching handle
+      if (column.reorderable?.handle !== handle) continue;
+
+      const bounds = this.columnRefs.get(column.key);
+      if (bounds && x >= bounds.left && x < bounds.left + bounds.width) {
+        const midpoint = bounds.left + bounds.width / 2;
+        const position: ReorderPosition = x < midpoint ? 'before' : 'after';
+        return {key: column.key, position};
+      }
+    }
+    return undefined;
+  }
+
+  // Update column bounds from the header row
+  private updateColumnBounds(gridDom: HTMLElement): void {
+    const headerCells = gridDom.querySelectorAll(
+      '.pf-grid__header .pf-grid__cell-container',
+    );
+    headerCells.forEach((cell) => {
+      const htmlCell = cell as HTMLElement;
+      const key = htmlCell.dataset['columnKey'];
+      if (key) {
+        const rect = htmlCell.getBoundingClientRect();
+        this.columnRefs.set(key, {left: rect.left, width: rect.width});
+      }
+    });
+  }
+
   private handleCopy(e: ClipboardEvent): void {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
@@ -664,13 +711,63 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     const isVirtualized = virtualization !== undefined;
     const rowHeight = virtualization?.rowHeightPx ?? DEFAULT_ROW_HEIGHT;
 
+    // Check if any columns are reorderable
+    const hasReorderableColumns = columns.some((c) => c.reorderable);
+
     // Render the grid structure inline
     return m(
       '.pf-grid',
       {
-        className: classNames(fillHeight && 'pf-grid--fill-height', className),
+        className: classNames(
+          fillHeight && 'pf-grid--fill-height',
+          className,
+          this.dragState && 'pf-grid--dragging',
+        ),
         ref: 'scroll-container',
         role: 'table',
+        // Grid-level drag handlers
+        ondragover: hasReorderableColumns
+          ? (e: MithrilEvent<DragEvent>) => {
+              if (!this.dragState) return;
+              e.preventDefault();
+              e.dataTransfer!.dropEffect = 'move';
+
+              // Update column bounds on drag (handles scrolling)
+              const gridDom = e.currentTarget as HTMLElement;
+              this.updateColumnBounds(gridDom);
+
+              // Find which column we're over
+              const hit = this.findColumnAtX(e.clientX, columns);
+              if (hit) {
+                const needsRedraw =
+                  this.dragState.targetKey !== hit.key ||
+                  this.dragState.position !== hit.position;
+                this.dragState.targetKey = hit.key;
+                this.dragState.position = hit.position;
+                if (needsRedraw) {
+                  m.redraw();
+                }
+              }
+            }
+          : undefined,
+        ondrop: hasReorderableColumns
+          ? (e: MithrilEvent<DragEvent>) => {
+              if (!this.dragState || !attrs.onColumnReorder) return;
+              e.preventDefault();
+
+              const {fromKey, targetKey, position} = this.dragState;
+              if (targetKey && fromKey !== targetKey) {
+                attrs.onColumnReorder(fromKey, targetKey, position);
+              }
+              this.dragState = undefined;
+            }
+          : undefined,
+        ondragend: hasReorderableColumns
+          ? () => {
+              this.dragState = undefined;
+              m.redraw();
+            }
+          : undefined,
       },
       m(
         '.pf-grid__header',
@@ -680,7 +777,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
             role: 'row',
           },
           columns.map((column) => {
-            return this.renderHeaderCell(column, attrs.onColumnReorder);
+            return this.renderHeaderCell(column);
           }),
         ),
       ),
@@ -1017,6 +1114,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
               return this.renderCell(
                 children,
                 columnId,
+                column.key,
                 column.thickRightBorder,
               );
             }),
@@ -1054,7 +1152,12 @@ export class Grid implements m.ClassComponent<GridAttrs> {
           const children = row[index];
           const columnId = this.getColumnId(column.key);
 
-          return this.renderCell(children, columnId, column.thickRightBorder);
+          return this.renderCell(
+            children,
+            columnId,
+            column.key,
+            column.thickRightBorder,
+          );
         }),
       );
     });
@@ -1063,8 +1166,15 @@ export class Grid implements m.ClassComponent<GridAttrs> {
   private renderCell(
     children: m.Children,
     columnId: number,
+    columnKey: string,
     thickRightBorder?: boolean,
   ): m.Children {
+    // Check if this column is the drag target (findColumnAtX already filters by handle)
+    const isDragTarget =
+      this.dragState &&
+      this.dragState.targetKey === columnKey &&
+      this.dragState.fromKey !== columnKey;
+
     return m(
       '.pf-grid__cell-container',
       {
@@ -1074,20 +1184,15 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         'data-column-id': columnId,
         'className': classNames(
           thickRightBorder && 'pf-grid__cell-container--border-right-thick',
+          isDragTarget &&
+            `pf-grid__cell-container--drag-over-${this.dragState!.position}`,
         ),
       },
       children,
     );
   }
 
-  private renderHeaderCell(
-    column: GridColumn,
-    onColumnReorder?: (
-      from: string | number | undefined,
-      to: string | number | undefined,
-      position: ReorderPosition,
-    ) => void,
-  ): m.Children {
+  private renderHeaderCell(column: GridColumn): m.Children {
     const columnId = this.getColumnId(column.key);
 
     const renderResizeHandle = () => {
@@ -1160,15 +1265,18 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     };
 
     const reorderHandle = column.reorderable?.handle;
-    const dragOverState = this.columnDragState.get(column.key) ?? {
-      count: 0,
-      position: 'after' as ReorderPosition,
-    };
+
+    // Check if this column is the drag target
+    const isDragTarget =
+      this.dragState &&
+      this.dragState.targetKey === column.key &&
+      this.dragState.fromKey !== column.key;
 
     return m(
       '.pf-grid__cell-container',
       {
         'data-column-id': columnId,
+        'data-column-key': column.key,
         'key': column.key,
         'style': {
           width: `var(--pf-grid-col-${columnId})`,
@@ -1177,75 +1285,24 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         'className': classNames(
           column.thickRightBorder &&
             'pf-grid__cell-container--border-right-thick',
-          dragOverState.count > 0 && 'pf-grid__cell-container--drag-over',
-          dragOverState.count > 0 &&
-            `pf-grid__cell-container--drag-over-${dragOverState.position}`,
+          isDragTarget &&
+            `pf-grid__cell-container--drag-over-${this.dragState!.position}`,
         ),
+        // Only ondragstart on header - other handlers are at grid level
         'ondragstart': (e: MithrilEvent<DragEvent>) => {
           if (!reorderHandle) return;
-          e.redraw = false;
           e.dataTransfer!.setData(
             reorderHandle,
             JSON.stringify({key: column.key}),
           );
-        },
-        'ondragenter': (e: MithrilEvent<DragEvent>) => {
-          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
-            const state = this.columnDragState.get(column.key) ?? {
-              count: 0,
-              position: 'after' as ReorderPosition,
-            };
-            this.columnDragState.set(column.key, {
-              ...state,
-              count: state.count + 1,
-            });
-          }
-        },
-        'ondragleave': (e: MithrilEvent<DragEvent>) => {
-          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
-            const state = this.columnDragState.get(column.key);
-            if (state) {
-              this.columnDragState.set(column.key, {
-                ...state,
-                count: state.count - 1,
-              });
-            }
-          }
-        },
-        'ondragover': (e: MithrilEvent<DragEvent>) => {
-          e.preventDefault();
-          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
-            e.dataTransfer!.dropEffect = 'move';
-            const target = e.currentTarget as HTMLElement;
-            const rect = target.getBoundingClientRect();
-            const position: ReorderPosition =
-              e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-            const state = this.columnDragState.get(column.key) ?? {
-              count: 0,
-              position: 'after' as ReorderPosition,
-            };
-            if (state.position !== position) {
-              this.columnDragState.set(column.key, {...state, position});
-            }
-          } else {
-            e.dataTransfer!.dropEffect = 'none';
-          }
-        },
-        'ondrop': (e: MithrilEvent<DragEvent>) => {
-          this.columnDragState.set(column.key, {count: 0, position: 'after'});
-          if (reorderHandle && onColumnReorder) {
-            const data = e.dataTransfer!.getData(reorderHandle);
-            if (data) {
-              e.preventDefault();
-              const {key: from} = JSON.parse(data);
-              const to = column.key;
-              const target = e.currentTarget as HTMLElement;
-              const rect = target.getBoundingClientRect();
-              const position =
-                e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-              onColumnReorder(from, to, position);
-            }
-          }
+          e.dataTransfer!.effectAllowed = 'move';
+          // Initialize grid-level drag state
+          this.dragState = {
+            fromKey: column.key,
+            handle: reorderHandle,
+            targetKey: undefined,
+            position: 'after',
+          };
         },
       },
       column.header ?? column.key,
