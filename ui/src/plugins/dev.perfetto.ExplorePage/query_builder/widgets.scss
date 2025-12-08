@@ -519,6 +519,8 @@
     width: 100%;
     padding: 4px 8px;
     border: 1px solid var(--pf-color-border) !important;
+    white-space: normal;
+    min-width: 0;
 
     &:hover {
       border-color: var(--pf-color-primary) !important;
@@ -527,6 +529,11 @@
 
     &:focus {
       border-color: var(--pf-color-primary) !important;
+    }
+
+    .pf-button__label {
+      white-space: normal;
+      word-break: break-word;
     }
   }
 }

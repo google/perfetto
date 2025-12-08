@@ -23,7 +23,7 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {InlineField} from '../widgets';
+import {InlineField, InfoBox} from '../widgets';
 import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
 import {createErrorSections} from '../widgets';
 import {loadNodeDoc} from '../node_doc_loader';
@@ -73,6 +73,14 @@ export class LimitAndOffsetNode implements QueryNode {
     const sections: NodeModifyAttrs['sections'] = [
       ...createErrorSections(this),
     ];
+
+    // InfoBox
+    sections.push({
+      content: m(
+        InfoBox,
+        'Limits the number of rows returned and optionally skips rows. Use LIMIT to cap results and OFFSET to skip the first N rows. Useful for pagination or sampling data.',
+      ),
+    });
 
     // Limit and Offset inline fields
     sections.push({
