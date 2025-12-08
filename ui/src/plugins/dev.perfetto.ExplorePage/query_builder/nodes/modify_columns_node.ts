@@ -296,6 +296,7 @@ export class ModifyColumnsNode implements QueryNode {
     ];
 
     return {
+      info: 'Select which columns to include in the output and optionally rename them using aliases. Check columns to include, add aliases to rename, and drag to reorder.',
       sections,
     };
   }
