@@ -30,7 +30,6 @@ import {
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
-import {Icons} from '../../../base/semantic_icons';
 
 // Base node data interface
 interface BaseNodeData {
@@ -102,6 +101,7 @@ interface NodeConfig {
   readonly canDockTop?: boolean;
   readonly canDockBottom?: boolean;
   readonly hue: number;
+  readonly icon: string;
 }
 
 const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
@@ -109,6 +109,7 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     outputs: [{content: 'Output', direction: 'bottom'}],
     canDockBottom: true,
     hue: 200,
+    icon: 'table_chart',
   },
   select: {
     inputs: [{content: 'Input', direction: 'top'}],
@@ -116,6 +117,7 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 100,
+    icon: 'checklist',
   },
   filter: {
     inputs: [{content: 'Input', direction: 'top'}],
@@ -123,6 +125,7 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 50,
+    icon: 'filter_alt',
   },
   sort: {
     inputs: [{content: 'Input', direction: 'top'}],
@@ -130,6 +133,7 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 150,
+    icon: 'sort',
   },
   join: {
     inputs: [
@@ -140,6 +144,7 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 300,
+    icon: 'join',
   },
   union: {
     inputs: [
@@ -150,11 +155,13 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     canDockTop: true,
     canDockBottom: true,
     hue: 240,
+    icon: 'merge',
   },
   result: {
     inputs: [{content: 'Input', direction: 'top'}],
     canDockTop: true,
     hue: 0,
+    icon: 'output',
   },
 };
 
@@ -898,7 +905,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         return [
           m(MenuItem, {
             label: 'Select',
-            icon: Icons.Filter,
+            icon: 'checklist',
             onclick: () => addNode(createSelectNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -906,7 +913,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           }),
           m(MenuItem, {
             label: 'Filter',
-            icon: Icons.Filter,
+            icon: 'filter_alt',
             onclick: () => addNode(createFilterNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
@@ -971,7 +978,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             canDockTop: config.canDockTop,
             accentBar: attrs.accentBars,
             titleBar: attrs.titleBars
-              ? {title: tempNode.type.toUpperCase()}
+              ? {title: tempNode.type.toUpperCase(), icon: config.icon}
               : undefined,
             hue: attrs.colors ? config.hue : undefined,
             contextMenuItems: attrs.contextMenus
@@ -1038,7 +1045,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           next: nextModel ? renderChildNode(nextModel) : undefined,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
-            ? {title: nodeData.type.toUpperCase()}
+            ? {title: nodeData.type.toUpperCase(), icon: config.icon}
             : undefined,
           hue: attrs.colors ? config.hue : undefined,
           contextMenuItems: attrs.contextMenus
@@ -1071,7 +1078,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           next: nextModel ? renderChildNode(nextModel) : undefined,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
-            ? {title: nodeData.type.toUpperCase()}
+            ? {title: nodeData.type.toUpperCase(), icon: config.icon}
             : undefined,
           hue: attrs.colors ? config.hue : undefined,
           contextMenuItems: attrs.contextMenus
@@ -1127,7 +1134,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
               m(MenuItem, {
                 label: 'Select',
-                icon: Icons.Filter,
+                icon: 'checklist',
                 onclick: () => addNode(createSelectNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -1135,7 +1142,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
               m(MenuItem, {
                 label: 'Filter',
-                icon: Icons.Filter,
+                icon: 'filter_alt',
                 onclick: () => addNode(createFilterNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,

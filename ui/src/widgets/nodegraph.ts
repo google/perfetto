@@ -80,6 +80,7 @@ export interface Connection {
 
 export interface NodeTitleBar {
   readonly title: m.Children;
+  readonly icon?: string;
 }
 
 export interface NodePort {
@@ -1799,6 +1800,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         // Render node title if it exists
         titleBar !== undefined &&
           m('.pf-node-header', [
+            titleBar.icon !== undefined &&
+              m(Icon, {icon: titleBar.icon, className: 'pf-node-title-icon'}),
             m('.pf-node-title', titleBar.title),
             contextMenuItems !== undefined &&
               m(
