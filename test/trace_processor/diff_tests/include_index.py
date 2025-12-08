@@ -150,6 +150,7 @@ from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
+from diff_tests.stdlib.prelude.package_lookup_tests import PackageLookup
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
@@ -307,6 +308,7 @@ def fetch_all_diff_tests(
       StdlibCounterIntervals,
       DynamicTables,
       Memory,
+      PackageLookup,
       PreludeMathFunctions,
       HeapGraph,
       UnHex,

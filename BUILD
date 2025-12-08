@@ -3121,6 +3121,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.cc",
