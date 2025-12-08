@@ -41,6 +41,7 @@ export const defaultPlugins = [
   'com.android.PinSysUITracks',
   'com.android.SysUIWorkspace',
   'com.google.PixelCpmTrace',
+  'com.google.PixelFwtpTrace',
   'com.google.PixelMemory',
   'dev.perfetto.AutoPinAndExpandTracks',
   'dev.perfetto.BookmarkletApi',
