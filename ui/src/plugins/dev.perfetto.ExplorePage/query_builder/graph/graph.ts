@@ -138,49 +138,52 @@ function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
 function getInputLabels(node: QueryNode): NodePort[] {
   // Single-input operation nodes always have a top port (even when disconnected)
   if (singleNodeOperation(node.type)) {
-    // Check if node also has secondaryInputs (like AddColumnsNode)
+    const labels: NodePort[] = [];
+    labels.push({content: 'Input', direction: 'top'});
+
+    // Check if node also has secondaryInputs (like AddColumnsNode or FilterDuring)
     if (node.secondaryInputs) {
-      // Show both top port and side ports
-      const labels: NodePort[] = [];
-      labels.push({content: 'Input', direction: 'top'});
+      // Show side ports using the node's custom port names
+      const portNames = node.secondaryInputs.portNames;
+      const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
 
-      // For AddColumnsNode, show exactly one left-side port
-      if (node.type === NodeType.kAddColumns) {
-        labels.push({content: 'Table', direction: 'left'});
-      } else {
-        // For other nodes with secondaryInputs (like FilterDuring) - show dynamic ports
-        const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
-        for (let i = 0; i < numPorts; i++) {
-          labels.push({content: `Input ${i}`, direction: 'left'});
-        }
+      for (let i = 0; i < numPorts; i++) {
+        const portName = getPortName(portNames, i);
+        labels.push({content: portName, direction: 'left'});
       }
-      return labels;
     }
-
-    // Single-input only (Sort, Filter, etc.) - show just top port
-    return [{content: 'Input', direction: 'top'}];
+    return labels;
   }
 
-  // Multi-source nodes (IntervalIntersect, Merge, Union) - no primaryInput
+  // Multi-source nodes (IntervalIntersect, Join, Union) - no primaryInput
   if (node.secondaryInputs) {
-    // Check if node has custom input labels
-    if ('getInputLabels' in node && typeof node.getInputLabels === 'function') {
-      return (node as QueryNode & {getInputLabels: () => string[]})
-        .getInputLabels()
-        .map((label) => ({content: label, direction: 'left' as const}));
-    }
-
+    const portNames = node.secondaryInputs.portNames;
     // Always show one extra empty port for adding new connections
     const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
     const labels: NodePort[] = [];
+
     for (let i = 0; i < numPorts; i++) {
-      labels.push({content: `Input ${i}`, direction: 'left'});
+      const portName = getPortName(portNames, i);
+      labels.push({content: portName, direction: 'left'});
     }
     return labels;
   }
 
   // Source nodes have no inputs
   return [];
+}
+
+// Helper function to get port name from either an array or a function
+function getPortName(
+  portNames: string[] | ((portIndex: number) => string),
+  portIndex: number,
+): string {
+  if (typeof portNames === 'function') {
+    return portNames(portIndex);
+  }
+
+  // Array of names - use the index or fallback if out of bounds
+  return portNames[portIndex] ?? `Input ${portIndex}`;
 }
 
 function buildAddMenuItems(

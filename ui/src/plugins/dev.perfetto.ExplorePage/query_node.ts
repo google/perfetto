@@ -83,6 +83,10 @@ export interface SecondaryInputSpec {
   // Cardinality requirements for validation
   readonly min: number; // Minimum required (e.g., 2 for IntervalIntersect)
   readonly max: number | 'unbounded'; // Maximum allowed (e.g., 2 for Join, unbounded for IntervalIntersect)
+
+  // Port names for UI display
+  // Can be an array of names or a function that generates a name for a given port index
+  readonly portNames: string[] | ((portIndex: number) => string);
 }
 
 // All information required to create a new node.

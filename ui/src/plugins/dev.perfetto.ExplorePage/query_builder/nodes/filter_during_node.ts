@@ -82,6 +82,7 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
+  SecondaryInputSpec,
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
@@ -114,11 +115,7 @@ export class FilterDuringNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kFilterDuring;
   primaryInput?: QueryNode;
-  secondaryInputs: {
-    connections: Map<number, QueryNode>;
-    min: 1;
-    max: 6;
-  };
+  secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
   readonly state: FilterDuringNodeState;
 
@@ -129,6 +126,7 @@ export class FilterDuringNode implements QueryNode {
       connections: new Map(),
       min: 1,
       max: 6,
+      portNames: (portIndex: number) => `Input ${portIndex}`,
     };
     this.nextNodes = [];
     this.state.autoExecute = this.state.autoExecute ?? false;

@@ -20,6 +20,7 @@ import {
   getSecondaryInput,
   analyzeNode,
   isAQuery,
+  SecondaryInputSpec,
 } from '../../query_node';
 import {
   ColumnInfo,
@@ -452,11 +453,7 @@ export class AddColumnsNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kAddColumns;
   primaryInput?: QueryNode;
-  secondaryInputs: {
-    connections: Map<number, QueryNode>;
-    min: 1;
-    max: 1;
-  };
+  secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
   readonly state: AddColumnsNodeState;
 
@@ -467,6 +464,7 @@ export class AddColumnsNode implements QueryNode {
       connections: new Map(),
       min: 1,
       max: 1,
+      portNames: ['Table'],
     };
     this.nextNodes = [];
     this.state.selectedColumns = this.state.selectedColumns ?? [];
