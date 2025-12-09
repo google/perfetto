@@ -613,10 +613,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           lastStatementSql: query.sql,
         };
 
-        this.dataSource = new SQLDataSource(
+        this.dataSource = new SQLDataSource({
           engine,
-          `SELECT * FROM ${result.tableName}`,
-        );
+          baseQuery: `SELECT * FROM ${result.tableName}`,
+        });
         this.queryExecuted = true;
         this.isQueryRunning = false;
         this.setNodeIssuesFromResponse(node, query, this.response);
