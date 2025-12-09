@@ -27,6 +27,7 @@ import {
   singleNodeOperation,
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
+import {FilterNode} from './query_builder/nodes/filter_node';
 import {Trace} from '../../public/trace';
 
 import {
@@ -565,21 +566,28 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     // Otherwise, create a new FilterNode after the source node
-    const filterNodeId = 'filter_node';
-    const newFilterNode = await this.handleAddOperationNode(
-      attrs,
+    // Create it with filters already configured to avoid multiple undo points
+    const newFilterNode = new FilterNode({
+      filters,
+      filterOperator,
+    });
+
+    // Mark as initialized
+    this.initializedNodes.add(newFilterNode.nodeId);
+
+    // Insert between source node and its children
+    insertNodeBetween(
       sourceNode,
-      filterNodeId,
+      newFilterNode,
+      addConnection,
+      removeConnection,
     );
 
-    // Add the filter(s) to the newly created FilterNode
-    if (newFilterNode) {
-      this.setFiltersOnNode(newFilterNode, filters, filterOperator);
-      attrs.onStateUpdate((currentState) => ({
-        ...currentState,
-        selectedNode: newFilterNode,
-      }));
-    }
+    // Single state update records the entire operation (node + filters)
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      selectedNode: newFilterNode,
+    }));
   }
 
   async handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
