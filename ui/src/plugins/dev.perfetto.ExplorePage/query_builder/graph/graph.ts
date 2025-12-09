@@ -135,6 +135,17 @@ function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
 // NODE PORT AND MENU UTILITIES
 // ========================================
 
+// Calculate the number of ports to display for secondary inputs.
+// Shows one extra empty port for adding new connections, but respects max limit.
+function calculateNumPorts(
+  currentConnections: number,
+  max: number | 'unbounded',
+): number {
+  return max === 'unbounded'
+    ? currentConnections + 1
+    : Math.min(currentConnections + 1, max);
+}
+
 function getInputLabels(node: QueryNode): NodePort[] {
   // Single-input operation nodes always have a top port (even when disconnected)
   if (singleNodeOperation(node.type)) {
@@ -145,7 +156,11 @@ function getInputLabels(node: QueryNode): NodePort[] {
     if (node.secondaryInputs) {
       // Show side ports using the node's custom port names
       const portNames = node.secondaryInputs.portNames;
-      const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
+      const currentConnections = node.secondaryInputs.connections.size ?? 0;
+      const numPorts = calculateNumPorts(
+        currentConnections,
+        node.secondaryInputs.max,
+      );
 
       for (let i = 0; i < numPorts; i++) {
         const portName = getPortName(portNames, i);
@@ -158,8 +173,11 @@ function getInputLabels(node: QueryNode): NodePort[] {
   // Multi-source nodes (IntervalIntersect, Join, Union) - no primaryInput
   if (node.secondaryInputs) {
     const portNames = node.secondaryInputs.portNames;
-    // Always show one extra empty port for adding new connections
-    const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
+    const currentConnections = node.secondaryInputs.connections.size ?? 0;
+    const numPorts = calculateNumPorts(
+      currentConnections,
+      node.secondaryInputs.max,
+    );
     const labels: NodePort[] = [];
 
     for (let i = 0; i < numPorts; i++) {

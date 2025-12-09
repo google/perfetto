@@ -16,49 +16,32 @@
  * Filter During Node - Temporal Interval Filtering
  *
  * This node filters intervals from a primary input to only those that occurred
- * during intervals from one or more secondary inputs. The output preserves all
- * columns from the primary input, with ts and dur values representing the
- * actual overlap period.
+ * during intervals from a secondary input (called "Filter intervals"). The output
+ * preserves all columns from the primary input, with ts and dur values representing
+ * the actual overlap period.
  *
  * ## Architecture
  *
  * The node uses a multi-step SQL query generation approach:
  *
- * 1. **Union Secondary Inputs** (if multiple):
- *    - If only 1 secondary input: use it directly
- *    - If 2+ secondary inputs: combine them via UNION ALL
- *    - This creates a single set of intervals from all secondary sources
- *
- * 2. **Wrap Secondary for Column Selection**:
- *    - Select only id, ts, dur columns from the combined secondary
+ * 1. **Wrap Secondary for Column Selection**:
+ *    - Select only id, ts, dur columns from the filter intervals input
  *    - Avoids column name conflicts in the interval intersection
  *
- * 3. **Interval Intersection**:
+ * 2. **Interval Intersection**:
  *    - Use StructuredQueryBuilder.withIntervalIntersect()
- *    - Computes overlaps between primary and secondary intervals
+ *    - Computes overlaps between primary and filter intervals
  *    - Optionally filters out negative duration intervals (unfinished events)
  *
- * 4. **Column Reshaping**:
+ * 3. **Column Reshaping**:
  *    - Maps the intersection output back to primary input's schema
  *    - id comes from id_0 (primary's id)
  *    - ts and dur are the intersected values
  *    - All other primary columns are preserved as-is
  *
- * ## Multiple Secondary Inputs
- *
- * When multiple secondary inputs are connected, they are combined via UNION ALL
- * before performing the interval intersection. This means an interval from the
- * primary input is kept if it overlaps with ANY interval from ANY of the
- * secondary sources.
- *
- * Example:
- *   Secondary Input 1: App startup intervals
- *   Secondary Input 2: User interaction intervals
- *   Result: Primary intervals that occurred during either startup OR interactions
- *
  * ## Required Columns
  *
- * All inputs (primary and all secondaries) must have:
+ * All inputs (primary and filter intervals) must have:
  *   - id: Unique identifier for the interval
  *   - ts: Timestamp (start time)
  *   - dur: Duration
@@ -67,14 +50,13 @@
  *
  * - Filter CPU slices to only those during app startup
  * - Filter memory allocations during specific user interactions
- * - Filter thread states during multiple performance-critical time windows
- * - Combine multiple time ranges (e.g., all frame drops) and filter events
+ * - Filter thread states during performance-critical time windows
  *
  * ## Output Behavior
  *
- * If a primary interval overlaps with multiple secondary intervals, multiple
- * output rows will be produced (one for each overlap). Each output row shows
- * the actual overlap period (intersected ts/dur values).
+ * If a primary interval overlaps with multiple interval rows from the filter
+ * intervals input, multiple output rows will be produced (one for each overlap).
+ * Each output row shows the actual overlap period (intersected ts/dur values).
  */
 
 import {
@@ -125,8 +107,8 @@ export class FilterDuringNode implements QueryNode {
     this.secondaryInputs = {
       connections: new Map(),
       min: 1,
-      max: 6,
-      portNames: (portIndex: number) => `Input ${portIndex}`,
+      max: 1,
+      portNames: ['Filter intervals'],
     };
     this.nextNodes = [];
     this.state.autoExecute = this.state.autoExecute ?? false;
@@ -136,7 +118,7 @@ export class FilterDuringNode implements QueryNode {
       this.state.filterNegativeDurSecondary ?? true;
   }
 
-  // Get all nodes connected to secondary input ports (the intervals to filter during)
+  // Get the node connected to the secondary input port (the intervals to filter during)
   get secondaryNodes(): QueryNode[] {
     return Array.from(this.secondaryInputs.connections.values());
   }
@@ -278,7 +260,7 @@ export class FilterDuringNode implements QueryNode {
 
     const secondaryNodes = this.secondaryNodes;
 
-    // If no secondary inputs connected, show empty state
+    // If no secondary input connected, show empty state
     if (secondaryNodes.length === 0) {
       return {
         info: 'Filters the primary input to only show intervals that occurred during the intervals from the secondary input.',
@@ -286,9 +268,9 @@ export class FilterDuringNode implements QueryNode {
           {
             content: m(EmptyState, {
               icon: 'link_off',
-              title: 'No interval sources connected',
+              title: 'No filter intervals connected',
               detail:
-                'Connect one or more nodes to the left port that provide intervals (must have id, ts, dur columns).',
+                'Connect a node to the left port that provides intervals (must have id, ts, dur columns).',
             }),
           },
         ],
@@ -306,9 +288,7 @@ export class FilterDuringNode implements QueryNode {
 
     // Build info text (first section after error)
     const infoText =
-      secondaryNodes.length === 1
-        ? 'Filters the primary input to only show intervals that occurred during the intervals from the secondary input.'
-        : `Filters the primary input to only show intervals that occurred during intervals from any of the ${secondaryNodes.length} secondary inputs (combined via UNION ALL).`;
+      'Filters the primary input to only show intervals that occurred during the intervals from the secondary input.';
 
     // Get clipToIntervals for use in switch below
     const clipToIntervals = this.state.clipToIntervals ?? true;
@@ -362,39 +342,29 @@ export class FilterDuringNode implements QueryNode {
       }),
     });
 
-    // Add all secondary inputs in one section
+    // Add filter intervals input section
     const secondaryFilterEnabled =
       this.state.filterNegativeDurSecondary ?? true;
-    const secondaryInputItems: m.Children = [];
-    for (let i = 0; i < secondaryNodes.length; i++) {
-      const inputName =
-        secondaryNodes.length === 1
-          ? 'Secondary Input'
-          : `Secondary Input ${i + 1}`;
-      secondaryInputItems.push(
-        m(ListItem, {
-          icon: 'input',
-          name: inputName,
-          description: secondaryFilterEnabled
-            ? 'Filtering unfinished intervals'
-            : 'Including all intervals',
-          actions: [
-            {
-              icon: secondaryFilterEnabled
-                ? 'check_box'
-                : 'check_box_outline_blank',
-              title: 'Filter out intervals with negative duration',
-              onclick: () => {
-                this.state.filterNegativeDurSecondary = !secondaryFilterEnabled;
-                this.state.onchange?.();
-              },
-            },
-          ],
-        }),
-      );
-    }
     sections.push({
-      content: m('.pf-exp-secondary-inputs', secondaryInputItems),
+      content: m(ListItem, {
+        icon: 'input',
+        name: 'Filter intervals',
+        description: secondaryFilterEnabled
+          ? 'Filtering unfinished intervals'
+          : 'Including all intervals',
+        actions: [
+          {
+            icon: secondaryFilterEnabled
+              ? 'check_box'
+              : 'check_box_outline_blank',
+            title: 'Filter out intervals with negative duration',
+            onclick: () => {
+              this.state.filterNegativeDurSecondary = !secondaryFilterEnabled;
+              this.state.onchange?.();
+            },
+          },
+        ],
+      }),
     });
 
     return {
@@ -426,22 +396,26 @@ export class FilterDuringNode implements QueryNode {
       return false;
     }
 
-    const secondaryNodes = this.secondaryNodes;
-    if (secondaryNodes.length === 0) {
+    const secondaryInput = this.secondaryInputs.connections.get(0);
+    if (secondaryInput === undefined) {
       setValidationError(
         this.state,
-        'Connect a node with intervals to the left port',
+        'Connect a node with intervals to the port on the left',
       );
       return false;
     }
 
-    // Validate all secondary inputs
-    for (let i = 0; i < secondaryNodes.length; i++) {
-      const node = secondaryNodes[i];
-      if (!node.validate()) {
-        setValidationError(this.state, `Input at port ${i + 1} is invalid`);
-        return false;
-      }
+    // Validate the secondary input
+    if (!secondaryInput.validate()) {
+      const childError =
+        secondaryInput.state.issues?.queryError !== undefined
+          ? `: ${secondaryInput.state.issues.queryError.message}`
+          : '';
+      setValidationError(
+        this.state,
+        `Filter intervals input is invalid${childError}`,
+      );
+      return false;
     }
 
     // Check that primary input has required columns
@@ -456,20 +430,15 @@ export class FilterDuringNode implements QueryNode {
       return false;
     }
 
-    // Check that all secondary inputs have required columns
-    for (let i = 0; i < secondaryNodes.length; i++) {
-      const node = secondaryNodes[i];
-      const secondaryCols = new Set(node.finalCols.map((c) => c.name));
-      const missingSecondary = requiredCols.filter(
-        (c) => !secondaryCols.has(c),
+    // Check that the secondary input has required columns
+    const secondaryCols = new Set(secondaryInput.finalCols.map((c) => c.name));
+    const missingSecondary = requiredCols.filter((c) => !secondaryCols.has(c));
+    if (missingSecondary.length > 0) {
+      setValidationError(
+        this.state,
+        `Filter intervals input is missing required columns: ${missingSecondary.join(', ')}`,
       );
-      if (missingSecondary.length > 0) {
-        setValidationError(
-          this.state,
-          `Input at port ${i + 1} is missing required columns: ${missingSecondary.join(', ')}`,
-        );
-        return false;
-      }
+      return false;
     }
 
     return true;
@@ -494,26 +463,14 @@ export class FilterDuringNode implements QueryNode {
     if (!this.validate()) return undefined;
     if (this.primaryInput === undefined) return undefined;
 
-    const secondaryNodes = this.secondaryNodes;
-    if (secondaryNodes.length === 0) return undefined;
+    const secondaryInput = this.secondaryInputs.connections.get(0);
+    if (secondaryInput === undefined) return undefined;
 
-    // Step 1: Union all secondary inputs if there are multiple
-    // If only one, use it directly
-    let combinedSecondaryQuery: protos.PerfettoSqlStructuredQuery | undefined;
-    if (secondaryNodes.length === 1) {
-      combinedSecondaryQuery = secondaryNodes[0].getStructuredQuery();
-    } else {
-      // Multiple inputs - union them all using UNION ALL
-      combinedSecondaryQuery = StructuredQueryBuilder.withUnion(
-        secondaryNodes,
-        true, // Use UNION ALL to keep all intervals
-        `${this.nodeId}_secondary_union`,
-      );
-    }
+    // Step 1: Get the secondary input's query
+    const secondaryQuery = secondaryInput.getStructuredQuery();
+    if (secondaryQuery === undefined) return undefined;
 
-    if (combinedSecondaryQuery === undefined) return undefined;
-
-    // Step 2: Wrap the combined secondary to select id, ts, dur, and partition columns
+    // Step 2: Wrap the secondary to select id, ts, dur, and partition columns
     // This avoids column conflicts in the interval intersection while preserving partition columns
     const secondaryColumnsOnly: ColumnSpec[] = [
       {columnNameOrExpression: 'id'},
@@ -525,9 +482,9 @@ export class FilterDuringNode implements QueryNode {
       })),
     ];
 
-    // Create a temporary QueryNode wrapper for the combined secondary query
-    const combinedSecondaryNode: QueryNode = {
-      nodeId: `${this.nodeId}_combined_secondary`,
+    // Create a temporary QueryNode wrapper for the secondary query
+    const secondaryNodeWrapper: QueryNode = {
+      nodeId: `${this.nodeId}_secondary`,
       type: NodeType.kSqlSource,
       nextNodes: [],
       state: this.state,
@@ -551,10 +508,10 @@ export class FilterDuringNode implements QueryNode {
           column: {name: 'dur'},
         },
       ],
-      getTitle: () => 'Combined Secondary',
+      getTitle: () => 'Filter Intervals',
       validate: () => true,
-      clone: () => combinedSecondaryNode,
-      getStructuredQuery: () => combinedSecondaryQuery,
+      clone: () => secondaryNodeWrapper,
+      getStructuredQuery: () => secondaryQuery,
       nodeInfo: () => null,
       nodeDetails: () => ({content: null}),
       nodeSpecificModify: () => ({sections: []}),
@@ -562,7 +519,7 @@ export class FilterDuringNode implements QueryNode {
     };
 
     const wrappedSecondary = StructuredQueryBuilder.withSelectColumns(
-      combinedSecondaryNode,
+      secondaryNodeWrapper,
       secondaryColumnsOnly,
       undefined,
       `${this.nodeId}_secondary_wrap`,
@@ -685,14 +642,11 @@ export class FilterDuringNode implements QueryNode {
   }
 
   serializeState(): object {
-    // Get all secondary input node IDs
-    const secondaryInputNodeIds = this.secondaryNodes.map(
-      (node) => node.nodeId,
-    );
-
     return {
       primaryInputId: this.primaryInput?.nodeId,
-      secondaryInputNodeIds,
+      secondaryInputNodeIds: Array.from(
+        this.secondaryInputs.connections.values(),
+      ).map((node) => node.nodeId),
       filterNegativeDurPrimary: this.state.filterNegativeDurPrimary,
       filterNegativeDurSecondary: this.state.filterNegativeDurSecondary,
       partitionColumns: this.state.partitionColumns,
@@ -715,9 +669,15 @@ export class FilterDuringNode implements QueryNode {
     nodes: Map<string, QueryNode>,
     serializedState: {secondaryInputNodeIds?: string[]},
   ): {secondaryInputNodes: QueryNode[]} {
-    const secondaryInputNodes = (serializedState.secondaryInputNodeIds ?? [])
-      .map((id) => nodes.get(id))
-      .filter((node): node is QueryNode => node !== undefined);
+    const secondaryInputNodes: QueryNode[] = [];
+    if (serializedState.secondaryInputNodeIds) {
+      for (const nodeId of serializedState.secondaryInputNodeIds) {
+        const node = nodes.get(nodeId);
+        if (node) {
+          secondaryInputNodes.push(node);
+        }
+      }
+    }
     return {
       secondaryInputNodes,
     };
