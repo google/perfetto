@@ -26,11 +26,6 @@ import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
-
-import {
-  QueryHistoryComponent,
-  queryHistoryStorage,
-} from '../../../../../components/widgets/query_history';
 import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
@@ -188,13 +183,6 @@ export class SqlSourceNode implements QueryNode {
   }
 
   nodeSpecificModify(): m.Child {
-    const runQuery = (sql: string) => {
-      this.state.sql = sql.trim();
-      // Clear columns when SQL changes to prevent stale column usage
-      this.finalCols = createFinalColumns([]);
-      m.redraw();
-    };
-
     return m(
       '.sql-source-node',
       m(SqlEditor, {
@@ -206,21 +194,7 @@ export class SqlSourceNode implements QueryNode {
           m.redraw();
         },
         onExecute: (text: string) => {
-          queryHistoryStorage.saveQuery(text);
           this.state.sql = text.trim();
-          // Clear columns when SQL changes to prevent stale column usage
-          this.finalCols = createFinalColumns([]);
-          // Note: Execution is now handled by the Run button in DataExplorer
-          // This callback only saves to query history and updates the SQL text
-          m.redraw();
-        },
-      }),
-      m(QueryHistoryComponent, {
-        className: '.pf-query-history-container',
-        trace: this.state.trace,
-        runQuery,
-        setQuery: (q: string) => {
-          this.state.sql = q;
           // Clear columns when SQL changes to prevent stale column usage
           this.finalCols = createFinalColumns([]);
           m.redraw();
