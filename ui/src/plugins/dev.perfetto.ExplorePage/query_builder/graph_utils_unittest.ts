@@ -106,6 +106,7 @@ describe('graph_utils', () => {
         ]),
         min: 2,
         max: 'unbounded',
+        portNames: (portIndex: number) => `Input ${portIndex}`,
       };
 
       const result = getAllNodes([node3]);
@@ -243,6 +244,7 @@ describe('graph_utils', () => {
         ]),
         min: 2,
         max: 'unbounded',
+        portNames: (portIndex: number) => `Input ${portIndex}`,
       };
 
       const result = getAllUpstreamNodes(node3);
@@ -280,6 +282,7 @@ describe('graph_utils', () => {
         ]),
         min: 2,
         max: 'unbounded',
+        portNames: (portIndex: number) => `Input ${portIndex}`,
       };
       node2.primaryInput = node1;
       node3.primaryInput = node1;

@@ -306,20 +306,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             })
           : null;
 
-      const supportedOps = [
-        '=',
-        '!=',
-        '<',
-        '<=',
-        '>',
-        '>=',
-        'glob',
-        'in',
-        'not in',
-        'is null',
-        'is not null',
-      ] as const;
-
       return [
         warning,
         m(DataGrid, {
@@ -347,7 +333,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           }),
           data: attrs.dataSource,
           showFiltersInToolbar: true,
-          supportedFilters: supportedOps,
+          structuredQueryCompatMode: true,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.

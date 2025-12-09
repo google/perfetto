@@ -33,7 +33,6 @@ import {
   OutlinedMultiSelect,
   MultiSelectOption,
   MultiSelectDiff,
-  InfoBox,
 } from '../widgets';
 import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
 import {loadNodeDoc} from '../node_doc_loader';
@@ -116,14 +115,6 @@ export class SortNode implements QueryNode {
       ...createErrorSections(this),
     ];
 
-    // Info box
-    sections.push({
-      content: m(
-        InfoBox,
-        'Orders rows by selected columns. Add columns to sort by, then drag to reorder. Click column chips to toggle between ascending (ASC) and descending (DESC) order.',
-      ),
-    });
-
     // Column selector section
     sections.push({
       content: this.renderColumnSelector(),
@@ -134,7 +125,10 @@ export class SortNode implements QueryNode {
       content: this.renderSortCriteriaList(),
     });
 
-    return {sections};
+    return {
+      info: 'Orders rows by selected columns. Add columns to sort by, then drag to reorder. Click column chips to toggle between ascending (ASC) and descending (DESC) order.',
+      sections,
+    };
   }
 
   private renderColumnSelector(): m.Child {

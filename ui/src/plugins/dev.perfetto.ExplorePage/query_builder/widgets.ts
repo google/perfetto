@@ -877,3 +877,33 @@ export class InlineField implements m.ClassComponent<InlineFieldAttrs> {
     );
   }
 }
+
+// Select/Deselect All buttons widget
+export interface SelectDeselectAllButtonsAttrs {
+  readonly onSelectAll: () => void;
+  readonly onDeselectAll: () => void;
+}
+
+export class SelectDeselectAllButtons
+  implements m.ClassComponent<SelectDeselectAllButtonsAttrs>
+{
+  view({attrs}: m.CVnode<SelectDeselectAllButtonsAttrs>): m.Children {
+    const {onSelectAll, onDeselectAll} = attrs;
+
+    return m(
+      '.pf-select-deselect-all-buttons',
+      m(Button, {
+        label: 'Select All',
+        onclick: onSelectAll,
+        variant: ButtonVariant.Outlined,
+        compact: true,
+      }),
+      m(Button, {
+        label: 'Deselect All',
+        onclick: onDeselectAll,
+        variant: ButtonVariant.Outlined,
+        compact: true,
+      }),
+    );
+  }
+}

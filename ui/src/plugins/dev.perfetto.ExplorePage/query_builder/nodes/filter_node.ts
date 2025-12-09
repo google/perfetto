@@ -34,7 +34,7 @@ import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
 import {showModal} from '../../../../widgets/modal';
 import {Editor} from '../../../../widgets/editor';
-import {ListItem, OutlinedField, InlineEditList, InfoBox} from '../widgets';
+import {ListItem, OutlinedField, InlineEditList} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
@@ -190,16 +190,6 @@ export class FilterNode implements QueryNode {
     // Build sections
     const sections: NodeModifyAttrs['sections'] = [];
 
-    // Info box explaining nested filters (only in structured mode)
-    if (mode === 'structured') {
-      sections.push({
-        content: m(
-          InfoBox,
-          'To combine AND and OR logic (nested filters), use multiple filter nodes. Each filter node can use either AND or OR to combine its conditions.',
-        ),
-      });
-    }
-
     // Input section with buttons/inputs - only for freeform mode
     if (mode === 'freeform') {
       sections.push({
@@ -217,7 +207,14 @@ export class FilterNode implements QueryNode {
       content: this.renderFiltersList(),
     });
 
+    // Info text explaining nested filters (only shown in structured mode)
+    const info =
+      mode === 'structured'
+        ? 'To combine AND and OR logic (nested filters), use multiple filter nodes. Each filter node can use either AND or OR to combine its conditions.'
+        : 'Use a custom WHERE clause to filter rows. This mode allows for complex SQL expressions that structured filters cannot express.';
+
     return {
+      info,
       bottomLeftButtons,
       bottomRightButtons,
       sections,

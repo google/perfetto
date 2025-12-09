@@ -2489,4 +2489,93 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode.state.start).toEqual(Time.fromRaw(1000n));
     expect(deserializedNode.state.end).toEqual(Time.fromRaw(2000n));
   });
+
+  test('serializes and deserializes labels', () => {
+    const sliceNode = new SlicesSourceNode({});
+    const labels = [
+      {
+        id: 'label-1',
+        x: 100,
+        y: 200,
+        width: 300,
+        text: 'First label',
+      },
+      {
+        id: 'label-2',
+        x: 400,
+        y: 500,
+        width: 250,
+        text: 'Second label',
+      },
+    ];
+
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+      labels,
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.labels).toEqual(labels);
+  });
+
+  test('handles state without labels', () => {
+    const sliceNode = new SlicesSourceNode({});
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.labels).toBeUndefined();
+  });
+
+  test('handles empty labels array', () => {
+    const sliceNode = new SlicesSourceNode({});
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.labels).toEqual([]);
+  });
+
+  test('labels survive JSON round-trip with special characters', () => {
+    const sliceNode = new SlicesSourceNode({});
+    const labels = [
+      {
+        id: 'label-1',
+        x: 0,
+        y: 0,
+        width: 200,
+        text: 'Label with "quotes" and \n newlines \t tabs',
+      },
+      {
+        id: 'label-2',
+        x: 0,
+        y: 0,
+        width: 200,
+        text: 'Unicode: 你好 🎉',
+      },
+    ];
+
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+      labels,
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.labels).toEqual(labels);
+  });
 });

@@ -99,6 +99,13 @@ export interface BuilderAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
+  readonly labels?: ReadonlyArray<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    text: string;
+  }>;
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
@@ -110,6 +117,15 @@ export interface BuilderAttrs {
   readonly onNodeLayoutChange: (
     nodeId: string,
     layout: {x: number; y: number},
+  ) => void;
+  readonly onLabelsChange?: (
+    labels: Array<{
+      id: string;
+      x: number;
+      y: number;
+      width: number;
+      text: string;
+    }>,
   ) => void;
 
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -399,7 +415,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           selectedNode,
           onNodeSelected,
           nodeLayouts: attrs.nodeLayouts,
+          labels: attrs.labels,
           onNodeLayoutChange: attrs.onNodeLayoutChange,
+          onLabelsChange: attrs.onLabelsChange,
           onDeselect: attrs.onDeselect,
           onAddSourceNode: attrs.onAddSourceNode,
           onClearAllNodes,

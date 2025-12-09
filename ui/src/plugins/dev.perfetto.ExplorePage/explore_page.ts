@@ -151,6 +151,13 @@ export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
+  labels?: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    text: string;
+  }>;
 }
 
 interface ExplorePageAttrs {
@@ -596,6 +603,26 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       primaryParentNodes.push(node.primaryInput);
     }
 
+    // Capture port index information BEFORE removing connections
+    // This is needed to preserve secondary input connections when reconnecting
+    const childConnectionInfo: Array<{
+      child: QueryNode;
+      portIndex: number | undefined;
+    }> = [];
+    for (const child of childNodes) {
+      let portIndex: number | undefined = undefined;
+      // Check if node is connected to child's secondary inputs
+      if (child.secondaryInputs) {
+        for (const [port, inputNode] of child.secondaryInputs.connections) {
+          if (inputNode === node) {
+            portIndex = port;
+            break;
+          }
+        }
+      }
+      childConnectionInfo.push({child, portIndex});
+    }
+
     // Remove all connections to/from the deleted node (both primary and secondary)
     for (const parent of allParentNodes) {
       removeConnection(parent, node);
@@ -605,7 +632,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     // Reconnect ONLY the primary parent to children (bypass the deleted node)
-    reconnectParentsToChildren(primaryParentNodes, childNodes, addConnection);
+    // Use the captured connection info to preserve port indices
+    reconnectParentsToChildren(
+      primaryParentNodes,
+      childConnectionInfo,
+      addConnection,
+    );
 
     // Update root nodes: remove the deleted node
     let newRootNodes = state.rootNodes.filter((n) => n !== node);
@@ -891,6 +923,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
+        labels: state.labels,
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
@@ -911,6 +944,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               nodeLayouts: newNodeLayouts,
             };
           });
+        },
+        onLabelsChange: (labels) => {
+          wrappedAttrs.onStateUpdate((currentState) => ({
+            ...currentState,
+            labels,
+          }));
         },
         onAddSourceNode: (id) => {
           this.handleAddSourceNode(wrappedAttrs, id);

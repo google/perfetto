@@ -29,7 +29,7 @@ import {Switch} from '../../../../../widgets/switch';
 import {Anchor} from '../../../../../widgets/anchor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import protos from '../../../../../protos';
-import {InlineField, InfoBox} from '../../widgets';
+import {InlineField} from '../../widgets';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
@@ -254,30 +254,10 @@ export class TimeRangeSourceNode implements QueryNode {
 
     const sections: NodeModifyAttrs['sections'] = [];
 
-    // Explanation section - always shown
-    sections.push({
-      content: m(
-        InfoBox,
-        'Time range allows you to make a selection in the ',
-        m(Anchor, {href: '#!/viewer'}, 'timeline'),
-        ' and use it as a source node in the graph.',
-      ),
-    });
-
     // Error message section
     if (error) {
       sections.push({
         content: m(Callout, {icon: 'error'}, error.message),
-      });
-    }
-
-    // Dynamic mode helper text section
-    if (isDynamic) {
-      sections.push({
-        content: m(
-          InfoBox,
-          'Dynamic mode: Your timeline selection will automatically update this node. Go back to the timeline and select a time range to see it here.',
-        ),
       });
     }
 
@@ -390,7 +370,23 @@ export class TimeRangeSourceNode implements QueryNode {
       ),
     });
 
-    return {sections};
+    // Build info content based on dynamic mode
+    const info = isDynamic
+      ? [
+          'Time range allows you to make a selection in the ',
+          m(Anchor, {href: '#!/viewer'}, 'timeline'),
+          ' and use it as a source node in the graph. Dynamic mode: Your timeline selection will automatically update this node. Go back to the timeline and select a time range to see it here.',
+        ]
+      : [
+          'Time range allows you to make a selection in the ',
+          m(Anchor, {href: '#!/viewer'}, 'timeline'),
+          ' and use it as a source node in the graph.',
+        ];
+
+    return {
+      info,
+      sections,
+    };
   }
 
   nodeInfo(): m.Children {
