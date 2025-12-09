@@ -26,7 +26,7 @@ import {
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
-import {Query, QueryNode, isAQuery} from '../query_node';
+import {Query, QueryNode} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -122,7 +122,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         icon: 'play_arrow',
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
-        disabled: !isAQuery(attrs.query) || !attrs.node.validate(),
+        disabled: !attrs.node.validate(),
         onclick: () => attrs.onExecute(),
       });
 
@@ -143,7 +143,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         attrs.node.state.autoExecute = target.checked;
         attrs.onchange?.();
         // Execute the query when auto-execute is toggled on
-        if (target.checked && isAQuery(attrs.query) && attrs.node.validate()) {
+        // Analysis will happen automatically in node_explorer when autoExecute becomes true
+        if (target.checked && attrs.node.validate()) {
           attrs.onExecute();
         }
       },
@@ -289,13 +290,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       return m(DataExplorerEmptyState, {}, m(Spinner, {easing: true}));
     }
 
-    // Show "No data to display" when no query is available
-    if (attrs.query === undefined) {
-      return m(DataExplorerEmptyState, {
-        title: 'No data to display',
-      });
-    }
-
+    // Show data if we have response and dataSource (even without query)
+    // This handles the case where we load existing materialized data
     if (attrs.response && attrs.dataSource && attrs.node.validate()) {
       // Show warning for multiple statements with centered icon
       const warning =
@@ -380,11 +376,10 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       ];
     }
 
-    // Show a prominent execute button when query is ready but not executed
+    // Show a prominent execute button when autoExecute is false and not yet executed
     const autoExecute = attrs.node.state.autoExecute ?? true;
     if (
       !autoExecute &&
-      isAQuery(attrs.query) &&
       !attrs.response &&
       !attrs.isQueryRunning &&
       !attrs.isAnalyzing
@@ -397,9 +392,18 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           icon: 'play_arrow',
           intent: Intent.Primary,
           variant: ButtonVariant.Filled,
+          disabled: !attrs.node.validate(),
           onclick: () => attrs.onExecute(),
         }),
       );
+    }
+
+    // Show "No data to display" when no response is available
+    // (for autoExecute=true nodes that haven't run yet)
+    if (!attrs.response) {
+      return m(DataExplorerEmptyState, {
+        title: 'No data to display',
+      });
     }
 
     return null;
