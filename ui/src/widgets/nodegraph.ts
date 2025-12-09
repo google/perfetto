@@ -2154,7 +2154,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               if (canvasState.selectedNodes.size > 0) {
                 // Flatten all nodes including docked nodes (via 'next' property)
                 const allNodeIds = new Set<string>();
-                const queue = [...nodes];
+                const queue: Array<Node | DockedNode> = [...nodes];
                 while (queue.length > 0) {
                   const node = queue.shift();
                   if (node) {
