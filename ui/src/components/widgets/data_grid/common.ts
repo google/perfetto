@@ -180,8 +180,28 @@ export interface PivotModel {
   readonly drillDown?: RowDef;
 }
 
+/**
+ * A column in the DataGridModel, with optional aggregation.
+ */
+export interface DataGridColumn {
+  readonly column: string;
+  // Optional aggregation function to compute for this column.
+  // Results are returned in DataSourceResult.aggregateTotals.
+  readonly aggregation?: AggregationFunction;
+}
+
+// Helper to normalize column input (string or DataGridColumn) to DataGridColumn
+export function normalizeColumn(col: string | DataGridColumn): DataGridColumn {
+  return typeof col === 'string' ? {column: col} : col;
+}
+
+// Helper to get column name from string or DataGridColumn
+export function getColumnName(col: string | DataGridColumn): string {
+  return typeof col === 'string' ? col : col.column;
+}
+
 export interface DataGridModel {
-  readonly columns?: ReadonlyArray<string>;
+  readonly columns?: ReadonlyArray<DataGridColumn>;
   readonly sorting?: Sorting;
   readonly filters?: ReadonlyArray<DataGridFilter>;
   readonly pagination?: Pagination;

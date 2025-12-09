@@ -51,9 +51,12 @@ import {
   resolveColumnPath,
 } from './column_schema';
 import {
+  AggregationFunction,
   ColumnDefinition,
+  DataGridColumn,
   DataGridDataSource,
   DataGridFilter,
+  normalizeColumn,
   PivotModel,
   PivotValue,
   RowDef,
@@ -144,14 +147,17 @@ export interface DataGridAttrs {
    * When pivot mode is active (pivot prop is set without drillDown), the pivot
    * groupBy and aggregate columns take precedence for display. However, columns
    * is still used when drilling down into pivot groups.
+   *
+   * Each column can be either a string (column path) or a DataGridColumn object
+   * with an optional aggregation function.
    */
-  readonly columns?: ReadonlyArray<string>;
+  readonly columns?: ReadonlyArray<string | DataGridColumn>;
 
   /**
    * Initial columns to show on first load.
    * This is ignored in controlled mode (i.e. when `columns` is provided).
    */
-  readonly initialColumns?: ReadonlyArray<string>;
+  readonly initialColumns?: ReadonlyArray<string | DataGridColumn>;
 
   /**
    * Callback triggered when visible columns change (add, remove, reorder).
@@ -381,7 +387,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<DataGridFilter> = [];
   private pivot: PivotModel | undefined = undefined;
-  private internalColumns: ReadonlyArray<string> = [];
+  private internalColumns: ReadonlyArray<DataGridColumn> = [];
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
@@ -427,15 +433,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Initialize columns from initial prop, columns, or default from schema
     if (attrs.initialColumns) {
-      this.internalColumns = attrs.initialColumns;
+      this.internalColumns = attrs.initialColumns.map(normalizeColumn);
     } else if (attrs.columns) {
-      this.internalColumns = attrs.columns;
+      this.internalColumns = attrs.columns.map(normalizeColumn);
     } else {
       // Default to all leaf columns in the root schema
       this.internalColumns = getDefaultVisibleColumns(
         attrs.schema,
         attrs.rootSchema,
-      );
+      ).map(normalizeColumn);
     }
   }
 
@@ -483,15 +489,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     } = attrs;
 
     // Use props columns or internal state, defaulting to schema leaf columns
-    const columns =
-      propsColumns ??
+    // Normalize to DataGridColumn[] for internal use
+    const columns: ReadonlyArray<DataGridColumn> =
+      propsColumns?.map(normalizeColumn) ??
       (this.internalColumns.length > 0
         ? this.internalColumns
-        : getDefaultVisibleColumns(schema, rootSchema));
+        : getDefaultVisibleColumns(schema, rootSchema).map(normalizeColumn));
+    // Extract just the column names for APIs that need string[]
+    const columnNames: ReadonlyArray<string> = columns.map((c) => c.column);
     const onColumnsChanged =
       propsOnColumnsChanged ??
       ((cols: ReadonlyArray<string>) => {
-        this.internalColumns = cols;
+        this.internalColumns = cols.map(normalizeColumn);
       });
 
     // Initialize the datasource if required
@@ -541,6 +550,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       isAggregate: boolean;
       isLastGroupBy: boolean;
       pivotValue?: PivotValue;
+      // Column-level aggregation (for non-pivot mode)
+      columnAggregation?: AggregationFunction;
     };
 
     const displayColumns: ReadonlyArray<DisplayColumn> = (() => {
@@ -566,10 +577,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       }
       // Normal mode or drill-down: just the visible columns
       return columns.map((col) => ({
-        columnPath: col,
+        columnPath: col.column,
         isGroupBy: false,
         isAggregate: false,
         isLastGroupBy: false,
+        columnAggregation: col.aggregation,
       }));
     })();
 
@@ -585,6 +597,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           isAggregate: isAggregateColumn,
           isLastGroupBy,
           pivotValue,
+          columnAggregation: displayColAggregation,
         } = displayCol;
 
         // For aggregate columns, get title from the source column if available
@@ -615,9 +628,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           sourceColumnPath,
         );
         // For aggregate columns, use the pivot aggregation function for display
+        // For non-pivot columns with aggregation, use the column-level aggregation
         const columnAggregation = isAggregateColumn
           ? pivotValue?.func
-          : undefined;
+          : displayColAggregation;
         const columnContextMenuRenderer = getColumnContextMenuRenderer(
           schema,
           rootSchema,
@@ -727,7 +741,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             // Normal column (not in pivot mode) - show "Pivot on this" option
             defaultGroups.pivot = renderPivotMenuForNormalColumn(
               columnInfo,
-              columns,
+              columnNames,
               onPivotChanged,
             );
           }
@@ -786,11 +800,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 },
                 m(ParameterizedColumnSubmenu, {
                   pathPrefix: basePath,
-                  columns,
+                  columns: columnNames,
                   availableKeys,
                   onSelect: (newColumnPath) => {
                     // Replace the current column with the new one
-                    const newColumns = columns.map((col) =>
+                    const newColumns = columnNames.map((col) =>
                       col === columnPath ? newColumnPath : col,
                     );
                     onColumnsChanged(newColumns);
@@ -800,13 +814,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             );
           }
           // Remove current column (only if more than 1 visible)
-          if (columns.length > 1) {
+          if (columnNames.length > 1) {
             columnManagementItems.push(
               m(MenuItem, {
                 label: 'Remove column',
                 icon: Icons.Remove,
                 onclick: () => {
-                  const newColumns = columns.filter(
+                  const newColumns = columnNames.filter(
                     (name) => name !== columnPath,
                   );
                   onColumnsChanged(newColumns);
@@ -816,18 +830,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           }
 
           // Build "Add column" menu from schema
-          const currentColumnIndex = columns.indexOf(columnPath);
+          const currentColumnIndex = columnNames.indexOf(columnPath);
           const addColumnMenuItems = buildAddColumnMenuFromSchema(
             schema,
             rootSchema,
             '',
             0,
-            columns,
+            columnNames,
             (columnName) => {
               // Don't add if column already exists
-              if (columns.includes(columnName)) return;
+              if (columnNames.includes(columnName)) return;
               // Add the new column after the current one
-              const newColumns = [...columns];
+              const newColumns = [...columnNames];
               newColumns.splice(currentColumnIndex + 1, 0, columnName);
               onColumnsChanged(newColumns);
             },
@@ -1199,7 +1213,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           }
 
           // Normal column reordering (not pivot mode)
-          const newOrder = this.reorderColumns(columns, from, to, position);
+          const newOrder = this.reorderColumns(columnNames, from, to, position);
           onColumnsChanged(newOrder);
         },
         onReady: (api) => {

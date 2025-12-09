@@ -18,6 +18,7 @@ import {Engine} from '../../../trace_processor/engine';
 import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../query_table/queries';
 import {
+  DataGridColumn,
   DataGridDataSource,
   DataSourceResult,
   DataGridFilter,
@@ -105,6 +106,23 @@ export class SQLDataSource implements DataGridDataSource {
             }
           }
 
+          // Compute column-level aggregations (non-pivot mode)
+          const columnsWithAggregation = columns?.filter((c) => c.aggregation);
+          if (
+            columnsWithAggregation &&
+            columnsWithAggregation.length > 0 &&
+            !pivot
+          ) {
+            const columnAggregates = await this.getColumnAggregates(
+              filters,
+              columnsWithAggregation,
+            );
+            aggregateTotals = aggregateTotals ?? new Map<string, SqlValue>();
+            for (const [key, value] of Object.entries(columnAggregates)) {
+              aggregateTotals.set(key, value as SqlValue);
+            }
+          }
+
           this.cachedResult = {
             rowOffset: 0,
             totalRows: rowCount,
@@ -175,12 +193,12 @@ export class SQLDataSource implements DataGridDataSource {
    * pagination).
    */
   private buildWorkingQuery(
-    columns: ReadonlyArray<string> | undefined,
+    columns: ReadonlyArray<DataGridColumn> | undefined,
     filters: ReadonlyArray<DataGridFilter>,
     sorting: Sorting,
     pivot?: PivotModel,
   ): string {
-    const colDefs = columns ?? ['*'];
+    const colNames = columns?.map((c) => c.column) ?? ['*'];
 
     let query: string;
 
@@ -218,7 +236,7 @@ export class SQLDataSource implements DataGridDataSource {
       }
     } else if (pivot?.drillDown) {
       // Drill-down mode: Show raw rows filtered by the groupBy values
-      query = `\nSELECT ${colDefs.join(', ')} FROM (${this.baseQuery})`;
+      query = `\nSELECT ${colNames.join(', ')} FROM (${this.baseQuery})`;
 
       // Build WHERE clause from drillDown values
       const drillDownConditions = pivot.groupBy
@@ -235,7 +253,7 @@ export class SQLDataSource implements DataGridDataSource {
         query = `SELECT * FROM (${query}) WHERE ${drillDownConditions}`;
       }
     } else {
-      query = `\nSELECT ${colDefs.join(', ')} FROM (${this.baseQuery})`;
+      query = `\nSELECT ${colNames.join(', ')} FROM (${this.baseQuery})`;
     }
 
     // Add WHERE clause if there are filters
@@ -255,7 +273,7 @@ export class SQLDataSource implements DataGridDataSource {
         const pivotColumns = [...pivot.groupBy, ...Object.keys(pivot.values)];
         columnExists = pivotColumns.includes(column);
       } else {
-        columnExists = columns === undefined || columns.includes(column);
+        columnExists = columns === undefined || colNames.includes(column);
       }
       if (columnExists) {
         query += `\nORDER BY ${column} ${direction.toUpperCase()}`;
@@ -303,6 +321,49 @@ export class SQLDataSource implements DataGridDataSource {
           return `NULL AS ${alias}`;
         }
         return `${value.func}(${value.col}) AS ${alias}`;
+      })
+      .join(', ');
+
+    if (!selectClauses) {
+      return {};
+    }
+
+    const query = `
+      SELECT ${selectClauses}
+      FROM (${filteredBaseQuery})
+    `;
+
+    const result = await runQueryForQueryTable(query, this.engine);
+    return result.rows[0] ?? {};
+  }
+
+  /**
+   * Compute aggregates for columns with aggregation functions defined.
+   * This is used in non-pivot mode when columns have individual aggregations.
+   */
+  private async getColumnAggregates(
+    filters: ReadonlyArray<DataGridFilter>,
+    columns: ReadonlyArray<DataGridColumn>,
+  ): Promise<Row> {
+    // Build a filtered base query
+    let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
+    if (filters.length > 0) {
+      const whereConditions = filters.map(filter2Sql).join(' AND ');
+      filteredBaseQuery = `SELECT * FROM (${filteredBaseQuery}) WHERE ${whereConditions}`;
+    }
+
+    // Build aggregate expressions from columns with aggregation
+    const selectClauses = columns
+      .filter((col) => col.aggregation)
+      .map((col) => {
+        const func = col.aggregation!;
+        if (func === 'COUNT') {
+          return `COUNT(*) AS ${col.column}`;
+        }
+        if (func === 'ANY') {
+          return `MIN(${col.column}) AS ${col.column}`;
+        }
+        return `${func}(${col.column}) AS ${col.column}`;
       })
       .join(', ');
 

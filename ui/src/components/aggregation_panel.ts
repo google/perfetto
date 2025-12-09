@@ -18,7 +18,11 @@ import {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
-import {CellRenderer, DataGridDataSource} from './widgets/data_grid/common';
+import {
+  CellRenderer,
+  DataGridColumn,
+  DataGridDataSource,
+} from './widgets/data_grid/common';
 import {DataGrid, renderCell, DataGridApi} from './widgets/data_grid/data_grid';
 import {defaultValueFormatter} from './widgets/data_grid/export_utils';
 import {AggregatePivotModel} from './aggregation_adapter';
@@ -68,12 +72,16 @@ export class AggregationPanel
         };
       }
       const schema: SchemaRegistry = {data: columnSchema};
+      const initialColumns: readonly DataGridColumn[] = model.map((c) => ({
+        column: c.columnId,
+        aggregation: c.sum ? 'SUM' : undefined,
+      }));
 
       return m(DataGrid, {
         fillHeight: true,
         schema,
         rootSchema: 'data',
-        initialColumns: model.map((c) => c.columnId),
+        initialColumns,
         data: dataSource,
         initialSorting: sorting,
         onReady,

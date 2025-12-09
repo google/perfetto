@@ -18,6 +18,7 @@ import {BarChartData, ColumnDef} from '../../components/aggregation';
 import {AggregationPanelAttrs} from '../../components/aggregation_panel';
 import {
   ColumnDefinition,
+  DataGridColumn,
   DataGridDataSource,
   Sorting,
 } from '../../components/widgets/data_grid/common';
@@ -54,6 +55,11 @@ export class WattsonAggregationPanel
     if ('groupBy' in columns) {
       return undefined;
     }
+
+    const initialColumns: readonly DataGridColumn[] = columns.map((c) => ({
+      column: c.columnId,
+      aggregation: c.sum ? 'SUM' : undefined,
+    }));
 
     const columnDefs: ColumnDefinition[] = columns.map(
       (c): ColumnDefinition => {
@@ -92,6 +98,8 @@ export class WattsonAggregationPanel
       },
     );
 
+    const {schema, rootSchema} = columnsToSchema(columnDefs);
+
     return m(DataGrid, {
       toolbarItemsLeft: m(
         Box,
@@ -104,8 +112,10 @@ export class WattsonAggregationPanel
           title: 'Select power units',
         }),
       ),
+      initialColumns,
       fillHeight: true,
-      ...columnsToSchema(columnDefs),
+      schema,
+      rootSchema,
       data: dataSource,
       initialSorting: sorting,
       enablePivotControls: true,

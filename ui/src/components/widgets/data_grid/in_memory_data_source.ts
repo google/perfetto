@@ -16,6 +16,7 @@ import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {
+  DataGridColumn,
   DataGridDataSource,
   DataSourceResult,
   RowDef,
@@ -55,6 +56,7 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   notifyUpdate({
+    columns,
     sorting = {direction: 'UNSORTED'},
     filters = [],
     pivot,
@@ -102,6 +104,9 @@ export class InMemoryDataSource implements DataGridDataSource {
       } else if (pivot?.drillDown) {
         // Drilldown mode: filter to show only rows matching the drillDown values
         result = this.applyDrillDown(result, pivot);
+      } else if (columns) {
+        // Non-pivot mode: compute column-level aggregations
+        this.computeColumnAggregates(result, columns);
       }
 
       // Apply sorting
@@ -479,6 +484,64 @@ export class InMemoryDataSource implements DataGridDataSource {
         case 'ANY':
           // For ANY, just take the first value
           this.aggregateTotalsCache.set(alias, values[0]);
+          break;
+      }
+    }
+  }
+
+  /**
+   * Compute aggregates for columns with aggregation functions defined.
+   * This is used in non-pivot mode when columns have individual aggregations.
+   */
+  private computeColumnAggregates(
+    data: ReadonlyArray<RowDef>,
+    columns: ReadonlyArray<DataGridColumn>,
+  ): void {
+    for (const col of columns) {
+      if (!col.aggregation) continue;
+
+      const values = data
+        .map((row) => row[col.column])
+        .filter((v) => v !== null);
+
+      if (values.length === 0) {
+        this.aggregateTotalsCache.set(col.column, null);
+        continue;
+      }
+
+      switch (col.aggregation) {
+        case 'SUM':
+          this.aggregateTotalsCache.set(
+            col.column,
+            values.reduce((acc: number, val) => acc + (Number(val) || 0), 0),
+          );
+          break;
+        case 'COUNT':
+          this.aggregateTotalsCache.set(col.column, values.length);
+          break;
+        case 'AVG':
+          this.aggregateTotalsCache.set(
+            col.column,
+            (values.reduce(
+              (acc: number, val) => acc + (Number(val) || 0),
+              0,
+            ) as number) / values.length,
+          );
+          break;
+        case 'MIN':
+          this.aggregateTotalsCache.set(
+            col.column,
+            values.reduce((acc, val) => (val < acc ? val : acc), values[0]),
+          );
+          break;
+        case 'MAX':
+          this.aggregateTotalsCache.set(
+            col.column,
+            values.reduce((acc, val) => (val > acc ? val : acc), values[0]),
+          );
+          break;
+        case 'ANY':
+          this.aggregateTotalsCache.set(col.column, values[0]);
           break;
       }
     }
