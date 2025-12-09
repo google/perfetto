@@ -32,6 +32,18 @@
     font-weight: 500;
   }
 
+  &__row {
+    display: grid;
+    gap: 8px 16px;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 8px;
+    align-items: baseline;
+  }
+
   &__section {
     border: 1px solid var(--pf-color-border);
     display: flex;
