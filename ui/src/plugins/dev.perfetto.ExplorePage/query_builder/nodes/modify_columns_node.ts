@@ -147,6 +147,16 @@ export class ModifyColumnsNode implements QueryNode {
       this.state.issues.clear();
     }
 
+    // Check if primary input exists and is valid
+    if (this.primaryInput === undefined) {
+      this.setValidationError('No input node connected');
+      return false;
+    }
+
+    if (!this.primaryInput.validate()) {
+      return false;
+    }
+
     const colNames = new Set<string>();
     for (const col of this.state.selectedColumns) {
       if (!col.checked) continue;
