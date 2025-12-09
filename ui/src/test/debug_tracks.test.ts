@@ -40,7 +40,7 @@ test('debug tracks', async () => {
   await omnibox.press('Enter');
   await pth.waitForPerfettoIdle();
 
-  await page.getByRole('button', {name: 'Show debug track'}).click();
+  await page.getByRole('button', {name: 'Add debug track'}).click();
   await pth.waitForPerfettoIdle();
   await page.keyboard.type('debug track'); // The track name
   await page.keyboard.press('Enter');
@@ -74,7 +74,7 @@ test('debug tracks pivot', async () => {
   await pth.waitForPerfettoIdle();
   await omnibox.press('Enter');
 
-  await page.getByRole('button', {name: 'Show debug track'}).click();
+  await page.getByRole('button', {name: 'Add debug track'}).click();
   await pth.waitForPerfettoIdle();
   await page.keyboard.type('pivot'); // The track name
   await page.locator('.pf-popup-portal #pivot').selectOption('category');
