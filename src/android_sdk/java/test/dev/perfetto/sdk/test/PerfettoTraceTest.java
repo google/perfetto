@@ -28,6 +28,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
 import dev.perfetto.sdk.PerfettoTrace;
 import dev.perfetto.sdk.PerfettoTrackEventBuilder;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.Before;
@@ -191,8 +192,12 @@ public class PerfettoTraceTest {
           assertThat(annotations.get(2).getDoubleValue()).isEqualTo(3.14);
           assertThat(annotations.get(3).getStringValue()).isEqualTo(FOO);
 
-          assertThat(event.getFlowIdsList()).containsExactly(2L, 3L);
-          assertThat(event.getTerminatingFlowIdsList()).containsExactly(4L, 5L);
+          // Flow IDs are transformed by PerfettoTeProcessScopedFlow in
+          // include/perfetto/public/track_event.h
+          // so we cannot assert for specific values. Instead, we check that
+          // there are exactly 2 distinct elements in each list.
+          assertThat(new HashSet<>(event.getFlowIdsList())).hasSize(2);
+          assertThat(new HashSet<>(event.getTerminatingFlowIdsList())).hasSize(2);
         }
       }
 
