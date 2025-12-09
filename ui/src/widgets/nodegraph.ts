@@ -1619,6 +1619,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                 onNodeAddToSelection(id);
               }
             }
+
+            // Focus the canvas element to ensure keyboard events (like Delete) are captured
+            if (canvasElement) {
+              canvasElement.focus();
+            }
+
             return;
           }
 
@@ -1663,6 +1669,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           const {onNodeSelect} = vnode.attrs;
           if (onNodeSelect !== undefined) {
             onNodeSelect(id);
+          }
+
+          // Focus the canvas element to ensure keyboard events (like Delete) are captured
+          if (canvasElement) {
+            canvasElement.focus();
           }
 
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -1822,6 +1833,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                 onNodeAddToSelection(id);
               }
             }
+
+            // Focus the canvas element to ensure keyboard events (like Delete) are captured
+            if (canvasElement) {
+              canvasElement.focus();
+            }
+
             e.stopPropagation();
             return;
           }
@@ -1839,6 +1856,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             if (onNodeSelect !== undefined) {
               onNodeSelect(id);
             }
+          }
+
+          // Focus the canvas element to ensure keyboard events (like Delete) are captured
+          if (canvasElement) {
+            canvasElement.focus();
           }
 
           e.stopPropagation();
@@ -2130,13 +2152,25 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               const {onNodeRemove, onLabelRemove, labels = []} = vnode.attrs;
 
               if (canvasState.selectedNodes.size > 0) {
-                // Create Sets for O(1) lookups instead of O(n) array.some()
-                const nodeIds = new Set(nodes.map((n) => n.id));
+                // Flatten all nodes including docked nodes (via 'next' property)
+                const allNodeIds = new Set<string>();
+                const queue = [...nodes];
+                while (queue.length > 0) {
+                  const node = queue.shift();
+                  if (node) {
+                    allNodeIds.add(node.id);
+                    // Traverse docked children via 'next' property
+                    if (node.next) {
+                      queue.push(node.next);
+                    }
+                  }
+                }
+
                 const labelIds = new Set(labels.map((l) => l.id));
 
                 // Delete selected nodes and labels
                 canvasState.selectedNodes.forEach((id) => {
-                  if (nodeIds.has(id) && onNodeRemove !== undefined) {
+                  if (allNodeIds.has(id) && onNodeRemove !== undefined) {
                     onNodeRemove(id);
                   } else if (labelIds.has(id) && onLabelRemove !== undefined) {
                     onLabelRemove(id);
