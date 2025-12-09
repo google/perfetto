@@ -419,3 +419,110 @@
 .pf-node.pf-invalid.pf-node--has-accent-bar::before {
   background-color: var(--pf-color-danger);
 }
+
+// Label styles
+.pf-label {
+  position: absolute;
+  background: color-mix(
+    in srgb,
+    var(--pf-color-background-secondary) 85%,
+    var(--pf-color-accent) 15%
+  );
+  border: 2px solid var(--pf-color-border);
+  cursor: move;
+  pointer-events: auto;
+  box-sizing: border-box;
+
+  &.pf-dragging {
+    opacity: 0.7;
+    cursor: grabbing;
+  }
+
+  &.pf-selected {
+    border-color: var(--pf-color-accent);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--pf-color-accent) 50%, transparent);
+  }
+
+  .pf-label-resize-handle {
+    position: absolute;
+    right: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 20px;
+    background: var(--pf-color-accent);
+    border-radius: 3px;
+    cursor: ew-resize;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &:hover .pf-label-resize-handle {
+    opacity: 0.6;
+  }
+
+  &.pf-selected .pf-label-resize-handle {
+    opacity: 1;
+  }
+
+  .pf-label-delete-button {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--pf-color-danger);
+    color: white;
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1;
+      background: color-mix(in srgb, var(--pf-color-danger) 85%, black 15%);
+    }
+
+    .pf-icon {
+      font-size: 12px;
+    }
+  }
+
+  &:hover .pf-label-delete-button,
+  &.pf-selected .pf-label-delete-button {
+    opacity: 1;
+  }
+}
+
+.pf-label-content {
+  width: 100%;
+  max-height: 400px;
+  overflow-y: auto;
+  box-sizing: border-box;
+
+  > .pf-simple-label-text {
+    padding: 12px;
+    font-family: var(--pf-font-compact);
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--pf-color-text);
+  }
+
+  > .pf-simple-label-button {
+    padding: 8px;
+  }
+
+  > .pf-label-placeholder {
+    padding: 8px;
+    color: var(--pf-color-text-secondary);
+    font-style: italic;
+  }
+}

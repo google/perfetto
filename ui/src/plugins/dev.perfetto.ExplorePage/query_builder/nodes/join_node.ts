@@ -160,6 +160,10 @@ export class JoinNode implements QueryNode {
       connections: new Map(),
       min: 2,
       max: 2,
+      portNames: (portIndex: number) =>
+        portIndex === 0
+          ? this.state.leftQueryAlias
+          : this.state.rightQueryAlias,
     };
     // Initialize connections from state
     if (state.leftNode) {
@@ -251,10 +255,6 @@ export class JoinNode implements QueryNode {
 
   nodeInfo(): m.Children {
     return loadNodeDoc('join');
-  }
-
-  getInputLabels(): string[] {
-    return [this.state.leftQueryAlias, this.state.rightQueryAlias];
   }
 
   nodeDetails(): NodeDetailsAttrs {

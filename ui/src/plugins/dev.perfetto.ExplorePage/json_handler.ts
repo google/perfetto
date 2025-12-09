@@ -57,6 +57,10 @@ import {SortNode, SortNodeState} from './query_builder/nodes/sort_node';
 import {FilterNode, FilterNodeState} from './query_builder/nodes/filter_node';
 import {JoinNode, JoinSerializedState} from './query_builder/nodes/join_node';
 import {
+  CreateSlicesNode,
+  CreateSlicesSerializedState,
+} from './query_builder/nodes/create_slices_node';
+import {
   UnionNode,
   UnionSerializedState,
 } from './query_builder/nodes/union_node';
@@ -78,6 +82,7 @@ type SerializedNodeState =
   | SortNodeState
   | FilterNodeState
   | JoinSerializedState
+  | CreateSlicesSerializedState
   | UnionSerializedState
   | FilterDuringNodeState;
 
@@ -96,6 +101,13 @@ export interface SerializedGraph {
   rootNodeIds: string[];
   selectedNodeId?: string;
   nodeLayouts?: {[key: string]: {x: number; y: number}};
+  labels?: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    text: string;
+  }>;
 }
 
 function serializeNode(node: QueryNode): SerializedNode {
@@ -133,6 +145,7 @@ export function serializeState(state: ExplorePageState): string {
     rootNodeIds: state.rootNodes.map((n) => n.nodeId),
     selectedNodeId: state.selectedNode?.nodeId,
     nodeLayouts: Object.fromEntries(state.nodeLayouts),
+    labels: state.labels,
   };
 
   const replacer = (key: string, value: unknown) => {
@@ -228,6 +241,10 @@ function createNodeInstance(
     case NodeType.kJoin:
       return new JoinNode(
         JoinNode.deserializeState(state as JoinSerializedState),
+      );
+    case NodeType.kCreateSlices:
+      return new CreateSlicesNode(
+        CreateSlicesNode.deserializeState(state as CreateSlicesSerializedState),
       );
     case NodeType.kUnion:
       return new UnionNode(
@@ -352,6 +369,25 @@ export function deserializeState(
         );
       }
     }
+    if (serializedNode.type === NodeType.kCreateSlices) {
+      const createSlicesNode = node as CreateSlicesNode;
+      const deserializedConnections = CreateSlicesNode.deserializeConnections(
+        nodes,
+        serializedNode.state as CreateSlicesSerializedState,
+      );
+      if (deserializedConnections.startsNode) {
+        createSlicesNode.secondaryInputs.connections.set(
+          0,
+          deserializedConnections.startsNode,
+        );
+      }
+      if (deserializedConnections.endsNode) {
+        createSlicesNode.secondaryInputs.connections.set(
+          1,
+          deserializedConnections.endsNode,
+        );
+      }
+    }
     if (serializedNode.type === NodeType.kUnion) {
       const unionNode = node as UnionNode;
       const serializedState = serializedNode.state as UnionSerializedState;
@@ -435,6 +471,7 @@ export function deserializeState(
     rootNodes,
     selectedNode,
     nodeLayouts,
+    labels: serializedGraph.labels,
   };
 }
 

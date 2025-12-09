@@ -645,18 +645,13 @@ describe('Connection Management', () => {
       expect(primaryNode.nextNodes).toContain(filterNode);
     });
 
-    it('should connect multiple secondary inputs using addConnection', () => {
+    it('should connect secondary input using addConnection', () => {
       const primaryNode = createMockPrevNode('primary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
         createColumnInfo('dur', 'INT64'),
       ]);
-      const intervalNode1 = createMockPrevNode('interval1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const intervalNode2 = createMockPrevNode('interval2', [
+      const intervalNode = createMockPrevNode('interval', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
         createColumnInfo('dur', 'INT64'),
@@ -664,14 +659,11 @@ describe('Connection Management', () => {
 
       const filterNode = new FilterDuringNode({});
       addConnection(primaryNode, filterNode);
-      addConnection(intervalNode1, filterNode, 0);
-      addConnection(intervalNode2, filterNode, 1);
+      addConnection(intervalNode, filterNode, 0);
 
       expect(filterNode.primaryInput).toBe(primaryNode);
-      expect(filterNode.secondaryInputs.connections.size).toBe(2);
-      expect(filterNode.secondaryInputs.connections.get(0)).toBe(intervalNode1);
-      expect(filterNode.secondaryInputs.connections.get(1)).toBe(intervalNode2);
-      expect(filterNode.secondaryNodes.length).toBe(2);
+      expect(filterNode.secondaryInputs.connections.get(0)).toBe(intervalNode);
+      expect(filterNode.secondaryNodes.length).toBe(1);
     });
 
     it('should disconnect primary input using removeConnection', () => {
@@ -692,18 +684,13 @@ describe('Connection Management', () => {
       expect(primaryNode.nextNodes).not.toContain(filterNode);
     });
 
-    it('should disconnect one of multiple secondary inputs', () => {
+    it('should disconnect secondary input', () => {
       const primaryNode = createMockPrevNode('primary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
         createColumnInfo('dur', 'INT64'),
       ]);
-      const intervalNode1 = createMockPrevNode('interval1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const intervalNode2 = createMockPrevNode('interval2', [
+      const intervalNode = createMockPrevNode('interval', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
         createColumnInfo('dur', 'INT64'),
@@ -711,17 +698,14 @@ describe('Connection Management', () => {
 
       const filterNode = new FilterDuringNode({});
       addConnection(primaryNode, filterNode);
-      addConnection(intervalNode1, filterNode, 0);
-      addConnection(intervalNode2, filterNode, 1);
+      addConnection(intervalNode, filterNode, 0);
 
-      expect(filterNode.secondaryInputs.connections.size).toBe(2);
+      expect(filterNode.secondaryInputs.connections.get(0)).toBe(intervalNode);
 
-      removeConnection(intervalNode1, filterNode);
+      removeConnection(intervalNode, filterNode);
 
-      expect(filterNode.secondaryInputs.connections.size).toBe(1);
       expect(filterNode.secondaryInputs.connections.get(0)).toBeUndefined();
-      expect(filterNode.secondaryInputs.connections.get(1)).toBe(intervalNode2);
-      expect(filterNode.secondaryNodes.length).toBe(1);
+      expect(filterNode.secondaryNodes.length).toBe(0);
     });
 
     it('should have finalCols from primary input', () => {
@@ -773,12 +757,7 @@ describe('Connection Management', () => {
         createColumnInfo('ts', 'INT64'),
         createColumnInfo('dur', 'INT64'),
       ]);
-      const intervalNode1 = createMockPrevNode('interval1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const intervalNode2 = createMockPrevNode('interval2', [
+      const intervalNode = createMockPrevNode('interval', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
         createColumnInfo('dur', 'INT64'),
@@ -786,54 +765,13 @@ describe('Connection Management', () => {
 
       const filterNode = new FilterDuringNode({});
       addConnection(primaryNode, filterNode);
-      addConnection(intervalNode1, filterNode, 0);
-      addConnection(intervalNode2, filterNode, 1);
+      addConnection(intervalNode, filterNode, 0);
 
-      removeConnection(intervalNode1, filterNode);
-      removeConnection(intervalNode2, filterNode);
+      removeConnection(intervalNode, filterNode);
 
       expect(filterNode.primaryInput).toBe(primaryNode);
-      expect(filterNode.secondaryInputs.connections.size).toBe(0);
+      expect(filterNode.secondaryInputs.connections.get(0)).toBeUndefined();
       expect(filterNode.secondaryNodes.length).toBe(0);
-    });
-
-    it('should add secondary input to next available port', () => {
-      const primaryNode = createMockPrevNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const intervalNode1 = createMockPrevNode('interval1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const intervalNode2 = createMockPrevNode('interval2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const intervalNode3 = createMockPrevNode('interval3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const filterNode = new FilterDuringNode({});
-      addConnection(primaryNode, filterNode);
-
-      // Add without specifying port - should auto-assign
-      addConnection(intervalNode1, filterNode, 0);
-      addConnection(intervalNode2, filterNode, 1);
-
-      // Remove the first one
-      removeConnection(intervalNode1, filterNode);
-
-      // Add a new one without specifying port - should use port 0
-      addConnection(intervalNode3, filterNode, 0);
-
-      expect(filterNode.secondaryInputs.connections.get(0)).toBe(intervalNode3);
-      expect(filterNode.secondaryInputs.connections.get(1)).toBe(intervalNode2);
     });
 
     it('should notify downstream nodes when primary disconnected', () => {
@@ -1514,7 +1452,7 @@ describe('Connection Management', () => {
       // - nodeX should be connected to nodeZ's SECONDARY input at port 0
       // - nodeZ's primary input should still be primaryNode (unchanged)
       expect(nodeZ.primaryInput).toBe(primaryNode); // primary unchanged
-      expect(nodeZ.secondaryInputs.connections.get(0)).toBe(nodeX); // nodeX at secondary port 0
+      expect(nodeZ.secondaryInputs.connections.get(0)).toBe(nodeX); // nodeX at secondary input
       expect(nodeX.nextNodes).toContain(nodeZ); // nodeX connected to nodeZ
     });
   });

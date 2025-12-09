@@ -86,12 +86,10 @@ describe('FilterDuringNode', () => {
       expect(node.type).toBe(NodeType.kFilterDuring);
     });
 
-    it('should initialize secondary inputs with min=1, max=6', () => {
+    it('should initialize with no secondary input', () => {
       const node = new FilterDuringNode({});
 
-      expect(node.secondaryInputs.min).toBe(1);
-      expect(node.secondaryInputs.max).toBe(6);
-      expect(node.secondaryInputs.connections.size).toBe(0);
+      expect(node.secondaryInputs.connections.get(0)).toBeUndefined();
     });
   });
 
@@ -164,7 +162,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Connect a node with intervals to the left port',
+        'Connect a node with intervals to the port on the left',
       );
     });
 
@@ -204,7 +202,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Input at port 1 is invalid',
+        'Filter intervals input is invalid',
       );
     });
 
@@ -246,7 +244,7 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(false);
       expect(node.state.issues?.queryError?.message).toContain(
-        'Input at port 1 is missing required columns',
+        'Filter intervals input is missing required columns',
       );
     });
 
@@ -444,6 +442,8 @@ describe('FilterDuringNode', () => {
         secondaryInputNodeIds: [secondaryNode.nodeId],
         filterNegativeDurPrimary: false,
         filterNegativeDurSecondary: true,
+        partitionColumns: undefined,
+        clipToIntervals: undefined,
       });
     });
 
@@ -457,6 +457,8 @@ describe('FilterDuringNode', () => {
         secondaryInputNodeIds: [],
         filterNegativeDurPrimary: true,
         filterNegativeDurSecondary: true,
+        partitionColumns: undefined,
+        clipToIntervals: undefined,
       });
     });
   });
@@ -490,29 +492,23 @@ describe('FilterDuringNode', () => {
   });
 
   describe('secondaryNodes getter', () => {
-    it('should return empty array when no secondary inputs', () => {
+    it('should return empty array when no secondary input', () => {
       const node = new FilterDuringNode({});
 
       expect(node.secondaryNodes).toEqual([]);
     });
 
-    it('should return all connected secondary nodes', () => {
-      const secondaryNode1 = createMockNode('secondary1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
-      const secondaryNode2 = createMockNode('secondary2', [
+    it('should return array with single secondary node when connected', () => {
+      const secondaryNode = createMockNode('secondary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'TIMESTAMP'),
         createColumnInfo('dur', 'DURATION'),
       ]);
 
       const node = new FilterDuringNode({});
-      node.secondaryInputs.connections.set(0, secondaryNode1);
-      node.secondaryInputs.connections.set(1, secondaryNode2);
+      node.secondaryInputs.connections.set(0, secondaryNode);
 
-      expect(node.secondaryNodes).toEqual([secondaryNode1, secondaryNode2]);
+      expect(node.secondaryNodes).toEqual([secondaryNode]);
     });
   });
 
@@ -662,45 +658,6 @@ describe('FilterDuringNode', () => {
           node as unknown as FilterDuringNodeWithPrivates
         ).getCommonColumns();
 
-        expect(commonColumns).toEqual(['utid']);
-      });
-
-      it('should only return columns present in all secondary inputs', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
-          createColumnInfo('cpu', 'INT'),
-          createColumnInfo('priority', 'INT'),
-        ]);
-
-        const secondaryNode1 = createMockNode('secondary1', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
-          createColumnInfo('cpu', 'INT'),
-        ]);
-
-        const secondaryNode2 = createMockNode('secondary2', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
-          createColumnInfo('priority', 'INT'),
-        ]);
-
-        const node = new FilterDuringNode({});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode1);
-        node.secondaryInputs.connections.set(1, secondaryNode2);
-
-        const commonColumns = (
-          node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
-
-        // Only 'utid' is in primary AND both secondaries
         expect(commonColumns).toEqual(['utid']);
       });
 
@@ -873,6 +830,7 @@ describe('FilterDuringNode', () => {
           filterNegativeDurPrimary: true,
           filterNegativeDurSecondary: true,
           partitionColumns: ['utid'],
+          clipToIntervals: undefined,
         });
       });
 

@@ -105,7 +105,7 @@ describe('ModifyColumnsNode', () => {
       expect(node.validate()).toBe(false);
     });
 
-    it('should fail validation for empty alias', () => {
+    it('should allow empty alias (uses original column name)', () => {
       const col = createColumnInfo('id', 'INT');
       col.alias = '';
       const node = createModifyColumnsNodeWithInput(
@@ -115,7 +115,8 @@ describe('ModifyColumnsNode', () => {
         createMockPrevNode(),
       );
 
-      expect(node.validate()).toBe(false);
+      // Empty alias is allowed - it just means use the original column name
+      expect(node.validate()).toBe(true);
     });
 
     it('should fail validation for duplicate column names', () => {

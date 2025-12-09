@@ -239,6 +239,7 @@ export class IntervalIntersectNode implements QueryNode {
       connections: new Map(),
       min: 2,
       max: 6,
+      portNames: (portIndex: number) => `Input ${portIndex}`,
     };
     // Initialize connections from state.inputNodes
     for (let i = 0; i < state.inputNodes.length; i++) {
