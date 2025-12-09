@@ -27,7 +27,6 @@ env:
   PYTHONUNBUFFERED: 1
 jobs:
   ui:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: self-hosted
     timeout-minutes: 45
     env:
@@ -70,7 +69,7 @@ jobs:
           echo "UI_BUILD_URL=https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html" >> $GITHUB_ENV
 
       - name: Comment PR with UI build link
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
         uses: actions/github-script@v6
         with:
           script: |
