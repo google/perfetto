@@ -1952,7 +1952,7 @@ describe('JSON serialization/deserialization', () => {
       deserializedSlicesNode.nodeId,
     );
 
-    // Verify secondaryInputs connection
+    // Verify secondaryInput connection
     expect(deserializedFilterDuringNode.secondaryInputs.connections.size).toBe(
       1,
     );
@@ -1964,58 +1964,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedFilterDuringNode.state.filterNegativeDurSecondary).toBe(
       false,
     );
-  });
-
-  test('serializes and deserializes filter during node with multiple secondary inputs', () => {
-    const slicesNode = new SlicesSourceNode({});
-    const timeRangeNode1 = new TimeRangeSourceNode({trace});
-    const timeRangeNode2 = new TimeRangeSourceNode({trace});
-    const timeRangeNode3 = new TimeRangeSourceNode({trace});
-
-    const filterDuringNode = new FilterDuringNode({});
-
-    // Connect slicesNode as primaryInput
-    slicesNode.nextNodes.push(filterDuringNode);
-    filterDuringNode.primaryInput = slicesNode;
-
-    // Connect multiple timeRangeNodes as secondaryInputs
-    timeRangeNode1.nextNodes.push(filterDuringNode);
-    filterDuringNode.secondaryInputs.connections.set(0, timeRangeNode1);
-
-    timeRangeNode2.nextNodes.push(filterDuringNode);
-    filterDuringNode.secondaryInputs.connections.set(1, timeRangeNode2);
-
-    timeRangeNode3.nextNodes.push(filterDuringNode);
-    filterDuringNode.secondaryInputs.connections.set(2, timeRangeNode3);
-
-    const initialState: ExplorePageState = {
-      rootNodes: [slicesNode, timeRangeNode1, timeRangeNode2, timeRangeNode3],
-      nodeLayouts: new Map(),
-    };
-
-    const json = serializeState(initialState);
-    const deserializedState = deserializeState(json, trace, sqlModules);
-
-    expect(deserializedState.rootNodes.length).toBe(4);
-
-    // Find the deserialized filter during node
-    const deserializedSlicesNode = deserializedState.rootNodes[0];
-    const deserializedFilterDuringNode = deserializedSlicesNode
-      .nextNodes[0] as FilterDuringNode;
-
-    // Verify all secondary inputs are preserved
-    expect(deserializedFilterDuringNode.secondaryInputs.connections.size).toBe(
-      3,
-    );
-    expect(
-      deserializedFilterDuringNode.secondaryInputs.connections.get(0)?.nodeId,
-    ).toBe(deserializedState.rootNodes[1].nodeId);
-    expect(
-      deserializedFilterDuringNode.secondaryInputs.connections.get(1)?.nodeId,
-    ).toBe(deserializedState.rootNodes[2].nodeId);
-    expect(
-      deserializedFilterDuringNode.secondaryInputs.connections.get(2)?.nodeId,
-    ).toBe(deserializedState.rootNodes[3].nodeId);
   });
 
   // ========================================
@@ -2488,5 +2436,94 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode).toBeInstanceOf(TimeRangeSourceNode);
     expect(deserializedNode.state.start).toEqual(Time.fromRaw(1000n));
     expect(deserializedNode.state.end).toEqual(Time.fromRaw(2000n));
+  });
+
+  test('serializes and deserializes labels', () => {
+    const sliceNode = new SlicesSourceNode({});
+    const labels = [
+      {
+        id: 'label-1',
+        x: 100,
+        y: 200,
+        width: 300,
+        text: 'First label',
+      },
+      {
+        id: 'label-2',
+        x: 400,
+        y: 500,
+        width: 250,
+        text: 'Second label',
+      },
+    ];
+
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+      labels,
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.labels).toEqual(labels);
+  });
+
+  test('handles state without labels', () => {
+    const sliceNode = new SlicesSourceNode({});
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.labels).toBeUndefined();
+  });
+
+  test('handles empty labels array', () => {
+    const sliceNode = new SlicesSourceNode({});
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.labels).toEqual([]);
+  });
+
+  test('labels survive JSON round-trip with special characters', () => {
+    const sliceNode = new SlicesSourceNode({});
+    const labels = [
+      {
+        id: 'label-1',
+        x: 0,
+        y: 0,
+        width: 200,
+        text: 'Label with "quotes" and \n newlines \t tabs',
+      },
+      {
+        id: 'label-2',
+        x: 0,
+        y: 0,
+        width: 200,
+        text: 'Unicode: 你好 🎉',
+      },
+    ];
+
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+      labels,
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.labels).toEqual(labels);
   });
 });

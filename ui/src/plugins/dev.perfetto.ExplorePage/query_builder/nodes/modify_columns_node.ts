@@ -19,7 +19,6 @@ import {
   nextNodeId,
   NodeType,
 } from '../../query_node';
-import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {TextInput} from '../../../../widgets/text_input';
@@ -32,7 +31,7 @@ import {
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
-import {DraggableItem} from '../widgets';
+import {DraggableItem, SelectDeselectAllButtons} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {
   NodeDetailsMessage,
@@ -151,11 +150,7 @@ export class ModifyColumnsNode implements QueryNode {
     const colNames = new Set<string>();
     for (const col of this.state.selectedColumns) {
       if (!col.checked) continue;
-      // Check for empty or whitespace-only alias
-      if (col.alias !== undefined && col.alias.trim() === '') {
-        this.setValidationError('Empty alias not allowed');
-        return false;
-      }
+      // Empty aliases are allowed - they just mean use the original column name
       const name = col.alias ? col.alias.trim() : col.column.name;
       if (colNames.has(name)) {
         this.setValidationError('Duplicate column names');
@@ -271,43 +266,33 @@ export class ModifyColumnsNode implements QueryNode {
         title: `Select and Rename Columns (${selectedCount} / ${totalCount} selected)`,
         content: m(
           '.pf-modify-columns-content',
-          m(
-            '.pf-modify-columns-actions',
-            m(Button, {
-              label: 'Select All',
-              onclick: () => {
-                this.state.selectedColumns = this.state.selectedColumns.map(
-                  (col) => ({
-                    ...col,
-                    checked: true,
-                  }),
-                );
-                this.state.onchange?.();
-              },
-              variant: ButtonVariant.Outlined,
-              compact: true,
-            }),
-            m(Button, {
-              label: 'Deselect All',
-              onclick: () => {
-                this.state.selectedColumns = this.state.selectedColumns.map(
-                  (col) => ({
-                    ...col,
-                    checked: false,
-                  }),
-                );
-                this.state.onchange?.();
-              },
-              variant: ButtonVariant.Outlined,
-              compact: true,
-            }),
-          ),
+          m(SelectDeselectAllButtons, {
+            onSelectAll: () => {
+              this.state.selectedColumns = this.state.selectedColumns.map(
+                (col) => ({
+                  ...col,
+                  checked: true,
+                }),
+              );
+              this.state.onchange?.();
+            },
+            onDeselectAll: () => {
+              this.state.selectedColumns = this.state.selectedColumns.map(
+                (col) => ({
+                  ...col,
+                  checked: false,
+                }),
+              );
+              this.state.onchange?.();
+            },
+          }),
           this.renderColumnList(),
         ),
       },
     ];
 
     return {
+      info: 'Select which columns to include in the output and optionally rename them using aliases. Check columns to include, add aliases to rename, and drag to reorder.',
       sections,
     };
   }
@@ -362,9 +347,11 @@ export class ModifyColumnsNode implements QueryNode {
       m(TextInput, {
         oninput: (e: Event) => {
           const newSelectedColumns = [...this.state.selectedColumns];
+          const inputValue = (e.target as HTMLInputElement).value;
           newSelectedColumns[index] = {
             ...newSelectedColumns[index],
-            alias: (e.target as HTMLInputElement).value,
+            // Normalize empty strings to undefined (no alias)
+            alias: inputValue.trim() === '' ? undefined : inputValue,
           };
           this.state.selectedColumns = newSelectedColumns;
           this.state.onchange?.();

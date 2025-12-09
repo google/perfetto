@@ -581,7 +581,7 @@ describe('JoinNode', () => {
     });
   });
 
-  describe('getInputLabels', () => {
+  describe('secondaryInputs.portNames', () => {
     it('should return the left and right query aliases', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
@@ -598,7 +598,12 @@ describe('JoinNode', () => {
         sqlExpression: '',
       });
 
-      expect(joinNode.getInputLabels()).toEqual(['foo', 'bar']);
+      const portNames = joinNode.secondaryInputs.portNames;
+      expect(typeof portNames).toBe('function');
+      if (typeof portNames === 'function') {
+        expect(portNames(0)).toBe('foo');
+        expect(portNames(1)).toBe('bar');
+      }
     });
   });
 
