@@ -37,6 +37,7 @@ import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
+import {uuidv4} from '../../../../base/uuid';
 import {
   MenuItem,
   MenuDivider,
@@ -45,12 +46,14 @@ import {
 } from '../../../../widgets/menu';
 import {
   Connection,
+  Label,
   Node,
   NodeGraph,
   NodeGraphApi,
   NodeGraphAttrs,
   NodePort,
 } from '../../../../widgets/nodegraph';
+import {createEditableTextLabels} from './text_label';
 import {
   QueryNode,
   singleNodeOperation,
@@ -97,9 +100,11 @@ export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: LayoutMap;
+  readonly labels?: ReadonlyArray<TextLabelData>;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: Position) => void;
+  readonly onLabelsChange?: (labels: TextLabelData[]) => void;
   readonly onAddSourceNode: (id: string) => void;
   readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
@@ -553,12 +558,112 @@ function handleConnectionRemove(
 }
 
 // ========================================
+// TEXT LABEL SERIALIZATION
+// ========================================
+
+/**
+ * Serializable representation of a text label.
+ * This interface contains only plain data types that can be safely
+ * serialized to/from JSON, unlike the Label interface which includes
+ * Mithril vnodes in the content field.
+ */
+export interface TextLabelData {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly text: string;
+}
+
+// ========================================
 // GRAPH COMPONENT
 // ========================================
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
+  private labels: Label[] = [];
+  private labelTexts: Map<string, string> = new Map();
+  private editingLabels: Set<string> = new Set();
+
+  oninit(vnode: m.Vnode<GraphAttrs>) {
+    // Load initial labels from attrs if provided
+    if (vnode.attrs.labels) {
+      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
+    }
+  }
+
+  onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
+    // Only update labels if the reference changed (indicating external state update)
+    if (vnode.attrs.labels !== old.attrs.labels && vnode.attrs.labels) {
+      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
+    }
+    return true;
+  }
+
+  /**
+   * Notifies parent component that labels have changed.
+   * Called after any label modification (add, move, resize, delete).
+   */
+  private notifyLabelsChanged(attrs: GraphAttrs) {
+    if (attrs.onLabelsChange) {
+      attrs.onLabelsChange(this.serializeLabels());
+    }
+  }
+
+  private addLabel(attrs: GraphAttrs) {
+    const id = uuidv4();
+    // Offset from the last label if one exists, otherwise use default position
+    const lastLabel = this.labels[this.labels.length - 1];
+    const x = lastLabel !== undefined ? lastLabel.x + 30 : 100;
+    const y = lastLabel !== undefined ? lastLabel.y + 30 : 100;
+    this.labels.push({
+      id,
+      x,
+      y,
+      width: 200,
+      content: undefined, // Will be set in view
+    });
+    this.labelTexts.set(id, 'New label');
+    this.notifyLabelsChanged(attrs);
+    m.redraw();
+  }
+
+  /**
+   * Serializes the current text labels to a JSON-compatible format.
+   * Returns an array of TextLabelData that can be stored or transmitted.
+   */
+  serializeLabels(): TextLabelData[] {
+    return this.labels.map((label) => ({
+      id: label.id,
+      x: label.x,
+      y: label.y,
+      width: label.width,
+      text: this.labelTexts.get(label.id) ?? '',
+    }));
+  }
+
+  /**
+   * Deserializes text labels from a JSON-compatible format.
+   * Replaces the current labels with the deserialized data.
+   */
+  deserializeLabels(data: TextLabelData[]): void {
+    this.labels = data.map((labelData) => ({
+      id: labelData.id,
+      x: labelData.x,
+      y: labelData.y,
+      width: labelData.width,
+      content: undefined, // Will be set in view
+    }));
+
+    this.labelTexts.clear();
+    for (const labelData of data) {
+      this.labelTexts.set(labelData.id, labelData.text);
+    }
+
+    this.editingLabels.clear();
+    m.redraw();
+  }
 
   private renderControls(attrs: GraphAttrs) {
     const sourceMenuItems = buildMenuItems('source', attrs.onAddSourceNode);
@@ -616,6 +721,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         },
         addNodeMenuItems,
       ),
+      m(Button, {
+        icon: Icons.Edit,
+        variant: ButtonVariant.Minimal,
+        title: 'Add Label',
+        onclick: () => this.addLabel(attrs),
+      }),
       m(
         PopupMenu,
         {
@@ -726,6 +837,36 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             m.redraw();
           },
           contextMenuOnHover: true,
+          labels: createEditableTextLabels(
+            this.labels,
+            this.labelTexts,
+            this.editingLabels,
+            () => this.notifyLabelsChanged(attrs),
+          ),
+          onLabelMove: (labelId: string, x: number, y: number) => {
+            const label = this.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.x = x;
+              label.y = y;
+              this.notifyLabelsChanged(attrs);
+            }
+          },
+          onLabelResize: (labelId: string, width: number) => {
+            const label = this.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.width = width;
+              this.notifyLabelsChanged(attrs);
+            }
+          },
+          onLabelRemove: (labelId: string) => {
+            const labelIndex = this.labels.findIndex((l) => l.id === labelId);
+            if (labelIndex !== -1) {
+              this.labels.splice(labelIndex, 1);
+            }
+            this.labelTexts.delete(labelId);
+            this.notifyLabelsChanged(attrs);
+            m.redraw();
+          },
         } satisfies NodeGraphAttrs),
         this.renderControls(attrs),
       ],
