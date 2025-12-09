@@ -2,6 +2,7 @@
 # The corresponding binary files are downloaded by
 # `tools/test_data download`, ran by install-build-deps.
 /data/*
+!/data/example_android_trace_30s_atrace_strings.txt
 !/data/*.sha256
 !/data/OWNERS
 

@@ -33,8 +33,8 @@ std::vector<std::pair<size_t, size_t>> LoadTraceStrings(
   storage.clear();
 
   std::vector<std::pair<size_t, size_t>> strs;
-  std::string path = perfetto::base::GetTestDataPath(
-      "test/data/example_android_trace_30s_atrace_strings.txt");
+  std::string path =
+      "data/local/tmp/example_android_trace_30s_atrace_strings.txt";
   perfetto::base::ScopedFstream f(fopen(path.c_str(), "re"));
   if (!f) {
     state.SkipWithError("Strings does not exist");
@@ -160,5 +160,55 @@ static void BM_ProtozeroStringRewriterAtraceSearchSingleRedactSpammy(
             R"(Heap size \(KB\)\|(\d+))", "Heap size (KB)");
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceSearchSingleRedactSpammy)
+    ->Unit(benchmark::kMillisecond)
+    ->Arg(10);
+
+static void BM_ProtozeroStringRewriterPrefixMatch(benchmark::State& state) {
+  Benchmark(state, Policy::kMatchRedactGroups, R"(^B\|.*\n)", "");
+}
+BENCHMARK(BM_ProtozeroStringRewriterPrefixMatch)
+    ->Unit(benchmark::kMillisecond)
+    ->Arg(10);
+
+static void BM_ProtozeroStringRewriterPrefixMismatch(benchmark::State& state) {
+  Benchmark(state, Policy::kMatchRedactGroups, R"(^X\|.*\n)", "");
+}
+BENCHMARK(BM_ProtozeroStringRewriterPrefixMismatch)
+    ->Unit(benchmark::kMillisecond)
+    ->Arg(10);
+
+// This benchmark is designed to test the performance of std::regex prefix
+// matching for strings that do NOT match the prefix. The bug b/467370739
+// raises a concern that std::regex might be inefficient in this case.
+static void BM_ProtozeroStringRewriterPrefixMatchNoMatch(
+    benchmark::State& state) {
+  Benchmark(state, Policy::kMatchRedactGroups,
+            R"(^not_a_prefix_in_the_trace.*)", "");
+}
+BENCHMARK(BM_ProtozeroStringRewriterPrefixMatchNoMatch)
+    ->Unit(benchmark::kMillisecond)
+    ->Arg(10);
+
+// This benchmark is similar to BM_ProtozeroStringRewriterRedactRare, but
+// uses the '^' anchor to explicitly test prefix matching performance for a
+// rare event, as proposed in the bug b/467370739.
+static void BM_ProtozeroStringRewriterPrefixMatchRare(benchmark::State& state) {
+  Benchmark(state, Policy::kMatchRedactGroups,
+            R"(^B\|[^|]+\|VerifyClass (.*)\n)", "");
+}
+BENCHMARK(BM_ProtozeroStringRewriterPrefixMatchRare)
+    ->Unit(benchmark::kMillisecond)
+    ->Arg(10);
+
+static void BM_ProtozeroStringRewriterRegexRedactMissing(
+    benchmark::State& state) {
+  // Functionally equivalent to BM_ProtozeroStringRewriterAtraceRedactMissing
+  // but relies on std::regex optimization for the prefix match
+  // instead of the manual atrace pre-filter.
+  // We explicitly add '^' to the regex as suggested in the bug proposal.
+  Benchmark(state, Policy::kMatchRedactGroups,
+            R"(^S\|[^|]+\|\*job\*\/.*\/.*\/(.*)\n)", "");
+}
+BENCHMARK(BM_ProtozeroStringRewriterRegexRedactMissing)
     ->Unit(benchmark::kMillisecond)
     ->Arg(10);
