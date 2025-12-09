@@ -52,6 +52,9 @@ import {
   IssueList,
   OutlinedMultiSelect,
   MultiSelectDiff,
+  OutlinedField,
+  FormListItem,
+  AddItemPlaceholder,
 } from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
@@ -130,21 +133,18 @@ class SwitchComponent
     if (column.switchOn === undefined || column.switchOn === '') {
       const columnNames = columns.map((c) => c.column.name);
       return m(
-        '.pf-exp-switch-component',
-        m(
-          '.pf-exp-switch-header',
-          'SWITCH ON ',
-          m(
-            Select,
-            {
-              onchange: (e: Event) => {
-                setSwitchOn((e.target as HTMLSelectElement).value);
-              },
-            },
-            m('option', {value: ''}, 'Select column'),
-            ...columnNames.map((name) => m('option', {value: name}, name)),
-          ),
-        ),
+        OutlinedField,
+        {
+          label: 'Switch on column',
+          value: '',
+          onchange: (e: Event) => {
+            setSwitchOn((e.target as HTMLSelectElement).value);
+          },
+        },
+        [
+          m('option', {value: ''}, 'Select column'),
+          ...columnNames.map((name) => m('option', {value: name}, name)),
+        ],
       );
     }
 
@@ -155,77 +155,68 @@ class SwitchComponent
     );
     const isStringColumn = selectedColumn?.type === 'STRING';
 
-    return m(
-      '.pf-exp-switch-component',
+    return m('.pf-inline-edit-list', [
       m(
-        '.pf-exp-switch-header',
-        'SWITCH ON ',
-        m(
-          Select,
-          {
-            value: column.switchOn,
-            onchange: (e: Event) => {
-              setSwitchOn((e.target as HTMLSelectElement).value);
-            },
+        OutlinedField,
+        {
+          label: 'Switch on column',
+          value: column.switchOn,
+          onchange: (e: Event) => {
+            setSwitchOn((e.target as HTMLSelectElement).value);
           },
-          ...columnNames.map((name) => m('option', {value: name}, name)),
-        ),
+        },
+        columnNames.map((name) => m('option', {value: name}, name)),
       ),
       isStringColumn &&
-        m(
-          '.pf-exp-switch-glob-toggle',
-          m(Switch, {
-            label: 'Use glob matching',
-            checked: column.useGlob ?? false,
-            onchange: (e: Event) => {
-              column.useGlob = (e.target as HTMLInputElement).checked;
-              this.updateExpression(column);
-              onchange();
-            },
-          }),
-        ),
-      m(
-        '.pf-exp-switch-default-row',
-        'Default ',
-        m(TextInput, {
-          placeholder: 'default value',
-          value: column.defaultValue || '',
-          oninput: (e: Event) => {
-            setDefaultValue((e.target as HTMLInputElement).value);
+        m(Switch, {
+          label: 'Use glob matching',
+          checked: column.useGlob ?? false,
+          onchange: (e: Event) => {
+            column.useGlob = (e.target as HTMLInputElement).checked;
+            this.updateExpression(column);
+            onchange();
           },
         }),
-      ),
+      m(OutlinedField, {
+        label: 'Default value',
+        placeholder: 'default value',
+        value: column.defaultValue || '',
+        oninput: (e: Event) => {
+          setDefaultValue((e.target as HTMLInputElement).value);
+        },
+      }),
       ...(column.cases || []).map((c, i) =>
-        m(
-          '.pf-exp-switch-case',
-          'WHEN ',
-          m(TextInput, {
-            placeholder: 'is equal to',
-            value: c.when,
-            oninput: (e: Event) => {
-              setCaseWhen(i, (e.target as HTMLInputElement).value);
-            },
-          }),
-          ' THEN ',
-          m(TextInput, {
-            placeholder: 'then value',
-            value: c.then,
-            oninput: (e: Event) => {
-              setCaseThen(i, (e.target as HTMLInputElement).value);
-            },
-          }),
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: () => removeCase(i),
-          }),
-        ),
+        m(FormListItem, {
+          item: c,
+          isValid: c.when.trim() !== '' && c.then.trim() !== '',
+          onUpdate: () => {},
+          onRemove: () => removeCase(i),
+          children: [
+            m(OutlinedField, {
+              label: 'When',
+              placeholder: 'is equal to',
+              value: c.when,
+              oninput: (e: Event) => {
+                setCaseWhen(i, (e.target as HTMLInputElement).value);
+              },
+            }),
+            m(OutlinedField, {
+              label: 'Then',
+              placeholder: 'then value',
+              value: c.then,
+              oninput: (e: Event) => {
+                setCaseThen(i, (e.target as HTMLInputElement).value);
+              },
+            }),
+          ],
+        }),
       ),
-      m(Button, {
+      m(AddItemPlaceholder, {
         label: 'Add case',
+        icon: 'add',
         onclick: addCase,
       }),
-    );
+    ]);
   }
 
   private updateExpression(col: NewColumn) {
@@ -308,66 +299,59 @@ class IfComponent
 
     const hasElse = column.elseValue !== undefined;
 
-    return m(
-      '.pf-exp-if-component',
-      (column.clauses || []).map((c, i) =>
-        m(
-          '.pf-exp-if-clause',
-          i === 0 ? 'IF ' : 'ELSE IF',
-          m(TextInput, {
-            placeholder: 'condition',
-            value: c.if,
-            oninput: (e: Event) => {
-              setIfCondition(i, (e.target as HTMLInputElement).value);
-            },
-          }),
-          ' THEN ',
-          m(TextInput, {
-            placeholder: 'value',
-            value: c.then,
-            oninput: (e: Event) => {
-              setThenValue(i, (e.target as HTMLInputElement).value);
-            },
-          }),
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: () => removeClause(i),
-          }),
-        ),
+    return m('.pf-inline-edit-list', [
+      ...(column.clauses || []).map((c, i) =>
+        m(FormListItem, {
+          item: c,
+          isValid: c.if.trim() !== '' && c.then.trim() !== '',
+          onUpdate: () => {},
+          onRemove: () => removeClause(i),
+          children: [
+            m(OutlinedField, {
+              label: i === 0 ? 'If' : 'Else If',
+              placeholder: 'condition',
+              value: c.if,
+              oninput: (e: Event) => {
+                setIfCondition(i, (e.target as HTMLInputElement).value);
+              },
+            }),
+            m(OutlinedField, {
+              label: 'Then',
+              placeholder: 'value',
+              value: c.then,
+              oninput: (e: Event) => {
+                setThenValue(i, (e.target as HTMLInputElement).value);
+              },
+            }),
+          ],
+        }),
       ),
-
       hasElse &&
-        m(
-          '.pf-exp-else-clause',
-          'ELSE ',
-          m(TextInput, {
-            placeholder: 'value',
-            value: column.elseValue || '',
-            oninput: (e: Event) => {
-              setElseValue((e.target as HTMLInputElement).value);
-            },
-          }),
-        ),
-
-      m(
-        '.pf-exp-if-buttons',
-        !hasElse &&
-          m(Button, {
-            label: 'Add ELSE IF',
-            onclick: addElseIf,
-          }),
-        !hasElse &&
-          m(Button, {
-            label: 'Add ELSE',
-            onclick: () => {
-              column.elseValue = '';
-              this.updateExpression(column);
-              onchange();
-            },
-          }),
-      ),
-    );
+        m(OutlinedField, {
+          label: 'Else',
+          placeholder: 'value',
+          value: column.elseValue || '',
+          oninput: (e: Event) => {
+            setElseValue((e.target as HTMLInputElement).value);
+          },
+        }),
+      !hasElse &&
+        m(AddItemPlaceholder, {
+          label: 'Add ELSE IF',
+          icon: 'add',
+          onclick: addElseIf,
+        }),
+      !hasElse &&
+        m(AddItemPlaceholder, {
+          label: 'Add ELSE',
+          icon: 'add',
+          onclick: () => {
+            column.elseValue = '';
+            this.updateExpression(column);
+            onchange();
+          },
+        }),
+    ]);
   }
 
   private updateExpression(col: NewColumn) {
@@ -1023,6 +1007,10 @@ export class AddColumnsNode implements QueryNode {
     showModal({
       title: typeConfig.title,
       key: typeConfig.key,
+      className:
+        type === 'switch' || type === 'if'
+          ? 'pf-computed-column-modal-wide'
+          : undefined,
       content: () => {
         const nameError = this.getColumnNameError(tempColumn.name, columnIndex);
         return this.renderComputedColumn(tempColumn, nameError);
@@ -1429,6 +1417,22 @@ export class AddColumnsNode implements QueryNode {
         '.pf-join-modal-controls',
         m(
           Form,
+          selectedSuggestion &&
+            selectedColumns.length === 0 &&
+            m(
+              Callout,
+              {icon: 'info'},
+              'Select at least one column to add from the joined table.',
+            ),
+          selectedSuggestion &&
+            selectedColumns.length > 0 &&
+            m(IssueList, {
+              icon: 'error',
+              title: 'Column name conflicts:',
+              items: this.getJoinColumnErrors(selectedColumns, true).map(
+                (err) => err.error,
+              ),
+            }),
           m(FormSection, {label: 'Select Table to Join'}, [
             m(
               Select,
@@ -1505,24 +1509,8 @@ export class AddColumnsNode implements QueryNode {
               }),
             ),
           selectedSuggestion &&
-            selectedColumns.length === 0 &&
-            m(
-              Callout,
-              {icon: 'info'},
-              'Select at least one column to add from the joined table.',
-            ),
-          selectedSuggestion &&
             selectedColumns.length > 0 &&
             this.renderColumnAliases(selectedColumns, true),
-          selectedSuggestion &&
-            selectedColumns.length > 0 &&
-            m(IssueList, {
-              icon: 'error',
-              title: 'Column name conflicts:',
-              items: this.getJoinColumnErrors(selectedColumns, true).map(
-                (err) => err.error,
-              ),
-            }),
         ),
       ),
       tableInfo &&
@@ -1536,6 +1524,20 @@ export class AddColumnsNode implements QueryNode {
 
     return m(
       Form,
+      noColumnsSelected &&
+        m(
+          Callout,
+          {icon: 'info'},
+          'Select at least one column to add from the joined source.',
+        ),
+      selectedColumns.length > 0 &&
+        m(IssueList, {
+          icon: 'error',
+          title: 'Column name conflicts:',
+          items: this.getJoinColumnErrors(selectedColumns, false).map(
+            (err) => err.error,
+          ),
+        }),
       m(
         LabeledControl,
         {label: 'Columns:'},
@@ -1571,22 +1573,8 @@ export class AddColumnsNode implements QueryNode {
           },
         }),
       ),
-      noColumnsSelected &&
-        m(
-          Callout,
-          {icon: 'info'},
-          'Select at least one column to add from the joined source.',
-        ),
       selectedColumns.length > 0 &&
         this.renderColumnAliases(selectedColumns, false),
-      selectedColumns.length > 0 &&
-        m(IssueList, {
-          icon: 'error',
-          title: 'Column name conflicts:',
-          items: this.getJoinColumnErrors(selectedColumns, false).map(
-            (err) => err.error,
-          ),
-        }),
       this.renderJoinConditionSelects(),
     );
   }
@@ -1707,15 +1695,13 @@ export class AddColumnsNode implements QueryNode {
             },
           }),
         ]),
-        m(FormSection, {label: 'Switch Configuration'}, [
-          m(SwitchComponent, {
-            column: col,
-            columns: this.sourceCols,
-            onchange: () => {
-              // No-op in modal mode - changes are already in col
-            },
-          }),
-        ]),
+        m(SwitchComponent, {
+          column: col,
+          columns: this.sourceCols,
+          onchange: () => {
+            // No-op in modal mode - changes are already in col
+          },
+        }),
       );
     }
 
@@ -1733,18 +1719,14 @@ export class AddColumnsNode implements QueryNode {
             },
           }),
         ]),
-        m(FormSection, {label: 'If Configuration'}, [
-          m(IfComponent, {
-            column: col,
-            onchange: () => {
-              // No-op in modal mode - changes are already in col
-            },
-          }),
-        ]),
+        m(IfComponent, {
+          column: col,
+          onchange: () => {
+            // No-op in modal mode - changes are already in col
+          },
+        }),
       );
     }
-
-    const isValid = this.isComputedColumnValid(col) && !nameError;
 
     return m(
       Form,
@@ -1775,7 +1757,6 @@ export class AddColumnsNode implements QueryNode {
           value: col.name,
         }),
       ]),
-      !isValid && m(Icon, {icon: 'warning'}),
     );
   }
 
