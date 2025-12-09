@@ -20,15 +20,6 @@ import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
 import {Anchor} from '../../../widgets/anchor';
 
-// Track visible columns for the demo (controlled mode)
-let demoVisibleColumns = [
-  'id',
-  'name',
-  'title',
-  'department.name',
-  'manager.name',
-];
-
 export function renderDataGrid(app: App): m.Children {
   // Suppress unused variable warning
   void app;
@@ -63,22 +54,15 @@ export function renderDataGrid(app: App): m.Children {
           fillHeight: true,
           schema: EMPLOYEE_SCHEMA,
           rootSchema: 'employee',
-          visibleColumns: demoVisibleColumns,
-          onVisibleColumnsChanged: (cols) => {
-            demoVisibleColumns = [...cols];
-          },
           data: EMPLOYEE_DATA,
         });
       },
       initialOpts: {
-        showFiltersInToolbar: true,
-        readonlyFilters: false,
-        readonlySorting: false,
-        aggregation: false,
-        distinctValues: true,
-        demoToolbarItems: false,
-        showExportButton: false,
+        enableSortControls: true,
+        enableFilterControls: true,
+        enablePivotControls: true,
         showRowCount: true,
+        showExportButton: false,
         structuredQueryCompatMode: false,
       },
       noPadding: true,
@@ -138,7 +122,6 @@ const EMPLOYEE_SCHEMA: SchemaRegistry = {
     salary: {
       title: 'Salary',
       filterType: 'numeric',
-      aggregation: 'SUM',
     },
     hireDate: {
       title: 'Hire Date',
@@ -172,7 +155,7 @@ const EMPLOYEE_SCHEMA: SchemaRegistry = {
       filterType: 'numeric',
     },
     name: {
-      title: 'Department',
+      title: 'Name',
       filterType: 'string',
     },
     budget: {

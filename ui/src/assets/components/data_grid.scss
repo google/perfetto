@@ -58,6 +58,15 @@
     margin-right: 2px;
   }
 
+  &__groupby-column {
+    // A mix of 20% primary and 80% background
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-background-secondary) 30%,
+      transparent
+    );
+  }
+
   &__table {
     flex: 1;
     overflow: auto;
@@ -74,9 +83,12 @@
   flex-direction: row;
   justify-content: space-between;
   gap: 0.1em;
+  margin-top: -0.2em;
 
   &__symbol {
     margin-right: 0.3em;
+    font-size: 0.9em;
+    color: var(--pf-color-text-muted);
   }
 
   &__content {

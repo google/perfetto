@@ -241,7 +241,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           },
           columnTitle(column),
         ),
-        reorderable: {handle: 'column'},
+        reorderable: {reorderGroup: 'column'},
       };
 
       return gridColumn;

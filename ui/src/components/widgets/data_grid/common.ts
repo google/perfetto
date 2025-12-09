@@ -15,7 +15,13 @@
 import m from 'mithril';
 import {SqlValue} from '../../../trace_processor/query_result';
 
-export type AggregationFunction = 'SUM' | 'AVG' | 'COUNT' | 'MIN' | 'MAX';
+export type AggregationFunction =
+  | 'SUM'
+  | 'AVG'
+  | 'COUNT'
+  | 'MIN'
+  | 'MAX'
+  | 'ANY';
 
 /**
  * Represents a column that can be added to the grid via the "Add Column" menu.
@@ -50,10 +56,6 @@ export interface ColumnDefinition {
   // Optional value formatter for this column. This is used when exporting
   // data to format the value as a string.
   readonly cellFormatter?: CellFormatter;
-
-  // An optional aggregation for data in this column displayed in the header
-  // bar.
-  readonly aggregation?: AggregationFunction;
 
   // Optional function that receives default menu item groups and returns
   // the complete menu structure. This allows full control over menu organization.
@@ -128,11 +130,12 @@ export interface DataSourceResult {
   readonly totalRows: number;
   readonly rowOffset: number;
   readonly rows: ReadonlyArray<RowDef>;
-  readonly aggregates: RowDef;
   readonly isLoading?: boolean;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
   // Available parameter keys for parameterized columns (e.g., for 'args' -> ['foo', 'bar'])
   readonly parameterKeys?: ReadonlyMap<string, readonly string[]>;
+  // Computed aggregate totals for each aggregate column (grand total across all filtered rows)
+  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
 }
 
 export type RowDef = {[key: string]: SqlValue};
@@ -142,9 +145,39 @@ export interface Pagination {
   readonly limit: number;
 }
 
-export interface AggregateSpec {
+/**
+ * A pivot value that aggregates a specific column.
+ */
+interface PivotValueWithCol {
   readonly col: string;
-  readonly func: AggregationFunction;
+  readonly func: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'ANY';
+}
+
+/**
+ * A pivot value that counts rows (doesn't need a specific column).
+ */
+interface PivotValueCount {
+  readonly func: 'COUNT';
+}
+
+export type PivotValue = PivotValueWithCol | PivotValueCount;
+
+/**
+ * Model for pivot/grouping state of the data grid.
+ */
+export interface PivotModel {
+  // Columns to group by, in order
+  readonly groupBy: ReadonlyArray<string>;
+
+  // Aggregated values to compute - keys are alias names, values define the aggregation
+  readonly values: {
+    readonly [key: string]: PivotValue;
+  };
+
+  // When set, shows raw rows filtered by these groupBy column values.
+  // This allows drilling down into a specific pivot group to see the
+  // underlying data. The keys are the groupBy column names.
+  readonly drillDown?: RowDef;
 }
 
 export interface DataGridModel {
@@ -152,10 +185,15 @@ export interface DataGridModel {
   readonly sorting?: Sorting;
   readonly filters?: ReadonlyArray<DataGridFilter>;
   readonly pagination?: Pagination;
-  readonly aggregates?: ReadonlyArray<AggregateSpec>;
+  readonly pivot?: PivotModel;
   readonly distinctValuesColumns?: ReadonlySet<string>;
   // Request parameter keys for these parameterized column prefixes (e.g., 'args', 'skills')
   readonly parameterKeyColumns?: ReadonlySet<string>;
+}
+
+// Check if the value is numeric (number or bigint)
+export function isNumeric(value: SqlValue): value is number | bigint {
+  return typeof value === 'number' || typeof value === 'bigint';
 }
 
 export interface DataGridDataSource {
@@ -168,47 +206,4 @@ export interface DataGridDataSource {
    * Returns a promise that resolves to all filtered and sorted rows.
    */
   exportData(): Promise<readonly RowDef[]>;
-}
-
-/**
- * Compares two arrays of AggregateSpec objects for equality.
- *
- * Two arrays are considered equal if they have the same length and each
- * corresponding AggregateSpec object is equal.
- */
-export function areAggregateArraysEqual(
-  a?: ReadonlyArray<AggregateSpec>,
-  b?: ReadonlyArray<AggregateSpec>,
-): boolean {
-  // Both undefined or same object- they're equal
-  if (a === b) return true;
-
-  // One is undefined, other isn't - they're different
-  if (!a || !b) return false;
-
-  // Lengths differ - they're different
-  if (a.length !== b.length) return false;
-
-  // Check each element
-  for (let i = 0; i < a.length; i++) {
-    if (!areAggregatesEqual(a[i], b[i])) {
-      return false;
-    }
-  }
-
-  // All elements are the same
-  return true;
-}
-
-/**
- * Compares two AggregateSpec objects for equality.
- *
- * Two AggregateSpec objects are considered equal if their `col` and `func`
- * properties are the same.
- */
-export function areAggregatesEqual(
-  a: AggregateSpec,
-  b: AggregateSpec,
-): boolean {
-  return a.col === b.col && a.func === b.func;
 }

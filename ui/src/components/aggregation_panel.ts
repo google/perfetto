@@ -18,21 +18,24 @@ import {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
-import {ColumnDefinition, DataGridDataSource} from './widgets/data_grid/common';
-import {
-  DataGrid,
-  renderCell,
-  DataGridApi,
-  columnsToSchema,
-} from './widgets/data_grid/data_grid';
+import {CellRenderer, DataGridDataSource} from './widgets/data_grid/common';
+import {DataGrid, renderCell, DataGridApi} from './widgets/data_grid/data_grid';
 import {defaultValueFormatter} from './widgets/data_grid/export_utils';
+import {AggregatePivotModel} from './aggregation_adapter';
+import {ColumnSchema, SchemaRegistry} from './widgets/data_grid/column_schema';
 
 export interface AggregationPanelAttrs {
   readonly dataSource: DataGridDataSource;
   readonly sorting: Sorting;
-  readonly columns: ReadonlyArray<ColumnDef>;
+  readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
   readonly barChartData?: ReadonlyArray<BarChartData>;
   readonly onReady?: (api: DataGridApi) => void;
+}
+
+function isColumnDefArray(
+  columns: ReadonlyArray<ColumnDef> | AggregatePivotModel,
+): columns is ReadonlyArray<ColumnDef> {
+  return Array.isArray(columns);
 }
 
 export class AggregationPanel
@@ -50,40 +53,59 @@ export class AggregationPanel
   private renderTable(
     dataSource: DataGridDataSource,
     sorting: Sorting,
-    columns: ReadonlyArray<ColumnDef>,
+    model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
     onReady?: (api: DataGridApi) => void,
   ) {
-    const columnDefs: ColumnDefinition[] = columns.map(
-      (c): ColumnDefinition => {
-        return {
-          name: c.columnId,
+    if (isColumnDefArray(model)) {
+      // Build schema from column definitions
+      const columnSchema: ColumnSchema = {};
+      for (const c of model) {
+        columnSchema[c.columnId] = {
           title: c.title,
-          aggregation: c.sum ? 'SUM' : undefined,
           filterType: filterTypeForColumnDef(c.formatHint),
-          cellRenderer: (value) => {
-            if (c.formatHint === 'DURATION_NS' && typeof value === 'bigint') {
-              return Duration.humanise(value);
-            } else if (
-              c.formatHint === 'PERCENT' &&
-              typeof value === 'number'
-            ) {
-              return `${(value * 100).toFixed(2)}%`;
-            } else {
-              return renderCell(value, c.columnId);
-            }
-          },
-          cellFormatter: (value) => valueFormatter(value, c.formatHint),
+          cellRenderer: getCellRenderer(c.formatHint, c.columnId),
+          cellFormatter: getValueFormatter(c.formatHint),
         };
-      },
-    );
+      }
+      const schema: SchemaRegistry = {data: columnSchema};
 
-    return m(DataGrid, {
-      ...columnsToSchema(columnDefs),
-      fillHeight: true,
-      data: dataSource,
-      initialSorting: sorting,
-      onReady,
-    });
+      return m(DataGrid, {
+        fillHeight: true,
+        schema,
+        rootSchema: 'data',
+        initialColumns: model.map((c) => c.columnId),
+        data: dataSource,
+        initialSorting: sorting,
+        onReady,
+      });
+    } else {
+      // Build schema from pivot model columns
+      const columnSchema: ColumnSchema = {};
+      for (const c of model.columns) {
+        columnSchema[c.columnId] = {
+          title: c.title,
+          filterType: filterTypeForColumnDef(c.formatHint),
+          cellRenderer: getCellRenderer(c.formatHint, c.columnId),
+          cellFormatter: getValueFormatter(c.formatHint),
+        };
+      }
+      const schema: SchemaRegistry = {data: columnSchema};
+
+      return m(DataGrid, {
+        fillHeight: true,
+        schema,
+        rootSchema: 'data',
+        initialColumns: model.columns.map((c) => c.columnId),
+        initialPivot: {
+          groupBy: model.groupBy,
+          values: model.values,
+        },
+        data: dataSource,
+        initialSorting: sorting,
+        onReady,
+        enablePivotControls: true,
+      });
+    }
   }
 
   private renderBarChart(data: ReadonlyArray<BarChartData>) {
@@ -109,16 +131,6 @@ export class AggregationPanel
   }
 }
 
-function valueFormatter(value: SqlValue, formatHint?: string): string {
-  if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
-    return Duration.humanise(value);
-  } else if (formatHint === 'PERCENT' && typeof value === 'number') {
-    return `${(value * 100).toFixed(2)}%`;
-  } else {
-    return defaultValueFormatter(value);
-  }
-}
-
 function filterTypeForColumnDef(
   formatHint: string | undefined,
 ): 'numeric' | 'string' | undefined {
@@ -132,5 +144,52 @@ function filterTypeForColumnDef(
     case 'STRING':
     default:
       return 'string';
+  }
+}
+
+function getValueFormatter(
+  formatHint: string | undefined,
+): (value: SqlValue) => string {
+  switch (formatHint) {
+    case 'DURATION_NS':
+      return formatDurationValue;
+    case 'PERCENT':
+      return formatPercentValue;
+    default:
+      return defaultValueFormatter;
+  }
+}
+
+function getCellRenderer(
+  formatHint: string | undefined,
+  columnName: string,
+): CellRenderer {
+  switch (formatHint) {
+    case 'DURATION_NS':
+      return formatDurationValue;
+    case 'PERCENT':
+      return formatPercentValue;
+    default:
+      return function (value) {
+        return renderCell(value, columnName);
+      };
+  }
+}
+
+function formatDurationValue(value: SqlValue): string {
+  if (typeof value === 'bigint') {
+    return Duration.humanise(value);
+  } else if (typeof value === 'number') {
+    return Duration.humanise(BigInt(Math.round(value)));
+  } else {
+    return String(value);
+  }
+}
+
+function formatPercentValue(value: SqlValue): string {
+  if (typeof value === 'number') {
+    return `${(value * 100).toFixed(2)}%`;
+  } else {
+    return String(value);
   }
 }
