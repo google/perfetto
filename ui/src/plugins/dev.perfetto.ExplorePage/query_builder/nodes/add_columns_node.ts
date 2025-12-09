@@ -55,6 +55,7 @@ import {
   OutlinedField,
   FormListItem,
   AddItemPlaceholder,
+  DataExplorerEmptyState,
 } from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
@@ -65,6 +66,7 @@ import {Spinner} from '../../../../widgets/spinner';
 import {STR} from '../../../../trace_processor/query_result';
 import {sqliteString} from '../../../../base/string_utils';
 import {loadNodeDoc} from '../node_doc_loader';
+import {JoinConditionSelector} from '../join_widgets';
 
 // Helper components for computed columns (SWITCH and IF)
 class SwitchComponent
@@ -1513,8 +1515,15 @@ export class AddColumnsNode implements QueryNode {
             this.renderColumnAliases(selectedColumns, true),
         ),
       ),
-      tableInfo &&
-        m('.pf-join-modal-info', m(TableDescription, {table: tableInfo})),
+      m(
+        '.pf-join-modal-info',
+        tableInfo
+          ? m(TableDescription, {table: tableInfo})
+          : m(DataExplorerEmptyState, {
+              icon: 'table',
+              title: 'Table information will appear here',
+            }),
+      ),
     );
   }
 
@@ -1522,60 +1531,83 @@ export class AddColumnsNode implements QueryNode {
     const selectedColumns = this.state.selectedColumns ?? [];
     const noColumnsSelected = selectedColumns.length === 0;
 
+    // Try to get table info if the right node is a table source
+    const rightNodeTable =
+      this.rightNode && 'state' in this.rightNode && 'sqlTable' in this.rightNode.state
+        ? this.rightNode.state.sqlTable
+        : undefined;
+
     return m(
-      Form,
-      noColumnsSelected &&
-        m(
-          Callout,
-          {icon: 'info'},
-          'Select at least one column to add from the joined source.',
-        ),
-      selectedColumns.length > 0 &&
-        m(IssueList, {
-          icon: 'error',
-          title: 'Column name conflicts:',
-          items: this.getJoinColumnErrors(selectedColumns, false).map(
-            (err) => err.error,
-          ),
-        }),
+      '.pf-join-modal-layout',
       m(
-        LabeledControl,
-        {label: 'Columns:'},
-        m(OutlinedMultiSelect, {
-          label: noColumnsSelected
-            ? 'Select columns to add'
-            : selectedColumns.join(', '),
-          showNumSelected: false,
-          compact: true,
-          options: this.rightCols.map((c) => ({
-            id: c.column.name,
-            name: c.column.name,
-            checked:
-              this.state.selectedColumns?.includes(c.column.name) ?? false,
-          })),
-          onChange: (diffs: MultiSelectDiff[]) => {
-            if (!this.state.selectedColumns) {
-              this.state.selectedColumns = [];
-            }
-            for (const diff of diffs) {
-              if (diff.checked) {
-                if (!this.state.selectedColumns.includes(diff.id)) {
-                  this.state.selectedColumns.push(diff.id);
+        '.pf-join-modal-controls',
+        m(
+          Form,
+          noColumnsSelected &&
+            m(
+              '.pf-callout-with-spacing',
+              m(
+                Callout,
+                {icon: 'info'},
+                'Select at least one column to add from the joined source.',
+              ),
+            ),
+          selectedColumns.length > 0 &&
+            m(IssueList, {
+              icon: 'error',
+              title: 'Column name conflicts:',
+              items: this.getJoinColumnErrors(selectedColumns, false).map(
+                (err) => err.error,
+              ),
+            }),
+          m(
+            LabeledControl,
+            {label: 'Columns:'},
+            m(OutlinedMultiSelect, {
+              label: noColumnsSelected
+                ? 'Select columns to add'
+                : selectedColumns.join(', '),
+              showNumSelected: false,
+              compact: true,
+              options: this.rightCols.map((c) => ({
+                id: c.column.name,
+                name: c.column.name,
+                checked:
+                  this.state.selectedColumns?.includes(c.column.name) ?? false,
+              })),
+              onChange: (diffs: MultiSelectDiff[]) => {
+                if (!this.state.selectedColumns) {
+                  this.state.selectedColumns = [];
                 }
-              } else {
-                this.state.selectedColumns = this.state.selectedColumns.filter(
-                  (c) => c !== diff.id,
-                );
-                this.state.columnAliases?.delete(diff.id);
-              }
-            }
-            this.state.onchange?.();
-          },
-        }),
+                for (const diff of diffs) {
+                  if (diff.checked) {
+                    if (!this.state.selectedColumns.includes(diff.id)) {
+                      this.state.selectedColumns.push(diff.id);
+                    }
+                  } else {
+                    this.state.selectedColumns =
+                      this.state.selectedColumns.filter((c) => c !== diff.id);
+                    this.state.columnAliases?.delete(diff.id);
+                  }
+                }
+                this.state.onchange?.();
+              },
+            }),
+          ),
+          selectedColumns.length > 0 &&
+            this.renderColumnAliases(selectedColumns, false),
+          this.renderJoinConditionSelects(),
+        ),
       ),
-      selectedColumns.length > 0 &&
-        this.renderColumnAliases(selectedColumns, false),
-      this.renderJoinConditionSelects(),
+      m(
+        '.pf-join-modal-info',
+        rightNodeTable
+          ? m(TableDescription, {table: rightNodeTable})
+          : m(DataExplorerEmptyState, {
+              icon: 'table',
+              title: 'Table information will appear here',
+            }),
+      ),
     );
   }
 
@@ -1625,58 +1657,30 @@ export class AddColumnsNode implements QueryNode {
 
   private renderJoinConditionSelects(): m.Child {
     return m(FormSection, {label: 'Join Condition'}, [
-      m(FormLabel, 'Base Column'),
-      m(
-        Select,
-        {
-          onchange: (e: Event) => {
-            const target = e.target as HTMLSelectElement;
-            this.state.leftColumn = target.value;
-            this.state.onchange?.();
-          },
+      m(JoinConditionSelector, {
+        leftLabel: 'Primary',
+        rightLabel: 'Source',
+        leftAlias: 'primary',
+        rightAlias: 'source',
+        leftColumns: this.sourceCols,
+        rightColumns: this.rightCols,
+        leftColumn: this.state.leftColumn,
+        rightColumn: this.state.rightColumn,
+        onLeftAliasChange: () => {
+          // AddColumnsNode doesn't allow changing aliases
         },
-        m(
-          'option',
-          {disabled: true, selected: !this.state.leftColumn},
-          'Select column',
-        ),
-        this.sourceCols.map((col) =>
-          m(
-            'option',
-            {
-              value: col.column.name,
-              selected: col.column.name === this.state.leftColumn,
-            },
-            col.column.name,
-          ),
-        ),
-      ),
-      m(FormLabel, 'Connected Node Column'),
-      m(
-        Select,
-        {
-          onchange: (e: Event) => {
-            const target = e.target as HTMLSelectElement;
-            this.state.rightColumn = target.value;
-            this.state.onchange?.();
-          },
+        onRightAliasChange: () => {
+          // AddColumnsNode doesn't allow changing aliases
         },
-        m(
-          'option',
-          {disabled: true, selected: !this.state.rightColumn},
-          'Select column',
-        ),
-        this.rightCols.map((col) =>
-          m(
-            'option',
-            {
-              value: col.column.name,
-              selected: col.column.name === this.state.rightColumn,
-            },
-            col.column.name,
-          ),
-        ),
-      ),
+        onLeftColumnChange: (columnName: string) => {
+          this.state.leftColumn = columnName;
+          this.state.onchange?.();
+        },
+        onRightColumnChange: (columnName: string) => {
+          this.state.rightColumn = columnName;
+          this.state.onchange?.();
+        },
+      }),
     ]);
   }
 

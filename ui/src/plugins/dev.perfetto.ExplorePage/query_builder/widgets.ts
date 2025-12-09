@@ -32,6 +32,10 @@ import {
 } from '../../../widgets/multiselect';
 import {classNames} from '../../../base/classnames';
 import {Tooltip} from '../../../widgets/tooltip';
+import {Editor} from '../../../widgets/editor';
+import {ResizeHandle} from '../../../widgets/resize_handle';
+import {findRef, toHTMLElement} from '../../../base/dom_utils';
+import {assertExists} from '../../../base/logging';
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -905,5 +909,47 @@ export class SelectDeselectAllButtons
         compact: true,
       }),
     );
+  }
+}
+
+// Resizable SQL editor with resize handle
+// Provides consistent SQL editing experience across SQL source and join nodes
+export interface ResizableSqlEditorAttrs {
+  sql: string;
+  onUpdate: (text: string) => void;
+  onExecute?: (text: string) => void;
+  autofocus?: boolean;
+}
+
+export class ResizableSqlEditor
+  implements m.ClassComponent<ResizableSqlEditorAttrs>
+{
+  private editorHeight: number = 0;
+  private editorElement?: HTMLElement;
+
+  oncreate({dom}: m.VnodeDOM<ResizableSqlEditorAttrs>) {
+    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
+    this.editorElement.style.height = '400px';
+  }
+
+  view({attrs}: m.CVnode<ResizableSqlEditorAttrs>) {
+    return [
+      m(Editor, {
+        ref: 'editor',
+        text: attrs.sql,
+        onUpdate: attrs.onUpdate,
+        onExecute: attrs.onExecute,
+        autofocus: attrs.autofocus,
+      }),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          this.editorHeight += deltaPx;
+          this.editorElement!.style.height = `${this.editorHeight}px`;
+        },
+        onResizeStart: () => {
+          this.editorHeight = this.editorElement!.clientHeight;
+        },
+      }),
+    ];
   }
 }

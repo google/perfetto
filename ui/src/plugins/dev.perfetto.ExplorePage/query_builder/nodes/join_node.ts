@@ -25,19 +25,16 @@ import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {TextInput} from '../../../../widgets/text_input';
-import {TabStrip} from '../../../../widgets/tabs';
-import {Select} from '../../../../widgets/select';
-import {Editor} from '../../../../widgets/editor';
 import {Switch} from '../../../../widgets/switch';
 import {
   StructuredQueryBuilder,
   JoinCondition,
 } from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
-import {FormRow} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {NodeTitle, ColumnName} from '../node_styling_widgets';
+import {NodeTitle} from '../node_styling_widgets';
+import {JoinConditionSelector, JoinConditionDisplay} from '../join_widgets';
+import {ResizableSqlEditor} from '../widgets';
 
 export interface JoinSerializedState {
   leftNodeId: string;
@@ -262,12 +259,12 @@ export class JoinNode implements QueryNode {
 
     if (this.state.conditionType === 'equality') {
       if (this.state.leftColumn && this.state.rightColumn) {
-        content = m(
-          '.pf-exp-join-condition',
-          ColumnName(`${this.state.leftQueryAlias}.${this.state.leftColumn}`),
-          m('span.pf-exp-join-equals', ' = '),
-          ColumnName(`${this.state.rightQueryAlias}.${this.state.rightColumn}`),
-        );
+        content = m(JoinConditionDisplay, {
+          leftAlias: this.state.leftQueryAlias,
+          rightAlias: this.state.rightQueryAlias,
+          leftColumn: this.state.leftColumn,
+          rightColumn: this.state.rightColumn,
+        });
       } else {
         content = m('.pf-exp-node-details-message', 'No condition set');
       }
@@ -293,6 +290,7 @@ export class JoinNode implements QueryNode {
     const rightCols = this.rightNode?.finalCols ?? [];
 
     const sections: NodeModifyAttrs['sections'] = [];
+    const bottomRightButtons: NodeModifyAttrs['bottomRightButtons'] = [];
 
     // Add error if present
     if (error) {
@@ -301,150 +299,80 @@ export class JoinNode implements QueryNode {
       });
     }
 
-    // Query aliases section
-    sections.push({
-      title: 'Query Aliases',
-      content: [
-        m(
-          FormRow,
-          {label: 'Left Alias:'},
-          m(TextInput, {
-            value: this.state.leftQueryAlias,
-            placeholder: 'e.g., left, t1, base',
-            oninput: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              this.state.leftQueryAlias = target.value;
-              this.state.onchange?.();
-            },
-          }),
-        ),
-        m(
-          FormRow,
-          {label: 'Right Alias:'},
-          m(TextInput, {
-            value: this.state.rightQueryAlias,
-            placeholder: 'e.g., right, t2, other',
-            oninput: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              this.state.rightQueryAlias = target.value;
-              this.state.onchange?.();
-            },
-          }),
-        ),
-      ],
-    });
-
     // Join type section
     sections.push({
       title: 'Join Type',
-      content: m(
-        FormRow,
-        {label: 'Left Join:'},
-        m(Switch, {
-          checked: this.state.joinType === 'LEFT',
-          onchange: (e: Event) => {
-            const target = e.target as HTMLInputElement;
-            this.state.joinType = target.checked ? 'LEFT' : 'INNER';
-            this.state.onchange?.();
-          },
-        }),
-      ),
+      content: m(Switch, {
+        checked: this.state.joinType === 'LEFT',
+        label: 'Left Join',
+        onchange: (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          this.state.joinType = target.checked ? 'LEFT' : 'INNER';
+          this.state.onchange?.();
+        },
+      }),
     });
 
     // Join condition section
     sections.push({
-      title: 'Join Condition',
-      content: [
-        m(TabStrip, {
-          tabs: [
-            {key: 'equality', title: 'Equality'},
-            {key: 'freeform', title: 'Freeform SQL'},
-          ],
-          currentTabKey: this.state.conditionType,
-          onTabChange: (key: string) => {
-            this.state.conditionType = key as 'equality' | 'freeform';
-            this.state.onchange?.();
-          },
-        }),
-        m(
-          'div',
-          {style: {paddingTop: '10px'}},
-          this.state.conditionType === 'equality'
-            ? [
-                m(
-                  FormRow,
-                  {label: 'Left Column:'},
-                  m(
-                    Select,
-                    {
-                      onchange: (e: Event) => {
-                        const target = e.target as HTMLSelectElement;
-                        this.state.leftColumn = target.value;
-                        this.state.onchange?.();
-                      },
-                    },
-                    m(
-                      'option',
-                      {disabled: true, selected: !this.state.leftColumn},
-                      'Select column',
-                    ),
-                    leftCols.map((col) =>
-                      m(
-                        'option',
-                        {
-                          value: col.column.name,
-                          selected: col.column.name === this.state.leftColumn,
-                        },
-                        col.column.name,
-                      ),
-                    ),
-                  ),
-                ),
-                m(
-                  FormRow,
-                  {label: 'Right Column:'},
-                  m(
-                    Select,
-                    {
-                      onchange: (e: Event) => {
-                        const target = e.target as HTMLSelectElement;
-                        this.state.rightColumn = target.value;
-                        this.state.onchange?.();
-                      },
-                    },
-                    m(
-                      'option',
-                      {disabled: true, selected: !this.state.rightColumn},
-                      'Select column',
-                    ),
-                    rightCols.map((col) =>
-                      m(
-                        'option',
-                        {
-                          value: col.column.name,
-                          selected: col.column.name === this.state.rightColumn,
-                        },
-                        col.column.name,
-                      ),
-                    ),
-                  ),
-                ),
-              ]
-            : m(Editor, {
-                text: this.state.sqlExpression,
-                language: 'perfetto-sql',
-                onUpdate: (text: string) => {
-                  this.state.sqlExpression = text;
-                  this.state.onchange?.();
-                },
-              }),
-        ),
-      ],
+      content:
+        this.state.conditionType === 'equality'
+          ? m(JoinConditionSelector, {
+              leftLabel: 'Left',
+              rightLabel: 'Right',
+              leftAlias: this.state.leftQueryAlias,
+              rightAlias: this.state.rightQueryAlias,
+              leftColumns: leftCols,
+              rightColumns: rightCols,
+              leftColumn: this.state.leftColumn,
+              rightColumn: this.state.rightColumn,
+              onLeftAliasChange: (alias: string) => {
+                this.state.leftQueryAlias = alias;
+                this.state.onchange?.();
+              },
+              onRightAliasChange: (alias: string) => {
+                this.state.rightQueryAlias = alias;
+                this.state.onchange?.();
+              },
+              onLeftColumnChange: (columnName: string) => {
+                this.state.leftColumn = columnName;
+                this.state.onchange?.();
+              },
+              onRightColumnChange: (columnName: string) => {
+                this.state.rightColumn = columnName;
+                this.state.onchange?.();
+              },
+            })
+          : m(ResizableSqlEditor, {
+              sql: this.state.sqlExpression,
+              onUpdate: (text: string) => {
+                this.state.sqlExpression = text;
+                this.state.onchange?.();
+              },
+            }),
+    });
+
+    // Mode switch button
+    bottomRightButtons.push({
+      label:
+        this.state.conditionType === 'equality'
+          ? 'Switch to freeform SQL'
+          : 'Switch to equality',
+      icon: this.state.conditionType === 'equality' ? 'code' : 'view_column',
+      onclick: () => {
+        this.state.conditionType =
+          this.state.conditionType === 'equality' ? 'freeform' : 'equality';
+        // Disable auto-execute in freeform SQL mode
+        this.state.autoExecute = this.state.conditionType === 'equality';
+        this.state.onchange?.();
+      },
+      compact: true,
     });
 
     return {
       info: 'Combines rows from exactly two inputs side-by-side by matching on a join key. Each row from the first input is matched with rows from the second input where the join column values are equal.',
       sections,
+      bottomRightButtons,
     };
   }
 
