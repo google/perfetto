@@ -180,8 +180,8 @@ public class PerfettoTraceTest {
 
         if (TrackEvent.Type.TYPE_INSTANT.equals(event.getType())
             && event.getDebugAnnotationsCount() == 4
-            && event.getFlowIdsCount() == 1
-            && event.getTerminatingFlowIdsCount() == 1) {
+            && event.getFlowIdsCount() == 2
+            && event.getTerminatingFlowIdsCount() == 2) {
           hasDebugAnnotations = true;
 
           List<DebugAnnotation> annotations = event.getDebugAnnotationsList();
@@ -191,8 +191,8 @@ public class PerfettoTraceTest {
           assertThat(annotations.get(2).getDoubleValue()).isEqualTo(3.14);
           assertThat(annotations.get(3).getStringValue()).isEqualTo(FOO);
 
-          assertThat(event.getFlowIdsList()).containsExactly(2, 3);
-          assertThat(event.getTerminatingFlowIdsList()).containsExactly(4, 5);
+          assertThat(event.getFlowIdsList()).containsExactly(2L, 3L);
+          assertThat(event.getTerminatingFlowIdsList()).containsExactly(4L, 5L);
         }
       }
 
