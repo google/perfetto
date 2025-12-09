@@ -930,6 +930,7 @@ impl ToTeHlProtoField for TrackEventProtoField<'_> {
                             id: *id,
                         },
                         str_: cvalue.as_ptr(),
+                        interned_type_id: 0,
                     },
                     cvalue,
                 )
