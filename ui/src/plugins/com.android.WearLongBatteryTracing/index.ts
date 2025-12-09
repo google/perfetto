@@ -216,11 +216,16 @@ export default class WearLongBatteryTracingPlugin implements PerfettoPlugin {
       `SELECT int_value FROM metadata WHERE name = 'statsd_triggering_subscription_id'`,
     );
     const it = result.iter({int_value: LONG});
+    let validTrace = false;
     for (; it.valid(); it.next()) {
       // Verify the trace is a Wear trace
       if (!VALID_SUBSCRIPTION_IDS.includes(it.int_value)) {
         return;
       }
+      validTrace = true;
+    }
+    if (!validTrace) {
+      return;
     }
 
     const atoms = await this.findAtoms(ctx.engine);
