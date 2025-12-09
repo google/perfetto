@@ -1780,8 +1780,17 @@ export class AddColumnsNode implements QueryNode {
       return false;
     }
 
-    // If there's a rightNode, validate the join configuration
+    // If there's a rightNode, validate it and the join configuration
     if (this.rightNode) {
+      if (!this.rightNode.validate()) {
+        setValidationError(
+          this.state,
+          this.rightNode.state.issues?.queryError?.message ??
+            `Lookup table node '${this.rightNode.getTitle()}' is invalid`,
+        );
+        return false;
+      }
+
       // We need valid join columns
       if (!this.state.leftColumn || !this.state.rightColumn) {
         setValidationError(

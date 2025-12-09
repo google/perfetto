@@ -25,6 +25,7 @@ import {
   addConnection,
   removeConnection,
   singleNodeOperation,
+  notifyNextNodes,
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {Trace} from '../../public/trace';
@@ -42,7 +43,6 @@ import {HistoryManager} from './history_manager';
 import {
   getAllNodes,
   insertNodeBetween,
-  reconnectParentsToChildren,
   getInputNodeAtPort,
   getAllInputNodes,
 } from './query_builder/graph_utils';
@@ -582,83 +582,241 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
+  /**
+   * Finds which port a node is connected to in a child's secondary inputs.
+   * Returns undefined if not connected to any secondary input (i.e., connected to primary input).
+   *
+   * Example: If node B is connected to child C's secondary input at port 1, returns 1.
+   */
+  private findSecondaryInputPort(
+    child: QueryNode,
+    node: QueryNode,
+  ): number | undefined {
+    if (!child.secondaryInputs) return undefined;
+
+    for (const [port, inputNode] of child.secondaryInputs.connections) {
+      if (inputNode === node) {
+        return port;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Captures how the deleted node connected to each of its children.
+   * This information is needed to reconnect the parent with the same port semantics.
+   *
+   * Example:
+   *   A → B → C (primary)     =>  portIndex = undefined
+   *   A → B → D (secondary 1) =>  portIndex = 1
+   */
+  private captureChildConnections(
+    deletedNode: QueryNode,
+  ): Array<{child: QueryNode; portIndex: number | undefined}> {
+    return deletedNode.nextNodes.map((child) => ({
+      child,
+      portIndex: this.findSecondaryInputPort(child, deletedNode),
+    }));
+  }
+
+  /**
+   * Gets the primary input parent of a node.
+   * Returns undefined for:
+   * - Source nodes (no inputs)
+   * - Multi-source nodes (Union, Join, IntervalIntersect - they only have secondary inputs)
+   */
+  private getPrimaryParent(node: QueryNode): QueryNode | undefined {
+    if ('primaryInput' in node) {
+      return node.primaryInput;
+    }
+    return undefined;
+  }
+
+  /**
+   * Disconnects a node from all its parents and children.
+   */
+  private disconnectNodeFromGraph(node: QueryNode): void {
+    // Disconnect from all parents (both primary and secondary)
+    const allParents = getAllInputNodes(node);
+    for (const parent of allParents) {
+      removeConnection(parent, node);
+    }
+
+    // Disconnect from all children
+    const children = [...node.nextNodes];
+    for (const child of children) {
+      removeConnection(node, child);
+    }
+  }
+
   async handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
     const {state, onStateUpdate} = attrs;
 
-    // Clean up all node resources (both JS and SQL) using CleanupManager
+    // STEP 1: Clean up resources (SQL tables, JS subscriptions, etc.)
     if (this.cleanupManager !== undefined) {
-      await this.cleanupManager.cleanupNode(node);
+      try {
+        await this.cleanupManager.cleanupNode(node);
+      } catch (error) {
+        // Log error but continue with deletion
+        console.error('Failed to cleanup node resources:', error);
+      }
     }
 
-    // Capture parent and child nodes BEFORE removing connections
-    // (removeConnection may clear these references)
-    const allParentNodes = getAllInputNodes(node);
-    const childNodes = [...node.nextNodes];
+    // STEP 2: Capture graph structure BEFORE modification
+    // We need to capture this info before removeConnection() clears the references
+    const primaryParent = this.getPrimaryParent(node);
+    const childConnections = this.captureChildConnections(node);
+    const allInputs = getAllInputNodes(node); // Capture ALL parents (primary + secondary)
 
-    // Capture ONLY the primary parent before removal
-    // Secondary inputs should NOT be reconnected - they are auxiliary inputs
-    // specific to the deleted node and should not propagate to its children.
-    const primaryParentNodes: QueryNode[] = [];
-    if ('primaryInput' in node && node.primaryInput) {
-      primaryParentNodes.push(node.primaryInput);
+    // STEP 3: Remove the node from the graph
+    this.disconnectNodeFromGraph(node);
+
+    // STEP 4: Reconnect primary parent to children (if exists)
+    // This bypasses the deleted node, maintaining data flow for PRIMARY connections only.
+    //
+    // IMPORTANT RULES:
+    // 1. Only reconnect if deleted node fed child's PRIMARY input (portIndex === undefined)
+    // 2. Secondary connections are specific to the deleted node - DROP them, don't reconnect
+    // 3. Skip reconnection if parent is already connected to avoid duplicates
+    // 4. Transfer deleted node's layout to docked children so they can render at same position
+    const reconnectedChildren: QueryNode[] = [];
+    const updatedNodeLayouts = new Map(state.nodeLayouts);
+    const deletedNodeLayout = state.nodeLayouts.get(node.nodeId);
+
+    if (primaryParent !== undefined) {
+      let layoutOffsetCount = 0;
+      for (const {child, portIndex} of childConnections) {
+        // If deleted node fed child's secondary input, DROP the connection
+        // Secondary inputs are specific to the deleted node (e.g., intervals for FilterDuring)
+        if (portIndex !== undefined) {
+          continue; // Don't reconnect secondary connections
+        }
+
+        // Check if parent is already connected to this child
+        if (primaryParent.nextNodes.includes(child)) {
+          continue; // Already connected - don't create duplicates
+        }
+
+        // Reconnect: maintain primary data flow (A → B → C becomes A → C)
+        addConnection(primaryParent, child, portIndex);
+        reconnectedChildren.push(child);
+
+        // If child was docked (no layout) and deleted node had a layout,
+        // transfer the layout to the child so it renders at the same position
+        // For multiple children, offset their positions to avoid overlapping
+        const childHasNoLayout = !state.nodeLayouts.has(child.nodeId);
+        if (childHasNoLayout && deletedNodeLayout !== undefined) {
+          const offsetX = layoutOffsetCount * 30; // Offset each child by 30px
+          const offsetY = layoutOffsetCount * 30;
+          updatedNodeLayouts.set(child.nodeId, {
+            x: deletedNodeLayout.x + offsetX,
+            y: deletedNodeLayout.y + offsetY,
+          });
+          layoutOffsetCount++;
+        }
+      }
     }
 
-    // Capture port index information BEFORE removing connections
-    // This is needed to preserve secondary input connections when reconnecting
-    const childConnectionInfo: Array<{
-      child: QueryNode;
-      portIndex: number | undefined;
-    }> = [];
-    for (const child of childNodes) {
-      let portIndex: number | undefined = undefined;
-      // Check if node is connected to child's secondary inputs
-      if (child.secondaryInputs) {
-        for (const [port, inputNode] of child.secondaryInputs.connections) {
-          if (inputNode === node) {
-            portIndex = port;
-            break;
+    // STEP 4b: Check if reconnected children can actually be rendered
+    // A child becomes "unrenderable" if:
+    // - It was reconnected to a parent
+    // - It has no layout (was docked to deleted node)
+    // - Parent has multiple children (can't render as docked anymore)
+    const unrenderableChildren: QueryNode[] = [];
+    if (primaryParent !== undefined && reconnectedChildren.length > 0) {
+      const parentHasMultipleChildren = primaryParent.nextNodes.length > 1;
+      for (const child of reconnectedChildren) {
+        // Check the UPDATED layouts, not the old state
+        const childHasNoLayout = !updatedNodeLayouts.has(child.nodeId);
+        // If child has no layout and parent has multiple children,
+        // the child can't be rendered (not as docked, not as root)
+        if (childHasNoLayout && parentHasMultipleChildren) {
+          unrenderableChildren.push(child);
+        }
+      }
+    }
+
+    // STEP 5: Update root nodes list
+    // Use a Set to prevent duplicate root nodes
+    const newRootNodesSet = new Set(state.rootNodes.filter((n) => n !== node));
+
+    // Add orphaned children to root nodes so they remain visible
+    // Children are orphaned if there was no primary parent to reconnect them to
+    if (primaryParent === undefined && childConnections.length > 0) {
+      const orphanedChildren = childConnections.map((c) => c.child);
+      for (const child of orphanedChildren) {
+        newRootNodesSet.add(child);
+      }
+
+      // Transfer deleted node's layout to orphaned children so they appear at same position
+      // For multiple children, offset their positions to avoid overlapping
+      if (deletedNodeLayout !== undefined) {
+        let layoutOffsetCount = 0;
+        for (const {child} of childConnections) {
+          const childHasNoLayout = !updatedNodeLayouts.has(child.nodeId);
+          if (childHasNoLayout) {
+            const offsetX = layoutOffsetCount * 30; // Offset each child by 30px
+            const offsetY = layoutOffsetCount * 30;
+            updatedNodeLayouts.set(child.nodeId, {
+              x: deletedNodeLayout.x + offsetX,
+              y: deletedNodeLayout.y + offsetY,
+            });
+            layoutOffsetCount++;
           }
         }
       }
-      childConnectionInfo.push({child, portIndex});
     }
 
-    // Remove all connections to/from the deleted node (both primary and secondary)
-    for (const parent of allParentNodes) {
-      removeConnection(parent, node);
-    }
-    for (const child of childNodes) {
-      removeConnection(node, child);
+    // Add unrenderable children to root nodes so they become visible
+    // These are children that were reconnected but can't be rendered as docked
+    for (const child of unrenderableChildren) {
+      newRootNodesSet.add(child);
     }
 
-    // Reconnect ONLY the primary parent to children (bypass the deleted node)
-    // Use the captured connection info to preserve port indices
-    reconnectParentsToChildren(
-      primaryParentNodes,
-      childConnectionInfo,
-      addConnection,
-    );
+    // STEP 5b: Promote orphaned input providers to root nodes
+    // Simple rule: If a node was NOT a root node, and we deleted the node that
+    // consumed it, then it should become a root node.
+    const orphanedInputs: QueryNode[] = [];
+    for (const inputNode of allInputs) {
+      // Check if this input node becomes orphaned:
+      // 1. It was NOT originally a root node
+      // 2. After deletion, it has no consumers (nextNodes is empty)
+      const wasNotRoot = !state.rootNodes.includes(inputNode);
+      const hasNoConsumers = inputNode.nextNodes.length === 0;
 
-    // Update root nodes: remove the deleted node
-    let newRootNodes = state.rootNodes.filter((n) => n !== node);
-
-    // If the deleted node has children that weren't reconnected to a primary parent,
-    // they must become root nodes to remain accessible in the graph.
-    // This handles two cases:
-    // 1. Deleted node was a root node with no primary input (children become roots)
-    // 2. Deleted node only had secondary inputs (e.g., IntervalIntersectNode)
-    if (primaryParentNodes.length === 0 && childNodes.length > 0) {
-      newRootNodes = [...newRootNodes, ...childNodes];
+      if (wasNotRoot && hasNoConsumers) {
+        orphanedInputs.push(inputNode);
+      }
     }
 
-    // If the deleted node was selected, deselect it.
+    for (const inputNode of orphanedInputs) {
+      newRootNodesSet.add(inputNode);
+    }
+
+    const newRootNodes = Array.from(newRootNodesSet);
+
+    // STEP 6: Update selection if deleted node was selected
     const newSelectedNode =
       state.selectedNode === node ? undefined : state.selectedNode;
 
+    // STEP 7: Trigger validation on affected children
+    // Children need to re-validate because their inputs have changed
+    // (either reconnected to a different parent or lost their parent entirely)
+    for (const {child} of childConnections) {
+      child.onPrevNodesUpdated?.();
+    }
+
+    // Also notify orphaned input providers that their consumers changed
+    for (const inputNode of orphanedInputs) {
+      notifyNextNodes(inputNode);
+    }
+
+    // STEP 8: Commit state changes
     onStateUpdate((currentState) => ({
       ...currentState,
       rootNodes: newRootNodes,
       selectedNode: newSelectedNode,
+      nodeLayouts: updatedNodeLayouts,
     }));
   }
 
