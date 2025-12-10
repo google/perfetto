@@ -94,6 +94,7 @@ export type OnFilterRemove = (index: number) => void;
 type OnSortingChanged = (sorting: Sorting) => void;
 type ColumnOrder = ReadonlyArray<string>;
 type OnColumnOrderChanged = (columnOrder: ColumnOrder) => void;
+type OnColumnMoved = (fromIndex: number, toIndex: number) => void;
 
 function noOp() {}
 
@@ -197,8 +198,17 @@ export interface DataGridAttrs {
   readonly onColumnOrderChanged?: OnColumnOrderChanged;
 
   /**
+   * Callback triggered when a column is moved via drag-and-drop.
+   * Provides the source and destination indices for the move operation.
+   * This is called in addition to onColumnOrderChanged if both are provided.
+   * @param fromIndex The original index of the moved column
+   * @param toIndex The new index where the column was moved to
+   */
+  readonly onColumnMoved?: OnColumnMoved;
+
+  /**
    * Whether to enable column reordering via drag-and-drop.
-   * Default = true if onColumnOrderChanged is provided, false otherwise.
+   * Default = true if onColumnOrderChanged or onColumnMoved is provided, false otherwise.
    */
   readonly columnReordering?: boolean;
 
@@ -358,7 +368,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       onColumnOrderChanged = columnOrder === this.columnOrder
         ? (x) => (this.columnOrder = x)
         : noOp,
-      columnReordering = onColumnOrderChanged !== noOp,
+      onColumnMoved,
+      columnReordering = onColumnOrderChanged !== noOp || onColumnMoved !== undefined,
       showFiltersInToolbar = true,
       fillHeight = false,
       toolbarItemsLeft,
@@ -1175,6 +1186,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 position,
               );
               onColumnOrderChanged(newOrder);
+
+              // Call onColumnMoved with the indices if provided
+              if (onColumnMoved && typeof from === 'string' && typeof to === 'string') {
+                const fromIndex = columnOrder.indexOf(from);
+                const toIndex = newOrder.indexOf(from);
+                if (fromIndex !== -1 && toIndex !== -1) {
+                  onColumnMoved(fromIndex, toIndex);
+                }
+              }
             }
           : undefined,
         onReady: (api) => {

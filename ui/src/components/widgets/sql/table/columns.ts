@@ -164,8 +164,8 @@ export class StandardColumn implements TableColumn {
     private params?: ColumnParams,
   ) {}
 
-  renderCell(value: SqlValue, context?: RenderCellContext) {
-    return renderStandardCell(value, this.column, context);
+  renderCell(value: SqlValue) {
+    return renderStandardCell(value);
   }
 
   initialColumns(): TableColumn[] {
@@ -187,16 +187,14 @@ export class TimestampColumn implements TableColumn {
       value = BigInt(Math.round(value));
     }
     if (typeof value !== 'bigint') {
-      return renderStandardCell(value, this.column, context);
+      return renderStandardCell(value);
     }
     return {
       content: m(Timestamp, {
         trace: this.trace,
         ts: Time.fromRaw(value),
       }),
-      menu: [
-        context && getStandardContextMenuItems(value, this.column, context),
-      ],
+      menu: [context && getStandardContextMenuItems(value)],
       isNumerical: true,
     };
   }
@@ -220,7 +218,7 @@ export class DurationColumn implements TableColumn {
       value = BigInt(Math.round(value));
     }
     if (typeof value !== 'bigint') {
-      return renderStandardCell(value, this.column, context);
+      return renderStandardCell(value);
     }
 
     return {
@@ -228,9 +226,7 @@ export class DurationColumn implements TableColumn {
         trace: this.trace,
         dur: Duration.fromRaw(value),
       }),
-      menu: [
-        context && getStandardContextMenuItems(value, this.column, context),
-      ],
+      menu: [context && getStandardContextMenuItems(value)],
       isNumerical: true,
     };
   }
@@ -264,7 +260,7 @@ export class IdColumn implements TableColumn {
     const id = value;
 
     if (context === undefined || id === null) {
-      return renderStandardCell(id, this.column, context);
+      return renderStandardCell(id);
     }
     if (typeof id !== 'bigint') {
       return {content: wrongTypeError('id', this.column, id)};
@@ -273,10 +269,7 @@ export class IdColumn implements TableColumn {
     const rendered = this.args.render(id);
     return {
       content: rendered.content,
-      menu: [
-        rendered.menu,
-        getStandardContextMenuItems(id, this.column, context),
-      ],
+      menu: [rendered.menu, getStandardContextMenuItems(id)],
       isNumerical: true,
     };
   }
@@ -516,69 +509,38 @@ export function trackIdColumn(
 
 class ArgColumn implements TableColumn {
   public readonly column: SqlColumn;
-  public readonly display: SqlColumn;
   public readonly type: PerfettoSqlType | undefined = undefined;
-  private id: string;
 
-  constructor(
-    private argSetId: SqlColumn,
-    private key: string,
-  ) {
-    this.id = `${sqlColumnId(this.argSetId)}[${this.key}]`;
-    this.column = new SqlExpression(
-      (cols: string[]) => `COALESCE(${cols[0]}, ${cols[1]}, ${cols[2]})`,
-      [
-        this.getRawColumn('string_value'),
-        this.getRawColumn('int_value'),
-        this.getRawColumn('real_value'),
-      ],
-      this.id,
-    );
-    this.display = new SqlExpression(
-      (cols: string[]) => `json_object(
-          'id', ${cols[0]},
-          'int_value', ${cols[1]},
-          'real_value', ${cols[2]},
-          'string_value', ${cols[3]},
-          'display_value', ${cols[4]}
-      )`,
-      (
-        [
-          'id',
-          'int_value',
-          'real_value',
-          'string_value',
-          'display_value',
-        ] as const
-      ).map((c) => this.getRawColumn(c)),
-    );
-  }
-
-  private getRawColumn(
-    type:
-      | 'string_value'
-      | 'int_value'
-      | 'real_value'
-      | 'id'
-      | 'type'
-      | 'display_value',
-  ): SqlColumn {
-    return {
+  constructor(argSetId: SqlColumn, key: string) {
+    const id = `${sqlColumnId(argSetId)}[${key}]`;
+    const getRawColumn = (
+      type: 'string_value' | 'int_value' | 'real_value',
+    ): SqlColumn => ({
       column: type,
       source: {
         table: 'args',
         joinOn: {
-          arg_set_id: this.argSetId,
-          key: `${sqliteString(this.key)}`,
+          arg_set_id: argSetId,
+          key: `${sqliteString(key)}`,
         },
       },
-      id: `${this.id}.${type.replace(/_value$/g, '')}`,
-    };
+      id: `${id}.${type.replace(/_value$/g, '')}`,
+    });
+
+    this.column = new SqlExpression(
+      (cols: string[]) => `COALESCE(${cols[0]}, ${cols[1]}, ${cols[2]})`,
+      [
+        getRawColumn('string_value'),
+        getRawColumn('int_value'),
+        getRawColumn('real_value'),
+      ],
+      id,
+    );
   }
 
   renderCell(value: SqlValue, context?: RenderCellContext): RenderedCell {
     if (context === undefined) {
-      return renderStandardCell(value, this.column, context);
+      return renderStandardCell(value);
     }
     if (typeof value !== 'string') {
       return {
@@ -589,26 +551,14 @@ class ArgColumn implements TableColumn {
     }
     const argValue = parseJsonWithBigints(value);
     if (argValue['id'] === null) {
-      return renderStandardCell(null, this.getRawColumn('id'), context);
+      return renderStandardCell(null);
     }
     if (argValue['int_value'] !== null) {
-      return renderStandardCell(
-        argValue['int_value'],
-        this.getRawColumn('int_value'),
-        context,
-      );
+      return renderStandardCell(argValue['int_value']);
     } else if (argValue['real_value'] !== null) {
-      return renderStandardCell(
-        argValue['real_value'],
-        this.getRawColumn('real_value'),
-        context,
-      );
+      return renderStandardCell(argValue['real_value']);
     } else {
-      return renderStandardCell(
-        argValue['string_value'],
-        this.getRawColumn('string_value'),
-        context,
-      );
+      return renderStandardCell(argValue['string_value']);
     }
   }
 }
@@ -621,8 +571,8 @@ export class ArgSetIdColumn implements TableColumn {
     private params?: ColumnParams,
   ) {}
 
-  renderCell(value: SqlValue, context: RenderCellContext) {
-    return renderStandardCell(value, this.column, context);
+  renderCell(value: SqlValue) {
+    return renderStandardCell(value);
   }
 
   listDerivedColumns(context: ListColumnsContext) {
