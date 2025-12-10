@@ -33,8 +33,12 @@ import {
 import {loadNodeDoc} from '../node_doc_loader';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle} from '../node_styling_widgets';
-import {JoinConditionSelector, JoinConditionDisplay} from '../join_widgets';
-import {ResizableSqlEditor} from '../widgets';
+import {
+  JoinConditionSelector,
+  JoinConditionDisplay,
+  JoinColumnSelectorWithAliases,
+} from '../join_widgets';
+import {ResizableSqlEditor, OutlinedField} from '../widgets';
 
 export interface JoinSerializedState {
   leftNodeId: string;
@@ -398,28 +402,74 @@ export class JoinNode implements QueryNode {
                   this.state.onchange?.();
                 }
               },
-              onLeftColumnAlias: (index: number, alias: string) => {
-                if (this.state.leftColumns) {
-                  this.state.leftColumns[index].alias =
-                    alias.trim() === '' ? undefined : alias;
-                  this.state.onchange?.();
-                }
-              },
-              onRightColumnAlias: (index: number, alias: string) => {
-                if (this.state.rightColumns) {
-                  this.state.rightColumns[index].alias =
-                    alias.trim() === '' ? undefined : alias;
-                  this.state.onchange?.();
-                }
-              },
             })
-          : m(ResizableSqlEditor, {
-              sql: this.state.sqlExpression,
-              onUpdate: (text: string) => {
-                this.state.sqlExpression = text;
-                this.state.onchange?.();
-              },
-            }),
+          : // Freeform mode: SQL editor + aliases field + column selector with aliases
+            m('.pf-join-freeform-section', [
+              // Aliases for the SQL expression
+              m('.pf-join-freeform-aliases', [
+                m(OutlinedField, {
+                  label: 'Left Alias',
+                  value: this.state.leftQueryAlias,
+                  oninput: (e: Event) => {
+                    this.state.leftQueryAlias = (
+                      e.target as HTMLInputElement
+                    ).value;
+                    this.state.onchange?.();
+                  },
+                }),
+                m(OutlinedField, {
+                  label: 'Right Alias',
+                  value: this.state.rightQueryAlias,
+                  oninput: (e: Event) => {
+                    this.state.rightQueryAlias = (
+                      e.target as HTMLInputElement
+                    ).value;
+                    this.state.onchange?.();
+                  },
+                }),
+              ]),
+              // SQL editor for freeform condition
+              m(ResizableSqlEditor, {
+                sql: this.state.sqlExpression,
+                onUpdate: (text: string) => {
+                  this.state.sqlExpression = text;
+                  this.state.onchange?.();
+                },
+              }),
+              // Column selector with aliasing
+              m(JoinColumnSelectorWithAliases, {
+                leftAlias: this.state.leftQueryAlias,
+                rightAlias: this.state.rightQueryAlias,
+                leftColumns: this.state.leftColumns ?? [],
+                rightColumns: this.state.rightColumns ?? [],
+                onLeftColumnToggle: (index: number, checked: boolean) => {
+                  if (this.state.leftColumns) {
+                    this.state.leftColumns[index].checked = checked;
+                    this.state.onchange?.();
+                  }
+                },
+                onRightColumnToggle: (index: number, checked: boolean) => {
+                  if (this.state.rightColumns) {
+                    this.state.rightColumns[index].checked = checked;
+                    this.state.onchange?.();
+                  }
+                },
+                onLeftColumnAlias: (index: number, alias: string) => {
+                  if (this.state.leftColumns) {
+                    this.state.leftColumns[index].alias =
+                      alias.trim() === '' ? undefined : alias;
+                    this.state.onchange?.();
+                  }
+                },
+                onRightColumnAlias: (index: number, alias: string) => {
+                  if (this.state.rightColumns) {
+                    this.state.rightColumns[index].alias =
+                      alias.trim() === '' ? undefined : alias;
+                    this.state.onchange?.();
+                  }
+                },
+              }),
+            ]),
     });
 
     // Mode switch button

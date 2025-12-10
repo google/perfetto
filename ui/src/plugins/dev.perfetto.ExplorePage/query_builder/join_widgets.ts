@@ -14,11 +14,7 @@
 
 import m from 'mithril';
 import {ColumnInfo} from './column_info';
-import {
-  OutlinedField,
-  DataExplorerEmptyState,
-  SelectDeselectAllButtons,
-} from './widgets';
+import {OutlinedField, DataExplorerEmptyState} from './widgets';
 import {classNames} from '../../../base/classnames';
 import {Card} from '../../../widgets/card';
 import {Checkbox} from '../../../widgets/checkbox';
@@ -37,7 +33,6 @@ export interface JoinSourceCardAttrs {
   onAliasChange: (alias: string) => void;
   onColumnChange: (columnName: string) => void;
   onColumnToggle: (index: number, checked: boolean) => void;
-  onColumnAlias: (index: number, alias: string) => void;
 }
 
 export class JoinSourceCard implements m.ClassComponent<JoinSourceCardAttrs> {
@@ -51,7 +46,6 @@ export class JoinSourceCard implements m.ClassComponent<JoinSourceCardAttrs> {
       onAliasChange,
       onColumnChange,
       onColumnToggle,
-      onColumnAlias,
     } = attrs;
 
     // Show empty state if no columns are available (no node connected)
@@ -117,7 +111,7 @@ export class JoinSourceCard implements m.ClassComponent<JoinSourceCardAttrs> {
             ),
           ],
         ),
-        // Column selection with checkboxes and aliasing
+        // Column selection with checkboxes
         columns.length > 0 &&
           m(
             '.pf-join-source-card__columns',
@@ -131,39 +125,23 @@ export class JoinSourceCard implements m.ClassComponent<JoinSourceCardAttrs> {
                 // Check if this column name is already selected on the other side
                 const isDuplicate = otherSideColumns.some(
                   (otherCol) =>
-                    otherCol.checked && otherCol.column.name === col.column.name,
+                    otherCol.checked &&
+                    otherCol.column.name === col.column.name,
                 );
                 const isDisabled = isDuplicate && !col.checked;
 
-                return m(
-                  '.pf-join-column-row',
-                  {
-                    className: classNames(isDisabled && 'pf-disabled'),
+                return m(Checkbox, {
+                  className: classNames(isDisabled && 'pf-disabled'),
+                  checked: col.checked,
+                  disabled: isDisabled,
+                  label: col.column.name,
+                  onchange: (e) => {
+                    onColumnToggle(
+                      index,
+                      (e.target as HTMLInputElement).checked,
+                    );
                   },
-                  m(Checkbox, {
-                    checked: col.checked,
-                    disabled: isDisabled,
-                    label: col.column.name,
-                    onchange: (e) => {
-                      onColumnToggle(
-                        index,
-                        (e.target as HTMLInputElement).checked,
-                      );
-                    },
-                  }),
-                  m(TextInput, {
-                    disabled: isDisabled,
-                    oninput: (e: Event) => {
-                      const inputValue = (e.target as HTMLInputElement).value;
-                      onColumnAlias(
-                        index,
-                        inputValue.trim() === '' ? '' : inputValue,
-                      );
-                    },
-                    placeholder: 'alias',
-                    value: col.alias ?? '',
-                  }),
-                );
+                });
               }),
             ),
           ),
@@ -191,8 +169,6 @@ export interface JoinConditionSelectorAttrs {
   onRightColumnChange: (columnName: string) => void;
   onLeftColumnToggle: (index: number, checked: boolean) => void;
   onRightColumnToggle: (index: number, checked: boolean) => void;
-  onLeftColumnAlias: (index: number, alias: string) => void;
-  onRightColumnAlias: (index: number, alias: string) => void;
 }
 
 export class JoinConditionSelector
@@ -214,8 +190,6 @@ export class JoinConditionSelector
       onRightColumnChange,
       onLeftColumnToggle,
       onRightColumnToggle,
-      onLeftColumnAlias,
-      onRightColumnAlias,
     } = attrs;
 
     const hasValidJoin = leftColumn && rightColumn;
@@ -237,7 +211,6 @@ export class JoinConditionSelector
           onAliasChange: onLeftAliasChange,
           onColumnChange: onLeftColumnChange,
           onColumnToggle: onLeftColumnToggle,
-          onColumnAlias: onLeftColumnAlias,
         }),
         // Right source card
         m(JoinSourceCard, {
@@ -249,7 +222,6 @@ export class JoinConditionSelector
           onAliasChange: onRightAliasChange,
           onColumnChange: onRightColumnChange,
           onColumnToggle: onRightColumnToggle,
-          onColumnAlias: onRightColumnAlias,
         }),
       ),
     );
@@ -289,10 +261,10 @@ export class JoinConditionDisplay
 }
 
 /**
- * Component for selecting which columns to include from a join
- * Shows columns from both left and right sources with checkboxes and aliasing
+ * Component for selecting columns with aliasing support
+ * Used in freeform join mode to select columns and set aliases
  */
-export interface JoinColumnSelectorAttrs {
+export interface JoinColumnSelectorWithAliasesAttrs {
   leftAlias: string;
   rightAlias: string;
   leftColumns: ColumnInfo[];
@@ -301,14 +273,10 @@ export interface JoinColumnSelectorAttrs {
   onRightColumnToggle: (index: number, checked: boolean) => void;
   onLeftColumnAlias: (index: number, alias: string) => void;
   onRightColumnAlias: (index: number, alias: string) => void;
-  onSelectAllLeft: () => void;
-  onDeselectAllLeft: () => void;
-  onSelectAllRight: () => void;
-  onDeselectAllRight: () => void;
 }
 
-export class JoinColumnSelector
-  implements m.ClassComponent<JoinColumnSelectorAttrs>
+export class JoinColumnSelectorWithAliases
+  implements m.ClassComponent<JoinColumnSelectorWithAliasesAttrs>
 {
   private renderColumnRow(
     col: ColumnInfo,
@@ -328,7 +296,6 @@ export class JoinColumnSelector
       m(TextInput, {
         oninput: (e: Event) => {
           const inputValue = (e.target as HTMLInputElement).value;
-          // Normalize empty strings to undefined (no alias)
           onAlias(index, inputValue.trim() === '' ? '' : inputValue);
         },
         placeholder: 'alias',
@@ -337,7 +304,7 @@ export class JoinColumnSelector
     );
   }
 
-  view({attrs}: m.Vnode<JoinColumnSelectorAttrs>) {
+  view({attrs}: m.Vnode<JoinColumnSelectorWithAliasesAttrs>) {
     const {
       leftAlias,
       rightAlias,
@@ -347,10 +314,6 @@ export class JoinColumnSelector
       onRightColumnToggle,
       onLeftColumnAlias,
       onRightColumnAlias,
-      onSelectAllLeft,
-      onDeselectAllLeft,
-      onSelectAllRight,
-      onDeselectAllRight,
     } = attrs;
 
     const leftSelectedCount = leftColumns.filter((c) => c.checked).length;
@@ -365,10 +328,6 @@ export class JoinColumnSelector
             'h4',
             `${leftAlias} (${leftSelectedCount} / ${leftColumns.length} selected)`,
           ),
-          m(SelectDeselectAllButtons, {
-            onSelectAll: onSelectAllLeft,
-            onDeselectAll: onDeselectAllLeft,
-          }),
         ),
         m(
           '.pf-join-column-list',
@@ -395,10 +354,6 @@ export class JoinColumnSelector
             'h4',
             `${rightAlias} (${rightSelectedCount} / ${rightColumns.length} selected)`,
           ),
-          m(SelectDeselectAllButtons, {
-            onSelectAll: onSelectAllRight,
-            onDeselectAll: onDeselectAllRight,
-          }),
         ),
         m(
           '.pf-join-column-list',

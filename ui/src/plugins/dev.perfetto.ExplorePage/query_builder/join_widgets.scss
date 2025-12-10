@@ -272,3 +272,16 @@
     flex-shrink: 0;
   }
 }
+
+// Freeform join mode section
+.pf-join-freeform-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pf-join-freeform-aliases {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}

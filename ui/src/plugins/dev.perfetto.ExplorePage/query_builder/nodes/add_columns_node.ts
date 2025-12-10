@@ -884,10 +884,18 @@ export class AddColumnsNode implements QueryNode {
           }),
         ),
       },
-      {
-        content: this.renderAddedColumnsList(),
-      },
     ];
+
+    // Show join condition selector when a table is connected
+    if (hasConnectedNode) {
+      sections.push({
+        content: this.renderJoinConditionSelects(),
+      });
+    }
+
+    sections.push({
+      content: this.renderAddedColumnsList(),
+    });
 
     return {
       info: 'Add new columns to your query using expressions, joins, conditional logic, or by extracting values from args. Use the buttons above to select how you want to add columns.',
@@ -1463,56 +1471,12 @@ export class AddColumnsNode implements QueryNode {
             ),
           ]),
           selectedSuggestion &&
-            m(
-              LabeledControl,
-              {label: 'Join on:'},
-              m(
-                'span',
-                m('code', selectedSuggestion.colName),
-                ' = ',
-                m('code', selectedSuggestion.targetColumn),
-              ),
+            this.renderJoinConditionForSuggestion(
+              selectedSuggestion,
+              availableColumns,
+              selectedColumns,
+              selectedTable!,
             ),
-          selectedSuggestion &&
-            m(
-              LabeledControl,
-              {label: 'Columns:'},
-              m(OutlinedMultiSelect, {
-                label:
-                  selectedColumns.length > 0
-                    ? selectedColumns.join(', ')
-                    : 'Select columns to add',
-                showNumSelected: false,
-                compact: true,
-                options: availableColumns.map((col) => ({
-                  id: col,
-                  name: col,
-                  checked: selectedColumns.includes(col),
-                })),
-                onChange: (diffs: MultiSelectDiff[]) => {
-                  if (!this.state.suggestionSelections) {
-                    this.state.suggestionSelections = new Map();
-                  }
-                  const current =
-                    this.state.suggestionSelections.get(selectedTable!) ?? [];
-                  let updated = [...current];
-                  for (const diff of diffs) {
-                    if (diff.checked) {
-                      if (!updated.includes(diff.id)) {
-                        updated.push(diff.id);
-                      }
-                    } else {
-                      updated = updated.filter((c) => c !== diff.id);
-                    }
-                  }
-                  this.state.suggestionSelections.set(selectedTable!, updated);
-                  m.redraw();
-                },
-              }),
-            ),
-          selectedSuggestion &&
-            selectedColumns.length > 0 &&
-            this.renderColumnAliases(selectedColumns, true),
         ),
       ),
       m(
@@ -1525,6 +1489,86 @@ export class AddColumnsNode implements QueryNode {
             }),
       ),
     );
+  }
+
+  private renderJoinConditionForSuggestion(
+    suggestion: {colName: string; targetColumn: string; suggestedTable: string},
+    availableColumns: string[],
+    selectedColumns: string[],
+    selectedTable: string,
+  ): m.Child {
+    // Convert available columns to ColumnInfo format
+    const rightColumnsWithState: ColumnInfo[] = availableColumns.map(
+      (colName) => {
+        const isSelected = selectedColumns.includes(colName);
+        const alias = this.state.suggestionAliases?.get(colName);
+        return {
+          name: colName,
+          type: 'NA',
+          column: {name: colName},
+          checked: isSelected,
+          alias: alias,
+        };
+      },
+    );
+
+    // Convert primary columns to ColumnInfo format (empty since we don't select from primary)
+    const leftColumnsWithState: ColumnInfo[] = this.sourceCols.map((col) => ({
+      ...col,
+      checked: false,
+      alias: undefined,
+    }));
+
+    return m(JoinConditionSelector, {
+      leftLabel: 'Primary',
+      rightLabel: 'Source',
+      leftAlias: 'primary',
+      rightAlias: 'source',
+      leftColumns: leftColumnsWithState,
+      rightColumns: rightColumnsWithState,
+      leftColumn: suggestion.colName,
+      rightColumn: suggestion.targetColumn,
+      onLeftAliasChange: () => {
+        // AddColumnsNode doesn't allow changing aliases
+      },
+      onRightAliasChange: () => {
+        // AddColumnsNode doesn't allow changing aliases
+      },
+      onLeftColumnChange: () => {
+        // Join column is pre-filled from suggestion, don't allow changing
+      },
+      onRightColumnChange: () => {
+        // Join column is pre-filled from suggestion, don't allow changing
+      },
+      onLeftColumnToggle: () => {
+        // AddColumnsNode doesn't allow selecting columns from primary source
+      },
+      onRightColumnToggle: (index: number, checked: boolean) => {
+        const colName = availableColumns[index];
+        if (!colName) return;
+
+        if (!this.state.suggestionSelections) {
+          this.state.suggestionSelections = new Map();
+        }
+
+        const current =
+          this.state.suggestionSelections.get(selectedTable) ?? [];
+        let updated = [...current];
+
+        if (checked) {
+          if (!updated.includes(colName)) {
+            updated.push(colName);
+          }
+        } else {
+          updated = updated.filter((c) => c !== colName);
+          // Also remove alias if present
+          this.state.suggestionAliases?.delete(colName);
+        }
+
+        this.state.suggestionSelections.set(selectedTable, updated);
+        m.redraw();
+      },
+    });
   }
 
   private renderJoinConfiguration(): m.Child {
@@ -1658,6 +1702,17 @@ export class AddColumnsNode implements QueryNode {
   }
 
   private renderJoinConditionSelects(): m.Child {
+    // Convert rightCols to include checked state based on selectedColumns
+    const rightColumnsWithState = this.rightCols.map((col) => {
+      const isSelected = this.state.selectedColumns?.includes(col.column.name);
+      const alias = this.state.columnAliases?.get(col.column.name);
+      return {
+        ...col,
+        checked: isSelected ?? false,
+        alias: alias,
+      };
+    });
+
     return m(FormSection, {label: 'Join Condition'}, [
       m(JoinConditionSelector, {
         leftLabel: 'Primary',
@@ -1665,7 +1720,7 @@ export class AddColumnsNode implements QueryNode {
         leftAlias: 'primary',
         rightAlias: 'source',
         leftColumns: this.sourceCols,
-        rightColumns: this.rightCols,
+        rightColumns: rightColumnsWithState,
         leftColumn: this.state.leftColumn,
         rightColumn: this.state.rightColumn,
         onLeftAliasChange: () => {
@@ -1683,16 +1738,31 @@ export class AddColumnsNode implements QueryNode {
           this.state.onchange?.();
         },
         onLeftColumnToggle: () => {
-          // AddColumnsNode doesn't use column selection
+          // AddColumnsNode doesn't allow selecting columns from primary source
         },
-        onRightColumnToggle: () => {
-          // AddColumnsNode doesn't use column selection
-        },
-        onLeftColumnAlias: () => {
-          // AddColumnsNode doesn't use column aliasing
-        },
-        onRightColumnAlias: () => {
-          // AddColumnsNode doesn't use column aliasing
+        onRightColumnToggle: (index: number, checked: boolean) => {
+          if (index < 0 || index >= rightColumnsWithState.length) return;
+          const col = rightColumnsWithState[index];
+
+          if (checked) {
+            // Add column to selectedColumns
+            if (!this.state.selectedColumns) {
+              this.state.selectedColumns = [];
+            }
+            if (!this.state.selectedColumns.includes(col.column.name)) {
+              this.state.selectedColumns.push(col.column.name);
+            }
+          } else {
+            // Remove column from selectedColumns
+            if (this.state.selectedColumns) {
+              this.state.selectedColumns = this.state.selectedColumns.filter(
+                (name) => name !== col.column.name,
+              );
+            }
+            // Also remove alias if present
+            this.state.columnAliases?.delete(col.column.name);
+          }
+          this.state.onchange?.();
         },
       }),
     ]);
