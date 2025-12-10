@@ -19,7 +19,7 @@ import {Button} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Stack, StackAuto} from '../../../widgets/stack';
 import {DataGridFilter} from './common';
-import {DataGridApi} from './data_grid';
+import {DataGridApi} from './datagrid';
 import {DataGridExportButton} from './export_button';
 
 export class GridFilterBar implements m.ClassComponent {

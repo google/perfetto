@@ -22,11 +22,11 @@ import {
   CellRenderer,
   DataGridColumn,
   DataGridDataSource,
-} from './widgets/data_grid/common';
-import {DataGrid, renderCell, DataGridApi} from './widgets/data_grid/data_grid';
-import {defaultValueFormatter} from './widgets/data_grid/export_utils';
+} from './widgets/datagrid/common';
+import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
+import {defaultValueFormatter} from './widgets/datagrid/export_utils';
 import {AggregatePivotModel} from './aggregation_adapter';
-import {ColumnSchema, SchemaRegistry} from './widgets/data_grid/column_schema';
+import {ColumnSchema, SchemaRegistry} from './widgets/datagrid/column_schema';
 
 export interface AggregationPanelAttrs {
   readonly dataSource: DataGridDataSource;

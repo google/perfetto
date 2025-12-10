@@ -18,11 +18,11 @@ import {
   DataGridDataSource,
   CellRenderer,
   ColumnDefinition,
-} from '../../../components/widgets/data_grid/common';
+} from '../../../components/widgets/datagrid/common';
 import {
   DataGrid,
   columnsToSchema,
-} from '../../../components/widgets/data_grid/data_grid';
+} from '../../../components/widgets/datagrid/datagrid';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';

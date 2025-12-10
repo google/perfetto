@@ -20,11 +20,11 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {
   DataGrid,
   columnsToSchema,
-} from '../../components/widgets/data_grid/data_grid';
+} from '../../components/widgets/datagrid/datagrid';
 import {
   ColumnDefinition,
   RowDef,
-} from '../../components/widgets/data_grid/common';
+} from '../../components/widgets/datagrid/common';
 
 interface TabAttrs {
   trace: Trace;

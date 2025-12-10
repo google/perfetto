@@ -24,16 +24,16 @@ import {
   renderCell,
   DataGridApi,
   columnsToSchema,
-} from '../widgets/data_grid/data_grid';
+} from '../widgets/datagrid/datagrid';
 import {
   DataGridDataSource,
   CellRenderer,
   ColumnDefinition,
-} from '../widgets/data_grid/common';
-import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
+} from '../widgets/datagrid/common';
+import {InMemoryDataSource} from '../widgets/datagrid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
-import {DataGridExportButton} from '../widgets/data_grid/export_button';
+import {DataGridExportButton} from '../widgets/datagrid/export_button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 
 type Numeric = bigint | number;
