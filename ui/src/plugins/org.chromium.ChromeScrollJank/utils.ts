@@ -18,9 +18,8 @@ import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
 import {QueryResult, Row} from '../../trace_processor/query_result';
 import {SqlRef} from '../../widgets/sql_ref';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {MenuItem} from '../../widgets/menu';
-import {extensions} from '../../components/extensions';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 export const SCROLLS_TRACK_URI = 'perfetto.ChromeScrollJank#toplevelScrolls';
 export const EVENT_LATENCY_TRACK_URI = 'perfetto.ChromeScrollJank#eventLatency';
@@ -49,27 +48,27 @@ export function renderSliceRef(args: {
 export function renderSqlRef(args: {
   trace: Trace;
   tableName: string;
-  tableDefinition: SqlTableDefinition | undefined;
   id: number | bigint;
 }) {
-  const tableDefinition = args.tableDefinition;
+  const sqlModulesPlugin = args.trace.plugins.getPlugin(SqlModulesPlugin);
   return m(SqlRef, {
     table: args.tableName,
     id: args.id,
-    additionalMenuItems: tableDefinition && [
+    additionalMenuItems: [
       m(MenuItem, {
         label: 'Show query results',
         icon: 'table',
-        onclick: () =>
-          extensions.addLegacySqlTableTab(args.trace, {
-            table: tableDefinition,
+        onclick: () => {
+          sqlModulesPlugin.openTableExplorer(args.tableName, {
             filters: [
               {
-                op: ([columnName]) => `${columnName} = ${args.id}`,
-                columns: ['id'],
+                column: 'id',
+                op: '=',
+                value: args.id,
               },
             ],
-          }),
+          });
+        },
       }),
     ],
   });

@@ -551,7 +551,6 @@ configureExtensions({
   addDebugCounterTrack,
   addDebugSliceTrack,
   addVisualizedArgTracks,
-  addLegacySqlTableTab: addLegacyTableTab,
   addQueryResultsTab,
 });
 

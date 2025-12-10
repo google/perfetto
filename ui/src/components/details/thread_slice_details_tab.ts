@@ -42,7 +42,8 @@ import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
-import {SLICE_TABLE} from '../widgets/sql/table_definitions';
+import SqlModulesPlugin from '../../plugins/dev.perfetto.SqlModules';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 
 interface ContextMenuItem {
   name: string;
@@ -86,39 +87,58 @@ function hasThreadName(slice: SliceDetails): boolean {
   return getThreadNameFromSlice(slice) !== undefined;
 }
 
+// Legacy table definition for slice table
+// TODO: Remove once DataGrid supports subquery filters
+const SLICE_TABLE: SqlTableDefinition = {
+  imports: ['viz.slices'],
+  name: '_viz_slices_for_ui_table',
+  displayName: 'Slices',
+  columns: [
+    {column: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
+    {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+    {column: 'dur', type: PerfettoSqlTypes.DURATION},
+    {column: 'category', type: PerfettoSqlTypes.STRING},
+    {column: 'name', type: PerfettoSqlTypes.STRING},
+  ],
+};
+
 const ITEMS: ContextMenuItem[] = [
-  {
-    name: 'Ancestor slices',
-    shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
-    run: (slice: SliceDetails, trace: Trace) =>
-      extensions.addLegacySqlTableTab(trace, {
-        table: SLICE_TABLE,
-        filters: [
-          {
-            op: (cols) =>
-              `${cols[0]} IN (SELECT id FROM _slice_ancestor_and_self(${slice.id}))`,
-            columns: ['id'],
-          },
-        ],
-        imports: ['slices.hierarchy'],
-      }),
-  },
-  {
-    name: 'Descendant slices',
-    shouldDisplay: () => true,
-    run: (slice: SliceDetails, trace: Trace) =>
-      extensions.addLegacySqlTableTab(trace, {
-        table: SLICE_TABLE,
-        filters: [
-          {
-            op: (cols) =>
-              `${cols[0]} IN (SELECT id FROM _slice_descendant_and_self(${slice.id}))`,
-            columns: ['id'],
-          },
-        ],
-        imports: ['slices.hierarchy'],
-      }),
-  },
+  // {
+  //   name: 'Ancestor slices',
+  //   shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
+  //   run: (slice: SliceDetails, trace: Trace) =>
+  //     // TODO: Requires subquery support in DataGrid filters
+  //     // to replace with openTableExplorer
+  //     extensions.addLegacySqlTableTab(trace, {
+  //       table: SLICE_TABLE,
+  //       filters: [
+  //         {
+  //           op: (cols) =>
+  //             `${cols[0]} IN (SELECT id FROM _slice_ancestor_and_self(${slice.id}))`,
+  //           columns: ['id'],
+  //         },
+  //       ],
+  //       imports: ['slices.hierarchy'],
+  //     }),
+  // },
+  // {
+  //   name: 'Descendant slices',
+  //   shouldDisplay: () => true,
+  //   run: (slice: SliceDetails, trace: Trace) =>
+  //     // TODO: Requires subquery support in DataGrid filters
+  //     // to replace with openTableExplorer
+  //     extensions.addLegacySqlTableTab(trace, {
+  //       table: SLICE_TABLE,
+  //       filters: [
+  //         {
+  //           op: (cols) =>
+  //             `${cols[0]} IN (SELECT id FROM _slice_descendant_and_self(${slice.id}))`,
+  //           columns: ['id'],
+  //         },
+  //       ],
+  //       imports: ['slices.hierarchy'],
+  //     }),
+  // },
   {
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
@@ -307,7 +327,15 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       m(
         Section,
         {title: 'Arguments'},
-        m(Tree, renderSliceArguments(trace, slice.args)),
+        m(
+          Tree,
+          renderSliceArguments(trace, slice.args, {
+            openTableExplorer: (tableName, options) => {
+              const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
+              sqlModules?.openTableExplorer(tableName, options);
+            },
+          }),
+        ),
       );
     if (
       precFlows !== undefined ||

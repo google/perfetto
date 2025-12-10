@@ -25,14 +25,12 @@ import {
   SqlTableFunction,
 } from './sql_modules';
 import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
-import {TableColumn} from '../../components/widgets/sql/table/table_column';
 import {Trace} from '../../public/trace';
 import {
   parsePerfettoSqlTypeFromString,
   PerfettoSqlType,
 } from '../../trace_processor/perfetto_sql_type';
 import {unwrapResult} from '../../base/result';
-import {createTableColumn} from '../../components/widgets/sql/table/columns';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
@@ -206,17 +204,6 @@ export class StdlibPackageImpl implements SqlPackage {
     }
     return undefined;
   }
-
-  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined {
-    for (const module of this.modules) {
-      for (const t of module.tables) {
-        if (t.name == tableName) {
-          return module.getSqlTableDefinition(tableName);
-        }
-      }
-    }
-    return undefined;
-  }
 }
 
 export class StdlibModuleImpl implements SqlModule {
@@ -348,16 +335,6 @@ class SqlTableImpl implements SqlTable {
     this.importance = docs.importance ?? undefined;
     this.columns = docs.cols.map(
       (json) => new StdlibColumnImpl(json, this.name),
-    );
-  }
-
-  getTableColumns(): TableColumn[] {
-    return this.columns.map((col) =>
-      createTableColumn({
-        trace: this.trace,
-        column: col.name,
-        type: col.type,
-      }),
     );
   }
 }

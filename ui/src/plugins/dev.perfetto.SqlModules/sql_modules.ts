@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TableColumn} from '../../components/widgets/sql/table/table_column';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 
 // Handles the access to all of the Perfetto SQL modules accessible to Trace
@@ -59,9 +57,6 @@ export interface SqlPackage {
 
   // Returns sqlModule containing table with provided name.
   getModuleForTable(tableName: string): SqlModule | undefined;
-
-  // Returns sqlTableDefinition of the table with provided name.
-  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined;
 }
 
 // Handles the access to a specific Perfetto SQL module.
@@ -75,9 +70,6 @@ export interface SqlModule {
 
   // Returns sqlTable with provided name.
   getTable(tableName: string): SqlTable | undefined;
-
-  // Returns sqlTableDefinition of the table with provided name.
-  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined;
 }
 
 // The definition of Perfetto SQL table/view.
@@ -88,9 +80,6 @@ export interface SqlTable {
   readonly type: string;
   readonly importance?: 'high' | 'mid' | 'low';
   readonly columns: SqlColumn[];
-
-  // Returns all columns as TableColumns.
-  getTableColumns(): TableColumn[];
 }
 
 // The definition of Perfetto SQL function.
