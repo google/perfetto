@@ -74,9 +74,11 @@ export class TimeRangeSourceNode implements QueryNode {
       columnInfoFromSqlColumn({name: 'dur', type: PerfettoSqlTypes.DURATION}),
     ]);
 
-    // If dynamic mode is enabled, subscribe to selection changes
+    // If dynamic mode is enabled, subscribe to selection changes and
+    // immediately populate from current selection
     if (this.state.isDynamic) {
       this.subscribeToSelectionChanges();
+      this.updateFromSelection();
     }
   }
 
@@ -130,10 +132,17 @@ export class TimeRangeSourceNode implements QueryNode {
   }
 
   serializeState(): TimeRangeSourceSerializedState {
+    // Don't serialize start/end for dynamic mode - they'll be populated
+    // from the current selection when deserialized
+    if (this.state.isDynamic) {
+      return {
+        isDynamic: true,
+      };
+    }
     return {
       start: this.state.start?.toString(),
       end: this.state.end?.toString(),
-      isDynamic: this.state.isDynamic,
+      isDynamic: false,
     };
   }
 
