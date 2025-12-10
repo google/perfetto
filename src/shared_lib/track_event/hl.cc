@@ -15,7 +15,6 @@
  */
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
-#include "perfetto/public/protos/trace/interned_data/interned_data.pzc.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
 #include "src/shared_lib/track_event/serialization.h"
@@ -24,6 +23,10 @@ namespace perfetto::shlib {
 namespace {
 
 using perfetto::internal::TrackEventInternal;
+// All interned string messages for track events must have this field number
+// structure.
+static constexpr uint32_t kInternedStringIidFieldNumber = 1;
+static constexpr uint32_t kInternedStringNameFieldNumber = 2;
 
 protos::pbzero::TrackEvent::Type EventType(int32_t type) {
   using Type = protos::pbzero::TrackEvent::Type;
@@ -63,10 +66,8 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
             auto* ser = incr->serialized_interned_data
                             ->BeginNestedMessage<protozero::Message>(
                                 field->interned_type_id);
-            ser->AppendVarInt(perfetto_protos_AndroidJobName_iid_field_number,
-                              res.iid);
-            ser->AppendString(perfetto_protos_AndroidJobName_name_field_number,
-                              field->str);
+            ser->AppendVarInt(kInternedStringIidFieldNumber, res.iid);
+            ser->AppendString(kInternedStringNameFieldNumber, field->str);
           }
           msg->AppendVarInt(field->header.id, res.iid);
         } else {

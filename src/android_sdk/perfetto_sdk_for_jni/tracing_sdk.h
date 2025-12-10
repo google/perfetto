@@ -367,6 +367,11 @@ class ProtoField {
       } else if constexpr (std::is_same_v<ProtoT, double>) {
         return type_identity<PerfettoTeHlProtoFieldDouble>{};
       } else if constexpr (std::is_same_v<ProtoT, const char*>) {
+        // Note for Strings: We map `const char*` to
+        // `PerfettoTeHlProtoFieldCstrInterned`. Since strings can be handled in
+        // two ways, we allocate the larger struct (Interned) here to satisfy
+        // compile-time requirements, but determine whether to actually intern
+        // at runtime using `intern_type_id`.
         return type_identity<PerfettoTeHlProtoFieldCstrInterned>{};
       } else {
         return type_identity<void>{};
