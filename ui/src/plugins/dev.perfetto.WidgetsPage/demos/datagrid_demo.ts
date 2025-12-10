@@ -13,36 +13,26 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  DataGrid,
-  DataGridAttrs,
-} from '../../../components/widgets/data_grid/data_grid';
-import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
-import {Engine} from '../../../trace_processor/engine';
+import {DataGrid} from '../../../components/widgets/data_grid/data_grid';
+import {SchemaRegistry} from '../../../components/widgets/data_grid/column_schema';
+import {RowDef} from '../../../components/widgets/data_grid/common';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
-import {languages} from '../sample_data';
-import {MenuItem, MenuDivider} from '../../../widgets/menu';
 import {Anchor} from '../../../widgets/anchor';
-import {Button, ButtonVariant} from '../../../widgets/button';
-import {EmptyState} from '../../../widgets/empty_state';
 
-type QueryDataGridAttrs = Omit<DataGridAttrs, 'data'> & {
-  readonly query: string;
-  readonly engine: Engine;
-};
-
-function QueryDataGrid(vnode: m.Vnode<QueryDataGridAttrs>) {
-  const dataSource = new SQLDataSource(vnode.attrs.engine, vnode.attrs.query);
-
-  return {
-    view({attrs}: m.Vnode<QueryDataGridAttrs>) {
-      return m(DataGrid, {...attrs, data: dataSource});
-    },
-  };
-}
+// Track visible columns for the demo (controlled mode)
+let demoVisibleColumns = [
+  'id',
+  'name',
+  'title',
+  'department.name',
+  'manager.name',
+];
 
 export function renderDataGrid(app: App): m.Children {
+  // Suppress unused variable warning
+  void app;
+
   return [
     m(
       '.pf-widget-intro',
@@ -51,95 +41,33 @@ export function renderDataGrid(app: App): m.Children {
         'DataGrid is an opinionated data table and analysis tool designed for exploring ',
         'and analyzing SQL-like data with built-in sorting, filtering, and aggregation features. It is based on ',
         m(Anchor, {href: '#!/widgets/grid'}, 'Grid'),
-        ' but unlike the grid component is specifically opinionated about the types of data it can receive',
+        ' but unlike the grid component is specifically opinionated about the types of data it can receive.',
+      ]),
+      m('p', [
+        'This example demonstrates a schema with multiple related tables: ',
+        'employees, departments, and projects. It shows self-referential schemas ',
+        '(manager -> employee), cross-references between tables, and parameterized ',
+        'columns (skills).',
+      ]),
+      m('p', [
+        'Try using the "Add column..." menu to explore nested relationships like ',
+        '"manager.manager.name" or "department.head.name". For parameterized columns ',
+        'like "skills", you can type any key name (e.g., "typescript", "python").',
       ]),
     ),
 
     renderWidgetShowcase({
-      renderWidget: ({
-        readonlyFilters,
-        readonlySorting,
-        aggregation,
-        demoToolbarItems,
-        distinctValues,
-        structuredQueryCompatMode,
-        ...rest
-      }) => {
+      renderWidget: ({...rest}) => {
         return m(DataGrid, {
           ...rest,
-          toolbarItemsLeft: demoToolbarItems
-            ? m(Button, {
-                label: 'Left Action',
-                variant: ButtonVariant.Filled,
-              })
-            : undefined,
-          toolbarItemsRight: demoToolbarItems
-            ? m(Button, {
-                label: 'Right Action',
-                variant: ButtonVariant.Filled,
-              })
-            : undefined,
           fillHeight: true,
-          filters: readonlyFilters ? [] : undefined,
-          sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
-          structuredQueryCompatMode,
-          columns: [
-            {
-              name: 'id',
-              title: 'ID',
-              aggregation: aggregation ? 'COUNT' : undefined,
-              distinctValues,
-              filterType: 'numeric',
-              contextMenuRenderer: (defaultGroups) => {
-                return [
-                  defaultGroups.sorting,
-                  m(MenuDivider),
-                  defaultGroups.filters,
-                  m(MenuDivider),
-                  defaultGroups.fitToContent,
-                  m(MenuDivider),
-                  defaultGroups.columnManagement,
-                  m(MenuDivider),
-                  m(MenuItem, {
-                    label: 'Custom menu item',
-                    icon: 'info',
-                    onclick: () => console.log('Column: id'),
-                  }),
-                ];
-              },
-            },
-            {
-              name: 'lang',
-              title: 'Language',
-              distinctValues,
-              filterType: 'string',
-            },
-            {
-              name: 'year',
-              title: 'Year',
-              distinctValues,
-              filterType: 'numeric',
-            },
-            {
-              name: 'creator',
-              title: 'Creator',
-              distinctValues,
-              filterType: 'string',
-            },
-            {
-              name: 'typing',
-              title: 'Typing',
-              distinctValues,
-              filterType: 'string',
-            },
-            {
-              name: 'execution',
-              title: 'Execution',
-              distinctValues,
-              filterType: 'string',
-            },
-          ],
-          data: languages,
+          schema: EMPLOYEE_SCHEMA,
+          rootSchema: 'employee',
+          visibleColumns: demoVisibleColumns,
+          onVisibleColumnsChanged: (cols) => {
+            demoVisibleColumns = [...cols];
+          },
+          data: EMPLOYEE_DATA,
         });
       },
       initialOpts: {
@@ -156,103 +84,297 @@ export function renderDataGrid(app: App): m.Children {
       noPadding: true,
     }),
 
-    renderDocSection('DataGrid + SqlDataSource', [
+    renderDocSection('Schema-Based Column Definition', [
       m(
         'p',
-        'A DataGrid example using a data source that fetches data dynamically from trace processor.',
+        'DataGrid uses a schema-based approach for column definitions. ' +
+          'The schema defines the shape of available data, supporting nested ' +
+          'relationships via named schema references.',
+      ),
+      m('p', 'Example schema structure:'),
+      m(
+        'pre',
+        `const schema: SchemaRegistry = {
+  slice: {
+    id: { filterType: 'numeric' },
+    name: { title: 'Slice Name', filterType: 'string' },
+    parent: { ref: 'slice' },  // Self-referential
+    thread: { ref: 'thread' },
+    args: { parameterized: true },  // Dynamic keys
+  },
+  thread: {
+    name: { title: 'Thread Name' },
+    process: { ref: 'process' },
+  },
+  process: {
+    name: { title: 'Process Name' },
+    pid: { filterType: 'numeric' },
+  },
+};`,
       ),
     ]),
-
-    renderWidgetShowcase({
-      renderWidget: ({
-        readonlyFilters,
-        readonlySorting,
-        aggregation,
-        distinctValues,
-        ...rest
-      }) => {
-        const trace = app.trace;
-        if (trace) {
-          return m(QueryDataGrid, {
-            ...rest,
-            engine: trace.engine,
-            query: `
-              SELECT
-                ts.id as id,
-                dur,
-                state,
-                thread.name as thread_name,
-                dur,
-                io_wait,
-                ucpu
-              FROM thread_state ts
-              JOIN thread USING(utid)
-            `,
-            fillHeight: true,
-            filters: readonlyFilters ? [] : undefined,
-            sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
-            columns: [
-              {
-                name: 'id',
-                title: 'ID',
-                aggregation: aggregation ? 'COUNT' : undefined,
-                distinctValues,
-                filterType: 'numeric',
-              },
-              {
-                name: 'dur',
-                title: 'Duration',
-                aggregation: aggregation ? 'SUM' : undefined,
-                distinctValues,
-                filterType: 'numeric',
-              },
-              {
-                name: 'state',
-                title: 'State',
-                distinctValues,
-                filterType: 'string',
-              },
-              {
-                name: 'thread_name',
-                title: 'Thread',
-                distinctValues,
-                filterType: 'string',
-              },
-              {
-                name: 'ucpu',
-                title: 'CPU',
-                distinctValues,
-                filterType: 'numeric',
-              },
-              {
-                name: 'io_wait',
-                title: 'IO Wait',
-                distinctValues,
-                filterType: 'numeric',
-              },
-            ],
-          });
-        } else {
-          return m(
-            EmptyState,
-            {
-              style: {
-                height: '100%',
-              },
-            },
-            'Load a trace to start',
-          );
-        }
-      },
-      initialOpts: {
-        showFiltersInToolbar: true,
-        readonlyFilters: false,
-        readonlySorting: false,
-        aggregation: false,
-        distinctValues: true,
-        showRowCount: true,
-      },
-      noPadding: true,
-    }),
   ];
 }
+
+// Complex multi-table schema demonstrating relationships
+const EMPLOYEE_SCHEMA: SchemaRegistry = {
+  employee: {
+    id: {
+      title: 'ID',
+      filterType: 'numeric',
+    },
+    name: {
+      title: 'Name',
+      filterType: 'string',
+    },
+    title: {
+      title: 'Job Title',
+      filterType: 'string',
+    },
+    email: {
+      title: 'Email',
+      filterType: 'string',
+    },
+    salary: {
+      title: 'Salary',
+      filterType: 'numeric',
+      aggregation: 'SUM',
+    },
+    hireDate: {
+      title: 'Hire Date',
+      filterType: 'string',
+    },
+    // Self-referential: manager is also an employee
+    manager: {
+      ref: 'employee',
+      title: 'Manager',
+    },
+    // Cross-reference to department
+    department: {
+      ref: 'department',
+      title: 'Department',
+    },
+    // Cross-reference to current project
+    project: {
+      ref: 'project',
+      title: 'Current Project',
+    },
+    // Parameterized column for dynamic skill ratings
+    skills: {
+      parameterized: true,
+      title: 'Skills',
+      filterType: 'numeric',
+    },
+  },
+  department: {
+    id: {
+      title: 'Dept ID',
+      filterType: 'numeric',
+    },
+    name: {
+      title: 'Department',
+      filterType: 'string',
+    },
+    budget: {
+      title: 'Budget',
+      filterType: 'numeric',
+    },
+    location: {
+      title: 'Location',
+      filterType: 'string',
+    },
+    // Head of department is an employee
+    head: {
+      ref: 'employee',
+      title: 'Department Head',
+    },
+  },
+  project: {
+    id: {
+      title: 'Project ID',
+      filterType: 'numeric',
+    },
+    name: {
+      title: 'Project Name',
+      filterType: 'string',
+    },
+    status: {
+      title: 'Status',
+      filterType: 'string',
+      distinctValues: true,
+    },
+    deadline: {
+      title: 'Deadline',
+      filterType: 'string',
+    },
+    // Project lead is an employee
+    lead: {
+      ref: 'employee',
+      title: 'Project Lead',
+    },
+    // Project belongs to a department
+    department: {
+      ref: 'department',
+      title: 'Owning Department',
+    },
+  },
+};
+
+// Sample data with flattened relationships using dot notation
+const EMPLOYEE_DATA: RowDef[] = [
+  {
+    'id': 1,
+    'name': 'Alice Chen',
+    'title': 'CEO',
+    'email': 'alice@example.com',
+    'salary': 250000,
+    'hireDate': '2015-01-15',
+    'manager.id': null,
+    'manager.name': null,
+    'department.id': 1,
+    'department.name': 'Executive',
+    'department.budget': 5000000,
+    'project.id': null,
+    'project.name': null,
+    'skills.leadership': 10,
+    'skills.strategy': 9,
+    'skills.communication': 9,
+  },
+  {
+    'id': 2,
+    'name': 'Bob Martinez',
+    'title': 'VP Engineering',
+    'email': 'bob@example.com',
+    'salary': 180000,
+    'hireDate': '2016-03-20',
+    'manager.id': 1,
+    'manager.name': 'Alice Chen',
+    'manager.title': 'CEO',
+    'department.id': 2,
+    'department.name': 'Engineering',
+    'department.budget': 2000000,
+    'project.id': 1,
+    'project.name': 'Platform Rewrite',
+    'skills.leadership': 8,
+    'skills.architecture': 9,
+    'skills.python': 7,
+    'skills.typescript': 8,
+  },
+  {
+    'id': 3,
+    'name': 'Carol Williams',
+    'title': 'Senior Engineer',
+    'email': 'carol@example.com',
+    'salary': 150000,
+    'hireDate': '2018-07-10',
+    'manager.id': 2,
+    'manager.name': 'Bob Martinez',
+    'manager.title': 'VP Engineering',
+    'manager.manager.name': 'Alice Chen',
+    'department.id': 2,
+    'department.name': 'Engineering',
+    'department.budget': 2000000,
+    'project.id': 1,
+    'project.name': 'Platform Rewrite',
+    'project.status': 'In Progress',
+    'skills.typescript': 9,
+    'skills.react': 8,
+    'skills.sql': 7,
+  },
+  {
+    'id': 4,
+    'name': 'David Kim',
+    'title': 'Engineer',
+    'email': 'david@example.com',
+    'salary': 120000,
+    'hireDate': '2020-02-01',
+    'manager.id': 3,
+    'manager.name': 'Carol Williams',
+    'manager.title': 'Senior Engineer',
+    'manager.manager.name': 'Bob Martinez',
+    'manager.manager.manager.name': 'Alice Chen',
+    'department.id': 2,
+    'department.name': 'Engineering',
+    'project.id': 2,
+    'project.name': 'Mobile App',
+    'project.status': 'Planning',
+    'skills.kotlin': 8,
+    'skills.swift': 7,
+    'skills.react': 6,
+  },
+  {
+    'id': 5,
+    'name': 'Eva Johnson',
+    'title': 'VP Product',
+    'email': 'eva@example.com',
+    'salary': 175000,
+    'hireDate': '2017-05-15',
+    'manager.id': 1,
+    'manager.name': 'Alice Chen',
+    'department.id': 3,
+    'department.name': 'Product',
+    'department.budget': 1500000,
+    'project.id': null,
+    'project.name': null,
+    'skills.leadership': 8,
+    'skills.strategy': 8,
+    'skills.ux': 7,
+  },
+  {
+    'id': 6,
+    'name': 'Frank Lee',
+    'title': 'Product Manager',
+    'email': 'frank@example.com',
+    'salary': 130000,
+    'hireDate': '2019-09-01',
+    'manager.id': 5,
+    'manager.name': 'Eva Johnson',
+    'manager.title': 'VP Product',
+    'manager.manager.name': 'Alice Chen',
+    'department.id': 3,
+    'department.name': 'Product',
+    'project.id': 1,
+    'project.name': 'Platform Rewrite',
+    'project.status': 'In Progress',
+    'skills.communication': 8,
+    'skills.ux': 6,
+    'skills.sql': 5,
+  },
+  {
+    'id': 7,
+    'name': 'Grace Park',
+    'title': 'Engineer',
+    'email': 'grace@example.com',
+    'salary': 115000,
+    'hireDate': '2021-01-10',
+    'manager.id': 3,
+    'manager.name': 'Carol Williams',
+    'manager.manager.name': 'Bob Martinez',
+    'department.id': 2,
+    'department.name': 'Engineering',
+    'project.id': 1,
+    'project.name': 'Platform Rewrite',
+    'project.status': 'In Progress',
+    'skills.typescript': 7,
+    'skills.python': 8,
+    'skills.sql': 8,
+  },
+  {
+    'id': 8,
+    'name': 'Henry Wu',
+    'title': 'Designer',
+    'email': 'henry@example.com',
+    'salary': 110000,
+    'hireDate': '2020-06-15',
+    'manager.id': 5,
+    'manager.name': 'Eva Johnson',
+    'department.id': 3,
+    'department.name': 'Product',
+    'project.id': 2,
+    'project.name': 'Mobile App',
+    'project.status': 'Planning',
+    'skills.figma': 9,
+    'skills.ux': 8,
+    'skills.css': 7,
+  },
+];

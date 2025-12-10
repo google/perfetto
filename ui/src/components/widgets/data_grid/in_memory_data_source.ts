@@ -32,6 +32,7 @@ export class InMemoryDataSource implements DataGridDataSource {
   private filteredSortedData: ReadonlyArray<RowDef> = [];
   private aggregateResults: RowDef = {};
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
+  private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
 
   // Cached state for diffing
   private oldSorting: Sorting = {direction: 'UNSORTED'};
@@ -50,6 +51,7 @@ export class InMemoryDataSource implements DataGridDataSource {
       totalRows: this.filteredSortedData.length,
       aggregates: this.aggregateResults,
       distinctValues: this.distinctValuesCache,
+      parameterKeys: this.parameterKeysCache,
     };
   }
 
@@ -58,6 +60,7 @@ export class InMemoryDataSource implements DataGridDataSource {
     filters = [],
     aggregates,
     distinctValuesColumns,
+    parameterKeyColumns,
   }: DataGridModel): void {
     if (
       !this.isSortByEqual(sorting, this.oldSorting) ||
@@ -115,6 +118,37 @@ export class InMemoryDataSource implements DataGridDataSource {
           });
 
           this.distinctValuesCache.set(column, sorted);
+        }
+      }
+    }
+
+    // Handle parameter keys requests
+    if (parameterKeyColumns) {
+      for (const prefix of parameterKeyColumns) {
+        if (!this.parameterKeysCache.has(prefix)) {
+          // Find all keys that match the prefix pattern (e.g., "skills.typescript" for prefix "skills")
+          const uniqueKeys = new Set<string>();
+          const prefixWithDot = prefix + '.';
+
+          for (const row of this.data) {
+            for (const key of Object.keys(row)) {
+              if (key.startsWith(prefixWithDot)) {
+                // Extract the parameter key (everything after the prefix)
+                const paramKey = key.slice(prefixWithDot.length);
+                // Only add top-level keys (no further dots)
+                if (!paramKey.includes('.')) {
+                  uniqueKeys.add(paramKey);
+                }
+              }
+            }
+          }
+
+          // Sort alphabetically
+          const sorted = Array.from(uniqueKeys).sort((a, b) =>
+            a.localeCompare(b),
+          );
+
+          this.parameterKeysCache.set(prefix, sorted);
         }
       }
     }

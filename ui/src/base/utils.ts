@@ -90,3 +90,11 @@ export function sleepMs(ms: number): Promise<void> {
     setTimeout(() => resolve(), ms);
   });
 }
+
+// Widens a type to include undefined. Useful for array index lookups where
+// TypeScript doesn't account for out-of-bounds access.
+// Example usage:
+//   const arr = [1, 2, 3];
+//   const x = undefinable(arr[10]); // x is number | undefined
+//   if (exists(x)) { /* x is number here */ }
+export const maybeUndefined = <T>(value: T) => value as T | undefined;

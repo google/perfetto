@@ -17,24 +17,42 @@ import {classNames} from '../../../base/classnames';
 import {download} from '../../../base/download_utils';
 import {FuzzyFinder} from '../../../base/fuzzy';
 import {Icons} from '../../../base/semantic_icons';
-import {exists} from '../../../base/utils';
+import {exists, maybeUndefined} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
 import {Form} from '../../../widgets/form';
+import {
+  Grid,
+  GridApi,
+  GridCell,
+  GridColumn,
+  GridHeaderCell,
+  renderSortMenuItems,
+} from '../../../widgets/grid';
 import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
 import {
-  renderSortMenuItems,
-  Grid,
-  GridApi,
-  GridColumn,
-  GridCell,
-  GridHeaderCell,
-} from '../../../widgets/grid';
+  ColumnSchema,
+  SchemaRegistry,
+  getColumnAggregation,
+  getColumnCellContextMenuRenderer,
+  getColumnCellFormatter,
+  getColumnCellRenderer,
+  getColumnContextMenuRenderer,
+  getColumnDistinctValues,
+  getColumnFilterType,
+  getColumnTitleParts,
+  getColumnTitleString,
+  getDefaultVisibleColumns,
+  isColumnDef,
+  isParameterizedColumnDef,
+  isSchemaRef,
+  resolveColumnPath,
+} from './column_schema';
 import {
   AggregationFunction,
   ColumnDefinition,
@@ -43,14 +61,14 @@ import {
   RowDef,
   Sorting,
 } from './common';
-import {InMemoryDataSource} from './in_memory_data_source';
+import {DataGridToolbar} from './data_grid_toolbar';
 import {
   defaultValueFormatter,
-  formatAsTSV,
   formatAsJSON,
   formatAsMarkdown,
+  formatAsTSV,
 } from './export_utils';
-import {DataGridToolbar} from './data_grid_toolbar';
+import {InMemoryDataSource} from './in_memory_data_source';
 
 export interface AggregationCellAttrs extends m.Attributes {
   readonly symbol?: string;
@@ -99,10 +117,25 @@ function noOp() {}
 
 export interface DataGridAttrs {
   /**
-   * Defines the columns to be displayed in the data grid and how they are
-   * displayed.
+   * Schema registry defining the shape of available data.
+   * Contains named schemas that can reference each other for nested relationships.
    */
-  readonly columns: ReadonlyArray<ColumnDefinition>;
+  readonly schema: SchemaRegistry;
+
+  /**
+   * The name of the root schema in the registry to use for this grid.
+   */
+  readonly rootSchema: string;
+
+  /**
+   * Array of column paths that are currently visible, in display order.
+   * Each path is a dot-separated string like 'id', 'parent.name', 'thread.process.pid'.
+   *
+   * In controlled mode: Provide this prop along with onVisibleColumnsChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage columns internally,
+   * defaulting to all leaf columns in the root schema.
+   */
+  readonly visibleColumns?: ReadonlyArray<string>;
 
   /**
    * The data source that provides rows to the grid. Responsible for fetching,
@@ -261,6 +294,13 @@ export interface DataGridAttrs {
    * Default = false.
    */
   readonly structuredQueryCompatMode?: boolean;
+
+  /**
+   * Callback triggered when visible columns change (add, remove, reorder).
+   * Required for controlled mode - when provided with visibleColumns,
+   * the parent component becomes responsible for updating the visibleColumns prop.
+   */
+  readonly onVisibleColumnsChanged?: (columns: ReadonlyArray<string>) => void;
 }
 
 export interface DataGridApi {
@@ -278,27 +318,68 @@ export interface DataGridApi {
   getRowCount(): number;
 }
 
+/**
+ * Helper function to convert old-style ColumnDefinition[] to the new schema format.
+ * This provides backwards compatibility during migration.
+ *
+ * The grid will operate in uncontrolled mode for columns, with initialColumnOrder
+ * set to show all columns in the order they are defined. Users can add/remove/reorder
+ * columns via the column header menu.
+ *
+ * @param columns Array of column definitions in the old format
+ * @returns An object with schema, rootSchema, and initialColumnOrder for use with DataGrid
+ */
+export function columnsToSchema(columns: ReadonlyArray<ColumnDefinition>): {
+  schema: SchemaRegistry;
+  rootSchema: string;
+  initialColumnOrder: ReadonlyArray<string>;
+} {
+  const schema: ColumnSchema = {};
+
+  // Build schema in the order columns are provided
+  for (const col of columns) {
+    schema[col.name] = {
+      title: typeof col.title === 'string' ? col.title : undefined,
+      filterType: col.filterType,
+      cellRenderer: col.cellRenderer,
+      cellFormatter: col.cellFormatter,
+      aggregation: col.aggregation,
+      distinctValues: col.distinctValues,
+      contextMenuRenderer: col.contextMenuRenderer,
+      cellContextMenuRenderer: col.cellContextMenuRenderer,
+    };
+  }
+
+  return {
+    schema: {data: schema},
+    rootSchema: 'data',
+    initialColumnOrder: columns.map((col) => col.name),
+  };
+}
+
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Internal state
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<DataGridFilter> = [];
-  private columnOrder: ColumnOrder = [];
-  // Track all columns we've ever seen to distinguish hidden vs new columns
-  private seenColumns: Set<string> = new Set();
+  private internalVisibleColumns: ReadonlyArray<string> = [];
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
   private gridApi?: GridApi;
   // Track columns needing distinct values
   private distinctValuesColumns = new Set<string>();
+  // Track parameterized columns needing key discovery
+  private parameterKeyColumns = new Set<string>();
   private dataGridApi: DataGridApi = {
     exportData: async (format) => {
-      if (!this.currentDataSource || !this.currentColumns) {
+      if (!this.currentDataSource || !this.currentVisibleColumns) {
         throw new Error('DataGrid not ready for export');
       }
       return await this.formatData(
         this.currentDataSource,
-        this.currentColumns,
+        this.currentSchema,
+        this.currentRootSchema,
+        this.currentVisibleColumns,
         format,
       );
     },
@@ -307,7 +388,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     },
   };
   private currentDataSource?: DataGridDataSource;
-  private currentColumns?: ReadonlyArray<ColumnDefinition>;
+  private currentSchema?: SchemaRegistry;
+  private currentRootSchema?: string;
+  private currentVisibleColumns?: ReadonlyArray<string>;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -318,22 +401,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.filters = attrs.initialFilters;
     }
 
-    // Initialize column order from initial prop or columns array
+    // Initialize visible columns from initial prop, visibleColumns, or default from schema
     if (attrs.initialColumnOrder) {
-      this.columnOrder = attrs.initialColumnOrder;
+      this.internalVisibleColumns = attrs.initialColumnOrder;
+    } else if (attrs.visibleColumns) {
+      this.internalVisibleColumns = attrs.visibleColumns;
     } else {
-      this.columnOrder = attrs.columns.map((c) => c.name);
+      // Default to all leaf columns in the root schema
+      this.internalVisibleColumns = getDefaultVisibleColumns(
+        attrs.schema,
+        attrs.rootSchema,
+      );
     }
-
-    // Track all initial columns as seen
-    attrs.columns.forEach((column) => {
-      this.seenColumns.add(column.name);
-    });
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
     const {
-      columns,
+      schema,
+      rootSchema,
+      visibleColumns: propsVisibleColumns,
       data,
       sorting = this.sorting,
       onSort = sorting === this.sorting ? (x) => (this.sorting = x) : noOp,
@@ -354,11 +440,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             this.filters = [];
           }
         : noOp,
-      columnOrder = this.columnOrder,
-      onColumnOrderChanged = columnOrder === this.columnOrder
-        ? (x) => (this.columnOrder = x)
-        : noOp,
-      columnReordering = onColumnOrderChanged !== noOp,
+      onVisibleColumnsChanged,
+      // Enable reordering in uncontrolled mode or when callback is provided
+      columnReordering = propsVisibleColumns === undefined ||
+        onVisibleColumnsChanged !== undefined,
       showFiltersInToolbar = true,
       fillHeight = false,
       toolbarItemsLeft,
@@ -370,22 +455,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       structuredQueryCompatMode = false,
     } = attrs;
 
-    // In uncontrolled mode, sync columnOrder with truly new columns
-    // (not hidden columns)
-    if (columnOrder === this.columnOrder) {
-      const newColumns = columns
-        .map((c) => c.name)
-        .filter((name) => !this.seenColumns.has(name));
-
-      if (newColumns.length > 0) {
-        // Add newly seen columns to tracking and order
-        newColumns.forEach((name) => this.seenColumns.add(name));
-        this.columnOrder = [...this.columnOrder, ...newColumns];
-      }
-    }
-
-    // Reorder columns based on columnOrder array
-    const orderedColumns = this.getOrderedColumns(columns, columnOrder);
+    // Use props visible columns or internal state, defaulting to schema leaf columns
+    const visibleColumns =
+      propsVisibleColumns ??
+      (this.internalVisibleColumns.length > 0
+        ? this.internalVisibleColumns
+        : getDefaultVisibleColumns(schema, rootSchema));
+    const onColumnsChanged =
+      onVisibleColumnsChanged ??
+      ((cols) => {
+        this.internalVisibleColumns = cols;
+      });
 
     // Initialize the datasource if required
     let dataSource: DataGridDataSource;
@@ -397,25 +477,34 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       dataSource = data as DataGridDataSource;
     }
 
+    // Build aggregates from schema - find columns with aggregation set
+    const aggregates = visibleColumns
+      .map((colPath) => {
+        const agg = getColumnAggregation(schema, rootSchema, colPath);
+        return agg ? {col: colPath, func: agg} : null;
+      })
+      .filter((x): x is {col: string; func: AggregationFunction} => x !== null);
+
     // Update datasource with current state (sorting, filtering, pagination)
     // This is called every view cycle to catch changes
     dataSource.notifyUpdate({
-      columns: orderedColumns.map((c) => c.name),
+      columns: [...visibleColumns],
       sorting,
       filters,
       pagination: {
         offset: this.paginationOffset,
         limit: this.paginationLimit,
       },
-      aggregates: columns
-        .filter((c) => c.aggregation)
-        .map((c) => ({col: c.name, func: c.aggregation!})),
+      aggregates,
       distinctValuesColumns: this.distinctValuesColumns,
+      parameterKeyColumns: this.parameterKeyColumns,
     });
 
     // Store current state for API access
     this.currentDataSource = dataSource;
-    this.currentColumns = orderedColumns;
+    this.currentSchema = schema;
+    this.currentRootSchema = rootSchema;
+    this.currentVisibleColumns = visibleColumns;
 
     // Create and expose DataGrid API if needed
     onReady?.(this.dataGridApi);
@@ -427,11 +516,43 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     );
 
     // Build VirtualGrid columns with all DataGrid features
-    const virtualGridColumns = orderedColumns.map((column) => {
+    const virtualGridColumns = visibleColumns.map((columnPath) => {
+      // Look up column properties from schema
+      const columnTitleParts = getColumnTitleParts(
+        schema,
+        rootSchema,
+        columnPath,
+      );
+      const columnFilterType = getColumnFilterType(
+        schema,
+        rootSchema,
+        columnPath,
+      );
+      const columnDistinctValues = getColumnDistinctValues(
+        schema,
+        rootSchema,
+        columnPath,
+      );
+      const columnAggregation = getColumnAggregation(
+        schema,
+        rootSchema,
+        columnPath,
+      );
+      const columnCellRenderer = getColumnCellRenderer(
+        schema,
+        rootSchema,
+        columnPath,
+      );
+      const columnContextMenuRenderer = getColumnContextMenuRenderer(
+        schema,
+        rootSchema,
+        columnPath,
+      );
+
       const sort = (() => {
         if (sorting.direction === 'UNSORTED') {
           return undefined;
-        } else if (sorting.column === column.name) {
+        } else if (sorting.column === columnPath) {
           return sorting.direction;
         } else {
           return undefined;
@@ -452,7 +573,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           ...renderSortMenuItems(sort, (direction) => {
             if (direction) {
               onSort({
-                column: column.name,
+                column: columnPath,
                 direction: direction,
               });
             } else {
@@ -466,7 +587,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Filters group
       if (filterControls) {
-        const distinctState = dataSource.rows?.distinctValues?.get(column.name);
+        const distinctState = dataSource.rows?.distinctValues?.get(columnPath);
 
         // Build filter submenu - just add dividers freely, CSS will clean them up
         const filterSubmenuItems: m.Children = [
@@ -474,63 +595,63 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           m(MenuItem, {
             label: 'Filter out nulls',
             onclick: () => {
-              onFilterAdd({column: column.name, op: 'is not null'});
+              onFilterAdd({column: columnPath, op: 'is not null'});
             },
           }),
           m(MenuItem, {
             label: 'Only show nulls',
             onclick: () => {
-              onFilterAdd({column: column.name, op: 'is null'});
+              onFilterAdd({column: columnPath, op: 'is null'});
             },
           }),
           m(MenuDivider),
           // Value-based filters for columns with distinct values enabled
-          (column.distinctValues ?? true) &&
+          (columnDistinctValues ?? true) &&
             m(
               MenuItem,
               {
                 label: 'Equals to...',
                 onChange: (isOpen) => {
                   if (isOpen === true) {
-                    this.distinctValuesColumns.add(column.name);
+                    this.distinctValuesColumns.add(columnPath);
                   } else {
-                    this.distinctValuesColumns.delete(column.name);
+                    this.distinctValuesColumns.delete(columnPath);
                   }
                 },
               },
               m(DistinctValuesSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 distinctState,
                 formatValue: this.formatDistinctValue.bind(this),
                 onApply: (selectedValues) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: 'in',
                     value: Array.from(selectedValues),
                   });
                 },
               }),
             ),
-          (column.distinctValues ?? true) &&
+          (columnDistinctValues ?? true) &&
             m(
               MenuItem,
               {
                 label: 'Not equals to...',
                 onChange: (isOpen) => {
                   if (isOpen === true) {
-                    this.distinctValuesColumns.add(column.name);
+                    this.distinctValuesColumns.add(columnPath);
                   } else {
-                    this.distinctValuesColumns.delete(column.name);
+                    this.distinctValuesColumns.delete(columnPath);
                   }
                 },
               },
               m(DistinctValuesSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 distinctState,
                 formatValue: this.formatDistinctValue.bind(this),
                 onApply: (selectedValues) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: 'not in',
                     value: Array.from(selectedValues),
                   });
@@ -539,36 +660,36 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             ),
           m(MenuDivider),
           // Free-text equals/not equals filters for columns without distinct values
-          !(column.distinctValues ?? true) &&
+          !(columnDistinctValues ?? true) &&
             m(
               MenuItem,
               {
                 label: 'Equals to...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: '=',
                 onApply: (value) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: '=',
                     value,
                   });
                 },
               }),
             ),
-          !(column.distinctValues ?? true) &&
+          !(columnDistinctValues ?? true) &&
             m(
               MenuItem,
               {
                 label: 'Not equals to...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: '!=',
                 onApply: (value) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: '!=',
                     value,
                   });
@@ -577,72 +698,72 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             ),
           m(MenuDivider),
           // Numeric comparison filters (only for numeric columns)
-          column.filterType === 'numeric' &&
+          columnFilterType === 'numeric' &&
             m(
               MenuItem,
               {
                 label: 'Greater than...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: '>',
                 onApply: (value) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: '>',
                     value,
                   });
                 },
               }),
             ),
-          column.filterType === 'numeric' &&
+          columnFilterType === 'numeric' &&
             m(
               MenuItem,
               {
                 label: 'Greater than or equal...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: '>=',
                 onApply: (value) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: '>=',
                     value,
                   });
                 },
               }),
             ),
-          column.filterType === 'numeric' &&
+          columnFilterType === 'numeric' &&
             m(
               MenuItem,
               {
                 label: 'Less than...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: '<',
                 onApply: (value) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: '<',
                     value,
                   });
                 },
               }),
             ),
-          column.filterType === 'numeric' &&
+          columnFilterType === 'numeric' &&
             m(
               MenuItem,
               {
                 label: 'Less than or equal...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: '<=',
                 onApply: (value) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: '<=',
                     value,
                   });
@@ -651,18 +772,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             ),
           m(MenuDivider),
           // Text-based filters (only if filterType is not 'numeric')
-          column.filterType !== 'numeric' &&
+          columnFilterType !== 'numeric' &&
             m(
               MenuItem,
               {
                 label: 'Contains...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: 'contains',
                 onApply: (value) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: 'glob',
                     value: toCaseInsensitiveGlob(String(value)),
                   });
@@ -670,7 +791,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               }),
             ),
           // Not contains - hidden in structuredQueryCompatMode
-          column.filterType !== 'numeric' &&
+          columnFilterType !== 'numeric' &&
             !structuredQueryCompatMode &&
             m(
               MenuItem,
@@ -678,33 +799,33 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 label: 'Not contains...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: 'not contains',
                 onApply: (value) => {
                   onFilterAdd({
-                    column: column.name,
+                    column: columnPath,
                     op: 'not glob',
                     value: toCaseInsensitiveGlob(String(value)),
                   });
                 },
               }),
             ),
-          column.filterType !== 'numeric' &&
+          columnFilterType !== 'numeric' &&
             m(
               MenuItem,
               {
                 label: 'Glob...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: 'glob',
                 onApply: (value) => {
-                  onFilterAdd({column: column.name, op: 'glob', value});
+                  onFilterAdd({column: columnPath, op: 'glob', value});
                 },
               }),
             ),
           // Not glob - hidden in structuredQueryCompatMode
-          column.filterType !== 'numeric' &&
+          columnFilterType !== 'numeric' &&
             !structuredQueryCompatMode &&
             m(
               MenuItem,
@@ -712,10 +833,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 label: 'Not glob...',
               },
               m(TextFilterSubmenu, {
-                columnName: column.name,
+                columnName: columnPath,
                 operator: 'not glob',
                 onApply: (value) => {
-                  onFilterAdd({column: column.name, op: 'not glob', value});
+                  onFilterAdd({column: columnPath, op: 'not glob', value});
                 },
               }),
             ),
@@ -740,90 +861,117 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         defaultGroups.fitToContent = m(MenuItem, {
           label: 'Fit to content',
           icon: 'fit_width',
-          onclick: () => gridApi.autoFitColumn(column.name),
+          onclick: () => gridApi.autoFitColumn(columnPath),
         });
       }
 
       // Column management options
       const columnManagementItems: m.Children[] = [];
 
-      // Hide current column (only if more than 1 visible)
-      if (orderedColumns.length > 1) {
+      // Check if this column is a parameterized column (e.g., skills.typescript)
+      const resolvedColumn = resolveColumnPath(schema, rootSchema, columnPath);
+      const isParameterized =
+        resolvedColumn && resolvedColumn.paramKey !== undefined;
+
+      // For parameterized columns, add "Change parameter..." option
+      if (isParameterized && resolvedColumn.paramKey) {
+        // Extract the base path (e.g., "skills" from "skills.typescript")
+        const basePath = columnPath.slice(
+          0,
+          columnPath.length - resolvedColumn.paramKey.length - 1,
+        );
+
+        // Get available keys from the datasource
+        const availableKeys = dataSource.rows?.parameterKeys?.get(basePath);
+
+        columnManagementItems.push(
+          m(
+            MenuItem,
+            {
+              label: 'Change parameter...',
+              icon: 'edit',
+              onChange: (isOpen) => {
+                if (isOpen === true) {
+                  this.parameterKeyColumns.add(basePath);
+                } else {
+                  this.parameterKeyColumns.delete(basePath);
+                }
+              },
+            },
+            m(ParameterizedColumnSubmenu, {
+              pathPrefix: basePath,
+              visibleColumns,
+              availableKeys,
+              onSelect: (newColumnPath) => {
+                // Replace the current column with the new one
+                const newColumns = visibleColumns.map((col) =>
+                  col === columnPath ? newColumnPath : col,
+                );
+                onColumnsChanged(newColumns);
+              },
+            }),
+          ),
+        );
+      }
+
+      // Remove current column (only if more than 1 visible)
+      if (visibleColumns.length > 1) {
         columnManagementItems.push(
           m(MenuItem, {
-            label: 'Hide column',
-            icon: Icons.Hide,
+            label: 'Remove column',
+            icon: Icons.Remove,
             onclick: () => {
-              const newOrder = columnOrder.filter(
-                (name) => name !== column.name,
+              const newColumns = visibleColumns.filter(
+                (name) => name !== columnPath,
               );
-              onColumnOrderChanged(newOrder);
+              onColumnsChanged(newColumns);
             },
           }),
         );
       }
 
-      const allColumnsShowing = columns.every((col) =>
-        columnOrder.includes(col.name),
+      // Build "Add column" menu from schema
+      const currentColumnIndex = visibleColumns.indexOf(columnPath);
+      const addColumnMenuItems = buildAddColumnMenuFromSchema(
+        schema,
+        rootSchema,
+        '',
+        0,
+        visibleColumns,
+        (columnName) => {
+          // Don't add if column already exists
+          if (visibleColumns.includes(columnName)) return;
+          // Add the new column after the current one
+          const newColumns = [...visibleColumns];
+          newColumns.splice(currentColumnIndex + 1, 0, columnName);
+          onColumnsChanged(newColumns);
+        },
+        {
+          dataSource,
+          parameterKeyColumns: this.parameterKeyColumns,
+        },
       );
 
-      // Show/hide columns submenu
-      columnManagementItems.push(
-        m(
-          MenuItem,
-          {
-            label: 'Manage columns',
-            icon: 'view_column',
-          },
-          [
-            // Show all
-            m(MenuItem, {
-              label: 'Show all',
-              icon: allColumnsShowing ? Icons.Checkbox : Icons.BlankCheckbox,
-              closePopupOnClick: false,
-              onclick: () => {
-                const newOrder = columns.map((c) => c.name);
-                onColumnOrderChanged(newOrder);
-              },
-            }),
-            m(MenuDivider),
-            // Individual columns
-            columns.map((col) => {
-              const isVisible = columnOrder.includes(col.name);
-              const columnLabel =
-                col.title !== undefined ? String(col.title) : col.name;
-              return m(MenuItem, {
-                label: columnLabel,
-                closePopupOnClick: false,
-                icon: isVisible ? Icons.Checkbox : Icons.BlankCheckbox,
-                onclick: () => {
-                  if (isVisible) {
-                    // Hide: remove from order (but keep at least 1 column)
-                    if (columnOrder.length > 1) {
-                      const newOrder = columnOrder.filter(
-                        (name) => name !== col.name,
-                      );
-                      onColumnOrderChanged(newOrder);
-                    }
-                  } else {
-                    // Show: add to end of order
-                    const newOrder = [...columnOrder, col.name];
-                    onColumnOrderChanged(newOrder);
-                  }
-                },
-              });
-            }),
-          ],
-        ),
-      );
+      if (addColumnMenuItems.length > 0) {
+        columnManagementItems.push(
+          m(
+            MenuItem,
+            {
+              label: 'Add column...',
+              icon: 'add_column_right',
+            },
+            addColumnMenuItems,
+          ),
+        );
+      }
 
       if (columnManagementItems.length > 0) {
         defaultGroups.columnManagement = columnManagementItems;
       }
 
       // Build final menu items using contextMenuRenderer if provided
-      const menuItems: m.Children = column.contextMenuRenderer
-        ? column.contextMenuRenderer(defaultGroups)
+      const menuItems: m.Children = columnContextMenuRenderer
+        ? columnContextMenuRenderer(defaultGroups)
         : [
             defaultGroups.sorting,
             m(MenuDivider),
@@ -836,26 +984,40 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build aggregation sub-content if needed
       const subContent =
-        column.aggregation && dataSource.rows?.aggregates
+        columnAggregation && dataSource.rows?.aggregates
           ? m(
               AggregationCell,
               {
-                symbol: aggregationFunIcon(column.aggregation),
+                symbol: aggregationFunIcon(columnAggregation),
               },
-              column.cellRenderer
-                ? column.cellRenderer(
-                    dataSource.rows.aggregates[column.name],
+              columnCellRenderer
+                ? columnCellRenderer(
+                    dataSource.rows.aggregates[columnPath],
                     dataSource.rows.aggregates,
                   )
                 : renderCell(
-                    dataSource.rows.aggregates[column.name],
-                    column.name,
+                    dataSource.rows.aggregates[columnPath],
+                    columnPath,
                   ),
             )
           : undefined;
 
+      // Render column title with chevron icons between parts
+      const columnTitleContent: m.Children = columnTitleParts.flatMap(
+        (part, i) => {
+          if (i === 0) return part;
+          return [
+            m(Icon, {
+              icon: 'chevron_right',
+              className: 'pf-data-grid__title-separator',
+            }),
+            part,
+          ];
+        },
+      );
+
       const gridColumn: GridColumn = {
-        key: column.name,
+        key: columnPath,
         header: m(
           GridHeaderCell,
           {
@@ -865,7 +1027,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             onSort: sortControls
               ? (direction) => {
                   onSort({
-                    column: column.name,
+                    column: columnPath,
                     direction,
                   });
                 }
@@ -880,7 +1042,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   : undefined,
             subContent,
           },
-          column.title ?? column.name,
+          columnTitleContent,
         ),
         reorderable: columnReordering
           ? {handle: 'datagrid-columns'}
@@ -911,8 +1073,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           if (row === undefined) return undefined;
           const cellRow: m.Children[] = [];
 
-          orderedColumns.forEach((column) => {
-            const value = row[column.name];
+          visibleColumns.forEach((colPath) => {
+            const value = row[colPath];
+            const colFilterType = getColumnFilterType(
+              schema,
+              rootSchema,
+              colPath,
+            );
+            const colCellRenderer = getColumnCellRenderer(
+              schema,
+              rootSchema,
+              colPath,
+            );
+            const colCellContextMenuRenderer = getColumnCellContextMenuRenderer(
+              schema,
+              rootSchema,
+              colPath,
+            );
             const menuItems: m.Children = [];
 
             // Build filter menu items if filtering is enabled
@@ -925,7 +1102,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     label: 'Equal to this',
                     onclick: () => {
                       onFilterAdd({
-                        column: column.name,
+                        column: colPath,
                         op: '=',
                         value: value,
                       });
@@ -937,7 +1114,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     label: 'Not equal to this',
                     onclick: () => {
                       onFilterAdd({
-                        column: column.name,
+                        column: colPath,
                         op: '!=',
                         value: value,
                       });
@@ -948,10 +1125,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
               // Add glob filter option for string columns with text selection
               // Only show if filterType is not 'numeric'
-              if (
-                typeof value === 'string' &&
-                column.filterType !== 'numeric'
-              ) {
+              if (typeof value === 'string' && colFilterType !== 'numeric') {
                 const selectedText = window.getSelection()?.toString().trim();
                 if (selectedText && selectedText.length > 0) {
                   cellFilterItems.push(
@@ -964,7 +1138,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         label: `"${selectedText}*"`,
                         onclick: () => {
                           onFilterAdd({
-                            column: column.name,
+                            column: colPath,
                             op: 'glob',
                             value: `${selectedText}*`,
                           });
@@ -974,7 +1148,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         label: `"*${selectedText}"`,
                         onclick: () => {
                           onFilterAdd({
-                            column: column.name,
+                            column: colPath,
                             op: 'glob',
                             value: `*${selectedText}`,
                           });
@@ -984,7 +1158,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         label: `"*${selectedText}*"`,
                         onclick: () => {
                           onFilterAdd({
-                            column: column.name,
+                            column: colPath,
                             op: 'glob',
                             value: `*${selectedText}*`,
                           });
@@ -996,13 +1170,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               }
 
               // Numeric comparison filters - only show if filterType is not 'string'
-              if (isNumeric(value) && column.filterType !== 'string') {
+              if (isNumeric(value) && colFilterType !== 'string') {
                 cellFilterItems.push(
                   m(MenuItem, {
                     label: 'Greater than this',
                     onclick: () => {
                       onFilterAdd({
-                        column: column.name,
+                        column: colPath,
                         op: '>',
                         value: value,
                       });
@@ -1014,7 +1188,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     label: 'Greater than or equal to this',
                     onclick: () => {
                       onFilterAdd({
-                        column: column.name,
+                        column: colPath,
                         op: '>=',
                         value: value,
                       });
@@ -1026,7 +1200,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     label: 'Less than this',
                     onclick: () => {
                       onFilterAdd({
-                        column: column.name,
+                        column: colPath,
                         op: '<',
                         value: value,
                       });
@@ -1038,7 +1212,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     label: 'Less than or equal to this',
                     onclick: () => {
                       onFilterAdd({
-                        column: column.name,
+                        column: colPath,
                         op: '<=',
                         value: value,
                       });
@@ -1053,7 +1227,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     label: 'Filter out nulls',
                     onclick: () => {
                       onFilterAdd({
-                        column: column.name,
+                        column: colPath,
                         op: 'is not null',
                       });
                     },
@@ -1064,7 +1238,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     label: 'Only show nulls',
                     onclick: () => {
                       onFilterAdd({
-                        column: column.name,
+                        column: colPath,
                         op: 'is null',
                       });
                     },
@@ -1083,12 +1257,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   : undefined;
 
               // Use custom cell context menu renderer if provided
-              if (column.cellContextMenuRenderer) {
-                const customMenuItems = column.cellContextMenuRenderer(
-                  value,
-                  row,
-                  {addFilter: addFilterItem},
-                );
+              if (colCellContextMenuRenderer) {
+                const customMenuItems = colCellContextMenuRenderer(value, row, {
+                  addFilter: addFilterItem,
+                });
                 if (customMenuItems !== undefined && customMenuItems !== null) {
                   menuItems.push(customMenuItems);
                 }
@@ -1111,9 +1283,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   nullish: value === null,
                   menuItems: menuItems.length > 0 ? menuItems : undefined,
                 },
-                column.cellRenderer
-                  ? column.cellRenderer(value, row)
-                  : renderCell(value, column.name),
+                colCellRenderer
+                  ? colCellRenderer(value, row)
+                  : renderCell(value, colPath),
               ),
             );
           });
@@ -1133,7 +1305,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       },
       m(DataGridToolbar, {
         filters,
-        columns,
+        schema,
+        rootSchema,
         totalRows: rows?.totalRows ?? 0,
         showFilters: showFiltersInToolbar,
         showRowCount,
@@ -1142,7 +1315,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         toolbarItemsRight,
         dataGridApi: this.dataGridApi,
         onFilterRemove,
-        formatFilter: this.formatFilter.bind(this),
+        formatFilter: (filter) => this.formatFilter(filter, schema, rootSchema),
       }),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
@@ -1169,12 +1342,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         onColumnReorder: columnReordering
           ? (from, to, position) => {
               const newOrder = this.reorderColumns(
-                columnOrder,
+                visibleColumns,
                 from,
                 to,
                 position,
               );
-              onColumnOrderChanged(newOrder);
+              onColumnsChanged(newOrder);
             }
           : undefined,
         onReady: (api) => {
@@ -1216,7 +1389,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private async formatData(
     dataSource: DataGridDataSource,
-    columns: ReadonlyArray<ColumnDefinition>,
+    schema: SchemaRegistry | undefined,
+    rootSchema: string | undefined,
+    visibleColumns: ReadonlyArray<string>,
     format: 'tsv' | 'json' | 'markdown' = 'tsv',
   ): Promise<string> {
     // Get all rows from the data source
@@ -1225,81 +1400,117 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     // Format the data based on the requested format
     switch (format) {
       case 'tsv':
-        return this.formatAsTSV(rows, columns);
+        return this.formatAsTSV(rows, schema, rootSchema, visibleColumns);
       case 'json':
-        return this.formatAsJSON(rows, columns);
+        return this.formatAsJSON(rows, schema, rootSchema, visibleColumns);
       case 'markdown':
-        return this.formatAsMarkdown(rows, columns);
+        return this.formatAsMarkdown(rows, schema, rootSchema, visibleColumns);
     }
   }
 
   private formatAsTSV(
     rows: readonly RowDef[],
-    columns: ReadonlyArray<ColumnDefinition>,
+    schema: SchemaRegistry | undefined,
+    rootSchema: string | undefined,
+    visibleColumns: ReadonlyArray<string>,
   ): string {
-    const formattedRows = this.formatRows(rows, columns);
-    const columnNames = this.buildColumnNames(columns);
-    return formatAsTSV(
-      columns.map((c) => c.name),
-      columnNames,
-      formattedRows,
+    const formattedRows = this.formatRows(
+      rows,
+      schema,
+      rootSchema,
+      visibleColumns,
     );
+    const columnNames = this.buildColumnNames(
+      schema,
+      rootSchema,
+      visibleColumns,
+    );
+    return formatAsTSV([...visibleColumns], columnNames, formattedRows);
   }
 
   private formatAsJSON(
     rows: readonly RowDef[],
-    columns: ReadonlyArray<ColumnDefinition>,
+    schema: SchemaRegistry | undefined,
+    rootSchema: string | undefined,
+    visibleColumns: ReadonlyArray<string>,
   ): string {
-    const formattedRows = this.formatRows(rows, columns);
+    const formattedRows = this.formatRows(
+      rows,
+      schema,
+      rootSchema,
+      visibleColumns,
+    );
     return formatAsJSON(formattedRows);
   }
 
   private formatAsMarkdown(
     rows: readonly RowDef[],
-    columns: ReadonlyArray<ColumnDefinition>,
+    schema: SchemaRegistry | undefined,
+    rootSchema: string | undefined,
+    visibleColumns: ReadonlyArray<string>,
   ): string {
-    const formattedRows = this.formatRows(rows, columns);
-    const columnNames = this.buildColumnNames(columns);
-    return formatAsMarkdown(
-      columns.map((c) => c.name),
-      columnNames,
-      formattedRows,
+    const formattedRows = this.formatRows(
+      rows,
+      schema,
+      rootSchema,
+      visibleColumns,
     );
+    const columnNames = this.buildColumnNames(
+      schema,
+      rootSchema,
+      visibleColumns,
+    );
+    return formatAsMarkdown([...visibleColumns], columnNames, formattedRows);
   }
 
   private formatRows(
     rows: readonly RowDef[],
-    columns: ReadonlyArray<ColumnDefinition>,
+    schema: SchemaRegistry | undefined,
+    rootSchema: string | undefined,
+    visibleColumns: ReadonlyArray<string>,
   ): Array<Record<string, string>> {
     return rows.map((row) => {
       const formattedRow: Record<string, string> = {};
-      for (const col of columns) {
-        const value = row[col.name];
-        const formatter = col.cellFormatter ?? defaultValueFormatter;
-        formattedRow[col.name] = formatter(value, row);
+      for (const colPath of visibleColumns) {
+        const value = row[colPath];
+        const formatter =
+          schema && rootSchema
+            ? getColumnCellFormatter(schema, rootSchema, colPath) ??
+              defaultValueFormatter
+            : defaultValueFormatter;
+        formattedRow[colPath] = formatter(value, row);
       }
       return formattedRow;
     });
   }
 
   private buildColumnNames(
-    columns: ReadonlyArray<ColumnDefinition>,
+    schema: SchemaRegistry | undefined,
+    rootSchema: string | undefined,
+    visibleColumns: ReadonlyArray<string>,
   ): Record<string, string> {
+    // Use titleString for exports, falling back to column path
     const columnNames: Record<string, string> = {};
-    for (const col of columns) {
-      columnNames[col.name] = String(col.title ?? col.name);
+    for (const colPath of visibleColumns) {
+      columnNames[colPath] =
+        schema && rootSchema
+          ? getColumnTitleString(schema, rootSchema, colPath)
+          : colPath;
     }
     return columnNames;
   }
 
   private formatFilter(
     filter: DataGridFilter,
-    columns: ReadonlyArray<ColumnDefinition>,
+    schema: SchemaRegistry,
+    rootSchema: string,
   ) {
-    // Find the column definition to get the title
-    const column = columns.find((c) => c.name === filter.column);
-    const columnDisplay =
-      column?.title !== undefined ? String(column.title) : filter.column;
+    // Use titleString for filter display, falling back to column path
+    const columnDisplay = getColumnTitleString(
+      schema,
+      rootSchema,
+      filter.column,
+    );
 
     if ('value' in filter) {
       // Handle array values
@@ -1314,20 +1525,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     } else {
       return `${columnDisplay} ${filter.op}`;
     }
-  }
-
-  private getOrderedColumns(
-    columns: ReadonlyArray<ColumnDefinition>,
-    order: ColumnOrder,
-  ): ReadonlyArray<ColumnDefinition> {
-    // Create a map for fast lookup
-    const columnMap = new Map(columns.map((c) => [c.name, c]));
-
-    // Return ONLY columns in the specified order
-    // Columns not in order are considered hidden
-    const ordered = order.map((name) => columnMap.get(name)).filter(exists);
-
-    return ordered;
   }
 
   private reorderColumns(
@@ -1386,7 +1583,9 @@ function toCaseInsensitiveGlob(text: string): string {
 }
 
 export function renderCell(value: SqlValue, columnName: string) {
-  if (value instanceof Uint8Array) {
+  if (value === undefined) {
+    return '';
+  } else if (value instanceof Uint8Array) {
     return m(
       Anchor,
       {
@@ -1661,5 +1860,258 @@ class TextFilterSubmenu implements m.ClassComponent<TextFilterSubmenuAttrs> {
         },
       }),
     );
+  }
+}
+
+interface AddColumnMenuContext {
+  readonly dataSource: DataGridDataSource;
+  readonly parameterKeyColumns: Set<string>;
+}
+
+/**
+ * Builds menu items for adding columns from a schema.
+ * Recursively builds submenus for schema references.
+ *
+ * @param registry The schema registry
+ * @param schemaName The name of the current schema to build from
+ * @param pathPrefix The current path prefix (e.g., 'parent' or 'thread.process')
+ * @param depth Current recursion depth (to prevent infinite menus)
+ * @param visibleColumns Currently visible columns (to disable duplicates)
+ * @param onSelect Callback when a column is selected
+ * @param context Context containing dataSource and parameterKeyColumns for key discovery
+ * @param maxDepth Maximum recursion depth (default 5)
+ */
+function buildAddColumnMenuFromSchema(
+  registry: SchemaRegistry,
+  schemaName: string,
+  pathPrefix: string,
+  depth: number,
+  visibleColumns: ReadonlyArray<string>,
+  onSelect: (columnPath: string) => void,
+  context: AddColumnMenuContext,
+  maxDepth: number = 5,
+): m.Children[] {
+  const schema = maybeUndefined(registry[schemaName]);
+  if (!schema) return [];
+
+  // Stop if we've gone too deep (prevents infinite menus for self-referential schemas)
+  if (depth > maxDepth) {
+    return [m(MenuItem, {label: '(max depth reached)', disabled: true})];
+  }
+
+  const menuItems: m.Children[] = [];
+
+  for (const [columnName, entry] of Object.entries(schema)) {
+    const fullPath = pathPrefix ? `${pathPrefix}.${columnName}` : columnName;
+
+    if (isColumnDef(entry)) {
+      // Leaf column - clicking adds it (disabled if already visible)
+      const title = entry.title ?? columnName;
+      const isAlreadyVisible = visibleColumns.includes(fullPath);
+      menuItems.push(
+        m(MenuItem, {
+          label: title,
+          disabled: isAlreadyVisible,
+          onclick: () => onSelect(fullPath),
+        }),
+      );
+    } else if (isSchemaRef(entry)) {
+      // Reference to another schema - create a submenu
+      const refTitle = entry.title ?? columnName;
+      const childMenuItems = buildAddColumnMenuFromSchema(
+        registry,
+        entry.ref,
+        fullPath,
+        depth + 1,
+        visibleColumns,
+        onSelect,
+        context,
+        maxDepth,
+      );
+
+      if (childMenuItems.length > 0) {
+        menuItems.push(m(MenuItem, {label: refTitle}, childMenuItems));
+      }
+    } else if (isParameterizedColumnDef(entry)) {
+      // Parameterized column - show available keys from datasource
+      const title = typeof entry.title === 'string' ? entry.title : columnName;
+      const availableKeys =
+        context.dataSource.rows?.parameterKeys?.get(fullPath);
+      menuItems.push(
+        m(
+          MenuItem,
+          {
+            label: `${title}...`,
+            onChange: (isOpen) => {
+              if (isOpen === true) {
+                context.parameterKeyColumns.add(fullPath);
+              } else {
+                context.parameterKeyColumns.delete(fullPath);
+              }
+            },
+          },
+          m(ParameterizedColumnSubmenu, {
+            pathPrefix: fullPath,
+            visibleColumns,
+            availableKeys,
+            onSelect,
+          }),
+        ),
+      );
+    }
+  }
+
+  return menuItems;
+}
+
+// Helper component for parameterized column input
+interface ParameterizedColumnSubmenuAttrs {
+  readonly pathPrefix: string;
+  readonly visibleColumns: ReadonlyArray<string>;
+  readonly availableKeys: ReadonlyArray<string> | undefined;
+  readonly onSelect: (columnPath: string) => void;
+}
+
+class ParameterizedColumnSubmenu
+  implements m.ClassComponent<ParameterizedColumnSubmenuAttrs>
+{
+  private searchQuery = '';
+  private static readonly MAX_VISIBLE_ITEMS = 100;
+
+  view({attrs}: m.Vnode<ParameterizedColumnSubmenuAttrs>) {
+    const {pathPrefix, visibleColumns, availableKeys, onSelect} = attrs;
+
+    // Show loading state if availableKeys is undefined
+    if (availableKeys === undefined) {
+      return m('.pf-distinct-values-menu', [
+        m(MenuItem, {label: 'Loading...', disabled: true}),
+      ]);
+    }
+
+    // Use fuzzy search to filter and get highlighted segments
+    const fuzzyResults = (() => {
+      if (this.searchQuery === '') {
+        // No search - show all keys without highlighting
+        return availableKeys.map((key) => ({
+          key,
+          segments: [{matching: false, value: key}],
+        }));
+      } else {
+        // Fuzzy search with highlighting
+        const finder = new FuzzyFinder(availableKeys, (k) => k);
+        return finder.find(this.searchQuery).map((result) => ({
+          key: result.item,
+          segments: result.segments,
+        }));
+      }
+    })();
+
+    // Limit the number of items rendered
+    const visibleResults = fuzzyResults.slice(
+      0,
+      ParameterizedColumnSubmenu.MAX_VISIBLE_ITEMS,
+    );
+    const remainingCount =
+      fuzzyResults.length - ParameterizedColumnSubmenu.MAX_VISIBLE_ITEMS;
+
+    // Check if search query could be used as a custom key
+    const customKeyPath =
+      this.searchQuery.trim().length > 0
+        ? `${pathPrefix}.${this.searchQuery.trim()}`
+        : '';
+    const isCustomKeyAlreadyVisible =
+      customKeyPath !== '' && visibleColumns.includes(customKeyPath);
+    const isCustomKeyInResults =
+      this.searchQuery.trim().length > 0 &&
+      availableKeys.includes(this.searchQuery.trim());
+
+    return m('.pf-distinct-values-menu', [
+      // Search input
+      m(
+        '.pf-distinct-values-menu__search',
+        {
+          onclick: (e: MouseEvent) => {
+            // Prevent menu from closing when clicking search box
+            e.stopPropagation();
+          },
+        },
+        m(TextInput, {
+          placeholder: 'Search or enter key name...',
+          value: this.searchQuery,
+          oninput: (e: InputEvent) => {
+            this.searchQuery = (e.target as HTMLInputElement).value;
+          },
+          onkeydown: (e: KeyboardEvent) => {
+            if (this.searchQuery !== '' && e.key === 'Escape') {
+              this.searchQuery = '';
+              e.stopPropagation(); // Prevent menu from closing
+            }
+          },
+        }),
+      ),
+      // List of available keys
+      m(
+        '.pf-distinct-values-menu__list',
+        fuzzyResults.length > 0
+          ? [
+              visibleResults.map((result) => {
+                const keyPath = `${pathPrefix}.${result.key}`;
+                const isKeyAlreadyVisible = visibleColumns.includes(keyPath);
+
+                // Render highlighted label
+                const labelContent = result.segments.map((segment) => {
+                  if (segment.matching) {
+                    return m('strong.pf-fuzzy-match', segment.value);
+                  } else {
+                    return segment.value;
+                  }
+                });
+
+                return m(
+                  'button.pf-menu-item' +
+                    (isKeyAlreadyVisible ? '[disabled]' : ''),
+                  {
+                    onclick: () => {
+                      if (!isKeyAlreadyVisible) {
+                        onSelect(keyPath);
+                        this.searchQuery = '';
+                      }
+                    },
+                  },
+                  m('.pf-menu-item__label', labelContent),
+                  isKeyAlreadyVisible &&
+                    m(Icon, {
+                      className: 'pf-menu-item__right-icon',
+                      icon: 'check',
+                    }),
+                );
+              }),
+              remainingCount > 0 &&
+                m(MenuItem, {
+                  label: `...and ${remainingCount} more`,
+                  disabled: true,
+                }),
+            ]
+          : m(EmptyState, {
+              title: 'No matches',
+            }),
+      ),
+      // Footer with "Add custom" option when search query doesn't match existing keys
+      this.searchQuery.trim().length > 0 &&
+        !isCustomKeyInResults &&
+        m('.pf-distinct-values-menu__footer', [
+          m(MenuItem, {
+            label: `Add "${this.searchQuery.trim()}"`,
+            icon: 'add',
+            disabled: isCustomKeyAlreadyVisible,
+            onclick: () => {
+              if (!isCustomKeyAlreadyVisible) {
+                onSelect(customKeyPath);
+                this.searchQuery = '';
+              }
+            },
+          }),
+        ]),
+    ]);
   }
 }

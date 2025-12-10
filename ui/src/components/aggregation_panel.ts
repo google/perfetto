@@ -19,7 +19,12 @@ import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
 import {ColumnDefinition, DataGridDataSource} from './widgets/data_grid/common';
-import {DataGrid, renderCell, DataGridApi} from './widgets/data_grid/data_grid';
+import {
+  DataGrid,
+  renderCell,
+  DataGridApi,
+  columnsToSchema,
+} from './widgets/data_grid/data_grid';
 import {defaultValueFormatter} from './widgets/data_grid/export_utils';
 
 export interface AggregationPanelAttrs {
@@ -48,9 +53,8 @@ export class AggregationPanel
     columns: ReadonlyArray<ColumnDef>,
     onReady?: (api: DataGridApi) => void,
   ) {
-    return m(DataGrid, {
-      fillHeight: true,
-      columns: columns.map((c): ColumnDefinition => {
+    const columnDefs: ColumnDefinition[] = columns.map(
+      (c): ColumnDefinition => {
         return {
           name: c.columnId,
           title: c.title,
@@ -70,7 +74,12 @@ export class AggregationPanel
           },
           cellFormatter: (value) => valueFormatter(value, c.formatHint),
         };
-      }),
+      },
+    );
+
+    return m(DataGrid, {
+      ...columnsToSchema(columnDefs),
+      fillHeight: true,
       data: dataSource,
       initialSorting: sorting,
       onReady,

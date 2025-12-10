@@ -24,6 +24,7 @@ import {
 import {
   DataGrid,
   renderCell,
+  columnsToSchema,
 } from '../../components/widgets/data_grid/data_grid';
 import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
@@ -48,20 +49,8 @@ export class WattsonAggregationPanel
     sorting: Sorting,
     columns: ReadonlyArray<ColumnDef>,
   ) {
-    return m(DataGrid, {
-      toolbarItemsLeft: m(
-        Box,
-        m(SegmentedButtons, {
-          options: [{label: 'µW'}, {label: 'mW'}],
-          selectedOption: this.scaleNumericData ? 0 : 1,
-          onOptionSelected: (index) => {
-            this.scaleNumericData = index === 0;
-          },
-          title: 'Select power units',
-        }),
-      ),
-      fillHeight: true,
-      columns: columns.map((c): ColumnDefinition => {
+    const columnDefs: ColumnDefinition[] = columns.map(
+      (c): ColumnDefinition => {
         const displayTitle = this.scaleNumericData
           ? c.title.replace('estimated mW', 'estimated µW')
           : c.title;
@@ -95,7 +84,23 @@ export class WattsonAggregationPanel
             }
           },
         };
-      }),
+      },
+    );
+
+    return m(DataGrid, {
+      ...columnsToSchema(columnDefs),
+      toolbarItemsLeft: m(
+        Box,
+        m(SegmentedButtons, {
+          options: [{label: 'µW'}, {label: 'mW'}],
+          selectedOption: this.scaleNumericData ? 0 : 1,
+          onOptionSelected: (index) => {
+            this.scaleNumericData = index === 0;
+          },
+          title: 'Select power units',
+        }),
+      ),
+      fillHeight: true,
       data: dataSource,
       initialSorting: sorting,
     });

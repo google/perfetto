@@ -17,8 +17,12 @@ import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
   CellRenderer,
+  ColumnDefinition,
 } from '../../../components/widgets/data_grid/common';
-import {DataGrid} from '../../../components/widgets/data_grid/data_grid';
+import {
+  DataGrid,
+  columnsToSchema,
+} from '../../../components/widgets/data_grid/data_grid';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -306,31 +310,33 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             })
           : null;
 
+      const columnDefs: ColumnDefinition[] = attrs.response.columns.map((c) => {
+        let cellRenderer: CellRenderer | undefined;
+
+        // Get column type information from the node
+        const columnInfo = getColumnInfo(attrs.node, c);
+        if (columnInfo) {
+          // Check if this is a timestamp column
+          if (columnInfo.type === 'TIMESTAMP') {
+            cellRenderer = createTimestampCellRenderer(attrs.trace);
+          }
+          // Check if this is a duration column
+          else if (columnInfo.type === 'DURATION') {
+            cellRenderer = createDurationCellRenderer(attrs.trace);
+          }
+        }
+
+        return {
+          name: c,
+          cellRenderer,
+        };
+      });
+
       return [
         warning,
         m(DataGrid, {
+          ...columnsToSchema(columnDefs),
           fillHeight: true,
-          columns: attrs.response.columns.map((c) => {
-            let cellRenderer: CellRenderer | undefined;
-
-            // Get column type information from the node
-            const columnInfo = getColumnInfo(attrs.node, c);
-            if (columnInfo) {
-              // Check if this is a timestamp column
-              if (columnInfo.type === 'TIMESTAMP') {
-                cellRenderer = createTimestampCellRenderer(attrs.trace);
-              }
-              // Check if this is a duration column
-              else if (columnInfo.type === 'DURATION') {
-                cellRenderer = createDurationCellRenderer(attrs.trace);
-              }
-            }
-
-            return {
-              name: c,
-              cellRenderer,
-            };
-          }),
           data: attrs.dataSource,
           showFiltersInToolbar: true,
           structuredQueryCompatMode: true,
