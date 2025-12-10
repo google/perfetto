@@ -373,8 +373,8 @@ dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value_with_interning(
     jlong id,
     jstring val,
     jlong interned_type_id) {
-  sdk_for_jni::ProtoField<const char*>* field =
-      toPointer<sdk_for_jni::ProtoField<const char*>>(ptr);
+  sdk_for_jni::ProtoField<const char*, true>* field =
+      toPointer<sdk_for_jni::ProtoField<const char*, true>>(ptr);
   field->set_value(id, StringBuffer::utf16_to_ascii(env, val).data(),
                    interned_type_id);
 }
