@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {InMemoryDataSource} from './in_memory_data_source';
-import {AggregateSpec, DataGridFilter, RowDef, Sorting} from './common';
+import {DataGridFilter, RowDef, Sorting} from './common';
 
 describe('InMemoryDataSource', () => {
   const sampleData: ReadonlyArray<RowDef> = [
@@ -384,23 +384,5 @@ describe('InMemoryDataSource', () => {
     const resultAfterUpdate = emptyDataSource.rows;
     expect(resultAfterUpdate.totalRows).toBe(0);
     expect(resultAfterUpdate.rows).toEqual([]);
-  });
-
-  test('data source with aggregates', () => {
-    const aggregates: AggregateSpec[] = [
-      {col: 'value', func: 'AVG'},
-      {col: 'active', func: 'SUM'},
-      {col: 'name', func: 'COUNT'},
-      {col: 'tag', func: 'MAX'},
-      {col: 'id', func: 'MIN'},
-    ];
-    dataSource.notifyUpdate({aggregates});
-
-    const result = dataSource.rows;
-    expect(result.aggregates.value).toBeCloseTo(183.33333);
-    expect(result.aggregates.active).toBeCloseTo(4);
-    expect(result.aggregates.name).toBe(7);
-    expect(result.aggregates.tag).toBe('C'); // Max tag alphabetically
-    expect(result.aggregates.id).toBe(1);
   });
 });

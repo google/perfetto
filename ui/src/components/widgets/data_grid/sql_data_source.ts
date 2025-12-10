@@ -18,6 +18,7 @@ import {Engine} from '../../../trace_processor/engine';
 import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../query_table/queries';
 import {
+  DataGridColumn,
   DataGridDataSource,
   DataSourceResult,
   DataGridFilter,
@@ -25,8 +26,7 @@ import {
   SortByColumn,
   DataGridModel,
   Pagination,
-  AggregateSpec,
-  areAggregateArraysEqual,
+  PivotModel,
 } from './common';
 
 export class SQLDataSource implements DataGridDataSource {
@@ -35,7 +35,7 @@ export class SQLDataSource implements DataGridDataSource {
   private readonly baseQuery: string;
   private workingQuery = '';
   private pagination?: Pagination;
-  private aggregates?: ReadonlyArray<AggregateSpec>;
+  private pivot?: PivotModel;
   private cachedResult?: DataSourceResult;
   private isLoadingFlag = false;
 
@@ -63,7 +63,7 @@ export class SQLDataSource implements DataGridDataSource {
     sorting = {direction: 'UNSORTED'},
     filters = [],
     pagination,
-    aggregates,
+    pivot,
     distinctValuesColumns,
   }: DataGridModel): void {
     this.limiter.schedule(async () => {
@@ -72,38 +72,64 @@ export class SQLDataSource implements DataGridDataSource {
       try {
         // If the working query has changed, we need to invalidate the cache and
         // reload everything, including the page count.
-        const workingQuery = this.buildWorkingQuery(columns, filters, sorting);
-        if (workingQuery !== this.workingQuery) {
+        const workingQuery = this.buildWorkingQuery(
+          columns,
+          filters,
+          sorting,
+          pivot,
+        );
+        if (
+          workingQuery !== this.workingQuery ||
+          !arePivotsEqual(this.pivot, pivot)
+        ) {
           this.workingQuery = workingQuery;
+          this.pivot = pivot;
 
           // Clear the cache
           this.cachedResult = undefined;
           this.pagination = undefined;
-          this.aggregates = undefined;
 
           // Update the cache with the total row count
           const rowCount = await this.getRowCount(workingQuery);
+
+          // Compute aggregate totals for pivot mode (but not drill-down mode)
+          let aggregateTotals: Map<string, SqlValue> | undefined;
+          if (
+            pivot &&
+            !pivot.drillDown &&
+            Object.keys(pivot.values).length > 0
+          ) {
+            const aggregates = await this.getPivotAggregates(filters, pivot);
+            aggregateTotals = new Map<string, SqlValue>();
+            for (const [key, value] of Object.entries(aggregates)) {
+              aggregateTotals.set(key, value);
+            }
+          }
+
+          // Compute column-level aggregations (non-pivot mode)
+          const columnsWithAggregation = columns?.filter((c) => c.aggregation);
+          if (
+            columnsWithAggregation &&
+            columnsWithAggregation.length > 0 &&
+            !pivot
+          ) {
+            const columnAggregates = await this.getColumnAggregates(
+              filters,
+              columnsWithAggregation,
+            );
+            aggregateTotals = aggregateTotals ?? new Map<string, SqlValue>();
+            for (const [key, value] of Object.entries(columnAggregates)) {
+              aggregateTotals.set(key, value as SqlValue);
+            }
+          }
+
           this.cachedResult = {
             rowOffset: 0,
             totalRows: rowCount,
             rows: [],
-            aggregates: {},
             distinctValues: new Map<string, ReadonlyArray<SqlValue>>(),
+            aggregateTotals,
           };
-        }
-
-        if (!areAggregateArraysEqual(this.aggregates, aggregates)) {
-          this.aggregates = aggregates;
-          if (aggregates) {
-            const aggregateResults = await this.getAggregates(
-              workingQuery,
-              aggregates,
-            );
-            this.cachedResult = {
-              ...this.cachedResult!,
-              aggregates: aggregateResults,
-            };
-          }
         }
 
         // Fetch data if pagination has changed.
@@ -167,25 +193,91 @@ export class SQLDataSource implements DataGridDataSource {
    * pagination).
    */
   private buildWorkingQuery(
-    columns: ReadonlyArray<string> | undefined,
+    columns: ReadonlyArray<DataGridColumn> | undefined,
     filters: ReadonlyArray<DataGridFilter>,
     sorting: Sorting,
+    pivot?: PivotModel,
   ): string {
-    const colDefs = columns ?? ['*'];
+    const colNames = columns?.map((c) => c.column) ?? ['*'];
 
-    let query = `\nSELECT ${colDefs.join()} FROM (${this.baseQuery})`;
+    let query: string;
+
+    if (pivot && !pivot.drillDown) {
+      // Pivot mode (no drill-down): Build aggregate columns
+      // Sort by alias to ensure consistent SQL regardless of value order in the model
+      const valCols = Object.entries(pivot.values)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([alias, value]) => {
+          if (value.func === 'COUNT') {
+            return `COUNT(*) AS ${alias}`;
+          }
+          if (value.func === 'ANY') {
+            return `MIN(${value.col}) AS ${alias}`;
+          }
+          return `${value.func}(${value.col}) AS ${alias}`;
+        })
+        .join(', ');
+
+      if (pivot.groupBy.length > 0) {
+        // Grouped aggregation
+        const groupCols = pivot.groupBy.join(', ');
+        const selectCols = valCols ? `${groupCols}, ${valCols}` : groupCols;
+        query = `
+          SELECT ${selectCols}
+          FROM (${this.baseQuery})
+          GROUP BY ${groupCols}
+        `;
+      } else {
+        // Aggregation without grouping (single row result)
+        query = `
+          SELECT ${valCols}
+          FROM (${this.baseQuery})
+        `;
+      }
+    } else if (pivot?.drillDown) {
+      // Drill-down mode: Show raw rows filtered by the groupBy values
+      query = `\nSELECT ${colNames.join(', ')} FROM (${this.baseQuery})`;
+
+      // Build WHERE clause from drillDown values
+      const drillDownConditions = pivot.groupBy
+        .map((col) => {
+          const value = pivot.drillDown![col];
+          if (value === null) {
+            return `${col} IS NULL`;
+          }
+          return `${col} = ${sqlValue(value)}`;
+        })
+        .join(' AND ');
+
+      if (drillDownConditions) {
+        query = `SELECT * FROM (${query}) WHERE ${drillDownConditions}`;
+      }
+    } else {
+      query = `\nSELECT ${colNames.join(', ')} FROM (${this.baseQuery})`;
+    }
 
     // Add WHERE clause if there are filters
     if (filters.length > 0) {
       const whereConditions = filters.map(filter2Sql).join(' AND ');
-
-      query += `\nWHERE ${whereConditions}`;
+      query = `SELECT * FROM (${query}) WHERE ${whereConditions}`;
     }
 
-    // Add ORDER BY clause for sorting
+    // Add ORDER BY clause for sorting, but only if the sort column exists
     if (sorting.direction !== 'UNSORTED') {
       const {column, direction} = sorting as SortByColumn;
-      query += `\nORDER BY ${column} ${direction.toUpperCase()}`;
+      // Check if the sort column is in the available columns
+      // In pivot mode, available columns are groupBy + value aliases
+      // In normal mode, use the provided columns or assume all are available
+      let columnExists: boolean;
+      if (pivot && !pivot.drillDown) {
+        const pivotColumns = [...pivot.groupBy, ...Object.keys(pivot.values)];
+        columnExists = pivotColumns.includes(column);
+      } else {
+        columnExists = columns === undefined || colNames.includes(column);
+      }
+      if (columnExists) {
+        query += `\nORDER BY ${column} ${direction.toUpperCase()}`;
+      }
     }
 
     return query;
@@ -200,19 +292,92 @@ export class SQLDataSource implements DataGridDataSource {
     return result.firstRow({total_count: NUM}).total_count;
   }
 
-  private async getAggregates(
-    workingQuery: string,
-    aggregates: ReadonlyArray<AggregateSpec>,
+  /**
+   * Compute grand total aggregates for pivot mode by querying the base data
+   * directly (with filters applied). This is more accurate than aggregating
+   * already-aggregated values (e.g., AVG of AVGs is not the same as grand AVG).
+   */
+  private async getPivotAggregates(
+    filters: ReadonlyArray<DataGridFilter>,
+    pivot: PivotModel,
   ): Promise<Row> {
+    // Build a filtered base query (no GROUP BY, no sorting)
+    let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
+    if (filters.length > 0) {
+      const whereConditions = filters.map(filter2Sql).join(' AND ');
+      filteredBaseQuery = `SELECT * FROM (${filteredBaseQuery}) WHERE ${whereConditions}`;
+    }
+
+    // Build aggregate expressions from pivot.values using original column names
+    // Sort by alias for consistent SQL
+    const selectClauses = Object.entries(pivot.values)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([alias, value]) => {
+        if (value.func === 'COUNT') {
+          return `COUNT(*) AS ${alias}`;
+        }
+        if (value.func === 'ANY') {
+          // ANY doesn't make sense as a grand total, just return NULL
+          return `NULL AS ${alias}`;
+        }
+        return `${value.func}(${value.col}) AS ${alias}`;
+      })
+      .join(', ');
+
+    if (!selectClauses) {
+      return {};
+    }
+
     const query = `
-      WITH data AS (${workingQuery})
-      SELECT
-        ${aggregates.map((a) => `${a.func}(${a.col}) AS ${a.col}`)}
-      FROM data
+      SELECT ${selectClauses}
+      FROM (${filteredBaseQuery})
     `;
 
     const result = await runQueryForQueryTable(query, this.engine);
-    return result.rows[0];
+    return result.rows[0] ?? {};
+  }
+
+  /**
+   * Compute aggregates for columns with aggregation functions defined.
+   * This is used in non-pivot mode when columns have individual aggregations.
+   */
+  private async getColumnAggregates(
+    filters: ReadonlyArray<DataGridFilter>,
+    columns: ReadonlyArray<DataGridColumn>,
+  ): Promise<Row> {
+    // Build a filtered base query
+    let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
+    if (filters.length > 0) {
+      const whereConditions = filters.map(filter2Sql).join(' AND ');
+      filteredBaseQuery = `SELECT * FROM (${filteredBaseQuery}) WHERE ${whereConditions}`;
+    }
+
+    // Build aggregate expressions from columns with aggregation
+    const selectClauses = columns
+      .filter((col) => col.aggregation)
+      .map((col) => {
+        const func = col.aggregation!;
+        if (func === 'COUNT') {
+          return `COUNT(*) AS ${col.column}`;
+        }
+        if (func === 'ANY') {
+          return `MIN(${col.column}) AS ${col.column}`;
+        }
+        return `${func}(${col.column}) AS ${col.column}`;
+      })
+      .join(', ');
+
+    if (!selectClauses) {
+      return {};
+    }
+
+    const query = `
+      SELECT ${selectClauses}
+      FROM (${filteredBaseQuery})
+    `;
+
+    const result = await runQueryForQueryTable(query, this.engine);
+    return result.rows[0] ?? {};
   }
 
   private async getRows(
@@ -287,4 +452,41 @@ function comparePagination(a?: Pagination, b?: Pagination): boolean {
 
   // Both exist - compare their properties
   return a.limit === b.limit && a.offset === b.offset;
+}
+
+function arePivotsEqual(a?: PivotModel, b?: PivotModel): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+
+  // groupBy order matters - different order means different SQL query
+  if (a.groupBy.join(',') !== b.groupBy.join(',')) return false;
+
+  // values order does NOT matter - compare as unordered sets
+  if (!arePivotValuesEqual(a.values, b.values)) return false;
+
+  // drillDown comparison
+  if (JSON.stringify(a.drillDown) !== JSON.stringify(b.drillDown)) return false;
+
+  return true;
+}
+
+// Compare pivot values without regard to order
+function arePivotValuesEqual(
+  a: PivotModel['values'],
+  b: PivotModel['values'],
+): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+
+  // Different number of values
+  if (keysA.length !== keysB.length) return false;
+
+  // Check that all keys in A exist in B with same value
+  for (const key of keysA) {
+    if (!(key in b)) return false;
+    // Compare the value definitions
+    if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) return false;
+  }
+
+  return true;
 }

@@ -15,12 +15,7 @@
 import m from 'mithril';
 import {maybeUndefined} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {
-  AggregationFunction,
-  CellFormatter,
-  CellRenderer,
-  RowDef,
-} from './common';
+import {CellFormatter, CellRenderer, RowDef} from './common';
 
 /**
  * A registry of named schemas that can reference each other.
@@ -80,9 +75,6 @@ export interface ColumnDef {
   // Optional value formatter for this column, used when exporting data.
   readonly cellFormatter?: CellFormatter;
 
-  // An optional aggregation for data in this column displayed in the header bar.
-  readonly aggregation?: AggregationFunction;
-
   // Enable distinct values filtering for this column.
   readonly distinctValues?: boolean;
 
@@ -128,7 +120,6 @@ export interface ParameterizedColumnDef {
   readonly filterType?: 'numeric' | 'string';
   readonly cellRenderer?: CellRenderer;
   readonly cellFormatter?: CellFormatter;
-  readonly aggregation?: AggregationFunction;
   readonly distinctValues?: boolean;
   readonly contextMenuRenderer?: (builtins: ContextMenuBuiltins) => m.Children;
   readonly cellContextMenuRenderer?: (
@@ -388,6 +379,32 @@ export function getColumnTitleString(
 }
 
 /**
+ * Gets the display title for a column path as a plain string.
+ * This is like getColumnTitle but returns a string instead of m.Children.
+ * Parts are joined with " > " separator.
+ *
+ * For example: "manager.manager.name" -> "Manager > Manager > Name"
+ */
+export function getColumnDisplayTitleString(
+  registry: SchemaRegistry,
+  rootSchema: string,
+  path: string,
+): string {
+  const parts = getColumnTitleParts(registry, rootSchema, path);
+  if (parts.length === 0) return path;
+
+  // Convert m.Children parts to strings
+  const stringParts = parts.map((part) => {
+    if (typeof part === 'string') return part;
+    if (typeof part === 'number') return String(part);
+    // For complex m.Children, fall back to the path segment
+    return path.split('.')[parts.indexOf(part)] ?? String(part);
+  });
+
+  return stringParts.join(' > ');
+}
+
+/**
  * Gets the filter type for a column path.
  */
 export function getColumnFilterType(
@@ -421,18 +438,6 @@ export function getColumnCellFormatter(
 ): CellFormatter | undefined {
   const resolved = resolveColumnPath(registry, rootSchema, path);
   return resolved?.def.cellFormatter;
-}
-
-/**
- * Gets the aggregation function for a column path.
- */
-export function getColumnAggregation(
-  registry: SchemaRegistry,
-  rootSchema: string,
-  path: string,
-): AggregationFunction | undefined {
-  const resolved = resolveColumnPath(registry, rootSchema, path);
-  return resolved?.def.aggregation;
 }
 
 /**
