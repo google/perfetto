@@ -47,107 +47,10 @@ import {
   getInputNodeAtPort,
   getAllInputNodes,
 } from './query_builder/graph_utils';
-import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {showExamplesModal} from './examples_modal';
 import {showStateOverwriteWarning} from './query_builder/widgets';
 
 registerCoreNodes();
-
-// Grid layout constants
-const NODES_PER_ROW = 3;
-const NODE_HORIZONTAL_SPACING = 250;
-const NODE_VERTICAL_SPACING = 180;
-const GRID_START_X = 100;
-const GRID_START_Y = 100;
-
-/**
- * Generates grid layout positions for nodes arranged in rows.
- *
- * @param nodes The nodes to layout
- * @returns Map of node IDs to {x, y} positions
- */
-function createGridLayout(
-  nodes: QueryNode[],
-): Map<string, {x: number; y: number}> {
-  const layouts = new Map<string, {x: number; y: number}>();
-
-  nodes.forEach((node, index) => {
-    const row = Math.floor(index / NODES_PER_ROW);
-    const col = index % NODES_PER_ROW;
-
-    const x = GRID_START_X + col * NODE_HORIZONTAL_SPACING;
-    const y = GRID_START_Y + row * NODE_VERTICAL_SPACING;
-
-    layouts.set(node.nodeId, {x, y});
-  });
-
-  return layouts;
-}
-
-/**
- * Creates slice source node and thread_state table node.
- * This is used for auto-initialization when the explore page first opens.
- *
- * @param sqlModules The SQL modules interface for accessing table metadata
- * @param trace The trace instance
- * @param allNodes All existing nodes in the graph
- * @returns Array of newly created nodes (slice source and thread_state table)
- */
-function createHighImportanceTableNodes(
-  sqlModules: SqlModules,
-  trace: Trace,
-  allNodes: QueryNode[],
-): QueryNode[] {
-  const newNodes: QueryNode[] = [];
-
-  // Create slice source node
-  const sliceDescriptor = nodeRegistry.get('slice');
-  if (sliceDescriptor) {
-    try {
-      const sliceNode = sliceDescriptor.factory(
-        {
-          trace,
-        },
-        {allNodes},
-      );
-      newNodes.push(sliceNode);
-    } catch (error) {
-      console.error('Failed to create slice source node:', error);
-    }
-  }
-
-  // Create thread_state table node
-  const tableDescriptor = nodeRegistry.get('table');
-  if (tableDescriptor) {
-    const threadStateTable = sqlModules
-      .listTables()
-      .find((table) => table.name === 'thread_state');
-
-    if (threadStateTable) {
-      // Check if the table is available (module not disabled)
-      if (
-        !threadStateTable.includeKey ||
-        !sqlModules.isModuleDisabled(threadStateTable.includeKey)
-      ) {
-        try {
-          const threadStateNode = tableDescriptor.factory(
-            {
-              sqlTable: threadStateTable,
-              sqlModules,
-              trace,
-            },
-            {allNodes},
-          );
-          newNodes.push(threadStateNode);
-        } catch (error) {
-          console.error('Failed to create thread_state table node:', error);
-        }
-      }
-    }
-  }
-
-  return newNodes;
-}
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -372,36 +275,29 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  private autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
+  private async autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
     this.hasAutoInitialized = true;
 
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
     if (!sqlModules) return;
 
-    const newNodes = createHighImportanceTableNodes(
-      sqlModules,
-      attrs.trace,
-      attrs.state.rootNodes,
-    );
-
-    // Add all nodes to the graph with grid layout
-    if (newNodes.length > 0) {
-      const gridLayouts = createGridLayout(newNodes);
-
-      attrs.onStateUpdate((currentState) => {
-        // Merge new layouts with existing layouts
-        const newNodeLayouts = new Map(currentState.nodeLayouts);
-        gridLayouts.forEach((layout, nodeId) => {
-          newNodeLayouts.set(nodeId, layout);
-        });
-
-        return {
-          ...currentState,
-          rootNodes: [...currentState.rootNodes, ...newNodes],
-          nodeLayouts: newNodeLayouts,
-          // Don't select any node - leave selection empty
-        };
-      });
+    try {
+      // Load the base page state from JSON
+      const response = await fetch(
+        assetSrc('assets/explore_page/base-page.json'),
+      );
+      if (!response.ok) {
+        console.warn(
+          'Failed to load base page state, falling back to empty state',
+        );
+        return;
+      }
+      const json = await response.text();
+      const newState = deserializeState(json, attrs.trace, sqlModules);
+      attrs.onStateUpdate(newState);
+    } catch (error) {
+      console.error('Failed to load base page state:', error);
+      // Silently fail - leave the page empty if JSON can't be loaded
     }
   }
 
@@ -1073,7 +969,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Auto-initialize high-importance tables on first load
     if (state.rootNodes.length === 0 && !this.hasAutoInitialized) {
-      this.autoInitializeHighImportanceTables(wrappedAttrs);
+      void this.autoInitializeHighImportanceTables(wrappedAttrs);
     }
 
     return m(
