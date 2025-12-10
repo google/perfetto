@@ -21,12 +21,12 @@ import {
   DataGridColumn,
   DataGridDataSource,
   Sorting,
-} from '../../components/widgets/data_grid/common';
+} from '../../components/widgets/datagrid/common';
 import {
   DataGrid,
   renderCell,
   columnsToSchema,
-} from '../../components/widgets/data_grid/data_grid';
+} from '../../components/widgets/datagrid/datagrid';
 import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';

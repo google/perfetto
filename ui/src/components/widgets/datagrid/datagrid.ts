@@ -62,7 +62,7 @@ import {
   RowDef,
   Sorting,
 } from './common';
-import {DataGridToolbar} from './data_grid_toolbar';
+import {DataGridToolbar} from './datagrid_toolbar';
 import {
   defaultValueFormatter,
   formatAsJSON,

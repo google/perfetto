@@ -21,13 +21,13 @@ import {
   CellRenderer,
   ColumnDefinition,
   DataGridDataSource,
-} from '../../components/widgets/data_grid/common';
+} from '../../components/widgets/datagrid/common';
 import {
   DataGrid,
   renderCell,
   columnsToSchema,
-} from '../../components/widgets/data_grid/data_grid';
-import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
+} from '../../components/widgets/datagrid/datagrid';
+import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import {Trace} from '../../public/trace';
 import {Box} from '../../widgets/box';

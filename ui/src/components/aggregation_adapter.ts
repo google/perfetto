@@ -28,15 +28,15 @@ import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
-import {DataGridDataSource, PivotModel} from './widgets/data_grid/common';
-import {SQLDataSource} from './widgets/data_grid/sql_data_source';
+import {DataGridDataSource, PivotModel} from './widgets/datagrid/common';
+import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
 import {
   createPerfettoTable,
   DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
-import {DataGridApi} from './widgets/data_grid/data_grid';
-import {DataGridExportButton} from './widgets/data_grid/export_button';
+import {DataGridApi} from './widgets/datagrid/datagrid';
+import {DataGridExportButton} from './widgets/datagrid/export_button';
 
 export interface AggregationData {
   readonly tableName: string;

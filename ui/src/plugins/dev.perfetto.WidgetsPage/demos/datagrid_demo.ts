@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DataGrid} from '../../../components/widgets/data_grid/data_grid';
-import {SchemaRegistry} from '../../../components/widgets/data_grid/column_schema';
-import {RowDef} from '../../../components/widgets/data_grid/common';
-import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
-import {SQLSchemaRegistry} from '../../../components/widgets/data_grid/sql_schema';
+import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
+import {SchemaRegistry} from '../../../components/widgets/datagrid/column_schema';
+import {RowDef} from '../../../components/widgets/datagrid/common';
+import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
+import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
 import {Anchor} from '../../../widgets/anchor';

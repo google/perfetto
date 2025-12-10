@@ -17,7 +17,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {download} from '../../../base/download_utils';
-import {DataGridApi} from './data_grid';
+import {DataGridApi} from './datagrid';
 import {CopyButtonHelper} from '../../../widgets/copy_to_clipboard_button';
 
 export interface DataGridCopyButtonAttrs {
