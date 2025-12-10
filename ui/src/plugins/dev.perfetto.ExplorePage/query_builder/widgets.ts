@@ -32,6 +32,7 @@ import {
 } from '../../../widgets/multiselect';
 import {classNames} from '../../../base/classnames';
 import {Tooltip} from '../../../widgets/tooltip';
+import {showModal} from '../../../widgets/modal';
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -906,4 +907,46 @@ export class SelectDeselectAllButtons
       }),
     );
   }
+}
+
+/**
+ * Shows a confirmation modal warning the user that their current state will be lost.
+ * This modal is used when importing JSON or loading an example graph.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showStateOverwriteWarning(): Promise<boolean> {
+  return new Promise((resolve) => {
+    showModal({
+      key: 'state-overwrite-warning',
+      title: 'Warning: Current State Will Be Lost',
+      icon: 'warning',
+      content: m(
+        '.pf-state-overwrite-warning',
+        m(
+          'p',
+          'This action will replace your current graph with a new one. All current nodes and connections will be lost.',
+        ),
+        m('p', 'Do you want to continue?'),
+      ),
+      buttons: [
+        {
+          text: 'Cancel',
+          action: () => {
+            resolve(false);
+          },
+        },
+        {
+          text: 'Continue',
+          primary: true,
+          action: () => {
+            resolve(true);
+          },
+        },
+      ],
+      onClose: () => {
+        resolve(false);
+      },
+    });
+  });
 }
