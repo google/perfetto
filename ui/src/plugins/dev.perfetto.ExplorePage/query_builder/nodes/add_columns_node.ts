@@ -1533,7 +1533,9 @@ export class AddColumnsNode implements QueryNode {
 
     // Try to get table info if the right node is a table source
     const rightNodeTable =
-      this.rightNode && 'state' in this.rightNode && 'sqlTable' in this.rightNode.state
+      this.rightNode &&
+      'state' in this.rightNode &&
+      'sqlTable' in this.rightNode.state
         ? this.rightNode.state.sqlTable
         : undefined;
 
@@ -1679,6 +1681,18 @@ export class AddColumnsNode implements QueryNode {
         onRightColumnChange: (columnName: string) => {
           this.state.rightColumn = columnName;
           this.state.onchange?.();
+        },
+        onLeftColumnToggle: () => {
+          // AddColumnsNode doesn't use column selection
+        },
+        onRightColumnToggle: () => {
+          // AddColumnsNode doesn't use column selection
+        },
+        onLeftColumnAlias: () => {
+          // AddColumnsNode doesn't use column aliasing
+        },
+        onRightColumnAlias: () => {
+          // AddColumnsNode doesn't use column aliasing
         },
       }),
     ]);

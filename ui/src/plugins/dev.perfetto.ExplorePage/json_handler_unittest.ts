@@ -1162,6 +1162,8 @@ describe('JSON serialization/deserialization', () => {
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
+      leftColumns: undefined,
+      rightColumns: undefined,
     });
     tableNode1.nextNodes.push(joinNode);
     tableNode2.nextNodes.push(joinNode);
@@ -1218,6 +1220,8 @@ describe('JSON serialization/deserialization', () => {
       leftColumn: '',
       rightColumn: '',
       sqlExpression: 't1.id = t2.parent_id',
+      leftColumns: undefined,
+      rightColumns: undefined,
     });
     tableNode1.nextNodes.push(joinNode);
     tableNode2.nextNodes.push(joinNode);
@@ -1412,6 +1416,8 @@ describe('JSON serialization/deserialization', () => {
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
+      leftColumns: undefined,
+      rightColumns: undefined,
     });
     tableNode1.nextNodes.push(joinNode);
     tableNode2.nextNodes.push(joinNode);
@@ -1528,6 +1534,8 @@ describe('JSON serialization/deserialization', () => {
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
+      leftColumns: undefined,
+      rightColumns: undefined,
     });
     tableNode1.nextNodes.push(joinNode);
     tableNode2.nextNodes.push(joinNode);

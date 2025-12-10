@@ -70,6 +70,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.state.leftQueryAlias).toBe('left');
@@ -94,6 +96,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.state.leftQueryAlias).toBe('left');
@@ -117,6 +121,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.finalCols).toEqual([]);
@@ -142,6 +148,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const finalCols = joinNode.finalCols;
@@ -173,6 +181,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const finalCols = joinNode.finalCols;
@@ -213,6 +223,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const finalCols = joinNode.finalCols;
@@ -247,6 +259,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'parent_id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const finalCols = joinNode.finalCols;
@@ -287,6 +301,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const finalCols = joinNode.finalCols;
@@ -326,6 +342,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: 't1.id = t2.parent_id',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const finalCols = joinNode.finalCols;
@@ -356,6 +374,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.finalCols).toEqual([]);
@@ -381,6 +401,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const finalCols = joinNode.finalCols;
@@ -403,6 +425,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.validate()).toBe(false);
@@ -429,6 +453,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       // Constructor sets default aliases to 'left' and 'right', so this should pass
@@ -449,6 +475,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.validate()).toBe(false);
@@ -471,6 +499,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.validate()).toBe(false);
@@ -497,6 +527,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.validate()).toBe(true);
@@ -525,6 +557,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: 'left.id = right.id',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.validate()).toBe(false);
@@ -554,6 +588,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: 't1.id = t2.parent_id',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.validate()).toBe(true);
@@ -575,6 +611,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.getTitle()).toBe('Join');
@@ -596,6 +634,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const portNames = joinNode.secondaryInputs.portNames;
@@ -622,6 +662,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const cloned = joinNode.clone() as JoinNode;
@@ -648,6 +690,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const cloned = joinNode.clone() as JoinNode;
@@ -674,6 +718,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(joinNode.getStructuredQuery()).toBeUndefined();
@@ -710,6 +756,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const sq = joinNode.getStructuredQuery();
@@ -750,6 +798,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const sq = joinNode.getStructuredQuery();
@@ -786,6 +836,8 @@ describe('JoinNode', () => {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: 't1.id = t2.parent_id',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const sq = joinNode.getStructuredQuery();
@@ -820,6 +872,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       const serialized = joinNode.serializeState();
@@ -845,6 +899,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       };
 
       const state = JoinNode.deserializeState(serialized);
@@ -876,6 +932,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(connections.leftNode).toBe(node1);
@@ -895,6 +953,8 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       });
 
       expect(connections.leftNode).toBeUndefined();

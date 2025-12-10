@@ -20,6 +20,7 @@
   flex-direction: column;
   gap: 16px;
   container-type: inline-size;
+  width: 100%;
 
   &.pf-join-condition--complete {
     .pf-join-source-card {
@@ -44,6 +45,7 @@
 .pf-join-source-card {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   transition: border-color 0.2s ease-in-out;
 }
 
@@ -208,4 +210,65 @@
   background: var(--pf-color-background-secondary);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
+}
+
+// Join column selector - for selecting columns with checkboxes and aliasing
+.pf-join-column-selector {
+  display: flex;
+  gap: 24px;
+  flex-direction: column;
+}
+
+.pf-join-column-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pf-join-column-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--pf-color-border);
+
+  h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.pf-join-column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.pf-join-column-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 4px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border);
+
+  &:hover {
+    background: var(--pf-color-background-secondary);
+  }
+
+  .pf-checkbox {
+    flex: 1;
+  }
+
+  .pf-text-input {
+    width: 150px;
+    flex-shrink: 0;
+  }
 }
