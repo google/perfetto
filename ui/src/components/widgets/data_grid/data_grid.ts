@@ -589,390 +589,385 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     this.currentVisibleColumns = displayColumns.map((dc) => dc.columnPath);
 
     // Build VirtualGrid columns with all DataGrid features
-    const virtualGridColumns = displayColumns.map(
-      (displayCol, displayColIndex) => {
-        const {
+    const virtualGridColumns = displayColumns.map((displayCol) => {
+      const {
+        columnPath,
+        isGroupBy: isGroupByColumn,
+        isAggregate: isAggregateColumn,
+        isLastGroupBy,
+        pivotValue,
+        columnAggregation: displayColAggregation,
+      } = displayCol;
+
+      // For aggregate columns, get title from the source column if available
+      const sourceColumnPath =
+        isAggregateColumn && pivotValue && 'col' in pivotValue
+          ? pivotValue.col
+          : columnPath;
+
+      // Look up column properties from schema (use source column for aggregates)
+      const columnTitleParts = getColumnTitleParts(
+        schema,
+        rootSchema,
+        sourceColumnPath,
+      );
+      const columnFilterType = getColumnFilterType(
+        schema,
+        rootSchema,
+        sourceColumnPath,
+      );
+      const columnDistinctValues = getColumnDistinctValues(
+        schema,
+        rootSchema,
+        sourceColumnPath,
+      );
+      const columnCellRenderer = getColumnCellRenderer(
+        schema,
+        rootSchema,
+        sourceColumnPath,
+      );
+      // For aggregate columns, use the pivot aggregation function for display
+      // For non-pivot columns with aggregation, use the column-level aggregation
+      const columnAggregation = isAggregateColumn
+        ? pivotValue?.func
+        : displayColAggregation;
+      const columnContextMenuRenderer = getColumnContextMenuRenderer(
+        schema,
+        rootSchema,
+        sourceColumnPath,
+      );
+
+      const sort = (() => {
+        if (sorting.direction === 'UNSORTED') {
+          return undefined;
+        } else if (sorting.column === columnPath) {
+          return sorting.direction;
+        } else {
+          return undefined;
+        }
+      })();
+
+      // Build default menu groups
+      const defaultGroups: {
+        sorting?: m.Children;
+        filters?: m.Children;
+        pivot?: m.Children;
+        fitToContent?: m.Children;
+        columnManagement?: m.Children;
+      } = {};
+
+      // Sorting group
+      if (sortControls) {
+        defaultGroups.sorting = [
+          ...renderSortMenuItems(sort, (direction) => {
+            if (direction) {
+              onSort({
+                column: columnPath,
+                direction: direction,
+              });
+            } else {
+              onSort({
+                direction: 'UNSORTED',
+              });
+            }
+          }),
+        ];
+      }
+
+      // Filters group
+      if (filterControls) {
+        const distinctState = dataSource.rows?.distinctValues?.get(columnPath);
+
+        const filterSubmenuItems = renderFilterMenuItems({
           columnPath,
-          isGroupBy: isGroupByColumn,
-          isAggregate: isAggregateColumn,
-          isLastGroupBy,
-          pivotValue,
-          columnAggregation: displayColAggregation,
-        } = displayCol;
+          columnDistinctValues,
+          columnFilterType,
+          structuredQueryCompatMode,
+          distinctState,
+          formatValue: this.formatDistinctValue.bind(this),
+          onFilterAdd,
+          onDistinctValuesOpen: () =>
+            this.distinctValuesColumns.add(columnPath),
+          onDistinctValuesClose: () =>
+            this.distinctValuesColumns.delete(columnPath),
+        });
 
-        // For aggregate columns, get title from the source column if available
-        const sourceColumnPath =
-          isAggregateColumn && pivotValue && 'col' in pivotValue
-            ? pivotValue.col
-            : columnPath;
-
-        // Look up column properties from schema (use source column for aggregates)
-        const columnTitleParts = getColumnTitleParts(
-          schema,
-          rootSchema,
-          sourceColumnPath,
-        );
-        const columnFilterType = getColumnFilterType(
-          schema,
-          rootSchema,
-          sourceColumnPath,
-        );
-        const columnDistinctValues = getColumnDistinctValues(
-          schema,
-          rootSchema,
-          sourceColumnPath,
-        );
-        const columnCellRenderer = getColumnCellRenderer(
-          schema,
-          rootSchema,
-          sourceColumnPath,
-        );
-        // For aggregate columns, use the pivot aggregation function for display
-        // For non-pivot columns with aggregation, use the column-level aggregation
-        const columnAggregation = isAggregateColumn
-          ? pivotValue?.func
-          : displayColAggregation;
-        const columnContextMenuRenderer = getColumnContextMenuRenderer(
-          schema,
-          rootSchema,
-          sourceColumnPath,
-        );
-
-        const sort = (() => {
-          if (sorting.direction === 'UNSORTED') {
-            return undefined;
-          } else if (sorting.column === columnPath) {
-            return sorting.direction;
-          } else {
-            return undefined;
-          }
-        })();
-
-        // Build default menu groups
-        const defaultGroups: {
-          sorting?: m.Children;
-          filters?: m.Children;
-          pivot?: m.Children;
-          fitToContent?: m.Children;
-          columnManagement?: m.Children;
-        } = {};
-
-        // Sorting group
-        if (sortControls) {
-          defaultGroups.sorting = [
-            ...renderSortMenuItems(sort, (direction) => {
-              if (direction) {
-                onSort({
-                  column: columnPath,
-                  direction: direction,
-                });
-              } else {
-                onSort({
-                  direction: 'UNSORTED',
-                });
-              }
-            }),
+        // Only set filters group if there are any filter options
+        // (filterSubmenuItems will be empty array if all conditions are false)
+        if (filterSubmenuItems.some((item) => item !== false)) {
+          defaultGroups.filters = [
+            m(
+              MenuItem,
+              {label: 'Add filter...', icon: Icons.Filter},
+              filterSubmenuItems,
+            ),
           ];
         }
+      }
 
-        // Filters group
-        if (filterControls) {
-          const distinctState =
-            dataSource.rows?.distinctValues?.get(columnPath);
+      // Pivot menu group - use appropriate function based on column type
+      const columnInfo = {
+        name: columnPath,
+        title: isAggregateColumn
+          ? pivotValue?.func === 'COUNT'
+            ? 'Count'
+            : getColumnTitle(schema, rootSchema, sourceColumnPath)
+          : getColumnTitle(schema, rootSchema, columnPath),
+        filterType: columnFilterType,
+      };
 
-          const filterSubmenuItems = renderFilterMenuItems({
-            columnPath,
-            columnDistinctValues,
-            columnFilterType,
-            structuredQueryCompatMode,
-            distinctState,
-            formatValue: this.formatDistinctValue.bind(this),
-            onFilterAdd,
-            onDistinctValuesOpen: () =>
-              this.distinctValuesColumns.add(columnPath),
-            onDistinctValuesClose: () =>
-              this.distinctValuesColumns.delete(columnPath),
-          });
-
-          // Only set filters group if there are any filter options
-          // (filterSubmenuItems will be empty array if all conditions are false)
-          if (filterSubmenuItems.some((item) => item !== false)) {
-            defaultGroups.filters = [
-              m(
-                MenuItem,
-                {label: 'Add filter...', icon: Icons.Filter},
-                filterSubmenuItems,
-              ),
-            ];
-          }
-        }
-
-        // Pivot menu group - use appropriate function based on column type
-        const columnInfo = {
-          name: columnPath,
-          title: isAggregateColumn
-            ? pivotValue?.func === 'COUNT'
-              ? 'Count'
-              : getColumnTitle(schema, rootSchema, sourceColumnPath)
-            : getColumnTitle(schema, rootSchema, columnPath),
-          filterType: columnFilterType,
-        };
-
-        if (enablePivotControls) {
-          if (pivot && isGroupByColumn) {
-            // GroupBy column in pivot mode
-            defaultGroups.pivot = renderPivotMenuForGroupByColumn(
-              schema,
-              rootSchema,
-              pivot,
-              columnInfo,
-              onPivotChanged,
-            );
-          } else if (pivot && isAggregateColumn) {
-            // Aggregate column in pivot mode
-            defaultGroups.pivot = renderPivotMenuForAggregateColumn(
-              schema,
-              rootSchema,
-              pivot,
-              columnInfo,
-              onPivotChanged,
-            );
-          } else {
-            // Normal column (not in pivot mode) - show "Pivot on this" option
-            defaultGroups.pivot = renderPivotMenuForNormalColumn(
-              columnInfo,
-              columnNames,
-              onPivotChanged,
-            );
-          }
-        }
-
-        // Fit to content button (separate from column management)
-        if (this.gridApi) {
-          const gridApi = this.gridApi;
-          defaultGroups.fitToContent = m(MenuItem, {
-            label: 'Fit to content',
-            icon: 'fit_width',
-            onclick: () => gridApi.autoFitColumn(columnPath),
-          });
-        }
-
-        // Column management options
-        // Column management is only available when not in pivot mode
-        // In pivot mode, column visibility is controlled by the pivot state
-        // (use "Add pivot..." and "Add aggregate" from the pivot menu instead)
-        const columnManagementItems: m.Children[] = [];
-
-        if (!pivot) {
-          // Check if this column is a parameterized column (e.g., skills.typescript)
-          const resolvedColumn = resolveColumnPath(
+      if (enablePivotControls) {
+        if (pivot && isGroupByColumn) {
+          // GroupBy column in pivot mode
+          defaultGroups.pivot = renderPivotMenuForGroupByColumn(
             schema,
             rootSchema,
-            columnPath,
+            pivot,
+            columnInfo,
+            onPivotChanged,
           );
-          const isParameterized =
-            resolvedColumn && resolvedColumn.paramKey !== undefined;
+        } else if (pivot && isAggregateColumn) {
+          // Aggregate column in pivot mode
+          defaultGroups.pivot = renderPivotMenuForAggregateColumn(
+            schema,
+            rootSchema,
+            pivot,
+            columnInfo,
+            onPivotChanged,
+          );
+        } else {
+          // Normal column (not in pivot mode) - show "Pivot on this" option
+          defaultGroups.pivot = renderPivotMenuForNormalColumn(
+            columnInfo,
+            columnNames,
+            onPivotChanged,
+          );
+        }
+      }
 
-          // For parameterized columns, add "Change parameter..." option
-          if (isParameterized && resolvedColumn.paramKey) {
-            // Extract the base path (e.g., "skills" from "skills.typescript")
-            const basePath = columnPath.slice(
-              0,
-              columnPath.length - resolvedColumn.paramKey.length - 1,
-            );
+      // Fit to content button (separate from column management)
+      if (this.gridApi) {
+        const gridApi = this.gridApi;
+        defaultGroups.fitToContent = m(MenuItem, {
+          label: 'Fit to content',
+          icon: 'fit_width',
+          onclick: () => gridApi.autoFitColumn(columnPath),
+        });
+      }
 
-            // Get available keys from the datasource
-            const availableKeys = dataSource.rows?.parameterKeys?.get(basePath);
+      // Column management options
+      // Column management is only available when not in pivot mode
+      // In pivot mode, column visibility is controlled by the pivot state
+      // (use "Add pivot..." and "Add aggregate" from the pivot menu instead)
+      const columnManagementItems: m.Children[] = [];
 
-            columnManagementItems.push(
-              m(
-                MenuItem,
-                {
-                  label: 'Change parameter...',
-                  icon: 'edit',
-                  onChange: (isOpen) => {
-                    if (isOpen === true) {
-                      this.parameterKeyColumns.add(basePath);
-                    } else {
-                      this.parameterKeyColumns.delete(basePath);
-                    }
-                  },
+      if (!pivot) {
+        // Check if this column is a parameterized column (e.g., skills.typescript)
+        const resolvedColumn = resolveColumnPath(
+          schema,
+          rootSchema,
+          columnPath,
+        );
+        const isParameterized =
+          resolvedColumn && resolvedColumn.paramKey !== undefined;
+
+        // For parameterized columns, add "Change parameter..." option
+        if (isParameterized && resolvedColumn.paramKey) {
+          // Extract the base path (e.g., "skills" from "skills.typescript")
+          const basePath = columnPath.slice(
+            0,
+            columnPath.length - resolvedColumn.paramKey.length - 1,
+          );
+
+          // Get available keys from the datasource
+          const availableKeys = dataSource.rows?.parameterKeys?.get(basePath);
+
+          columnManagementItems.push(
+            m(
+              MenuItem,
+              {
+                label: 'Change parameter...',
+                icon: 'edit',
+                onChange: (isOpen) => {
+                  if (isOpen === true) {
+                    this.parameterKeyColumns.add(basePath);
+                  } else {
+                    this.parameterKeyColumns.delete(basePath);
+                  }
                 },
-                m(ParameterizedColumnSubmenu, {
-                  pathPrefix: basePath,
-                  columns: columnNames,
-                  availableKeys,
-                  onSelect: (newColumnPath) => {
-                    // Replace the current column with the new one
-                    const newColumns = columnNames.map((col) =>
-                      col === columnPath ? newColumnPath : col,
-                    );
-                    onColumnsChanged(newColumns);
-                  },
-                }),
-              ),
-            );
-          }
-          // Remove current column (only if more than 1 visible)
-          if (columnNames.length > 1) {
-            columnManagementItems.push(
-              m(MenuItem, {
-                label: 'Remove column',
-                icon: Icons.Remove,
-                onclick: () => {
-                  const newColumns = columnNames.filter(
-                    (name) => name !== columnPath,
+              },
+              m(ParameterizedColumnSubmenu, {
+                pathPrefix: basePath,
+                columns: columnNames,
+                availableKeys,
+                onSelect: (newColumnPath) => {
+                  // Replace the current column with the new one
+                  const newColumns = columnNames.map((col) =>
+                    col === columnPath ? newColumnPath : col,
                   );
                   onColumnsChanged(newColumns);
                 },
               }),
-            );
-          }
-
-          // Build "Add column" menu from schema
-          const currentColumnIndex = columnNames.indexOf(columnPath);
-          const addColumnMenuItems = buildAddColumnMenuFromSchema(
-            schema,
-            rootSchema,
-            '',
-            0,
-            columnNames,
-            (columnName) => {
-              // Don't add if column already exists
-              if (columnNames.includes(columnName)) return;
-              // Add the new column after the current one
-              const newColumns = [...columnNames];
-              newColumns.splice(currentColumnIndex + 1, 0, columnName);
-              onColumnsChanged(newColumns);
-            },
-            {
-              dataSource,
-              parameterKeyColumns: this.parameterKeyColumns,
-            },
+            ),
           );
-
-          if (addColumnMenuItems.length > 0) {
-            columnManagementItems.push(
-              m(
-                MenuItem,
-                {
-                  label: 'Add column...',
-                  icon: 'add_column_right',
-                },
-                addColumnMenuItems,
-              ),
-            );
-          }
+        }
+        // Remove current column (only if more than 1 visible)
+        if (columnNames.length > 1) {
+          columnManagementItems.push(
+            m(MenuItem, {
+              label: 'Remove column',
+              icon: Icons.Remove,
+              onclick: () => {
+                const newColumns = columnNames.filter(
+                  (name) => name !== columnPath,
+                );
+                onColumnsChanged(newColumns);
+              },
+            }),
+          );
         }
 
-        if (columnManagementItems.length > 0) {
-          defaultGroups.columnManagement = columnManagementItems;
-        }
-
-        // Build final menu items using contextMenuRenderer if provided
-        const menuItems: m.Children = columnContextMenuRenderer
-          ? columnContextMenuRenderer(defaultGroups)
-          : [
-              defaultGroups.sorting,
-              m(MenuDivider),
-              defaultGroups.filters,
-              m(MenuDivider),
-              defaultGroups.fitToContent,
-              m(MenuDivider),
-              defaultGroups.columnManagement,
-              m(MenuDivider),
-              defaultGroups.pivot,
-            ];
-
-        // Render column title with chevron icons between parts
-        // For COUNT columns, show "Count" as the title
-        const displayTitleParts =
-          isAggregateColumn && pivotValue?.func === 'COUNT'
-            ? ['Count']
-            : columnTitleParts;
-        const columnTitleContent: m.Children = displayTitleParts.flatMap(
-          (part, i) => {
-            if (i === 0) return part;
-            return [
-              m(Icon, {
-                icon: 'chevron_right',
-                className: 'pf-data-grid__title-separator',
-              }),
-              part,
-            ];
+        // Build "Add column" menu from schema
+        const currentColumnIndex = columnNames.indexOf(columnPath);
+        const addColumnMenuItems = buildAddColumnMenuFromSchema(
+          schema,
+          rootSchema,
+          '',
+          0,
+          columnNames,
+          (columnName) => {
+            // Don't add if column already exists
+            if (columnNames.includes(columnName)) return;
+            // Add the new column after the current one
+            const newColumns = [...columnNames];
+            newColumns.splice(currentColumnIndex + 1, 0, columnName);
+            onColumnsChanged(newColumns);
+          },
+          {
+            dataSource,
+            parameterKeyColumns: this.parameterKeyColumns,
           },
         );
 
-        // Get the aggregate total value for this column (grand total across all pivot groups)
-        const aggregateTotalValue: SqlValue =
-          dataSource.rows?.aggregateTotals?.get(columnPath) ?? null;
+        if (addColumnMenuItems.length > 0) {
+          columnManagementItems.push(
+            m(
+              MenuItem,
+              {
+                label: 'Add column...',
+                icon: 'add_column_right',
+              },
+              addColumnMenuItems,
+            ),
+          );
+        }
+      }
 
-        // Build aggregation sub-content for pivot aggregate columns
-        // Don't show grand total for ANY aggregation (it's just an arbitrary value)
-        const subContent = isGroupByColumn
-          ? m(AggregationCell, {symbol: `GROUP ${displayColIndex + 1}`})
-          : columnAggregation
-            ? m(
-                AggregationCell,
-                {symbol: columnAggregation},
-                columnAggregation !== 'ANY'
-                  ? columnCellRenderer
-                    ? columnCellRenderer(aggregateTotalValue, {})
-                    : renderCell(aggregateTotalValue, columnPath)
-                  : undefined,
-              )
-            : undefined;
+      if (columnManagementItems.length > 0) {
+        defaultGroups.columnManagement = columnManagementItems;
+      }
 
-        const gridColumn: GridColumn = {
-          key: columnPath,
-          header: m(
-            GridHeaderCell,
-            {
-              className: isGroupByColumn
-                ? 'pf-data-grid__groupby-column'
+      // Build final menu items using contextMenuRenderer if provided
+      const menuItems: m.Children = columnContextMenuRenderer
+        ? columnContextMenuRenderer(defaultGroups)
+        : [
+            defaultGroups.sorting,
+            m(MenuDivider),
+            defaultGroups.filters,
+            m(MenuDivider),
+            defaultGroups.fitToContent,
+            m(MenuDivider),
+            defaultGroups.columnManagement,
+            m(MenuDivider),
+            defaultGroups.pivot,
+          ];
+
+      // Render column title with chevron icons between parts
+      // For COUNT columns, show "Count" as the title
+      const displayTitleParts =
+        isAggregateColumn && pivotValue?.func === 'COUNT'
+          ? ['Count']
+          : columnTitleParts;
+      const columnTitleContent: m.Children = displayTitleParts.flatMap(
+        (part, i) => {
+          if (i === 0) return part;
+          return [
+            m(Icon, {
+              icon: 'chevron_right',
+              className: 'pf-data-grid__title-separator',
+            }),
+            part,
+          ];
+        },
+      );
+
+      // Get the aggregate total value for this column (grand total across all pivot groups)
+      const aggregateTotalValue: SqlValue =
+        dataSource.rows?.aggregateTotals?.get(columnPath) ?? null;
+
+      // Build aggregation sub-content for pivot aggregate columns
+      // Don't show grand total for ANY aggregation (it's just an arbitrary value)
+      const subContent = isGroupByColumn
+        ? undefined
+        : columnAggregation
+          ? m(
+              AggregationCell,
+              {symbol: columnAggregation},
+              columnAggregation !== 'ANY'
+                ? columnCellRenderer
+                  ? columnCellRenderer(aggregateTotalValue, {})
+                  : renderCell(aggregateTotalValue, columnPath)
                 : undefined,
-              sort,
-              hintSortDirection:
-                sorting.direction === 'UNSORTED'
-                  ? undefined
-                  : sorting.direction,
-              onSort: sortControls
-                ? (direction) => {
-                    onSort({
-                      column: columnPath,
-                      direction,
-                    });
-                  }
-                : undefined,
-              menuItems:
-                menuItems !== undefined &&
-                Array.isArray(menuItems) &&
-                menuItems.length > 0
+            )
+          : undefined;
+
+      const gridColumn: GridColumn = {
+        key: columnPath,
+        header: m(
+          GridHeaderCell,
+          {
+            className: isGroupByColumn
+              ? 'pf-data-grid__groupby-column'
+              : undefined,
+            sort,
+            hintSortDirection:
+              sorting.direction === 'UNSORTED' ? undefined : sorting.direction,
+            onSort: sortControls
+              ? (direction) => {
+                  onSort({
+                    column: columnPath,
+                    direction,
+                  });
+                }
+              : undefined,
+            menuItems:
+              menuItems !== undefined &&
+              Array.isArray(menuItems) &&
+              menuItems.length > 0
+                ? menuItems
+                : menuItems !== undefined
                   ? menuItems
-                  : menuItems !== undefined
-                    ? menuItems
-                    : undefined,
-              subContent,
-            },
-            columnTitleContent,
-          ),
-          thickRightBorder: isLastGroupBy && !isDrillDown,
-          reorderable: (() => {
-            // In pivot mode (not drill-down), use separate handles for groupBy vs aggregate columns
-            if (pivot && !isDrillDown) {
-              if (isGroupByColumn) {
-                return {reorderGroup: 'pivot-groupby'};
-              } else if (isAggregateColumn) {
-                return {reorderGroup: 'pivot-aggregate'};
-              }
+                  : undefined,
+            subContent,
+          },
+          columnTitleContent,
+        ),
+        thickRightBorder: isLastGroupBy && !isDrillDown,
+        reorderable: (() => {
+          // In pivot mode (not drill-down), use separate handles for groupBy vs aggregate columns
+          if (pivot && !isDrillDown) {
+            if (isGroupByColumn) {
+              return {reorderGroup: 'pivot-groupby'};
+            } else if (isAggregateColumn) {
+              return {reorderGroup: 'pivot-aggregate'};
             }
-            return {reorderGroup: 'datagrid-columns'};
-          })(),
-        };
+          }
+          return {reorderGroup: 'datagrid-columns'};
+        })(),
+      };
 
-        return gridColumn;
-      },
-    );
+      return gridColumn;
+    });
 
     // Add drill-down column when in pivot mode (not during drill-down)
     if (showDrillDownColumn) {
