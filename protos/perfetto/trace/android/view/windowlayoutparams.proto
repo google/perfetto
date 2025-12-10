@@ -110,5 +110,6 @@ message InsetsFrameProviderProto {
 
 /* represents InsetsSizeOverride */
 message InsetsSizeOverrideProto {
-  optional InsetsProto insets_size = 1;
+  optional int32 windowType = 1;
+  optional InsetsProto insets_size = 2;
 }
