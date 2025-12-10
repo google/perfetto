@@ -59,7 +59,6 @@
   }
 
   &__groupby-column {
-    // A mix of 20% primary and 80% background
     background-color: color-mix(
       in srgb,
       var(--pf-color-background-secondary) 30%,
@@ -140,4 +139,18 @@
   color: var(--pf-color-text-muted);
   vertical-align: middle;
   margin: 0 2px;
+}
+
+.pf-datagrid__dd-cell {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  background-color: color-mix(
+    in srgb,
+    var(--pf-color-background-secondary) 30%,
+    transparent
+  );
+  * {
+    flex-grow: 1;
+  }
 }
