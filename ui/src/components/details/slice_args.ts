@@ -14,44 +14,63 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../widgets/menu';
-import {ArgsDict} from '../sql_utils/args';
+import {ArgsDict, ArgValue} from '../sql_utils/args';
 import {Trace} from '../../public/trace';
 import {renderArguments} from './args';
 import {extensions} from '../extensions';
-import {sqliteString} from '../../base/string_utils';
-import {SLICE_TABLE} from '../widgets/sql/table_definitions';
+import {SqlValue} from '../../trace_processor/query_result';
+import {Filter} from '../widgets/datagrid/model';
+
+// Convert ArgValue (which includes boolean) to SqlValue (which doesn't)
+function argValueToSqlValue(value: ArgValue): SqlValue {
+  if (typeof value === 'boolean') {
+    // Convert boolean to number for SQL compatibility
+    return value ? 1 : 0;
+  }
+  return value;
+}
+
+export interface SliceArgsOptions {
+  // Optional callback to open a table explorer with filters. If not provided,
+  // "Find slices with same arg value" menu item will be omitted.
+  readonly openTableExplorer?: (
+    tableName: string,
+    options?: {filters?: Filter[]},
+  ) => void;
+}
 
 // Renders slice arguments (key/value pairs) as a subtree.
-export function renderSliceArguments(trace: Trace, args: ArgsDict): m.Children {
+export function renderSliceArguments(
+  trace: Trace,
+  args: ArgsDict,
+  options?: SliceArgsOptions,
+): m.Children {
   return renderArguments(trace, args, (key, value) => {
-    const displayValue = value === null ? 'NULL' : String(value);
-    return [
-      m(MenuItem, {
-        label: 'Find slices with same arg value',
-        icon: 'search',
-        onclick: () => {
-          extensions.addLegacySqlTableTab(trace, {
-            table: SLICE_TABLE,
-            filters: [
-              {
-                op: (cols) => `${cols[0]} = ${sqliteString(displayValue)}`,
-                columns: [
-                  {
-                    column: 'display_value',
-                    source: {
-                      table: 'args',
-                      joinOn: {
-                        arg_set_id: 'arg_set_id',
-                        key: sqliteString(key),
-                      },
-                    },
-                  },
-                ],
-              },
-            ],
-          });
-        },
-      }),
+    const menuItems: m.Children[] = [];
+
+    // Only show "Find slices" if openTableExplorer callback is provided
+    if (options?.openTableExplorer) {
+      menuItems.push(
+        m(MenuItem, {
+          label: 'Find slices with same arg value',
+          icon: 'search',
+          onclick: () => {
+            // Use parameterized column filter: args.{key} = value
+            options.openTableExplorer!('slice', {
+              filters: [
+                {
+                  field: `args.${key}`,
+                  op: '=',
+                  value: argValueToSqlValue(value),
+                },
+              ],
+            });
+          },
+        }),
+      );
+    }
+
+    menuItems.push(
       m(MenuItem, {
         label: 'Visualize argument values',
         icon: 'query_stats',
@@ -59,6 +78,8 @@ export function renderSliceArguments(trace: Trace, args: ArgsDict): m.Children {
           extensions.addVisualizedArgTracks(trace, key);
         },
       }),
-    ];
+    );
+
+    return menuItems;
   });
 }

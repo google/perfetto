@@ -61,7 +61,6 @@ describe('JSON serialization/deserialization', () => {
       type: 'table',
       includeKey: '',
       importance: undefined,
-      getTableColumns: () => [],
       columns: [
         {
           name: 'name',

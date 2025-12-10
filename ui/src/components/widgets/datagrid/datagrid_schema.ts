@@ -79,7 +79,7 @@ export interface SchemaRef {
   readonly title?: string;
 
   // Override filter type for all columns accessed through this reference
-  readonly filterType?: 'quantitative' | 'text';
+  readonly columnType?: 'quantitative' | 'text';
 }
 
 /**
@@ -95,7 +95,7 @@ export interface ParameterizedColumnDef {
   // Plain string title for exports. Falls back to column path if not provided.
   readonly titleString?: string;
 
-  readonly filterType?: 'quantitative' | 'text';
+  readonly columnType?: 'quantitative' | 'text';
   readonly cellRenderer?: CellRenderer;
   readonly cellFormatter?: CellFormatter;
   readonly distinctValues?: boolean;
@@ -239,7 +239,7 @@ export function getColumnInfo(
         def: entry,
         paramKey,
         titleParts,
-        columnType: entry.filterType,
+        columnType: entry.columnType,
         cellRenderer: entry.cellRenderer,
         cellFormatter: entry.cellFormatter,
       };

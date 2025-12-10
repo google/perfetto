@@ -458,7 +458,7 @@ function buildAggregateColumnMenuFromSchema(
       const title = typeof entry.title === 'string' ? entry.title : columnName;
       // Get available aggregate functions based on filter type
       const availableFuncs = getAggregateFunctionsForColumnType(
-        entry.filterType,
+        entry.columnType,
       );
       const aggFuncItems = availableFuncs.map((func) => {
         const exists = isAggregateExists(existingAggregates, func, fullPath);

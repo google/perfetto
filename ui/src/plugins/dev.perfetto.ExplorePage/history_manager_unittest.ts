@@ -44,7 +44,6 @@ describe('HistoryManager', () => {
       description: 'Test table',
       type: 'table',
       importance: undefined,
-      getTableColumns: () => [],
       columns: [
         {
           name: 'id',
