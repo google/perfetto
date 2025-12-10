@@ -1,0 +1,454 @@
+{
+  "nodes": [
+    {
+      "nodeId": "0",
+      "type": 1,
+      "state": {},
+      "nextNodes": [
+        "2"
+      ]
+    },
+    {
+      "nodeId": "3",
+      "type": 1,
+      "state": {},
+      "nextNodes": [
+        "4"
+      ]
+    },
+    {
+      "nodeId": "551",
+      "type": 1,
+      "state": {},
+      "nextNodes": [
+        "552"
+      ]
+    },
+    {
+      "nodeId": "553",
+      "type": 1,
+      "state": {},
+      "nextNodes": []
+    },
+    {
+      "nodeId": "570",
+      "type": 11,
+      "state": {
+        "intervalNodes": [
+          "571",
+          "572"
+        ],
+        "filterNegativeDur": [
+          true,
+          true
+        ],
+        "partitionColumns": [
+          "utid"
+        ]
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "571",
+      "type": 1,
+      "state": {},
+      "nextNodes": [
+        "570"
+      ]
+    },
+    {
+      "nodeId": "572",
+      "type": 0,
+      "state": {
+        "sqlTable": "thread_state"
+      },
+      "nextNodes": [
+        "570"
+      ]
+    },
+    {
+      "nodeId": "573",
+      "type": 1,
+      "state": {},
+      "nextNodes": [
+        "574",
+        "1000"
+      ]
+    },
+    {
+      "nodeId": "574",
+      "type": 4,
+      "state": {
+        "primaryInputId": "573",
+        "groupByColumns": [
+          {
+            "name": "id",
+            "checked": false
+          },
+          {
+            "name": "ts",
+            "checked": false
+          },
+          {
+            "name": "dur",
+            "checked": false
+          },
+          {
+            "name": "name",
+            "checked": true
+          },
+          {
+            "name": "track_id",
+            "checked": false
+          },
+          {
+            "name": "process_name",
+            "checked": false
+          },
+          {
+            "name": "upid",
+            "checked": false
+          },
+          {
+            "name": "thread_name",
+            "checked": false
+          },
+          {
+            "name": "utid",
+            "checked": false
+          },
+          {
+            "name": "depth",
+            "checked": false
+          },
+          {
+            "name": "parent_id",
+            "checked": false
+          },
+          {
+            "name": "category",
+            "checked": false
+          },
+          {
+            "name": "arg_set_id",
+            "checked": false
+          }
+        ],
+        "aggregations": [
+          {
+            "column": {
+              "name": "dur",
+              "type": "DURATION",
+              "column": {
+                "name": "dur",
+                "type": {
+                  "kind": "duration"
+                }
+              },
+              "checked": false
+            },
+            "aggregationOp": "SUM",
+            "isValid": true
+          }
+        ]
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "1000",
+      "type": 10,
+      "state": {
+        "primaryInputId": "573",
+        "filters": [
+          {
+            "column": "id",
+            "op": "!=",
+            "value": "2"
+          }
+        ]
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "2",
+      "type": 4,
+      "state": {
+        "primaryInputId": "0",
+        "groupByColumns": [
+          {
+            "name": "id",
+            "checked": false
+          },
+          {
+            "name": "ts",
+            "checked": false
+          },
+          {
+            "name": "dur",
+            "checked": false
+          },
+          {
+            "name": "name",
+            "checked": true
+          },
+          {
+            "name": "track_id",
+            "checked": false
+          },
+          {
+            "name": "process_name",
+            "checked": false
+          },
+          {
+            "name": "upid",
+            "checked": false
+          },
+          {
+            "name": "thread_name",
+            "checked": false
+          },
+          {
+            "name": "utid",
+            "checked": false
+          },
+          {
+            "name": "depth",
+            "checked": false
+          },
+          {
+            "name": "parent_id",
+            "checked": false
+          },
+          {
+            "name": "category",
+            "checked": false
+          },
+          {
+            "name": "arg_set_id",
+            "checked": false
+          }
+        ],
+        "aggregations": []
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "4",
+      "type": 4,
+      "state": {
+        "primaryInputId": "3",
+        "groupByColumns": [
+          {
+            "name": "id",
+            "checked": false
+          },
+          {
+            "name": "ts",
+            "checked": false
+          },
+          {
+            "name": "dur",
+            "checked": false
+          },
+          {
+            "name": "name",
+            "checked": true
+          },
+          {
+            "name": "track_id",
+            "checked": false
+          },
+          {
+            "name": "process_name",
+            "checked": false
+          },
+          {
+            "name": "upid",
+            "checked": false
+          },
+          {
+            "name": "thread_name",
+            "checked": false
+          },
+          {
+            "name": "utid",
+            "checked": false
+          },
+          {
+            "name": "depth",
+            "checked": false
+          },
+          {
+            "name": "parent_id",
+            "checked": false
+          },
+          {
+            "name": "category",
+            "checked": false
+          },
+          {
+            "name": "arg_set_id",
+            "checked": false
+          }
+        ],
+        "aggregations": []
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "552",
+      "type": 10,
+      "state": {
+        "primaryInputId": "551",
+        "filters": [
+          {
+            "column": "id",
+            "op": "!=",
+            "value": "2"
+          }
+        ]
+      },
+      "nextNodes": []
+    }
+  ],
+  "rootNodeIds": [
+    "0",
+    "3",
+    "551",
+    "553",
+    "570",
+    "571",
+    "572",
+    "573",
+    "574",
+    "1000"
+  ],
+  "nodeLayouts": {
+    "0": {
+      "x": 100,
+      "y": 100
+    },
+    "1": {
+      "x": 350,
+      "y": 100
+    },
+    "2": {
+      "x": 76.1484375,
+      "y": 188.0234375
+    },
+    "3": {
+      "x": 362.859375,
+      "y": 101.4921875
+    },
+    "549": {
+      "x": 798.7830126589714,
+      "y": 99.24349228250257
+    },
+    "550": {
+      "x": 798.7830126589714,
+      "y": 99.24349228250257
+    },
+    "551": {
+      "x": 859.4752282951858,
+      "y": 104.95934400940322
+    },
+    "553": {
+      "x": 211.1284635723094,
+      "y": 568.3839052115
+    },
+    "567": {
+      "x": 994.0973344165097,
+      "y": 573.71586338365
+    },
+    "568": {
+      "x": 762.0717749350458,
+      "y": 555.7283465404379
+    },
+    "569": {
+      "x": 734.40191824056,
+      "y": 668.8272305781297
+    },
+    "570": {
+      "x": 942.7291538280197,
+      "y": 537.9764602860101
+    },
+    "571": {
+      "x": 732,
+      "y": 532
+    },
+    "572": {
+      "x": 735.3773220430992,
+      "y": 601.8049288561165
+    },
+    "573": {
+      "x": 1497.411079185505,
+      "y": 103.60168002001666
+    },
+    "574": {
+      "x": 1379.7669069006752,
+      "y": 236.2668641051663
+    },
+    "1000": {
+      "x": 1641.3250670565499,
+      "y": 239.88958550313643
+    }
+  },
+  "labels": [
+    {
+      "id": "788a5803-9708-4aea-acaf-d654e4026d11",
+      "x": 255.921875,
+      "y": 27.46875,
+      "width": 178.25390625,
+      "text": "Nodes can be docked and undocked."
+    },
+    {
+      "id": "7fc1f292-af1f-4a34-a9bb-de3e433906c8",
+      "x": 136.60546875,
+      "y": 269.828125,
+      "width": 401.546875,
+      "text": "Dropping the undocked node on the node above will dock it. \nDragging and moving the docked node around will undock it"
+    },
+    {
+      "id": "d15b3e29-de46-4bdc-a795-b728815ce286",
+      "x": 808.6597954452515,
+      "y": -8.325269541193606,
+      "width": 305.2174000758548,
+      "text": "To filter the table you don't have to create a filter node. Just interact with the table, and create a filter there. It will create a filter node. "
+    },
+    {
+      "id": "cb1975c3-8b61-4e20-86d2-acf72321e3f2",
+      "x": 782.6097106451501,
+      "y": 218.85584282772567,
+      "width": 385.6518480270645,
+      "text": "Filters can be added from the table and from the node. \nPlay around!"
+    },
+    {
+      "id": "94cae9ad-6709-4b98-8ee9-63c36c8e8dbe",
+      "x": 106.24879567420413,
+      "y": 471.14867193653623,
+      "width": 200,
+      "text": "Add a new node modifying the current node by clicking the + icon below the node"
+    },
+    {
+      "id": "d0e2a2c7-73c8-4922-bef3-072850334820",
+      "x": 322.9109560024159,
+      "y": 451.9646741357694,
+      "width": 200,
+      "text": "Any node can be added from the \"+ Add node\" button on on the left side of the graph"
+    },
+    {
+      "id": "02183418-c71a-45bc-ba5b-8767c6d4982b",
+      "x": 854.4752956389049,
+      "y": 412.01764482596695,
+      "width": 200,
+      "text": "Some nodes only take inputs from the ports on the left. This means that the inputs are treated equally."
+    },
+    {
+      "id": "657ebd94-8139-429b-99a3-747c61a06502",
+      "x": 1451.3038887963128,
+      "y": 6.357784675303883,
+      "width": 296.8092080234421,
+      "text": "Every node can have multiple children. This is useful for exploring the data from multiple angles"
+    }
+  ]
+}
