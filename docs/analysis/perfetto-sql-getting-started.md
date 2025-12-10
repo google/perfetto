@@ -2,8 +2,21 @@
 
 PerfettoSQL is the foundation of trace analysis in Perfetto. It is a dialect of
 SQL that allows you to query the contents of your traces as if they were a
-database. This page introduces the core concepts of PerfettoSQL and provides
-guidance on how to write queries.
+database. This page introduces the core concepts of trace querying with PerfettoSQL
+and provides guidance on how to write queries.
+
+## Overview of Trace Querying
+
+The Perfetto UI is a powerful tool for visual analysis, offering call stacks, timeline views, thread tracks, and slices. However, it also includes a robust SQL query engine (PerfettoSQL) that allows you to extract data programmatically.
+
+While the UI is powerful for myriad of analyses, users are able to write and execute queries within the Perfetto UI for multiple purposes such as:
+
+- Extracting performance data from traces.
+- Create custom visualizations (Debug tracks) to perform more complex analyses.
+- Creating derived metrics.
+- Identify performance bottlenecks using data-driven logic.
+
+A nice feature of Perfetto SQL is that the same queries that can be performed in a single trace can also be performed over a group of traces which allows for batch analysis of traces and is covered in the [batch trace processor](batch-trace-processor.md).
 
 ## Core Concepts
 
@@ -82,11 +95,33 @@ threads and `upid` (_unique_ pid) for processes. All references to threads and
 processes (e.g. in CPU scheduling data, thread tracks) uses `utid` and `upid`
 instead of the system identifiers.
 
-## Querying Traces
+### Querying traces in the Perfetto UI
 
 Now that you understand the core concepts, you can start writing queries.
 
-### Basic Queries
+Perfetto provides an SQL CLI directly within the UI for executing free-form queries. To access it:
+
+1. Open a trace in the [Perfetto UI](https://ui.perfetto.dev/).
+
+2. Click the **Query (SQL)** tab in the navigation bar (see image below).
+
+![Query (SQL) Tab](/docs/images/perfettosql_query_tab.png)
+
+Upon selecting this tab, the querying CLI will show up and you will be able to free-form write your PerfettoSQL queries, it will let you write queries, show query results and query history as shown in the image below.
+
+![Query CLI](/docs/images/perfetto-sql-cli-description.png)
+
+3. Enter your query in the Query CLI area and press Ctrl + Enter (or Cmd + Enter) to execute.
+
+Once executed query results will be shown within the same window.
+
+This method of querying is useful when you have some degree of knowledge about how and what to query.
+
+In order to find out how to write queries refer to the [Syntax guide](perfetto-sql-syntax.md), then in order to find available tables, modules, functions, etc. refer to the [Standard Library](stdlib-docs.autogen).
+
+A lot of times, it will be useful to transform query results into tracks to perform complex analyses within the UI, we encourage readers to take a look at [Debug Tracks](debug-tracks.md) for more information on how to achieve this.
+
+### Example: Executing a basic query
 
 The simplest way to explore a trace is to select from the raw tables. For
 example, to see the first 10 slices in a trace, you can run:
@@ -94,6 +129,11 @@ example, to see the first 10 slices in a trace, you can run:
 ```sql
 SELECT ts, dur, name FROM slice LIMIT 10;
 ```
+
+Which you can write and execute by clicking on **Run Query** within the PerfettoSQL CLI, below is an example from a trace.
+
+![Basic Query](/docs/images/perfetto-sql-basic-query.png)
+
 
 ### Getting More Context with JOINs
 
