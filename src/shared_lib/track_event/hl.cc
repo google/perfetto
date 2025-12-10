@@ -57,6 +57,7 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
       }
       case PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED: {
         auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstrInterned*>(*p);
+        PERFETTO_DCHECK(field->interned_type_id != 0);
         if (field->interned_type_id) {
           const void* str = field->str;
           size_t len = strlen(field->str);
@@ -70,9 +71,8 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
             ser->AppendString(kInternedStringNameFieldNumber, field->str);
           }
           msg->AppendVarInt(field->header.id, res.iid);
-        } else {
-          msg->AppendString(field->header.id, field->str);
         }
+        // If interned_type_id is zero, this is a user error, we drop the packet
         break;
       }
       case PERFETTO_TE_HL_PROTO_TYPE_BYTES: {
