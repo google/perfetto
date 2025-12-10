@@ -49,6 +49,7 @@ import {
 } from './query_builder/graph_utils';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {showExamplesModal} from './examples_modal';
+import {showStateOverwriteWarning} from './query_builder/widgets';
 
 registerCoreNodes();
 
@@ -877,7 +878,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     exportStateAsJson(state, trace);
   }
 
-  handleImport(attrs: ExplorePageAttrs) {
+  async handleImport(attrs: ExplorePageAttrs) {
     const {trace, sqlModulesPlugin, onStateUpdate} = attrs;
     const sqlModules = sqlModulesPlugin.getSqlModules();
     if (!sqlModules) return;
@@ -885,10 +886,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
-    input.onchange = (event) => {
+    input.onchange = async (event) => {
       const files = (event.target as HTMLInputElement).files;
       if (files && files.length > 0) {
         const file = files[0];
+
+        // Show warning modal after file is selected
+        const confirmed = await showStateOverwriteWarning();
+        if (!confirmed) return;
+
         importStateFromJson(
           file,
           trace,
@@ -968,6 +974,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     const selectedExample = await showExamplesModal();
     if (!selectedExample) return;
+
+    // Show warning modal after example is selected
+    const confirmed = await showStateOverwriteWarning();
+    if (!confirmed) return;
 
     try {
       // Fetch the JSON file from assets using assetSrc for proper path resolution
