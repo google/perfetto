@@ -473,6 +473,48 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testProtoWithInterning() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    final long fieldId = 1;
+    final long internedTypeId = 44; // InternedData.android_job_name
+    final String stringToIntern = "my_interned_string";
+
+    PerfettoTrace.instant(FOO_CATEGORY, "event_with_interning")
+        .beginProto()
+        .addFieldWithInterning(fieldId, stringToIntern, internedTypeId)
+        .endProto()
+        .emit();
+
+    byte[] traceBytes = session.close();
+
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    boolean hasInternedString = false;
+
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasInternedData()) {
+        InternedData internedData = packet.getInternedData();
+        if (internedData.getAndroidJobNameCount() > 0) {
+          if (internedData.getAndroidJobName(0).getName().equals(stringToIntern)) {
+            hasInternedString = true;
+          }
+        }
+      }
+
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(hasInternedString).isTrue();
+  }
+
+  @Test
   public void testProtoWithSlowPath() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 
