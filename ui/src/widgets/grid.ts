@@ -256,6 +256,9 @@ export interface GridColumn {
   readonly minWidth?: number;
   readonly thickRightBorder?: boolean;
   readonly reorderable?: {readonly reorderGroup: string};
+
+  // Whether the column is resizable by the user. Default = true.
+  readonly resizable?: boolean;
 }
 
 /**
@@ -1306,7 +1309,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         },
       },
       column.header ?? column.key,
-      renderResizeHandle(),
+      column.resizable !== false && renderResizeHandle(),
     );
   }
 }

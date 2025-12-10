@@ -46,6 +46,7 @@ export async function runQueryForQueryTable(
   sqlQuery: string,
   engine: Engine,
 ): Promise<QueryResponse> {
+  // await sleepMs(100);
   const startMs = performance.now();
 
   // TODO(primiano): once the controller thread is gone we should pass down

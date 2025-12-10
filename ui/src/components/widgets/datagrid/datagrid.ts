@@ -952,7 +952,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           },
           columnTitleContent,
         ),
-        thickRightBorder: isLastGroupBy && !isDrillDown,
+        thickRightBorder: isLastGroupBy && !isDrillDown && !showDrillDownColumn,
         reorderable: (() => {
           // In pivot mode (not drill-down), use separate handles for groupBy vs aggregate columns
           if (pivot && !isDrillDown) {
@@ -970,11 +970,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     });
 
     // Add drill-down column when in pivot mode (not during drill-down)
+    // Insert it after the last groupBy column, before aggregate columns
     if (showDrillDownColumn) {
-      virtualGridColumns.push({
+      const drillDownColumn: GridColumn = {
         key: '__drilldown__',
-        header: m(GridHeaderCell, ''),
-      });
+        minWidth: 0,
+        header: m(
+          GridHeaderCell,
+          {
+            className: 'pf-data-grid__groupby-column',
+          },
+          // 'Drilldown',
+        ),
+        thickRightBorder: true,
+        resizable: false,
+      };
+      // Insert after groupBy columns (at index pivot.groupBy.length)
+      virtualGridColumns.splice(pivot.groupBy.length, 0, drillDownColumn);
     }
 
     const rows = dataSource.rows;
@@ -1032,8 +1044,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
             // Build filter menu items if filtering is enabled
             if (filterControls) {
+              // For aggregate columns, use the aggregate alias (colPath) for filtering
+              // For normal columns, use the source path
+              const filterColumnPath = isColAggregate ? colPath : colSourcePath;
               const addFilterItem = renderCellFilterMenuItem({
-                columnPath: colSourcePath,
+                columnPath: filterColumnPath,
                 value,
                 colFilterType,
                 onFilterAdd,
@@ -1077,16 +1092,22 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           });
 
           // Add drill-down button cell when in pivot mode
+          // Insert it after groupBy columns, before aggregate columns
           if (showDrillDownColumn) {
             // Build the drillDown values from the groupBy columns
             const drillDownValues: RowDef = {};
             for (const colName of pivot.groupBy) {
               drillDownValues[colName] = row[colName];
             }
-            cellRow.push(
+            const drillDownCell = m(
+              '.pf-datagrid__dd-cell',
               m(Button, {
+                className:
+                  'pf-visible-on-row-hover pf-datagrid__drilldown-button',
                 icon: Icons.GoTo,
+                rounded: true,
                 title: 'Drill down into this group',
+                fillWidth: true,
                 onclick: () => {
                   onPivotChanged({
                     ...pivot,
@@ -1095,6 +1116,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 },
               }),
             );
+            // Insert after groupBy columns (at index pivot.groupBy.length)
+            cellRow.splice(pivot.groupBy.length, 0, drillDownCell);
           }
 
           return cellRow;
