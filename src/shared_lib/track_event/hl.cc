@@ -49,6 +49,11 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
     switch ((*p)->type) {
       case PERFETTO_TE_HL_PROTO_TYPE_CSTR: {
         auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstr*>(*p);
+        msg->AppendString(field->header.id, field->str);
+        break;
+      }
+      case PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstrInterned*>(*p);
         if (field->interned_type_id) {
           const void* str = field->str;
           size_t len = strlen(field->str);

@@ -149,8 +149,7 @@ message InternedData {
   repeated InternedString correlation_id_str = 43;
 
   // Interned job names for Android Job Names. These are separate from
-  // other strings because they are under app control and thus may have
-  // privacy implications.
+  // other strings because they are under app control.
   repeated AndroidJobName android_job_name = 44;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols

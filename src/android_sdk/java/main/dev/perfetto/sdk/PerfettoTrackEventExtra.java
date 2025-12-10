@@ -545,7 +545,7 @@ final class PerfettoTrackEventExtra {
       native_set_value(mPtr, id, val);
     }
 
-    public void setValue(long id, String val, long internedTypeId) {
+    public void setValueWithInterning(long id, String val, long internedTypeId) {
       native_set_value_with_interning(mPtr, id, val, internedTypeId);
     }
 

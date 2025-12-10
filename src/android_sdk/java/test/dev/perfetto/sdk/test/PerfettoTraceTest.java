@@ -474,7 +474,7 @@ public class PerfettoTraceTest {
 
     PerfettoTrace.instant(FOO_CATEGORY, "event_with_interning")
         .beginProto()
-        .addField(fieldId, stringToIntern, internedTypeId)
+        .addFieldWithInterning(fieldId, stringToIntern, internedTypeId)
         .endProto()
         .emit();
 

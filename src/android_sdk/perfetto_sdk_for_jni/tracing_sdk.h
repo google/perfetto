@@ -367,7 +367,7 @@ class ProtoField {
       } else if constexpr (std::is_same_v<ProtoT, double>) {
         return type_identity<PerfettoTeHlProtoFieldDouble>{};
       } else if constexpr (std::is_same_v<ProtoT, const char*>) {
-        return type_identity<PerfettoTeHlProtoFieldCstr>{};
+        return type_identity<PerfettoTeHlProtoFieldCstrInterned>{};
       } else {
         return type_identity<void>{};
       }
@@ -411,6 +411,7 @@ class ProtoField {
 
   void set_value(uint32_t id, T value, uint32_t interned_type_id) {
     if constexpr (std::is_same_v<T, const char*>) {
+      arg_.header.type = PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED;
       arg_.header.id = id;
       arg_.str = value;
       arg_.interned_type_id = interned_type_id;

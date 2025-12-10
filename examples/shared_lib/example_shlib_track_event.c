@@ -94,12 +94,6 @@ int main(void) {
                     PERFETTO_TE_PROTO_FIELD_CSTR(2, __FILE__),
                     PERFETTO_TE_PROTO_FIELD_VARINT(4, __LINE__))));
     PERFETTO_TE(
-        physics, PERFETTO_TE_INSTANT("name10"),
-        PERFETTO_TE_PROTO_FIELDS(PERFETTO_TE_PROTO_FIELD_CSTR_INTERNED(
-            perfetto_protos_TrackEvent_log_message_field_number,
-            "hello interned",
-            perfetto_protos_InternedData_log_message_body_field_number)));
-    PERFETTO_TE(
         physics, PERFETTO_TE_COUNTER(),
         PERFETTO_TE_COUNTER_TRACK("mycounter", PerfettoTeProcessTrackUuid()),
         PERFETTO_TE_INT_COUNTER(89));
