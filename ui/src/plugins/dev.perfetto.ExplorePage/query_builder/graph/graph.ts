@@ -258,26 +258,21 @@ function ensureNodeLayouts(
   attrs: GraphAttrs,
   nodeGraphApi: NodeGraphApi | null,
 ): void {
-  // Assign layouts to new nodes using smart placement
-  let nodeOffset = 0;
+  if (!nodeGraphApi) return;
+
+  let lastPlacement: Position | undefined;
+
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
       let placement: Position;
 
-      // Use NodeGraph API to find optimal non-overlapping placement
-      if (nodeGraphApi) {
-        // Create a simple node config without 'next' to get accurate placement
-        // The 'next' property would include docked children and affect size calculation
+      if (!lastPlacement) {
+        // First node - use API placement
         const canDockTop = shouldShowTopPort(qnode);
         const nodeTemplate: Omit<Node, 'x' | 'y'> = {
           id: qnode.nodeId,
           inputs: getInputLabels(qnode),
-          outputs: [
-            {
-              content: 'Output',
-              direction: 'bottom',
-            },
-          ],
+          outputs: [{content: 'Output', direction: 'bottom'}],
           canDockBottom: true,
           canDockTop,
           hue: getNodeHue(qnode),
@@ -286,22 +281,17 @@ function ensureNodeLayouts(
             node: qnode,
             onAddOperationNode: attrs.onAddOperationNode,
           }),
-          // Don't include 'next' here - we want placement for just this node
         };
         placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
       } else {
-        // Fallback to default position if API not ready yet
-        // Offset nodes horizontally by BATCH_NODE_HORIZONTAL_OFFSET
-        // when multiple nodes are created in a batch to prevent overlap
+        // Subsequent nodes - place to the right of previous
         placement = {
-          x:
-            LAYOUT_CONSTANTS.INITIAL_X +
-            nodeOffset * LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
-          y: LAYOUT_CONSTANTS.INITIAL_Y,
+          x: lastPlacement.x + LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
+          y: lastPlacement.y,
         };
-        nodeOffset++;
       }
 
+      lastPlacement = placement;
       attrs.onNodeLayoutChange(qnode.nodeId, placement);
     }
   }
