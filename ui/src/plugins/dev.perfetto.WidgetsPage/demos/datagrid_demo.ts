@@ -16,13 +16,143 @@ import m from 'mithril';
 import {DataGrid} from '../../../components/widgets/data_grid/data_grid';
 import {SchemaRegistry} from '../../../components/widgets/data_grid/column_schema';
 import {RowDef} from '../../../components/widgets/data_grid/common';
+import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
+import {SQLSchemaRegistry} from '../../../components/widgets/data_grid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
 import {Anchor} from '../../../widgets/anchor';
 
+// Cache for the SQL data source - created once when page is first opened with a trace
+let cachedSliceDataSource: SQLDataSource | undefined;
+
+// SQL schema for slice table with track join
+const SLICE_SQL_SCHEMA: SQLSchemaRegistry = {
+  slice: {
+    table: 'slice',
+    columns: {
+      id: {},
+      ts: {},
+      dur: {},
+      track_id: {},
+      track: {
+        ref: 'track',
+        foreignKey: 'track_id',
+      },
+      parent: {
+        ref: 'slice',
+        foreignKey: 'parent_id',
+      },
+      args: {
+        expression: (alias, key) =>
+          `extract_arg(${alias}.arg_set_id, '${key}')`,
+        parameterized: true,
+        parameterKeysQuery: (baseTable) => `
+          SELECT DISTINCT args.key
+          FROM ${baseTable}
+          JOIN args ON args.arg_set_id = ${baseTable}.arg_set_id
+          WHERE args.key IS NOT NULL
+          ORDER BY args.key
+          LIMIT 1000
+        `,
+      },
+      all_args: {
+        expression: (alias) =>
+          `__intrinsic_arg_set_to_json(${alias}.arg_set_id)`,
+      },
+    },
+  },
+  track: {
+    table: 'track',
+    columns: {
+      id: {},
+      name: {},
+    },
+  },
+};
+
+// UI schema for slice table (defines how columns are displayed)
+const SLICE_UI_SCHEMA: SchemaRegistry = {
+  slice: {
+    id: {
+      title: 'ID',
+      filterType: 'numeric',
+    },
+    ts: {
+      title: 'Timestamp',
+      filterType: 'numeric',
+    },
+    dur: {
+      title: 'Duration',
+      filterType: 'numeric',
+    },
+    track_id: {
+      title: 'Track ID',
+      filterType: 'numeric',
+    },
+    track: {
+      ref: 'track',
+      title: 'Track',
+    },
+    parent: {
+      ref: 'slice',
+      title: 'Parent',
+    },
+    args: {
+      parameterized: true,
+      title: 'Args',
+    },
+    all_args: {
+      title: 'All Args',
+      filterType: 'string',
+      cellRenderer: (value) => {
+        if (value === null || value === undefined) {
+          return m('span.pf-null-value', 'NULL');
+        }
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          if (typeof parsed !== 'object' || parsed === null) {
+            return String(value);
+          }
+          const entries = Object.entries(parsed);
+          if (entries.length === 0) {
+            return m('span.pf-empty-value', '{}');
+          }
+          return m(
+            'span.pf-args-list',
+            entries.map(([key, val], i) => [
+              i > 0 ? ', ' : '',
+              m('b', key),
+              ': ',
+              String(val),
+            ]),
+          );
+        } catch {
+          return String(value);
+        }
+      },
+    },
+  },
+  track: {
+    id: {
+      title: 'ID',
+      filterType: 'numeric',
+    },
+    name: {
+      title: 'Name',
+      filterType: 'string',
+    },
+  },
+};
+
 export function renderDataGrid(app: App): m.Children {
-  // Suppress unused variable warning
-  void app;
+  // Create the SQL data source once when the page is first opened with a trace
+  if (app.trace && !cachedSliceDataSource) {
+    cachedSliceDataSource = new SQLDataSource({
+      engine: app.trace.engine,
+      sqlSchema: SLICE_SQL_SCHEMA,
+      rootSchemaName: 'slice',
+    });
+  }
 
   return [
     m(
@@ -96,6 +226,36 @@ export function renderDataGrid(app: App): m.Children {
   },
 };`,
       ),
+    ]),
+
+    renderDocSection('SQL Data Source with Schema', [
+      m(
+        'p',
+        'SQLDataSource (with schema) generates optimized SQL queries with JOINs based on ' +
+          'column paths. This example queries the slice table and can join to the ' +
+          'track table via "track.name".',
+      ),
+      cachedSliceDataSource
+        ? renderWidgetShowcase({
+            renderWidget: ({...rest}) => {
+              return m(DataGrid, {
+                ...rest,
+                fillHeight: true,
+                schema: SLICE_UI_SCHEMA,
+                rootSchema: 'slice',
+                data: cachedSliceDataSource!,
+                initialColumns: ['id', 'ts', 'dur', 'track.name'],
+              });
+            },
+            initialOpts: {
+              enableSortControls: true,
+              enableFilterControls: true,
+              enablePivotControls: false,
+              showRowCount: true,
+            },
+            noPadding: true,
+          })
+        : m('.pf-empty-state', 'Load a trace to see the SQL DataGrid example'),
     ]),
   ];
 }

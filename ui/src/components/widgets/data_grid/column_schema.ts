@@ -321,9 +321,15 @@ export function getColumnTitleParts(
       if (typeof entry.title === 'function' && paramKey) {
         titleParts.push(entry.title(paramKey));
       } else if (typeof entry.title === 'string') {
-        titleParts.push(paramKey ? `${entry.title}[${paramKey}]` : entry.title);
+        titleParts.push(entry.title);
+        if (paramKey) {
+          titleParts.push(paramKey);
+        }
       } else {
-        titleParts.push(paramKey ? `${part}[${paramKey}]` : part);
+        titleParts.push(part);
+        if (paramKey) {
+          titleParts.push(paramKey);
+        }
       }
       break;
     } else if (isColumnDef(entry)) {

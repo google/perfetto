@@ -236,7 +236,10 @@ export function createAggregationTab(
           data = undefined;
           if (aggregation) {
             data = await aggregation?.prepareData(trace.engine);
-            dataSource = new SQLDataSource(trace.engine, data.tableName);
+            dataSource = new SQLDataSource({
+              engine: trace.engine,
+              baseQuery: data.tableName,
+            });
           }
         });
       }
