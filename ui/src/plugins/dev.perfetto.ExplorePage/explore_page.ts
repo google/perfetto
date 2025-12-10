@@ -31,11 +31,7 @@ import {UIFilter} from './query_builder/operations/filter';
 import {FilterNode} from './query_builder/nodes/filter_node';
 import {Trace} from '../../public/trace';
 
-import {
-  exportStateAsJson,
-  importStateFromJson,
-  deserializeState,
-} from './json_handler';
+import {exportStateAsJson, deserializeState} from './json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry, PreCreateState} from './query_builder/node_registry';
 import {QueryExecutionService} from './query_builder/query_execution_service';
@@ -48,7 +44,10 @@ import {
   getAllInputNodes,
 } from './query_builder/graph_utils';
 import {showExamplesModal} from './examples_modal';
-import {showStateOverwriteWarning} from './query_builder/widgets';
+import {
+  showStateOverwriteWarning,
+  showExportWarning,
+} from './query_builder/widgets';
 
 registerCoreNodes();
 
@@ -387,12 +386,20 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  async handleClearAllNodes(attrs: ExplorePageAttrs) {
-    // Clean up materialized tables for all nodes using CleanupManager
+  /**
+   * Cleans up all existing nodes (drops materialized tables) and clears
+   * the initialized nodes set. Used when replacing the entire graph state.
+   */
+  private async cleanupExistingNodes(rootNodes: QueryNode[]) {
     if (this.cleanupManager !== undefined) {
-      const allNodes = getAllNodes(attrs.state.rootNodes);
+      const allNodes = getAllNodes(rootNodes);
       await this.cleanupManager.cleanupNodes(allNodes);
     }
+    this.initializedNodes.clear();
+  }
+
+  async handleClearAllNodes(attrs: ExplorePageAttrs) {
+    await this.cleanupExistingNodes(attrs.state.rootNodes);
 
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
@@ -770,15 +777,28 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
-  handleExport(state: ExplorePageState, trace: Trace) {
+  async handleExport(state: ExplorePageState, trace: Trace) {
+    const confirmed = await showExportWarning();
+    if (!confirmed) return;
     exportStateAsJson(state, trace);
   }
 
-  async handleImport(attrs: ExplorePageAttrs) {
-    const {trace, sqlModulesPlugin, onStateUpdate} = attrs;
+  /**
+   * Common method to load state from a JSON string.
+   * Handles cleanup of existing nodes and state update.
+   */
+  private async loadStateFromJson(attrs: ExplorePageAttrs, json: string) {
+    const {trace, sqlModulesPlugin, state, onStateUpdate} = attrs;
     const sqlModules = sqlModulesPlugin.getSqlModules();
     if (!sqlModules) return;
 
+    await this.cleanupExistingNodes(state.rootNodes);
+
+    const newState = deserializeState(json, trace, sqlModules);
+    onStateUpdate(newState);
+  }
+
+  async handleImport(attrs: ExplorePageAttrs) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -791,14 +811,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         const confirmed = await showStateOverwriteWarning();
         if (!confirmed) return;
 
-        importStateFromJson(
-          file,
-          trace,
-          sqlModules,
-          (newState: ExplorePageState) => {
-            onStateUpdate(newState);
-          },
-        );
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const json = e.target?.result as string;
+          if (!json) {
+            console.error('The selected file is empty or could not be read.');
+            return;
+          }
+          await this.loadStateFromJson(attrs, json);
+        };
+        reader.readAsText(file);
       }
     };
     input.click();
@@ -864,10 +886,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   private async handleLoadExample(attrs: ExplorePageAttrs) {
-    const {trace, sqlModulesPlugin, onStateUpdate} = attrs;
-    const sqlModules = sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
-
     const selectedExample = await showExamplesModal();
     if (!selectedExample) return;
 
@@ -876,7 +894,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     if (!confirmed) return;
 
     try {
-      // Fetch the JSON file from assets using assetSrc for proper path resolution
       const response = await fetch(assetSrc(selectedExample.jsonPath));
       if (!response.ok) {
         throw new Error(
@@ -884,8 +901,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         );
       }
       const json = await response.text();
-      const newState = deserializeState(json, trace, sqlModules);
-      onStateUpdate(newState);
+      await this.loadStateFromJson(attrs, json);
     } catch (error) {
       console.error('Failed to load example:', error);
     }
