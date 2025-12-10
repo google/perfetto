@@ -35,6 +35,7 @@ import {redrawModal} from '../../../../../widgets/modal';
 import {setValidationError} from '../../node_issues';
 import {TableDescription} from '../../widgets';
 import {NodeDetailsAttrs} from '../../node_explorer_types';
+import {loadNodeDoc} from '../../node_doc_loader';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
@@ -233,23 +234,26 @@ export class TableSourceNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
+    // Show general documentation
+    const docContent = loadNodeDoc('table_source');
+
+    // If a table is selected, also show table-specific information
     if (this.state.sqlTable != null) {
       return m(
-        '.pf-stdlib-table-node',
-        m('.pf-details-box', m(TableDescription, {table: this.state.sqlTable})),
+        'div',
+        docContent,
+        m(
+          '.pf-table-source-selected',
+          m('h2', 'Selected Table'),
+          m(
+            '.pf-details-box',
+            m(TableDescription, {table: this.state.sqlTable}),
+          ),
+        ),
       );
     }
-    return m(
-      'div',
-      m(
-        'p',
-        'Provides direct access to trace data tables like slices, processes, threads, counters, and more.',
-      ),
-      m(
-        'p',
-        'Select a table from the modal dialog to see its description and available columns.',
-      ),
-    );
+
+    return docContent;
   }
 
   static deserializeState(

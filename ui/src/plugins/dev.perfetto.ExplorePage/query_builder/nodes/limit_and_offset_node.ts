@@ -23,11 +23,10 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {ListItem} from '../widgets';
+import {InlineField} from '../widgets';
 import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
 import {createErrorSections} from '../widgets';
-import {showModal} from '../../../../widgets/modal';
-import {TextInput} from '../../../../widgets/text_input';
+import {loadNodeDoc} from '../node_doc_loader';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
   limit?: number;
@@ -60,80 +59,6 @@ export class LimitAndOffsetNode implements QueryNode {
     return 'Limit and Offset';
   }
 
-  private showEditLimitModal(): void {
-    let tempValue = this.state.limit?.toString() ?? '10';
-
-    showModal({
-      title: 'Edit Limit',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            type: 'number',
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'Number of rows',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            const parsed = parseInt(tempValue.trim(), 10);
-            if (!isNaN(parsed) && parsed >= 0) {
-              this.state.limit = parsed;
-              this.state.onchange?.();
-            }
-          },
-        },
-      ],
-    });
-  }
-
-  private showEditOffsetModal(): void {
-    let tempValue = this.state.offset?.toString() ?? '0';
-
-    showModal({
-      title: 'Edit Offset',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            type: 'number',
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'Number of rows to skip',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            const parsed = parseInt(tempValue.trim(), 10);
-            if (!isNaN(parsed) && parsed >= 0) {
-              this.state.offset = parsed;
-              this.state.onchange?.();
-            }
-          },
-        },
-      ],
-    });
-  }
-
   nodeDetails(): NodeDetailsAttrs {
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
     const limitText = `Limit: ${this.state.limit ?? 10}`;
@@ -149,56 +74,59 @@ export class LimitAndOffsetNode implements QueryNode {
       ...createErrorSections(this),
     ];
 
-    // Limit and Offset list items
+    // Limit and Offset inline fields
     sections.push({
       content: m(
         '.pf-limit-offset-list',
-        m(ListItem, {
+        m(InlineField, {
+          label: 'Limit',
           icon: 'filter_list',
-          name: 'Limit',
-          description: this.state.limit?.toString() ?? '10',
-          actions: [
-            {
-              icon: 'edit',
-              onclick: () => this.showEditLimitModal(),
-            },
-          ],
+          value: this.state.limit?.toString() ?? '10',
+          placeholder: 'Number of rows',
+          type: 'number',
+          validate: (value: string) => {
+            const parsed = parseInt(value.trim(), 10);
+            return !isNaN(parsed) && parsed >= 0;
+          },
+          errorMessage: 'Must be a non-negative integer',
+          onchange: (value: string) => {
+            const parsed = parseInt(value.trim(), 10);
+            // Save the parsed value if valid, otherwise keep current value
+            this.state.limit =
+              !isNaN(parsed) && parsed >= 0 ? parsed : this.state.limit;
+            this.state.onchange?.();
+          },
         }),
-        m(ListItem, {
+        m(InlineField, {
+          label: 'Offset',
           icon: 'skip_next',
-          name: 'Offset',
-          description: this.state.offset?.toString() ?? '0',
-          actions: [
-            {
-              icon: 'edit',
-              onclick: () => this.showEditOffsetModal(),
-            },
-          ],
+          value: this.state.offset?.toString() ?? '0',
+          placeholder: 'Number of rows to skip',
+          type: 'number',
+          validate: (value: string) => {
+            const parsed = parseInt(value.trim(), 10);
+            return !isNaN(parsed) && parsed >= 0;
+          },
+          errorMessage: 'Must be a non-negative integer',
+          onchange: (value: string) => {
+            const parsed = parseInt(value.trim(), 10);
+            // Save the parsed value if valid, otherwise keep current value
+            this.state.offset =
+              !isNaN(parsed) && parsed >= 0 ? parsed : this.state.offset;
+            this.state.onchange?.();
+          },
         }),
       ),
     });
 
-    return {sections};
+    return {
+      info: 'Limits the number of rows returned and optionally skips rows. Use LIMIT to cap results and OFFSET to skip the first N rows. Useful for pagination or sampling data.',
+      sections,
+    };
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Limit the number of rows returned and optionally skip rows. Useful for sampling data or pagination.',
-      ),
-      m(
-        'p',
-        m('strong', 'Tip:'),
-        ' Combine with Sort to get meaningful results like "top 10 longest slices" or "rows 100-150".',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Set limit to 10 to see first 10 rows, or set offset to 100 and limit to 50 to see rows 100-150.',
-      ),
-    );
+    return loadNodeDoc('limit_and_offset');
   }
 
   validate(): boolean {

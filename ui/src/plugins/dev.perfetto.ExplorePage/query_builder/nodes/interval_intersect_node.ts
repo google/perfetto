@@ -38,6 +38,7 @@ import {
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle} from '../node_styling_widgets';
+import {loadNodeDoc} from '../node_doc_loader';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -237,7 +238,8 @@ export class IntervalIntersectNode implements QueryNode {
     this.secondaryInputs = {
       connections: new Map(),
       min: 2,
-      max: 'unbounded',
+      max: 6,
+      portNames: (portIndex: number) => `Input ${portIndex}`,
     };
     // Initialize connections from state.inputNodes
     for (let i = 0; i < state.inputNodes.length; i++) {
@@ -320,46 +322,7 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Find intervals that overlap across all connected sources. All inputs are treated equally - returns intervals that exist in all sources simultaneously.',
-      ),
-      m(
-        'p',
-        m('strong', 'Required columns:'),
-        ' All inputs must have ',
-        m('code', 'id'),
-        ', ',
-        m('code', 'ts'),
-        ', and ',
-        m('code', 'dur'),
-        ' columns.',
-      ),
-      m(
-        'p',
-        m('strong', 'Partition:'),
-        ' Optionally partition the intersection by common columns (e.g., ',
-        m('code', 'utid'),
-        '). When partitioned, intervals are matched only within the same partition values.',
-      ),
-      m(
-        'p',
-        m('strong', 'Duplicate columns:'),
-        " Columns that appear in multiple inputs will be excluded from the result. Use '+ -> Columns -> Modify' to rename conflicting columns before connecting.",
-      ),
-      m(
-        'p',
-        m('strong', 'Filter unfinished intervals:'),
-        " Enable per-input to exclude intervals that haven't completed yet.",
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Find CPU slices that occur during both a user gesture AND a network request.',
-      ),
-    );
+    return loadNodeDoc('interval_intersect');
   }
 
   private renderPartitionSelector(compact: boolean = false): m.Child {
@@ -570,6 +533,7 @@ export class IntervalIntersectNode implements QueryNode {
     // If no inputs connected, show empty state
     if (connectedInputs.length === 0) {
       return {
+        info: 'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
         sections: [
           {
             content: m(EmptyState, {
@@ -649,6 +613,7 @@ export class IntervalIntersectNode implements QueryNode {
     });
 
     return {
+      info: 'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
       sections,
     };
   }

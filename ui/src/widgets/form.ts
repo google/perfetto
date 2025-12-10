@@ -156,9 +156,9 @@ export class FormSection implements m.ClassComponent<FormSectionAttrs> {
   view({attrs, children}: m.CVnode<FormSectionAttrs>) {
     const {label, ...rest} = attrs;
     return m(
-      '.pf-form__section',
+      'fieldset.pf-form__section',
       rest,
-      m('.pf-form__section-label', label),
+      m('legend.pf-form__section-label', label),
       children,
     );
   }

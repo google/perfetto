@@ -35,6 +35,7 @@ import {
   MultiSelectDiff,
 } from '../widgets';
 import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
+import {loadNodeDoc} from '../node_doc_loader';
 import {createErrorSections} from '../widgets';
 import {NodeDetailsMessage} from '../node_styling_widgets';
 
@@ -124,7 +125,10 @@ export class SortNode implements QueryNode {
       content: this.renderSortCriteriaList(),
     });
 
-    return {sections};
+    return {
+      info: 'Orders rows by selected columns. Add columns to sort by, then drag to reorder. Click column chips to toggle between ascending (ASC) and descending (DESC) order.',
+      sections,
+    };
   }
 
   private renderColumnSelector(): m.Child {
@@ -226,26 +230,7 @@ export class SortNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Order rows by one or more columns, either ascending or descending. Drag to reorder sort columns.',
-      ),
-      m(
-        'p',
-        'When you specify multiple columns, the first is the primary sort, the second is the tiebreaker, and so on.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Sort by ',
-        m('code', 'ts'),
-        ' ascending, then by ',
-        m('code', 'dur'),
-        ' descending to see events in chronological order with longest durations first for each timestamp.',
-      ),
-    );
+    return loadNodeDoc('sort');
   }
 
   validate(): boolean {

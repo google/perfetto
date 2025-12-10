@@ -34,12 +34,13 @@ import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
 import {showModal} from '../../../../widgets/modal';
 import {Editor} from '../../../../widgets/editor';
-import {ListItem, OutlinedField, InlineEditList, InfoBox} from '../widgets';
+import {ListItem, OutlinedField, InlineEditList} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {NodeDetailsMessage} from '../node_styling_widgets';
 import {Icons} from '../../../../base/semantic_icons';
+import {loadNodeDoc} from '../node_doc_loader';
 
 // Maximum length for truncated SQL display
 const SQL_TRUNCATE_LENGTH = 50;
@@ -72,6 +73,25 @@ export class FilterNode implements QueryNode {
 
   get finalCols(): ColumnInfo[] {
     return this.sourceCols;
+  }
+
+  /**
+   * Check if a filter is valid for this node.
+   * A filter is valid if:
+   * 1. Its definition is structurally valid (has column, op, value etc)
+   * 2. The column it references actually exists in sourceCols
+   */
+  private isFilterValid(filter: Partial<UIFilter>): filter is UIFilter {
+    // First check if the filter structure is valid
+    if (!isFilterDefinitionValid(filter)) {
+      return false;
+    }
+
+    // Then check if the column exists in sourceCols
+    const columnExists = this.sourceCols.some(
+      (col) => col.name === filter.column,
+    );
+    return columnExists;
   }
 
   getTitle(): string {
@@ -112,7 +132,7 @@ export class FilterNode implements QueryNode {
 
     // Structured mode - only show valid filters in nodeDetails
     const validFilters =
-      this.state.filters?.filter(isFilterDefinitionValid) ?? [];
+      this.state.filters?.filter((f) => this.isFilterValid(f)) ?? [];
 
     if (validFilters.length === 0) {
       return {
@@ -170,16 +190,6 @@ export class FilterNode implements QueryNode {
     // Build sections
     const sections: NodeModifyAttrs['sections'] = [];
 
-    // Info box explaining nested filters (only in structured mode)
-    if (mode === 'structured') {
-      sections.push({
-        content: m(
-          InfoBox,
-          'To combine AND and OR logic (nested filters), use multiple filter nodes. Each filter node can use either AND or OR to combine its conditions.',
-        ),
-      });
-    }
-
     // Input section with buttons/inputs - only for freeform mode
     if (mode === 'freeform') {
       sections.push({
@@ -197,7 +207,14 @@ export class FilterNode implements QueryNode {
       content: this.renderFiltersList(),
     });
 
+    // Info text explaining nested filters (only shown in structured mode)
+    const info =
+      mode === 'structured'
+        ? 'To combine AND and OR logic (nested filters), use multiple filter nodes. Each filter node can use either AND or OR to combine its conditions.'
+        : 'Use a custom WHERE clause to filter rows. This mode allows for complex SQL expressions that structured filters cannot express.';
+
     return {
+      info,
       bottomLeftButtons,
       bottomRightButtons,
       sections,
@@ -242,7 +259,7 @@ export class FilterNode implements QueryNode {
     // Structured mode - use InlineEditList widget
     return m(InlineEditList<Partial<UIFilter>>, {
       items: this.state.filters ?? [],
-      validate: (filter) => isFilterDefinitionValid(filter as UIFilter),
+      validate: (filter) => this.isFilterValid(filter),
       renderControls: (filter, _index, onUpdate) =>
         this.renderFilterFormControls(filter, onUpdate),
       onUpdate: (filters) => {
@@ -396,37 +413,7 @@ export class FilterNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Keep only rows that match conditions you specify. Supports operators like ',
-        m('code', '='),
-        ', ',
-        m('code', '>'),
-        ', ',
-        m('code', '<'),
-        ', ',
-        m('code', 'glob'),
-        ', and null checks.',
-      ),
-      m(
-        'p',
-        'Combine multiple conditions with ',
-        m('code', 'AND'),
-        ' or ',
-        m('code', 'OR'),
-        ' logic. To use both AND and OR together, use multiple filter nodes.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Keep slices where ',
-        m('code', 'dur > 1000000'),
-        ' AND ',
-        m('code', 'name glob "*render*"'),
-      ),
-    );
+    return loadNodeDoc('filter');
   }
 
   validate(): boolean {
@@ -437,6 +424,11 @@ export class FilterNode implements QueryNode {
 
     if (this.primaryInput === undefined) {
       this.setValidationError('No input node connected');
+      return false;
+    }
+
+    if (!this.primaryInput.validate()) {
+      this.setValidationError('Previous node is invalid');
       return false;
     }
 
@@ -490,7 +482,7 @@ export class FilterNode implements QueryNode {
 
     // Structured mode - only use valid filters for query building
     const validFilters =
-      this.state.filters?.filter(isFilterDefinitionValid) ?? [];
+      this.state.filters?.filter((f) => this.isFilterValid(f)) ?? [];
 
     if (validFilters.length === 0) {
       return this.primaryInput.getStructuredQuery();

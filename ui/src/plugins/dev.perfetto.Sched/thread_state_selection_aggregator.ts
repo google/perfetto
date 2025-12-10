@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {BarChartData, ColumnDef, Sorting} from '../../components/aggregation';
+import {BarChartData, Sorting} from '../../components/aggregation';
 import {
+  AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
@@ -23,7 +24,13 @@ import {
 import {AreaSelection} from '../../public/selection';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {colorForThreadState} from './common';
 
 export class ThreadStateSelectionAggregator implements Aggregator {
@@ -36,6 +43,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         id: NUM,
         ts: LONG,
         dur: LONG,
+        ucpu: NUM_NULL,
         state: STR,
         utid: NUM,
       },
@@ -60,18 +68,17 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           create or replace perfetto table ${this.id} as
           select
             process.name as process_name,
-            process.pid,
+            process.pid as pid,
             thread.name as thread_name,
-            thread.tid,
+            thread.tid as tid,
             tstate.state as state,
-            sum(tstate.dur) AS total_dur,
-            sum(tstate.dur) / count() as avg_dur,
-            count() as occurrences,
-            cast(sum(dur) as real) / sum(sum(dur)) over () as percent_of_total
-          from ${iiTable.name} tstate
+            utid,
+            ucpu,
+            dur,
+            dur * 1.0 / sum(dur) OVER () as fraction_of_total
+          from (${iiTable.name}) tstate
           join thread using (utid)
           left join process using (upid)
-          group by utid, state
         `);
 
         const query = `
@@ -91,7 +98,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
         const states: BarChartData[] = [];
         for (let i = 0; it.valid(); ++i, it.next()) {
-          const name = it.state || 'Unknown';
+          const name = it.state ?? 'Unknown';
           states.push({
             title: `${name}: ${Duration.humanise(it.totalDur)}`,
             value: Number(it.totalDur),
@@ -107,53 +114,63 @@ export class ThreadStateSelectionAggregator implements Aggregator {
     };
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Process',
-        columnId: 'process_name',
+  getColumnDefinitions(): AggregatePivotModel {
+    return {
+      groupBy: ['utid', 'state'],
+      values: {
+        occurrences: {func: 'COUNT'},
+        process_name: {col: 'process_name', func: 'ANY'},
+        thread_name: {col: 'thread_name', func: 'ANY'},
+        tid: {col: 'tid', func: 'ANY'},
+        total_dur: {col: 'dur', func: 'SUM'},
+        fraction_of_total: {col: 'fraction_of_total', func: 'SUM'},
+        avg_dur: {col: 'dur', func: 'AVG'},
       },
-      {
-        title: 'PID',
-        columnId: 'pid',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Thread',
-        columnId: 'thread_name',
-      },
-      {
-        title: 'TID',
-        columnId: 'tid',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'State',
-        columnId: 'state',
-      },
-      {
-        title: 'Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'total_dur',
-        sum: true,
-      },
-      {
-        title: 'Wall duration %',
-        formatHint: 'PERCENT',
-        columnId: 'percent_of_total',
-      },
-      {
-        title: 'Avg Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'avg_dur',
-      },
-      {
-        title: 'Occurrences',
-        columnId: 'occurrences',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-    ];
+      columns: [
+        {
+          title: 'Process',
+          columnId: 'process_name',
+        },
+        {
+          title: 'PID',
+          columnId: 'pid',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'Thread',
+          columnId: 'thread_name',
+        },
+        {
+          title: 'TID',
+          columnId: 'tid',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'CPU',
+          columnId: 'ucpu',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'UTID',
+          columnId: 'utid',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'State',
+          columnId: 'state',
+        },
+        {
+          title: 'Wall duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'dur',
+        },
+        {
+          title: 'Wall duration %',
+          formatHint: 'PERCENT',
+          columnId: 'fraction_of_total',
+        },
+      ],
+    };
   }
 
   getTabName() {

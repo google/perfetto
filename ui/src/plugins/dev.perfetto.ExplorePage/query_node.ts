@@ -47,7 +47,11 @@ export enum NodeType {
   // Multi node operations
   kIntervalIntersect,
   kUnion,
-  kMerge,
+  kJoin,
+  kCreateSlices,
+
+  // Deprecated (kept for backward compatibility)
+  kMerge = kJoin,
 }
 
 export function singleNodeOperation(type: NodeType): boolean {
@@ -81,7 +85,11 @@ export interface SecondaryInputSpec {
 
   // Cardinality requirements for validation
   readonly min: number; // Minimum required (e.g., 2 for IntervalIntersect)
-  readonly max: number | 'unbounded'; // Maximum allowed (e.g., 2 for Merge, unbounded for IntervalIntersect)
+  readonly max: number | 'unbounded'; // Maximum allowed (e.g., 2 for Join, unbounded for IntervalIntersect)
+
+  // Port names for UI display
+  // Can be an array of names or a function that generates a name for a given port index
+  readonly portNames: string[] | ((portIndex: number) => string);
 }
 
 // All information required to create a new node.
@@ -134,7 +142,7 @@ export interface QueryNode {
   primaryInput?: QueryNode;
 
   // Secondary inputs from the side (horizontal connections)
-  // Used by multi-input operations (Union, Merge, IntervalIntersect) and
+  // Used by multi-input operations (Union, Join, IntervalIntersect) and
   // for side joins (AddColumns)
   secondaryInputs?: SecondaryInputSpec;
 
@@ -449,7 +457,7 @@ export function addConnection(
     }
     toNode.onPrevNodesUpdated?.();
   } else if (toNode.secondaryInputs) {
-    // Multi-source node (Union, Merge, IntervalIntersect)
+    // Multi-source node (Union, Join, IntervalIntersect)
     if (portIndex !== undefined) {
       // Set at specific port
       setSecondaryInput(toNode, portIndex, fromNode);

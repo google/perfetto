@@ -73,7 +73,7 @@ describe('TimeRangeSourceNode', () => {
       expect(node.state.isDynamic).toBe(false);
     });
 
-    it('should create node in dynamic mode', () => {
+    it('should create node in dynamic mode and update from selection', () => {
       const state: TimeRangeSourceState = {
         trace: createMockTrace(),
         start: Time.fromRaw(100n),
@@ -84,6 +84,9 @@ describe('TimeRangeSourceNode', () => {
       const node = new TimeRangeSourceNode(state);
 
       expect(node.state.isDynamic).toBe(true);
+      // Dynamic mode immediately updates from selection (falls back to full trace)
+      expect(node.state.start).toEqual(Time.fromRaw(0n));
+      expect(node.state.end).toEqual(Time.fromRaw(1000000n));
     });
   });
 
@@ -237,7 +240,7 @@ describe('TimeRangeSourceNode', () => {
       expect(serialized.isDynamic).toBe(false);
     });
 
-    it('should serialize dynamic node', () => {
+    it('should serialize dynamic node without start/end', () => {
       const node = new TimeRangeSourceNode({
         trace: createMockTrace(),
         start: Time.fromRaw(200n),
@@ -247,8 +250,9 @@ describe('TimeRangeSourceNode', () => {
 
       const serialized = node.serializeState();
 
-      expect(serialized.start).toBe('200');
-      expect(serialized.end).toBe('800');
+      // Dynamic nodes don't serialize start/end - they're populated from selection on load
+      expect(serialized.start).toBeUndefined();
+      expect(serialized.end).toBeUndefined();
       expect(serialized.isDynamic).toBe(true);
     });
 
@@ -296,10 +300,9 @@ describe('TimeRangeSourceNode', () => {
       expect(state.isDynamic).toBe(false);
     });
 
-    it('should deserialize dynamic node', () => {
+    it('should deserialize dynamic node without start/end', () => {
+      // Dynamic nodes are serialized without start/end
       const serialized: TimeRangeSourceSerializedState = {
-        start: '200',
-        end: '800',
         isDynamic: true,
       };
 
@@ -308,8 +311,9 @@ describe('TimeRangeSourceNode', () => {
         serialized,
       );
 
-      expect(state.start).toEqual(Time.fromRaw(200n));
-      expect(state.end).toEqual(Time.fromRaw(800n));
+      // Deserialize returns state with undefined start/end - constructor will populate
+      expect(state.start).toBeUndefined();
+      expect(state.end).toBeUndefined();
       expect(state.isDynamic).toBe(true);
     });
 
@@ -381,8 +385,11 @@ describe('TimeRangeSourceNode', () => {
 
       const clonedNode = originalNode.clone() as TimeRangeSourceNode;
 
+      // Dynamic node's start/end are updated to trace range (0/1000000) on construction
       expect(clonedNode.state.start).toEqual(originalNode.state.start);
       expect(clonedNode.state.end).toEqual(originalNode.state.end);
+      expect(clonedNode.state.start).toEqual(Time.fromRaw(0n));
+      expect(clonedNode.state.end).toEqual(Time.fromRaw(1000000n));
       expect(clonedNode.state.isDynamic).toBe(false); // Clone is always static
       expect(clonedNode.nodeId).not.toBe(originalNode.nodeId);
     });
@@ -415,8 +422,6 @@ describe('TimeRangeSourceNode', () => {
     it('should return "Current time range" for dynamic mode', () => {
       const node = new TimeRangeSourceNode({
         trace: createMockTrace(),
-        start: Time.fromRaw(100n),
-        end: Time.fromRaw(500n),
         isDynamic: true,
       });
 
@@ -488,12 +493,12 @@ describe('TimeRangeSourceNode', () => {
       expect(query?.sql?.sql).toBe('SELECT 0 AS id, 0 AS ts, 1000 AS dur');
     });
 
-    it('should serialize and deserialize round-trip correctly', () => {
+    it('should serialize and deserialize round-trip correctly for static node', () => {
       const originalNode = new TimeRangeSourceNode({
         trace: createMockTrace(),
         start: Time.fromRaw(12345n),
         end: Time.fromRaw(67890n),
-        isDynamic: true,
+        isDynamic: false,
       });
 
       const serialized = originalNode.serializeState();
@@ -506,6 +511,25 @@ describe('TimeRangeSourceNode', () => {
       expect(newNode.state.start).toEqual(originalNode.state.start);
       expect(newNode.state.end).toEqual(originalNode.state.end);
       expect(newNode.state.isDynamic).toBe(originalNode.state.isDynamic);
+    });
+
+    it('should serialize and deserialize round-trip for dynamic node', () => {
+      const originalNode = new TimeRangeSourceNode({
+        trace: createMockTrace(),
+        isDynamic: true,
+      });
+
+      const serialized = originalNode.serializeState();
+      const deserializedState = TimeRangeSourceNode.deserializeState(
+        createMockTrace(),
+        serialized,
+      );
+      const newNode = new TimeRangeSourceNode(deserializedState);
+
+      // Dynamic nodes get their start/end from trace selection, not serialized state
+      expect(newNode.state.start).toEqual(originalNode.state.start);
+      expect(newNode.state.end).toEqual(originalNode.state.end);
+      expect(newNode.state.isDynamic).toBe(true);
     });
   });
 
@@ -569,13 +593,11 @@ describe('TimeRangeSourceNode', () => {
 
       const node = new TimeRangeSourceNode({
         trace: mockTrace,
-        start: Time.fromRaw(100n),
-        end: Time.fromRaw(500n),
         isDynamic: true,
       });
 
-      // Advance time to trigger some polls
-      jest.advanceTimersByTime(600); // 3 polls (200ms interval)
+      // Advance time to trigger some polls (1 initial call + 3 from interval)
+      jest.advanceTimersByTime(600);
       const pollsBeforeDispose = callCount;
 
       node.dispose();
@@ -607,15 +629,10 @@ describe('TimeRangeSourceNode', () => {
 
       const node = new TimeRangeSourceNode({
         trace: mockTrace,
-        start: Time.fromRaw(0n),
-        end: Time.fromRaw(0n),
         isDynamic: true,
       });
 
-      // Advance timer to trigger first poll
-      jest.advanceTimersByTime(200);
-
-      // Values should be updated after first poll
+      // Values should be updated immediately on construction
       expect(node.state.start).toEqual(Time.fromRaw(100n));
       expect(node.state.end).toEqual(Time.fromRaw(500n));
 
@@ -670,15 +687,10 @@ describe('TimeRangeSourceNode', () => {
 
       const node = new TimeRangeSourceNode({
         trace: mockTrace,
-        start: Time.fromRaw(100n),
-        end: Time.fromRaw(500n),
         isDynamic: true,
       });
 
-      // Advance timer to trigger first poll
-      jest.advanceTimersByTime(200);
-
-      // Should fall back to full trace range after first poll
+      // Should fall back to full trace range immediately on construction
       expect(node.state.start).toEqual(mockTrace.traceInfo.start);
       expect(node.state.end).toEqual(mockTrace.traceInfo.end);
 

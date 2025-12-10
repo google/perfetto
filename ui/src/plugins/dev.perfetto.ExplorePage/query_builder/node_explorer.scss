@@ -14,11 +14,7 @@
 
 @import "./common.scss";
 
-// Consistent padding value used throughout
-$panel-padding: 1rem;
-
 .pf-exp-node-explorer {
-  background-color: var(--pf-color-surface);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -28,7 +24,7 @@ $panel-padding: 1rem;
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    padding: $panel-padding;
+    padding: 1rem;
   }
 
   &__title-row {
@@ -47,14 +43,14 @@ $panel-padding: 1rem;
         font-size: 1rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: var(--pf-color-text-secondary);
+        color: var(--pf-color-text-muted);
         margin: 0;
       }
     }
   }
 
   article {
-    padding: $panel-padding;
+    padding: 1rem;
     font-size: 0.875rem;
     flex-grow: 1;
     flex-shrink: 1;
@@ -62,7 +58,6 @@ $panel-padding: 1rem;
     overflow-y: auto;
     overflow-x: hidden;
     line-height: 1.5;
-    color: var(--pf-color-text);
 
     p {
       margin: 0 0 0.75rem 0;
@@ -84,7 +79,6 @@ $panel-padding: 1rem;
 
     strong {
       font-weight: 600;
-      color: var(--pf-color-text);
     }
 
     hr {
@@ -160,7 +154,7 @@ $panel-padding: 1rem;
   gap: 0.5rem;
 
   &:hover {
-    background-color: var(--pf-color-hover);
+    background-color: var(--pf-color-background-secondary);
   }
 
   span {
@@ -203,7 +197,7 @@ $panel-padding: 1rem;
   display: flex;
   justify-content: space-between;
   // Only vertical padding - horizontal padding comes from article
-  padding: $panel-padding 0;
+  padding: 1rem 0;
   gap: 0.5rem;
 }
 
@@ -227,7 +221,7 @@ $panel-padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: $panel-padding 0;
+  padding: 1rem 0;
   border-top: 1px solid var(--pf-color-border);
 
   &:first-child {

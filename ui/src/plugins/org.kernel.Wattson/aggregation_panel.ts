@@ -18,16 +18,19 @@ import {BarChartData, ColumnDef} from '../../components/aggregation';
 import {AggregationPanelAttrs} from '../../components/aggregation_panel';
 import {
   ColumnDefinition,
+  DataGridColumn,
   DataGridDataSource,
   Sorting,
-} from '../../components/widgets/data_grid/common';
+} from '../../components/widgets/datagrid/common';
 import {
   DataGrid,
   renderCell,
-} from '../../components/widgets/data_grid/data_grid';
+  columnsToSchema,
+} from '../../components/widgets/datagrid/datagrid';
 import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
+import {AggregatePivotModel} from '../../components/aggregation_adapter';
 
 export class WattsonAggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
@@ -46,29 +49,26 @@ export class WattsonAggregationPanel
   private renderTable(
     dataSource: DataGridDataSource,
     sorting: Sorting,
-    columns: ReadonlyArray<ColumnDef>,
+    columns: ReadonlyArray<ColumnDef> | AggregatePivotModel,
   ) {
-    return m(DataGrid, {
-      toolbarItemsLeft: m(
-        Box,
-        m(SegmentedButtons, {
-          options: [{label: 'µW'}, {label: 'mW'}],
-          selectedOption: this.scaleNumericData ? 0 : 1,
-          onOptionSelected: (index) => {
-            this.scaleNumericData = index === 0;
-          },
-          title: 'Select power units',
-        }),
-      ),
-      fillHeight: true,
-      columns: columns.map((c): ColumnDefinition => {
+    // TODO: Support pivot tables
+    if ('groupBy' in columns) {
+      return undefined;
+    }
+
+    const initialColumns: readonly DataGridColumn[] = columns.map((c) => ({
+      column: c.columnId,
+      aggregation: c.sum ? 'SUM' : undefined,
+    }));
+
+    const columnDefs: ColumnDefinition[] = columns.map(
+      (c): ColumnDefinition => {
         const displayTitle = this.scaleNumericData
           ? c.title.replace('estimated mW', 'estimated µW')
           : c.title;
         return {
           name: c.columnId,
           title: displayTitle,
-          aggregation: c.sum ? 'SUM' : undefined,
           filterType: filterTypeForColumnDef(c.formatHint),
           cellRenderer: (value) => {
             const formatHint = c.formatHint;
@@ -95,9 +95,30 @@ export class WattsonAggregationPanel
             }
           },
         };
-      }),
+      },
+    );
+
+    const {schema, rootSchema} = columnsToSchema(columnDefs);
+
+    return m(DataGrid, {
+      toolbarItemsLeft: m(
+        Box,
+        m(SegmentedButtons, {
+          options: [{label: 'µW'}, {label: 'mW'}],
+          selectedOption: this.scaleNumericData ? 0 : 1,
+          onOptionSelected: (index) => {
+            this.scaleNumericData = index === 0;
+          },
+          title: 'Select power units',
+        }),
+      ),
+      initialColumns,
+      fillHeight: true,
+      schema,
+      rootSchema,
       data: dataSource,
       initialSorting: sorting,
+      enablePivotControls: true,
     });
   }
 

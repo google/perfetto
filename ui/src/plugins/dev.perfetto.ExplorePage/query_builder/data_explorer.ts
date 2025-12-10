@@ -14,8 +14,15 @@
 
 import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
-import {DataGrid} from '../../../components/widgets/data_grid/data_grid';
+import {
+  DataGridDataSource,
+  CellRenderer,
+  ColumnDefinition,
+} from '../../../components/widgets/datagrid/common';
+import {
+  DataGrid,
+  columnsToSchema,
+} from '../../../components/widgets/datagrid/datagrid';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -23,13 +30,18 @@ import {Query, QueryNode, isAQuery} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {Icon} from '../../../widgets/icon';
-import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
 import {UIFilter, normalizeDataGridFilter} from './operations/filter';
 import {DataExplorerEmptyState} from './widgets';
+import {Trace} from '../../../public/trace';
+import {Timestamp} from '../../../components/widgets/timestamp';
+import {DurationWidget} from '../../../components/widgets/duration';
+import {Time, Duration} from '../../../base/time';
+import {ColumnInfo} from './column_info';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 export interface DataExplorerAttrs {
+  readonly trace: Trace;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
@@ -47,19 +59,56 @@ export interface DataExplorerAttrs {
   ) => void;
 }
 
+// Create cell renderer for timestamp columns
+function createTimestampCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
+    if (typeof value !== 'bigint') {
+      return String(value);
+    }
+    return m(Timestamp, {
+      trace,
+      ts: Time.fromRaw(value),
+    });
+  };
+}
+
+// Create cell renderer for duration columns
+function createDurationCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
+    if (typeof value !== 'bigint') {
+      return String(value);
+    }
+    return m(DurationWidget, {
+      trace,
+      dur: Duration.fromRaw(value),
+    });
+  };
+}
+
+// Get column info by name from the node's finalCols
+function getColumnInfo(
+  node: QueryNode,
+  columnName: string,
+): ColumnInfo | undefined {
+  return node.finalCols.find((col) => col.name === columnName);
+}
+
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
     return m(
-      '.pf-exp-data-explorer',
-      m(
-        '.pf-exp-data-explorer__header',
-        m(
-          '.pf-exp-data-explorer__title-row',
-          m('h2', 'Query data'),
-          m('.pf-exp-data-explorer__buttons', this.renderMenu(attrs)),
-        ),
-      ),
-      m('.pf-exp-data-explorer__content', this.renderContent(attrs)),
+      DetailsShell,
+      {
+        title: 'Query data',
+        buttons: this.renderMenu(attrs),
+        fillHeight: true,
+      },
+      this.renderContent(attrs),
     );
   }
 
@@ -93,20 +142,12 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         const target = e.target as HTMLInputElement;
         attrs.node.state.autoExecute = target.checked;
         attrs.onchange?.();
+        // Execute the query when auto-execute is toggled on
+        if (target.checked && isAQuery(attrs.query) && attrs.node.validate()) {
+          attrs.onExecute();
+        }
       },
     });
-
-    // Add materialization indicator icon with tooltip
-    const materializationIndicator =
-      attrs.node.state.materialized && attrs.node.state.materializationTableName
-        ? m(
-            Tooltip,
-            {
-              trigger: m(Icon, {icon: 'database'}),
-            },
-            `Materialized as ${attrs.node.state.materializationTableName}`,
-          )
-        : null;
 
     // Helper to create separator dot
     const separator = () =>
@@ -148,6 +189,21 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             attrs.node.state.materialized
           ),
         }),
+        m(MenuItem, {
+          label: 'Copy Materialized Table Name',
+          icon: 'content_copy',
+          onclick: () => {
+            const tableName = attrs.node.state.materializationTableName;
+            if (tableName) {
+              navigator.clipboard.writeText(tableName);
+            }
+          },
+          title: 'Copy the materialized table name to clipboard',
+          disabled: !(
+            attrs.node.state.materialized &&
+            attrs.node.state.materializationTableName
+          ),
+        }),
       ],
     );
 
@@ -155,11 +211,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       runButton,
       statusIndicator,
       queryStats,
-      queryStats !== null && materializationIndicator !== null
-        ? separator()
-        : null,
-      materializationIndicator,
-      materializationIndicator !== null ? separator() : null,
+      queryStats !== null ? separator() : null,
       autoExecuteSwitch,
       positionMenu,
     ];
@@ -258,28 +310,35 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             })
           : null;
 
-      const supportedOps = [
-        '=',
-        '!=',
-        '<',
-        '<=',
-        '>',
-        '>=',
-        'glob',
-        'in',
-        'not in',
-        'is null',
-        'is not null',
-      ] as const;
+      const columnDefs: ColumnDefinition[] = attrs.response.columns.map((c) => {
+        let cellRenderer: CellRenderer | undefined;
+
+        // Get column type information from the node
+        const columnInfo = getColumnInfo(attrs.node, c);
+        if (columnInfo) {
+          // Check if this is a timestamp column
+          if (columnInfo.type === 'TIMESTAMP') {
+            cellRenderer = createTimestampCellRenderer(attrs.trace);
+          }
+          // Check if this is a duration column
+          else if (columnInfo.type === 'DURATION') {
+            cellRenderer = createDurationCellRenderer(attrs.trace);
+          }
+        }
+
+        return {
+          name: c,
+          cellRenderer,
+        };
+      });
 
       return [
         warning,
         m(DataGrid, {
+          ...columnsToSchema(columnDefs),
           fillHeight: true,
-          columns: attrs.response.columns.map((c) => ({name: c})),
           data: attrs.dataSource,
-          showFiltersInToolbar: true,
-          supportedFilters: supportedOps,
+          structuredQueryCompatMode: true,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.

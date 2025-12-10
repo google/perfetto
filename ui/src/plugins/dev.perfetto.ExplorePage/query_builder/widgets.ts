@@ -31,6 +31,8 @@ import {
   MultiSelectDiff,
 } from '../../../widgets/multiselect';
 import {classNames} from '../../../base/classnames';
+import {Tooltip} from '../../../widgets/tooltip';
+import {showModal} from '../../../widgets/modal';
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -804,4 +806,147 @@ export class InlineEditList<T>
 
     return m('.pf-inline-edit-list', itemViews);
   }
+}
+
+// Widget for inline field with label on left and editable/read-only value on right
+// Simpler alternative to InlineEditList for single-value fields
+export interface InlineFieldAttrs {
+  label: string;
+  value: string;
+  icon?: string;
+  editable?: boolean; // If false, field is read-only (default: true)
+  placeholder?: string;
+  type?: string; // Input type (e.g., 'text', 'number')
+  onchange?: (value: string) => void;
+  validate?: (value: string) => boolean; // Returns true if valid
+  errorMessage?: string; // Tooltip message shown when validation fails
+}
+
+export class InlineField implements m.ClassComponent<InlineFieldAttrs> {
+  private inputValue: string = '';
+  private lastPropValue: string = '';
+
+  view({attrs}: m.Vnode<InlineFieldAttrs>) {
+    const {
+      label,
+      value,
+      icon,
+      editable = true,
+      placeholder,
+      type,
+      onchange,
+      validate,
+      errorMessage,
+    } = attrs;
+
+    // Only sync input value when the prop value actually changes (external update)
+    if (this.lastPropValue !== value) {
+      this.inputValue = value;
+      this.lastPropValue = value;
+    }
+
+    const isValid = validate ? validate(this.inputValue) : true;
+
+    return m(
+      '.pf-inline-field',
+      {
+        className: classNames(!isValid && 'pf-invalid'),
+      },
+      icon && m(Icon, {icon}),
+      m('span.pf-inline-field__label', label),
+      editable
+        ? m(TextInput, {
+            value: this.inputValue,
+            placeholder,
+            type,
+            oninput: (e: Event) => {
+              const newValue = (e.target as HTMLInputElement).value;
+              this.inputValue = newValue;
+              // Always call onchange - validation is just for visual feedback
+              onchange?.(newValue);
+            },
+          })
+        : m('span.pf-inline-field__value', value),
+      !isValid &&
+        m(
+          Tooltip,
+          {
+            trigger: m(Icon, {icon: 'warning'}),
+          },
+          errorMessage ?? 'Invalid value',
+        ),
+    );
+  }
+}
+
+// Select/Deselect All buttons widget
+export interface SelectDeselectAllButtonsAttrs {
+  readonly onSelectAll: () => void;
+  readonly onDeselectAll: () => void;
+}
+
+export class SelectDeselectAllButtons
+  implements m.ClassComponent<SelectDeselectAllButtonsAttrs>
+{
+  view({attrs}: m.CVnode<SelectDeselectAllButtonsAttrs>): m.Children {
+    const {onSelectAll, onDeselectAll} = attrs;
+
+    return m(
+      '.pf-select-deselect-all-buttons',
+      m(Button, {
+        label: 'Select All',
+        onclick: onSelectAll,
+        variant: ButtonVariant.Outlined,
+        compact: true,
+      }),
+      m(Button, {
+        label: 'Deselect All',
+        onclick: onDeselectAll,
+        variant: ButtonVariant.Outlined,
+        compact: true,
+      }),
+    );
+  }
+}
+
+/**
+ * Shows a confirmation modal warning the user that their current state will be lost.
+ * This modal is used when importing JSON or loading an example graph.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showStateOverwriteWarning(): Promise<boolean> {
+  return new Promise((resolve) => {
+    showModal({
+      key: 'state-overwrite-warning',
+      title: 'Warning: Current State Will Be Lost',
+      icon: 'warning',
+      content: m(
+        '.pf-state-overwrite-warning',
+        m(
+          'p',
+          'This action will replace your current graph with a new one. All current nodes and connections will be lost.',
+        ),
+        m('p', 'Do you want to continue?'),
+      ),
+      buttons: [
+        {
+          text: 'Cancel',
+          action: () => {
+            resolve(false);
+          },
+        },
+        {
+          text: 'Continue',
+          primary: true,
+          action: () => {
+            resolve(true);
+          },
+        },
+      ],
+      onClose: () => {
+        resolve(false);
+      },
+    });
+  });
 }

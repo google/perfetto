@@ -45,6 +45,7 @@ import {
   MultiSelectDiff,
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {loadNodeDoc} from '../node_doc_loader';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -54,7 +55,6 @@ export interface AggregationSerializedState {
     newColumnName?: string;
     percentile?: number;
     isValid?: boolean;
-    isEditing?: boolean;
   }[];
   comment?: string;
 }
@@ -70,7 +70,6 @@ export interface Aggregation {
   newColumnName?: string;
   percentile?: number;
   isValid?: boolean;
-  isEditing?: boolean;
 }
 
 export class AggregationNode implements QueryNode {
@@ -87,7 +86,12 @@ export class AggregationNode implements QueryNode {
       return [];
     }
     const selected = this.state.groupByColumns.filter((c) => c.checked);
+    // IMPORTANT: Only include VALID aggregations in output
+    // This prevents incomplete/invalid aggregations from propagating downstream
     for (const agg of this.state.aggregations) {
+      if (!validateAggregation(agg)) {
+        continue; // Skip invalid aggregations
+      }
       const resultType = getAggregationResultType(agg);
       const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
       selected.push(
@@ -239,7 +243,7 @@ export class AggregationNode implements QueryNode {
     const details: m.Child[] = [
       m(
         LabeledControl,
-        {label: 'Group by:'},
+        {label: 'Grouping columns:'},
         m(OutlinedMultiSelect, {
           label,
           options: groupByOptions,
@@ -290,7 +294,10 @@ export class AggregationNode implements QueryNode {
       content: this.renderAggregationsList(),
     });
 
-    return {sections};
+    return {
+      info: 'Groups rows by selected columns and computes aggregations (SUM, COUNT, AVG, etc.). Select columns to group by, then add aggregations to compute summary statistics.',
+      sections,
+    };
   }
 
   private renderGroupBySection(): m.Child {
@@ -310,7 +317,7 @@ export class AggregationNode implements QueryNode {
 
     return m(
       LabeledControl,
-      {label: 'GROUP BY columns:'},
+      {label: 'Grouping columns:'},
       m(OutlinedMultiSelect, {
         label,
         options: groupByOptions,
@@ -338,13 +345,19 @@ export class AggregationNode implements QueryNode {
         this.renderAggregationFormControls(agg, onUpdate),
       onUpdate: (aggregations) => {
         this.state.aggregations = aggregations;
+        this.state.onchange?.();
       },
       onValidChange: () => {
+        // Also trigger when validation state changes (invalid -> valid)
         this.state.onchange?.();
       },
       addButtonLabel: 'Add aggregation',
       addButtonIcon: 'add',
-      emptyItem: () => ({}),
+      emptyItem: () => ({
+        aggregationOp: 'COUNT(*)',
+        // Don't pre-fill newColumnName - let the placeholder show
+        newColumnName: undefined,
+      }),
     });
   }
 
@@ -467,49 +480,7 @@ export class AggregationNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Compute summary statistics like ',
-        m('code', 'SUM'),
-        ', ',
-        m('code', 'COUNT'),
-        ', ',
-        m('code', 'MIN'),
-        ', ',
-        m('code', 'MAX'),
-        ', ',
-        m('code', 'AVG'),
-        ', ',
-        m('code', 'MEDIAN'),
-        ', or ',
-        m('code', 'PERCENTILE'),
-        '. Optionally group rows by one or more columns.',
-      ),
-      m(
-        'p',
-        'Add aggregation functions to create new columns. Optionally select GROUP BY columns to group the results.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example 1:'),
-        ' Aggregate without grouping: ',
-        m('code', 'COUNT(*)'),
-        ' to count all rows, or ',
-        m('code', 'AVG(dur)'),
-        ' to get average duration across all slices.',
-      ),
-      m(
-        'p',
-        m('strong', 'Example 2:'),
-        ' Group slices by ',
-        m('code', 'name'),
-        ' and compute ',
-        m('code', 'AVG(dur)'),
-        ' to find average duration per slice name.',
-      ),
-    );
+    return loadNodeDoc('aggregation');
   }
 
   clone(): QueryNode {
@@ -629,7 +600,6 @@ export class AggregationNode implements QueryNode {
         newColumnName: a.newColumnName,
         percentile: a.percentile,
         isValid: a.isValid,
-        isEditing: a.isEditing,
       })),
     };
   }
@@ -652,7 +622,6 @@ export class AggregationNode implements QueryNode {
         newColumnName: a.newColumnName,
         percentile: a.percentile,
         isValid: a.isValid,
-        isEditing: a.isEditing,
       };
     });
     return {
@@ -746,7 +715,8 @@ export function placeholderNewColumnName(agg: Aggregation) {
   }
 
   if (agg.column && agg.aggregationOp) {
-    return `${agg.column.name}_${agg.aggregationOp.toLowerCase()}`;
+    // Use operation_column format (e.g., "sum_value") to match UI placeholder
+    return `${agg.aggregationOp.toLowerCase()}_${agg.column.name}`;
   }
 
   // Fallback for incomplete aggregations
@@ -782,6 +752,7 @@ function getAggregationResultType(agg: Aggregation): PerfettoSqlType {
   switch (agg.aggregationOp) {
     case 'COUNT':
     case 'COUNT(*)':
+    case 'COUNT_DISTINCT':
       return PerfettoSqlTypes.INT;
 
     case 'SUM':
@@ -817,6 +788,11 @@ function getAggregationDisplay(agg: Aggregation): string {
   if (isCountAll(agg)) {
     return 'COUNT(*)';
   } else if (
+    agg.aggregationOp === 'COUNT_DISTINCT' &&
+    agg.column !== undefined
+  ) {
+    return `COUNT(DISTINCT ${agg.column.name})`;
+  } else if (
     agg.aggregationOp === 'PERCENTILE' &&
     agg.percentile !== undefined
   ) {
@@ -829,6 +805,7 @@ function getAggregationDisplay(agg: Aggregation): string {
 const AGGREGATION_OPS = [
   'COUNT',
   'COUNT(*)',
+  'COUNT_DISTINCT',
   'SUM',
   'MIN',
   'MAX',
