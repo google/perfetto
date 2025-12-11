@@ -208,14 +208,27 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       ],
     );
 
-    return [
+    // Collect all items that should have separators between them
+    const itemsWithSeparators = [
       runButton,
       statusIndicator,
       queryStats,
-      queryStats !== null ? separator() : null,
       autoExecuteSwitch,
-      positionMenu,
-    ];
+    ].filter((item) => item !== null && item !== false);
+
+    // Add separators between items
+    const menuItems: m.Children = [];
+    for (let i = 0; i < itemsWithSeparators.length; i++) {
+      menuItems.push(itemsWithSeparators[i]);
+      if (i < itemsWithSeparators.length - 1) {
+        menuItems.push(separator());
+      }
+    }
+
+    // Add menu at the end without a separator
+    menuItems.push(positionMenu);
+
+    return menuItems;
   }
 
   private renderContent(attrs: DataExplorerAttrs): m.Children {

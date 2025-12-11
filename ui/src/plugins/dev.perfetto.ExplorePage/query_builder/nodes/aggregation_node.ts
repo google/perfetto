@@ -46,6 +46,7 @@ import {
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {loadNodeDoc} from '../node_doc_loader';
+import {ColumnName, NodeDetailsSpacer} from '../node_styling_widgets';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -226,54 +227,78 @@ export class AggregationNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
-    const groupByOptions: MultiSelectOption[] = this.state.groupByColumns.map(
-      (col) => ({
-        id: col.name,
-        name: col.name,
-        checked: col.checked,
-      }),
+    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
+
+    const details: m.Child[] = [];
+
+    // Display group by columns
+    if (selectedGroupBy.length > 0) {
+      details.push(
+        m(
+          'div',
+          'Group by: ',
+          selectedGroupBy.map((c, index) => [
+            ColumnName(c.name),
+            index < selectedGroupBy.length - 1 ? ', ' : '',
+          ]),
+        ),
+      );
+    } else {
+      details.push(m('div', 'Group by: None'));
+    }
+
+    const validAggregations = this.state.aggregations.filter(
+      (agg) => agg.isValid,
     );
 
-    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
-    const label =
-      selectedGroupBy.length > 0
-        ? selectedGroupBy.map((c) => c.name).join(', ')
-        : 'None';
+    // Add spacing before aggregations if there are any
+    if (validAggregations.length > 0) {
+      details.push(NodeDetailsSpacer());
+    }
 
-    const details: m.Child[] = [
-      m(
-        LabeledControl,
-        {label: 'Grouping columns:'},
-        m(OutlinedMultiSelect, {
-          label,
-          options: groupByOptions,
-          showNumSelected: false,
-          compact: true,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            for (const diff of diffs) {
-              const column = this.state.groupByColumns.find(
-                (c) => c.name === diff.id,
-              );
-              if (column) {
-                column.checked = diff.checked;
-              }
-            }
-            this.state.onchange?.();
-          },
-        }),
-      ),
-    ];
+    // Show each aggregation on its own line with styled column names
+    validAggregations.forEach((agg) => {
+      const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
 
-    const aggs = this.state.aggregations
-      .filter((agg) => agg.isValid)
-      .map((agg) => {
-        const aggDisplay = getAggregationDisplay(agg);
-        return `${aggDisplay} AS ${agg.newColumnName ?? placeholderNewColumnName(agg)}`;
-      });
-
-    // Show each aggregation on its own line
-    aggs.forEach((agg) => {
-      details.push(m('div', agg));
+      if (isCountAll(agg)) {
+        details.push(m('div', 'COUNT(*) AS ', ColumnName(resultName)));
+      } else if (
+        agg.aggregationOp === 'COUNT_DISTINCT' &&
+        agg.column !== undefined
+      ) {
+        details.push(
+          m(
+            'div',
+            'COUNT(DISTINCT ',
+            ColumnName(agg.column.name),
+            ') AS ',
+            ColumnName(resultName),
+          ),
+        );
+      } else if (
+        agg.aggregationOp === 'PERCENTILE' &&
+        agg.percentile !== undefined
+      ) {
+        details.push(
+          m(
+            'div',
+            'PERCENTILE(',
+            ColumnName(agg.column?.name ?? ''),
+            `, ${agg.percentile}) AS `,
+            ColumnName(resultName),
+          ),
+        );
+      } else if (agg.column !== undefined) {
+        details.push(
+          m(
+            'div',
+            `${agg.aggregationOp}(`,
+            ColumnName(agg.column.name),
+            ') AS ',
+            ColumnName(resultName),
+          ),
+        );
+      }
     });
 
     return {
@@ -781,25 +806,6 @@ function getAggregationResultType(agg: Aggregation): PerfettoSqlType {
 // Helper to check if an aggregation is COUNT(*)
 function isCountAll(agg: Aggregation): boolean {
   return agg.aggregationOp === 'COUNT(*)';
-}
-
-// Helper to get display string for an aggregation
-function getAggregationDisplay(agg: Aggregation): string {
-  if (isCountAll(agg)) {
-    return 'COUNT(*)';
-  } else if (
-    agg.aggregationOp === 'COUNT_DISTINCT' &&
-    agg.column !== undefined
-  ) {
-    return `COUNT(DISTINCT ${agg.column.name})`;
-  } else if (
-    agg.aggregationOp === 'PERCENTILE' &&
-    agg.percentile !== undefined
-  ) {
-    return `PERCENTILE(${agg.column?.name}, ${agg.percentile})`;
-  } else {
-    return `${agg.aggregationOp}(${agg.column?.name})`;
-  }
 }
 
 const AGGREGATION_OPS = [
