@@ -20,6 +20,12 @@ export interface ExampleGraph {
 
 export const EXAMPLE_GRAPHS: ExampleGraph[] = [
   {
+    name: 'Learning',
+    description:
+      'Interactive tutorial covering node docking, filtering, adding nodes, and multi-child workflows',
+    jsonPath: 'assets/explore_page/examples/learning.json',
+  },
+  {
     name: 'Slice Analysis Pipeline',
     description:
       'Example data analysis of finding the total duration of specific process slices when any CPU was active ',
