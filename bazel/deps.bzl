@@ -21,15 +21,14 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 #   git show --date=raw COMMIT
 
 def perfetto_deps():
-    # Note: this is more recent than the version of protobuf we use in the
-    # GN and Android builds. This is because older versions of protobuf don't
-    # support Bazel.
+    # For bzlmod users, protobuf is provided via MODULE.bazel.
+    # For non-bzlmod users, this provides protobuf v29.0.
     _add_repo_if_not_existing(
         http_archive,
         name = "com_google_protobuf",
-        strip_prefix = "protobuf-3.10.1",
-        url = "https://github.com/protocolbuffers/protobuf/archive/v3.10.1.tar.gz",
-        sha256 = "6adf73fd7f90409e479d6ac86529ade2d45f50494c5c10f539226693cb8fe4f7",
+        strip_prefix = "protobuf-29.0",
+        url = "https://github.com/protocolbuffers/protobuf/archive/v29.0.tar.gz",
+        sha256 = "10a0d58f39a1a909e95e00e8ba0b5b1dc64d02997f741151953a2b3659f6e78c",
     )
 
     _add_repo_if_not_existing(

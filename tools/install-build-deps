@@ -183,11 +183,19 @@ BUILD_DEPS_HOST = [
         'https://android.googlesource.com/platform/external/googletest.git',
         '609281088cfefc76f9d0ce82e1ff6c30cc3591e5', 'all', 'all'),
 
-    # Keep in sync with Chromium's //third_party/protobuf.
+    # Keep in sync with gRPC's third_party/protobuf.
     Dependency(
         'buildtools/protobuf',
         'https://chromium.googlesource.com/external/github.com/protocolbuffers/protobuf.git',
-        'f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c',  # refs/tags/v21.12
+        '2434ef2adf0c74149b9d547ac5fb545a1ff8b6b5',  # refs/tags/v26.1
+        'all',
+        'all'),
+
+    # Required by protobuf v22+ and gRPC.
+    Dependency(
+        'buildtools/abseil-cpp',
+        'https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git',
+        '4a2c63365eff8823a5221db86ef490e828306f9d',  # 20240116.0
         'all',
         'all'),
 
