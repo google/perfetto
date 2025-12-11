@@ -41,6 +41,14 @@ config_setting(
     visibility = ["//visibility:public"],
 )
 
+config_setting(
+    name = "os_freebsd",
+    constraint_values = [
+        "@platforms//os:freebsd",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 # Note this config does not imply MSVC.
 config_setting(
     name = "os_windows",

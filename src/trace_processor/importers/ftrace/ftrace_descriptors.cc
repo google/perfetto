@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 591> descriptors{{
+std::array<FtraceMessageDescriptor, 600> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -522,10 +522,11 @@ std::array<FtraceMessageDescriptor, 591> descriptors{{
     },
     {
         "workqueue_activate_work",
-        1,
+        2,
         {
             {},
             {"work", ProtoSchemaType::kUint64},
+            {"function", ProtoSchemaType::kUint64},
         },
     },
     {
@@ -548,14 +549,15 @@ std::array<FtraceMessageDescriptor, 591> descriptors{{
     },
     {
         "workqueue_queue_work",
-        5,
+        6,
         {
             {},
             {"work", ProtoSchemaType::kUint64},
             {"function", ProtoSchemaType::kUint64},
-            {"workqueue", ProtoSchemaType::kUint64},
-            {"req_cpu", ProtoSchemaType::kUint32},
-            {"cpu", ProtoSchemaType::kUint32},
+            {},
+            {"req_cpu", ProtoSchemaType::kInt32},
+            {"cpu", ProtoSchemaType::kInt32},
+            {"workqueue", ProtoSchemaType::kString},
         },
     },
     {
@@ -5966,11 +5968,13 @@ std::array<FtraceMessageDescriptor, 591> descriptors{{
     },
     {
         "pixel_mm_kswapd_done",
-        2,
+        4,
         {
             {},
             {"delta_nr_scanned", ProtoSchemaType::kUint64},
             {"delta_nr_reclaimed", ProtoSchemaType::kUint64},
+            {"delta_nr_allocated", ProtoSchemaType::kUint64},
+            {"duration_ns", ProtoSchemaType::kUint64},
         },
     },
     {
@@ -6543,6 +6547,128 @@ std::array<FtraceMessageDescriptor, 591> descriptors{{
         {
             {},
             {"esr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_add_dep",
+        4,
+        {
+            {},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+            {"ctx", ProtoSchemaType::kUint64},
+            {"seqno", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_done",
+        2,
+        {
+            {},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_queue",
+        7,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"job_count", ProtoSchemaType::kUint32},
+            {"hw_job_count", ProtoSchemaType::kInt32},
+            {"dev", ProtoSchemaType::kString},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+            {"client_id", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_run",
+        7,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"job_count", ProtoSchemaType::kUint32},
+            {"hw_job_count", ProtoSchemaType::kInt32},
+            {"dev", ProtoSchemaType::kString},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+            {"client_id", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_unschedulable",
+        4,
+        {
+            {},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+            {"ctx", ProtoSchemaType::kUint64},
+            {"seqno", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "fwtp_perfetto_counter",
+        5,
+        {
+            {},
+            {"timestamp", ProtoSchemaType::kUint64},
+            {"track_id", ProtoSchemaType::kUint32},
+            {"category", ProtoSchemaType::kString},
+            {"name", ProtoSchemaType::kString},
+            {"value", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "scsi_dispatch_cmd_error",
+        13,
+        {
+            {},
+            {"host_no", ProtoSchemaType::kUint32},
+            {"channel", ProtoSchemaType::kUint32},
+            {"id", ProtoSchemaType::kUint32},
+            {"lun", ProtoSchemaType::kUint32},
+            {"rtn", ProtoSchemaType::kInt32},
+            {"opcode", ProtoSchemaType::kUint32},
+            {"cmd_len", ProtoSchemaType::kUint32},
+            {"data_sglen", ProtoSchemaType::kUint32},
+            {"prot_sglen", ProtoSchemaType::kUint32},
+            {"prot_op", ProtoSchemaType::kUint32},
+            {"cmnd", ProtoSchemaType::kString},
+            {"driver_tag", ProtoSchemaType::kInt32},
+            {"scheduler_tag", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "scsi_dispatch_cmd_timeout",
+        16,
+        {
+            {},
+            {"host_no", ProtoSchemaType::kUint32},
+            {"channel", ProtoSchemaType::kUint32},
+            {"id", ProtoSchemaType::kUint32},
+            {"lun", ProtoSchemaType::kUint32},
+            {"result", ProtoSchemaType::kInt32},
+            {"opcode", ProtoSchemaType::kUint32},
+            {"cmd_len", ProtoSchemaType::kUint32},
+            {"data_sglen", ProtoSchemaType::kUint32},
+            {"prot_sglen", ProtoSchemaType::kUint32},
+            {"prot_op", ProtoSchemaType::kUint32},
+            {"cmnd", ProtoSchemaType::kString},
+            {"driver_tag", ProtoSchemaType::kInt32},
+            {"scheduler_tag", ProtoSchemaType::kInt32},
+            {"sense_key", ProtoSchemaType::kUint32},
+            {"asc", ProtoSchemaType::kUint32},
+            {"ascq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "scsi_eh_wakeup",
+        1,
+        {
+            {},
+            {"host_no", ProtoSchemaType::kUint32},
         },
     },
 }};

@@ -13,40 +13,52 @@
 // limitations under the License.
 
 import {Setting} from '../../public/settings';
-import {SettingsManagerImpl} from '../../core/settings_manager';
+import {SettingImpl, SettingsManagerImpl} from '../../core/settings_manager';
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {z} from 'zod';
 import {Button, ButtonVariant} from '../../widgets/button';
-import {Card, CardStack} from '../../widgets/card';
-import {SettingsShell} from '../../widgets/settings_shell';
+import {CardStack} from '../../widgets/card';
+import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
-import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {FuzzyFinder} from '../../base/fuzzy';
+import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
+import {Popup} from '../../widgets/popup';
+import {Box} from '../../widgets/box';
+import {Icons} from '../../base/semantic_icons';
 
-export class SettingsPage implements m.ClassComponent {
+export interface SettingsPageAttrs {
+  readonly subpage?: string;
+}
+
+export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   private filterText = '';
 
-  view() {
+  view({attrs}: m.Vnode<SettingsPageAttrs>): m.Children {
     const app = AppImpl.instance;
     const settingsManager = app.settings as SettingsManagerImpl;
-    const allSettings = settingsManager.getAllSettings();
     const reloadRequired = settingsManager.isReloadRequired();
-
-    // Filter settings based on the search text
     const isFiltering = this.filterText.trim() !== '';
-    const finder = new FuzzyFinder(allSettings, (s) => {
-      return `${s.name} ${s.description ?? ''}`;
+    const subpage = decodeURIComponent(attrs.subpage ?? '');
+
+    // Get settings (filtered or all) grouped by plugin
+    const settings = isFiltering
+      ? this.getFilteredSettingsGrouped(settingsManager)
+      : this.getAllSettingsGrouped(settingsManager);
+    const groupedSettings = this.groupSettingsByPlugin(settings);
+
+    // Sort plugin IDs: CORE_PLUGIN_ID first, then alphabetically
+    const sortedPluginIds = Array.from(groupedSettings.keys()).sort((a, b) => {
+      if (!a) return -1;
+      if (!b) return 1;
+      return a.localeCompare(b);
     });
-    const filteredSettings = isFiltering
-      ? finder.find(this.filterText)
-      : allSettings.map((item) => ({item, segments: []}));
+
     return m(
       SettingsShell,
       {
@@ -55,11 +67,39 @@ export class SettingsPage implements m.ClassComponent {
         stickyHeaderContent: m(
           Stack,
           {orientation: 'horizontal'},
-          m(Button, {
-            icon: 'restore',
-            label: 'Restore Defaults',
-            onclick: () => settingsManager.resetAll(),
-          }),
+          m(
+            Popup,
+            {
+              trigger: m(Button, {
+                icon: 'restore',
+                label: 'Restore Defaults',
+              }),
+            },
+            m(
+              Box,
+              m(
+                Stack,
+                'Are you sure you want to restore all settings to their default values? This action cannot be undone!',
+                m(
+                  Stack,
+                  {orientation: 'horizontal'},
+                  m(StackAuto),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    variant: ButtonVariant.Filled,
+                    label: 'Cancel',
+                  }),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    intent: Intent.Danger,
+                    variant: ButtonVariant.Filled,
+                    label: 'Restore Defaults',
+                    onclick: () => settingsManager.resetAll(),
+                  }),
+                ),
+              ),
+            ),
+          ),
           reloadRequired &&
             m(Button, {
               icon: 'refresh',
@@ -82,14 +122,66 @@ export class SettingsPage implements m.ClassComponent {
       },
       m(
         '.pf-settings-page',
-        filteredSettings.length === 0
+        groupedSettings.size === 0
           ? this.renderEmptyState(isFiltering)
-          : m(
-              CardStack,
-              filteredSettings.map(({item}) => {
-                return this.renderSettingCard(item);
-              }),
-            ),
+          : sortedPluginIds.map((pluginId) => {
+              const settings = groupedSettings.get(pluginId)!;
+              return this.renderPluginSection(pluginId, settings, subpage);
+            }),
+      ),
+    );
+  }
+
+  private getAllSettingsGrouped(settingsManager: SettingsManagerImpl) {
+    return settingsManager
+      .getAllSettings()
+      .map((item) => ({item, segments: []}));
+  }
+
+  private getFilteredSettingsGrouped(settingsManager: SettingsManagerImpl) {
+    const allSettings = settingsManager.getAllSettings();
+    const finder = new FuzzyFinder(allSettings, (s) => {
+      return `${s.name} ${s.description ?? ''}`;
+    });
+    return finder.find(this.filterText);
+  }
+
+  private groupSettingsByPlugin(
+    settings: Array<{item: SettingImpl<unknown>; segments: FuzzySegment[]}>,
+  ) {
+    const app = AppImpl.instance;
+    const grouped = new Map<
+      string,
+      Array<{item: Setting<unknown>; segments: FuzzySegment[]}>
+    >();
+    for (const result of settings) {
+      const setting = result.item;
+      const isCore =
+        setting.pluginId === undefined ||
+        app.plugins.isCorePlugin(setting.pluginId);
+      const targetGroup = isCore ? 'Core' : setting.pluginId;
+
+      const existing = grouped.get(targetGroup) ?? [];
+      existing.push(result);
+      grouped.set(targetGroup, existing);
+    }
+    return grouped;
+  }
+
+  private renderPluginSection(
+    pluginId: string,
+    settings: Array<{item: Setting<unknown>; segments: FuzzySegment[]}>,
+    subpage: string,
+  ) {
+    return m(
+      '.pf-settings-page__plugin-section',
+      {key: pluginId},
+      m('h2.pf-settings-page__plugin-title', pluginId),
+      m(
+        CardStack,
+        settings.map(({item}) => {
+          return this.renderSettingCard(item, subpage);
+        }),
       ),
     );
   }
@@ -99,12 +191,11 @@ export class SettingsPage implements m.ClassComponent {
       return m(
         EmptyState,
         {
-          icon: 'filter_alt_off',
           title: 'No settings match your search criteria',
         },
         m(Button, {
           label: 'Clear filter',
-          icon: 'clear',
+          icon: Icons.FilterOff,
           variant: ButtonVariant.Filled,
           intent: Intent.Primary,
           onclick: () => {
@@ -120,35 +211,28 @@ export class SettingsPage implements m.ClassComponent {
     }
   }
 
-  private renderSettingCard(setting: Setting<unknown>) {
-    return m(
-      Card,
-      {
-        className: classNames(
-          'pf-settings-page__card',
-          !setting.isDefault && 'pf-settings-page__card--changed',
-        ),
-        key: setting.id,
-      },
-      m(
-        '.pf-settings-page__details',
-        m('h1', setting.name),
-        setting.description &&
-          m('.pf-settings-page__description', setting.description),
-      ),
-      m('.pf-settings-page__controls', [
+  private renderSettingCard(setting: Setting<unknown>, subpage: string) {
+    return m(SettingsCard, {
+      id: setting.id,
+      title: setting.name,
+      description: setting.description.trim(),
+      focused: subpage === `/${setting.id}`,
+      controls: m('.pf-settings-page__controls', [
         !setting.isDefault &&
           m(Button, {
             icon: 'restore',
             title: 'Restore default',
             variant: ButtonVariant.Minimal,
+            className: 'pf-settings-page__restore-button',
             onclick: () => {
               setting.reset();
             },
           }),
         this.renderSettingControl(setting),
       ]),
-    );
+      accent: !setting.isDefault ? Intent.Primary : undefined,
+      linkHref: `#!/settings/${encodeURIComponent(setting.id)}`,
+    });
   }
 
   private renderSettingControl(setting: Setting<unknown>) {

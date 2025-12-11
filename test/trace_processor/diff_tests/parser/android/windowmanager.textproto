@@ -35,7 +35,7 @@ packet {
   timestamp: 558296470731
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.windowmanager] {
-      elapsed_realtime_nanos: 558296470731
+      elapsed_realtime_nanos: 123
       where: "trace.enable"
       window_manager_service {
         policy {
@@ -4076,9 +4076,10 @@ packet {
   timestamp: 558884171862
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.windowmanager] {
-      elapsed_realtime_nanos: 558884171862
+      elapsed_realtime_nanos: 0
       where: "WindowAnimator"
       window_manager_service {
+        focused_display_id: 2
         policy {
           orientation: SCREEN_ORIENTATION_UNSPECIFIED
           screen_on_fully: true

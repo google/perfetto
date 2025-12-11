@@ -20,6 +20,8 @@
 #include <cstdint>
 
 #include "perfetto/protozero/field.h"
+
+#include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
@@ -34,27 +36,31 @@ class AndroidProbesParser {
 
   explicit AndroidProbesParser(TraceProcessorContext*, AndroidProbesTracker*);
 
+  void ParseRailDescriptor(const protos::pbzero::PowerRails_Decoder&);
+  void ParsePowerRails(int64_t ts,
+                       uint64_t trace_packet_ts,
+                       protozero::ConstBytes);
+  void ParseAndroidLogPacket(int64_t ts, protozero::ConstBytes blob);
+  void ParseAndroidLogStats(protozero::ConstBytes);
+  void ParseStatsdMetadata(protozero::ConstBytes);
+  void ParseAndroidGameIntervention(protozero::ConstBytes blob);
   void ParseBatteryCounters(int64_t ts, ConstBytes);
-  void ParsePowerRails(int64_t ts, uint64_t trace_packet_ts, ConstBytes);
   void ParseEnergyBreakdown(int64_t ts, ConstBytes);
   void ParseEntityStateResidency(int64_t ts, ConstBytes);
-  void ParseAndroidLogPacket(ConstBytes);
-  void ParseAndroidLogEvent(ConstBytes);
-  void ParseAndroidLogStats(ConstBytes);
-  void ParseStatsdMetadata(ConstBytes);
   void ParseInitialDisplayState(int64_t ts, ConstBytes);
   void ParseAndroidSystemProperty(int64_t ts, ConstBytes);
-  void ParseAndroidGameIntervention(ConstBytes);
   void ParseBtTraceEvent(int64_t ts, ConstBytes);
 
  private:
+  void ParseAndroidLogEvent(int64_t ts, protozero::ConstBytes);
+
   TraceProcessorContext* const context_;
   AndroidProbesTracker* const tracker_;
+
   std::unique_ptr<ArgsTracker> power_rails_args_tracker_;
 
   const StringId battery_status_id_;
   const StringId plug_type_id_;
-  const StringId rail_packet_timestamp_id_;
   const StringId energy_consumer_id_;
   const StringId consumer_type_id_;
   const StringId ordinal_id_;
@@ -66,6 +72,9 @@ class AndroidProbesParser {
   const StringId bt_event_code_id_;
   const StringId bt_subevent_code_id_;
   const StringId bt_handle_id_;
+  const StringId power_rail_raw_name_id_;
+  const StringId power_rail_subsys_name_arg_id_;
+  const StringId rail_packet_timestamp_id_;
 };
 }  // namespace perfetto::trace_processor
 

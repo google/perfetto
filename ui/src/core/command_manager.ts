@@ -67,6 +67,7 @@ export interface CommandWithMatchInfo extends Command {
 
 export class CommandManagerImpl implements CommandManager {
   private readonly registry = new Registry<Command>((cmd) => cmd.id);
+  private allowlistCheckFn: (id: string) => boolean = () => true;
 
   getCommand(commandId: string): Command {
     return this.registry.get(commandId);
@@ -84,7 +85,15 @@ export class CommandManagerImpl implements CommandManager {
     return this.registry.register(cmd);
   }
 
+  setAllowlistCheck(checkFn: (id: string) => boolean): void {
+    this.allowlistCheckFn = checkFn;
+  }
+
   runCommand(id: string, ...args: unknown[]): unknown {
+    if (!this.allowlistCheckFn(id)) {
+      console.warn(`Command ${id} is not allowed in current execution context`);
+      return;
+    }
     const cmd = this.registry.get(id);
     const res = cmd.callback(...args);
     Promise.resolve(res).finally(() => raf.scheduleFullRedraw());
@@ -99,21 +108,5 @@ export class CommandManagerImpl implements CommandManager {
     return finder.find(searchTerm).map((result) => {
       return {segments: result.segments, ...result.item};
     });
-  }
-
-  hasStartupCommands(): boolean {
-    // This should never be called on the global CommandManager.
-    // Startup commands should only be checked in trace context.
-    throw new Error(
-      'hasStartupCommands() should only be called on trace command manager',
-    );
-  }
-
-  async runStartupCommands(): Promise<void> {
-    // This should never be called on the global CommandManager.
-    // Startup commands should only be executed in trace context.
-    throw new Error(
-      'runStartupCommands() should only be called on trace command manager',
-    );
   }
 }

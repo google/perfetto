@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 
+INCLUDE PERFETTO MODULE slices.with_context;
+
 -- Time each thread slice spent running on CPU.
 -- Requires scheduling data to be available in the trace.
 CREATE PERFETTO TABLE thread_slice_cpu_time (

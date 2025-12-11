@@ -44,6 +44,108 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap,
                   7);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int64_t, id, 8);
 
+PERFETTO_PB_MSG(perfetto_protos_AndroidJobSchedulerJob);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  job_id,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  source_uid,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  proxy_uid,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  state,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  standby_bucket,
+                  5);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  requested_priority,
+                  6);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  effective_priority,
+                  7);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  num_previous_attempts,
+                  8);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int64_t,
+                  deadline_ms,
+                  9);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int64_t,
+                  delay_ms,
+                  10);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int64_t,
+                  job_start_latency_ms,
+                  11);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  num_uncompleted_work_items,
+                  12);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  proc_state,
+                  13);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int64_t,
+                  periodic_job_interval_ms,
+                  14);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int64_t,
+                  periodic_job_flex_interval_ms,
+                  15);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  num_reschedules_due_to_abandonment,
+                  16);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  back_off_policy_type,
+                  17);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  internal_stop_reason,
+                  18);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int32_t,
+                  public_stop_reason,
+                  19);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  int64_t,
+                  job_state_flags,
+                  20);
+
 PERFETTO_PB_MSG(perfetto_protos_AndroidMessageQueue);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidMessageQueue,
                   STRING,
@@ -96,4 +198,10 @@ PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             perfetto_protos_AndroidBitmap,
                             bitmap,
                             2005);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidJobSchedulerJob,
+                            job_scheduler_job,
+                            2006);
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_ANDROID_ANDROID_TRACK_EVENT_PZC_H_

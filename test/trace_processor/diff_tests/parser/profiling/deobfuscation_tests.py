@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
-from python.generators.diff_tests.testing import Csv, TextProto
+from python.generators.diff_tests.testing import Path, DataPath
+from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
@@ -37,4 +37,17 @@ class Deobfuscation(TestSuite):
         "hwe.a","com.google.classtwo.foo"
         "hye.a","com.google.classone.foo"
         "hye.a","com.google.classthree.foo"
+        """))
+
+  def test_perf_data_symbols_deobfuscation(self):
+    return DiffTestBlueprint(
+        trace=DataPath('perf-data-deobfuscated.zip'),
+        query="""
+        SELECT count() AS cnt
+        FROM stack_profile_frame
+        WHERE deobfuscated_name IS NOT NULL
+        """,
+        out=Csv("""
+        "cnt"
+        839
         """))

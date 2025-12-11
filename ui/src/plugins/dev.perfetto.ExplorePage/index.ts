@@ -17,6 +17,8 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExplorePageState} from './explore_page';
+import {nodeRegistry} from './query_builder/node_registry';
+import {QueryNodeState} from './query_node';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
@@ -57,9 +59,57 @@ export default class implements PerfettoPlugin {
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
+      sortOrder: 21,
       text: 'Explore',
       href: '#!/explore',
       icon: 'data_exploration',
+    });
+
+    // Register "Move selection to Explore Page" command
+    trace.commands.registerCommand({
+      id: 'dev.perfetto.ExplorePage.MoveSelectionToExplorePage',
+      name: 'Move selection to Explore Page',
+      callback: () => {
+        const timeSpan = trace.selection.getTimeSpanOfSelection();
+        if (!timeSpan) {
+          // No valid time selection - inform user
+          console.warn(
+            'No time selection found. Please select a time range on the timeline first.',
+          );
+          return;
+        }
+
+        // Capture the time range values before clearing selection
+        const start = timeSpan.start;
+        const end = timeSpan.end;
+
+        // Clear the timeline selection FIRST to avoid UI artifacts
+        trace.selection.clearSelection();
+
+        // Get the TimeRange node descriptor
+        const descriptor = nodeRegistry.get('timerange');
+        if (!descriptor) {
+          console.error('TimeRange node not found in registry');
+          return;
+        }
+
+        // Create the TimeRange node with captured values
+        const newNode = descriptor.factory({
+          trace,
+          start,
+          end,
+        } as unknown as QueryNodeState);
+
+        // Add node to state and select it
+        this.onStateUpdate((currentState) => ({
+          ...currentState,
+          rootNodes: [...currentState.rootNodes, newNode],
+          selectedNode: newNode,
+        }));
+
+        // Navigate to Explore Page
+        trace.navigate('#!/explore');
+      },
     });
   }
 }

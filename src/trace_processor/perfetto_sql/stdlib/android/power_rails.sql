@@ -16,8 +16,6 @@
 
 INCLUDE PERFETTO MODULE counters.intervals;
 
-INCLUDE PERFETTO MODULE time.conversion;
-
 -- Android power rails counters data.
 -- For details see: https://perfetto.dev/docs/data-sources/battery-counters#odpm
 -- NOTE: Requires dedicated hardware - table is only populated on Pixels.

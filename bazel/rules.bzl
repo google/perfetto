@@ -31,6 +31,7 @@ def default_cc_args():
         "includes": ["include"],
         "linkopts": select({
             "@perfetto//bazel:os_linux": ["-ldl", "-lrt", "-lpthread"],
+            "@perfetto//bazel:os_freebsd": ["-ldl", "-lrt", "-lpthread"],
             "@perfetto//bazel:os_osx": [],
             "@perfetto//bazel:os_windows": ["ws2_32.lib"],
             "//conditions:default": ["-ldl"],
@@ -86,6 +87,11 @@ def perfetto_java_proto_library(**kwargs):
 def perfetto_java_lite_proto_library(**kwargs):
     if not _rule_override("java_lite_proto_library", **kwargs):
         native.java_lite_proto_library(**kwargs)
+
+# Unlike the other rules, this is an noop by default because Bazel does not
+# support Go proto libraries.
+def perfetto_dart_proto_library(**kwargs):
+    _rule_override("dart_proto_library", **kwargs)
 
 # Unlike the other rules, this is an noop by default because Bazel does not
 # support Go proto libraries.
@@ -350,6 +356,28 @@ def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
     perfetto_cc_library(
         name = name,
         hdrs = [":" + name + "_gen"],
+        **kwargs
+    )
+
+def perfetto_protozero_descriptor_diff(name, minuend, subtrahend, outs, **kwargs):
+    cmd = [
+        "$(location src_protozero_descriptor_diff_protozero_descriptor_diff)",
+        "--minuend=$(location " + minuend + ")",
+        "--subtrahend=$(location " + subtrahend + ")",
+        "--out",
+        "$@",
+    ]
+    perfetto_genrule(
+        name = name,
+        cmd = " ".join(cmd),
+        tools = [
+            ":src_protozero_descriptor_diff_protozero_descriptor_diff",
+        ],
+        srcs = [
+          minuend,
+          subtrahend,
+        ],
+        outs = outs,
         **kwargs
     )
 

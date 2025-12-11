@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -28,6 +29,16 @@ namespace perfetto::trace_processor::tracks {
 // This file acts as a shared source track, dimension and unit blueprints which
 // are used from many places throughout the codebase. It's strongly recommended
 // to use the shared blueprints from this file where possible.
+
+// Documentation URLs for memory counters
+// These are defined as constexpr to ensure they stay in sync with the markdown
+// anchors in docs/data-sources/memory-counters.md
+constexpr const char kMemoryCountersPolledUrl[] =
+    "https://perfetto.dev/docs/data-sources/memory-counters#per-process-"
+    "polled-counters";
+constexpr const char kMemoryCountersFtraceUrl[] =
+    "https://perfetto.dev/docs/data-sources/memory-counters#per-process-"
+    "memory-events-ftrace";
 
 // Begin dimension blueprints.
 
@@ -289,6 +300,104 @@ inline constexpr auto kProcessMemoryBlueprint = tracks::CounterBlueprint(
         tracks::StringDimensionBlueprint("process_memory_key")),
     tracks::FnNameBlueprint([](uint32_t, base::StringView key) {
       return base::StackString<1024>("mem.%.*s", int(key.size()), key.data());
+    }),
+    tracks::FnDescriptionBlueprint([](uint32_t, base::StringView key) {
+      if (key == "virt") {
+        return base::StackString<1024>(
+            "Virtual memory size (VmSize): Total virtual address space "
+            "reserved by the process. Useful for understanding address space "
+            "layout and detecting excessive memory reservations. WARNING: "
+            "Polled periodically, so may miss short-lived changes. See %s for "
+            "information.",
+            kMemoryCountersPolledUrl);
+      }
+      if (key == "rss") {
+        return base::StackString<1024>(
+            "Resident set size (VmRSS): Total physical memory currently used "
+            "by the process (rss.anon + rss.file + rss.shmem). Key metric for "
+            "understanding actual memory pressure and OOM risk. WARNING: "
+            "Polled periodically, so use rss.anon + rss.file + rss.shmem from "
+            "ftrace for complementary high-resolution tracking. See %s for "
+            "information.",
+            kMemoryCountersPolledUrl);
+      }
+      if (key == "rss.anon") {
+        return base::StackString<1024>(
+            "Anonymous resident memory (RssAnon): Physical memory for heap and "
+            "stack allocations not backed by files. High values indicate "
+            "memory allocations from malloc/new. Most important for app memory "
+            "usage and detecting memory leaks. See %s for information.",
+            kMemoryCountersFtraceUrl);
+      }
+      if (key == "rss.file") {
+        return base::StackString<1024>(
+            "File-backed resident memory (RssFile): Physical memory used for "
+            "memory-mapped files (e.g., code, libraries, mmap'd files). Useful "
+            "for understanding shared library overhead. Can be reclaimed under "
+            "memory pressure. See %s for information.",
+            kMemoryCountersFtraceUrl);
+      }
+      if (key == "rss.shmem") {
+        return base::StackString<1024>(
+            "Shared memory resident pages (RssShmem): Physical memory in "
+            "shared memory regions (shmem/tmpfs). Used for IPC and shared "
+            "data. Important for identifying inter-process memory usage. See "
+            "%s for information.",
+            kMemoryCountersFtraceUrl);
+      }
+      if (key == "swap") {
+        return base::StackString<1024>(
+            "Swapped memory (VmSwap): Memory moved to swap storage. Does not "
+            "necessarily indicate severe pressure - kswapd may swap out "
+            "inactive memory proactively. However, if actively used and "
+            "swap/anon ratio is high, this suggests inefficient memory usage "
+            "or leaks. Accessing swapped memory causes major page faults and "
+            "performance degradation. Available from both ftrace and polling "
+            "for complementary views. See %s or %s for information.",
+            kMemoryCountersFtraceUrl, kMemoryCountersPolledUrl);
+      }
+      if (key == "locked") {
+        return base::StackString<1024>(
+            "Locked memory pages (VmLocked): Memory pinned in RAM that cannot "
+            "be swapped out or reclaimed (via mlock). High values prevent "
+            "memory reclamation during pressure. Typically set via profiler-"
+            "guided optimization to minimize faults on critical paths. "
+            "WARNING: Polled periodically, so may miss short-lived changes. "
+            "See %s for information.",
+            kMemoryCountersPolledUrl);
+      }
+      if (key == "rss.watermark") {
+        return base::StackString<1024>(
+            "Peak RSS (VmHWM): Historical maximum RSS reached by the "
+            "process. Useful for capacity planning and detecting memory usage "
+            "spikes that may have triggered OOM or performance issues. "
+            "WARNING: Polled periodically, so the time of the spike may not be "
+            "accurate. Prefer relying on rss.anon + rss.file + rss.shmem which "
+            "have pushed ftrace events so are more time accurate. See %s for "
+            "information.",
+            kMemoryCountersPolledUrl);
+      }
+      if (key == "dmabuf_rss") {
+        return base::StackString<1024>(
+            "DMA buffer RSS: Physical memory used for DMA buffers (successor "
+            "to Android ION). Used for surfaces, hardware bitmaps, media/"
+            "camera buffers, and other GPU/hardware accelerator memory. "
+            "Critical for graphics/camera apps. High values indicate GPU "
+            "memory pressure or resource leaks in graphics/media pipelines. "
+            "See dmabuf ftrace events or /proc/[pid]/fdinfo polling for "
+            "information.");
+      }
+      if (key == "unreclaimable") {
+        return base::StackString<1024>(
+            "Unreclaimable memory: KGSL driver specific event, rarely useful.");
+      }
+      if (key == "unknown") {
+        return base::StackString<1024>(
+            "Unknown memory type: Memory category not recognized by the "
+            "tracer. May indicate new kernel memory types or parsing errors. "
+            "Should be investigated if non-zero.");
+      }
+      PERFETTO_FATAL("Cannot describe unknown memory track key");
     }));
 
 inline constexpr auto kProcessMemoryThreadFallbackBlueprint =

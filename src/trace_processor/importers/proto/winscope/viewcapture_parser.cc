@@ -15,37 +15,43 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/viewcapture_parser.h"
+#include <sys/types.h>
 
 #include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/trace/android/viewcapture.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/proto/winscope/viewcapture_rect_computation.h"
+#include "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.h"
+#include "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
-#include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/winscope_proto_mapping.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor::winscope {
 
-ViewCaptureParser::ViewCaptureParser(TraceProcessorContext* context)
-    : context_{context}, args_parser_{*context->descriptor_pool_} {}
+ViewCaptureParser::ViewCaptureParser(WinscopeContext* context)
+    : context_{context},
+      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
 
 void ViewCaptureParser::Parse(int64_t timestamp,
                               protozero::ConstBytes blob,
                               PacketSequenceStateGeneration* seq_state) {
+  auto* storage = context_->trace_processor_context_->storage.get();
+
   protos::pbzero::ViewCapture::Decoder snapshot_decoder(blob);
   tables::ViewCaptureTable::Row row;
   row.ts = timestamp;
-  row.base64_proto_id = context_->storage->mutable_string_pool()
+  row.base64_proto_id = storage->mutable_string_pool()
                             ->InternString(base::StringView(
                                 base::Base64Encode(blob.data, blob.size)))
                             .raw_id();
-  auto snapshot_id =
-      context_->storage->mutable_viewcapture_table()->Insert(row).id;
 
-  ArgsTracker args_tracker(context_);
+  auto id_and_row = storage->mutable_viewcapture_table()->Insert(row);
+  auto snapshot_id = id_and_row.id;
+  auto row_ref = id_and_row.row_reference;
+
+  ArgsTracker args_tracker(context_->trace_processor_context_);
   auto inserter = args_tracker.AddArgsTo(snapshot_id);
-  ViewCaptureArgsParser writer(timestamp, inserter, *context_->storage,
-                               seq_state);
+  ViewCaptureArgsParser writer(timestamp, inserter, *storage, seq_state,
+                               &row_ref, nullptr);
   const auto table_name = tables::ViewCaptureTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
@@ -55,30 +61,57 @@ void ViewCaptureParser::Parse(int64_t timestamp,
 
   AddDeinternedData(writer, row.base64_proto_id.value());
   if (!status.ok()) {
-    context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+    storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
   }
+
+  auto views_top_to_bottom =
+      viewcapture::ExtractViewsTopToBottom(snapshot_decoder);
+  auto computed_visibility =
+      viewcapture::VisibilityComputation(views_top_to_bottom).Compute();
+  auto computed_rects =
+      viewcapture::RectComputation(views_top_to_bottom, computed_visibility,
+                                   context_->rect_tracker_)
+          .Compute();
+
   for (auto it = snapshot_decoder.views(); it; ++it) {
-    ParseView(timestamp, *it, snapshot_id, seq_state);
+    ParseView(timestamp, *it, snapshot_id, seq_state, computed_visibility,
+              computed_rects);
   }
 }
 
-void ViewCaptureParser::ParseView(int64_t timestamp,
-                                  protozero::ConstBytes blob,
-                                  tables::ViewCaptureTable::Id snapshot_id,
-                                  PacketSequenceStateGeneration* seq_state) {
+void ViewCaptureParser::ParseView(
+    int64_t timestamp,
+    protozero::ConstBytes blob,
+    tables::ViewCaptureTable::Id snapshot_id,
+    PacketSequenceStateGeneration* seq_state,
+    std::unordered_map<int32_t, bool>& computed_visibility,
+    std::unordered_map<int32_t, tables::WinscopeTraceRectTable::Id>&
+        computed_rects) {
+  auto* storage = context_->trace_processor_context_->storage.get();
+
   tables::ViewCaptureViewTable::Row view;
   view.snapshot_id = snapshot_id;
-  view.base64_proto_id = context_->storage->mutable_string_pool()
+  view.base64_proto_id = storage->mutable_string_pool()
                              ->InternString(base::StringView(
                                  base::Base64Encode(blob.data, blob.size)))
                              .raw_id();
-  auto layer_id =
-      context_->storage->mutable_viewcapture_view_table()->Insert(view).id;
 
-  ArgsTracker tracker(context_);
-  auto inserter = tracker.AddArgsTo(layer_id);
-  ViewCaptureArgsParser writer(timestamp, inserter, *context_->storage,
-                               seq_state);
+  protos::pbzero::ViewCapture::View::Decoder view_decoder(blob);
+  auto node_id = view_decoder.id();
+  view.node_id = static_cast<uint32_t>(node_id);
+  view.hashcode = static_cast<uint32_t>(view_decoder.hashcode());
+  view.is_visible = computed_visibility.find(node_id)->second;
+  view.trace_rect_id = computed_rects.find(node_id)->second;
+  view.parent_id = static_cast<uint32_t>(view_decoder.parent_id());
+
+  auto id_and_row = storage->mutable_viewcapture_view_table()->Insert(view);
+  auto row_id = id_and_row.id;
+  auto row_ref = id_and_row.row_reference;
+
+  ArgsTracker tracker(context_->trace_processor_context_);
+  auto inserter = tracker.AddArgsTo(row_id);
+  ViewCaptureArgsParser writer(timestamp, inserter, *storage, seq_state,
+                               nullptr, &row_ref);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
@@ -87,14 +120,14 @@ void ViewCaptureParser::ParseView(int64_t timestamp,
 
   AddDeinternedData(writer, view.base64_proto_id.value());
   if (!status.ok()) {
-    context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+    storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
   }
 }
 
 void ViewCaptureParser::AddDeinternedData(const ViewCaptureArgsParser& writer,
                                           uint32_t base64_proto_id) {
-  auto* deinterned_data_table =
-      context_->storage->mutable_viewcapture_interned_data_table();
+  auto* deinterned_data_table = context_->trace_processor_context_->storage
+                                    ->mutable_viewcapture_interned_data_table();
   for (auto i = writer.flat_key_to_iid_args.GetIterator(); i; ++i) {
     const auto& flat_key = i.key();
     ViewCaptureArgsParser::IidToStringMap& iids_to_add = i.value();
@@ -113,5 +146,4 @@ void ViewCaptureParser::AddDeinternedData(const ViewCaptureArgsParser& writer,
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::winscope

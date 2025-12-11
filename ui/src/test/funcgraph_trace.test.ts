@@ -47,7 +47,10 @@ test('thread funcgraph', async () => {
   const grp = pth.locateTrack('iperf 3442');
   await grp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(grp);
-  const funcgraph = pth.locateTrack('iperf 3442/Funcgraph (3450)', grp);
+  const funcgraph = pth.locateTrack(
+    'iperf 3442/Funcgraph (3450) (funcgraph)',
+    grp,
+  );
   await funcgraph.scrollIntoViewIfNeeded();
   await pth.waitForIdleAndScreenshot('thread_funcgraph.png');
 });

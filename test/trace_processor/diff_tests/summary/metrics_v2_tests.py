@@ -106,6 +106,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "memory_per_process"
           row {
             values: {
               double_value: 37351104642.0
@@ -154,6 +155,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "memory_per_process"
           row {
             values: {
               double_value: 37351104642.0
@@ -203,6 +205,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "preamble_view_metric"
           row {
             values: {
               double_value: 37351104642.0
@@ -252,6 +255,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "preamble_view_metric"   
           row {
             values: {
               double_value: 37351104642.0
@@ -298,6 +302,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "memory_per_process"
           row {
             values {
               double_value: 37351104642.0
@@ -364,3 +369,78 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Path('column_transformation.out'))
+
+  def test_percentile_metric_v2(self):
+    return DiffTestBlueprint(
+        trace=Path('synth_simple_slices.py'),
+        query=MetricV2SpecTextproto('''
+              id: "p99_duration"
+              dimensions_specs {
+                name: "slice_name"
+                type: STRING
+              }
+              value: "p99_dur"
+              query {
+                simple_slices {
+                  slice_name_glob: "*"
+                }
+                group_by {
+                  column_names: "slice_name"
+                  aggregates {
+                    column_name: "dur"
+                    op: PERCENTILE
+                    result_column_name: "p99_dur"
+                    percentile: 99
+                  }
+                }
+              }
+        '''),
+        out=Csv("""
+          bundle_id: "p99_duration"
+          row {
+            values {
+              double_value: 99.1
+            }
+            dimension {
+              string_value: "ProcessSliceNoThread"
+            }
+          }
+          row {
+            values {
+              double_value: 298.1
+            }
+            dimension {
+              string_value: "ThreadSlice1"
+            }
+          }
+          row {
+            values {
+              double_value: 197.1
+            }
+            dimension {
+              string_value: "ThreadSlice2"
+            }
+          }
+          specs {
+            id: "p99_duration"
+            dimensions_specs {
+              name: "slice_name"
+              type: STRING
+            }
+            value: "p99_dur"
+            query {
+              simple_slices {
+                slice_name_glob: "*"
+              }
+              group_by {
+                column_names: "slice_name"
+                aggregates {
+                  column_name: "dur"
+                  op: PERCENTILE
+                  result_column_name: "p99_dur"
+                  percentile: 99
+                }
+              }
+            }
+          }
+        """))

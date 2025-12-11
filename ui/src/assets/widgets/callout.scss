@@ -34,6 +34,10 @@
     align-items: baseline;
   }
 
+  &__content {
+    flex: 1;
+  }
+
   &.pf-intent-primary {
     @include color-theme(var(--pf-color-primary));
   }

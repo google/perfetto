@@ -13,9 +13,9 @@
 # limitations under the License.
 
 # This workflow requires that pull requests coming from a forked repo (hence
-# non-googlers) have 2 reviews from repo collaborators.
+# non-googlers) have 2 reviews from Google organization members.
 
-name: Enforce 2 collaborator reviews for fork PRs
+name: Enforce 2 Google org member reviews for fork PRs
 
 on:
   pull_request_target:
@@ -41,7 +41,7 @@ jobs:
           echo "is_fork=${{ github.event.pull_request.head.repo.full_name != github.repository }}" >> $GITHUB_ENV
           echo "Triggered by: ${{ github.event_name }}, ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
 
-      - name: Fetch approved reviews
+      - name: Check Google org member reviews
         if: env.is_fork == 'true'
         shell: bash
         run: |
@@ -52,23 +52,55 @@ jobs:
           REVIEWS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/reviews")
 
-          # Filter to latest commit and valid collaborator approvals
-          COUNT=$(echo "$REVIEWS" | jq --arg sha "$LATEST_SHA" '
+          # Get unique reviewers who approved the latest commit
+          REVIEWERS=$(echo "$REVIEWS" | jq -r --arg sha "$LATEST_SHA" '
           [group_by(.user.login)[] | last] |
           map(select(
             .state == "APPROVED" and
-            (.author_association == "COLLABORATOR" or .author_association == "MEMBER") and
             .commit_id == $sha
           )) |
-          length')
+          .[].user.login')
 
-          echo "Collaborator/member approvals for latest commit ($LATEST_SHA): $COUNT"
-          if [ "$COUNT" -lt 2 ]; then
-          echo "❌ PR from fork requires 2 collaborator approvals on the latest commit."
+          echo "Reviewers who approved latest commit ($LATEST_SHA):"
+          echo "$REVIEWERS"
           echo ""
-          echo "API Output for debug:"
-          echo "---------------------------------------------------------------"
-          echo "$REVIEWS"
-          echo "---------------------------------------------------------------"
-          exit 1
+
+          # Check Google org membership for each reviewer
+          GOOGLE_ORG_COUNT=0
+          GOOGLE_ORG_MEMBERS=""
+
+          for reviewer in $REVIEWERS; do
+            echo "Checking Google org membership for: $reviewer"
+
+            # Check if user is a member of Google organization
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/organizations/1342004/public_members/$reviewer")
+
+            if [ "$HTTP_STATUS" = "204" ]; then
+              echo "✅ $reviewer is a Google org member"
+              GOOGLE_ORG_COUNT=$((GOOGLE_ORG_COUNT + 1))
+              GOOGLE_ORG_MEMBERS="$GOOGLE_ORG_MEMBERS $reviewer"
+            elif [ "$HTTP_STATUS" = "404" ]; then
+              echo "❌ $reviewer is not a Google org member (or membership is private)"
+            else
+              echo "⚠️  Unknown status ($HTTP_STATUS) for $reviewer"
+            fi
+          done
+
+          echo ""
+          echo "Google org member approvals for latest commit: $GOOGLE_ORG_COUNT"
+          echo "Google org members who approved: $GOOGLE_ORG_MEMBERS"
+
+          if [ "$GOOGLE_ORG_COUNT" -lt 2 ]; then
+            echo ""
+            echo "❌ PR from fork requires 2 Google organization member approvals on the latest commit."
+            echo ""
+            echo "Reviews API Output for debug:"
+            echo "---------------------------------------------------------------"
+            echo "$REVIEWS"
+            echo "---------------------------------------------------------------"
+            exit 1
           fi
+
+          echo "✅ PR has sufficient Google org member approvals ($GOOGLE_ORG_COUNT >= 2)"

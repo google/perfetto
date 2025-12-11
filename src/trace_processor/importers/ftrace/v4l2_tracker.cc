@@ -14,22 +14,28 @@
  * limitations under the License.
  */
 
-#include <memory>
+#include <cinttypes>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
-
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/v4l2.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 using protos::pbzero::FtraceEvent;
@@ -88,8 +94,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       std::optional<SliceId> slice_id =
           AddSlice(buf_name_id, timestamp, pid, evt);
 
-      uint64_t hash = base::FnvHasher::Combine(evt.device_minor, evt.sequence,
-                                               *evt.type, *evt.index);
+      uint64_t hash = base::MurmurHashCombine(evt.device_minor, evt.sequence,
+                                              *evt.type, *evt.index);
 
       QueuedBuffer queued_buffer;
       queued_buffer.queue_slice_id = slice_id;
@@ -129,8 +135,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       std::optional<SliceId> slice_id =
           AddSlice(buf_name_id, timestamp, pid, evt);
 
-      uint64_t hash = base::FnvHasher::Combine(evt.device_minor, evt.sequence,
-                                               *evt.type, *evt.index);
+      uint64_t hash = base::MurmurHashCombine(evt.device_minor, evt.sequence,
+                                              *evt.type, *evt.index);
 
       const QueuedBuffer* queued_buffer = queued_buffers_.Find(hash);
       if (queued_buffer) {
@@ -546,5 +552,4 @@ StringId V4l2Tracker::InternTcFlags(uint32_t flags) {
       base::Join(present_flags, "|").c_str());
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

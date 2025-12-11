@@ -13,14 +13,6 @@
 // limitations under the License.
 
 .pf-flags-page {
-  &__card--changed {
-    border-left: solid 3px var(--pf-color-primary);
-  }
-
-  &__description {
-    font-size: smaller;
-  }
-
   &__footer {
     margin-top: 12px;
     margin-bottom: 24px;

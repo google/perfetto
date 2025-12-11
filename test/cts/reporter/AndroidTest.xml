@@ -23,6 +23,14 @@
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="CtsPerfettoReporterApp.apk" />
     </target_preparer>
+    <!-- If the CtsPerfettoReporterApp.apk is already installed tradefed may not re-install it.
+    Because of this we clear it internal data before and after the test, to delete the "reported"
+    traces that are saved on disk. -->
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <option name="throw-if-cmd-fail" value="true" />
+        <option name="run-command" value="pm clear android.perfetto.cts.reporter"/>
+        <option name="teardown-command" value="pm clear android.perfetto.cts.reporter"/>
+    </target_preparer>
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="CtsPerfettoReporterTestCases->/data/local/tmp/CtsPerfettoReporterTestCases" />

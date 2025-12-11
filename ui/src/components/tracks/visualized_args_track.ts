@@ -18,7 +18,7 @@ import {Icons} from '../../base/semantic_icons';
 import {uuidv4Sql} from '../../base/uuid';
 import {createView} from '../../trace_processor/sql_utils';
 import {Trace} from '../../public/trace';
-import {DatasetSliceTrack} from './dataset_slice_track';
+import {SliceTrack} from './slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {ThreadSliceDetailsPanel} from '../details/thread_slice_details_tab';
@@ -74,7 +74,7 @@ export async function createVisualizedArgsTrack({
     `,
   });
 
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

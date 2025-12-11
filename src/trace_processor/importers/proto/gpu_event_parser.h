@@ -62,6 +62,7 @@ class GpuEventParser {
       protos::pbzero::VulkanMemoryEvent::Operation;
   explicit GpuEventParser(TraceProcessorContext*);
 
+  void TokenizeGpuCounterEvent(ConstBytes);
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts,
                                 PacketSequenceStateGeneration*,

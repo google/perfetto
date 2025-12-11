@@ -16,7 +16,7 @@ import m from 'mithril';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
@@ -72,7 +72,7 @@ async function addBasicSliceTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -88,7 +88,7 @@ async function addBasicSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(
+  trace.defaultWorkspace.addChildInOrder(
     new TrackNode({uri, name: 'All Example Events'}),
   );
 }
@@ -100,7 +100,7 @@ async function addFilteredSliceTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -124,7 +124,7 @@ async function addFilteredSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.defaultWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 3: A slice track using a custom colorizer based on arguments.
@@ -134,7 +134,7 @@ async function addSliceTrackWithCustomColorizer(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -155,7 +155,7 @@ async function addSliceTrackWithCustomColorizer(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.defaultWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 4: An instant track (no durations).
@@ -165,7 +165,7 @@ async function addInstantTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -181,7 +181,7 @@ async function addInstantTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.defaultWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 5: A slice track with explicit depth (rendered flat).
@@ -191,7 +191,7 @@ async function addFlatSliceTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -209,7 +209,7 @@ async function addFlatSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.defaultWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 6: A slice track with a fixed color scheme.
@@ -219,7 +219,7 @@ async function addFixedColorSliceTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -237,7 +237,7 @@ async function addFixedColorSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.defaultWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 7: Creating a nested group of tracks in the workspace.
@@ -277,7 +277,7 @@ async function addNestedTrackGroup(trace: Trace): Promise<void> {
   });
 
   // Build the hierarchy
-  trace.workspace.addChildInOrder(trackRoot);
+  trace.defaultWorkspace.addChildInOrder(trackRoot);
   trackRoot.addChildLast(track1);
   trackRoot.addChildLast(track2);
   track1.addChildLast(track11);
@@ -314,7 +314,7 @@ function addTracksWithHelpText(trace: Trace) {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -357,6 +357,6 @@ function addGroupWithHelpText(trace: Trace) {
 
   // Add to workspace
   const groupNode = new TrackNode({uri, name: 'Group with Help Text'});
-  trace.workspace.addChildInOrder(groupNode);
+  trace.defaultWorkspace.addChildInOrder(groupNode);
   return groupNode;
 }

@@ -12,54 +12,167 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {Sorting} from '../../components/aggregation';
 import {
+  AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
-  selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
+import {Dataset, UnionDataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
+
+const SLICE_WITH_PARENT_SPEC = {
+  id: NUM,
+  name: STR_NULL,
+  ts: LONG,
+  dur: LONG,
+  parent_id: NUM_NULL,
+};
+
+const SLICELIKE_SPEC = {
+  id: NUM,
+  name: STR_NULL,
+  ts: LONG,
+  dur: LONG,
+};
 
 export class SliceSelectionAggregator implements Aggregator {
   readonly id = 'slice_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {
-    const dataset = selectTracksAndGetDataset(area.tracks, {
-      id: NUM,
-      name: STR_NULL,
-      ts: LONG,
-      dur: LONG,
-    });
+    const sliceDatasets: Array<Dataset<typeof SLICE_WITH_PARENT_SPEC>> = [];
+    const slicelikeDatasets: Array<Dataset<typeof SLICELIKE_SPEC>> = [];
 
-    if (!dataset) return undefined;
+    // Pick tracks we can aggregate, sorting them into slice and slicelike
+    // buckets
+    for (const track of area.tracks) {
+      const dataset = track.renderer.getDataset?.();
+      if (!dataset) continue;
+
+      if (dataset.implements(SLICE_WITH_PARENT_SPEC)) {
+        sliceDatasets.push(dataset);
+      } else if (dataset.implements(SLICELIKE_SPEC)) {
+        slicelikeDatasets.push(dataset);
+      }
+    }
+
+    if (sliceDatasets.length === 0 && slicelikeDatasets.length === 0) {
+      return undefined;
+    }
 
     return {
       prepareData: async (engine: Engine) => {
-        await using iiTable = await createIITable(
-          engine,
-          dataset,
-          area.start,
-          area.end,
-        );
+        const unionQueries: string[] = [];
+        await using trash = new AsyncDisposableStack();
+
+        if (sliceDatasets.length > 0) {
+          const query = await this.buildSliceQuery(
+            engine,
+            UnionDataset.create(sliceDatasets),
+            area,
+            trash,
+          );
+          unionQueries.push(query);
+        }
+
+        if (slicelikeDatasets.length > 0) {
+          const query = await this.buildSlicelikeQuery(
+            engine,
+            UnionDataset.create(slicelikeDatasets),
+            area,
+            trash,
+          );
+          unionQueries.push(query);
+        }
+
         await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
+          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+          SELECT
+            id,
             name,
-            sum(dur) AS total_dur,
-            sum(dur)/count() as avg_dur,
-            count() as occurrences
-          from (${iiTable.name})
-          group by name
+            dur,
+            self_dur
+          FROM (${unionQueries.join(' UNION ALL ')})
         `);
 
-        return {
-          tableName: this.id,
-        };
+        return {tableName: this.id};
       },
     };
+  }
+
+  private async buildSliceQuery(
+    engine: Engine,
+    sliceTracks: Dataset<typeof SLICE_WITH_PARENT_SPEC>,
+    area: AreaSelection,
+    trash: AsyncDisposableStack,
+  ): Promise<string> {
+    const iiTable = await createIITable(
+      engine,
+      sliceTracks,
+      area.start,
+      area.end,
+    );
+    trash.use(iiTable);
+
+    // Build child duration aggregation for self-time calculation
+    const childDurTable = await createPerfettoTable({
+      engine,
+      as: `
+        SELECT
+          parent_id AS id,
+          SUM(dur) AS child_dur
+        FROM ${iiTable.name}
+        WHERE parent_id IS NOT NULL
+        GROUP BY parent_id
+      `,
+    });
+    trash.use(childDurTable);
+
+    return `
+      SELECT
+        id,
+        name,
+        ts,
+        dur,
+        dur - COALESCE(child_dur, 0) AS self_dur
+      FROM ${iiTable.name}
+      LEFT JOIN ${childDurTable.name} USING(id)
+    `;
+  }
+
+  private async buildSlicelikeQuery(
+    engine: Engine,
+    slicelikeTracks: Dataset<typeof SLICELIKE_SPEC>,
+    area: AreaSelection,
+    trash: AsyncDisposableStack,
+  ): Promise<string> {
+    const iiTable = await createIITable(
+      engine,
+      slicelikeTracks,
+      area.start,
+      area.end,
+    );
+    trash.use(iiTable);
+
+    return `
+      SELECT
+        id,
+        name,
+        ts,
+        dur,
+        dur AS self_dur
+      FROM ${iiTable.name}
+    `;
   }
 
   getTabName() {
@@ -67,31 +180,39 @@ export class SliceSelectionAggregator implements Aggregator {
   }
 
   getDefaultSorting(): Sorting {
-    return {column: 'total_dur', direction: 'DESC'};
+    return {column: 'sum_dur', direction: 'DESC'};
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Name',
-        columnId: 'name',
+  getColumnDefinitions(): AggregatePivotModel {
+    return {
+      groupBy: ['name'],
+      values: {
+        count: {func: 'COUNT'},
+        sum_dur: {col: 'dur', func: 'SUM'},
+        sum_self_dur: {col: 'self_dur', func: 'SUM'},
+        avg_dur: {col: 'dur', func: 'AVG'},
       },
-      {
-        title: 'Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'total_dur',
-        sum: true,
-      },
-      {
-        title: 'Avg Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'avg_dur',
-      },
-      {
-        title: 'Occurrences',
-        columnId: 'occurrences',
-        sum: true,
-      },
-    ];
+      columns: [
+        {
+          title: 'ID',
+          columnId: 'id',
+          formatHint: 'ID',
+        },
+        {
+          title: 'Name',
+          columnId: 'name',
+        },
+        {
+          title: 'Wall Duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'dur',
+        },
+        {
+          title: 'Self Duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'self_dur',
+        },
+      ],
+    };
   }
 }

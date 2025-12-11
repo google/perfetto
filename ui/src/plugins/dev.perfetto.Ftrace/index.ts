@@ -14,18 +14,18 @@
 
 import m from 'mithril';
 
-import {Cpu} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
-import {FtraceFilter, FtracePluginState} from './common';
+import {Cpu} from '../../components/cpu';
+import {FtraceFilter, FtracePluginState as FtraceFilters} from './common';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
 const VERSION = 1;
 
-const DEFAULT_STATE: FtracePluginState = {
+const DEFAULT_STATE: FtraceFilters = {
   version: VERSION,
   filter: {
     excludeList: [],
@@ -34,28 +34,30 @@ const DEFAULT_STATE: FtracePluginState = {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Ftrace';
+
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const store = ctx.mountStore<FtracePluginState>((init: unknown) => {
-      if (
-        typeof init === 'object' &&
-        init !== null &&
-        'version' in init &&
-        init.version === VERSION
-      ) {
-        return init as {} as FtracePluginState;
-      } else {
-        return DEFAULT_STATE;
-      }
-    });
-    ctx.trash.use(store);
+    const store = ctx.mountStore<FtraceFilters>(
+      'dev.perfetto.FtraceFilters',
+      (init: unknown) => {
+        if (
+          typeof init === 'object' &&
+          init !== null &&
+          'version' in init &&
+          init.version === VERSION
+        ) {
+          return init as {} as FtraceFilters;
+        } else {
+          return DEFAULT_STATE;
+        }
+      },
+    );
 
     const filterStore = store.createSubStore(
       ['filter'],
       (x) => x as FtraceFilter,
     );
-    ctx.trash.use(filterStore);
 
-    const cpus = await this.lookupCpuCores(ctx);
+    const cpus = await getFtraceCpus(ctx);
     const group = new TrackNode({
       name: 'Ftrace Events',
       sortOrder: -5,
@@ -71,7 +73,7 @@ export default class implements PerfettoPlugin {
         tags: {
           cpu: cpu.cpu,
         },
-        renderer: createFtraceTrack(ctx, uri, cpu, filterStore),
+        renderer: createFtraceTrack(ctx, uri, cpu.ucpu, filterStore),
       });
 
       const track = new TrackNode({
@@ -82,7 +84,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (group.children.length) {
-      ctx.workspace.addChildInOrder(group);
+      ctx.defaultWorkspace.addChildInOrder(group);
     }
 
     const cache: FtraceExplorerCache = {
@@ -114,22 +116,30 @@ export default class implements PerfettoPlugin {
       },
     });
   }
+}
 
-  private async lookupCpuCores(ctx: Trace): Promise<Cpu[]> {
-    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
-    // if it's seen in ftrace_event.
-    const queryRes = await ctx.engine.query(`
-      SELECT DISTINCT
-        ucpu
-      FROM ftrace_event
-      ORDER BY ucpu
-    `);
-    const ucpus = new Set<number>();
-    for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
-      ucpus.add(it.ucpu);
-    }
+/**
+ * Get the list of unique cpus in the ftrace_event table.
+ */
+async function getFtraceCpus(ctx: Trace): Promise<Cpu[]> {
+  const queryRes = await ctx.engine.query(`
+    SELECT DISTINCT
+      ucpu,
+      IFNULL(cpu.machine_id, 0) AS machine_id,
+      cpu.cpu AS cpu
+    FROM ftrace_event
+    JOIN cpu USING (ucpu)
+    ORDER BY ucpu
+  `);
 
-    const cpuCores = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
-    return cpuCores;
+  const ucpus: Cpu[] = [];
+  for (
+    const it = queryRes.iter({ucpu: NUM, machine_id: NUM, cpu: NUM});
+    it.valid();
+    it.next()
+  ) {
+    ucpus.push(new Cpu(it.ucpu, it.cpu, it.machine_id));
   }
+
+  return ucpus;
 }

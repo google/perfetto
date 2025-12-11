@@ -16,8 +16,8 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/traced/traced.h"
@@ -115,7 +115,7 @@ static int RelayServiceMain(int argc, char** argv) {
     base::Daemonize([] { return 0; });
   }
 
-  base::UnixTaskRunner task_runner;
+  base::MaybeLockFreeTaskRunner task_runner;
   auto svc = std::make_unique<RelayService>(&task_runner);
 
   // traced_relay binds to the producer socket of the `traced` service. When

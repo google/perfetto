@@ -15,33 +15,21 @@
 @import "../../assets/theme";
 
 .pf-settings-page {
-  &__card {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: space-between;
+  &__plugin-section {
+    margin-bottom: 32px;
 
-    &--changed {
-      border-left: solid 3px var(--pf-color-primary);
+    &:last-child {
+      margin-bottom: 0;
     }
   }
 
-  &__details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  &__description {
-    font-size: smaller;
-    white-space: pre-line;
-  }
-
-  &__controls {
-    display: flex;
-    flex-direction: row;
-    column-gap: 12px;
-    align-items: center;
+  &__plugin-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    padding: 8px 12px;
+    background: var(--pf-minimal-background);
+    border-radius: 4px;
   }
 
   &__complex-error {
@@ -50,5 +38,12 @@
     gap: 4px;
     color: var(--pf-color-danger);
     font-size: 14px;
+  }
+
+  &__controls {
+    display: flex;
+    flex-direction: row;
+    column-gap: 16px;
+    align-items: center;
   }
 }

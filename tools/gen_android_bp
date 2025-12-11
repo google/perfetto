@@ -94,6 +94,8 @@ protozero_plugin = '//src/protozero/protoc_plugin:protozero_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
 cppgen_plugin = '//src/protozero/protoc_plugin:cppgen_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
+protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_descriptor_diff(%s)' % (
+    gn_utils.HOST_TOOLCHAIN)
 
 default_targets += [
     '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
@@ -118,6 +120,7 @@ target_host_supported = [
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor',
     '//src/trace_processor:trace_processor_shell',
+    '//src/trace_processor:trace_processor_shell_lib',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
 ]
@@ -178,7 +181,7 @@ proto_groups = {
 
 needs_libfts = [
     '//:perfetto_unittests',
-    '//src/trace_processor:trace_processor_shell',
+    '//src/trace_processor:trace_processor_shell_lib',
     '//src/traceconv:traceconv',
 ]
 
@@ -749,6 +752,21 @@ class Module(object):
     else:
       self.shared_libs.add(lib)
 
+  def add_static_library_transitive_deps(self, dep_module):
+    # The motivation for this change is b/169779783: cc_library_static do not
+    # correctly propogate their static_library deps. So we need to do the
+    # propogation ourselves.
+    # TODO(169779783): remove this workaround when b/169779783 is fixed.
+    assert dep_module.type == 'cc_library_static'
+
+    self.static_libs.update(dep_module.static_libs)
+    self.android.static_libs.update(dep_module.android.static_libs)
+    self.host.static_libs.update(dep_module.host.static_libs)
+
+    self.shared_libs.update(dep_module.shared_libs)
+    self.android.shared_libs.update(dep_module.android.shared_libs)
+    self.host.shared_libs.update(dep_module.host.shared_libs)
+
   def _output_field(self, output, name, sort=True):
     value = getattr(self, name)
     return write_blueprint_key_value(output, name, value, sort)
@@ -952,6 +970,35 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   return source_module
 
 
+def create_protozero_descriptor_diff_module(blueprint: Blueprint, gn: GnParser,
+                                            target: GnParser.Target):
+  bp_module_name = label_to_module_name(target.name)
+  module = Module('genrule', bp_module_name, target.name)
+
+  protozero_descriptor_diff_binary = create_modules_from_target(
+      blueprint, gn, protozero_descriptor_diff_target)
+  assert (protozero_descriptor_diff_binary)
+  module.tools = set([
+      protozero_descriptor_diff_binary.name,
+  ])
+  assert (len(target.outputs) == 1)
+  module.cmd = ' '.join([
+      f'$(location {protozero_descriptor_diff_binary.name})',
+      '--out',
+      '$(out)',
+      '--minuend',
+      f'$(location :{label_to_module_name(target.minuend_descriptor)})',
+      '--subtrahend',
+      f'$(location :{label_to_module_name(target.subtrahend_descriptor)})',
+  ])
+  module.srcs.update(
+      ':' + label_to_module_name(dep.name) for dep in target.proto_deps())
+  module.out.update(target.outputs)
+  blueprint.add_module(module)
+
+  return module
+
+
 def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
                             target: GnParser.Target):
   bp_module_name = label_to_module_name(target.name)
@@ -1038,7 +1085,7 @@ def create_cc_proto_descriptor_module(blueprint: Blueprint,
   ])
   module.genrule_headers.add(module.name)
   module.srcs.update(
-      ':' + label_to_module_name(dep.name) for dep in target.proto_deps())
+      ':' + label_to_module_name(dep.name) for dep in target.deps)
   module.srcs.update(
       gn_utils.label_to_path(src)
       for src in target.inputs
@@ -1090,6 +1137,7 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
       module.comment = f'''GN: [{', '.join(target_names)}]'''
       module.proto = {'type': 'lite', 'canonical_path_from_root': False}
       module.srcs = module_sources
+      module.host_supported = True
       blueprint.add_module(module)
     elif type == 'python':
       name = label_to_module_name(module_name) + '_python_protos'
@@ -1359,6 +1407,8 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
       return AndroidJavaSDKModulesGenerator(blueprint,
                                             gn).create_android_test_module(
                                                 target, bp_module_name)
+    if target.custom_action_type == 'protozero_descriptor_diff':
+      return create_protozero_descriptor_diff_module(blueprint, gn, target)
 
     if target.custom_action_type == 'cc_proto_descriptor':
       module = create_cc_proto_descriptor_module(blueprint, target)
@@ -1455,12 +1505,14 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
       module.shared_libs.add(dep_module.name)
     elif dep_module.type == 'cc_library_static':
       module.static_libs.add(dep_module.name)
+      module.add_static_library_transitive_deps(dep_module)
     elif dep_module.type == 'cc_library':
       dep_gn_target = gn.get_target(dep_name)
       if dep_gn_target.type == 'shared_library':
         module.shared_libs.add(dep_module.name)
       elif dep_gn_target.type == 'static_library':
         module.static_libs.add(dep_module.name)
+        module.add_static_library_transitive_deps(dep_module)
       else:
         raise Error('Unknown gn type %s for cc_library dep %s' %
                     (dep_gn_target.type, dep_module.name))

@@ -18,6 +18,7 @@
 
 #include <thread>
 
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "test/gtest_and_gmock.h"
@@ -66,7 +67,7 @@ TEST_F(ThreadTaskRunnerTest, MovableOwnership) {
   NoDestructor<ThreadTaskRunner> ttr{ThreadTaskRunner::CreateAndStart()};
   ThreadTaskRunner& task_runner = ttr.ref();
 
-  UnixTaskRunner* runner_ptr = task_runner.get();
+  MaybeLockFreeTaskRunner* runner_ptr = task_runner.get();
   EXPECT_NE(runner_ptr, nullptr);
 
   ThreadChecker thread_checker;
@@ -114,9 +115,9 @@ class DestructorThreadChecker {
   ThreadChecker checker_;
 };
 
-// Checks that the still-pending tasks (and therefore the UnixTaskRunner itself)
-// are destructed on the task thread, and not the thread that destroys the
-// ThreadTaskRunner.
+// Checks that the still-pending tasks (and therefore the
+// MaybeLockFreeTaskRunner itself) are destructed on the task thread, and not
+// the thread that destroys the ThreadTaskRunner.
 TEST_F(ThreadTaskRunnerTest, EnqueuedTasksDestructedOnTaskThread) {
   ThreadChecker thread_checker;
   ThreadTaskRunner task_runner = ThreadTaskRunner::CreateAndStart();
@@ -132,7 +133,7 @@ TEST_F(ThreadTaskRunnerTest, EnqueuedTasksDestructedOnTaskThread) {
     // * for the temporary that was moved-from to construct the task
     //   std::function. Will pass as we're posting from a task thread.
     // * for the still-pending task once the ThreadTaskRunner destruction causes
-    //   the destruction of UnixTaskRunner.
+    //   the destruction of MaybeLockFreeTaskRunner.
     task_runner.get()->PostDelayedTask(DestructorThreadChecker(thread_checker),
                                        100 * 1000 /*ms*/);
     atomic_flag_ = true;

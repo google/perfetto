@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Time} from '../../base/time';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
@@ -46,7 +46,7 @@ export default class implements PerfettoPlugin {
       return;
     }
     const uri = `/clock_snapshots`;
-    const track = new DatasetSliceTrack({
+    const track = SliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({
@@ -136,7 +136,7 @@ export default class implements PerfettoPlugin {
     const trackNode = new TrackNode({uri, name: 'Clock Snapshots'});
     const group = trace.plugins
       .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(trace.workspace, 'SYSTEM');
+      .getOrCreateStandardGroup(trace.defaultWorkspace, 'SYSTEM');
     group.addChildInOrder(trackNode);
   }
 }

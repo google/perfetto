@@ -36,7 +36,7 @@ export class PowerCounterSelectionAggregator implements Aggregator {
     const trackIds: (string | number)[] = [];
     for (const trackInfo of area.tracks) {
       if (
-        trackInfo?.tags?.kind === COUNTER_TRACK_KIND &&
+        trackInfo?.tags?.kinds?.includes(COUNTER_TRACK_KIND) &&
         trackInfo?.tags?.type === 'power_rails'
       ) {
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
@@ -87,15 +87,20 @@ export class PowerCounterSelectionAggregator implements Aggregator {
       {
         title: 'Delta energy (mJ)',
         columnId: 'delta_value',
+        sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Avg Power (mW)',
         columnId: 'rate',
+        sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Sample Count',
         columnId: 'count',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

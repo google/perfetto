@@ -23,6 +23,7 @@ import path from 'path';
 import {IdleDetectorWindow} from '../frontend/idle_detector_interface';
 import {assertExists} from '../base/logging';
 import {Size2D} from '../base/geom';
+import {AppImpl} from '../core/app_impl';
 
 // Define the locators for elements you always want to mask.
 const GLOBAL_MASKS: ((page: Page) => Locator)[] = [
@@ -51,6 +52,7 @@ export class PerfettoTestHelper {
   async navigate(fragment: string): Promise<void> {
     await this.page.goto('/?testing=1' + fragment);
     await this.waitForPerfettoIdle();
+    await this.applyTestingStyles();
     await this.page.click('body');
   }
 
@@ -69,7 +71,22 @@ export class PerfettoTestHelper {
     const tracePath = this.getTestTracePath(traceName);
     assertExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
+    await this.applyTestingStyles();
     await this.page.mouse.move(0, 0);
+  }
+
+  /**
+   * Applies styles to minimize rendering differences between Mac and Linux.
+   */
+  private async applyTestingStyles(): Promise<void> {
+    await this.page.addStyleTag({
+      content: `
+        body {
+          -webkit-font-smoothing: antialiased !important;
+          font-kerning: none !important;
+        }
+      `,
+    });
   }
 
   waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
@@ -120,6 +137,12 @@ export class PerfettoTestHelper {
     await this.page.evaluate(
       (arg) => self.app.commands.runCommand(arg.cmdId, ...arg.args),
       {cmdId, args},
+    );
+  }
+
+  async disableOmniboxPrompt() {
+    await this.page.evaluate(() =>
+      (self.app as AppImpl).omnibox.disablePrompts(),
     );
   }
 

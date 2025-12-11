@@ -15,5 +15,14 @@
 import("../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  sources = [ "record_file.proto" ]
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
+  sources = [
+    "cmd_report_sample.proto",
+    "record_file.proto",
+  ]
+  generate_descriptor = "simpleperf.descriptor"
+  descriptor_root_source = "cmd_report_sample.proto"
 }

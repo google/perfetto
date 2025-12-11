@@ -23,8 +23,7 @@
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 class Sqlite3StrSplitTest : public ::testing::Test {
@@ -92,5 +91,4 @@ TEST_F(Sqlite3StrSplitTest, SplitEmptyInput) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

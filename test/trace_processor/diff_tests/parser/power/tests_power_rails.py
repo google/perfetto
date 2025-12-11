@@ -34,7 +34,7 @@ class PowerPowerRails(TestSuite):
       """,
         out=Csv("""
         "power_rail_name","AVG(value)","COUNT(*)"
-        "power.PPVAR_VPH_PWR_ABH_uws",7380269.414634,41
+        "power.PPVAR_VPH_PWR_ABH_uws",7388261.216667,60
         "power.PPVAR_VPH_PWR_OLED_uws",202362991.655738,61
         """))
 
@@ -373,4 +373,122 @@ class PowerPowerRails(TestSuite):
         "power.L14S_ALIVE_uws","L14S_ALIVE","[NULL]","system"
         "power.rails.cpu.mid","S3M_VDD_CPUCL1","cpu.mid","cpu"
         "power.rails.gpu","S2S_VDD_G3D","gpu","gpu"
+        """))
+
+  def test_power_rails_multi_device(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          power_rails {
+            rail_descriptor {
+              index: 0
+              rail_name: "SHARED_RAIL"
+              subsys_name: "cpu"
+              sampling_rate: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 1000000
+          power_rails {
+            energy_data {
+              index: 0
+              energy: 100
+            }
+          }
+        }
+        packet {
+          timestamp: 3000000
+          power_rails {
+            energy_data {
+              index: 0
+              energy: 300
+            }
+          }
+        }
+        packet {
+          machine_id: 1
+          remote_clock_sync {
+            synced_clocks {
+              client_clocks {
+                clocks {
+                  clock_id: 6
+                  timestamp: 10000
+                }
+              }
+              host_clocks {
+                clocks {
+                  clock_id: 6
+                  timestamp: 1000000
+                }
+              }
+            }
+            synced_clocks {
+              client_clocks {
+                clocks {
+                  clock_id: 6
+                  timestamp: 10000
+                }
+              }
+              host_clocks {
+                clocks {
+                  clock_id: 6
+                  timestamp: 1000000
+                }
+              }
+            }
+          }
+        }
+        packet {
+          machine_id: 1
+          power_rails {
+            rail_descriptor {
+              index: 0
+              rail_name: "SHARED_RAIL"
+              subsys_name: "gpu"
+              sampling_rate: 2000
+            }
+          }
+        }
+        packet {
+          machine_id: 1
+          timestamp: 2000000
+          timestamp_clock_id: 6  # BUILTIN_CLOCK_BOOTTIME
+          power_rails {
+            energy_data {
+              index: 0
+              energy: 200
+            }
+          }
+        }
+        packet {
+          machine_id: 1
+          timestamp: 4000000
+          timestamp_clock_id: 6  # BUILTIN_CLOCK_BOOTTIME
+          power_rails {
+            energy_data {
+              index: 0
+              timestamp_ms: 4
+              energy: 400
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.name,
+          c.ts,
+          c.value,
+          t.machine_id
+        FROM counter c
+        JOIN counter_track t ON t.id = c.track_id
+        WHERE t.name GLOB "power.*"
+        ORDER BY t.name, t.machine_id, c.ts;
+        """,
+        out=Csv("""
+        "name","ts","value","machine_id"
+        "power.SHARED_RAIL_uws",1000000,100.000000,"[NULL]"
+        "power.SHARED_RAIL_uws",3000000,300.000000,"[NULL]"
+        "power.SHARED_RAIL_uws",2990000,200.000000,1
+        "power.SHARED_RAIL_uws",4990000,400.000000,1
         """))

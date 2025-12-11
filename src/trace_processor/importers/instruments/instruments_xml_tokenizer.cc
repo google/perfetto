@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/importers/instruments/row_parser.h"
 
 #include <expat.h>
@@ -27,6 +28,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -35,7 +38,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
@@ -148,10 +150,9 @@ class InstrumentsXmlTokenizer::Impl {
  public:
   explicit Impl(TraceProcessorContext* context)
       : context_(context),
-        data_(),
+        parser_(XML_ParserCreate(nullptr)),
         stream_(context->sorter->CreateStream(
             std::make_unique<RowParser>(context, data_))) {
-    parser_ = XML_ParserCreate(nullptr);
     XML_SetElementHandler(parser_, ElementStart, ElementEnd);
     XML_SetCharacterDataHandler(parser_, CharacterData);
     XML_SetUserData(parser_, this);
@@ -159,7 +160,7 @@ class InstrumentsXmlTokenizer::Impl {
     static constexpr std::string_view kSubsystem =
         "dev.perfetto.instruments_clock";
     clock_ = static_cast<ClockTracker::ClockId>(
-        base::FnvHasher::Combine(kSubsystem) | 0x80000000);
+        base::MurmurHashValue(kSubsystem) | 0x80000000);
 
     // Use the above clock if we can, in case there is no other trace and
     // no clock sync events.
@@ -372,13 +373,10 @@ class InstrumentsXmlTokenizer::Impl {
     if (tag_name == "row") {
       if (current_row_.backtrace) {
         // Rows with backtraces are assumed to be time samples.
-        base::StatusOr<int64_t> trace_ts =
+        std::optional<int64_t> trace_ts =
             ToTraceTimestamp(current_row_.timestamp_);
-        if (!trace_ts.ok()) {
-          PERFETTO_DLOG("Skipping timestamp %" PRId64 ", no clock snapshot yet",
-                        current_row_.timestamp_);
-        } else {
-          stream_->Push(*trace_ts, std::move(current_row_));
+        if (trace_ts) {
+          stream_->Push(*trace_ts, current_row_);
         }
       } else if (current_subsystem_ref_ != nullptr) {
         // Rows without backtraces are assumed to be signpost events -- filter
@@ -452,14 +450,12 @@ class InstrumentsXmlTokenizer::Impl {
     }
   }
 
-  base::StatusOr<int64_t> ToTraceTimestamp(int64_t time) {
-    base::StatusOr<int64_t> trace_ts =
+  std::optional<int64_t> ToTraceTimestamp(int64_t time) {
+    std::optional<int64_t> trace_ts =
         context_->clock_tracker->ToTraceTime(clock_, time);
-
-    if (PERFETTO_LIKELY(trace_ts.ok())) {
+    if (PERFETTO_LIKELY(trace_ts.has_value())) {
       latest_timestamp_ = std::max(latest_timestamp_, *trace_ts);
     }
-
     return trace_ts;
   }
 

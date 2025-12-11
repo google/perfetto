@@ -16,6 +16,8 @@
 
 #include "src/profiling/deobfuscator.h"
 
+#include <stdlib.h>
+
 #include <optional>
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -121,7 +123,7 @@ std::optional<ProguardMember> ParseMember(std::string line) {
   auto paren_idx = deobfuscated_name.find('(');
   if (paren_idx != std::string::npos) {
     member_type = ProguardMemberType::kMethod;
-    deobfuscated_name = deobfuscated_name.substr(0, paren_idx);
+    deobfuscated_name.resize(paren_idx);
     auto colon_idx = type_name.find(':');
     if (colon_idx != std::string::npos) {
       type_name = type_name.substr(colon_idx + 1);
@@ -257,7 +259,7 @@ bool ReadProguardMapsToDeobfuscationPackets(
     std::function<void(std::string)> fn) {
   for (const ProguardMap& map : maps) {
     const char* filename = map.filename.c_str();
-    base::ScopedFstream f(fopen(filename, base::kFopenReadFlag));
+    base::ScopedFstream f = base::OpenFstream(filename, base::kFopenReadFlag);
     if (!f) {
       PERFETTO_ELOG("Failed to open %s", filename);
       return false;

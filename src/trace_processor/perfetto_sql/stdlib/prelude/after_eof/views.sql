@@ -59,11 +59,6 @@ CREATE PERFETTO VIEW slice (
   name STRING,
   -- The depth of the slice in the current stack of slices.
   depth LONG,
-  -- A unique identifier obtained from the names of all slices in this stack.
-  -- This is rarely useful and kept around only for legacy reasons.
-  stack_id LONG,
-  -- The stack_id for the parent of this slice. Rarely useful.
-  parent_stack_id LONG,
   -- The id of the parent (i.e. immediate ancestor) slice for this slice.
   parent_id JOINID(slice.id),
   -- The id of the argument set associated with this slice.
@@ -131,10 +126,6 @@ CREATE PERFETTO VIEW slices (
   name STRING,
   -- Alias of `slice.depth`.
   depth LONG,
-  -- Alias of `slice.stack_id`.
-  stack_id LONG,
-  -- Alias of `slice.parent_stack_id`.
-  parent_stack_id LONG,
   -- Alias of `slice.parent_id`.
   parent_id JOINID(slice.id),
   -- Alias of `slice.arg_set_id`.
@@ -185,7 +176,9 @@ CREATE PERFETTO VIEW thread (
   -- Boolean indicating if this thread is a kernel idle thread.
   is_idle BOOL,
   -- Machine identifier, non-null for threads on a remote machine.
-  machine_id LONG
+  machine_id LONG,
+  -- Extra args for this thread.
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id AS utid,
@@ -266,7 +259,7 @@ SELECT
     WHEN 'int'
     THEN cast_string!(int_value)
     WHEN 'uint'
-    THEN cast_string!(int_value)
+    THEN printf('%u', int_value)
     WHEN 'string'
     THEN string_value
     WHEN 'real'
@@ -322,3 +315,42 @@ SELECT
   tag,
   msg
 FROM __intrinsic_android_logs;
+
+-- Materialized mapping from stat key to severity and name.
+CREATE PERFETTO TABLE _stat_key_to_severity_and_name AS
+SELECT DISTINCT
+  key,
+  severity,
+  name
+FROM stats
+ORDER BY
+  key;
+
+-- Contains logs of errors and warnings that occurred during trace import.
+CREATE PERFETTO VIEW _trace_import_logs (
+  -- The id of the log entry.
+  id ID,
+  -- The id of the trace file this log belongs to.
+  trace_id LONG,
+  -- The timestamp when the error occurred (if available).
+  ts TIMESTAMP,
+  -- The byte offset in the trace file where the error occurred (if available).
+  byte_offset LONG,
+  -- The severity of the log entry ('info', 'data_loss', or 'error').
+  severity STRING,
+  -- The name of the stat/error type.
+  name STRING,
+  -- The id of the argument set associated with this log entry.
+  arg_set_id ARGSETID
+) AS
+SELECT
+  l.id,
+  l.trace_id,
+  l.ts,
+  l.byte_offset,
+  s.severity,
+  s.name,
+  l.arg_set_id
+FROM __intrinsic_trace_import_logs AS l
+JOIN _stat_key_to_severity_and_name AS s
+  ON l.stat_key = s.key;

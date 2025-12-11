@@ -32,7 +32,7 @@ export default class implements PerfettoPlugin {
     });
     const rpm = await this.addRpmTracks(ctx);
     if (rpm.hasChildren) {
-      ctx.workspace.addChildInOrder(kernel);
+      ctx.defaultWorkspace.addChildInOrder(kernel);
       kernel.addChildInOrder(rpm);
     }
   }
@@ -70,7 +70,7 @@ export default class implements PerfettoPlugin {
           trackIds: [trackId],
         }),
         tags: {
-          kind: SLICE_TRACK_KIND,
+          kinds: [SLICE_TRACK_KIND],
           trackIds: [trackId],
         },
       });

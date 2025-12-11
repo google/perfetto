@@ -31,6 +31,7 @@ from perfetto.trace_processor.api import TraceProcessorException
 from perfetto.trace_processor.api import TraceProcessorConfig
 from perfetto.trace_uri_resolver import registry
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
+from perfetto.trace_uri_resolver.resolver import TraceUriResolver
 
 # Defining this field as a module variable means this can be changed by
 # implementations at startup and used for all BatchTraceProcessor objects
@@ -371,8 +372,22 @@ class BatchTraceProcessor:
       self, trace: ResolverRegistry.Result
   ) -> Optional[Tuple[TraceProcessor, Metadata]]:
     try:
+
+      class BtpToTpResolver(TraceUriResolver):
+
+        def __init__(self, result: TraceUriResolver.Result):
+          self.result = result
+
+        def resolve(self) -> List['TraceUriResolver.Result']:
+          return [self.result]
+
       return TraceProcessor(
-          trace=trace.generator, config=self.config.tp_config), trace.metadata
+          trace=BtpToTpResolver(
+              TraceUriResolver.Result(
+                  trace=trace.generator,
+                  metadata=trace.metadata,
+              )),
+          config=self.config.tp_config), trace.metadata
     except Exception as ex:
       if self.config.load_failure_handling == FailureHandling.RAISE_EXCEPTION:
         raise ex

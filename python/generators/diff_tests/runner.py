@@ -142,12 +142,15 @@ class DiffTestsRunner:
 
   def _run_test(self, test: TestCase,
                 trace_descriptor_path: str) -> Tuple[str, str, TestResult]:
+    # Simpleperf is not an extension of Perfetto's trace proto, but a separate
+    # format. Only pass it for simpleperf-specific tests.
     extension_descriptor_paths = [
         self.config.chrome_extensions, self.config.test_extensions,
         self.config.winscope_extensions
     ]
     gen_trace_file = generate_trace_file(test, trace_descriptor_path,
-                                         extension_descriptor_paths)
+                                         extension_descriptor_paths,
+                                         self.config.simpleperf_descriptor)
 
     if gen_trace_file:
       trace_path = os.path.realpath(gen_trace_file.name)
@@ -180,9 +183,10 @@ class DiffTestsRunner:
         gen_trace_file.close()
         os.remove(trace_path)
 
+    print_trace_path = gen_trace_file and self.config.keep_input
     run_str = self._process_test_result(result, trace_path,
                                         extension_descriptor_paths,
-                                        trace_descriptor_path)
+                                        trace_descriptor_path, print_trace_path)
     return test.name, run_str, result
 
   def _process_test_result(
@@ -191,6 +195,7 @@ class DiffTestsRunner:
       trace_path: str,
       extension_descriptor_paths: List[str],
       trace_descriptor_path: str,
+      print_trace_path: bool,
   ) -> str:
     colors = ColorFormatter(self.config.no_colors)
 
@@ -216,6 +221,7 @@ class DiffTestsRunner:
       return res
 
     run_str = f"{colors.yellow('[ RUN      ]')} {result.test.name}\n"
+    run_diagnostics = [f"trace_path: {trace_path}"] if print_trace_path else []
     if result.exit_code != 0 or not result.passed:
       result.passed = False
       run_str += result.stderr
@@ -227,13 +233,15 @@ class DiffTestsRunner:
       else:
         run_str += write_cmdlines()
 
-      run_str += (f"{colors.red('[  FAILED  ]')} {result.test.name}\n")
+      run_str += (f"{colors.red('[  FAILED  ]')} {result.test.name}")
     else:
       assert result.perf_result
-      run_str += (
-          f"{colors.green('[       OK ]')} {result.test.name} "
-          f"(ingest: {result.perf_result.ingest_time_ns / 1000000:.2f} ms "
-          f"query: {result.perf_result.real_time_ns / 1000000:.2f} ms)\n")
+      run_str += f"{colors.green('[       OK ]')} {result.test.name}"
+      run_diagnostics.append(
+          f"ingest: {result.perf_result.ingest_time_ns / 1000000:.2f} ms")
+      run_diagnostics.append(
+          f"query: {result.perf_result.real_time_ns / 1000000:.2f} ms")
+    run_str += f" ({' '.join(run_diagnostics)})\n" if run_diagnostics else "\n"
     return run_str
 
   def _get_build_config(self) -> Set[str]:

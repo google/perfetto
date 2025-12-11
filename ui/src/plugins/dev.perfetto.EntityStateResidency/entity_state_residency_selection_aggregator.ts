@@ -26,7 +26,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
     const trackIds: (string | number)[] = [];
     for (const trackInfo of area.tracks) {
       if (
-        trackInfo?.tags?.kind === COUNTER_TRACK_KIND &&
+        trackInfo?.tags?.kinds?.includes(COUNTER_TRACK_KIND) &&
         trackInfo?.tags?.type === 'entity_state'
       ) {
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
@@ -90,6 +90,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
         title: 'Time in state (ms)',
         columnId: 'delta_value',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Time in state',
@@ -100,6 +101,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
       {
         title: 'Sample Count',
         columnId: 'count',
+        formatHint: 'NUMERIC',
       },
     ];
   }

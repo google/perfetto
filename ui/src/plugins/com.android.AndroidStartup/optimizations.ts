@@ -15,12 +15,9 @@
 import {Trace} from '../../public/trace';
 import {STR, LONG, NUM} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {DebugSliceTrackDetailsPanel} from '../../components/tracks/debug_slice_track_details_panel';
-
-// The log tag
-const tag = 'DexOptInsights';
 
 /**
  * Returns a track node that contains optimization status
@@ -37,7 +34,6 @@ export async function optimizationsTrack(
       INCLUDE PERFETTO MODULE android.startup.startups;
       SELECT startup_id as id, package FROM android_startups;
     `,
-    tag,
   );
 
   // Nothing interesting to report.
@@ -103,14 +99,13 @@ export async function optimizationsTrack(
       FROM android_startups s
       LEFT JOIN _startup_filter_extraction(s.startup_id) f
     `,
-    tag,
   );
 
   const uri = '/android_startups_optimization_status';
   const tableName = `_startup_optimization_slices`;
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -142,7 +137,7 @@ function classLoadingTrack(
   const uri = `/android_startups/${startup.id}/classloading`;
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({

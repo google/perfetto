@@ -85,7 +85,7 @@ grpc::Status ExecuteQueryOnTrace(
 
 void ThreadRunLoop(ThreadWithContext* contextual_thread,
                    TraceAddressPool& address_pool,
-                   std::string sql_query,
+                   const std::string& sql_query,
                    grpc::Status& query_status,
                    std::mutex& worker_lock,
                    std::vector<protos::BigtraceQueryResponse>& response_buffer,

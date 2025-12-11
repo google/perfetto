@@ -30,7 +30,7 @@ export default class implements PerfettoPlugin {
       text: 'Metrics',
       href: '#!/metrics',
       icon: 'speed',
-      sortOrder: 9,
+      sortOrder: 22,
     });
   }
 }

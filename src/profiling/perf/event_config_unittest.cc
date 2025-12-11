@@ -494,6 +494,43 @@ TEST(EventConfigTest, GroupMultipleType) {
   EXPECT_TRUE(tracepoint.sample_type & PERF_SAMPLE_READ);
 }
 
+TEST(EventConfigTest, EventModifiers) {
+  protos::gen::PerfEventConfig cfg;
+  {
+    // timebase with modifier:
+    auto* timebase = cfg.mutable_timebase();
+    timebase->set_period(500);
+    timebase->set_counter(protos::gen::PerfEvents::HW_CPU_CYCLES);
+    timebase->add_modifiers(
+        protos::gen::PerfEvents::EVENT_MODIFIER_COUNT_USERSPACE);
+
+    // follower with two modifiers:
+    auto* follower = cfg.add_followers();
+    follower->set_counter(protos::gen::PerfEvents::HW_BRANCH_INSTRUCTIONS);
+    follower->add_modifiers(
+        protos::gen::PerfEvents::EVENT_MODIFIER_COUNT_USERSPACE);
+    follower->add_modifiers(
+        protos::gen::PerfEvents::EVENT_MODIFIER_COUNT_KERNEL);
+  }
+
+  std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+  ASSERT_TRUE(event_config.has_value());
+
+  // non-included scopes are excluded
+  const auto* timebase_attr = event_config->perf_attr();
+  EXPECT_FALSE(timebase_attr->exclude_user);
+  EXPECT_TRUE(timebase_attr->exclude_kernel);
+  EXPECT_TRUE(timebase_attr->exclude_hv);
+
+  const auto& follower_events = event_config->perf_attr_followers();
+  ASSERT_EQ(follower_events.size(), 1u);
+  // non-included scopes are excluded
+  const auto& follower_attr = follower_events[0];
+  EXPECT_FALSE(follower_attr.exclude_user);
+  EXPECT_FALSE(follower_attr.exclude_kernel);
+  EXPECT_TRUE(follower_attr.exclude_hv);
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto

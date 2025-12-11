@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
 import {WebContentInteractionPanel} from './web_content_interaction_details_panel';
@@ -22,7 +22,7 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {Trace} from '../../public/trace';
 
 export function createCriticalUserInteractionTrack(trace: Trace, uri: string) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

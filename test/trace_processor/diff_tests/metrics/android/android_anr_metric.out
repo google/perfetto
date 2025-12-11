@@ -17,4 +17,109 @@ android_anr {
         ts: 3000
         error_id: "c25916a0-a8f0-41f3-87df-319e06471a0f"
     }
+    anr {
+        process_name: "com.disney.disneyplus"
+        pid: 23215
+        ts: 4000
+        subject: "Broadcast of Intent { act=android.os.action.DEVICE_IDLE_MODE_CHANGED flg=0x50000010 cmp=com.disney.disneyplus/Di.a }"
+        error_id: "1eb3813d-45d3-4a9a-ab80-0ebeb88ea25a"
+    }
+    anr {
+        process_name: "com.disney.disneyplus"
+        pid: 27195
+        ts: 5000
+        subject: "Broadcast of Intent { act=android.intent.action.DATE_CHANGED flg=0x20200010 cmp=com.disney.disneyplus/Di.a }"
+        error_id: "50756b89-eadc-40c9-aef2-8886adb7d936"
+    }
+    anr {
+        process_name: "com.android.chrome"
+        pid: 17874
+        ts: 6000
+        subject: "Input dispatching timed out (88f6a9 com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity is not responding. Waited 5000ms for FocusEvent(hasFocus=false))."
+        error_id: "60b9d4b6-6487-4800-bd12-3f9d547482e3"
+    }
+    anr {
+        process_name: "com.microsoft.teams"
+        pid: 10645
+        ts: 7000
+        subject: "Input dispatching timed out (Application does not have a focused window)."
+        error_id: "2d1dff06-54a3-450b-8123-0d21e67715c4"
+    }
+    anr {
+        process_name: "com.google.android.apps.internal.betterbug"
+        pid: 26587
+        ts: 8000
+        subject: "Context.startForegroundService() did not then call Service.startForeground(): ServiceRecord{76a32df u10 com.google.android.apps.internal.betterbug/.ramdumpuploader.RamdumpUploadService c:com.google.android.apps.internal.betterbug}"
+        error_id: "1c733cef-dee3-42a1-bff5-6ac2bb3167ae"
+    }
+    anr {
+        process_name: "com.android.systemui"
+        pid: 2342
+        ts: 9000
+        subject: "executing service com.android.systemui/.doze.DozeService, waited 156441ms"
+        error_id: "f2eb9ced-2327-402c-bf7c-dc498fafa5cd"
+    }
+    anr {
+        process_name: "com.android.settings"
+        pid: 15028
+        ts: 11000
+        subject: "ContentProvider not responding"
+        error_id: "9361cad8-c888-4f03-bff9-9ed8c69d583b"
+    }
+    anr {
+        process_name: "com.google.android.youtube.tv"
+        pid: 16563
+        ts: 12000
+        subject: "App requested: Buffer processing hung up due to stuck fence. Indicates GPU hang"
+        error_id: "600c4866-02c0-4d46-a69c-21d9ac377ad0"
+    }
+    anr {
+        process_name: "com.android.chrome"
+        pid: 18090
+        ts: 13000
+        subject: "No response to onStartJob"
+        error_id: "fd96eb0a-ccba-474b-8044-b7cd27e812c2"
+    }
+    anr {
+        process_name: "com.android.chrome"
+        pid: 13534
+        ts: 14000
+        subject: "No response to onStopJob"
+        error_id: "4e1f9f12-d9bf-4d6b-9e2b-1dfeaf774859"
+    }
+    anr {
+        process_name: "com.android.vending"
+        pid: 18264
+        ts: 15000
+        subject: "Timed out while trying to bind"
+        error_id: "8a83c04e-fd35-4945-9fcc-7736f4242cae"
+    }
+    anr {
+        process_name: "com.android.phone"
+        pid: 3538
+        ts: 16000
+        subject: "Process ProcessRecord{1a270e8 3538:com.android.phone/1001} failed to complete startup"
+        error_id: "df199866-4a6a-4388-b79f-2c76b6d5bb00"
+    }
+    anr {
+        process_name: "com.google.netops.pager"
+        pid: 28509
+        ts: 17000
+        subject: "A foreground service of FOREGROUND_SERVICE_TYPE_SHORT_SERVICE did not stop within a timeout: ComponentInfo{com.google.netops.pager/com.google.netops.pager.NotifierService}"
+        error_id: "62abad99-bd09-44ef-bbbb-40db5c4d5539"
+    }
+    anr {
+        process_name: "com.whatsapp"
+        pid: 11456
+        ts: 18000
+        subject: "A foreground service of type dataSync did not stop within a timeout: ComponentInfo{com.whatsapp/com.whatsapp.service.GcmFGService}"
+        error_id: "975b36a1-8b4a-4d69-875e-2c33e140bd1c"
+    }
+    anr {
+        process_name: "com.android.chrome"
+        pid: 22768
+        ts: 19000
+        subject: "required notification not provided"
+        error_id: "05122f25-2f5b-4650-aeeb-cf59a9d6295a"
+    }
 }

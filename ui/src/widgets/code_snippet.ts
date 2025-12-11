@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {copyToClipboard} from '../base/clipboard';
 import {classNames} from '../base/classnames';
-import {Button, ButtonVariant} from './button';
+import {ButtonVariant} from './button';
+import {CopyToClipboardButton} from './copy_to_clipboard_button';
 
 interface CodeSnippetAttrs {
   // The text to be displayed in the code snippet.
@@ -38,9 +38,8 @@ export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
       m(
         '.pf-code-snippet-header',
         m('span.pf-code-snippet-language', language),
-        m(Button, {
-          onclick: () => copyToClipboard(text),
-          icon: 'content_copy',
+        m(CopyToClipboardButton, {
+          textToCopy: text,
           variant: ButtonVariant.Minimal,
           title: 'Copy to clipboard',
         }),

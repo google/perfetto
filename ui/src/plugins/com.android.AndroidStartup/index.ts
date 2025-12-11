@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {optimizationsTrack} from './optimizations';
 
@@ -36,57 +37,74 @@ export default class implements PerfettoPlugin {
     await e.query(`
       include perfetto module android.startup.startup_breakdowns;
     `);
-    const trackSource = `
-      SELECT l.ts AS ts, l.dur AS dur, l.package AS name
-      FROM android_startups l
-    `;
-    const trackBreakdownSource = `
-      SELECT
-        ts,
-        dur,
-        reason AS name
-      FROM android_startup_opinionated_breakdown
-    `;
 
-    const trackNode = await this.loadStartupTrack(
-      ctx,
-      trackSource,
-      `/android_startups`,
-      'Android App Startups',
-    );
-    const trackBreakdownNode = await this.loadStartupTrack(
-      ctx,
-      trackBreakdownSource,
-      `/android_startups_breakdown`,
-      'Android App Startups Breakdown',
-    );
-    const optimizations = await optimizationsTrack(ctx);
-    ctx.workspace.addChildInOrder(trackNode);
-    trackNode.addChildLast(trackBreakdownNode);
-    if (!!optimizations) {
-      trackNode.addChildLast(optimizations);
-    }
-  }
-
-  private async loadStartupTrack(
-    ctx: Trace,
-    sqlSource: string,
-    uri: string,
-    title: string,
-  ): Promise<TrackNode> {
-    const track = await createQuerySliceTrack({
-      trace: ctx,
-      uri,
-      data: {
-        sqlSource,
-        columns: ['ts', 'dur', 'name'],
-      },
-    });
+    const startupTrackUri = `/android_startups`;
     ctx.tracks.registerTrack({
-      uri,
-      renderer: track,
+      uri: startupTrackUri,
+      renderer: await SliceTrack.createMaterialized({
+        trace: ctx,
+        uri: startupTrackUri,
+        dataset: new SourceDataset({
+          schema: {
+            id: NUM,
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+          src: `
+            SELECT
+              startup_id AS id,
+              ts,
+              dur,
+              package AS name
+            FROM android_startups
+          `,
+        }),
+      }),
     });
+
     // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
-    return new TrackNode({name: title, uri, sortOrder: -6});
+    const startupTrack = new TrackNode({
+      name: 'Android App Startups',
+      uri: startupTrackUri,
+      sortOrder: -6,
+    });
+    ctx.defaultWorkspace.addChildInOrder(startupTrack);
+
+    const breakdownTrackUri = '/android_startups_breakdown';
+    ctx.tracks.registerTrack({
+      uri: breakdownTrackUri,
+      renderer: await SliceTrack.createMaterialized({
+        trace: ctx,
+        uri: breakdownTrackUri,
+        dataset: new SourceDataset({
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+          src: `
+            SELECT
+              ts,
+              dur,
+              reason AS name
+            FROM android_startup_opinionated_breakdown
+          `,
+        }),
+      }),
+    });
+
+    // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
+    const breakdownTrack = new TrackNode({
+      name: 'Android App Startups Breakdown',
+      uri: breakdownTrackUri,
+      sortOrder: -6,
+    });
+    startupTrack.addChildLast(breakdownTrack);
+
+    const optimizations = await optimizationsTrack(ctx);
+    if (optimizations) {
+      startupTrack.addChildLast(optimizations);
+    }
   }
 }

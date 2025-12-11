@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script generates .proto files for ftrace events from the /format files
 # in src/traced/probes/ftrace/test/data/*/events/.

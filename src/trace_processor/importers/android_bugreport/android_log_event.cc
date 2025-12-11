@@ -51,7 +51,12 @@ std::optional<AndroidLogEvent::Format> AndroidLogEvent::DetectFormat(
   if (p.size() < 5)
     return std::nullopt;
 
-  if (p[0].size() != 5 || p[0][2] != '-')
+  // Check for MM-DD format (5 chars, dash at position 2)
+  // or YYYY-MM-DD format (10 chars, dash at position 4)
+  bool is_mm_dd = (p[0].size() == 5 && p[0][2] == '-');
+  bool is_yyyy_mm_dd = (p[0].size() == 10 && p[0][4] == '-' && p[0][7] == '-');
+
+  if (!is_mm_dd && !is_yyyy_mm_dd)
     return std::nullopt;
 
   if (p[1].size() < 10 || p[1][2] != ':' || p[1][5] != ':' || p[1][8] != '.')
@@ -60,7 +65,7 @@ std::optional<AndroidLogEvent::Format> AndroidLogEvent::DetectFormat(
   if (p[4].size() == 1 && p[4][0] >= 'A' && p[4][0] <= 'Z')
     return Format::kPersistentLog;
 
-  if (p[5].size() == 1 && p[5][0] >= 'A' && p[5][0] <= 'Z')
+  if (p.size() > 5 && p[5].size() == 1 && p[5][0] >= 'A' && p[5][0] <= 'Z')
     return Format::kBugreport;
 
   return std::nullopt;

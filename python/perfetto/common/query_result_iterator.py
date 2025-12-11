@@ -75,7 +75,7 @@ class QueryResultIterator(Sized):
       return str(self.__dict__)
 
     def __repr__(self):
-      return self.__dict__
+      return repr(self.__dict__)
 
   def __init__(self, column_names: List[str], batches: List):
     self.column_names = list(column_names)

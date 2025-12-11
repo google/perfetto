@@ -42,6 +42,9 @@ import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
+import {assertExists} from '../../base/logging';
+import {Setting} from '../../public/settings';
+import {toggleHelp} from '../../frontend/help_modal';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
@@ -129,10 +132,31 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   return promptForTimestamp('Enter a timestamp');
 }
 
+const macroSchema = z.record(z.array(commandInvocationSchema));
+type MacroConfig = z.infer<typeof macroSchema>;
+
 export default class CoreCommands implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CoreCommands';
 
+  static macrosSetting: Setting<MacroConfig> | undefined = undefined;
+
   static onActivate(ctx: AppImpl) {
+    // Register global commands (commands that are required even without a trace
+    // loaded).
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.OpenCommandPalette',
+      name: 'Open command palette',
+      callback: () => ctx.omnibox.setMode(OmniboxMode.Command),
+      defaultHotkey: '!Mod+Shift+P',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ShowHelp',
+      name: 'Show help',
+      callback: () => toggleHelp(),
+      defaultHotkey: '?',
+    });
+
     if (ctx.sidebar.enabled) {
       ctx.commands.registerCommand({
         id: 'dev.perfetto.ToggleLeftSidebar',
@@ -144,13 +168,10 @@ export default class CoreCommands implements PerfettoPlugin {
       });
     }
 
-    // Use shared commandInvocationSchema where 'id' is the command's unique identifier
-    const macroSchema = z.record(z.array(commandInvocationSchema));
-    type MacroConfig = z.infer<typeof macroSchema>;
     const macroSettingsEditor = new JsonSettingsEditor<MacroConfig>({
       schema: macroSchema,
     });
-    const setting = ctx.settings.register({
+    CoreCommands.macrosSetting = ctx.settings.register({
       id: 'perfetto.CoreCommands#UserDefinedMacros',
       name: 'Macros',
       description:
@@ -160,19 +181,6 @@ export default class CoreCommands implements PerfettoPlugin {
       requiresReload: true,
       render: (setting) => macroSettingsEditor.render(setting),
     });
-
-    const macros = setting.get() as MacroConfig;
-    for (const [macroName, commands] of Object.entries(macros)) {
-      ctx.commands.registerCommand({
-        id: `dev.perfetto.UserMacro.${macroName}`,
-        name: macroName,
-        callback: async () => {
-          for (const command of commands) {
-            await ctx.commands.runCommand(command.id, ...command.args);
-          }
-        },
-      });
-    }
 
     const input = document.createElement('input');
     input.classList.add('trace_file');
@@ -193,8 +201,9 @@ export default class CoreCommands implements PerfettoPlugin {
     });
     ctx.sidebar.addMenuItem({
       commandId: OPEN_TRACE_COMMAND_ID,
-      section: 'navigation',
+      section: 'trace_files',
       icon: 'folder_open',
+      sortOrder: 1,
     });
 
     const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
@@ -209,7 +218,7 @@ export default class CoreCommands implements PerfettoPlugin {
     if (SHOW_OPEN_WITH_LEGACY_UI_BUTTON.get()) {
       ctx.sidebar.addMenuItem({
         commandId: OPEN_LEGACY_COMMAND_ID,
-        section: 'navigation',
+        section: 'trace_files',
         icon: 'filter_none',
       });
     }
@@ -224,6 +233,23 @@ export default class CoreCommands implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: TraceImpl): Promise<void> {
+    const app = AppImpl.instance;
+
+    // Rgister macros from settings first.
+    registerMacros(ctx, assertExists(CoreCommands.macrosSetting).get());
+
+    // Register the macros from extras at onTraceReady (the latest time
+    // possible).
+    ctx.onTraceReady.addListener(async (_) => {
+      // Await the promise: we've tried to be async as long as possible but
+      // now we need the extras to be loaded.
+      await app.extraLoadingPromise;
+      registerMacros(
+        ctx,
+        app.extraMacros.reduce((acc, macro) => ({...acc, ...macro}), {}),
+      );
+    });
+
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
@@ -294,7 +320,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.UnpinAllTracks',
       name: 'Unpin all pinned tracks',
       callback: () => {
-        const workspace = ctx.workspace;
+        const workspace = ctx.currentWorkspace;
         workspace.pinnedTracks.forEach((t) => workspace.unpinTrack(t));
       },
     });
@@ -303,7 +329,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.ExpandAllGroups',
       name: 'Expand all track groups',
       callback: () => {
-        ctx.workspace.flatTracks.forEach((track) => track.expand());
+        ctx.currentWorkspace.flatTracks.forEach((track) => track.expand());
       },
     });
 
@@ -311,7 +337,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.CollapseAllGroups',
       name: 'Collapse all track groups',
       callback: () => {
-        ctx.workspace.flatTracks.forEach((track) => track.collapse());
+        ctx.currentWorkspace.flatTracks.forEach((track) => track.collapse());
       },
     });
 
@@ -321,7 +347,7 @@ export default class CoreCommands implements PerfettoPlugin {
       callback: (tsRaw: unknown) => {
         const ts = getOrPromptForTimestamp(tsRaw);
         if (ts !== undefined) {
-          ctx.timeline.panToTimestamp(ts);
+          ctx.timeline.panIntoView(ts, {align: 'center'});
         }
       },
     });
@@ -541,14 +567,8 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.FocusSelection',
       name: 'Focus current selection',
-      callback: () => ctx.selection.scrollToSelection(),
+      callback: () => ctx.selection.scrollToSelection('focus'),
       defaultHotkey: 'F',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.ZoomOnSelection',
-      name: 'Zoom in on current selection',
-      callback: () => ctx.selection.zoomOnSelection(),
     });
 
     ctx.commands.registerCommand({
@@ -636,13 +656,13 @@ export default class CoreCommands implements PerfettoPlugin {
           } else {
             // If the entire time range is already covered, update the selection
             // to cover all tracks.
-            tracksToSelect = ctx.workspace.flatTracks
+            tracksToSelect = ctx.currentWorkspace.flatTracks
               .map((t) => t.uri)
               .filter((uri) => uri !== undefined);
           }
         } else {
           // If the current selection is not an area, select all.
-          tracksToSelect = ctx.workspace.flatTracks
+          tracksToSelect = ctx.currentWorkspace.flatTracks
             .map((t) => t.uri)
             .filter((uri) => uri !== undefined);
         }
@@ -684,7 +704,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.CopyPinnedToWorkspace',
       name: 'Copy pinned tracks to workspace',
       callback: async () => {
-        const pinnedTracks = ctx.workspace.pinnedTracks;
+        const pinnedTracks = ctx.currentWorkspace.pinnedTracks;
         if (!pinnedTracks.length) {
           window.alert('No pinned tracks to copy');
           return;
@@ -707,7 +727,7 @@ export default class CoreCommands implements PerfettoPlugin {
       callback: async () => {
         // Copies all filtered tracks as a flat list to a new workspace. This
         // means parents are not included.
-        const tracks = ctx.workspace.flatTracks.filter((track) =>
+        const tracks = ctx.currentWorkspace.flatTracks.filter((track) =>
           trackMatchesFilter(ctx, track),
         );
 
@@ -742,7 +762,7 @@ export default class CoreCommands implements PerfettoPlugin {
         if (!workspace) return;
 
         for (const uri of selection.trackUris) {
-          const node = ctx.workspace.getTrackByUri(uri);
+          const node = ctx.currentWorkspace.getTrackByUri(uri);
           if (!node) continue;
           const newNode = node.clone();
           workspace.addChildLast(newNode);
@@ -857,4 +877,22 @@ async function openWithLegacyUi(file: File) {
     return await openFileWithLegacyTraceViewer(file);
   }
   return await openInOldUIWithSizeCheck(file);
+}
+
+function registerMacros(trace: TraceImpl, config: MacroConfig) {
+  for (const [macroName, commands] of Object.entries(config)) {
+    trace.commands.registerCommand({
+      id: `dev.perfetto.UserMacro.${macroName}`,
+      name: macroName,
+      callback: async () => {
+        // Macros could run multiple commands, some of which might prompt the
+        // user in an optional way. But macros should be self-contained
+        // so we disable prompts during their execution.
+        using _ = trace.omnibox.disablePrompts();
+        for (const command of commands) {
+          await trace.commands.runCommand(command.id, ...command.args);
+        }
+      },
+    });
+  }
 }

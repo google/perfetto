@@ -153,13 +153,11 @@ class SpeStream : public AuxDataStream {
       return;
     }
 
-    base::StatusOr<int64_t> trace_time = context_->clock_tracker->ToTraceTime(
+    std::optional<int64_t> trace_time = context_->clock_tracker->ToTraceTime(
         last_aux_record_->attr->clock_id(), static_cast<int64_t>(*perf_time));
-    if (!trace_time.ok()) {
-      context_->storage->IncrementStats(stats::spe_record_dropped);
-      return;
+    if (trace_time) {
+      record_stream_->Push(*trace_time, std::move(record));
     }
-    record_stream_->Push(*trace_time, std::move(record));
   }
 
   TraceProcessorContext* const context_;

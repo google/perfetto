@@ -16,7 +16,7 @@ import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
 import {assertUnreachable} from '../../base/logging';
 import {Trace} from '../../public/trace';
-import {Form, FormLabel} from '../../widgets/form';
+import {Form, FormLabel, FormSection} from '../../widgets/form';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {addDebugCounterTrack, addDebugSliceTrack} from './debug_tracks';
@@ -34,7 +34,7 @@ const TRACK_NAME_FIELD_REF = 'TRACK_NAME_FIELD';
 function chooseDefaultColumn(
   columns: ReadonlyArray<string>,
   name: string,
-): string {
+): string | undefined {
   // Search for exact match
   const exactMatch = columns.find((col) => col === name);
   if (exactMatch) return exactMatch;
@@ -48,7 +48,7 @@ function chooseDefaultColumn(
     return '0';
   }
 
-  return '';
+  return undefined;
 }
 
 type TrackType = 'slice' | 'counter';
@@ -61,6 +61,7 @@ interface ConfigurationOptions {
   value: string;
   argSetId: string;
   pivot: string;
+  color: string;
 }
 
 export class AddDebugTrackMenu
@@ -68,7 +69,7 @@ export class AddDebugTrackMenu
 {
   private trackName = '';
   private trackType: TrackType = 'slice';
-  private readonly options: ConfigurationOptions;
+  private readonly options: Partial<ConfigurationOptions>;
 
   constructor({attrs}: m.Vnode<AddDebugTrackMenuAttrs>) {
     const columns = attrs.availableColumns;
@@ -80,7 +81,8 @@ export class AddDebugTrackMenu
       name: chooseDefaultColumn(columns, 'name'),
       value: chooseDefaultColumn(columns, 'value'),
       argSetId: chooseDefaultColumn(columns, 'arg_set_id'),
-      pivot: '',
+      pivot: undefined,
+      color: '', // Empty string means "from slice name"
     };
   }
 
@@ -103,6 +105,7 @@ export class AddDebugTrackMenu
       {
         onSubmit: () => this.createTracks(attrs),
         submitLabel: 'Add Track',
+        cancelLabel: 'Cancel',
       },
       m(FormLabel, {for: 'track_name'}, 'Track name'),
       m(
@@ -118,12 +121,17 @@ export class AddDebugTrackMenu
             if (!e.target) return;
             this.trackName = (e.target as HTMLInputElement).value;
           },
+          placeholder: 'Enter track name...',
         },
         this.trackName,
       ),
       m(FormLabel, {for: 'track_type'}, 'Track type'),
       this.renderTrackTypeSelect(),
-      this.renderOptions(attrs.availableColumns),
+      m(
+        FormSection,
+        {label: 'Column mapping'},
+        this.renderOptions(attrs.availableColumns),
+      ),
     );
   }
 
@@ -163,44 +171,117 @@ export class AddDebugTrackMenu
 
   private renderSliceOptions(availableColumns: ReadonlyArray<string>) {
     return [
-      this.renderFormSelectInput('ts', 'ts', availableColumns),
-      this.renderFormSelectInput('dur', 'dur', ['0', ...availableColumns]),
-      this.renderFormSelectInput('name', 'name', availableColumns),
-      this.renderFormSelectInput('arg_set_id', 'argSetId', [
-        '',
+      this.renderFormSelectInput('Timestamp column', 'ts', availableColumns),
+      this.renderFormSelectInput('Duration column', 'dur', [
+        '0',
         ...availableColumns,
       ]),
-      this.renderFormSelectInput('pivot', 'pivot', ['', ...availableColumns]),
+      this.renderFormSelectInput('Name column', 'name', availableColumns),
+      this.renderColorSelect(availableColumns),
+      this.renderFormSelectInput(
+        'Arguments ID column (optional)',
+        'argSetId',
+        availableColumns,
+        {
+          optional: true,
+        },
+      ),
+      this.renderFormSelectInput(
+        'Pivot column (optional)',
+        'pivot',
+        availableColumns,
+        {
+          optional: true,
+        },
+      ),
     ];
   }
 
   private renderCounterTrackOptions(availableColumns: ReadonlyArray<string>) {
     return [
-      this.renderFormSelectInput('ts', 'ts', availableColumns),
-      this.renderFormSelectInput('value', 'value', availableColumns),
-      this.renderFormSelectInput('pivot', 'pivot', ['', ...availableColumns]),
+      this.renderFormSelectInput('Timestamp column', 'ts', availableColumns),
+      this.renderFormSelectInput('Value column', 'value', availableColumns),
+      this.renderFormSelectInput(
+        'Pivot column (optional)',
+        'pivot',
+        availableColumns,
+        {
+          optional: true,
+        },
+      ),
+    ];
+  }
+
+  private renderColorSelect(availableColumns: ReadonlyArray<string>) {
+    return [
+      m(FormLabel, {for: 'color'}, 'Color'),
+      m(
+        Select,
+        {
+          id: 'color',
+          oninput: (e: Event) => {
+            if (!e.target) return;
+            this.options.color = (e.target as HTMLSelectElement).value;
+          },
+        },
+        m(
+          'option',
+          {selected: this.options.color === '', value: ''},
+          'Automatic (from slice name)',
+        ),
+        availableColumns.map((col) =>
+          m('option', {selected: this.options.color === col, value: col}, col),
+        ),
+      ),
     ];
   }
 
   private renderFormSelectInput<K extends keyof ConfigurationOptions>(
-    name: string,
+    label: m.Children,
     optionKey: K,
     options: ReadonlyArray<string>,
+    opts: Partial<{optional: boolean}> = {},
   ) {
+    const {optional} = opts;
     return [
-      m(FormLabel, {for: name}, name),
+      m(FormLabel, {for: optionKey}, label),
       m(
         Select,
         {
-          id: name,
+          id: optionKey,
+          required: !optional,
           oninput: (e: Event) => {
             if (!e.target) return;
-            this.options[optionKey] = (e.target as HTMLSelectElement).value;
+            const newValue = (e.target as HTMLSelectElement).value;
+            if (newValue === '') {
+              delete this.options[optionKey];
+            } else {
+              this.options[optionKey] = newValue;
+            }
           },
-          value: this.options[optionKey],
         },
+        optional
+          ? m(
+              'option',
+              {selected: this.options[optionKey] === undefined, value: ''},
+              '--None--',
+            )
+          : m(
+              'option',
+              {
+                selected: this.options[optionKey] === undefined,
+                value: '',
+                hidden: true,
+                disabled: true,
+              },
+              'Select a column...',
+            ),
         options.map((opt) =>
-          m('option', {selected: this.options[optionKey] === opt}, opt),
+          m(
+            'option',
+            {selected: this.options[optionKey] === opt, value: opt},
+            opt,
+          ),
         ),
       ),
     ];
@@ -222,8 +303,9 @@ export class AddDebugTrackMenu
             name: this.options.name,
           },
           argSetIdColumn: this.options.argSetId,
-          argColumns: attrs.availableColumns,
+          rawColumns: attrs.availableColumns,
           pivotOn: this.options.pivot,
+          colorColumn: this.options.color || undefined,
         });
         break;
       case 'counter':

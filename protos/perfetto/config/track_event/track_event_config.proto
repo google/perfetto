@@ -93,6 +93,13 @@ message TrackEventConfig {
   // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
 
+  // When enable_thread_time_sampling is true, and this is specified, thread
+  // time is sampled only if the elapsed wall time >
+  // `thread_time_subsampling_ns`. Otherwise, thread time is considered nil.
+  // Effectively, this means thread time will have a leeway of
+  // `thread_time_subsampling_ns` and won't be emitted for shorter events.
+  optional uint64 thread_time_subsampling_ns = 10;
+
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
   // When true, event_names wrapped in perfetto::DynamicString will be filtered
   // out.

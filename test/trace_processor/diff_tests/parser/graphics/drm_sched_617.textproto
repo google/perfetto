@@ -1,0 +1,61 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 2664817945719
+      pid: 9381
+      drm_sched_job_run {
+        name: "gfx_0.0.0"
+        job_count: 0
+        hw_job_count: 1
+        dev: "0000:04:00.0"
+        fence_context: 401
+        fence_seqno: 1
+        client_id: 13
+      }
+    }
+    previous_bundle_end_timestamp: 2664800061476
+  }
+  trusted_uid: 0
+  trusted_packet_sequence_id: 5
+  trusted_pid: 10405
+}
+packet {
+  ftrace_events {
+    cpu: 5
+    event {
+      timestamp: 2664818155405
+      pid: 0
+      drm_sched_job_done {
+        fence_context: 401
+        fence_seqno: 1
+      }
+    }
+    previous_bundle_end_timestamp: 2664796038388
+  }
+  trusted_uid: 0
+  trusted_packet_sequence_id: 5
+  trusted_pid: 10405
+}
+packet {
+  ftrace_events {
+    cpu: 6
+    event {
+      timestamp: 2664817937804
+      pid: 10445
+      drm_sched_job_queue {
+        name: "gfx_0.0.0"
+        job_count: 0
+        hw_job_count: 0
+        dev: "0000:04:00.0"
+        fence_context: 401
+        fence_seqno: 1
+        client_id: 13
+      }
+    }
+    previous_bundle_end_timestamp: 2664800038122
+  }
+  trusted_uid: 0
+  trusted_packet_sequence_id: 5
+  trusted_pid: 10405
+}

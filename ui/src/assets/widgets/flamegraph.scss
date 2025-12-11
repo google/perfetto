@@ -92,4 +92,11 @@
   .pf-button-bar {
     padding-top: 16px;
   }
+
+  .tooltip-marker-text {
+    font-size: 12px;
+    font-style: italic;
+    color: var(--pf-color-text-muted);
+    padding-bottom: 4px; // Extra gap between marker and function name
+  }
 }

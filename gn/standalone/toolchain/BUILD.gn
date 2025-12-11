@@ -70,6 +70,8 @@ declare_args() {
     }
   } else if (is_mac_host) {
     strip = "strip -x"
+  } else if (is_freebsd_host) {
+    ar = "llvm-ar"
   }
 
   if (is_clang) {

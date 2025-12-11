@@ -22,11 +22,11 @@ namespace perfetto::base::flags {
 namespace {
 
 TEST(FlagsTest, TestReadonlyFlag) {
-  // Verify that this is accessible as a constexpr variable.
-  static_assert(!base::flags::test_read_only_flag);
+  // Verify that this is accessible as a compile-time constant.
+  static_assert(!PERFETTO_FLAGS(TEST_READ_ONLY_FLAG));
 
-  // Verify that it's also the same as a runtime function.
-  ASSERT_FALSE(base::flags::test_read_only_flag);
+  // Verify that it's also the same at runtime.
+  ASSERT_FALSE(PERFETTO_FLAGS(TEST_READ_ONLY_FLAG));
 }
 
 }  // namespace

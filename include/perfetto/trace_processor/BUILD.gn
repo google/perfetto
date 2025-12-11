@@ -26,13 +26,20 @@ source_set("trace_processor") {
 }
 
 source_set("storage") {
+  sources = [ "trace_processor_storage.h" ]
+  public_deps = [
+    ":basic_types",
+    ":util",
+  ]
+}
+
+source_set("util") {
   sources = [
     "ref_counted.h",
     "trace_blob.h",
     "trace_blob_view.h",
-    "trace_processor_storage.h",
   ]
-  public_deps = [ ":basic_types" ]
+  deps = [ ":basic_types" ]
 }
 
 source_set("basic_types") {

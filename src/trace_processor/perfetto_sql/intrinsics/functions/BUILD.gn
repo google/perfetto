@@ -19,6 +19,8 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("functions") {
   sources = [
+    "args.cc",
+    "args.h",
     "base64.cc",
     "base64.h",
     "clock_functions.h",
@@ -42,6 +44,8 @@ source_set("functions") {
     "layout_functions.h",
     "math.cc",
     "math.h",
+    "package_lookup.cc",
+    "package_lookup.h",
     "pprof_functions.cc",
     "pprof_functions.h",
     "replace_numbers_function.cc",
@@ -81,7 +85,9 @@ source_set("functions") {
     "../../../storage",
     "../../../tables",
     "../../../types",
+    "../../../util:args_utils",
     "../../../util:glob",
+    "../../../util:json_writer",
     "../../../util:profile_builder",
     "../../../util:regex",
     "../../../util:sql_argument",

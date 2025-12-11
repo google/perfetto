@@ -547,7 +547,7 @@ void SysStatsDataSource::ReadBuddyInfo(protos::pbzero::SysStats* sys_stats) {
     for (base::StringSplitter words(&lines, ' '); words.Next();) {
       if (index == 1) {
         std::string token = words.cur_token();
-        token = token.substr(0, token.find(","));
+        token.resize(token.find(","));
         buddy_info->set_node(token);
       } else if (index == 3) {
         buddy_info->set_zone(words.cur_token());

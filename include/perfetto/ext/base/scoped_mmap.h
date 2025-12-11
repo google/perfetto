@@ -24,6 +24,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #define PERFETTO_HAS_MMAP() 1
@@ -63,6 +64,7 @@ class ScopedMmap {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   // Takes ownership of an mmap()d area that starts at `data`, `size` bytes
   // long. `data` should not be MAP_FAILED.
@@ -81,11 +83,11 @@ class ScopedMmap {
 #endif
 };
 
-// Tries to open `fname` and maps its first `length` bytes in memory.
-ScopedMmap ReadMmapFilePart(const char* fname, size_t length);
+// Tries to open `file_path` and maps its first `length` bytes in memory.
+ScopedMmap ReadMmapFilePart(const std::string& file_path, size_t length);
 
-// Tries to open `fname` and maps the whole file into memory.
-ScopedMmap ReadMmapWholeFile(const char* fname);
+// Tries to open `file_path` and maps the whole file into memory.
+ScopedMmap ReadMmapWholeFile(const std::string& file_path);
 
 }  // namespace perfetto::base
 

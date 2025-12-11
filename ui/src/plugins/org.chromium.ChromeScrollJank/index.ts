@@ -25,13 +25,12 @@ import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {createScrollTimelineModel} from './scroll_timeline_model';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {createFlatColoredDurationTrack} from './flat_colored_duration_track';
 import {createTopLevelScrollTrack} from './scroll_track';
 import {createScrollTimelineTrack} from './scroll_timeline_track';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {escapeQuery} from '../../trace_processor/query_utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
@@ -51,7 +50,7 @@ export default class implements PerfettoPlugin {
     await ScrollJankCauseMap.initialize(ctx.engine);
     await this.addScrollTimelineTrack(ctx, group);
     await this.addVsyncTracks(ctx, group);
-    ctx.workspace.addChildInOrder(group);
+    ctx.defaultWorkspace.addChildInOrder(group);
     group.expand();
   }
 
@@ -243,11 +242,19 @@ export default class implements PerfettoPlugin {
     {
       // Add a track for the VSync slices.
       const uri = 'org.chromium.ChromeScrollJank#ChromeVsync';
-      const track = await createQuerySliceTrack({
+      const track = await SliceTrack.createMaterialized({
         trace: ctx,
-        data: {sqlSource: `SELECT * FROM ${vsyncTable}`},
-        argColumns: ['id', 'track_id', 'ts', 'dur'],
         uri,
+        dataset: new SourceDataset({
+          schema: {
+            id: NUM,
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+          src: vsyncTable,
+        }),
+        // Use default details panel
       });
       ctx.tracks.registerTrack({uri, renderer: track});
       group.addChildInOrder(new TrackNode({uri, name: 'Chrome VSync'}));
@@ -308,14 +315,14 @@ export default class implements PerfettoPlugin {
 
       for (const step of steps) {
         const uri = `org.chromium.ChromeScrollJank#chrome_scroll_update_info.${step.column}`;
-        const track = new DatasetSliceTrack({
+        const track = await SliceTrack.createMaterialized({
           trace: ctx,
           uri,
           dataset: new SourceDataset({
             schema: {
               id: NUM,
               ts: LONG,
-              dur: LONG,
+              dur: LONG_NULL,
               name: STR,
             },
             src: `

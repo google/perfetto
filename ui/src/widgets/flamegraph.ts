@@ -26,6 +26,8 @@ import {z} from 'zod';
 import {Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
 import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
+import {Color, HSLColor} from '../base/color';
+import {hash} from '../base/hash';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -86,6 +88,11 @@ export interface FlamegraphOptionalAction {
   readonly subActions?: FlamegraphOptionalAction[];
 }
 
+export interface FlamegraphOptionalMarker {
+  readonly name: string;
+  isVisible: (properties: ReadonlyMap<string, string>) => boolean;
+}
+
 export type FlamegraphPropertyDefinition = {
   displayName: string;
   value: string;
@@ -102,6 +109,7 @@ export interface FlamegraphQueryData {
     readonly cumulativeValue: number;
     readonly parentCumulativeValue?: number;
     readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
+    readonly marker?: string;
     readonly xStart: number;
     readonly xEnd: number;
   }>;
@@ -146,7 +154,7 @@ export type FlamegraphView = z.infer<typeof FLAMEGRAPH_VIEW_SCHEMA>;
 export const FLAMEGRAPH_STATE_SCHEMA = z
   .object({
     selectedMetricName: z.string().readonly(),
-    filters: z.array(FLAMEGRAPH_FILTER_SCHEMA).readonly(),
+    filters: z.array(FLAMEGRAPH_FILTER_SCHEMA),
     view: FLAMEGRAPH_VIEW_SCHEMA,
   })
   .readonly();
@@ -225,6 +233,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private canvasWidth = 0;
   private labelCharWidth = 0;
+  private canvasRect?: Rect2D;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -370,10 +379,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               // We have a wide set of buttons that would overflow given the
               // normal width constraints of the popup.
               fitContent: true,
-              position: PopupPosition.Bottom,
+              position: PopupPosition.Right,
               isOpen:
-                this.tooltipPos?.state === 'HOVER' ||
-                this.tooltipPos?.state === 'CLICK',
+                this.isPopupAnchorVisible() &&
+                (this.tooltipPos?.state === 'HOVER' ||
+                  this.tooltipPos?.state === 'CLICK'),
               className: 'pf-flamegraph-tooltip-popup',
               offset: NODE_HEIGHT,
             },
@@ -394,11 +404,39 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     };
   }
 
+  /**
+   * Updates a FlamegraphState with new metrics, preserving filters where possible.
+   *
+   * If the current state has no metric selected (empty string), this will
+   * initialize it with the first metric. Otherwise, it preserves the selected
+   * metric if it still exists in the new metrics array, or falls back to the
+   * first metric if it doesn't.
+   */
+  static updateState(
+    state: FlamegraphState | undefined,
+    metrics: ReadonlyArray<FlamegraphMetric>,
+  ): FlamegraphState {
+    if (state === undefined) {
+      return Flamegraph.createDefaultState(metrics);
+    }
+    const metricStillExists = metrics.some(
+      (m) => m.name === state.selectedMetricName,
+    );
+    return {
+      filters: state.filters,
+      view: state.view,
+      selectedMetricName: metricStillExists
+        ? state.selectedMetricName
+        : metrics[0].name,
+    };
+  }
+
   private drawCanvas(
     ctx: CanvasRenderingContext2D,
     size: Size2D,
     rect: Rect2D,
   ) {
+    this.canvasRect = rect;
     this.canvasWidth = size.width;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
@@ -451,6 +489,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
       const hover = isIntersecting(this.hoveredX, this.hoveredY, node);
       let name: string;
+      let colorScheme;
       if (source.kind === 'ROOT') {
         const val = displaySize(allRootsCumulativeValue, unit);
         const percent = displayPercentage(
@@ -458,19 +497,38 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           unfilteredCumulativeValue,
         );
         name = `root: ${val} (${percent})`;
-        ctx.fillStyle = generateColor('root', state === 'PARTIAL', hover);
+        colorScheme = getFlamegraphColorScheme('root', state === 'PARTIAL');
       } else if (source.kind === 'MERGED') {
         name = '(merged)';
-        ctx.fillStyle = generateColor(name, state === 'PARTIAL', false);
+        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
         name = nodes[source.queryIdx].name;
-        ctx.fillStyle = generateColor(name, state === 'PARTIAL', hover);
+        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       }
+      const bgColor = hover ? colorScheme.variant : colorScheme.base;
+      const textColor = hover ? colorScheme.textVariant : colorScheme.textBase;
+      ctx.fillStyle = bgColor.cssString;
       ctx.fillRect(x, y, width - 1, NODE_HEIGHT - 1);
 
+      // Render marker
+      const MARKER_SIZE = 3;
+      const MARKER_LEFT_MARGIN = 2;
+      const MIN_WIDTH_FOR_MARKER = 15; // Don't show marker on very small nodes
+      const hasMarker =
+        source.kind === 'NODE' &&
+        nodes[source.queryIdx].marker !== undefined &&
+        width >= MIN_WIDTH_FOR_MARKER;
+      if (hasMarker) {
+        ctx.fillStyle = textColor.cssString;
+        const markerX = x + MARKER_LEFT_MARGIN;
+        const markerY = y + 2; // Position at top of node with small margin
+        ctx.fillRect(markerX, markerY, MARKER_SIZE, MARKER_SIZE);
+      }
+
+      // Text positioning - no need to reserve space since marker is in top corner
       const widthNoPadding = width - LABEL_PADDING_PX * 2;
       if (widthNoPadding >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = textColor.cssString;
         ctx.fillText(
           name.substring(0, widthNoPadding / this.labelCharWidth),
           x + LABEL_PADDING_PX,
@@ -492,6 +550,14 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         ctx.lineWidth = 0.5;
       }
     }
+  }
+
+  private isPopupAnchorVisible(): boolean {
+    if (!this.tooltipPos || !this.canvasRect) {
+      return false;
+    }
+    const {y} = this.tooltipPos;
+    return y >= this.canvasRect.top && y <= this.canvasRect.bottom;
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
@@ -613,6 +679,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       selfValue,
       parentCumulativeValue,
       properties,
+      marker,
     } = nodes[queryIdx];
     const filterButtonClick = (state: FlamegraphState) => {
       this.attrs.onStateChange(state);
@@ -641,6 +708,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     }
     return m(
       'div',
+      // Show marker at the top of the tooltip
+      marker &&
+        m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
       m('.tooltip-bold-text', name),
       m(
         '.tooltip-text-line',
@@ -977,7 +1047,7 @@ function isIntersecting(
 }
 
 function displaySize(totalSize: number, unit: string): string {
-  if (unit === '') return totalSize.toLocaleString();
+  if (unit === '' || unit === 'count') return totalSize.toLocaleString();
   if (totalSize === 0) return `0 ${unit}`;
   let step: number;
   let units: string[];
@@ -1079,16 +1149,42 @@ function addFilter(
   };
 }
 
-function generateColor(name: string, greyed: boolean, hovered: boolean) {
+// Unfortunately, widgets *cannot* depend on components so we cannot use the
+// colorizer code. Since we need very little of that code anyway, just inline
+// what we need here.
+const PERCEIVED_BRIGHTNESS_LIMIT = 180;
+const WHITE_COLOR = new HSLColor([0, 0, 100]);
+const BLACK_COLOR = new HSLColor([0, 0, 0]);
+const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 62]);
+
+function makeColorScheme(base: Color, variant: Color) {
+  // Use the same text color for both base and variant to prevent text color
+  // switching on hover. The text color is determined by the base color only.
+  const textColor =
+    base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
+      ? BLACK_COLOR
+      : WHITE_COLOR;
+  return {
+    base,
+    variant,
+    textBase: textColor,
+    textVariant: textColor,
+  };
+}
+
+function getFlamegraphColorScheme(name: string, greyed: boolean) {
   if (greyed) {
-    return `hsl(0deg, 0%, ${hovered ? 85 : 80}%)`;
+    return makeColorScheme(GRAY_VARIANT_COLOR, GRAY_VARIANT_COLOR.darken(5));
   }
   if (name === 'unknown' || name === 'root') {
-    return `hsl(0deg, 0%, ${hovered ? 78 : 73}%)`;
+    return makeColorScheme(
+      GRAY_VARIANT_COLOR.darken(10),
+      GRAY_VARIANT_COLOR.darken(15),
+    );
   }
-  let x = 0;
-  for (let i = 0; i < name.length; ++i) {
-    x += name.charCodeAt(i) % 64;
-  }
-  return `hsl(${x % 360}deg, 45%, ${hovered ? 78 : 73}%)`;
+  // Hash the name to get a predictable hue, then create color with fixed
+  // saturation and lightness values to match what pprof web UI does.
+  const hue = hash(name, 360);
+  const base = new HSLColor({h: hue, s: 46, l: 80});
+  return makeColorScheme(base, base.darken(15).saturate(15));
 }

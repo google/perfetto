@@ -33,6 +33,7 @@ message GpuCounterDescriptor {
     // Includes counters relating to caching and bandwidth.
     MEMORY = 5;
     COMPUTE = 6;
+    RAY_TRACING = 7;
   }
 
   message GpuCounterSpec {

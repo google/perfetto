@@ -62,12 +62,12 @@ const NOTE_SCHEMA = z
 
 export type SerializedNote = z.infer<typeof NOTE_SCHEMA>;
 
-const PLUGIN_SCHEMA = z.object({
+const STORE_SCHEMA = z.object({
   id: z.string(),
   state: z.any(),
 });
 
-export type SerializedPluginState = z.infer<typeof PLUGIN_SCHEMA>;
+export type SerializedStoreState = z.infer<typeof STORE_SCHEMA>;
 
 export const APP_STATE_SCHEMA = z.object({
   version: z.number(),
@@ -80,7 +80,7 @@ export const APP_STATE_SCHEMA = z.object({
     .optional(),
   selection: z.array(SELECTION_SCHEMA).default([]),
   notes: z.array(NOTE_SCHEMA).default([]),
-  plugins: z.array(PLUGIN_SCHEMA).default([]),
+  store: z.array(STORE_SCHEMA).default([]),
 });
 
 export type SerializedAppState = z.infer<typeof APP_STATE_SCHEMA>;

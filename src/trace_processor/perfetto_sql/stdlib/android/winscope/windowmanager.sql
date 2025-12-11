@@ -20,10 +20,61 @@ CREATE PERFETTO VIEW android_windowmanager (
   -- Timestamp when the snapshot was triggered
   ts TIMESTAMP,
   -- Extra args parsed from the proto message
-  arg_set_id ARGSETID
+  arg_set_id ARGSETID,
+  -- Raw proto message
+  base64_proto_id LONG,
+  -- Focused display id for this snapshot
+  focused_display_id LONG,
+  -- Indicates whether snapshot was recorded without elapsed timestamp
+  has_invalid_elapsed_ts BOOL
 ) AS
 SELECT
   id,
   ts,
-  arg_set_id
+  arg_set_id,
+  base64_proto_id,
+  focused_display_id,
+  has_invalid_elapsed_ts
 FROM __intrinsic_windowmanager;
+
+-- Android WindowManager WindowContainer (from android.windowmanager data source).
+CREATE PERFETTO VIEW android_windowmanager_windowcontainer (
+  -- Row id
+  id LONG,
+  -- Snapshot id
+  snapshot_id LONG,
+  -- Extra args parsed from the proto message
+  arg_set_id ARGSETID,
+  -- Raw proto message
+  base64_proto_id LONG,
+  -- The window container's title
+  title STRING,
+  -- The window container's token
+  token LONG,
+  -- The parent window container's token
+  parent_token LONG,
+  -- The index of this window container within the parent's children
+  child_index LONG,
+  -- The window container visibility
+  is_visible BOOL,
+  -- The rect corresponding to this window container
+  window_rect_id LONG,
+  -- The window container type e.g. DisplayContent, TaskFragment
+  container_type STRING,
+  -- Optional name override for some container types
+  name_override STRING
+) AS
+SELECT
+  id,
+  snapshot_id,
+  arg_set_id,
+  base64_proto_id,
+  title,
+  token,
+  parent_token,
+  child_index,
+  is_visible,
+  window_rect_id,
+  container_type,
+  name_override
+FROM __intrinsic_windowmanager_windowcontainer;

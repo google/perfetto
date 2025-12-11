@@ -1,11 +1,11 @@
 # Memory counters and events
 
-Perfetto allows to gather a number of memory events and counters on
-Android and Linux. These events come from kernel interfaces, both ftrace and
-/proc interfaces, and are of two types: polled counters and events pushed by
-the kernel in the ftrace buffer.
+Perfetto allows to gather a number of memory events and counters on Android and
+Linux. These events come from kernel interfaces, both ftrace and /proc
+interfaces, and are of two types: polled counters and events pushed by the
+kernel in the ftrace buffer.
 
-## Per-process polled counters
+## Per-process polled counters {#per-process-polled-counters}
 
 The process stats data source allows to poll `/proc/<pid>/status` and
 `/proc/<pid>/oom_score_adj` at user-defined intervals.
@@ -14,9 +14,14 @@ See [`man 5 proc`][man-proc] for their semantic.
 
 ### UI {#per-process-ui}
 
-![](/docs/images/proc_stat.png "UI showing trace data collected by process stats pollers")
+![](/docs/images/proc_stat.png 'UI showing trace data collected by process stats pollers')
 
 ### SQL {#per-process-sql}
+
+WARNING: We strongly recommend using the tables in the standard library rather
+than querying this data directly. See
+[memory usage section](/docs/getting-started/android-trace-analysis#memory-metrics)
+in the Android trace analysis cookbook.
 
 ```sql
 select c.ts, c.value, t.name as counter_name, p.name as proc_name, p.pid
@@ -24,21 +29,22 @@ from counter as c left join process_counter_track as t on c.track_id = t.id
 left join process as p using (upid)
 where t.name like 'mem.%'
 ```
-ts | counter_name | value_kb | proc_name | pid
----|--------------|----------|-----------|----
-261187015027350 | mem.virt | 1326464 | com.android.vending | 28815
-261187015027350 | mem.rss | 85592 | com.android.vending | 28815
-261187015027350 | mem.rss.anon | 36948 | com.android.vending | 28815
-261187015027350 | mem.rss.file | 46560 | com.android.vending | 28815
-261187015027350 | mem.swap | 6908 | com.android.vending | 28815
-261187015027350 | mem.rss.watermark | 102856 | com.android.vending | 28815
-261187090251420 | mem.virt | 1326464 | com.android.vending | 28815
+
+| ts              | counter_name      | value_kb | proc_name           | pid   |
+| --------------- | ----------------- | -------- | ------------------- | ----- |
+| 261187015027350 | mem.virt          | 1326464  | com.android.vending | 28815 |
+| 261187015027350 | mem.rss           | 85592    | com.android.vending | 28815 |
+| 261187015027350 | mem.rss.anon      | 36948    | com.android.vending | 28815 |
+| 261187015027350 | mem.rss.file      | 46560    | com.android.vending | 28815 |
+| 261187015027350 | mem.swap          | 6908     | com.android.vending | 28815 |
+| 261187015027350 | mem.rss.watermark | 102856   | com.android.vending | 28815 |
+| 261187090251420 | mem.virt          | 1326464  | com.android.vending | 28815 |
 
 ### TraceConfig {#per-process-traceconfig}
 
-To collect process stat counters every X ms set `proc_stats_poll_ms = X` in
-your process stats config. X must be greater than 100ms to avoid excessive CPU
-usage. Details about the specific counters being collected can be found in the
+To collect process stat counters every X ms set `proc_stats_poll_ms = X` in your
+process stats config. X must be greater than 100ms to avoid excessive CPU usage.
+Details about the specific counters being collected can be found in the
 [ProcessStats reference](/docs/reference/trace-packet-proto.autogen#ProcessStats).
 
 ```protobuf
@@ -53,7 +59,7 @@ data_sources: {
 }
 ```
 
-## Per-process memory events (ftrace)
+## Per-process memory events (ftrace) {#per-process-memory-events-ftrace}
 
 ### rss_stat
 
@@ -67,13 +73,19 @@ Memory usage peaks of hundreds of MB can have dramatically negative impact on
 Android, even if they last only few ms, as they can cause mass low memory kills
 to reclaim memory.
 
-The kernel feature that supports this has been introduced in the Linux Kernel
-in [b3d1411b6] and later improved by [e4dcad20]. They are available in upstream
+For examples of analyzing memory usage, see the
+[memory usage section](/docs/getting-started/android-trace-analysis#memory-metrics)
+in the Android trace analysis cookbook.
+
+The kernel feature that supports this has been introduced in the Linux Kernel in
+[b3d1411b6] and later improved by [e4dcad20]. They are available in upstream
 since Linux v5.5-rc1. This patch has been backported in several Google Pixel
 kernels running Android 10 (Q).
 
-[b3d1411b6]: https://github.com/torvalds/linux/commit/b3d1411b6726ea6930222f8f12587d89762477c6
-[e4dcad20]: https://github.com/torvalds/linux/commit/e4dcad204d3a281be6f8573e0a82648a4ad84e69
+[b3d1411b6]:
+  https://github.com/torvalds/linux/commit/b3d1411b6726ea6930222f8f12587d89762477c6
+[e4dcad20]:
+  https://github.com/torvalds/linux/commit/e4dcad204d3a281be6f8573e0a82648a4ad84e69
 
 ### mm_event
 
@@ -88,19 +100,19 @@ and beyond.
 
 When `mm_event` is enabled, the following mm event types are recorded:
 
-* mem.mm.min_flt: Minor page faults
-* mem.mm.maj_flt: Major page faults
-* mem.mm.swp_flt: Page faults served by swapcache
-* mem.mm.read_io: Read page faults backed by I/O
-* mem.mm..compaction: Memory compaction events
-* mem.mm.reclaim: Memory reclaim events
+- mem.mm.min_flt: Minor page faults
+- mem.mm.maj_flt: Major page faults
+- mem.mm.swp_flt: Page faults served by swapcache
+- mem.mm.read_io: Read page faults backed by I/O
+- mem.mm..compaction: Memory compaction events
+- mem.mm.reclaim: Memory reclaim events
 
 For each event type, the event records:
 
-* count: how many times the event happened since the previous event.
-* min_lat: the smallest latency (the duration of the mm event) recorded since
+- count: how many times the event happened since the previous event.
+- min_lat: the smallest latency (the duration of the mm event) recorded since
   the previous event.
-* max_lat: the highest latency recorded since the previous event.
+- max_lat: the highest latency recorded since the previous event.
 
 ### UI {#ftrace-ui}
 
@@ -108,9 +120,14 @@ For each event type, the event records:
 
 ### SQL {#ftrace-sql}
 
-At the SQL level, these events are imported and exposed in the same way as
-the corresponding polled events. This allows to collect both types of events
-(pushed and polled) and treat them uniformly in queries and scripts.
+WARNING: We strongly recommend using the tables in the standard library rather
+than querying this data directly. See
+[memory usage section](/docs/getting-started/android-trace-analysis#memory-metrics)
+in the Android trace analysis cookbook.
+
+At the SQL level, these events are imported and exposed in the same way as the
+corresponding polled events. This allows to collect both types of events (pushed
+and polled) and treat them uniformly in queries and scripts.
 
 ```sql
 select c.ts, c.value, t.name as counter_name, p.name as proc_name, p.pid
@@ -119,13 +136,13 @@ left join process as p using (upid)
 where t.name like 'mem.%'
 ```
 
-ts | value | counter_name | proc_name | pid
----|-------|--------------|-----------|----
-777227867975055 | 18358272 | mem.rss.anon | com.google.android.apps.safetyhub | 31386
-777227865995315 | 5 | mem.mm.min_flt.count | com.google.android.apps.safetyhub | 31386
-777227865995315 | 8 | mem.mm.min_flt.max_lat | com.google.android.apps.safetyhub | 31386
-777227865995315 | 4 | mem.mm.min_flt.avg_lat | com.google.android.apps.safetyhub | 31386
-777227865998023 | 3 | mem.mm.swp_flt.count | com.google.android.apps.safetyhub | 31386
+| ts              | value    | counter_name           | proc_name                         | pid   |
+| --------------- | -------- | ---------------------- | --------------------------------- | ----- |
+| 777227867975055 | 18358272 | mem.rss.anon           | com.google.android.apps.safetyhub | 31386 |
+| 777227865995315 | 5        | mem.mm.min_flt.count   | com.google.android.apps.safetyhub | 31386 |
+| 777227865995315 | 8        | mem.mm.min_flt.max_lat | com.google.android.apps.safetyhub | 31386 |
+| 777227865995315 | 4        | mem.mm.min_flt.avg_lat | com.google.android.apps.safetyhub | 31386 |
+| 777227865998023 | 3        | mem.mm.swp_flt.count   | com.google.android.apps.safetyhub | 31386 |
 
 ### TraceConfig {#ftrace-traceconfig}
 
@@ -160,10 +177,10 @@ See [`man 5 proc`][man-proc] for their semantic.
 
 ### UI {#system-wide-ui}
 
-![System Memory Counters](/docs/images/sys_stat_counters.png
-"Example of system memory counters in the UI")
+![System Memory Counters](/docs/images/sys_stat_counters.png 'Example of system memory counters in the UI')
 
-The polling period and specific counters to include in the trace can be set in the trace config.
+The polling period and specific counters to include in the trace can be set in
+the trace config.
 
 ### SQL {#system-wide-sql}
 
@@ -171,14 +188,14 @@ The polling period and specific counters to include in the trace can be set in t
 select c.ts, t.name, c.value / 1024 as value_kb from counters as c left join counter_track as t on c.track_id = t.id
 ```
 
-ts | name | value_kb
----|------|---------
-775177736769834 | MemAvailable | 1708956
-775177736769834 | Buffers | 6208
-775177736769834 | Cached | 1352960
-775177736769834 | SwapCached | 8232
-775177736769834 | Active | 1021108
-775177736769834 | Inactive(file) | 351496
+| ts              | name           | value_kb |
+| --------------- | -------------- | -------- |
+| 775177736769834 | MemAvailable   | 1708956  |
+| 775177736769834 | Buffers        | 6208     |
+| 775177736769834 | Cached         | 1352960  |
+| 775177736769834 | SwapCached     | 8232     |
+| 775177736769834 | Active         | 1021108  |
+| 775177736769834 | Inactive(file) | 351496   |
 
 ### TraceConfig {#system-wide-traceconfig}
 
@@ -209,8 +226,6 @@ data_sources: {
 }
 ```
 
-
-
 ## Low-memory Kills (LMK)
 
 #### Background
@@ -229,8 +244,8 @@ when the app that the user was using disappeared under their fingers, or their
 favorite music player service suddenly stopped playing music.
 
 A LMK of a cached app or service, instead, is frequently business-as-usual and
-in most cases won't be noticed by the end user until they try to go back to
-the app, which will then cold-start.
+in most cases won't be noticed by the end user until they try to go back to the
+app, which will then cold-start.
 
 The situation in between these extremes is more nuanced. LMKs of cached
 apps/service can be still problematic if it happens in storms (i.e. observing
@@ -240,17 +255,18 @@ of some component of the system causing memory spikes.
 ### lowmemorykiller vs lmkd
 
 #### In-kernel lowmemorykiller driver
-In Android, LMK used to be handled by an ad-hoc kernel-driver,
-Linux's [drivers/staging/android/lowmemorykiller.c](https://github.com/torvalds/linux/blob/v3.8/drivers/staging/android/lowmemorykiller.c).
-This driver uses to emit the ftrace event `lowmemorykiller/lowmemory_kill`
-in the trace.
+
+In Android, LMK used to be handled by an ad-hoc kernel-driver, Linux's
+[drivers/staging/android/lowmemorykiller.c](https://github.com/torvalds/linux/blob/v3.8/drivers/staging/android/lowmemorykiller.c).
+This driver uses to emit the ftrace event `lowmemorykiller/lowmemory_kill` in
+the trace.
 
 #### Userspace lmkd
 
 Android 9 introduced a userspace native daemon that took over the LMK
-responsibility: `lmkd`. Not all devices running Android 9 will
-necessarily use `lmkd` as the ultimate choice of in-kernel vs userspace is
-up to the phone manufacturer, their kernel version and kernel config.
+responsibility: `lmkd`. Not all devices running Android 9 will necessarily use
+`lmkd` as the ultimate choice of in-kernel vs userspace is up to the phone
+manufacturer, their kernel version and kernel config.
 
 On Google Pixel phones, `lmkd`-side killing is used since Pixel 2 running
 Android 9.
@@ -263,20 +279,19 @@ See https://source.android.com/devices/tech/perf/lmkd for details.
 
 LMKs on Android, whether the old in-kernel `lowmemkiller` or the newer `lmkd`,
 use a completely different mechanism than the standard
-[Linux kernel's OOM Killer](https://linux-mm.org/OOM_Killer).
-Perfetto at the moment supports only Android LMK events (Both in-kernel and
-user-space) and does not support tracing of Linux kernel OOM Killer events.
-Linux OOMKiller events are still theoretically possible on Android but extremely
-unlikely to happen. If they happen, they are more likely the symptom of a
-mis-configured BSP.
+[Linux kernel's OOM Killer](https://linux-mm.org/OOM_Killer). Perfetto at the
+moment supports only Android LMK events (Both in-kernel and user-space) and does
+not support tracing of Linux kernel OOM Killer events. Linux OOMKiller events
+are still theoretically possible on Android but extremely unlikely to happen. If
+they happen, they are more likely the symptom of a mis-configured BSP.
 
 ### UI {#lmk-ui}
 
-Newer userspace LMKs are available in the UI under the `lmkd` track
-in the form of a counter. The counter value is the PID of the killed process
-(in the example below, PID=27985).
+Newer userspace LMKs are available in the UI under the `lmkd` track in the form
+of a counter. The counter value is the PID of the killed process (in the example
+below, PID=27985).
 
-![Userspace lmkd](/docs/images/lmk_lmkd.png "Example of a LMK caused by lmkd")
+![Userspace lmkd](/docs/images/lmk_lmkd.png 'Example of a LMK caused by lmkd')
 
 ### SQL {#lmk-sql}
 
@@ -291,10 +306,10 @@ JOIN process USING (upid)
 WHERE instant.name = 'mem.lmk'
 ```
 
-| ts | name | pid |
-|----|------|-----|
-| 442206415875043 | roid.apps.turbo | 27324 |
-| 442206446142234 | android.process.acore | 27683 |
+| ts              | name                     | pid   |
+| --------------- | ------------------------ | ----- |
+| 442206415875043 | roid.apps.turbo          | 27324 |
+| 442206446142234 | android.process.acore    | 27683 |
 | 442206462090204 | com.google.process.gapps | 28198 |
 
 ### TraceConfig {#lmk-traceconfig}

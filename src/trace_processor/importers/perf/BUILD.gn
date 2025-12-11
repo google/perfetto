@@ -21,8 +21,8 @@ source_set("record") {
     "perf_event.h",
     "perf_event_attr.cc",
     "perf_event_attr.h",
-    "perf_session.cc",
-    "perf_session.h",
+    "perf_invocation.cc",
+    "perf_invocation.h",
     "reader.h",
     "record.h",
   ]
@@ -105,7 +105,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "aux_stream_manager_unittest.cc",
-    "perf_session_unittest.cc",
+    "perf_invocation_unittest.cc",
     "reader_unittest.cc",
   ]
   deps = [

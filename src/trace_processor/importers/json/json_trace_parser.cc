@@ -94,7 +94,12 @@ TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(char phase) {
 }  // namespace
 
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
-    : context_(context), systrace_line_parser_(context) {}
+    : context_(context),
+      systrace_line_parser_(context),
+      process_sort_index_hint_id_(
+          context->storage->InternString("process_sort_index_hint")),
+      thread_sort_index_hint_id_(
+          context->storage->InternString("thread_sort_index_hint")) {}
 
 JsonTraceParser::~JsonTraceParser() = default;
 
@@ -390,7 +395,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         break;
       }
       base::StringView name = storage->GetString(event.name);
-      if (name != "thread_name" && name != "process_name") {
+      if (name != "thread_name" && name != "process_name" &&
+          name != "process_sort_index" && name != "thread_sort_index") {
         break;
       }
       it_.Reset(event.args.get(), event.args.get() + event.args_size);
@@ -412,23 +418,52 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         if (it_.eof()) {
           break;
         }
-        if (it_.key() != "name") {
-          continue;
-        }
-        std::string_view args_name = GetStringValue(it_.value());
-        if (args_name.empty()) {
-          context_->storage->IncrementStats(stats::json_parser_failure);
-          continue;
-        }
-        if (name == "thread_name") {
-          auto thread_name_id = context_->storage->InternString(args_name);
-          procs->UpdateThreadName(utid, thread_name_id,
-                                  ThreadNamePriority::kOther);
-        } else if (name == "process_name") {
-          UniquePid upid = procs->GetOrCreateProcess(event.pid);
-          procs->SetProcessMetadata(
-              upid, base::StringView(args_name.data(), args_name.size()),
-              base::StringView());
+        if (name == "process_sort_index" || name == "thread_sort_index") {
+          if (it_.key() != "sort_index") {
+            continue;
+          }
+          int64_t sort_index;
+          switch (it_.value().index()) {
+            case base::variant_index<json::JsonValue, int64_t>():
+              sort_index = base::unchecked_get<int64_t>(it_.value());
+              break;
+            case base::variant_index<json::JsonValue, double>():
+              sort_index = static_cast<int64_t>(
+                  base::unchecked_get<double>(it_.value()));
+              break;
+            default:
+              context_->storage->IncrementStats(stats::json_parser_failure);
+              continue;
+          }
+          if (name == "process_sort_index") {
+            UniquePid upid = procs->GetOrCreateProcess(event.pid);
+            auto inserter = procs->AddArgsToProcess(upid);
+            inserter.AddArg(process_sort_index_hint_id_,
+                            Variadic::Integer(sort_index));
+          } else {
+            auto inserter = procs->AddArgsToThread(utid);
+            inserter.AddArg(thread_sort_index_hint_id_,
+                            Variadic::Integer(sort_index));
+          }
+        } else {
+          if (it_.key() != "name") {
+            continue;
+          }
+          std::string_view args_name = GetStringValue(it_.value());
+          if (args_name.empty()) {
+            context_->storage->IncrementStats(stats::json_parser_failure);
+            continue;
+          }
+          if (name == "thread_name") {
+            auto thread_name_id = context_->storage->InternString(args_name);
+            procs->UpdateThreadName(utid, thread_name_id,
+                                    ThreadNamePriority::kOther);
+          } else if (name == "process_name") {
+            UniquePid upid = procs->GetOrCreateProcess(event.pid);
+            procs->SetProcessMetadata(
+                upid, base::StringView(args_name.data(), args_name.size()),
+                base::StringView());
+          }
         }
       }
     }

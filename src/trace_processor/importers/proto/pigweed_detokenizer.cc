@@ -236,7 +236,7 @@ std::string DetokenizedString::Format() const {
   return result;
 }
 
-static size_t SkipFlags(std::string fmt, size_t ix) {
+static size_t SkipFlags(const std::string& fmt, size_t ix) {
   while (fmt[ix] == '-' || fmt[ix] == '+' || fmt[ix] == '#' || fmt[ix] == ' ' ||
          fmt[ix] == '0') {
     ix += 1;
@@ -244,7 +244,7 @@ static size_t SkipFlags(std::string fmt, size_t ix) {
   return ix;
 }
 
-static size_t SkipAsteriskOrInteger(std::string fmt, size_t ix) {
+static size_t SkipAsteriskOrInteger(const std::string& fmt, size_t ix) {
   if (fmt[ix] == '*') {
     return ix + 1;
   }

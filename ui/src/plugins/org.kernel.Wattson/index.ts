@@ -17,13 +17,14 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../components/tracks/base_counter_track';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {Engine} from '../../trace_processor/engine';
-import {NUM} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {WattsonPackageSelectionAggregator} from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
@@ -32,26 +33,38 @@ import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
+import SchedPlugin from '../dev.perfetto.Sched';
+import {createCpuWarnings, hasWattsonSufficientCPUConfigs} from './warning';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
+  static readonly dependencies = [SchedPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const markersSupported = await hasWattsonMarkersSupport(ctx.engine);
     const cpuSupported = await hasWattsonCpuSupport(ctx.engine);
     const gpuSupported = await hasWattsonGpuSupport(ctx.engine);
+    const realCpuIdleCounters = await hasCpuIdleCounters(ctx.engine);
+    const missingEvents = markersSupported
+      ? await hasWattsonSufficientCPUConfigs(ctx.engine)
+      : [];
 
     // Short circuit if Wattson is not supported for this Perfetto trace
     if (!(markersSupported || cpuSupported || gpuSupported)) return;
 
     const group = new TrackNode({name: 'Wattson', isSummary: true});
-    ctx.workspace.addChildInOrder(group);
+    ctx.defaultWorkspace.addChildInOrder(group);
 
     if (markersSupported) {
       await addWattsonMarkersElements(ctx, group);
     }
-    if (cpuSupported) {
-      await addWattsonCpuElements(ctx, group);
+    if (cpuSupported || markersSupported) {
+      await addWattsonCpuElements(
+        ctx,
+        group,
+        missingEvents,
+        realCpuIdleCounters,
+      );
     }
     if (gpuSupported) {
       await addWattsonGpuElements(ctx, group);
@@ -90,6 +103,14 @@ class WattsonSubsystemEstimateTrack extends BaseCounterTrack {
   }
 }
 
+async function hasCpuIdleCounters(engine: Engine): Promise<boolean> {
+  const checkValue = await engine.query(`
+      INCLUDE PERFETTO MODULE wattson.cpu.idle;
+      SELECT COUNT(*) as numRows from _wattson_cpuidle_counters_exist
+  `);
+  return checkValue.firstRow({numRows: NUM}).numRows > 0;
+}
+
 async function hasWattsonMarkersSupport(engine: Engine): Promise<boolean> {
   const checkValue = await engine.query(`
       INCLUDE PERFETTO MODULE wattson.utils;
@@ -111,8 +132,8 @@ async function hasWattsonCpuSupport(engine: Engine): Promise<boolean> {
     SELECT COUNT(*) as numRows FROM cpu_frequency_counters
     `,
     `
-    INCLUDE PERFETTO MODULE linux.cpu.idle;
-    SELECT COUNT(*) as numRows FROM cpu_idle_counters
+    INCLUDE PERFETTO MODULE wattson.cpu.idle;
+    SELECT COUNT(*) as numRows FROM _adjusted_deep_idle
     `,
   ];
   for (const queryCheck of queryChecks) {
@@ -146,45 +167,47 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
 
 async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   const uri = `/wattson/markers_window`;
-  const track = await createQuerySliceTrack({
+  const track = await SliceTrack.createMaterialized({
     trace: ctx,
     uri,
-    data: {
-      sqlSource: `SELECT ts, dur, name FROM _wattson_markers_window`,
-    },
+    dataset: new SourceDataset({
+      schema: {
+        ts: LONG,
+        dur: LONG_NULL,
+        name: STR,
+      },
+      src: '_wattson_markers_window',
+    }),
+    // Use default details panel
   });
   ctx.tracks.registerTrack({
     uri,
     tags: {
-      kind: SLICE_TRACK_KIND,
+      kinds: [SLICE_TRACK_KIND],
     },
     renderer: track,
   });
   group.addChildInOrder(new TrackNode({uri, name: 'Wattson markers window'}));
 }
 
-async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
-  // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
-  // if it's seen in sched slices.
-  const queryRes = await ctx.engine.query(
-    `select distinct ucpu from sched order by ucpu;`,
-  );
-  const ucpus = new Set<number>();
-  for (
-    const it = queryRes.iter({ucpu: NUM});
-    it.valid() as boolean;
-    it.next()
-  ) {
-    ucpus.add(it.ucpu);
-  }
+async function addWattsonCpuElements(
+  ctx: Trace,
+  group: TrackNode,
+  missingEvents: string[],
+  hasCpuIdleCounters: boolean,
+) {
+  const warningDesc = createCpuWarnings(missingEvents, hasCpuIdleCounters);
 
   // CPUs estimate as part of CPU subsystem
-  const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
-  for (const cpu of cpus) {
+  const estimateSuffix = `${hasCpuIdleCounters ? '' : ' crude'} estimate`;
+  const schedPlugin = ctx.plugins.getPlugin(SchedPlugin);
+  const schedCpus = schedPlugin.schedCpus;
+  for (const cpu of schedCpus) {
     const queryKey = `cpu${cpu.ucpu}_mw`;
     const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu.ucpu}`;
     ctx.tracks.registerTrack({
       uri,
+      description: () => warningDesc,
       renderer: new WattsonSubsystemEstimateTrack(
         ctx,
         uri,
@@ -192,20 +215,19 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
         `CpuSubsystem`,
       ),
       tags: {
-        kind: CPUSS_ESTIMATE_TRACK_KIND,
+        kinds: [CPUSS_ESTIMATE_TRACK_KIND],
         wattson: `CPU${cpu.ucpu}`,
       },
     });
     group.addChildInOrder(
       new TrackNode({
         uri,
-        name: `Cpu${cpu.toString()} Estimate`,
+        name: `Cpu${cpu.toString()}${estimateSuffix}`,
       }),
     );
   }
 
   const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
-  const title = `DSU/SCU Estimate`;
   ctx.tracks.registerTrack({
     uri,
     renderer: new WattsonSubsystemEstimateTrack(
@@ -215,11 +237,11 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
       `CpuSubsystem`,
     ),
     tags: {
-      kind: CPUSS_ESTIMATE_TRACK_KIND,
+      kinds: [CPUSS_ESTIMATE_TRACK_KIND],
       wattson: 'Dsu_Scu',
     },
   });
-  group.addChildInOrder(new TrackNode({uri, name: title}));
+  group.addChildInOrder(new TrackNode({uri, name: `DSU/SCU${estimateSuffix}`}));
 
   // Register selection aggregators.
   // NOTE: the registration order matters because the laste two aggregators
@@ -261,7 +283,7 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
       `GpuSubsystem`,
     ),
     tags: {
-      kind: GPUSS_ESTIMATE_TRACK_KIND,
+      kinds: [GPUSS_ESTIMATE_TRACK_KIND],
       wattson: 'Gpu',
     },
   });

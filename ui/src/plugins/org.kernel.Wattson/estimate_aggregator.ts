@@ -31,8 +31,8 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     const estimateTracks: string[] = [];
     for (const trackInfo of area.tracks) {
       if (
-        (trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND ||
-          trackInfo?.tags?.kind === GPUSS_ESTIMATE_TRACK_KIND) &&
+        (trackInfo?.tags?.kinds?.includes(CPUSS_ESTIMATE_TRACK_KIND) ||
+          trackInfo?.tags?.kinds?.includes(GPUSS_ESTIMATE_TRACK_KIND)) &&
         exists(trackInfo.tags?.wattson)
       ) {
         estimateTracks.push(`${trackInfo.tags.wattson}`);
@@ -103,11 +103,13 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
         title: 'Power (estimated mW)',
         columnId: 'power_mw',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Energy (estimated mWs)',
         columnId: 'energy_mws',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }

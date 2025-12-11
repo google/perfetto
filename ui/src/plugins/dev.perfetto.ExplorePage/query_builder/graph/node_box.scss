@@ -1,0 +1,141 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../common";
+
+.pf-exp-node-box {
+  @extend .pf-exp-node;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.625rem 0.75rem;
+  cursor: grab;
+  overflow: hidden;
+  transition:
+    border-color 0.2s ease-in-out,
+    box-shadow 0.2s ease-in-out;
+
+  &:hover {
+    border-color: #bdbdbd;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  &__selected {
+    @extend .pf-exp-node--selected;
+    border-width: 2px;
+    box-shadow: 0 0 12px
+      color-mix(in srgb, var(--pf-color-primary) 30%, transparent);
+    .pf-exp-node-box__warning-icon {
+      border-width: 2px;
+    }
+  }
+
+  &__invalid,
+  &__invalid-query {
+    border-color: var(--pf-color-danger);
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-danger),
+      transparent 80%
+    );
+    color: var(--pf-color-danger);
+  }
+
+  &__invalid-response {
+    border-color: var(--pf-color-warning);
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-warning),
+      transparent 80%
+    );
+    color: var(--pf-color-warning);
+  }
+}
+
+.pf-exp-node-box__actions {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 0.5rem;
+  display: none;
+  flex-direction: row;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.pf-exp-node-box:hover .pf-exp-node-box__actions,
+.pf-exp-node-block__node:hover .pf-exp-node-box__actions,
+.pf-exp-node-container--selected > .pf-exp-node-box .pf-exp-node-box__actions,
+.pf-exp-node-block__node--selected .pf-exp-node-box__actions {
+  display: flex;
+}
+
+.pf-exp-node-box__warning-icon {
+  color: inherit;
+  font-size: 1.2rem;
+}
+
+.pf-exp-node-box__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 300px;
+  // Reserve space for the absolutely-positioned actions menu that appears on hover
+  // This prevents node content from being obscured by action buttons
+  // Value accommodates 2-3 icon buttons (each ~1.5rem) plus gaps
+  padding-right: 3.5rem;
+}
+
+.pf-exp-node-box__details {
+  .pf-exp-column-name {
+    font-weight: 600;
+  }
+}
+
+.pf-exp-node-box__filters {
+  margin-top: 0.5rem;
+}
+
+.pf-exp-node-box-add-button {
+  background-color: var(--pf-color-background);
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pf-exp-node-box-port {
+  z-index: 1;
+}
+
+.pf-node-box__bottom-port {
+  position: absolute;
+  bottom: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background-color: var(--pf-color-primary);
+  display: none;
+}
+
+.pf-node-box:hover .pf-node-box__bottom-port {
+  display: block;
+}

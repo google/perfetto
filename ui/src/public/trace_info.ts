@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {time} from '../base/time';
-import {Cpu} from '../base/multi_machine_trace';
 
 export interface TraceInfo {
   readonly traceTitle: string; // File name and size of the current trace.
@@ -29,9 +28,6 @@ export interface TraceInfo {
 
   // Represents the reported timezone in minutes from UTC.
   readonly tzOffMin: number;
-
-  // The list of CPUs in the trace
-  readonly cpus: Cpu[];
 
   // The number of import/analysis errors present in the `stats` table.
   readonly importErrors: number;

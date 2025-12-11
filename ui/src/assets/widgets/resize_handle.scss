@@ -18,6 +18,7 @@
   height: 7px;
   z-index: 10;
   position: relative;
+  touch-action: none;
 
   &:hover {
     background: var(--pf-color-accent);
@@ -33,5 +34,23 @@
     position: relative;
     top: 3px;
     background: var(--pf-color-border);
+  }
+
+  // Horizontal variant (vertical bar for left/right dragging)
+  &--horizontal {
+    cursor: col-resize;
+    margin-block: 0;
+    margin-inline: -3px;
+    width: 7px;
+    height: 100%;
+
+    &::after {
+      width: 1px;
+      height: 100%;
+      display: block;
+      position: relative;
+      left: 3px;
+      top: 0;
+    }
   }
 }

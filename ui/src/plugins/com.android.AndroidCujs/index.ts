@@ -42,7 +42,7 @@ export async function addJankCUJDebugTrack(
 }
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
-  SELECT RUN_METRIC('android/android_jank_cuj.sql');
+  SELECT RUN_METRIC('android/jank/android_jank_cuj_init.sql');
   INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 `;
 
@@ -266,7 +266,7 @@ function generateCujTrackConfig(
       sqlSource: `${cujQuery}${filterCuj}`,
       columns: cujColumns,
     },
-    argColumns: cujColumns,
+    rawColumns: cujColumns,
   };
 }
 
@@ -323,7 +323,7 @@ export default class implements PerfettoPlugin {
               columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
             },
             title: 'Blocking calls during CUJs',
-            argColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
+            rawColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
           }),
         );
       },

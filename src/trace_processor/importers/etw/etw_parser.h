@@ -44,11 +44,15 @@ class EtwParser {
                        int64_t timestamp,
                        uint32_t prev_pid,
                        int32_t prev_state,
+                       uint8_t prev_wait_reason,
                        uint32_t next_pid,
                        int32_t next_prio);
   StringId TaskStateToStringId(int64_t task_state_int);
+  StringId WaitReasonToStringId(uint8_t reason);
 
   TraceProcessorContext* context_;
+
+  StringId anonymized_process_string_id_;
 
   SchedEventState sched_event_state_;
 };

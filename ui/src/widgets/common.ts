@@ -21,7 +21,14 @@ import {assertUnreachable} from '../base/logging';
 // Feel free to add any missing attributes as they arise.
 export type Style = string | Partial<CSSStyleDeclaration>;
 
-export interface HTMLAttrs {
+// Covers all key/value pairs, so we don't have to keep updating the HTMLAttrs
+// type for every new attribute we want to support. We still maintain HTMLAttrs
+// an friends for well-known attributes and we can keep adding to it as needed
+// and they will restrict what types can be passed for those attributes, but
+// this give us an escape hatch.
+type ArbitraryAttrs = {[key: string]: unknown};
+
+export type HTMLAttrs = ArbitraryAttrs & {
   readonly ref?: string; // This is a common attribute used in Perfetto.
   readonly style?: Style;
   readonly id?: string;
@@ -36,7 +43,7 @@ export interface HTMLAttrs {
   readonly onmouseup?: (e: MouseEvent) => void;
   readonly onmousemove?: (e: MouseEvent) => void;
   readonly onload?: (e: Event) => void;
-}
+};
 
 export interface HTMLFocusableAttrs extends HTMLAttrs {
   readonly onblur?: (e: FocusEvent) => void;

@@ -19,31 +19,22 @@
 
 #include <cstdint>
 #include <iostream>
+#include <optional>
+#include <string>
 #include <vector>
+
+#include "perfetto/profiling/pprof_builder.h"
 
 namespace perfetto {
 namespace trace_to_text {
 
 // 0: success
-int TraceToHeapProfile(std::istream* input,
-                       std::ostream* output,
-                       uint64_t pid,
-                       std::vector<uint64_t> timestamps,
-                       bool annotate_frames);
-
-// 0: success
-int TraceToPerfProfile(std::istream* input,
-                       std::ostream* output,
-                       uint64_t pid,
-                       std::vector<uint64_t> timestamps,
-                       bool annotate_frames);
-
-// 0: success
-int TraceToJavaHeapProfile(std::istream* input,
-                           std::ostream* output,
-                           uint64_t pid,
-                           const std::vector<uint64_t>& timestamps,
-                           bool annotate_frames);
+int TraceToProfile(std::istream* input,
+                   uint64_t pid,
+                   const std::vector<uint64_t>& timestamps,
+                   bool annotate_frames,
+                   const std::string& output_dir,
+                   std::optional<ConversionMode> conversion_mode);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

@@ -28,5 +28,11 @@ message EtwTraceEvent {
     CSwitchEtwEvent c_switch = 2;
     ReadyThreadEtwEvent ready_thread = 3;
     MemInfoEtwEvent mem_info = 6;
+    FileIoCreateEtwEvent file_io_create = 7;
+    FileIoDirEnumEtwEvent file_io_dir_enum = 8;
+    FileIoInfoEtwEvent file_io_info = 9;
+    FileIoReadWriteEtwEvent file_io_read_write = 10;
+    FileIoSimpleOpEtwEvent file_io_simple_op = 11;
+    FileIoOpEndEtwEvent file_io_op_end = 12;
   }
 }

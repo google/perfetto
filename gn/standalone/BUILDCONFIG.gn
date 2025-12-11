@@ -42,6 +42,8 @@ is_mac_host = host_os == "mac"
 is_win = current_os == "win"
 is_win_host = host_os == "win"
 is_qnx = current_os == "qnx"
+is_freebsd = current_os == "freebsd"
+is_freebsd_host = host_os == "freebsd"
 
 # Building with Windows/Fuchsia/nacl is currently only supported in the Chromium
 # tree so always set this to false.

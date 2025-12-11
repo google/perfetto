@@ -26,8 +26,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @hide
  */
 final class PerfettoTrackEventExtra {
-  private static final AtomicLong sNamedTrackId = new AtomicLong();
-
   private final long mPtr;
 
   PerfettoTrackEventExtra(PerfettoNativeMemoryCleaner memoryCleaner) {
@@ -120,11 +118,13 @@ final class PerfettoTrackEventExtra {
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
+    private final long mId;
 
-    NamedTrack(String name, long parentUuid, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(sNamedTrackId.incrementAndGet(), name, parentUuid);
+    NamedTrack(long id, String name, long parentUuid, PerfettoNativeMemoryCleaner memoryCleaner) {
+      mPtr = native_init(id, name, parentUuid);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
+      mId = id;
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
@@ -545,6 +545,10 @@ final class PerfettoTrackEventExtra {
       native_set_value(mPtr, id, val);
     }
 
+    public void setValueWithInterning(long id, String val, long internedTypeId) {
+      native_set_value_with_interning(mPtr, id, val, internedTypeId);
+    }
+
     @CriticalNative
     private static native long native_init();
 
@@ -556,6 +560,10 @@ final class PerfettoTrackEventExtra {
 
     @FastNative
     private static native void native_set_value(long ptr, long id, String val);
+
+    @FastNative
+    private static native void native_set_value_with_interning(
+        long ptr, long id, String val, long internedTypeId);
   }
 
   static final class FieldNested implements PerfettoPointer, FieldContainer {

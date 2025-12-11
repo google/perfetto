@@ -57,9 +57,13 @@ class FrameTimelineEventParser {
 
   void ParseExpectedDisplayFrameStart(int64_t timestamp, ConstBytes);
   void ParseActualDisplayFrameStart(int64_t timestamp, ConstBytes);
+  StringId CalculateDisplayFrameJankTag(int32_t jank_type);
 
   void ParseExpectedSurfaceFrameStart(int64_t timestamp, ConstBytes);
   void ParseActualSurfaceFrameStart(int64_t timestamp, ConstBytes);
+  StringId CalculateSurfaceFrameJankTag(
+      int32_t jank_type,
+      std::optional<int32_t> present_type_opt);
 
   void ParseFrameEnd(int64_t timestamp, ConstBytes);
 
@@ -71,27 +75,37 @@ class FrameTimelineEventParser {
   base::FlatHashMap<int64_t, std::pair<UniquePid, TrackType>> cookie_map_;
 
   std::array<StringId, 6> present_type_ids_;
+  std::array<StringId, 6> present_type_experimental_ids_;
   std::array<StringId, 4> prediction_type_ids_;
   std::array<StringId, 4> jank_severity_type_ids_;
 
   const StringId surface_frame_token_id_;
   const StringId display_frame_token_id_;
+  const StringId present_delay_millis_id_;
+  const StringId vsync_resynced_jitter_millis_id_;
   const StringId present_type_id_;
+  const StringId present_type_experimental_id_;
   const StringId on_time_finish_id_;
   const StringId gpu_composition_id_;
   const StringId jank_type_id_;
+  const StringId jank_type_experimental_id_;
   const StringId jank_severity_type_id_;
+  const StringId jank_severity_score_id_;
   const StringId layer_name_id_;
   const StringId prediction_type_id_;
   const StringId jank_tag_id_;
+  const StringId jank_tag_experimental_id_;
   const StringId is_buffer_id_;
 
+  const StringId jank_tag_unspecified_id_;
   const StringId jank_tag_none_id_;
   const StringId jank_tag_self_id_;
   const StringId jank_tag_other_id_;
   const StringId jank_tag_dropped_id_;
   const StringId jank_tag_buffer_stuffing_id_;
   const StringId jank_tag_sf_stuffing_id_;
+  const StringId jank_tag_none_animating_id_;
+  const StringId jank_tag_display_not_on_id_;
 
   // upid -> set of tokens map. The expected timeline is the same for a given
   // token no matter how many times its seen. We can safely ignore duplicates

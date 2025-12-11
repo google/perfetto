@@ -1,0 +1,528 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../theme";
+
+.pf-canvas {
+  isolation: isolate; // Don't allow z-index to escape container.
+  overflow: hidden; // Clip overflowing content.
+  position: relative; // Place absolute children relative to this container.
+  height: 450px; // Give the canvas some intrinsic height by default.
+
+  touch-action: none; // Disable default touch actions for panning.
+  user-select: none; // Disable text selection during dragging.
+
+  font-family: var(--pf-font-compact); // Consistent font.
+  cursor: grab; // Indicate panning by default.
+
+  // Square grid background.
+  background-size: 20px 20px;
+  background-color: var(--pf-color-background);
+  background: linear-gradient(
+      0deg,
+      var(--pf-color-border-secondary) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      var(--pf-color-border-secondary) 1px,
+      transparent 1px
+    );
+
+  &--fill-height {
+    height: 100%; // Fill parent height when modifier class applied.
+  }
+}
+
+.pf-canvas-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+
+  svg {
+    isolation: isolate;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+}
+
+.pf-nodegraph-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  pointer-events: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.pf-node {
+  position: relative;
+  background: var(--pf-color-background-secondary);
+  border: 2px solid var(--pf-color-border);
+  border-radius: 8px;
+  min-width: 180px;
+  cursor: move;
+  pointer-events: auto;
+  width: 100%;
+
+  // Hide elements with this class, show on node hover
+  .pf-show-on-hover {
+    visibility: hidden;
+  }
+
+  &:hover .pf-show-on-hover {
+    visibility: visible;
+  }
+}
+
+.pf-node--has-accent-bar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 100%;
+  background-color: var(
+    --pf-color-border
+  ); /* Fallback color when hue not set */
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+/* Override with hue-based color when --pf-node-hue is set via inline styles */
+.pf-node[style*="--pf-node-hue"].pf-node--has-accent-bar::before {
+  background: color-mix(
+    in srgb,
+    hsl(var(--pf-node-hue), 60%, 50%) 50%,
+    var(--pf-color-background)
+  );
+}
+
+.pf-node-body {
+  padding-block: 12px;
+}
+
+// Wrapper for dock chains - uses flexbox to make children same width
+.pf-node-wrapper {
+  isolation: isolate; // Don't allow z-index to escape container.
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  box-shadow: 0 4px 12px var(--pf-color-box-shadow);
+  border-radius: 8px;
+  width: max-content;
+
+  &--dragging {
+    z-index: 1; // Ensure dragging entire chain appears above other nodes.
+
+    // TODO Might want to add some visual indication of dragging entire chain
+    // using box shadow, and maybe make slightly transparent.
+    // opacity: 0.8;
+    // box-shadow: 6px 6px 24px var(--pf-color-box-shadow);
+  }
+}
+
+.pf-node.pf-selected {
+  border-color: var(--pf-color-accent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--pf-color-accent) 50%, transparent);
+  z-index: 1; // Make sure box shadow appears above other nodes
+}
+
+// Docked child: flush top edge with no rounded corners or border
+.pf-node.pf-docked-child {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: -2px; // Overlap border with parent
+}
+
+// Parent with docked child: flush bottom edge with no rounded corners
+.pf-node.pf-has-docked-child {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+// Dock target highlight with pulsing animation
+.pf-node.pf-dock-target {
+  box-shadow: 0 4px 0 3px var(--pf-color-accent);
+  animation: pulse-dock 0.6s ease-in-out infinite;
+}
+
+@keyframes pulse-dock {
+  0%,
+  100% {
+    box-shadow: 0 4px 0 3px var(--pf-color-accent);
+  }
+  50% {
+    box-shadow: 0 6px 0 5px var(--pf-color-accent);
+    opacity: 0.95;
+  }
+}
+
+.pf-node-header {
+  /* Default background when hue is not set */
+  background: var(--pf-color-background);
+  padding: 6px 6px;
+  border-radius: 6px 6px 0 0;
+  display: flex;
+  border-bottom: 1px solid var(--pf-color-border);
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Override with hue-based color when --pf-node-hue is set via inline styles */
+.pf-node[style*="--pf-node-hue"] .pf-node-header {
+  background: color-mix(
+    in srgb,
+    hsl(var(--pf-node-hue), 60%, 50%) 50%,
+    var(--pf-color-background)
+  );
+}
+
+.pf-node--has-accent-bar .pf-node-header {
+  padding-left: 22px;
+}
+
+.pf-docked-child .pf-node-header {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.pf-has-docked-child .pf-node-header {
+  border-bottom-left-radius: 0;
+}
+
+.pf-docked-child::before {
+  border-top-left-radius: 0;
+}
+
+.pf-has-docked-child::before {
+  border-bottom-left-radius: 0;
+}
+
+.pf-node-title {
+  flex: 1;
+  padding-left: 6px;
+}
+
+.pf-node-context-menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+.pf-node-content {
+  padding-inline: 12px;
+}
+
+.pf-node--has-accent-bar .pf-node-content {
+  padding-left: 22px;
+}
+
+.pf-port-row {
+  position: relative;
+  margin: 8px 0;
+  color: var(--pf-color-text-muted);
+  font-size: 13px;
+  padding: 4px 16px;
+
+  .pf-port {
+    transform: translateY(-50%);
+  }
+}
+
+.pf-node--has-accent-bar .pf-port-row {
+  padding-left: 22px;
+}
+
+.pf-port-input {
+  text-align: left;
+}
+
+.pf-port-output {
+  text-align: right;
+}
+
+.pf-port {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--pf-color-background-secondary);
+  border: 2px solid var(--pf-color-border);
+  cursor: crosshair;
+  position: absolute;
+  top: 50%;
+
+  &--with-context-menu {
+    cursor: pointer;
+    &::after {
+      // Render a little plus button to indicate context menu availability
+      @include material-icon("add");
+      position: absolute;
+      font-size: 15px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+  }
+
+  &.pf-connected {
+    background: var(--pf-color-accent);
+    border-color: var(--pf-color-accent);
+    color: var(--pf-color-text-on-accent);
+  }
+}
+
+.pf-output {
+  background: var(--pf-color-border);
+  z-index: 2; // Make outputs appear above inputs when docked.
+}
+
+.pf-output:hover {
+  background: var(--pf-color-accent);
+  border-color: var(--pf-color-accent);
+  color: var(--pf-color-text-on-accent);
+}
+
+.pf-port.pf-input {
+  left: -9px;
+}
+
+.pf-port.pf-port-top {
+  top: -1px;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pf-port.pf-port-bottom {
+  top: unset;
+  bottom: -1px;
+  left: 50%;
+  transform: translate(-50%, 50%);
+}
+
+.pf-port.pf-output {
+  right: -9px;
+}
+
+.pf-connection {
+  stroke: var(--pf-color-accent);
+  color: var(--pf-color-accent);
+  stroke-width: 2;
+  fill: none;
+  transition:
+    stroke-width 0.2s,
+    stroke 0.2s;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.pf-connection-group:hover .pf-connection {
+  stroke: var(--pf-color-danger);
+  filter: drop-shadow(
+    0 0 6px color-mix(in srgb, var(--pf-color-danger) 80%, transparent)
+  );
+}
+
+.pf-temp-connection {
+  stroke: var(--pf-color-text-muted);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 5, 5;
+}
+
+.pf-connecting {
+  cursor: crosshair;
+
+  .pf-input:hover {
+    background: var(--pf-color-accent);
+    border-color: var(--pf-color-accent);
+    cursor: copy;
+  }
+  .pf-output:hover {
+    background: var(--pf-color-border);
+    border-color: var(--pf-color-border-secondary);
+    cursor: not-allowed;
+  }
+}
+
+.pf-output.pf-active,
+.pf-output.pf-active:hover {
+  background: var(--pf-color-accent);
+  border-color: var(--pf-color-accent);
+  color: var(--pf-color-text-on-accent);
+  cursor: crosshair;
+}
+
+.pf-panning {
+  cursor: grabbing;
+}
+
+.pf-selection-rect {
+  position: absolute;
+  border: 2px solid var(--pf-color-accent);
+  background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
+  pointer-events: none;
+  z-index: 2; // Render selection rectangle above nodes.
+}
+
+.pf-node.pf-invalid {
+  border-color: var(--pf-color-danger);
+  background: color-mix(
+    in srgb,
+    var(--pf-color-danger) 8%,
+    var(--pf-color-background-secondary)
+  );
+
+  .pf-node-header {
+    background: color-mix(
+      in srgb,
+      var(--pf-color-danger) 15%,
+      var(--pf-color-background)
+    );
+    border-bottom-color: var(--pf-color-danger);
+  }
+}
+
+// Invalid nodes override hue-based styling
+.pf-node.pf-invalid[style*="--pf-node-hue"] .pf-node-header {
+  background: color-mix(
+    in srgb,
+    var(--pf-color-danger) 15%,
+    var(--pf-color-background)
+  );
+}
+
+.pf-node.pf-invalid.pf-node--has-accent-bar::before {
+  background-color: var(--pf-color-danger);
+}
+
+// Label styles
+.pf-label {
+  position: absolute;
+  background: color-mix(
+    in srgb,
+    var(--pf-color-background-secondary) 85%,
+    var(--pf-color-accent) 15%
+  );
+  border: 2px solid var(--pf-color-border);
+  cursor: move;
+  pointer-events: auto;
+  box-sizing: border-box;
+
+  &.pf-dragging {
+    opacity: 0.7;
+    cursor: grabbing;
+  }
+
+  &.pf-selected {
+    border-color: var(--pf-color-accent);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--pf-color-accent) 50%, transparent);
+  }
+
+  .pf-label-resize-handle {
+    position: absolute;
+    right: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 20px;
+    background: var(--pf-color-accent);
+    border-radius: 3px;
+    cursor: ew-resize;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &:hover .pf-label-resize-handle {
+    opacity: 0.6;
+  }
+
+  &.pf-selected .pf-label-resize-handle {
+    opacity: 1;
+  }
+
+  .pf-label-delete-button {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--pf-color-danger);
+    color: white;
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1;
+      background: color-mix(in srgb, var(--pf-color-danger) 85%, black 15%);
+    }
+
+    .pf-icon {
+      font-size: 12px;
+    }
+  }
+
+  &:hover .pf-label-delete-button,
+  &.pf-selected .pf-label-delete-button {
+    opacity: 1;
+  }
+}
+
+.pf-label-content {
+  width: 100%;
+  max-height: 400px;
+  overflow-y: auto;
+  box-sizing: border-box;
+
+  > .pf-simple-label-text {
+    padding: 12px;
+    font-family: var(--pf-font-compact);
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--pf-color-text);
+  }
+
+  > .pf-simple-label-button {
+    padding: 8px;
+  }
+
+  > .pf-label-placeholder {
+    padding: 8px;
+    color: var(--pf-color-text-secondary);
+    font-style: italic;
+  }
+}

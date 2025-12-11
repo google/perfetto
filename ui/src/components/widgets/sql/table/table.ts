@@ -16,44 +16,35 @@ import m from 'mithril';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
-import {sqliteString} from '../../../../base/string_utils';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
+import {Row} from '../../../../trace_processor/query_result';
 import {Spinner} from '../../../../widgets/spinner';
 import {
   Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
+  GridCell,
+  GridColumn,
   GridHeaderCell,
-  GridRow,
   renderSortMenuItems,
   SortDirection,
 } from '../../../../widgets/grid';
 
-import {
-  LegacySqlTableFilterOptions,
-  LegacySqlTableFilterLabel,
-} from './render_cell_utils';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
-import {Form} from '../../../../widgets/form';
-import {TextInput} from '../../../../widgets/text_input';
 import {
   RenderedCell,
   TableColumn,
-  TableManager,
+  RenderCellContext,
   tableColumnId,
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
-import {SelectColumnMenu} from './select_column_menu';
+import {SelectColumnMenu} from './menus/select_column_menu';
+import {renderColumnFilterOptions} from './menus/add_column_filter_menu';
+import {renderCastColumnMenu} from './menus/cast_column_menu';
+import {renderTransformColumnMenu} from './menus/transform_column_menu';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
   // For additional menu items to add to the column header menus
-  readonly addColumnMenuItems?: (
-    column: TableColumn,
-    columnAlias: string,
-  ) => m.Children;
+  readonly addColumnMenuItems?: (column: TableColumn) => m.Children;
   // For additional filter actions
   readonly extraAddFilterActions?: (
     op: string,
@@ -69,21 +60,14 @@ function renderCell(
   column: TableColumn,
   row: Row,
   state: SqlTableState,
+  addColumn: (column: TableColumn) => void,
 ): RenderedCell {
   const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.column)]];
-
-  const additionalValues: {[key: string]: SqlValue} = {};
-  const supportingColumns: {[key: string]: SqlColumn} =
-    column.supportingColumns?.() ?? {};
-  for (const [key, col] of Object.entries(supportingColumns)) {
-    additionalValues[key] = row[columns[sqlColumnId(col)]];
-  }
+  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]];
 
   const result = column.renderCell(
     sqlValue,
-    getTableManager(state),
-    additionalValues,
+    getRenderCellContext(state, addColumn),
   );
 
   return result;
@@ -129,91 +113,6 @@ class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
   }
 }
 
-interface ColumnFilterAttrs {
-  filterOption: LegacySqlTableFilterLabel;
-  columns: SqlColumn[];
-  state: SqlTableState;
-}
-
-// Separating out an individual column filter into a class
-// so that we can store the raw input value.
-class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
-  // Holds the raw string value from the filter text input element
-  private inputValue: string;
-
-  constructor() {
-    this.inputValue = '';
-  }
-
-  view({attrs}: m.Vnode<ColumnFilterAttrs>) {
-    const {filterOption, columns, state} = attrs;
-
-    const {op, requiresParam} = LegacySqlTableFilterOptions[filterOption];
-
-    return m(
-      MenuItem,
-      {
-        label: filterOption,
-        // Filter options that do not need an input value will filter the
-        // table directly when clicking on the menu item
-        // (ex: IS NULL or IS NOT NULL)
-        onclick: !requiresParam
-          ? () => {
-              state.filters.addFilter({
-                op: (cols) => `${cols[0]} ${op}`,
-                columns,
-              });
-            }
-          : undefined,
-      },
-      // All non-null filter options will have a submenu that allows
-      // the user to enter a value into textfield and filter using
-      // the Filter button.
-      requiresParam &&
-        m(
-          Form,
-          {
-            onSubmit: () => {
-              // Convert the string extracted from
-              // the input text field into the correct data type for
-              // filtering. The order in which each data type is
-              // checked matters: string, number (floating), and bigint.
-              if (this.inputValue === '') return;
-
-              let filterValue: SqlValue;
-
-              if (Number.isNaN(Number.parseFloat(this.inputValue))) {
-                filterValue = sqliteString(this.inputValue);
-              } else if (
-                !Number.isInteger(Number.parseFloat(this.inputValue))
-              ) {
-                filterValue = Number(this.inputValue);
-              } else {
-                filterValue = BigInt(this.inputValue);
-              }
-
-              state.filters.addFilter({
-                op: (cols) => `${cols[0]} ${op} ${filterValue}`,
-                columns,
-              });
-            },
-            submitLabel: 'Filter',
-          },
-          m(TextInput, {
-            id: 'column_filter_value',
-            ref: 'COLUMN_FILTER_VALUE',
-            autofocus: true,
-            oninput: (e: InputEvent) => {
-              if (!e.target) return;
-
-              this.inputValue = (e.target as HTMLInputElement).value;
-            },
-          }),
-        ),
-    );
-  }
-}
-
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
 
@@ -240,22 +139,18 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         key: columnTitle(column),
         column,
       })),
-      manager: getTableManager(this.state),
+      filters: this.state.filters,
+      trace: this.state.trace,
+      getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+        buildSqlQuery({
+          table: this.state.config.name,
+          columns,
+          filters: this.state.filters.get(),
+          orderBy: this.state.getOrderedBy(),
+        }),
       existingColumnIds,
       onColumnSelected: addColumn,
     });
-  }
-
-  renderColumnFilterOptions(
-    c: TableColumn,
-  ): m.Vnode<ColumnFilterAttrs, unknown>[] {
-    return Object.keys(LegacySqlTableFilterOptions).map((label) =>
-      m(ColumnFilter, {
-        filterOption: label as LegacySqlTableFilterLabel,
-        columns: [c.column],
-        state: this.state,
-      }),
-    );
   }
 
   getAdditionalColumnMenuItems(
@@ -288,100 +183,116 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     const columns = this.state.getSelectedColumns();
 
-    return [
-      m(
-        Grid,
-        {
-          className: 'sql-table',
-          fillHeight: true,
-        },
-        [
-          m(
-            GridHeader,
-            m(
-              GridRow,
-              columns.map((column, i) => {
-                const sorted = this.state.isSortedBy(column);
-                const menuItems: m.Children = [
-                  renderSortMenuItems(sorted, (direction) =>
-                    this.state.sortBy({column, direction}),
-                  ),
-                  m(MenuDivider),
-                  this.state.getSelectedColumns().length > 1 &&
-                    m(MenuItem, {
-                      label: 'Hide',
-                      icon: Icons.Hide,
-                      onclick: () => this.state.hideColumnAtIndex(i),
-                    }),
-                  m(
-                    MenuItem,
-                    {label: 'Add filter', icon: Icons.Filter},
-                    this.renderColumnFilterOptions(column),
-                  ),
-                  additionalColumnMenuItems &&
-                    additionalColumnMenuItems[
-                      this.state.getCurrentRequest().columns[
-                        sqlColumnId(column.column)
-                      ]
-                    ],
-                  // Menu items before divider apply to selected column
-                  m(MenuDivider),
-                  // Menu items after divider apply to entire table
-                  m(AddColumnMenuItem, {
-                    table: this,
-                    state: this.state,
-                    index: i,
-                  }),
-                ];
+    // Build VirtualGrid columns
+    const virtualGridColumns = columns.map((column, i) => {
+      const sorted = this.state.isSortedBy(column);
+      const menuItems: m.Children = [
+        renderSortMenuItems(sorted, (direction) =>
+          this.state.sortBy({column, direction}),
+        ),
+        m(MenuDivider),
+        this.state.getSelectedColumns().length > 1 &&
+          m(MenuItem, {
+            label: 'Hide',
+            icon: Icons.Hide,
+            onclick: () => this.state.hideColumnAtIndex(i),
+          }),
+        // Use the new getColumnSpecificMenuItems method if available
+        column.getColumnSpecificMenuItems?.({
+          replaceColumn: (newColumn: TableColumn) =>
+            this.state.replaceColumnAtIndex(i, newColumn),
+        }),
+        m(
+          MenuItem,
+          {label: 'Cast', icon: Icons.Change},
+          renderCastColumnMenu(column, i, this.state),
+        ),
+        renderTransformColumnMenu(column, i, this.state),
+        m(
+          MenuItem,
+          {label: 'Add filter', icon: Icons.Filter},
+          renderColumnFilterOptions(column, this.state),
+        ),
+        additionalColumnMenuItems &&
+          additionalColumnMenuItems[
+            this.state.getCurrentRequest().columns[sqlColumnId(column.column)]
+          ],
+        // Menu items before divider apply to selected column
+        m(MenuDivider),
+        // Menu items after divider apply to entire table
+        m(AddColumnMenuItem, {
+          table: this,
+          state: this.state,
+          index: i,
+        }),
+      ];
+      const columnKey = tableColumnId(column);
 
-                return m(
-                  GridHeaderCell,
-                  {
-                    key: i,
-                    sort: sorted,
-                    onSort: (direction: SortDirection) => {
-                      this.state.sortBy({column, direction});
-                    },
-                    menuItems,
-                    reorderable: {handle: 'column'},
-                    onReorder: (from, to, position) => {
-                      if (typeof from === 'number' && typeof to === 'number') {
-                        const toIndex = position === 'before' ? to : to + 1;
-                        this.state.moveColumn(from, toIndex);
-                      }
-                    },
-                  },
-                  columnTitle(column),
-                );
-              }),
-            ),
-          ),
-          m(
-            GridBody,
-            rows.map((row) => {
-              return m(
-                GridRow,
-                columns.map((col) => {
-                  const {content, menu, isNumerical, isNull} = renderCell(
-                    col,
-                    row,
-                    this.state,
-                  );
-                  return m(
-                    GridDataCell,
-                    {
-                      menuItems: menu,
-                      align: isNull ? 'center' : isNumerical ? 'right' : 'left',
-                      isMissing: isNull,
-                    },
-                    content,
-                  );
-                }),
-              );
-            }),
-          ),
-        ],
-      ),
+      const gridColumn: GridColumn = {
+        key: columnKey,
+        header: m(
+          GridHeaderCell,
+          {
+            sort: sorted,
+            onSort: (direction: SortDirection) => {
+              this.state.sortBy({column, direction});
+            },
+            menuItems,
+          },
+          columnTitle(column),
+        ),
+        reorderable: {reorderGroup: 'column'},
+      };
+
+      return gridColumn;
+    });
+
+    // Build VirtualGrid rows
+    const virtualGridRows = rows.map((row) => {
+      return columns.map((col, i) => {
+        const {content, menu, isNumerical, isNull} = renderCell(
+          col,
+          row,
+          this.state,
+          (column) => {
+            this.state.addColumn(column, i);
+          },
+        );
+        return m(
+          GridCell,
+          {
+            menuItems: menu,
+            align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+            nullish: isNull,
+          },
+          content,
+        );
+      });
+    });
+
+    return [
+      m(Grid, {
+        className: 'sql-table',
+        columns: virtualGridColumns,
+        rowData: virtualGridRows,
+        fillHeight: true,
+        onColumnReorder: (from, to, position) => {
+          if (typeof from === 'string' && typeof to === 'string') {
+            // Convert column names to indices
+            const fromIndex = columns.findIndex(
+              (col) => tableColumnId(col) === from,
+            );
+            const toIndex = columns.findIndex(
+              (col) => tableColumnId(col) === to,
+            );
+
+            if (fromIndex !== -1 && toIndex !== -1) {
+              const targetIndex = position === 'before' ? toIndex : toIndex + 1;
+              this.state.moveColumn(fromIndex, targetIndex);
+            }
+          }
+        },
+      }),
       this.state.isLoading() && m(Spinner),
       this.state.getQueryError() !== undefined &&
         m('.query-error', this.state.getQueryError()),
@@ -389,7 +300,10 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   }
 }
 
-export function getTableManager(state: SqlTableState): TableManager {
+function getRenderCellContext(
+  state: SqlTableState,
+  addColumn: (column: TableColumn) => void,
+): RenderCellContext {
   return {
     filters: state.filters,
     trace: state.trace,
@@ -400,5 +314,12 @@ export function getTableManager(state: SqlTableState): TableManager {
         filters: state.filters.get(),
         orderBy: state.getOrderedBy(),
       }),
+    hasColumn: (column: TableColumn) => {
+      const selectedColumns = state.getSelectedColumns();
+      return !selectedColumns.some(
+        (c) => tableColumnId(c) === tableColumnId(column),
+      );
+    },
+    addColumn,
   };
 }

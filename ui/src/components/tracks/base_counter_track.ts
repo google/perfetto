@@ -69,14 +69,7 @@ function toLabel(n: number): string {
 }
 
 class RangeSharer {
-  static singleton?: RangeSharer;
-
-  static get(): RangeSharer {
-    if (RangeSharer.singleton === undefined) {
-      RangeSharer.singleton = new RangeSharer();
-    }
-    return RangeSharer.singleton;
-  }
+  private static traceToRangeSharer = new WeakMap<Trace, RangeSharer>();
 
   private tagToRange: Map<string, [number, number]>;
   private keyToEnabled: Map<string, boolean>;
@@ -84,6 +77,15 @@ class RangeSharer {
   constructor() {
     this.tagToRange = new Map();
     this.keyToEnabled = new Map();
+  }
+
+  static getRangeSharer(trace: Trace): RangeSharer {
+    let sharer = RangeSharer.traceToRangeSharer.get(trace);
+    if (sharer === undefined) {
+      sharer = new RangeSharer();
+      RangeSharer.traceToRangeSharer.set(trace, sharer);
+    }
+    return sharer;
   }
 
   isEnabled(key: string): boolean {
@@ -145,14 +147,15 @@ interface CounterTooltipState {
   tsEnd?: time;
 }
 
-type ChartHeightSize = 1 | 4 | 8 | 16 | 32;
+type ChartHeightSize = 1 | 2 | 4 | 8 | 16 | 32;
 
 const CHART_HEIGHT_LABELS: [string, ChartHeightSize][] = [
   ['Small (1x)', 1],
-  ['Medium (4x)', 4],
-  ['Large (8x)', 8],
-  ['XLarge (16x)', 16],
-  ['XXLarge (32x)', 32],
+  ['Medium (2x)', 2],
+  ['Large (4x)', 4],
+  ['XLarge (8x)', 8],
+  ['XXLarge (16x)', 16],
+  ['XXXLarge (32x)', 32],
 ];
 
 export interface CounterOptions {
@@ -221,6 +224,7 @@ type YRangeRounding = z.infer<typeof yRangeRoundingSchema>;
 
 const chartHeightSizeSchema = z.union([
   z.literal(1),
+  z.literal(2),
   z.literal(4),
   z.literal(8),
   z.literal(16),
@@ -399,6 +403,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   private hover?: CounterTooltipState;
   private options?: CounterOptions;
+  private readonly rangeSharer: RangeSharer;
 
   private readonly trash: AsyncDisposableStack;
 
@@ -472,6 +477,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     protected readonly defaultOptions: Partial<CounterOptions> = {},
   ) {
     this.trash = new AsyncDisposableStack();
+    this.rangeSharer = RangeSharer.getRangeSharer(trace);
   }
 
   getHeight() {
@@ -564,7 +570,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       options.yRangeSharingKey &&
         m(MenuItem, {
           label: `Share y-axis scale (group: ${options.yRangeSharingKey})`,
-          icon: RangeSharer.get().isEnabled(options.yRangeSharingKey)
+          icon: this.rangeSharer.isEnabled(options.yRangeSharingKey)
             ? 'check_box'
             : 'check_box_outline_blank',
           onclick: () => {
@@ -572,8 +578,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
             if (key === undefined) {
               return;
             }
-            const sharer = RangeSharer.get();
-            sharer.setEnabled(key, !sharer.isEnabled(key));
+            this.rangeSharer.setEnabled(key, !this.rangeSharer.isEnabled(key));
             this.invalidate();
           },
         }),
@@ -743,7 +748,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     await this.maybeRequestData(rawCountersKey);
   }
 
-  render({ctx, size, timescale, theme}: TrackRenderContext): void {
+  render({ctx, size, timescale, colors}: TrackRenderContext): void {
     // In any case, draw whatever we have (which might be stale/incomplete).
     const limits = this.limits;
     const data = this.counters;
@@ -889,11 +894,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
     // Write the Y scale on the top left corner.
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = theme.COLOR_BACKGROUND;
+    ctx.fillStyle = colors.COLOR_BACKGROUND;
     ctx.globalAlpha = 0.6;
     ctx.fillRect(0, 0, 42, 18);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = theme.COLOR_TEXT;
+    ctx.fillStyle = colors.COLOR_TEXT;
     ctx.textAlign = 'left';
     ctx.fillText(`${yLabel}`, 4, 14);
 
@@ -995,8 +1000,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       }
     }
 
-    const sharer = RangeSharer.get();
-    [yMin, yMax] = sharer.share(options, [yMin, yMax]);
+    [yMin, yMax] = this.rangeSharer.share(options, [yMin, yMax]);
 
     let yLabel: string;
 

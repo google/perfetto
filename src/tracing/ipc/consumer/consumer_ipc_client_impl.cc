@@ -470,6 +470,17 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
     return;
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (args.output_file_fd) {
+    consumer_->OnSessionCloned(
+        {false,
+         "Passing FDs into CloneSession is not supported on Windows",
+         {},
+         false});
+    return;
+  }
+#endif
+
   protos::gen::CloneSessionRequest req;
   if (args.tsid) {
     req.set_session_id(args.tsid);
@@ -507,13 +518,17 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
           // If the IPC fails, we are talking to an older version of the service
           // that didn't support CloneSession at all.
           weak_this->consumer_->OnSessionCloned(
-              {false, "CloneSession IPC not supported", {}});
+              {false, "CloneSession IPC not supported", {}, false});
         } else {
           base::Uuid uuid(response->uuid_lsb(), response->uuid_msb());
           weak_this->consumer_->OnSessionCloned(
-              {response->success(), response->error(), uuid});
+              {response->success(), response->error(), uuid,
+               response->was_write_into_file()});
         }
       });
-  consumer_port_.CloneSession(req, std::move(async_response));
+  // |args.output_file_fd| will be closed when this function returns, but it's
+  // fine because the IPC layer dup()'s it when sending the IPC.
+  consumer_port_.CloneSession(req, std::move(async_response),
+                              *args.output_file_fd);
 }
 }  // namespace perfetto

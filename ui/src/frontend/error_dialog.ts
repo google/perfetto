@@ -25,6 +25,7 @@ import {Intent} from '../widgets/common';
 import {Checkbox} from '../widgets/checkbox';
 import {Anchor} from '../widgets/anchor';
 import {Icons} from '../base/semantic_icons';
+import {mapStackTraceWithMinifiedSourceMap} from '../base/source_map_utils';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -52,6 +53,12 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
 
   if (err.message.includes('Unable to claim interface')) {
     showWebUSBError();
+    timeLastReport = now;
+    return;
+  }
+
+  if (err.message.includes('ABT: Got no attachments from extension')) {
+    showABTError();
     timeLastReport = now;
     return;
   }
@@ -99,6 +106,8 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
   if (getCurrentModalKey() === MODAL_KEY) {
     return;
   }
+
+  err.stack = mapStackTraceWithMinifiedSourceMap(err.stack);
 
   showModal({
     key: MODAL_KEY,
@@ -331,6 +340,7 @@ function showUnknownFileError() {
         m('li', 'Android systrace'),
         m('li', 'Fuchsia trace'),
         m('li', 'Ninja build log'),
+        m('li', 'pprof'),
       ),
     ),
   });
@@ -343,21 +353,46 @@ function showWebUSBError() {
       'div',
       m(
         'span',
-        `Is adb already running on the host? Run this command and
-      try again.`,
+        `Cannot access the USB interface for ADB. This can happen when:`,
       ),
       m('br'),
+      m('br'),
+      m(
+        'ul',
+        m('li', 'Another tool is already using ADB (e.g., chrome://inspect)'),
+        m('li', 'ADB server is running on the host machine'),
+        m('li', 'Another profiling tool has exclusive access to the device'),
+      ),
+      m('br'),
+      m('span', 'Try the following solutions:'),
+      m('br'),
+      m('br'),
+      m(
+        'ol',
+        m('li', 'Close chrome://inspect or other debugging tools'),
+        m('li', 'Run the command below to kill the ADB server:'),
+      ),
       m('.pf-modal-bash', '> adb kill-server'),
       m('br'),
-      m('span', 'For details see '),
+      m('span', '3. Disconnect and reconnect your device'),
+      m('br'),
+      m('br'),
       m(
-        Anchor,
-        {
-          href: 'http://b/159048331',
-          target: '_blank',
-          icon: Icons.ExternalLink,
-        },
-        'b/159048331',
+        'span',
+        'Note: Perfetto and chrome://inspect cannot be used simultaneously as they both require exclusive access to the USB ADB interface.',
+      ),
+    ),
+  });
+}
+
+function showABTError() {
+  showModal({
+    title: 'An ABT error occurred',
+    content: m(
+      'div',
+      m(
+        'span',
+        `The Android Bug Tool (ABT) Chrome extension did not pass a valid file.`,
       ),
     ),
   });

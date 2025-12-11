@@ -35,3 +35,31 @@ flag {
   bug: "439758665"
   is_fixed_read_only: true
 }
+flag {
+  name: "use_lockfree_taskrunner"
+  namespace: "perfetto"
+  description: "Controls whether base::MaybeLockFreeTaskRunner will use the battle-tested base::UnixTaskRunner or the new base::UnixTaskRunner"
+  bug: "441118768"
+  is_fixed_read_only: true
+}
+flag {
+  name: "use_rt_futex"
+  namespace: "perfetto"
+  description: "Controls whether base::MaybeRtMutex will use base::RtFutex or resolved type of base::MaybeRtMutex for android."
+  bug: "443948543"
+  is_fixed_read_only: true
+}
+flag {
+  name: "buffer_clone_preserve_read_iter"
+  namespace: "perfetto"
+  description: "Controls whether TraceBuffer::CloneReadOnly() will preserve the read state (true, new behavior) or clear it (false, legacy behavior)."
+  bug: "448604718"
+  is_fixed_read_only: true
+}
+flag {
+  name: "sma_prevent_duplicate_immediate_flushes"
+  namespace: "perfetto"
+  description: "Controls whether SharedMemoryArbiter will prevent posting duplicate immediate flush tasks when the shared memory buffer is more than half full. When enabled, only one immediate flush task is posted until it completes, preventing excessive CPU usage from task runner spam."
+  bug: "330580374"
+  is_fixed_read_only: true
+}

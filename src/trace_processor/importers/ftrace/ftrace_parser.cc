@@ -86,6 +86,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
+#include "protos/perfetto/trace/ftrace/fwtp_ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "protos/perfetto/trace/ftrace/google_icc_trace.pbzero.h"
@@ -144,16 +145,22 @@ struct FtraceEventAndFieldId {
 // TODO(lalitm): going through this array is O(n) on a hot-path (see
 // ParseTypedFtraceToRaw). Consider changing this if we end up adding a lot of
 // events here.
-constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 7>{
+constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 9>{
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
         protos::pbzero::SchedBlockedReasonFtraceEvent::kCallerFieldNumber},
     FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
+        protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber},
+    FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kWorkqueueActivateWorkFieldNumber,
+        protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
+    FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kWorkqueueExecuteStartFieldNumber,
         protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
-        protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
-        protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber},
+        protos::pbzero::FtraceEvent::kWorkqueueExecuteEndFieldNumber,
+        protos::pbzero::WorkqueueExecuteStartFtraceEvent::kFunctionFieldNumber},
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kFuncgraphEntryFieldNumber,
         protos::pbzero::FuncgraphEntryFtraceEvent::kFuncFieldNumber},
@@ -1212,7 +1219,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kDmaFenceEmitFieldNumber:
       case FtraceEvent::kDmaFenceSignaledFieldNumber:
       case FtraceEvent::kDmaFenceWaitStartFieldNumber:
-      case FtraceEvent::kDmaFenceWaitEndFieldNumber: {
+      case FtraceEvent::kDmaFenceWaitEndFieldNumber:
+      case FtraceEvent::kDrmSchedJobDoneFieldNumber:
+      case FtraceEvent::kDrmSchedJobQueueFieldNumber:
+      case FtraceEvent::kDrmSchedJobRunFieldNumber: {
         drm_tracker_.ParseDrm(ts, fld.id(), pid, fld_bytes);
         break;
       }
@@ -1468,6 +1478,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDmabufRssStat(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kFwtpPerfettoCounterFieldNumber: {
+        ParseFwtpPerfettoCounter(fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -1627,7 +1641,7 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  protozero::ProtoDecoder decoder(blob);
+  ProtoDecoder decoder(blob);
 
   // Special handling for events matching a convention - derive track/counter
   // tracks for them automatically (no perfetto code changes needed).
@@ -4344,6 +4358,20 @@ void FtraceParser::ParseDmabufRssStat(int64_t ts,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   context_->event_tracker->PushProcessCounterForThread(
       EventTracker::DmabufRssStat(), ts, static_cast<double>(evt.rss()), utid);
+}
+
+void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "pixel_fwtp_counters", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint),
+      tracks::FnNameBlueprint([](base::StringView name) {
+        return base::StackString<255>("%.*s", int(name.size()), name.data());
+      }));
+  protos::pbzero::FwtpPerfettoCounterFtraceEvent::Decoder event(blob);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(event.name()));
+  context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
+                                       event.value(), track_id);
 }
 
 }  // namespace perfetto::trace_processor

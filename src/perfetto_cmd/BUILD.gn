@@ -76,6 +76,11 @@ source_set("perfetto_cmd") {
     deps += [ "../android_internal:lazy_library_loader" ]
     sources += [ "perfetto_cmd_android.cc" ]
   }
+
+  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
+  if (perfetto_build_standalone || is_perfetto_build_generator) {
+    assert_no_deps += [ "../../buildtools:abseil_cpp" ]
+  }
 }
 
 source_set("bugreport_path") {
@@ -100,6 +105,11 @@ source_set("trigger_perfetto_cmd") {
     "../tracing/ipc/producer",
   ]
   sources = [ "trigger_perfetto.cc" ]
+
+  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
+  if (perfetto_build_standalone || is_perfetto_build_generator) {
+    assert_no_deps = [ "../../buildtools:abseil_cpp" ]
+  }
 }
 
 source_set("trigger_producer") {
@@ -133,9 +143,11 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/trace:cpp",
     "../tracing/core",
+    "../tracing/test:test_support",
   ]
   sources = [
     "config_unittest.cc",
     "packet_writer_unittest.cc",
+    "perfetto_cmd_unittest.cc",
   ]
 }

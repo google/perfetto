@@ -32,9 +32,9 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -57,8 +57,76 @@
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
+namespace {
+
+const char* MapToFriendlyPowerRailName(base::StringView raw) {
+  if (raw.EndsWith("M_VDD_CPUCL0")) {
+    return "cpu.little";
+  } else if (raw.EndsWith("M_VDD_CPUCL0_M")) {
+    return "cpu.little.mem";
+  } else if (raw.EndsWith("M_VDD_CPUCL1")) {
+    return "cpu.mid";
+  } else if (raw.EndsWith("M_VDD_CPUCL1_M")) {
+    return "cpu.mid.mem";
+  } else if (raw.EndsWith("M_VDD_CPUCL2")) {
+    return "cpu.big";
+  } else if (raw.EndsWith("M_VDD_INT")) {
+    return "system.fabric";
+  } else if (raw.EndsWith("M_VDD_TPU")) {
+    return "tpu";
+  } else if (raw.EndsWith("VSYS_PWR_DISP") ||
+             raw.EndsWith("VSYS_PWR_DISPLAY")) {
+    return "display";
+  } else if (raw.EndsWith("M_DISP")) {
+    return "ldo.main.a.display";
+  } else if (raw.EndsWith("VSYS_PWR_MODEM")) {
+    return "modem";
+  } else if (raw.EndsWith("M_VDD_MIF")) {
+    return "memory.interface";
+  } else if (raw.EndsWith("VSYS_PWR_WLAN_BT")) {
+    return "wifi.bt";
+  } else if (raw.EndsWith("VSYS_PWR_MMWAVE")) {
+    return "mmwave";
+  } else if (raw.EndsWith("S_VDD_AOC_RET")) {
+    return "aoc.memory";
+  } else if (raw.EndsWith("S_VDD_AOC")) {
+    return "aoc.logic";
+  } else if (raw.EndsWith("S_VDDQ_MEM")) {
+    return "ddr.a";
+  } else if (raw.EndsWith("S_VDD2L") || raw.EndsWith("S_VDD2L_MEM")) {
+    return "ddr.b";
+  } else if (raw.EndsWith("S_VDD2H_MEM")) {
+    return "ddr.c";
+  } else if (raw.EndsWith("S_VDD_G3D")) {
+    return "gpu";
+  } else if (raw.EndsWith("S_VDD_G3D_L2")) {
+    return "gpu.l2";
+  } else if (raw.EndsWith("S_GNSS_CORE")) {
+    return "gps";
+  } else if (raw.EndsWith("VSYS_PWR_RFFE")) {
+    return "radio.frontend";
+  } else if (raw.EndsWith("VSYS_PWR_CAMERA")) {
+    return "camera";
+  } else if (raw.EndsWith("S_VDD_CAM")) {
+    return "multimedia";
+  } else if (raw.EndsWith("S_UDFPS")) {
+    return "udfps";
+  } else if (raw.EndsWith("S_PLL_MIPI_UFS")) {
+    return "ufs";
+  } else if (raw.EndsWith("M_LLDO1")) {
+    return "ldo.main.a";
+  } else if (raw.EndsWith("M_LLDO2")) {
+    return "ldo.main.b";
+  } else if (raw.EndsWith("S_LLDO1")) {
+    return "ldo.sub";
+  }
+  return nullptr;
+}
+
+}  // namespace
 
 AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
                                          AndroidProbesTracker* tracker)
@@ -67,7 +135,6 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
       power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
       plug_type_id_(context->storage->InternString("PlugType")),
-      rail_packet_timestamp_id_(context->storage->InternString("packet_ts")),
       energy_consumer_id_(
           context_->storage->InternString("energy_consumer_id")),
       consumer_type_id_(context_->storage->InternString("consumer_type")),
@@ -80,7 +147,60 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
       bt_op_code_id_(context_->storage->InternString("Op Code")),
       bt_event_code_id_(context_->storage->InternString("Event Code")),
       bt_subevent_code_id_(context_->storage->InternString("Subevent Code")),
-      bt_handle_id_(context_->storage->InternString("Handle")) {}
+      bt_handle_id_(context_->storage->InternString("Handle")),
+      power_rail_raw_name_id_(context->storage->InternString("raw_name")),
+      power_rail_subsys_name_arg_id_(
+          context->storage->InternString("subsystem_name")),
+      rail_packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
+
+void AndroidProbesParser::ParseRailDescriptor(
+    const protos::pbzero::PowerRails_Decoder& evt) {
+  for (auto it = evt.rail_descriptor(); it; ++it) {
+    protos::pbzero::PowerRails::RailDescriptor::Decoder desc(*it);
+    uint32_t idx = desc.index();
+    if (PERFETTO_UNLIKELY(idx > 256)) {
+      PERFETTO_DLOG("Skipping excessively large power_rail index %" PRIu32,
+                    idx);
+      continue;
+    }
+    static constexpr auto kPowerBlueprint = tracks::CounterBlueprint(
+        "power_rails", tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(
+            tracks::kNameFromTraceDimensionBlueprint,
+            tracks::UintDimensionBlueprint("session_uuid")),
+        tracks::DynamicNameBlueprint());
+    const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
+    TrackId track;
+    auto args_fn = [this, &desc](ArgsTracker::BoundInserter& inserter) {
+      StringId raw_name = context_->storage->InternString(desc.rail_name());
+      inserter.AddArg(power_rail_raw_name_id_, Variadic::String(raw_name));
+
+      StringId subsys_name =
+          context_->storage->InternString(desc.subsys_name());
+      inserter.AddArg(power_rail_subsys_name_arg_id_,
+                      Variadic::String(subsys_name));
+    };
+    if (friendly_name) {
+      StringId id = context_->storage->InternString(
+          base::StackString<255>("power.rails.%s", friendly_name)
+              .string_view());
+      track = context_->track_tracker->InternTrack(
+          kPowerBlueprint,
+          tracks::Dimensions(desc.rail_name(), evt.session_uuid()),
+          tracks::DynamicName(id), args_fn);
+    } else {
+      StringId id = context_->storage->InternString(
+          base::StackString<255>("power.%.*s_uws", int(desc.rail_name().size),
+                                 desc.rail_name().data)
+              .string_view());
+      track = context_->track_tracker->InternTrack(
+          kPowerBlueprint,
+          tracks::Dimensions(desc.rail_name(), evt.session_uuid()),
+          tracks::DynamicName(id), args_fn);
+    }
+    tracker_->SetPowerRailTrack(evt.session_uuid(), desc.index(), track);
+  }
+}
 
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob);
@@ -146,7 +266,7 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
 
 void AndroidProbesParser::ParsePowerRails(int64_t ts,
                                           uint64_t trace_packet_ts,
-                                          ConstBytes blob) {
+                                          protozero::ConstBytes blob) {
   protos::pbzero::PowerRails::Decoder evt(blob);
 
   // Descriptors should have been processed at tokenization time.
@@ -272,19 +392,20 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
   }
 }
 
-void AndroidProbesParser::ParseAndroidLogPacket(ConstBytes blob) {
+void AndroidProbesParser::ParseAndroidLogPacket(int64_t ts,
+                                                protozero::ConstBytes blob) {
   protos::pbzero::AndroidLogPacket::Decoder packet(blob);
   for (auto it = packet.events(); it; ++it)
-    ParseAndroidLogEvent(*it);
+    ParseAndroidLogEvent(ts, *it);
 
   if (packet.has_stats())
     ParseAndroidLogStats(packet.stats());
 }
 
-void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
+void AndroidProbesParser::ParseAndroidLogEvent(int64_t ts,
+                                               protozero::ConstBytes blob) {
   // TODO(primiano): Add events and non-stringified fields to the "raw" table.
   protos::pbzero::AndroidLogPacket::LogEvent::Decoder evt(blob);
-  auto ts = static_cast<int64_t>(evt.timestamp());
   auto pid = static_cast<uint32_t>(evt.pid());
   auto tid = static_cast<uint32_t>(evt.tid());
   auto prio = static_cast<uint8_t>(evt.prio());
@@ -325,27 +446,25 @@ void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
     prio = protos::pbzero::AndroidLogPriority::PRIO_INFO;
 
   if (arg_str != &arg_msg[0]) {
-    PERFETTO_DCHECK(msg_id.is_null());
     // Skip the first space char (" foo=1 bar=2" -> "foo=1 bar=2").
-    msg_id = context_->storage->InternString(&arg_msg[1]);
+    base::StringView args_sv(&arg_msg[1]);
+    if (msg_id.is_null()) {
+      msg_id = context_->storage->InternString(args_sv);
+    } else {
+      std::string new_msg = context_->storage->GetString(msg_id).ToStdString() +
+                            " " + args_sv.ToStdString();
+      msg_id = context_->storage->InternString(base::StringView(new_msg));
+    }
   }
   UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
-  base::StatusOr<int64_t> trace_time = context_->clock_tracker->ToTraceTime(
-      protos::pbzero::BUILTIN_CLOCK_REALTIME, ts);
-  if (!trace_time.ok()) {
-    static std::atomic<uint32_t> dlog_count(0);
-    if (dlog_count++ < 10)
-      PERFETTO_DLOG("%s", trace_time.status().c_message());
-    return;
-  }
 
   // Log events are NOT required to be sorted by trace_time. The virtual table
   // will take care of sorting on-demand.
   context_->storage->mutable_android_log_table()->Insert(
-      {trace_time.value(), utid, prio, tag_id, msg_id});
+      {ts, utid, prio, tag_id, msg_id});
 }
 
-void AndroidProbesParser::ParseAndroidLogStats(ConstBytes blob) {
+void AndroidProbesParser::ParseAndroidLogStats(protozero::ConstBytes blob) {
   protos::pbzero::AndroidLogPacket::Stats::Decoder evt(blob);
   if (evt.has_num_failed()) {
     context_->storage->SetStats(stats::android_log_num_failed,
@@ -363,7 +482,7 @@ void AndroidProbesParser::ParseAndroidLogStats(ConstBytes blob) {
   }
 }
 
-void AndroidProbesParser::ParseStatsdMetadata(ConstBytes blob) {
+void AndroidProbesParser::ParseStatsdMetadata(protozero::ConstBytes blob) {
   protos::pbzero::TraceConfig::StatsdMetadata::Decoder metadata(blob);
   if (metadata.has_triggering_subscription_id()) {
     context_->metadata_tracker->SetMetadata(
@@ -372,7 +491,8 @@ void AndroidProbesParser::ParseStatsdMetadata(ConstBytes blob) {
   }
 }
 
-void AndroidProbesParser::ParseAndroidGameIntervention(ConstBytes blob) {
+void AndroidProbesParser::ParseAndroidGameIntervention(
+    protozero::ConstBytes blob) {
   protos::pbzero::AndroidGameInterventionList::Decoder intervention_list(blob);
   constexpr static int kGameModeStandard = 1;
   constexpr static int kGameModePerformance = 2;

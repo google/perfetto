@@ -798,3 +798,44 @@ These operations are applied sequentially to the data from the source:
 - **`filters`**: A list of conditions to filter rows.
 - **`group_by`**: Groups rows and applies aggregate functions.
 - **`select_columns`**: Selects and optionally renames columns.
+
+#### Aggregation Operators
+
+The `group_by` operation allows you to use the following aggregate functions:
+
+| Operator                 | Description                                                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `COUNT`                  | Counts the number of rows in each group. If no `column_name` is specified, this becomes `COUNT(*)` (count all rows). |
+| `SUM`                    | Calculates the sum of a numerical column.                                                                                                              |
+| `MIN`                    | Finds the minimum value of a numerical column.                                                                                                         |
+| `MAX`                    | Finds the maximum value of a numerical column.                                                                                                         |
+| `MEAN`                   | Calculates the average value of a numerical column.                                                                                                    |
+| `MEDIAN`                 | Calculates the 50th percentile of a numerical column.                                                                                                  |
+| `DURATION_WEIGHTED_MEAN` | Calculates the duration-weighted average of a numerical column. This is useful for time-series data where values should be weighted by their duration. |
+| `PERCENTILE`             | Calculates a given percentile of a numerical column. The percentile is specified in the `percentile` field of the `Aggregate` message.                   |
+
+##### Aggregation Field Requirements
+
+- **`COUNT`**: `column_name` is optional. If omitted, it defaults to `COUNT(*)`.
+- **`SUM`, `MIN`, `MAX`, `MEAN`, `MEDIAN`, `DURATION_WEIGHTED_MEAN`**: `column_name` is required.
+- **`PERCENTILE`**: Both `column_name` and `percentile` are required.
+
+##### Example: Calculating the 99th Percentile
+
+This example shows how to calculate the 99th percentile of the `dur` column from the `slice` table.
+
+```protobuf
+query: {
+  table: {
+    table_name: "slice"
+  }
+  group_by: {
+    aggregates: {
+      column_name: "dur"
+      op: PERCENTILE
+      result_column_name: "p99_dur"
+      percentile: 99
+    }
+  }
+}
+```

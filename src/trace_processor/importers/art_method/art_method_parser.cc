@@ -24,11 +24,27 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor::art_method {
+
+namespace {
+
+constexpr auto kArtMethodTracingBlueprint = tracks::SliceBlueprint(
+    "art_method_tracing",
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+    tracks::NameBlueprintT::Auto{},
+    tracks::StaticDescriptionBlueprint(
+        "Shows ART (Android Runtime) method entry and exit events. "
+        "These represent Java/Kotlin method calls traced at the runtime level. "
+        "See "
+        "https://developer.android.com/reference/android/os/"
+        "Debug#startMethodTracing()"));
+
+}  // namespace
 
 ArtMethodParser::ArtMethodParser(TraceProcessorContext* context)
     : context_(context),
@@ -43,7 +59,8 @@ void ArtMethodParser::Parse(int64_t ts, ArtMethodEvent e) {
     context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
         utid, *e.comm, ThreadNamePriority::kOther);
   }
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kArtMethodTracingBlueprint, tracks::Dimensions(utid));
   switch (e.action) {
     case ArtMethodEvent::kEnter:
       context_->slice_tracker->Begin(

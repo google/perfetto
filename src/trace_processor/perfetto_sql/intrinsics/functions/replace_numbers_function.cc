@@ -16,47 +16,76 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.h"
 
-#include <stdlib.h>
 #include <cctype>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <string_view>
+#include <optional>
+#include <string>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 // __intrinsic_strip_hex(name STRING, min_repeated_digits LONG)
 //
 //   Replaces hexadecimal sequences (with at least one digit) in a string with
 //   "<num>" based on specified criteria.
-struct StripHexFunction : public LegacySqlFunction {
-  static constexpr char kFunctionName[] = "__intrinsic_strip_hex";
-  using Context = void;
+struct StripHexFunction : public sqlite::Function<StripHexFunction> {
+  static constexpr char kName[] = "__intrinsic_strip_hex";
+  static constexpr int kArgCount = 2;
 
-  static base::Status Run(void* cxt,
-                          size_t argc,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors& destructors) {
-    base::Status status = RunImpl(cxt, argc, argv, out, destructors);
-    if (!status.ok()) {
-      return base::ErrStatus("%s: %s", kFunctionName, status.message().c_str());
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_DCHECK(argc == 2);
+
+    const char* input = nullptr;
+    switch (sqlite::value::Type(argv[0])) {
+      case sqlite::Type::kText:
+        input = sqlite::value::Text(argv[0]);
+        break;
+      case sqlite::Type::kNull:
+        return sqlite::utils::ReturnNullFromFunction(ctx);
+      case sqlite::Type::kInteger:
+      case sqlite::Type::kFloat:
+      case sqlite::Type::kBlob:
+        return sqlite::utils::SetError(
+            ctx, "__intrinsic_strip_hex: first argument must be string");
     }
-    return status;
+
+    int64_t min_repeated_digits = 0;
+    switch (sqlite::value::Type(argv[1])) {
+      case sqlite::Type::kInteger:
+        min_repeated_digits = sqlite::value::Int64(argv[1]);
+        break;
+      case sqlite::Type::kNull:
+        return sqlite::utils::ReturnNullFromFunction(ctx);
+      case sqlite::Type::kFloat:
+      case sqlite::Type::kText:
+      case sqlite::Type::kBlob:
+        return sqlite::utils::SetError(
+            ctx, "__intrinsic_strip_hex: second argument must be integer");
+    }
+    if (min_repeated_digits < 0) {
+      return sqlite::utils::SetError(
+          ctx, "__intrinsic_strip_hex: min_repeated_digits must be positive");
+    }
+
+    std::string result = StripHex(std::string(input), min_repeated_digits);
+    return sqlite::result::TransientString(ctx, result.c_str(),
+                                           static_cast<int>(result.length()));
   }
 
-  static std::string StripHex(std::string input, int64_t min_repeated_digits) {
+  static std::string StripHex(const std::string& input,
+                              int64_t min_repeated_digits) {
     std::string result;
     result.reserve(input.length());
     for (size_t i = 0; i < input.length();) {
@@ -94,60 +123,17 @@ struct StripHexFunction : public LegacySqlFunction {
     }
     return result;
   }
-
-  static base::Status RunImpl(void*,
-                              size_t argc,
-                              sqlite3_value** argv,
-                              SqlValue& out,
-                              Destructors& destructors) {
-    if (argc != 2) {
-      return base::ErrStatus(
-          "%s; Invalid number of arguments: expected 2, actual %zu",
-          kFunctionName, argc);
-    }
-    std::optional<std::string> first_arg = sqlite::utils::SqlValueToString(
-        sqlite::utils::SqliteValueToSqlValue(argv[0]));
-    if (!first_arg.has_value()) {
-      return base::ErrStatus("Invalid name argument for %s expected string",
-                             kFunctionName);
-    }
-    const std::string& input = first_arg.value();
-
-    SqlValue second_arg = sqlite::utils::SqliteValueToSqlValue(argv[1]);
-    if (second_arg.type != SqlValue::Type::kLong) {
-      return base::ErrStatus(
-          "Invalid min_repeated_digits argument for %s expected integer",
-          kFunctionName);
-    }
-
-    const int64_t min_repeated_digits = second_arg.AsLong();
-    if (min_repeated_digits < 0) {
-      return base::ErrStatus(
-          "Invalid min_repeated_digits argument for %s expected positive "
-          "integer",
-          kFunctionName);
-    }
-
-    std::string result = StripHex(input, min_repeated_digits);
-    char* result_cstr = static_cast<char*>(malloc(result.length() + 1));
-    memcpy(result_cstr, result.c_str(), result.length() + 1);
-    out = SqlValue::String(result_cstr);
-    destructors.string_destructor = free;
-    return base::OkStatus();
-  }
 };
 
 }  // namespace
 
 base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
-                                      TraceProcessorContext* context) {
-  return engine->RegisterStaticFunction<StripHexFunction>(
-      StripHexFunction::kFunctionName, 2, context->storage.get());
+                                      TraceProcessorContext*) {
+  return engine->RegisterFunction<StripHexFunction>(nullptr);
 }
 
-std::string SqlStripHex(std::string input, int64_t min_repeated_digits) {
+std::string SqlStripHex(const std::string& input, int64_t min_repeated_digits) {
   return StripHexFunction::StripHex(input, min_repeated_digits);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

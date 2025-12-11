@@ -89,6 +89,8 @@ export const RECORD_PLUGIN_SCHEMA = z
     autoOpenTrace: z.boolean().default(true),
     lastSession: RECORD_SESSION_SCHEMA.default({}),
     savedSessions: z.array(SAVED_SESSION_SCHEMA).default([]),
+    selectedConfigId: z.string().optional(),
+    configModified: z.boolean().default(false),
   })
   .default({});
 export type RecordPluginSchema = z.infer<typeof RECORD_PLUGIN_SCHEMA>;
