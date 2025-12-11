@@ -49,6 +49,8 @@ CREATE PERFETTO TABLE android_sysui_jank_cujs (
   ui_thread JOINID(thread.id),
   -- layer id associated with the actual frame.
   layer_id LONG,
+  -- layer name associated with the actual frame.
+  layer_name STRING,
   -- vysnc id of the first frame that falls within the CUJ boundary.
   begin_vsync LONG,
   -- vysnc id of the last frame that falls within the CUJ boundary.
@@ -117,6 +119,7 @@ SELECT
   END AS state,
   cuj_events.ui_thread,
   cuj_events.layer_id,
+  boundary.layer_name,
   cuj_events.begin_vsync,
   cuj_events.end_vsync
 FROM _jank_cujs_slices AS cuj
@@ -225,6 +228,8 @@ CREATE PERFETTO TABLE android_jank_latency_cujs (
   ui_thread JOINID(thread.id),
   -- layer id associated with the actual frame.
   layer_id LONG,
+  -- layer name associated with the actual frame.
+  layer_name STRING,
   -- vysnc id of the first frame that falls within the CUJ boundary.
   begin_vsync LONG,
   -- vysnc id of the last frame that falls within the CUJ boundary.
@@ -243,6 +248,7 @@ SELECT
   -- upid is used as the ui_thread as it's the tid of the main thread.
   upid AS ui_thread,
   NULL AS layer_id,
+  NULL AS layer_name,
   NULL AS begin_vsync,
   NULL AS end_vsync,
   "latency" AS cuj_type,
