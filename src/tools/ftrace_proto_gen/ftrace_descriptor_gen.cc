@@ -83,7 +83,7 @@ std::array<FtraceMessageDescriptor,
       max_field_id =
           std::max(max_field_id, event_descriptor->field(j)->number());
 
-    *fout << "{\"" + event->name() + "\", " << max_field_id << ", "
+    *fout << "{\"" + std::string(event->name()) + "\", " << max_field_id << ", "
           << "{";
 
     for (int j = 0; j <= max_field_id; j++) {
@@ -95,7 +95,7 @@ std::array<FtraceMessageDescriptor,
         continue;
       }
       ProtoType type = ProtoType::FromDescriptor(field->type());
-      *fout << "{\"" + field->name() + "\", ProtoSchemaType::k" +
+      *fout << "{\"" + std::string(field->name()) + "\", ProtoSchemaType::k" +
                    ToCamelCase(type.ToString()) + "},";
     }
     *fout << "},\n},";

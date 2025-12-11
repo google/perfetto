@@ -77,6 +77,17 @@ DEP_DENYLIST = set([
     'cares',
 ])
 
+# Sources to exclude from specific libraries to avoid duplicate symbols.
+# These files are already included in grpc/grpc_unsecure directly, so they
+# should not be in their dependencies as well.
+# Note: paths here should match what's in the YAML (before 'src/' prefix is added).
+SOURCE_EXCLUSIONS = {
+    'upb_reflection_lib':
+        set([
+            'src/core/ext/upb-gen/google/protobuf/descriptor.upb_minitable.c',
+        ]),
+}
+
 
 def grpc_relpath(*segments: str) -> str:
   '''From path segments to GRPC root, returns the absolute path.'''
@@ -130,7 +141,11 @@ def yaml_to_gn_targets(desc: Dict[str, Any], build_types: list[str],
       continue
     if lib['name'] in LIBRARY_IGNORE_LIST:
       continue
-    srcs = [f'src/{file}' for file in lib['src'] + lib['headers']]
+    exclusions = SOURCE_EXCLUSIONS.get(lib['name'], set())
+    srcs = [
+        f'src/{file}' for file in lib['src'] + lib['headers']
+        if file not in exclusions
+    ]
     if 'asm_src' in lib:
       srcs += [f'src/{file}' for file in lib['asm_src']['crypto_asm']]
     # Use dict.fromkeys to deduplicate while preserving order
@@ -146,8 +161,12 @@ def yaml_to_gn_targets(desc: Dict[str, Any], build_types: list[str],
         srcs=json.dumps(srcs),
         deps=json.dumps(deps),
         target_type=get_library_target_type(lib['name']),
-        check_includes='false' if lib['name'] == 'upb_json_lib' or
-        lib['name'] == 'upb_textformat_lib' else 'true')
+        # Disable check_includes for targets that include headers from grpc
+        # without depending on it (circular dependency in upstream grpc).
+        check_includes='false' if lib['name'] in ('upb_json_lib',
+                                                  'upb_textformat_lib',
+                                                  'upb_reflection_lib',
+                                                  'gpr') else 'true')
     out.append(library_target)
 
   for bin in desc.get('targets', []):
