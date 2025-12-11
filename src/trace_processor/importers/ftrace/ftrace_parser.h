@@ -450,6 +450,8 @@ class FtraceParser {
   const StringId f2fs_reason_str_arg_id_;
   const StringId f2fs_reason_int_arg_id_;
   const StringId f2fs_dev_arg_id_;
+  const StringId f2fs_checkpoint_unknown_reason_id_;
+  std::vector<StringId> f2fs_checkpoint_reason_ids_;
 
   std::vector<StringId> syscall_arg_name_ids_;
 

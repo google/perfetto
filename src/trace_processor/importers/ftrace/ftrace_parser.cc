@@ -270,32 +270,6 @@ std::string GetUfsCmdString(uint32_t ufsopcode, uint32_t gid) {
   return buffer;
 }
 
-std::string GetF2fsCheckpointReasonString(int32_t reason) {
-  if (reason == 0) {
-    return "Unknown";
-  }
-
-  std::vector<std::string> flags;
-  if (reason & 0x00000001)
-    flags.push_back("Umount");
-  if (reason & 0x00000002)
-    flags.push_back("Fastboot");
-  if (reason & 0x00000004)
-    flags.push_back("Sync");
-  if (reason & 0x00000008)
-    flags.push_back("Recovery");
-  if (reason & 0x00000010)
-    flags.push_back("Discard");
-  if (reason & 0x00000020)
-    flags.push_back("Trimmed");
-  if (reason & 0x00000040)
-    flags.push_back("Pause");
-  if (reason & 0x00000080)
-    flags.push_back("Resize");
-
-  return base::Join(flags, "|");
-}
-
 enum RpmStatus {
   RPM_INVALID = -1,
   RPM_ACTIVE = 0,
@@ -562,7 +536,20 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
           context_->storage->InternString("F2fs Write Checkpoint")),
       f2fs_reason_str_arg_id_(context_->storage->InternString("reason_str")),
       f2fs_reason_int_arg_id_(context_->storage->InternString("reason_int")),
-      f2fs_dev_arg_id_(context->storage->InternString("dev")) {
+      f2fs_dev_arg_id_(context->storage->InternString("dev")),
+      f2fs_checkpoint_unknown_reason_id_(
+          context->storage->InternString("Unknown")) {
+  static const char* kReasonStrings[] = {
+      "Umount",  "Fastboot", "Sync",  "Recovery",
+      "Discard", "Trimmed",  "Pause", "Resize",
+  };
+
+  f2fs_checkpoint_reason_ids_.reserve(std::size(kReasonStrings));
+  for (const auto* reason : kReasonStrings) {
+    f2fs_checkpoint_reason_ids_.push_back(
+        context->storage->InternString(reason));
+  }
+
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -4435,9 +4422,6 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
 
   if (phase == 0) {
     int32_t reason_int = evt.reason();
-    std::string reason_str = GetF2fsCheckpointReasonString(reason_int);
-    StringId reason_str_id =
-        context_->storage->InternString(base::StringView(reason_str));
     uint64_t dev = evt.dev();
 
     // End the slice first to prevent any open slice existing.
@@ -4449,8 +4433,19 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
           inserter->AddArg(f2fs_dev_arg_id_, Variadic::UnsignedInteger(dev));
           inserter->AddArg(f2fs_reason_int_arg_id_,
                            Variadic::Integer(reason_int));
-          inserter->AddArg(f2fs_reason_str_arg_id_,
-                           Variadic::String(reason_str_id));
+          if (reason_int == 0) {
+            inserter->AddArg(
+                f2fs_reason_str_arg_id_,
+                Variadic::String(f2fs_checkpoint_unknown_reason_id_));
+          } else {
+            for (size_t i = 0; i < f2fs_checkpoint_reason_ids_.size(); ++i) {
+              if (reason_int & (1 << i)) {
+                inserter->AddArg(
+                    f2fs_reason_str_arg_id_,
+                    Variadic::String(f2fs_checkpoint_reason_ids_[i]));
+              }
+            }
+          }
         });
   } else if (phase == 2) {
     context_->slice_tracker->End(ts, track_id);
