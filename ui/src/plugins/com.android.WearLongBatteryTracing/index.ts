@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -215,16 +215,11 @@ export default class WearLongBatteryTracingPlugin implements PerfettoPlugin {
     const result = await ctx.engine.query(
       `SELECT int_value FROM metadata WHERE name = 'statsd_triggering_subscription_id'`,
     );
-    const it = result.iter({int_value: LONG});
-    let validTrace = false;
-    for (; it.valid(); it.next()) {
-      // Verify the trace is a Wear trace
-      if (!VALID_SUBSCRIPTION_IDS.includes(it.int_value)) {
-        return;
-      }
-      validTrace = true;
+    const row = result.maybeFirstRow({int_value: LONG});
+    if (!row) {
+      return;
     }
-    if (!validTrace) {
+    if (!VALID_SUBSCRIPTION_IDS.includes(row.int_value)) {
       return;
     }
 
