@@ -668,7 +668,7 @@ message InsetsStateControllerProto {
 /* represents InsetsSourceProvider */
 message InsetsSourceProviderProto {
   optional InsetsSourceProto source = 1;
-  optional RectProto frame = 2;
+  optional RectProto frame = 2 [deprecated = true];
   optional InsetsSourceControlProto fake_control = 3;
   optional InsetsSourceControlProto control = 4;
   optional WindowStateProto control_target = 5 [deprecated = true];
