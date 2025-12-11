@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+bazel_dep(name = "protobuf", version = "29.0", repo_name = "com_google_protobuf")
+bazel_dep(name = "rules_python", version = "0.37.2")
 bazel_dep(name = "rules_android", version = "0.6.0")
 
 android_sdk_repository_extension = use_extension(
