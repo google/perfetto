@@ -256,7 +256,7 @@ WHERE
   );
 
 -- Table tracking all jank CUJs information.
-CREATE PERFETTO TABLE android_jank_cujs (
+CREATE PERFETTO TABLE android_jank_cuj (
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- process id.
