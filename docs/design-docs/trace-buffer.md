@@ -58,7 +58,7 @@ Basic operation:
 * However the destructivity of read involves (almost) the same logic of readback
   to reconstruct packets being overwritten (and in future pass them to ProtoVM).
 
-Readback gives the following guarrantees:
+Readback gives the following guarantees:
 
 * TraceBuffer only outputs fully formed packets which are valid
   protobuf-encoded TracePacket messages. Packets that are missing fragments, are
@@ -117,8 +117,8 @@ the most complications. This document focuses on the operation in RING_BUFFER
 mode, unless otherwise specified.
 This mode can be used for pure ring buffer tracing, or can be coupled with
 `write_into_file` to have [long traces][lt]
-streamed into disk. In the  which case the
-ring buffer serves mainly to decouple the SMB and the I/O activity, to handle
+streamed into disk, in which case the
+ring buffer serves mainly to decouple the SMB and the I/O activity (and to handle
 fragment reassembly).
 
 [lt]: /docs/concepts/config.md#long-traces
@@ -132,15 +132,15 @@ buffer, TraceBuffer stops accepting data.
 There is a slight behavioural change from the V1 implementation. V1 tried
 to be (too) smart about DISCARD and allowed to keep writing data into the buffer
 as long as the write and read cursors never crossed (i.e. as long as the reader
-catched up).
+caught up).
 This turned out to be useless and confusing: coupling `DISCARD` with
 `write_into_file` leads to a scenario where DISCARD behaves almost like
 a RING_BUFFER. However if the reader doesn't catch up (e.g. due to lack of CPU
-bandwith), TraceBuffer stops accepting data (forever).
+bandwidth), TraceBuffer stops accepting data (forever).
 We later realized this was a confusing feature (a ring buffer that suddenly
 stops) and added warnings when trying to combine the two.
 
-V2 doesn't try to do smart about readbacks and simply stops once we reach the
+V2 doesn't try to be smart about readbacks and simply stops once we reach the
 end of the buffer, whether it has been read or not.
 
 ### Fragmentation
@@ -191,7 +191,7 @@ In practice, these instances are relatively rare, as they happen:
 * every O(seconds) in the case of [long tracing mode][lt]. Hence they must
   be supported, but not optimized for.
 
-Important note: TraceBuffer assums that all out-of-order commits are batched
+Important note: TraceBuffer assumes that all out-of-order commits are batched
 together atomically. The only known use case for OOO is SMB scraping, which
 commits all scraped chunks in one go within a single TaskRunner task.
 
@@ -211,7 +211,7 @@ sorted chunks by ChunkID, as data losses.
 ### Tracking of data losses
 
 There are several paths that can lead to a data loss, and TraceBuffer must track
-report all of them. Debugging data losses is a very common activity. It's
+and report all of them. Debugging data losses is a very common activity. It's
 extremely important that TraceBuffer signals any case of data loss.
 
 There are several different types and causes of data losses:
@@ -321,7 +321,7 @@ Implications:
 
 * An incomplete chunk causes a read stall for the sequence similar to what
   kChunkNeedsPatching does.
-* Similarly to the former case, the stall withdrawn if the chunk gets
+* Similarly to the former case, the stall is withdrawn if the chunk gets
   overwritten.
 * TraceBuffer never tries to read the last fragment of an incomplete chunk.
 * As such an incomplete chunk cannot be fragmented on the ending side (phew).
@@ -388,7 +388,7 @@ CopyChunkUntrusted from a SMB chunk.
 
 A TBChunk is very similar to a SMB chunk with the following caveats:
 
-* The sizeof() both is the same (16 bytes). This is very important to keep
+* The sizeof() of both is the same (16 bytes). This is very important to keep
   patches offsets consistent.
 
 * The SMB chunk maintains a counter of fragments. TBChunk instead does
@@ -397,7 +397,7 @@ A TBChunk is very similar to a SMB chunk with the following caveats:
 * The layout of the fields is slightly different, but they both contains
   ProducerID, WriterID, ChunkID, fragment counts/sizes and flags.
   The SMB chunk layout is an ABI. The TCHunk layout is not: it is an
-  implementation detail and can be changed.
+  implementation detail and can change.
 
 * TBChunk maintains a basic checksum for each chunk (used only in debug builds).
 
@@ -486,8 +486,8 @@ in sequence order, as follows:
   (using `ChunkSeqIterator`) and starts the iteration from there.
 * It keeps reading packets until we reach the target TBChunk passed in the
   constructor.
-* In some cases (fragmentation) it might read beyon the target chunk. This is
-  to reassembly a packet that started in the target chunk and continued later
+* In some cases (fragmentation) it might read beyond the target chunk. This is
+  to reassemble a packet that started in the target chunk and continued later
   on.
 * When doing so it just consumes the fragment required for reassembly and leaves
   the other packets in the chunk untouched, to preserve global FIFO-ness.
@@ -508,13 +508,13 @@ Chunks can be visited in two different ways:
 When chunks are written via `CopyChunkUntrusted()` a new `TBChunk` is
 allocated in the buffer's PagedMemory using the usual bump-pointer pattern
 you'd expect from a ring-buffer. Chunks are variable-size, and are stored
-contiguosly with 32-bit alignment.
+contiguously with 32-bit alignment.
 
 The offset of the chunk is also appended in the `SequenceState.chunks` list.
 
 After the first wrapping, writing a chunk involves deleting one or more
 existing chunks. The deletion operation `RemoveNextChunksFor()` is as complex
-as a redback, because reconstructs packets being deleted in order, to pass
+as a readback, because it reconstructs packets being deleted in order, to pass
 them to ProtoVM.
 
 So the writing itself is straightforward, but the deletion (overwrite) of

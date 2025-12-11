@@ -76,8 +76,8 @@ int ChunkIdCompare(ChunkID a, ChunkID b) {
 // The number of the latest empty SequenceState(s) to keep around.
 constexpr size_t kKeepLastEmptySeq = 1024;
 
-// The threashold when we start scanning and deleting the oldest sequences.
-const size_t kEmptySequencesGcTreshold = kKeepLastEmptySeq + 128;
+// The threshold when we start scanning and deleting the oldest sequences.
+constexpr size_t kEmptySequencesGcTreshold = kKeepLastEmptySeq + 128;
 }  // namespace.
 
 namespace internal {
