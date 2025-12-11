@@ -40,20 +40,11 @@ namespace {
 
 class StopArgsImpl : public DataSourceBase::StopArgs {
  public:
-  // HandleAsynchronously() can optionally be called to defer the tracing
-  // session stop and write track events just before stopping. This function
-  // returns a closure that must be invoked after the last track events have
-  // been emitted. The caller also needs to explicitly call
-  // TrackEvent::Flush() because no other implicit flushes will happen after
-  // the stop signal.
-  // See the comment in include/perfetto/tracing/data_source.h for more info.
   std::function<void()> HandleStopAsynchronously() const override {
-    auto closure = std::move(async_stop_closure);
-    async_stop_closure = std::function<void()>();
-    return closure;
+    // Not supported for TrackEventSessionObserver.
+    PERFETTO_CHECK(false);
+    return {};
   }
-
-  mutable std::function<void()> async_stop_closure;
 };
 
 }  // namespace
@@ -239,22 +230,12 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
   void OnStart(const DataSourceBase::StartArgs& args) override;
 
   void OnStop(const DataSourceBase::StopArgs& args) override {
-    auto outer_stop_closure = args.HandleStopAsynchronously();
-    StopArgsImpl inner_stop_args{};
     uint32_t internal_instance_index = args.internal_instance_index;
+    TrackEventInternal::GetInstance().DisableTracing(internal_instance_index);
+
+    StopArgsImpl inner_stop_args{};
     inner_stop_args.internal_instance_index = internal_instance_index;
-    inner_stop_args.async_stop_closure = [internal_instance_index,
-                                          outer_stop_closure] {
-      TrackEventInternal::GetInstance().DisableTracing(internal_instance_index);
-      outer_stop_closure();
-    };
-
     TrackEventInternal::OnStop(inner_stop_args);
-
-    // If inner_stop_args.HandleStopAsynchronously() hasn't been called,
-    // run the async closure here.
-    if (inner_stop_args.async_stop_closure)
-      std::move(inner_stop_args.async_stop_closure)();
   }
 
   void WillClearIncrementalState(
