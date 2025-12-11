@@ -15,38 +15,47 @@
 // QUERY EXECUTION MODEL
 // ====================
 //
-// The Explore Page uses a two-phase execution model:
+// The Explore Page uses a two-phase execution model with centralized control
+// in QueryExecutionService.processNode().
+//
+// CENTRALIZED ARCHITECTURE
+// ------------------------
+// All autoExecute logic is handled by QueryExecutionService.processNode():
+//
+// | autoExecute | manual | Behavior                                      |
+// |-------------|--------|-----------------------------------------------|
+// | true        | false  | Analyze + execute if query changed            |
+// | true        | true   | Analyze + execute (forced)                    |
+// | false       | false  | Skip everything (save engine queries)         |
+// | false       | true   | Analyze + execute (user clicked "Run Query")  |
 //
 // PHASE 1: ANALYSIS (Validation)
 // ------------------------------
-// When a node's state changes:
-// 1. NodeExplorer.updateQuery() is called (debounced via AsyncLimiter)
-// 2. Calls analyzeNode() which sends structured queries to the engine
-// 3. Engine VALIDATES the query and returns generated SQL (doesn't execute)
-// 4. Returns a Query object: {sql, textproto, modules, preambles, columns}
-// 5. Calls onQueryAnalyzed() callback with the validated query
+// When node state changes, NodeExplorer calls service.processNode({ manual: false }).
+// The service decides whether to analyze based on autoExecute flag.
+// If analysis runs:
+// 1. Sends structured queries to the engine
+// 2. Engine VALIDATES the query and returns generated SQL (doesn't execute)
+// 3. Returns a Query object: {sql, textproto, modules, preambles, columns}
 //
-// PHASE 2: EXECUTION (Running) & MATERIALIZATION
-// -----------------------------------------------
-// After analysis, execution happens based on node.state.autoExecute:
-// - If autoExecute = true (default): Query runs automatically
-// - If autoExecute = false: User must click "Run" button
+// PHASE 2: EXECUTION (Materialization)
+// ------------------------------------
+// The service decides whether to execute based on autoExecute and manual flags.
+// If execution runs:
+// 1. Materializes the query into a PERFETTO table
+// 2. SQL = modules + preambles + query.sql
+// 3. Table name: _exp_materialized_{sanitizedNodeId}
+// 4. Creates SQLDataSource pointing to the materialized table
+// 5. Fetches metadata (COUNT and column info) from materialized table
+// 6. SQLDataSource handles server-side pagination, filtering, sorting
+// 7. Updates node.state.issues with any errors/warnings
+// 8. For SqlSourceNode, updates available columns
 //
 // Auto-execute is set to FALSE for:
 // - SqlSourceNode: User writes SQL manually, should control execution
 // - IntervalIntersectNode: Multi-node operation, potentially expensive
 // - UnionNode: Multi-node operation, potentially expensive
-//
-// Execution flow:
-// 1. Builder.runQuery() is called (auto or manual)
-// 2. Materializes the query into a PERFETTO table
-// 3. SQL = modules + preambles + query.sql
-// 4. Table name: _exp_materialized_{sanitizedNodeId}
-// 5. Creates SQLDataSource pointing to the materialized table
-// 6. Fetches metadata (COUNT and column info) from materialized table
-// 7. SQLDataSource handles server-side pagination, filtering, sorting
-// 8. Updates node.state.issues with any errors/warnings
-// 9. For SqlSourceNode, updates available columns
+// - FilterDuringNode: Multi-node operation, potentially expensive
 //
 // STATE MANAGEMENT
 // ---------------
@@ -318,15 +327,26 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           key: selectedNode.nodeId,
           trace,
           node: selectedNode,
+          queryExecutionService: this.queryExecutionService,
           resolveNode: (nodeId: string) => this.resolveNode(nodeId, rootNodes),
-          onQueryAnalyzed: (query: Query | Error) => {
+          hasExistingResult: this.queryExecuted,
+          onQueryAnalyzed: (query: Query | Error | undefined) => {
             this.query = query;
-            if (isAQuery(this.query) && selectedNode.validate()) {
-              this.runQuery(selectedNode, this.query, {manualExecution: false});
-            }
           },
           onAnalysisStateChange: (isAnalyzing: boolean) => {
             this.isAnalyzing = isAnalyzing;
+          },
+          onExecutionStart: () => {
+            this.isQueryRunning = true;
+            this.queryExecuted = false;
+          },
+          onExecutionSuccess: (result) => {
+            this.handleExecutionSuccess(selectedNode, result);
+          },
+          onExecutionError: (error) => {
+            this.handleQueryError(selectedNode, error);
+            this.isQueryRunning = false;
+            m.redraw();
           },
           onchange: () => {
             // When a node's state changes, notify all downstream nodes
@@ -385,19 +405,22 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                   this.drawerVisibility = SplitPanelDrawerVisibility.FULLSCREEN;
                 }
               },
-              onExecute: () => {
-                if (
-                  !selectedNode.validate() ||
-                  this.query === undefined ||
-                  this.query instanceof Error ||
-                  !isAQuery(this.query)
-                ) {
+              onExecute: async () => {
+                if (!selectedNode.validate()) {
                   return;
                 }
-                this.queryExecuted = false;
-                this.runQuery(selectedNode, this.query, {
-                  manualExecution: true,
-                });
+
+                // Use the centralized service with manual=true.
+                // The service handles both analysis and execution.
+                await this.queryExecutionService.processNode(
+                  selectedNode,
+                  this.trace.engine,
+                  {
+                    manual: true, // User explicitly clicked "Run Query"
+                    hasExistingResult: this.queryExecuted,
+                    ...this.createManualExecutionCallbacks(selectedNode),
+                  },
+                );
               },
               onExportToTimeline: () => {
                 this.exportToTimeline(selectedNode);
@@ -585,54 +608,85 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     return undefined;
   }
 
-  private async runQuery(
+  /**
+   * Handles successful query execution by updating UI state.
+   * Called from both automatic execution (via NodeExplorer) and manual execution (via onExecute).
+   */
+  private handleExecutionSuccess(
     node: QueryNode,
-    query: Query,
-    options: {manualExecution: boolean},
+    result: {
+      tableName: string;
+      rowCount: number;
+      columns: string[];
+      durationMs: number;
+    },
   ) {
-    await this.queryExecutionService.executeNodeQuery(node, query, {
-      shouldAutoExecute: options.manualExecution
-        ? true
-        : node.state.autoExecute ?? true,
-      hasExistingResult: this.queryExecuted,
-      onStart: () => {
-        this.isQueryRunning = true;
-        this.queryExecuted = false;
-      },
-      onSuccess: (result) => {
-        const engine = this.queryExecutionService.getEngine();
+    const engine = this.queryExecutionService.getEngine();
+    const query = this.query;
 
-        this.response = {
-          query: queryToRun(query),
-          totalRowCount: result.rowCount,
-          durationMs: result.durationMs,
-          columns: result.columns,
-          rows: [],
-          statementCount: 1,
-          statementWithOutputCount: 1,
-          lastStatementSql: query.sql,
-        };
+    this.response = {
+      query: isAQuery(query) ? queryToRun(query) : '',
+      totalRowCount: result.rowCount,
+      durationMs: result.durationMs,
+      columns: result.columns,
+      rows: [],
+      statementCount: 1,
+      statementWithOutputCount: 1,
+      lastStatementSql: isAQuery(query) ? query.sql : '',
+    };
 
-        this.dataSource = new SQLDataSource({
-          engine,
-          baseQuery: `SELECT * FROM ${result.tableName}`,
-        });
-        this.queryExecuted = true;
-        this.isQueryRunning = false;
-        this.setNodeIssuesFromResponse(node, query, this.response);
+    this.dataSource = new SQLDataSource({
+      engine,
+      baseQuery: `SELECT * FROM ${result.tableName}`,
+    });
+    this.queryExecuted = true;
+    this.isQueryRunning = false;
 
-        if (node instanceof SqlSourceNode && this.response !== undefined) {
-          node.onQueryExecuted(this.response.columns);
-        }
+    if (isAQuery(query)) {
+      this.setNodeIssuesFromResponse(node, query, this.response);
+    }
 
+    if (node instanceof SqlSourceNode && this.response !== undefined) {
+      node.onQueryExecuted(this.response.columns);
+    }
+
+    m.redraw();
+  }
+
+  /**
+   * Creates callbacks for processNode() when manually executing a query.
+   * Used by onExecute to avoid duplicating callback logic.
+   */
+  private createManualExecutionCallbacks(node: QueryNode) {
+    return {
+      onAnalysisStart: () => {
+        this.isAnalyzing = true;
         m.redraw();
       },
-      onError: (error) => {
+      onAnalysisComplete: (query: Query | Error | undefined) => {
+        this.query = query;
+        this.isAnalyzing = false;
+        m.redraw();
+      },
+      onExecutionStart: () => {
+        this.isQueryRunning = true;
+        this.queryExecuted = false;
+        m.redraw();
+      },
+      onExecutionSuccess: (result: {
+        tableName: string;
+        rowCount: number;
+        columns: string[];
+        durationMs: number;
+      }) => {
+        this.handleExecutionSuccess(node, result);
+      },
+      onExecutionError: (error: unknown) => {
         this.handleQueryError(node, error);
         this.isQueryRunning = false;
         m.redraw();
       },
-    });
+    };
   }
 
   private exportToTimeline(node: QueryNode) {

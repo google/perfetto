@@ -41,10 +41,15 @@
  *
  * ## Required Columns
  *
- * All inputs (primary and filter intervals) must have:
+ * Primary input must have:
  *   - id: Unique identifier for the interval
  *   - ts: Timestamp (start time)
  *   - dur: Duration
+ *
+ * Filter intervals input must have:
+ *   - ts: Timestamp (start time)
+ *   - dur: Duration
+ *   - id: (optional) If not present, a dummy id of 0 will be used
  *
  * ## Example Use Cases
  *
@@ -270,7 +275,7 @@ export class FilterDuringNode implements QueryNode {
               icon: 'link_off',
               title: 'No filter intervals connected',
               detail:
-                'Connect a node to the left port that provides intervals (must have id, ts, dur columns).',
+                'Connect a node to the left port that provides intervals (must have ts, dur columns).',
             }),
           },
         ],
@@ -430,9 +435,12 @@ export class FilterDuringNode implements QueryNode {
       return false;
     }
 
-    // Check that the secondary input has required columns
+    // Check that the secondary input has required columns (id is optional)
     const secondaryCols = new Set(secondaryInput.finalCols.map((c) => c.name));
-    const missingSecondary = requiredCols.filter((c) => !secondaryCols.has(c));
+    const requiredSecondaryColumns = ['ts', 'dur'];
+    const missingSecondary = requiredSecondaryColumns.filter(
+      (c) => !secondaryCols.has(c),
+    );
     if (missingSecondary.length > 0) {
       setValidationError(
         this.state,
@@ -472,8 +480,14 @@ export class FilterDuringNode implements QueryNode {
 
     // Step 2: Wrap the secondary to select id, ts, dur, and partition columns
     // This avoids column conflicts in the interval intersection while preserving partition columns
+    // If secondary input doesn't have an id column, add a dummy id of 0
+    const secondaryHasId = secondaryInput.finalCols.some(
+      (c) => c.name === 'id',
+    );
     const secondaryColumnsOnly: ColumnSpec[] = [
-      {columnNameOrExpression: 'id'},
+      secondaryHasId
+        ? {columnNameOrExpression: 'id'}
+        : {columnNameOrExpression: '0', alias: 'id'},
       {columnNameOrExpression: 'ts'},
       {columnNameOrExpression: 'dur'},
       // Add partition columns so they're available for interval intersect
