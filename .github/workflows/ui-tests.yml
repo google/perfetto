@@ -31,8 +31,8 @@ jobs:
     timeout-minutes: 45
     env:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui
-      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-ui
-      PERFETTO_GCS_DST: perfetto-ci-artifacts/gh-${{ github.run_id }}-ui
+      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}-ui
+      PERFETTO_GCS_DST: perfetto-ci-artifacts/gh-${{ github.run_id }}-${{ github.run_attempt }}-ui
       CI: 1
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
           echo "UI_BUILD_URL=https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html" >> $GITHUB_ENV
 
       - name: Comment PR with UI build link
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
         uses: actions/github-script@v6
         with:
           script: |

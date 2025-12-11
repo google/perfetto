@@ -33,7 +33,7 @@ const DATASET_SEARCH = featureFlags.register({
   name: 'Use dataset search',
   description:
     '[Experimental] use dataset for search, which allows searching all tracks with a matching dataset. Might be slower than normal search.',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 interface SearchResults {

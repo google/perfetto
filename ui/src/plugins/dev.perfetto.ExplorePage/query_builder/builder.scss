@@ -14,7 +14,7 @@
 
 @import "common";
 @import "./graph/graph.scss";
-@import "./empty_graph.scss";
+@import "./graph/text_label.scss";
 @import "./help.scss";
 @import "./graph/node_box.scss";
 @import "./node_styling_widgets.scss";
@@ -29,6 +29,9 @@
 @import "./widgets.scss";
 
 .pf-query-builder-layout {
+  // CSS variable for side panel width, used in both SCSS and TypeScript
+  --pf-qb-side-panel-width: 60px;
+
   height: 100%;
 
   // SplitPanel's main section needs to have the grid layout
@@ -58,12 +61,11 @@
 
   .pf-qb-side-panel {
     grid-column: 4;
-    width: 60px;
+    width: var(--pf-qb-side-panel-width);
     height: 100%;
     display: flex;
     flex-direction: column;
     gap: 0;
-    background-color: var(--pf-color-surface);
     border-left: 1px solid var(--pf-color-border);
     padding: 0;
     align-items: stretch;
@@ -77,15 +79,10 @@
       border: none;
       border-radius: 0;
       border-bottom: 1px solid var(--pf-color-border);
-      background-color: var(--pf-color-surface);
-
-      &:hover {
-        background-color: var(--pf-color-hover);
-      }
 
       &.pf-active {
         background-color: var(--pf-color-primary);
-        color: white;
+        color: var(--pf-color-text-on-primary);
       }
     }
   }
@@ -142,6 +139,7 @@
     background-color: var(--pf-color-danger);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     transition: all 0.2s ease;
+    cursor: pointer;
 
     &:hover {
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
@@ -166,49 +164,25 @@
   }
 }
 
-.pf-data-explorer-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 1rem;
-  padding: 2rem;
-}
-
-.pf-data-explorer-warning-icon {
-  color: var(--pf-color-warning);
-  font-size: 64px;
-}
-
-.pf-data-explorer-warning-message {
-  text-align: center;
-  max-width: 600px;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--pf-color-on-surface);
-}
-
-.pf-query-stats {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--pf-color-text-muted);
-
-  .pf-query-stats-separator {
-    user-select: none;
-  }
-}
-
 .pf-unselected-explorer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
   gap: 16px;
+  height: 100%;
   padding: 24px;
+  overflow-y: auto;
+
+  // Center content when small, scroll when large
+  &::before {
+    content: "";
+    flex-grow: 1;
+  }
+
+  &::after {
+    content: "";
+    flex-grow: 1;
+  }
 }
 
 .pf-source-card {
@@ -235,7 +209,6 @@
       margin: 0;
       font-size: 16px;
       font-weight: 500;
-      color: var(--pf-color-on-surface);
       transition: color 0.1s ease;
     }
   }
@@ -265,4 +238,77 @@
     align-self: flex-end;
     margin-top: 4px;
   }
+}
+
+.pf-examples-modal {
+  padding: 16px;
+}
+
+.pf-examples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  max-width: 800px;
+}
+
+.pf-example-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .pf-example-card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    transition: transform 0.1s ease;
+
+    .pf-icon {
+      font-size: 32px;
+      color: var(--pf-color-primary);
+      transition: color 0.1s ease;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+      transition: color 0.1s ease;
+    }
+  }
+
+  &:hover .pf-example-card-content,
+  &:focus-within .pf-example-card-content {
+    transform: translateY(-2px);
+
+    .pf-icon {
+      color: var(--pf-color-accent);
+    }
+
+    h3 {
+      color: var(--pf-color-accent);
+    }
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--pf-color-text-muted);
+    text-align: center;
+  }
+}
+
+.pf-error-details {
+  min-width: 300px;
+  max-width: 500px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--pf-font-family-monospace, "Roboto Mono", monospace);
 }

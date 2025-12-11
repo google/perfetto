@@ -347,7 +347,7 @@ export class StructuredQueryBuilder {
     query.selectColumns = columns.map((col) => {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
       selectCol.columnNameOrExpression = col.columnNameOrExpression;
-      if (col.alias) {
+      if (col.alias && col.alias.trim() !== '') {
         selectCol.alias = col.alias;
       }
       return selectCol;
@@ -553,6 +553,87 @@ export class StructuredQueryBuilder {
 
     sq.experimentalAddColumns = addColumns;
     return sq;
+  }
+
+  /**
+   * Creates a structured query that adds columns from a JOIN and/or computed expressions.
+   * This is a higher-level method that handles the complexity of composing
+   * JOIN operations with computed columns.
+   *
+   * @param baseQuery The base query (can be a QueryNode or structured query)
+   * @param inputQuery The query providing additional columns via JOIN (optional)
+   * @param joinColumns Columns to add from the input query via JOIN (can be empty)
+   * @param condition Join condition (required if joinColumns is not empty)
+   * @param computedColumns Computed expressions to add as columns (can be empty)
+   * @param allBaseColumns All columns from the base query (needed when adding computed columns)
+   * @param referencedModules Optional array of referenced module names
+   * @param nodeId The node id to assign
+   * @returns A new structured query with added columns, or undefined if extraction fails
+   */
+  static withAddColumnsAndExpressions(
+    baseQuery: QuerySource,
+    inputQuery: QuerySource | undefined,
+    joinColumns: ColumnSpec[],
+    condition: JoinCondition | undefined,
+    computedColumns: ColumnSpec[],
+    allBaseColumns: ColumnSpec[],
+    referencedModules?: string[],
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    const hasJoinColumns = joinColumns.length > 0;
+    const hasComputedColumns = computedColumns.length > 0;
+
+    // If nothing to add, just return base query
+    if (!hasJoinColumns && !hasComputedColumns) {
+      return extractQuery(baseQuery);
+    }
+
+    let query: protos.PerfettoSqlStructuredQuery | undefined;
+
+    // Step 1: Apply JOIN if we have columns to join
+    if (hasJoinColumns && inputQuery && condition) {
+      query = this.withAddColumns(
+        baseQuery,
+        inputQuery,
+        joinColumns,
+        condition,
+        // Use a temporary node ID with '_join' suffix if we'll add computed columns later.
+        // This helps with debugging by making intermediate query steps visible.
+        hasComputedColumns ? `${nodeId}_join` : nodeId,
+      );
+    } else {
+      query = extractQuery(baseQuery);
+    }
+
+    if (!query) return undefined;
+
+    // Step 2: Add computed columns on top if we have any
+    if (hasComputedColumns) {
+      // Build columns to include: base columns + joined columns (if any) + computed columns
+      const allColumns: ColumnSpec[] = [
+        ...allBaseColumns,
+        // For joined columns, reference them by their alias and preserve the alias in the outer SELECT
+        ...joinColumns.map((col) => ({
+          columnNameOrExpression: col.alias ?? col.columnNameOrExpression,
+          alias: col.alias,
+        })),
+        ...computedColumns,
+      ];
+
+      // Create a temporary node wrapper for the query
+      const tempNode: QueryNode = {
+        getStructuredQuery: () => query,
+      } as QueryNode;
+
+      query = this.withSelectColumns(
+        tempNode,
+        allColumns,
+        referencedModules,
+        nodeId,
+      );
+    }
+
+    return query;
   }
 
   /**

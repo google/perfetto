@@ -16,7 +16,7 @@
 -- This module captures the various counter values associated with Jank CUJs. These counters can be
 -- missedFrames, missedSFFrames, missedCallbacks etc. These tables are beneficial while querying
 -- for jank related metrics.
-INCLUDE PERFETTO MODULE android.cujs.cujs_base;
+INCLUDE PERFETTO MODULE android.cujs.base;
 
 -- A missed callback in a perfetto trace means the ftrace was unable to capture callback events
 -- for an operation. For eg. a SFMissedCallback indicates that events related to surfaceflinger
@@ -70,7 +70,7 @@ WITH
       -- take the name of the counter after #
       str_split(track.name, '#', 1) AS counter_name
     FROM process_counter_track AS track
-    JOIN android_jank_cujs
+    JOIN android_jank_cuj
       USING (upid)
     WHERE
       track.name GLOB 'J<*>#*'

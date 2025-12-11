@@ -24,6 +24,47 @@
 
   &__toolbar {
     border-bottom: solid 1px var(--pf-color-border);
+    background-color: var(--pf-color-background);
+  }
+
+  &__toolbar-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--pf-spacing-small);
+    width: 100%;
+  }
+
+  &__toolbar-left {
+    flex: 1;
+    min-width: 0; // Allow shrinking
+
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  &__toolbar-right {
+    flex: none; // Don't shrink
+
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  &__row-count {
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+    margin-right: 2px;
+  }
+
+  &__groupby-column {
+    // A mix of 20% primary and 80% background
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-background-secondary) 30%,
+      transparent
+    );
   }
 
   &__table {
@@ -42,9 +83,12 @@
   flex-direction: row;
   justify-content: space-between;
   gap: 0.1em;
+  margin-top: -0.2em;
 
   &__symbol {
     margin-right: 0.3em;
+    font-size: 0.9em;
+    color: var(--pf-color-text-muted);
   }
 
   &__content {
@@ -89,4 +133,11 @@
 .pf-fuzzy-match {
   font-weight: 600;
   color: var(--pf-color-primary);
+}
+
+.pf-data-grid__title-separator {
+  font-size: 14px;
+  color: var(--pf-color-text-muted);
+  vertical-align: middle;
+  margin: 0 2px;
 }

@@ -30,6 +30,7 @@ import {NodeIssues} from './node_issues';
 import {TabStrip} from '../../../widgets/tabs';
 import {NodeModifyAttrs} from './node_explorer_types';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
+import {DataExplorerEmptyState, InfoBox} from './widgets';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
@@ -212,6 +213,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     if (this.isNodeModifyAttrs(modifyResult)) {
       const attrs = modifyResult as NodeModifyAttrs;
       return m('.pf-exp-node-explorer__modify', [
+        m(InfoBox, attrs.info),
         this.renderCornerButtons(attrs),
         this.renderSections(attrs.sections),
       ]);
@@ -227,14 +229,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
     const obj = value as Record<string, unknown>;
 
-    // Check if it has any of the NodeModifyAttrs properties
-    return (
-      'sections' in obj ||
-      'topLeftButtons' in obj ||
-      'topRightButtons' in obj ||
-      'bottomLeftButtons' in obj ||
-      'bottomRightButtons' in obj
-    );
+    // Check if it has the required info property
+    return 'info' in obj;
   }
 
   private renderContent(node: QueryNode, selectedView: number): m.Child {
@@ -274,10 +270,16 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.resultTabMode === 'sql'
             ? isAQuery(this.currentQuery)
               ? m(CodeSnippet, {language: 'SQL', text: sql})
-              : m('div', sql)
+              : m(DataExplorerEmptyState, {
+                  icon: 'info',
+                  title: 'SQL not available',
+                })
             : isAQuery(this.currentQuery)
               ? m(CodeSnippet, {text: textproto, language: 'textproto'})
-              : m('div', textproto),
+              : m(DataExplorerEmptyState, {
+                  icon: 'info',
+                  title: 'Proto not available',
+                }),
         ]),
     );
   }

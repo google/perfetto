@@ -12,7 +12,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
-INCLUDE PERFETTO MODULE android.cujs.cujs_base;
+INCLUDE PERFETTO MODULE android.cujs.base;
 INCLUDE PERFETTO MODULE android.cujs.cuj_frame_counters;
 
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
@@ -35,7 +35,7 @@ WITH cujs_ordered AS (
       ELSE MAX(ts, ts_end - 4000000)
     END AS ts_earliest_allowed_counter,
     LEAD(ts_end) OVER (PARTITION BY cuj_name ORDER BY ts_end ASC) AS ts_end_next_cuj
-  FROM android_jank_cujs
+  FROM android_jank_cuj
 )
 SELECT
   cuj_id,

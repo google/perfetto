@@ -51,6 +51,24 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'Screenshot\' AND category = \'android_screenshot\' LIMIT 1) AS has_data',
     'android.suspend':
         'SELECT EXISTS(SELECT 1 FROM track WHERE name IN (\'Suspend/Resume Minimal\', \'Suspend/Resume Latency\') LIMIT 1) AS has_data',
+    'android.statsd':
+        'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'Statsd Atoms\' LIMIT 1) AS has_data',
     'android.wakeups':
         'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'wakeup_reason\' LIMIT 1) AS has_data',
+
+    # HIGH IMPORTANCE TABLES - Chrome
+    'chrome.event_latency':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'EventLatency\' LIMIT 1) AS has_data',
+    'chrome.tasks':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE category GLOB \'*toplevel*\' AND (name = \'ThreadControllerImpl::RunTask\' OR name = \'ThreadPool_RunTask\') LIMIT 1) AS has_data',
+
+    # MID IMPORTANCE TABLES - Chrome
+    'chrome.graphics_pipeline':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'Graphics.Pipeline\' LIMIT 1) AS has_data',
+    'chrome.metadata':
+        'SELECT EXISTS(SELECT 1 FROM metadata WHERE name = \'cr-hardware-class\' OR name GLOB \'cr-*\' LIMIT 1) AS has_data',
+
+    # LOW IMPORTANCE TABLES
+    'chrome.android_input':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'UnwantedInteractionBlocker::notifyMotion*\' LIMIT 1) AS has_data',
 }

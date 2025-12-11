@@ -1,0 +1,176 @@
+{
+  "nodes": [
+    {
+      "nodeId": "0",
+      "type": 1,
+      "state": {},
+      "nextNodes": [
+        "5"
+      ]
+    },
+    {
+      "nodeId": "1",
+      "type": 0,
+      "state": {
+        "sqlTable": "thread_state"
+      },
+      "nextNodes": [
+        "4"
+      ]
+    },
+    {
+      "nodeId": "5",
+      "type": 10,
+      "state": {
+        "primaryInputId": "0",
+        "filters": [
+          {
+            "column": "process_name",
+            "op": "=",
+            "value": "com.android.systemui"
+          },
+          {
+            "column": "process_name",
+            "op": "=",
+            "value": "com.android.vending"
+          },
+          {
+            "column": "process_name",
+            "op": "=",
+            "value": "com.breel.wallpapers"
+          }
+        ],
+        "filterOperator": "OR"
+      },
+      "nextNodes": [
+        "2"
+      ]
+    },
+    {
+      "nodeId": "4",
+      "type": 10,
+      "state": {
+        "primaryInputId": "1",
+        "filters": [
+          {
+            "column": "state",
+            "op": "=",
+            "value": "Running"
+          }
+        ]
+      },
+      "nextNodes": [
+        "2"
+      ]
+    },
+    {
+      "nodeId": "2",
+      "type": 7,
+      "state": {
+        "primaryInputId": "5",
+        "secondaryInputNodeIds": [
+          "4"
+        ],
+        "filterNegativeDurPrimary": true,
+        "filterNegativeDurSecondary": true
+      },
+      "nextNodes": [
+        "3"
+      ]
+    },
+    {
+      "nodeId": "3",
+      "type": 4,
+      "state": {
+        "primaryInputId": "2",
+        "groupByColumns": [
+          {
+            "name": "id",
+            "checked": false
+          },
+          {
+            "name": "ts",
+            "checked": false
+          },
+          {
+            "name": "dur",
+            "checked": false
+          },
+          {
+            "name": "name",
+            "checked": false
+          },
+          {
+            "name": "track_id",
+            "checked": false
+          },
+          {
+            "name": "process_name",
+            "checked": true
+          },
+          {
+            "name": "upid",
+            "checked": false
+          },
+          {
+            "name": "thread_name",
+            "checked": false
+          },
+          {
+            "name": "utid",
+            "checked": false
+          },
+          {
+            "name": "depth",
+            "checked": false
+          },
+          {
+            "name": "parent_id",
+            "checked": false
+          },
+          {
+            "name": "category",
+            "checked": false
+          }
+        ],
+        "aggregations": [
+          {
+            "aggregationOp": "COUNT(*)",
+            "isValid": true
+          },
+          {
+            "column": {
+              "name": "dur",
+              "type": "DURATION",
+              "column": {
+                "name": "dur",
+                "type": {
+                  "kind": "duration"
+                }
+              },
+              "checked": false
+            },
+            "aggregationOp": "SUM",
+            "isValid": true
+          }
+        ]
+      },
+      "nextNodes": []
+    }
+  ],
+  "rootNodeIds": [
+    "0",
+    "1"
+  ],
+  "selectedNodeId": "3",
+  "nodeLayouts": {
+    "0": {
+      "x": 521.3976440429688,
+      "y": 194.96255493164062
+    },
+    "1": {
+      "x": 265.76727294921875,
+      "y": 182.5362548828125
+    }
+  }
+}

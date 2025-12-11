@@ -17,11 +17,14 @@ import {SearchManagerImpl} from '../../core/search_manager';
 import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
-import {DataGrid} from '../../components/widgets/data_grid/data_grid';
+import {
+  DataGrid,
+  columnsToSchema,
+} from '../../components/widgets/datagrid/datagrid';
 import {
   ColumnDefinition,
   RowDef,
-} from '../../components/widgets/data_grid/common';
+} from '../../components/widgets/datagrid/common';
 
 interface TabAttrs {
   trace: Trace;
@@ -38,6 +41,28 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
       {
         name: 'id',
         title: 'Event ID',
+        cellRenderer: (value, row) => {
+          if (typeof row.trackUri === 'string') {
+            return m(
+              Anchor,
+              {
+                onclick: () => {
+                  trace.selection.selectTrackEvent(
+                    row.trackUri as string,
+                    value as number,
+                    {
+                      switchToCurrentSelectionTab: false,
+                      clearSearch: false,
+                      scrollToSelection: true,
+                    },
+                  );
+                },
+              },
+              String(value),
+            );
+          }
+          return String(value);
+        },
       },
       {
         name: 'ts',
@@ -77,31 +102,9 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
         fillHeight: true,
       },
       m(DataGrid, {
-        columns,
+        ...columnsToSchema(columns),
         data: rowData,
         fillHeight: true,
-        cellRenderer: (value, columnName, row) => {
-          if (columnName === 'id' && typeof row.trackUri === 'string') {
-            return m(
-              Anchor,
-              {
-                onclick: () => {
-                  trace.selection.selectTrackEvent(
-                    row.trackUri as string,
-                    value as number,
-                    {
-                      switchToCurrentSelectionTab: false,
-                      clearSearch: false,
-                      scrollToSelection: true,
-                    },
-                  );
-                },
-              },
-              String(value),
-            );
-          }
-          return String(value);
-        },
       }),
     );
   }
