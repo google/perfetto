@@ -135,6 +135,8 @@ source_set("full") {
     "content_analyzer.h",
     "deobfuscation_module.cc",
     "deobfuscation_module.h",
+    "deobfuscation_tracker.cc",
+    "deobfuscation_tracker.h",
     "frame_timeline_event_parser.cc",
     "frame_timeline_event_parser.h",
     "gpu_event_parser.cc",
@@ -278,8 +280,9 @@ perfetto_cc_proto_descriptor("gen_cc_track_event_descriptor") {
 }
 
 perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
-  descriptor_name = "chrome_track_event.descriptor"
-  descriptor_target = "../../../../protos/third_party/chromium:descriptor"
+  descriptor_name = "chrome_track_event_extension.descriptor"
+  descriptor_target =
+      "../../../../protos/third_party/chromium:extension_descriptor"
 }
 
 perfetto_cc_proto_descriptor("gen_cc_android_track_event_descriptor") {

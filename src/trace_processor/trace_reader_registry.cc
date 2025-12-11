@@ -56,6 +56,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kArtMethodTraceType:
     case kArtHprofTraceType:
     case kPerfTextTraceType:
+    case kSimpleperfProtoTraceType:
     case kTarTraceType:
       return false;
   }

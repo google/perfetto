@@ -20,10 +20,10 @@ function formatMillis(millis: number) {
   return millis.toFixed(1);
 }
 
-export default class implements PerfettoPlugin {
+export default class QueryLogPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.QueryLog';
   async onTraceLoad(trace: Trace): Promise<void> {
-    const tabUri = `${trace.pluginId}#QueryLogTab`;
+    const tabUri = `${QueryLogPlugin.id}#QueryLogTab`;
 
     trace.commands.registerCommand({
       id: `dev.perfetto.ShowQueryLogTab`,

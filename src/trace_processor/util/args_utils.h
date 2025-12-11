@@ -48,6 +48,9 @@ class ArgNode {
   const std::vector<ArgNode>& GetArray() const;
   const std::vector<std::pair<std::string, ArgNode>>& GetDict() const;
 
+  // Clears the node while retaining allocated capacity for reuse.
+  void Clear();
+
  private:
   ArgNode();
   explicit ArgNode(Variadic value);
@@ -64,6 +67,8 @@ class ArgNode {
   std::unique_ptr<std::vector<ArgNode>> array_;
   // Use vector of pairs to preserve insertion order.
   std::unique_ptr<std::vector<std::pair<std::string, ArgNode>>> dict_;
+  // Index for O(1) lookup in dict_. Maps key -> index in dict_ vector.
+  std::unique_ptr<base::FlatHashMap<std::string, size_t>> dict_index_;
 };
 
 class ArgSet {
@@ -77,6 +82,9 @@ class ArgSet {
   const ArgNode& root() const { return root_; }
 
   base::Status AppendArg(NullTermStringView key, Variadic value);
+
+  // Clears the arg set while retaining allocated capacity for reuse.
+  void Clear();
 
  private:
   ArgNode root_;

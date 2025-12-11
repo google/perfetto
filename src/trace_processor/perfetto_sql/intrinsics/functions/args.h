@@ -16,9 +16,12 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_ARGS_H_
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/util/args_utils.h"
 
 namespace perfetto::trace_processor {
 
@@ -33,11 +36,28 @@ struct ExtractArg : public sqlite::Function<ExtractArg> {
 };
 
 // Prints the entire arg set as a json object.
-struct ArgSetToJson : public sqlite::Function<ExtractArg> {
+struct ArgSetToJson : public sqlite::Function<ArgSetToJson> {
   static constexpr char kName[] = "__intrinsic_arg_set_to_json";
   static constexpr int kArgCount = 1;
 
-  using UserData = TraceStorage;
+  struct Context {
+    explicit Context(TraceStorage* s)
+        : storage(s),
+          arg_cursor(
+              s->mutable_arg_table()->CreateCursor({dataframe::FilterSpec{
+                  tables::ArgTable::ColumnIndex::arg_set_id,
+                  0,
+                  dataframe::Eq{},
+                  std::nullopt,
+              }})) {}
+
+    TraceStorage* storage;
+    tables::ArgTable::Cursor arg_cursor;
+    base::DynamicStringWriter json_writer;
+    ArgSet arg_set;
+  };
+
+  using UserData = Context;
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
 };
 }  // namespace perfetto::trace_processor

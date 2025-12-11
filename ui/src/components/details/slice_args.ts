@@ -18,9 +18,8 @@ import {ArgsDict} from '../sql_utils/args';
 import {Trace} from '../../public/trace';
 import {renderArguments} from './args';
 import {extensions} from '../extensions';
-import {assertExists} from '../../base/logging';
-import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {sqliteString} from '../../base/string_utils';
+import {SLICE_TABLE} from '../widgets/sql/table_definitions';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderSliceArguments(trace: Trace, args: ArgsDict): m.Children {
@@ -32,7 +31,7 @@ export function renderSliceArguments(trace: Trace, args: ArgsDict): m.Children {
         icon: 'search',
         onclick: () => {
           extensions.addLegacySqlTableTab(trace, {
-            table: assertExists(getSqlTableDescription(trace, 'slice')),
+            table: SLICE_TABLE,
             filters: [
               {
                 op: (cols) => `${cols[0]} = ${sqliteString(displayValue)}`,

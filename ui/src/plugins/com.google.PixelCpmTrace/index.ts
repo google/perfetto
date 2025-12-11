@@ -65,7 +65,7 @@ export default class implements PerfettoPlugin {
       });
       group.addChildInOrder(new TrackNode({uri, name: trackName}));
       if (!groupAdded) {
-        ctx.workspace.addChildInOrder(group);
+        ctx.defaultWorkspace.addChildInOrder(group);
         groupAdded = true;
       }
     }

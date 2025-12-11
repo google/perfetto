@@ -27,7 +27,8 @@ export class Icons {
   static readonly Add = 'add';
   static readonly Close = 'close';
   static readonly Hide = 'visibility_off';
-  static readonly Filter = 'filter_list';
+  static readonly Filter = 'filter_alt';
+  static readonly FilterOff = 'filter_alt_off';
   static readonly BlankCheckbox = 'check_box_outline_blank';
   static readonly Checkbox = 'check_box';
   static readonly IndeterminateCheckbox = 'indeterminate_check_box';
@@ -40,7 +41,6 @@ export class Icons {
   static readonly Star = 'star';
   static readonly ChangeTab = 'tab';
   static readonly Crashed = 'warning';
-  static readonly Chart = 'bar_chart';
   static readonly Change = 'change_circle';
   static readonly GoTo = 'arrow_forward';
   static readonly ContextMenuAlt = 'more_vert';
@@ -51,6 +51,9 @@ export class Icons {
   static readonly Check = 'check';
   static readonly Search = 'search';
   static readonly Save = 'save';
+  static readonly Undo = 'undo';
+  static readonly Redo = 'redo';
+  static readonly NoData = 'search_off';
 
   // Page control
   static readonly NextPage = 'chevron_right';
@@ -64,6 +67,17 @@ export class Icons {
   static readonly ResetState = 'restart_alt';
   static readonly Remove = 'clear';
 
+  // Data analysis
+  static readonly Analyze = 'analytics';
+  static readonly Chart = 'bar_chart';
+  static readonly Pivot = 'pivot_table_chart';
+  static readonly ApplyFunction = 'function';
+
   static readonly Play = 'play_arrow';
   static readonly Edit = 'edit';
+  static readonly DragHandle = 'drag_indicator';
+
+  // Platform icons
+  static readonly Android = 'android';
+  static readonly Web = 'language';
 }

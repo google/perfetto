@@ -39,15 +39,27 @@ test('sched', async () => {
   await pth.waitForIdleAndScreenshot('cpu-by-process.png');
 
   // Now test sorting.
+  const hdr = page
+    .getByRole('columnheader')
+    .filter({has: page.getByText('Wall Duration', {exact: true})})
+    .filter({has: page.getByText('AVG', {exact: true})});
+  await hdr.hover();
 
-  const hdr = page.getByRole('cell', {name: /^Avg Wall duration.*/});
-  await hdr.click();
+  // Press the sort button to sort ascending.
+  await hdr.getByRole('button', {name: 'Sort column'}).click();
   await pth.waitForIdleAndScreenshot('sort-by-wall-duration.png');
 
-  await hdr.click();
+  // Press the button again to sort descending.
+  await hdr.getByRole('button', {name: 'Sort column'}).click();
   await pth.waitForIdleAndScreenshot('sort-by-wall-duration-desc.png');
 
-  await page.getByRole('cell', {name: 'Occurrences'}).click();
+  const hdrCount = page
+    .getByRole('columnheader')
+    .filter({has: page.getByText('Count', {exact: true})});
+  await hdrCount.hover();
+
+  // Press the sort button to sort ascending on this column.
+  await hdrCount.getByRole('button', {name: 'Sort column'}).click();
   await pth.waitForIdleAndScreenshot('sort-by-occurrences.png');
 });
 

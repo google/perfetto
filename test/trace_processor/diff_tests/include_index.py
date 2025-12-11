@@ -109,6 +109,7 @@ from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfil
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
+from diff_tests.parser.simpleperf_proto.tests import SimpleperfProtoParser
 from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
@@ -149,16 +150,19 @@ from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
+from diff_tests.stdlib.prelude.package_lookup_tests import PackageLookup
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
 from diff_tests.stdlib.slices.tests import Slices
+from diff_tests.stdlib.slices.tests_stack import SlicesStack
 from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
+from diff_tests.stdlib.stacks.tests import Stacks
 from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
@@ -221,6 +225,7 @@ def fetch_all_diff_tests(
       ProfilingLlvmSymbolizer,
       SchedParser,
       Simpleperf,
+      SimpleperfProtoParser,
       StdlibSched,
       Smoke,
       SmokeComputeMetrics,
@@ -304,6 +309,7 @@ def fetch_all_diff_tests(
       StdlibCounterIntervals,
       DynamicTables,
       Memory,
+      PackageLookup,
       PreludeMathFunctions,
       HeapGraph,
       UnHex,
@@ -314,10 +320,12 @@ def fetch_all_diff_tests(
       PreludeSlices,
       StdlibSmoke,
       Slices,
+      SlicesStack,
       SpanJoinLeftJoin,
       SpanJoinOuterJoin,
       SpanJoinRegression,
       SpanJoinSmoke,
+      Stacks,
       StdlibIntervals,
       SystemUICujs,
       IntervalsIntersect,

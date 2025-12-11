@@ -28,7 +28,6 @@
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
 
@@ -54,15 +53,13 @@ class AndroidProbesModule : public ProtoImporterModule {
 
   ModuleResult ParseEnergyDescriptor(protozero::ConstBytes blob);
   ModuleResult ParseAndroidPackagesList(protozero::ConstBytes blob);
+  ModuleResult ParseAndroidUserList(protozero::ConstBytes blob);
   void ParseEntityStateDescriptor(protozero::ConstBytes blob);
 
  private:
   std::unique_ptr<AndroidProbesTracker> tracker_;
   AndroidProbesParser parser_;
   TraceProcessorContext* context_ = nullptr;
-
-  const StringId power_rail_raw_name_id_;
-  const StringId power_rail_subsys_name_arg_id_;
 };
 
 }  // namespace perfetto::trace_processor

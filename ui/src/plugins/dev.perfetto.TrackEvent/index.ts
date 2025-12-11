@@ -16,15 +16,46 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
 import {assertExists, assertTrue} from '../../base/logging';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
+import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
+} from '../../components/query_flamegraph';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
+import {Store} from '../../base/store';
+import {z} from 'zod';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
-export default class implements PerfettoPlugin {
+function createTrackEventDetailsPanel(trace: Trace) {
+  return () =>
+    new ThreadSliceDetailsPanel(trace, {
+      rightSections: [new CallstackDetailsSection(trace)],
+    });
+}
+
+const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+});
+
+type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
+
+export default class TrackEventPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackEvent';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
@@ -32,33 +63,69 @@ export default class implements PerfettoPlugin {
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
+  private store?: Store<TrackEventPluginState>;
+
+  private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
+    const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
+    return result.data ?? {};
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const res = await ctx.engine.query(`
-      include perfetto module viz.summary.track_event;
-      select
-        ifnull(g.upid, t.upid) as upid,
-        g.utid,
-        g.parent_id as parentId,
-        g.is_counter AS isCounter,
-        g.name,
-        g.description,
-        g.unit,
-        g.y_axis_share_key as yAxisShareKey,
-        g.builtin_counter_type as builtinCounterType,
-        g.has_data AS hasData,
-        g.has_children AS hasChildren,
-        g.track_ids as trackIds,
-        g.order_id as orderId,
-        t.name as threadName,
-        t.tid as tid,
-        ifnull(p.pid, tp.pid) as pid,
-        ifnull(p.name, tp.name) as processName
-      from _track_event_tracks_ordered_groups g
-      left join process p using (upid)
-      left join thread t using (utid)
-      left join process tp on tp.upid = t.upid
-    `);
+    this.store = ctx.mountStore(TrackEventPlugin.id, (init) =>
+      this.migrateTrackEventPluginState(init),
+    );
+
+    await ctx.engine.query(`include perfetto module viz.summary.track_event;`);
+
+    // Step 1: Materialize track metadata
+    // Can be cleaned up at the end of this function as only tables and
+    // immediate queries depend on this.
+    await using _ = await createPerfettoTable({
+      name: '__track_event_tracks',
+      engine: ctx.engine,
+      as: `
+        select
+          ifnull(g.upid, t.upid) as upid,
+          g.utid,
+          g.parent_id as parentId,
+          g.is_counter AS isCounter,
+          g.name,
+          g.description,
+          g.unit,
+          g.y_axis_share_key as yAxisShareKey,
+          g.builtin_counter_type as builtinCounterType,
+          g.has_data AS hasData,
+          g.has_children AS hasChildren,
+          g.has_callstacks AS hasCallstacks,
+          g.min_track_id as minTrackId,
+          g.track_ids as trackIds,
+          g.order_id as orderId,
+          t.name as threadName,
+          t.tid as tid,
+          ifnull(p.pid, tp.pid) as pid,
+          ifnull(p.name, tp.name) as processName,
+          (length(g.track_ids) - length(replace(g.track_ids, ',', '')) + 1) as trackCount
+        from _track_event_tracks_ordered_groups g
+        left join process p using (upid)
+        left join thread t using (utid)
+        left join process tp on tp.upid = t.upid
+      `,
+    });
+
+    // Step 2: Create shared depth table for slice tracks with multiple trackIds
+    await createPerfettoTable({
+      name: '__trackevent_track_layout_depth',
+      engine: ctx.engine,
+      as: `
+        select id, t.minTrackId, layout_depth as depth
+        from __track_event_tracks t
+        join experimental_slice_layout(t.trackIds) s
+        where isCounter = 0 and trackCount > 1
+        order by s.id
+      `,
+    });
+
+    const res = await ctx.engine.query('select * from __track_event_tracks');
     const it = res.iter({
       upid: NUM_NULL,
       utid: NUM_NULL,
@@ -71,11 +138,12 @@ export default class implements PerfettoPlugin {
       builtinCounterType: STR_NULL,
       hasData: NUM,
       hasChildren: NUM,
+      hasCallstacks: NUM,
       trackIds: STR,
       orderId: NUM,
       threadName: STR_NULL,
-      tid: NUM_NULL,
-      pid: NUM_NULL,
+      tid: LONG_NULL,
+      pid: LONG_NULL,
       processName: STR_NULL,
     });
     const processGroupsPlugin = ctx.plugins.getPlugin(
@@ -95,6 +163,7 @@ export default class implements PerfettoPlugin {
         builtinCounterType,
         hasData,
         hasChildren,
+        hasCallstacks,
         trackIds: rawTrackIds,
         orderId,
         threadName,
@@ -138,6 +207,7 @@ export default class implements PerfettoPlugin {
             trackIds: [trackIds[0]],
             upid: upid ?? undefined,
             utid: utid ?? undefined,
+            trackEvent: true,
           },
           renderer: new TraceProcessorCounterTrack(
             ctx,
@@ -164,11 +234,18 @@ export default class implements PerfettoPlugin {
             trackIds: trackIds,
             upid: upid ?? undefined,
             utid: utid ?? undefined,
+            trackEvent: true,
+            hasCallstacks: hasCallstacks === 1,
           },
           renderer: await createTraceProcessorSliceTrack({
             trace: ctx,
             uri,
             trackIds,
+            detailsPanel: createTrackEventDetailsPanel(ctx),
+            depthTableName:
+              trackIds.length > 1
+                ? '__trackevent_track_layout_depth'
+                : undefined,
           }),
         });
       }
@@ -190,6 +267,138 @@ export default class implements PerfettoPlugin {
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0], node);
     }
+
+    // Register area selection tab for callstack flamegraph
+    ctx.selection.registerAreaSelectionTab(
+      this.createTrackEventCallstackFlamegraphTab(ctx),
+    );
+  }
+
+  private createTrackEventCallstackFlamegraphTab(trace: Trace) {
+    let previousSelection: AreaSelection | undefined;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
+    return {
+      id: 'track_event_callstack_flamegraph',
+      name: 'Track Event Callstacks',
+      render: (selection: AreaSelection) => {
+        const changed =
+          previousSelection === undefined ||
+          !areaSelectionsEqual(previousSelection, selection);
+        if (changed) {
+          flamegraphWithMetrics = this.computeTrackEventCallstackFlamegraph(
+            trace,
+            selection,
+          );
+          previousSelection = selection;
+        }
+        if (flamegraphWithMetrics === undefined) {
+          return undefined;
+        }
+        const {flamegraph, metrics} = flamegraphWithMetrics;
+        const store = assertExists(this.store);
+        return {
+          isLoading: false,
+          content: flamegraph.render({
+            metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
+            },
+          }),
+        };
+      },
+    };
+  }
+
+  private computeTrackEventCallstackFlamegraph(
+    trace: Trace,
+    selection: AreaSelection,
+  ): QueryFlamegraphWithMetrics | undefined {
+    const trackIds = [];
+    for (const trackInfo of selection.tracks) {
+      const tids = trackInfo?.tags?.trackIds;
+      if (tids && trackInfo.tags.hasCallstacks === true) {
+        trackIds.push(...tids);
+      }
+    }
+    if (trackIds.length === 0) {
+      return undefined;
+    }
+    const metrics = metricsFromTableOrSubquery(
+      `
+      (
+        with relevant_slices as (
+          select id
+          from _interval_intersect_single!(
+            ${selection.start},
+            ${selection.end},
+            (
+              select
+                id,
+                ts,
+                max(dur, 0) as dur
+              from slice
+              where track_id in (${trackIds.join()})
+            )
+          )
+        )
+        select
+          id,
+          parent_id as parentId,
+          name,
+          mapping_name,
+          source_file || ':' || line_number as source_location,
+          self_count
+        from _callstacks_for_callsites!((
+          select callsite_id
+          from relevant_slices
+          join slice using (id)
+          join __intrinsic_track_event_callstacks using (slice_id)
+          where ts >= ${selection.start}
+            and ts <= ${selection.end}
+            and callsite_id is not null
+          union all
+          select end_callsite_id as callsite_id
+          from relevant_slices
+          join slice using (id)
+          join __intrinsic_track_event_callstacks using (slice_id)
+          where ts + dur >= ${selection.start}
+            and ts + dur <= ${selection.end}
+            and dur > 0
+            and end_callsite_id is not null
+        ))
+      )
+    `,
+      [
+        {
+          name: 'Samples',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      `
+     include perfetto module callstacks.stack_profile;
+     include perfetto module intervals.intersect;
+    `,
+      [{name: 'mapping_name', displayName: 'Mapping'}],
+      [
+        {
+          name: 'source_location',
+          displayName: 'Source Location',
+          mergeAggregation: 'ONE_OR_SUMMARY',
+        },
+      ],
+    );
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
+    return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 
   private findParentTrackNode(
@@ -211,7 +420,7 @@ export default class implements PerfettoPlugin {
       return assertExists(processGroupsPlugin.getGroupForProcess(upid));
     }
     if (hasChildren) {
-      return ctx.workspace.tracks;
+      return ctx.defaultWorkspace.tracks;
     }
     const id = `/track_event_root`;
     let node = this.parentTrackNodes.get(id);
@@ -220,7 +429,7 @@ export default class implements PerfettoPlugin {
         name: 'Global Track Events',
         isSummary: true,
       });
-      ctx.workspace.addChildInOrder(node);
+      ctx.defaultWorkspace.addChildInOrder(node);
       this.parentTrackNodes.set(id, node);
     }
     return node;

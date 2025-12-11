@@ -40,6 +40,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -52,11 +53,9 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
-#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -250,6 +249,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&context_, 1);
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.stack_profile_tracker =
         std::make_unique<StackProfileTracker>(&context_);
@@ -269,10 +270,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    std::unique_ptr<ClockSynchronizerListenerImpl> clock_tracker_listener =
-        std::make_unique<ClockSynchronizerListenerImpl>(&context_);
-    clock_ = new ClockTracker(std::move(clock_tracker_listener));
-    context_.clock_tracker.reset(clock_);
+    context_.clock_tracker = std::make_unique<ClockTracker>(
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
@@ -284,6 +283,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.track_group_idx_state =
         std::make_unique<TrackCompressorGroupIdxState>();
 
+    clock_ = context_.clock_tracker.get();
     reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
 
@@ -316,17 +316,22 @@ class ProtoTraceParserTest : public ::testing::Test {
             dataframe::Eq{},
             std::nullopt,
         },
+        dataframe::FilterSpec{
+            tables::ArgTable::ColumnIndex::key,
+            1,
+            dataframe::Eq{},
+            std::nullopt,
+        },
     });
     cursor.SetFilterValueUnchecked(0, set_id);
+    cursor.SetFilterValueUnchecked(1, storage_->GetString(key_id).data());
 
     bool found = false;
     for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
-      if (cursor.key() == key_id) {
-        EXPECT_EQ(cursor.flat_key(), key_id);
-        if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
-          found = true;
-          break;
-        }
+      EXPECT_EQ(cursor.flat_key(), key_id);
+      if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
+        found = true;
+        break;
       }
     }
     return found;
@@ -2530,7 +2535,6 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
             storage_->InternString("chrome_event.metadata"));
 
   uint32_t arg_set_id = raw_table[0].arg_set_id();
-  EXPECT_EQ(storage_->arg_table().row_count(), 2u);
   EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString(kStringName),
                      Variadic::String(storage_->InternString(kStringValue))));
   EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString(kIntName),

@@ -822,24 +822,27 @@ class IntervalsIntersect(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE intervals.intersect;
 
-        SELECT * FROM _interval_intersect!(
+        SELECT ts, dur, thread.name AS thread_name, cpu
+        FROM _interval_intersect!(
           ((SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
           (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10)),
           (utid, cpu)
-        );
+        )
+        JOIN thread USING (utid)
+        ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","id_0","id_1","utid","cpu"
-        70730062200,125364,0,0,1,0
-        70730187564,20297242,1,1,0,0
-        70731483398,24583,9,9,10,3
-        70731458606,24792,8,8,9,3
-        70731393294,42396,5,5,6,3
-        70731435690,22916,6,6,7,3
-        70731161731,35000,3,3,4,3
-        70731196731,196563,4,4,5,3
-        70731438502,55261,7,7,8,6
-        70731135898,25833,2,2,2,3
+        "ts","dur","thread_name","cpu"
+        70730062200,125364,"logd.klogd",0
+        70730187564,20297242,"swapper",0
+        70731135898,25833,"kworker/3:1",3
+        70731161731,35000,"atrace",3
+        70731196731,196563,"logd.writer",3
+        70731393294,42396,"traced_probes0",3
+        70731435690,22916,"traced_probes7",3
+        70731438502,55261,"kworker/u16:12",6
+        70731458606,24792,"traced_probes6",3
+        70731483398,24583,"traced_probes5",3
         """))
 
   def test_sanity_single_partitions(self):
@@ -848,24 +851,27 @@ class IntervalsIntersect(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE intervals.intersect;
 
-        SELECT * FROM _interval_intersect!(
+        SELECT ts, dur, thread.name AS thread_name
+        FROM _interval_intersect!(
           ((SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
           (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10)),
           (utid)
-        );
+        )
+        JOIN thread USING (utid)
+        ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","id_0","id_1","utid"
-        70731458606,24792,8,8,9
-        70731161731,35000,3,3,4
-        70731393294,42396,5,5,6
-        70730187564,20297242,1,1,0
-        70731135898,25833,2,2,2
-        70731438502,55261,7,7,8
-        70731483398,24583,9,9,10
-        70731196731,196563,4,4,5
-        70731435690,22916,6,6,7
-        70730062200,125364,0,0,1
+        "ts","dur","thread_name"
+        70730062200,125364,"logd.klogd"
+        70730187564,20297242,"swapper"
+        70731135898,25833,"kworker/3:1"
+        70731161731,35000,"atrace"
+        70731196731,196563,"logd.writer"
+        70731393294,42396,"traced_probes0"
+        70731435690,22916,"traced_probes7"
+        70731438502,55261,"kworker/u16:12"
+        70731458606,24792,"traced_probes6"
+        70731483398,24583,"traced_probes5"
         """))
 
   def test_sanity_multiple_tables_and_partitions(self):
@@ -874,27 +880,30 @@ class IntervalsIntersect(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE intervals.intersect;
 
-        SELECT * FROM _interval_intersect!(
+        SELECT ts, dur, thread.name AS thread_name, cpu
+        FROM _interval_intersect!(
           (
             (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
             (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
             (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10)
           ),
           (utid, cpu)
-        );
+        )
+        JOIN thread USING (utid)
+        ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","id_0","id_1","id_2","utid","cpu"
-        70730062200,125364,0,0,0,1,0
-        70730187564,20297242,1,1,1,0,0
-        70731483398,24583,9,9,9,10,3
-        70731458606,24792,8,8,8,9,3
-        70731393294,42396,5,5,5,6,3
-        70731435690,22916,6,6,6,7,3
-        70731161731,35000,3,3,3,4,3
-        70731196731,196563,4,4,4,5,3
-        70731438502,55261,7,7,7,8,6
-        70731135898,25833,2,2,2,2,3
+        "ts","dur","thread_name","cpu"
+        70730062200,125364,"logd.klogd",0
+        70730187564,20297242,"swapper",0
+        70731135898,25833,"kworker/3:1",3
+        70731161731,35000,"atrace",3
+        70731196731,196563,"logd.writer",3
+        70731393294,42396,"traced_probes0",3
+        70731435690,22916,"traced_probes7",3
+        70731438502,55261,"kworker/u16:12",6
+        70731458606,24792,"traced_probes6",3
+        70731483398,24583,"traced_probes5",3
         """))
 
   def test_multiple_tables_against_ii(self):
@@ -1051,4 +1060,78 @@ class IntervalsIntersect(TestSuite):
         """,
         out=Csv("""
         "ts","dur","id_0","id_1"
+        """))
+
+  def test_string_partition_columns(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur, process_name, thread_name) AS (
+            VALUES
+            (0, 1, 5, 'proc1', 'thread1'),
+            (1, 2, 4, 'proc1', 'thread2'),
+            (2, 10, 5, 'proc2', 'thread1')
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur, process_name, thread_name) AS (
+            VALUES
+            (10, 0, 3, 'proc1', 'thread1'),
+            (11, 4, 4, 'proc1', 'thread1'),
+            (12, 3, 5, 'proc1', 'thread2'),
+            (13, 11, 3, 'proc2', 'thread1')
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, process_name, thread_name
+        FROM _interval_intersect!((A, B), (process_name, thread_name))
+        ORDER BY ts, process_name, thread_name;
+        """,
+        out=Csv("""
+        "ts","dur","process_name","thread_name"
+        1,2,"proc1","thread1"
+        3,3,"proc1","thread2"
+        4,2,"proc1","thread1"
+        11,3,"proc2","thread1"
+        """))
+
+  def test_string_partition_single_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur, name) AS (
+            VALUES
+            (0, 1, 5, 'alpha'),
+            (1, 2, 4, 'beta'),
+            (2, 10, 5, 'gamma')
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur, name) AS (
+            VALUES
+            (10, 0, 3, 'alpha'),
+            (11, 4, 4, 'alpha'),
+            (12, 3, 5, 'beta'),
+            (13, 11, 3, 'gamma')
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, name
+        FROM _interval_intersect!((A, B), (name))
+        ORDER BY ts, name;
+        """,
+        out=Csv("""
+        "ts","dur","name"
+        1,2,"alpha"
+        3,3,"beta"
+        4,2,"alpha"
+        11,3,"gamma"
         """))

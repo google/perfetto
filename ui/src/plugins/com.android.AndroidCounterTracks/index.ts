@@ -37,7 +37,7 @@ export default class implements PerfettoPlugin {
       '/android_counter_track',
       'Android Counter Track',
     );
-    ctx.workspace.addChildFirst(trackNode);
+    ctx.defaultWorkspace.addChildFirst(trackNode);
   }
 
   private async loadCounterTrack(

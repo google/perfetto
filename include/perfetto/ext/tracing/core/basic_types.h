@@ -62,9 +62,10 @@ inline void GetProducerAndWriterID(ProducerAndWriterID x,
 // open in the service.
 static constexpr ProducerID kMaxProducerID = static_cast<ProducerID>(-1);
 
-// 1024 Writers per producer seems a resonable bound. This reduces the ability
-// to memory-DoS the service by having to keep track of too many writer IDs.
-static constexpr WriterID kMaxWriterID = static_cast<WriterID>((1 << 10) - 1);
+// 32k Writers per producer seems a resonable bound. This reduces the ability
+// to memory-DoS the service by having to keep track of too many writer IDs,
+// but enough to run certain known benchmark workloads.
+static constexpr WriterID kMaxWriterID = static_cast<WriterID>((1 << 15) - 1);
 
 // Unique within the scope of a {ProducerID, WriterID} tuple.
 using ChunkID = uint32_t;

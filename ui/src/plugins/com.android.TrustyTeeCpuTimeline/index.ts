@@ -71,6 +71,6 @@ export default class implements PerfettoPlugin {
       name: 'Trusty Tee CPU Timeline',
       sortOrder: -100,
     });
-    ctx.workspace.addChildInOrder(trackNode);
+    ctx.defaultWorkspace.addChildInOrder(trackNode);
   }
 }

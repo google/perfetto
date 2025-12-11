@@ -44,7 +44,7 @@ export default class implements PerfettoPlugin {
     });
     app.sidebar.addMenuItem({
       commandId: MULTI_TRACE_COMMAND_ID,
-      section: 'navigation',
+      section: 'trace_files',
       icon: 'library_books',
     });
   }

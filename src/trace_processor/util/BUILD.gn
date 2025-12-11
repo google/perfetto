@@ -64,6 +64,17 @@ source_set("build_id") {
   ]
 }
 
+source_set("blob") {
+  sources = [ "trace_blob.cc" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/trace_processor:basic_types",
+    "../../../include/perfetto/trace_processor:util",
+    "../../../protos/perfetto/common:zero",
+  ]
+}
+
 source_set("clock") {
   sources = [ "clock_synchronizer.h" ]
   deps = [
@@ -227,6 +238,7 @@ source_set("args_utils") {
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
+    "../containers",
     "../storage",
     "../types",
   ]
@@ -320,6 +332,7 @@ source_set("trace_type") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace:non_minimal_zero",
+    "../../../protos/third_party/pprof:zero",
     "../../protozero",
     "../importers/android_bugreport:android_dumpstate_event",
     "../importers/android_bugreport:android_log_event",
@@ -408,7 +421,7 @@ source_set("unittests") {
   ]
   if (perfetto_build_standalone) {
     deps += [
-      "../../../protos/perfetto/metrics/chrome:lite",
+      "../../../protos/perfetto/metrics/chrome:zero",
       "../metrics:gen_cc_all_chrome_metrics_descriptor",
     ]
   }

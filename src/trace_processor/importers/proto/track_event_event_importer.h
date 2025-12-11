@@ -43,13 +43,16 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -726,7 +729,12 @@ class TrackEventEventImporter {
 
     auto opt_resolved = track_event_tracker_->InternDescriptorTrackCounter(
         *track_uuid_it, kNullStringId, packet_sequence_id_);
-    PERFETTO_CHECK(opt_resolved);
+    if (!opt_resolved) {
+      // This can happen if the hierarchy is invalid or too deep. In this case,
+      // an import log would have already been added by the tracker so just
+      // silently return.
+      return;
+    }
     TrackId track_id = *opt_resolved;
 
     double value = event_data_->extra_counter_values[index];
@@ -764,6 +772,7 @@ class TrackEventEventImporter {
         rr->set_thread_instruction_count(*thread_instruction_count_);
       }
       MaybeParseFlowEvents(opt_slice_id.value());
+      MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
     }
     return base::OkStatus();
   }
@@ -781,6 +790,7 @@ class TrackEventEventImporter {
       return base::OkStatus();
 
     MaybeParseFlowEvents(*opt_slice_id);
+    MaybeInsertTrackEventCallstack(*opt_slice_id, track_id);
     auto* thread_slices = storage_->mutable_slice_table();
     auto opt_thread_slice_ref = thread_slices->FindById(*opt_slice_id);
     if (!opt_thread_slice_ref) {
@@ -800,8 +810,7 @@ class TrackEventEventImporter {
       }
     }
     std::optional<int64_t> tic = slice_ref.thread_instruction_count();
-    if (tic) {
-      PERFETTO_DCHECK(event_data_->thread_instruction_count);
+    if (tic && thread_instruction_count_) {
       slice_ref.set_thread_instruction_delta(
           *event_data_->thread_instruction_count - *tic);
     }
@@ -836,6 +845,7 @@ class TrackEventEventImporter {
             legacy_event_.thread_instruction_delta());
       }
       MaybeParseFlowEvents(opt_slice_id.value());
+      MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
     }
     return base::OkStatus();
   }
@@ -974,6 +984,7 @@ class TrackEventEventImporter {
       }
     }
     MaybeParseFlowEvents(opt_slice_id.value());
+    MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
     return base::OkStatus();
   }
 
@@ -997,6 +1008,7 @@ class TrackEventEventImporter {
       return base::OkStatus();
     }
     MaybeParseFlowEvents(opt_slice_id.value());
+    MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
     // For the time being, we only create vtrack slice rows if we need to
     // store thread timestamps/counters.
     if (legacy_event_.use_async_tts()) {
@@ -1021,6 +1033,7 @@ class TrackEventEventImporter {
       return base::OkStatus();
 
     MaybeParseFlowEvents(*opt_slice_id);
+    MaybeInsertTrackEventCallstack(*opt_slice_id, track_id);
     if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       int64_t tts = event_data_->thread_timestamp.value_or(0);
@@ -1036,7 +1049,7 @@ class TrackEventEventImporter {
     // export, we still record the original step's phase in an arg.
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationInstant());
     int64_t duration_ns = 0;
-    context_->slice_tracker->Scoped(
+    auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id, category_id_, name_id_, duration_ns,
         [this, phase](BoundInserter* inserter) {
           ParseTrackEventArgs(inserter);
@@ -1047,6 +1060,9 @@ class TrackEventEventImporter {
           inserter->AddArg(parser_->legacy_event_phase_key_id_,
                            Variadic::String(phase_id));
         });
+    if (opt_slice_id) {
+      MaybeInsertTrackEventCallstack(*opt_slice_id, track_id);
+    }
     // Step events don't support thread timestamps, so no need to add a row to
     // virtual_track_slices.
     return base::OkStatus();
@@ -1065,6 +1081,7 @@ class TrackEventEventImporter {
       return base::OkStatus();
     }
     MaybeParseFlowEvents(opt_slice_id.value());
+    MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
     if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       PERFETTO_DCHECK(!vtrack_slices->slice_count() ||
@@ -1269,6 +1286,8 @@ class TrackEventEventImporter {
                        Variadic::Integer(*legacy_trace_source_id_));
     }
 
+    log_errors(ParseCallstack());
+
     ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
                            /*support_json=*/true);
     int unknown_extensions = 0;
@@ -1324,6 +1343,22 @@ class TrackEventEventImporter {
     inserter->AddArg(parser_->task_line_number_args_key_id_,
                      Variadic::UnsignedInteger(line_number));
     return base::OkStatus();
+  }
+
+  void MaybeInsertTrackEventCallstack(SliceId slice_id, TrackId track_id) {
+    if (!callsite_id_) {
+      return;
+    }
+    auto* table = storage_->mutable_track_event_callstacks_table();
+    tables::TrackEventCallstacksTable::Row row;
+    row.slice_id = slice_id;
+    row.track_id = track_id;
+    if (event_.type() == TrackEvent::TYPE_SLICE_END) {
+      row.end_callsite_id = *callsite_id_;
+    } else {
+      row.callsite_id = *callsite_id_;
+    }
+    table->Insert(row);
   }
 
   base::Status AddSourceLocationArgs(uint64_t iid, BoundInserter* inserter) {
@@ -1437,6 +1472,66 @@ class TrackEventEventImporter {
     return base::OkStatus();
   }
 
+  base::Status ParseCallstack() {
+    // Handle interned callstack via callstack_iid
+    if (event_.has_callstack_iid()) {
+      auto* callstack_decoder = sequence_state_->LookupInternedMessage<
+          protos::pbzero::InternedData::kCallstacksFieldNumber,
+          protos::pbzero::Callstack>(event_.callstack_iid());
+      if (!callstack_decoder) {
+        return base::ErrStatus("TrackEvent with invalid callstack_iid");
+      }
+      // Get or create the callsite from the interned callstack
+      auto* stack_profile_state =
+          sequence_state_->GetCustomState<StackProfileSequenceState>();
+      if (!stack_profile_state) {
+        return base::ErrStatus(
+            "TrackEvent with callstack but no StackProfileSequenceState");
+      }
+      // Pass upid as optional - will work with or without process association
+      auto callsite_id = stack_profile_state->FindOrInsertCallstack(
+          upid_, event_.callstack_iid());
+      if (!callsite_id) {
+        return base::ErrStatus("Failed to intern callstack");
+      }
+      callsite_id_ = callsite_id;
+      return base::OkStatus();
+    }
+
+    // Handle inline callstack
+    // Inline callstacks are simple: just function names and source locations
+    if (event_.has_callstack()) {
+      protos::pbzero::TrackEvent::Callstack::Decoder callstack(
+          event_.callstack());
+      DummyMemoryMapping* dummy_mapping =
+          parser_->GetOrCreateInlineCallstackDummyMapping();
+
+      std::optional<CallsiteId> callsite_id;
+      uint32_t depth = 0;
+      for (auto frame_it = callstack.frames(); frame_it; ++frame_it, ++depth) {
+        protos::pbzero::TrackEvent::Callstack::Frame::Decoder frame(*frame_it);
+        std::optional<base::StringView> source_file;
+        if (frame.has_source_file()) {
+          source_file = frame.source_file();
+        }
+        std::optional<uint32_t> line_number;
+        if (frame.has_line_number()) {
+          line_number = frame.line_number();
+        }
+        FrameId frame_id = dummy_mapping->InternDummyFrame(
+            frame.function_name(), source_file, line_number);
+        callsite_id = context_->stack_profile_tracker->InternCallsite(
+            callsite_id, frame_id, depth);
+      }
+      // Add the final callsite_id as an arg
+      if (callsite_id) {
+        callsite_id_ = callsite_id;
+      }
+      return base::OkStatus();
+    }
+    return base::OkStatus();
+  }
+
   TraceProcessorContext* context_;
   TrackEventTracker* track_event_tracker_;
   TraceStorage* storage_;
@@ -1458,6 +1553,7 @@ class TrackEventEventImporter {
   std::optional<UniqueTid> upid_;
   std::optional<int64_t> thread_timestamp_;
   std::optional<int64_t> thread_instruction_count_;
+  std::optional<CallsiteId> callsite_id_;
   bool fallback_to_legacy_pid_tid_tracks_ = false;
   std::optional<int64_t> legacy_trace_source_id_;
 

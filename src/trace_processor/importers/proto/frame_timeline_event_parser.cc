@@ -84,6 +84,8 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
     jank_reasons.emplace_back("Dropped Frame");
   if (jank_type & FrameTimelineEvent::JANK_NON_ANIMATING)
     jank_reasons.emplace_back("Non Animating");
+  if (jank_type & FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
+    jank_reasons.emplace_back("Display not ON");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
@@ -96,6 +98,7 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
 bool DisplayFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
+      jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON ||
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
 
@@ -111,7 +114,8 @@ bool DisplayFrameJanky(int32_t jank_type) {
 bool SurfaceFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NONE ||
-      jank_type == FrameTimelineEvent::JANK_NON_ANIMATING)
+      jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
+      jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
     return false;
 
   int32_t surface_frame_jank_bitmask =
@@ -216,6 +220,7 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_experimental_id_(
           context->storage->InternString("Jank tag (experimental)")),
       is_buffer_id_(context->storage->InternString("Is Buffer?")),
+      jank_tag_unspecified_id_(context->storage->InternString("Unspecified")),
       jank_tag_none_id_(context->storage->InternString("No Jank")),
       jank_tag_self_id_(context->storage->InternString("Self Jank")),
       jank_tag_other_id_(context->storage->InternString("Other Jank")),
@@ -225,7 +230,9 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_sf_stuffing_id_(
           context->storage->InternString("SurfaceFlinger Stuffing")),
       jank_tag_none_animating_id_(
-          context->storage->InternString("Non Animating")) {}
+          context->storage->InternString("Non Animating")),
+      jank_tag_display_not_on_id_(
+          context->storage->InternString("Display not ON")) {}
 
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
                                                               ConstBytes blob) {
@@ -257,7 +264,9 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
 StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
     int32_t jank_type) {
   StringId jank_tag;
-  if (DisplayFrameJanky(jank_type)) {
+  if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED) {
+    jank_tag = jank_tag_unspecified_id_;
+  } else if (DisplayFrameJanky(jank_type)) {
     jank_tag = jank_tag_self_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_SF_STUFFING) {
     jank_tag = jank_tag_sf_stuffing_id_;
@@ -265,6 +274,8 @@ StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
     jank_tag = jank_tag_dropped_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING) {
     jank_tag = jank_tag_none_animating_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON) {
+    jank_tag = jank_tag_display_not_on_id_;
   } else {
     jank_tag = jank_tag_none_id_;
   }
@@ -442,17 +453,23 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
     int32_t jank_type,
     std::optional<int32_t> present_type_opt) {
   StringId jank_tag;
-  if (SurfaceFrameJanky(jank_type)) {
+  if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED) {
+    jank_tag = jank_tag_unspecified_id_;
+  } else if (SurfaceFrameJanky(jank_type)) {
     jank_tag = jank_tag_self_id_;
   } else if (DisplayFrameJanky(jank_type)) {
     jank_tag = jank_tag_other_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_BUFFER_STUFFING) {
     jank_tag = jank_tag_buffer_stuffing_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_SF_STUFFING) {
+    jank_tag = jank_tag_sf_stuffing_id_;
   } else if (present_type_opt.has_value() &&
              *present_type_opt == FrameTimelineEvent::PRESENT_DROPPED) {
     jank_tag = jank_tag_dropped_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING) {
     jank_tag = jank_tag_none_animating_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON) {
+    jank_tag = jank_tag_display_not_on_id_;
   } else {
     jank_tag = jank_tag_none_id_;
   }

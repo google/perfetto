@@ -48,7 +48,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
 
   static onActivate(app: App): void {
     PerfettoMcpPlugin.tokenSetting = app.settings.register({
-      id: `${app.pluginId}#TokenSetting`,
+      id: `${PerfettoMcpPlugin.id}#TokenSetting`,
       name: 'Gemini Token',
       description: 'Gemini API Token.',
       schema: z.string(),
@@ -57,7 +57,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
     });
 
     PerfettoMcpPlugin.thoughtsSetting = app.settings.register({
-      id: `${app.pluginId}#ThoughtsSetting`,
+      id: `${PerfettoMcpPlugin.id}#ThoughtsSetting`,
       name: 'Show Thoughts and Tool Calls',
       description: 'Show thoughts and tool calls in the chat.',
       schema: z.boolean(),
@@ -65,7 +65,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
     });
 
     PerfettoMcpPlugin.showTokensSetting = app.settings.register({
-      id: `${app.pluginId}#ShowTokensSetting`,
+      id: `${PerfettoMcpPlugin.id}#ShowTokensSetting`,
       name: 'Show Token Usage',
       description: 'Show detailed token usage.',
       schema: z.boolean(),
@@ -73,7 +73,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
     });
 
     PerfettoMcpPlugin.modelNameSetting = app.settings.register({
-      id: `${app.pluginId}#ModelNameSetting`,
+      id: `${PerfettoMcpPlugin.id}#ModelNameSetting`,
       name: 'Gemini Model',
       description: 'The Gemini model to use, such as gemini-2.5-pro.',
       schema: z.string(),
@@ -82,7 +82,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
     });
 
     PerfettoMcpPlugin.promptSetting = app.settings.register({
-      id: `${app.pluginId}#PromptSetting`,
+      id: `${PerfettoMcpPlugin.id}#PromptSetting`,
       name: 'Gemini Prompt',
       description:
         'Upload a .txt or .md file containing the initial Gemini prompt.',

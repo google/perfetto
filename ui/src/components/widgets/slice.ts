@@ -61,7 +61,7 @@ export function sliceRef(
   return m(SliceRef, {
     trace,
     id: slice.id,
-    name: name ?? slice.name,
+    name: name ?? slice.name ?? '[null]',
   });
 }
 

@@ -88,11 +88,11 @@ SizeProfileComputer::SizeProfileComputer(DescriptorPool* pool,
 
 void SizeProfileComputer::Reset(const uint8_t* ptr, size_t size) {
   state_stack_.clear();
-  field_path_.clear();
+  field_path_.fields.clear();
   protozero::ProtoDecoder decoder(ptr, size);
   const ProtoDescriptor* descriptor = &pool_->descriptors()[root_message_idx_];
   state_stack_.push_back(State{descriptor, decoder, size, 0});
-  field_path_.emplace_back(0, nullptr, root_message_idx_, descriptor);
+  field_path_.fields.emplace_back(0, nullptr, root_message_idx_, descriptor);
 }
 
 std::optional<size_t> SizeProfileComputer::GetNext() {
@@ -100,11 +100,11 @@ std::optional<size_t> SizeProfileComputer::GetNext() {
   if (state_stack_.empty())
     return result;
 
-  if (field_path_.size() > state_stack_.size()) {
+  if (field_path_.fields.size() > state_stack_.size()) {
     // The leaf path needs to be popped to continue iterating on the current
     // proto.
-    field_path_.pop_back();
-    PERFETTO_DCHECK(field_path_.size() == state_stack_.size());
+    field_path_.fields.pop_back();
+    PERFETTO_DCHECK(field_path_.fields.size() == state_stack_.size());
   }
   State& state = state_stack_.back();
 
@@ -144,18 +144,18 @@ std::optional<size_t> SizeProfileComputer::GetNext() {
 
       protozero::ProtoDecoder decoder(field.data(), field.size());
       const ProtoDescriptor* descriptor = &pool_->descriptors()[*message_idx];
-      field_path_.emplace_back(field.id(), field_descriptor, *message_idx,
-                               descriptor);
+      field_path_.fields.emplace_back(field.id(), field_descriptor,
+                                      *message_idx, descriptor);
       state_stack_.push_back(State{descriptor, decoder, field.size(), 0U});
       return GetNext();
     }
-    field_path_.emplace_back(field.id(), field_descriptor,
-                             field_descriptor->type(), nullptr);
+    field_path_.fields.emplace_back(field.id(), field_descriptor,
+                                    field_descriptor->type(), nullptr);
     result.emplace(field_size);
     return result;
   }
   if (state.unknown) {
-    field_path_.emplace_back(uint32_t(-1), nullptr, 0U, nullptr);
+    field_path_.fields.emplace_back(uint32_t(-1), nullptr, 0U, nullptr);
     result.emplace(state.unknown);
     state.unknown = 0;
     return result;

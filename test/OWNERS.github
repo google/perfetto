@@ -1,0 +1,4 @@
+# Chromium-specific test data files are rolled from the chromium repo.
+# The chromium owners should be able to approve the rolls.
+
+data/chrome/**.sha256 @google/chromium-stdlib-owners

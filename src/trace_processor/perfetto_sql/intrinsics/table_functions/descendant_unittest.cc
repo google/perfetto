@@ -41,21 +41,5 @@ TEST(Descendant, SliceTableNullConstraint) {
   ASSERT_EQ(cursor->dataframe()->row_count(), 0u);
 }
 
-TEST(Descendant, SliceByStackTableNullConstraint) {
-  // Insert a row to make sure that we are not returning an empty table just
-  // because the source is empty.
-  TraceStorage storage;
-  storage.mutable_slice_table()->Insert({});
-
-  Descendant generator{Descendant::Type::kSliceByStack, &storage};
-  auto cursor = generator.MakeCursor();
-
-  // Check that if we pass start_id = NULL as a constraint, we correctly return
-  // an empty table.
-  bool res = cursor->Run({SqlValue()});
-  ASSERT_TRUE(res);
-  ASSERT_EQ(cursor->dataframe()->row_count(), 0u);
-}
-
 }  // namespace
 }  // namespace perfetto::trace_processor

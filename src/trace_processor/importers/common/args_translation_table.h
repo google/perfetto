@@ -88,6 +88,14 @@ class ArgsTranslationTable {
       DeobfuscationMappingTable deobfuscation_mapping_table) {
     deobfuscation_mapping_table_ = std::move(deobfuscation_mapping_table);
   }
+  void MergeDeobfuscationMapping(
+      const DeobfuscationMappingTable::PackageId& package,
+      StringId obfuscated_class,
+      StringId deobfuscated_class,
+      base::FlatHashMap<StringId, StringId> members) {
+    deobfuscation_mapping_table_.AddClassTranslation(
+        package, obfuscated_class, deobfuscated_class, std::move(members));
+  }
 
   std::optional<base::StringView> TranslateChromeHistogramHashForTesting(
       uint64_t hash) const {

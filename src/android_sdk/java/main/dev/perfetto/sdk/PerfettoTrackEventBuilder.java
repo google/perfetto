@@ -63,6 +63,8 @@ public final class PerfettoTrackEventBuilder {
     public final Pool<FieldString> mFieldStringPool;
     public final Pool<FieldNested> mFieldNestedPool;
     public final Pool<Proto> mProtoPool;
+    public final Pool<Flow> mFlowPool;
+    public final Pool<Flow> mTerminatingFlowPool;
 
     public ObjectsPool(int capacity) {
       mFieldInt64Pool = new Pool<>(capacity);
@@ -70,6 +72,8 @@ public final class PerfettoTrackEventBuilder {
       mFieldStringPool = new Pool<>(capacity);
       mFieldNestedPool = new Pool<>(capacity);
       mProtoPool = new Pool<>(capacity);
+      mFlowPool = new Pool<>(capacity);
+      mTerminatingFlowPool = new Pool<>(capacity);
     }
 
     public void reset() {
@@ -78,6 +82,8 @@ public final class PerfettoTrackEventBuilder {
       mFieldStringPool.reset();
       mFieldNestedPool.reset();
       mProtoPool.reset();
+      mFlowPool.reset();
+      mTerminatingFlowPool.reset();
     }
   }
 
@@ -102,8 +108,6 @@ public final class PerfettoTrackEventBuilder {
   private static final class LazyInitObjects {
     private CounterInt64 mCounterInt64 = null;
     private CounterDouble mCounterDouble = null;
-    private Flow mFlow = null;
-    private Flow mTerminatingFlow = null;
 
     private final PerfettoNativeMemoryCleaner mNativeMemoryCleaner;
 
@@ -123,20 +127,6 @@ public final class PerfettoTrackEventBuilder {
         mCounterDouble = new CounterDouble(mNativeMemoryCleaner);
       }
       return mCounterDouble;
-    }
-
-    public Flow getFlow() {
-      if (mFlow == null) {
-        mFlow = new Flow(mNativeMemoryCleaner);
-      }
-      return mFlow;
-    }
-
-    public Flow getTerminatingFlow() {
-      if (mTerminatingFlow == null) {
-        mTerminatingFlow = new Flow(mNativeMemoryCleaner);
-      }
-      return mTerminatingFlow;
     }
   }
 
@@ -160,6 +150,7 @@ public final class PerfettoTrackEventBuilder {
       () -> new FieldDouble(mNativeMemoryCleaner);
   private final Supplier<FieldString> fieldStringSupplier =
       () -> new FieldString(mNativeMemoryCleaner);
+  private final Supplier<Flow> flowSupplier = () -> new Flow(mNativeMemoryCleaner);
 
   private static final PerfettoTrackEventBuilder NO_OP_BUILDER =
       new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ false, /* parent= */ null);
@@ -357,36 +348,46 @@ public final class PerfettoTrackEventBuilder {
     return this;
   }
 
-  /** Adds a flow with {@code id}. */
+  /** Deprecated: use {@link #addFlow} */
   public PerfettoTrackEventBuilder setFlow(long id) {
+    return addFlow(id);
+  }
+
+  /** Adds a flow with {@code id}. */
+  public PerfettoTrackEventBuilder addFlow(long id) {
     if (!mIsCategoryEnabled) {
       return this;
     }
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Flow flow = mLazyInitObjects.getFlow();
+    Flow flow = mObjectsPool.mFlowPool.get(flowSupplier);
     flow.setProcessFlow(id);
     addPerfettoPointerToExtra(flow);
     return this;
   }
 
-  /** Adds a terminating flow with {@code id}. */
+  /** Deprecated: use {@link #addTerminatingFlow} */
   public PerfettoTrackEventBuilder setTerminatingFlow(long id) {
+    return addTerminatingFlow(id);
+  }
+
+  /** Adds a terminating flow with {@code id}. */
+  public PerfettoTrackEventBuilder addTerminatingFlow(long id) {
     if (!mIsCategoryEnabled) {
       return this;
     }
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Flow terminatingFlow = mLazyInitObjects.getTerminatingFlow();
+    Flow terminatingFlow = mObjectsPool.mTerminatingFlowPool.get(flowSupplier);
     terminatingFlow.setProcessTerminatingFlow(id);
     addPerfettoPointerToExtra(terminatingFlow);
     return this;
   }
 
   /** Adds the events to a named track instead of the thread track where the event occurred. */
-  public PerfettoTrackEventBuilder usingNamedTrack(long parentUuid, String name) {
+  public PerfettoTrackEventBuilder usingNamedTrack(long id, String name, long parentUuid) {
     if (!mIsCategoryEnabled) {
       return this;
     }
@@ -396,7 +397,7 @@ public final class PerfettoTrackEventBuilder {
 
     NamedTrack track = mObjectsCache.mNamedTrackCache.get(name.hashCode());
     if (track == null || !track.getName().equals(name)) {
-      track = new NamedTrack(name, parentUuid, mNativeMemoryCleaner);
+      track = new NamedTrack(id, name, parentUuid, mNativeMemoryCleaner);
       mObjectsCache.mNamedTrackCache.put(name.hashCode(), track);
     }
     addPerfettoPointerToExtra(track);
@@ -407,22 +408,22 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped named track instead of the thread track where the event
    * occurred.
    */
-  public PerfettoTrackEventBuilder usingProcessNamedTrack(String name) {
+  public PerfettoTrackEventBuilder usingProcessNamedTrack(long id, String name) {
     if (!mIsCategoryEnabled) {
       return this;
     }
-    return usingNamedTrack(PerfettoTrace.getProcessTrackUuid(), name);
+    return usingNamedTrack(id, name, PerfettoTrace.getProcessTrackUuid());
   }
 
   /**
    * Adds the events to a thread scoped named track instead of the thread track where the event
    * occurred.
    */
-  public PerfettoTrackEventBuilder usingThreadNamedTrack(long tid, String name) {
+  public PerfettoTrackEventBuilder usingThreadNamedTrack(long id, String name, long tid) {
     if (!mIsCategoryEnabled) {
       return this;
     }
-    return usingNamedTrack(PerfettoTrace.getThreadTrackUuid(tid), name);
+    return usingNamedTrack(id, name, PerfettoTrace.getThreadTrackUuid(tid));
   }
 
   /** Adds the events to a counter track instead. This is required for setting counter values. */
@@ -532,6 +533,24 @@ public final class PerfettoTrackEventBuilder {
     }
     FieldString field = mObjectsPool.mFieldStringPool.get(fieldStringSupplier);
     field.setValue(id, val);
+    addFieldToContainer(field);
+    return this;
+  }
+
+  /**
+   * Adds a proto field with field id {@code id} and value {@code val}.
+   * If {@code internedTypeId} is non-zero, the string {@code val} will be interned
+   * with the given type ID. If {@code internedTypeId} is zero, no interning occurs.
+   */
+  public PerfettoTrackEventBuilder addFieldWithInterning(long id, String val, long internedTypeId) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkBuildingProto();
+    }
+    FieldString field = mObjectsPool.mFieldStringPool.get(fieldStringSupplier);
+    field.setValueWithInterning(id, val, internedTypeId);
     addFieldToContainer(field);
     return this;
   }

@@ -1,0 +1,103 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-timeline-page {
+  isolation: isolate;
+  overflow: hidden;
+  height: 100%;
+
+  .pf-resize-handle {
+    flex-shrink: 0;
+  }
+
+  &__overview {
+    z-index: 3;
+
+    .pf-overview-timeline {
+      height: 70px;
+    }
+  }
+
+  &__header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    box-shadow: $box-shadow-1;
+    z-index: 2;
+
+    &:after {
+      content: "";
+      scrollbar-gutter: stable;
+      overflow-y: scroll;
+      visibility: hidden;
+      flex: 0 0 auto;
+    }
+  }
+
+  &__pinned-track-tree {
+    isolation: isolate; // Keeps any internally high z-indexes contained
+    flex: 0 0 auto;
+    z-index: 1;
+    box-shadow: $box-shadow-1;
+    overflow: hidden;
+
+    .pf-track-tree {
+      height: 100%;
+      scrollbar-gutter: stable;
+    }
+  }
+
+  &__scrolling-track-tree {
+    isolation: isolate; // Keeps any internally high z-indexes contained
+    flex: 1 1 auto;
+    scrollbar-gutter: stable;
+  }
+}
+
+.pf-timeline-toolbar {
+  width: var(--track-shell-width);
+  border-right: solid 1px transparent;
+  padding-inline: 2px;
+
+  &__workspace-selector {
+    flex: 1;
+  }
+}
+
+.pf-track__track-details-popup {
+  min-width: 350px;
+}
+
+.pf-track-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  label {
+    font-family: var(--pf-font-compact);
+    text-transform: uppercase;
+    font-size: 11px;
+  }
+}
+
+.pf-track__tooltip {
+  font-size: 11px; // Slightly smaller font - to match previous tooltip size
+  opacity: 0.9;
+  font-weight: 300;
+}

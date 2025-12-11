@@ -874,6 +874,44 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/user_list_config.proto
+
+// Data source that lists details (such as version code) about users on an
+// Android device.
+message AndroidUserListConfig {
+  // An allowlist of user type strings, used to control the granularity of
+  // user type information emitted in the trace. Exact, case-sensitive string
+  // matching is used.
+  //
+  // Any user type read from the device that is NOT present in the
+  // effective allowlist will have its type reported as
+  // "android.os.usertype.FILTERED".
+  //
+  // The effective allowlist is determined as follows:
+  //
+  // 1. If this 'user_type_filter' field is provided and non-empty:
+  //    This list itself is the effective allowlist.
+  //    Example TraceConfig:
+  //    --------------------
+  //    data_sources {
+  //        config {
+  //            name: "android.user_list"
+  //            target_buffer: 0
+  //            user_list_config {
+  //              # Only report these specific types, others become FILTERED.
+  //              user_type_filter: "android.os.usertype.full.SYSTEM"
+  //              user_type_filter: "android.os.usertype.system.HEADLESS"
+  //            }
+  //        }
+  //    }
+  //
+  //
+  // Note: This field does not support regular expressions.
+  repeated string user_type_filter = 1;
+}
+
+// End of protos/perfetto/config/android/user_list_config.proto
+
 // Begin of protos/perfetto/config/android/windowmanager_config.proto
 
 // Custom configuration for the "android.windowmanager" data source.
@@ -1172,6 +1210,11 @@ message FtraceConfig {
   // If true, use self-describing proto messages when writing events not known
   // at compile time (aka generic events). Each event bundle will have a set of
   // serialised proto descriptors for events within that bundle.
+  //
+  // Default if unset:
+  // * v53+: true
+  // * before v53: false
+  //
   // Added in: perfetto v50.
   optional bool denser_generic_event_encoding = 32;
 
@@ -3972,7 +4015,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 138
+// Next id: 139
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4172,6 +4215,9 @@ message DataSourceConfig {
   // Data source name: android.cpu_per_uid
   optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
 
+  // Data source name: android.user_list
+  optional AndroidUserListConfig user_list_config = 138 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -4197,7 +4243,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 42.
+// Next id: 44.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4933,6 +4979,35 @@ message TraceConfig {
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
   optional uint32 exclusive_prio = 41;
+
+  // If true && |write_into_file|, do NOT flush buffers when periodically write
+  // them into file.
+  //
+  // By default, if |write_into_file| is set, each time we periodically write
+  // buffers into file, we first issue a Flush() to all data source, forcing
+  // them to commit their data into the tracing service. This helps us to always
+  // write latest data to the file.
+  //
+  // Before this flag was introduced, the default behavior was NOT to flush
+  // buffers when periodically write them into file. If true this flag
+  // returns the old default behavior.
+  //
+  // Introduced in: perfetto v53.
+  // Supported on: Android 25Q4+.
+  optional bool no_flush_before_write_into_file = 42;
+
+  // When true, data sources in remote producers (machines connected via
+  // traced_relay) will be matched by default. When false (the default), data
+  // sources only match the host machine. In either case, an explicit
+  // |DataSource.machine_name_filter| takes priority.
+  //
+  // NB: perfetto versions before v54 do not have this option and match across
+  // machines by default. To be compatible across this version boundary, either
+  // set this field to true, or set an explicit machine_name_filter on all data
+  // sources.
+  //
+  // Introduced in: perfetto v54.
+  optional bool trace_all_machines = 43;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -5612,6 +5687,7 @@ message FrameTimelineEvent {
     JANK_DROPPED = 1024;
     JANK_NON_ANIMATING = 2048;
     JANK_APP_RESYNCED_JITTER = 4096;
+    JANK_DISPLAY_NOT_ON = 8192;
   };
 
   // Specifies the severity of a jank.
@@ -6215,10 +6291,18 @@ message InputWindowInfoProto {
 
 message BlurRegion {
   optional uint32 blur_radius = 1;
-  optional uint32 corner_radius_tl = 2;
-  optional uint32 corner_radius_tr = 3;
-  optional uint32 corner_radius_bl = 4;
-  optional float corner_radius_br = 5;
+  optional uint32 corner_radius_tl = 2 [deprecated = true];
+  optional uint32 corner_radius_tr = 3 [deprecated = true];
+  optional uint32 corner_radius_bl = 4 [deprecated = true];
+  optional float corner_radius_br = 5 [deprecated = true];
+  optional float corner_radius_tlx = 11;
+  optional float corner_radius_tly = 12;
+  optional float corner_radius_trx = 13;
+  optional float corner_radius_try = 14;
+  optional float corner_radius_blx = 15;
+  optional float corner_radius_bly = 16;
+  optional float corner_radius_brx = 17;
+  optional float corner_radius_bry = 18;
   optional float alpha = 6;
   optional int32 left = 7;
   optional int32 top = 8;
@@ -6490,6 +6574,9 @@ message LayerProto {
 
   // Settings which specify how an outline should be drawn for a layer.
   optional BorderSettings border_settings = 66;
+
+  // "True" corner radii of the layer computed by SurfaceFlinger.
+  optional CornerRadiiProto effective_radii = 67;
 }
 
 message PositionProto {
@@ -6860,6 +6947,23 @@ message DisplayState {
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_transactions.proto
+
+// Begin of protos/perfetto/trace/android/user_list.proto
+
+message AndroidUserList {
+  message UserInfo {
+    // eg. android.os.usertype.full.SYSTEM, android.os.usertype.full.SECONDARY
+    optional string type = 1;
+    optional int32 uid = 2;
+  }
+
+  repeated UserInfo users = 1;
+
+  // Error number
+  optional int32 error = 2;
+}
+
+// End of protos/perfetto/trace/android/user_list.proto
 
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
@@ -9957,6 +10061,18 @@ message FuncgraphExitFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/ftrace.proto
 
+// Begin of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
+message FwtpPerfettoCounterFtraceEvent {
+  optional uint64 timestamp = 1;
+  optional uint32 track_id = 2;
+  optional string category = 3;
+  optional string name = 4;
+  optional uint32 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
 // Begin of protos/perfetto/trace/ftrace/g2d.proto
 
 message G2dTracingMarkWriteFtraceEvent {
@@ -11243,6 +11359,8 @@ message PixelMmKswapdWakeFtraceEvent {
 message PixelMmKswapdDoneFtraceEvent {
   optional uint64 delta_nr_scanned = 1;
   optional uint64 delta_nr_reclaimed = 2;
+  optional uint64 delta_nr_allocated = 3;
+  optional uint64 duration_ns = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/pixel_mm.proto
@@ -11512,6 +11630,47 @@ message ScmCallStartFtraceEvent {
 message ScmCallEndFtraceEvent {}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
+
+// Begin of protos/perfetto/trace/ftrace/scsi.proto
+
+message ScsiDispatchCmdErrorFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 rtn = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+}
+message ScsiDispatchCmdTimeoutFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 result = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+  optional uint32 sense_key = 14;
+  optional uint32 asc = 15;
+  optional uint32 ascq = 16;
+}
+message ScsiEhWakeupFtraceEvent {
+  optional uint32 host_no = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/scsi.proto
 
 // Begin of protos/perfetto/trace/ftrace/sde.proto
 
@@ -12107,6 +12266,7 @@ message MmShrinkSlabEndFtraceEvent {
 
 message WorkqueueActivateWorkFtraceEvent {
   optional uint64 work = 1;
+  optional uint64 function = 2;
 }
 message WorkqueueExecuteEndFtraceEvent {
   optional uint64 work = 1;
@@ -12119,9 +12279,9 @@ message WorkqueueExecuteStartFtraceEvent {
 message WorkqueueQueueWorkFtraceEvent {
   optional uint64 work = 1;
   optional uint64 function = 2;
-  optional uint64 workqueue = 3;
-  optional uint32 req_cpu = 4;
-  optional uint32 cpu = 5;
+  optional int32 req_cpu = 4;
+  optional int32 cpu = 5;
+  optional string workqueue = 6;
 }
 
 // End of protos/perfetto/trace/ftrace/workqueue.proto
@@ -12772,6 +12932,10 @@ message FtraceEvent {
     DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
     DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
     DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
+    FwtpPerfettoCounterFtraceEvent fwtp_perfetto_counter = 596;
+    ScsiDispatchCmdErrorFtraceEvent scsi_dispatch_cmd_error = 597;
+    ScsiDispatchCmdTimeoutFtraceEvent scsi_dispatch_cmd_timeout = 598;
+    ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
   }
 }
 
@@ -13048,7 +13212,10 @@ message FtraceEventBundle {
   message GenericEventDescriptor {
     // submessage id within FtraceEvent described by |event_descriptor|.
     optional int32 field_id = 1;
-    // serialised DescriptorProto
+    // optional: the event's group, e.g. "sched" for "sched/sched_switch".
+    // The event name itself is in |event_descriptor.name|.
+    optional string group_name = 3;
+    // serialised DescriptorProto.
     optional bytes event_descriptor = 2;
   }
   repeated GenericEventDescriptor generic_event_descriptors = 11;
@@ -13505,7 +13672,10 @@ message VulkanMemoryEvent {
 // previous InternedData message with same sequence ID should be used.
 // TODO(fmayer): Move to the intern tables to a common location.
 message InternedString {
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
+
+  // The actual string.
   optional bytes str = 2;
 }
 
@@ -13546,9 +13716,11 @@ message ModuleSymbols {
 
 message Mapping {
   // Interning key.
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
 
   // Interning key.
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 build_id = 2;
 
   // The linker may create multiple memory mappings for the same shared
@@ -13602,18 +13774,46 @@ message Mapping {
 }
 
 message Frame {
-  // Interning key
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
 
   // E.g. "fopen"
   // id of string.
   optional uint64 function_name_id = 2;
 
+  // The mapping in which this frame's instruction pointer resides.
+  // iid of Mapping.iid.
+  //
+  // If set (non-zero), rel_pc MUST also be set. If mapping_id is 0 (not set),
+  // this frame has no associated memory mapping (e.g., symbolized frames
+  // without address information).
+  //
+  // Starts from 1, 0 is the same as "not set".
   optional uint64 mapping_id = 3;
+
+  // Instruction pointer relative to the start of the mapping.
+  // MUST be set if mapping_id is set (non-zero). Ignored if mapping_id is 0.
   optional uint64 rel_pc = 4;
+
+  // Source file path for this frame.
+  // This is typically set during online symbolization when symbol information
+  // is available at trace collection time. If not set, source file paths may be
+  // added later via offline symbolization (see ModuleSymbols).
+  //
+  // Starts from 1, 0 is the same as "not set".
+  //
+  // iid of InternedData.source_paths.
+  optional uint64 source_path_iid = 5;
+
+  // Line number in the source file for this frame.
+  // This is typically set during online symbolization when symbol information
+  // is available at trace collection time. If not set, line numbers may be
+  // added later via offline symbolization (see ModuleSymbols).
+  optional uint32 line_number = 6;
 }
 
 message Callstack {
+  // Interning key. Starts from 1, 0 is the same as "not set".
   optional uint64 iid = 1;
   // Frames of this callstack. Bottom frame first.
   repeated uint64 frame_ids = 2;
@@ -14581,7 +14781,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 55.
+// Next reserved id: 13 (up to 15). Next id: 57.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -14750,13 +14950,75 @@ message TrackEvent {
     uint64 correlation_id_str_iid = 54;
   }
 
+  // Callstack associated with this event. This captures the program stack at
+  // the time the event occurred, useful for understanding what code path led
+  // to the event.
+  //
+  // Two variants are supported:
+  // - callstack: Inline callstack data (simpler when trace size is not a
+  //   concern or callstacks are unique)
+  // - callstack_iid: Reference to an interned Callstack in InternedData
+  //   (efficient for repeated callstacks)
+  //
+  // Only one of these fields should be set.
+  oneof callstack_field {
+    // Inline callstack data. Use this for simplicity when interning is not
+    // needed (e.g., for unique callstacks or when trace size is not critical).
+    Callstack callstack = 55;
+
+    // Reference to interned Callstack (see InternedData.callstacks).
+    // This is the efficient option when callstacks are repeated.
+    //
+    // Note: iids *always* start from 1. A value of 0 is considered "not set".
+    uint64 callstack_iid = 56;
+  }
+
+  // Inline callstack for TrackEvents when interning is not needed.
+  // This is a simplified version of the profiling Callstack/Frame messages,
+  // designed for cases where trace size is not critical or callstacks are
+  // unique.
+  //
+  // Use this for simple callstacks with function names and source locations.
+  // For binary/library information (mappings, build IDs, relative PCs), use
+  // interned callstacks via callstack_iid instead.
+  message Callstack {
+    // Frame within an inline callstack.
+    message Frame {
+      // Function name, e.g., "malloc" or "std::vector<int>::push_back"
+      optional string function_name = 1;
+
+      // Optional: Source file path, e.g., "/src/foo.cc"
+      optional string source_file = 2;
+
+      // Optional: Line number in the source file
+      optional uint32 line_number = 3;
+    }
+
+    // Frames of this callstack, ordered from bottom (outermost) to top
+    // (innermost). For example, if main() calls foo() which calls bar(), the
+    // frames would be: [main, foo, bar]
+    repeated Frame frames = 1;
+  }
+
+  // Debug annotations associated with this event. These are arbitrary key-value
+  // pairs that can be used to attach additional information to the event.
+  // See DebugAnnotation message for details on supported value types.
+  //
+  // For example, debug annotations can be used to attach a URL or resource
+  // identifier to a network request event. Arrays, dictionaries and full
+  // nested structures (e.g. arrays of dictionaries of dictionaries)
+  // are supported.
+  repeated DebugAnnotation debug_annotations = 4;
+
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
   // ---------------------------------------------------------------------------
-
-  // Unstable key/value annotations shown in the trace viewer but not intended
-  // for metrics use.
-  repeated DebugAnnotation debug_annotations = 4;
+  //
+  // NOTE: The fields below this point are NOT part of the stable public API.
+  // They are primarily intended for internal use by Chrome and Android. These
+  // fields may change or be removed without notice. For custom/synthetic
+  // traces, prefer using the fields above (name, categories, type, flows,
+  // correlation_id, callstack, etc.) along with custom debug_annotations.
 
   // Typed event arguments:
   optional TaskExecution task_execution = 5;
@@ -14990,7 +15252,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 44.
+// Next id: 45.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -15082,8 +15344,17 @@ message InternedData {
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
+  // Interned job names for Android Job Names. These are separate from
+  // other strings because they are under app control.
+  repeated AndroidJobName android_job_name = 44;
+
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
+}
+
+message AndroidJobName {
+  optional uint64 iid = 1;
+  optional string name = 2;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -17298,7 +17569,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 123.
+// Next id: 124.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -17454,6 +17725,8 @@ message TracePacket {
     CpuPerUidData cpu_per_uid_data = 119;
 
     EvdevEvent evdev_event = 121;
+
+    AndroidUserList user_list = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

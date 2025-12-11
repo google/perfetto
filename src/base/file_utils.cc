@@ -48,6 +48,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_SET_FILE_PERMISSIONS
 #include <fcntl.h>
@@ -290,19 +291,33 @@ ScopedFile OpenFile(const std::string& path, int flags, FileOpenMode mode) {
   return fd;
 }
 
-ScopedFstream OpenFstream(const char* path, const char* mode) {
+ScopedFstream OpenFstream(const std::string& path, const std::string& mode) {
   ScopedFstream file;
-// On Windows fopen interprets filename using the ANSI or OEM codepage but
-// sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
-// filename correctly we use _wfopen and a UTF-16 string on windows.
+  // On Windows fopen interprets filename using the ANSI or OEM codepage but
+  // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
+  // filename correctly we use _wfopen and a UTF-16 string on windows.
+  //
+  // On Windows fopen also open files in the text mode by default, but we want
+  // to open them in the binary mode, to avoid silly EOL translations (and to be
+  // consistent with base::OpenFile). So we check the mode first and append 'b'
+  // mode only when it makes sense.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  std::string s_mode(mode);
+  // Windows supports non-standard mode extension that sets encoding in text
+  // mode. If you need to open a FILE* in text mode, use the fopen API directly.
+  bool is_text_mode = Contains(s_mode, "ccs=") || Contains(s_mode, "t");
+  PERFETTO_CHECK(!is_text_mode);
+  bool is_binary_mode = Contains(s_mode, 'b');
+  if (!is_binary_mode)
+    s_mode += 'b';
+
   auto w_path = ToUtf16(path);
-  auto w_mode = ToUtf16(mode);
+  auto w_mode = ToUtf16(s_mode);
   if (w_path && w_mode) {
     file.reset(_wfopen(w_path->c_str(), w_mode->c_str()));
   }
 #else
-  file.reset(fopen(path, mode));
+  file.reset(fopen(path.c_str(), mode.c_str()));
 #endif
   return file;
 }
@@ -403,6 +418,77 @@ std::string GetFileExtension(const std::string& filename) {
   if (ext_idx == std::string::npos)
     return std::string();
   return filename.substr(ext_idx);
+}
+
+std::string Basename(const std::string& path) {
+  // Handle empty path
+  if (path.empty())
+    return ".";
+
+  // Make a copy to work with
+  std::string p = path;
+
+  // Strip trailing slashes (both / and \)
+  while (p.size() > 1 && (p.back() == '/' || p.back() == '\\')) {
+    p.pop_back();
+  }
+
+  // If the path is now empty or just a single slash, return it
+  if (p.empty() || p == "/" || p == "\\")
+    return p.empty() ? "/" : p;
+
+  // Find the last directory separator (either / or \)
+  size_t last_sep = p.find_last_of("/\\");
+
+  if (last_sep == std::string::npos) {
+    // No separator found, the whole path is the basename
+    return p;
+  }
+
+  // Return everything after the last separator
+  return p.substr(last_sep + 1);
+}
+
+std::string Dirname(const std::string& path) {
+  // Handle empty path
+  if (path.empty())
+    return ".";
+
+  // Make a copy to work with
+  std::string p = path;
+
+  // Strip trailing slashes (both / and \)
+  while (p.size() > 1 && (p.back() == '/' || p.back() == '\\')) {
+    p.pop_back();
+  }
+
+  // If the path is now just a single slash, return it
+  if (p == "/" || p == "\\")
+    return p;
+
+  // Find the last directory separator (either / or \)
+  size_t last_sep = p.find_last_of("/\\");
+
+  if (last_sep == std::string::npos) {
+    // No separator found, return "."
+    return ".";
+  }
+
+  // If the separator is at position 0, return the root
+  if (last_sep == 0)
+    return p.substr(0, 1);  // Return "/" or "\"
+
+  // Strip trailing slashes from the dirname part
+  while (last_sep > 0 && (p[last_sep - 1] == '/' || p[last_sep - 1] == '\\')) {
+    --last_sep;
+  }
+
+  // If we've consumed all characters, return the root
+  if (last_sep == 0)
+    return p.substr(0, 1);
+
+  // Return everything up to (but not including) the last separator
+  return p.substr(0, last_sep);
 }
 
 base::Status SetFilePermissions(const std::string& file_path,

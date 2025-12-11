@@ -120,7 +120,7 @@ class ProcessWorkspaceFactory {
   }
 
   private findProcessTracks(): TrackNode[] {
-    return this.trace.workspace.flatTracks.filter((track) => {
+    return this.trace.defaultWorkspace.flatTracks.filter((track) => {
       if (!track.uri) return false;
       const descriptor = this.trace.tracks.getTrack(track.uri);
       return descriptor?.tags?.upid === this.process.upid;

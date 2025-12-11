@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_DRM_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_DRM_TRACKER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -114,7 +115,8 @@ class DrmTracker {
     // Hash the global id (before 6.17) or the fence id (since 6.17).
     struct GlobalHash {
       size_t operator()(const SchedJob& job) const {
-        uint64_t context, seqno;
+        uint64_t context;
+        uint64_t seqno;
         return job.FenceId(&context, &seqno)
                    ? base::MurmurHashCombine(context, seqno)
                    : base::MurmurHashValue(job.GlobalId());
@@ -124,7 +126,8 @@ class DrmTracker {
     // Hash the local id (before 6.17) or the fence id (since 6.17).
     struct LocalHash {
       size_t operator()(const SchedJob& job) const {
-        uint64_t context, seqno;
+        uint64_t context;
+        uint64_t seqno;
         return job.FenceId(&context, &seqno)
                    ? base::MurmurHashCombine(context, seqno)
                    : base::MurmurHashValue(job.LocalId());

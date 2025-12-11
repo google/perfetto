@@ -25,7 +25,9 @@ import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {Point2D} from '../../base/geom';
-import {TrackRenderer} from '../../public/track';
+import {HighPrecisionTime} from '../../base/high_precision_time';
+import {TimeScale} from '../../base/time_scale';
+import {TrackRenderer, SnapPoint} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
@@ -42,6 +44,8 @@ export interface Data extends TrackData {
   ids: Float64Array;
   startQs: BigInt64Array;
   endQs: BigInt64Array;
+  tses: BigInt64Array;
+  durs: BigInt64Array;
   utids: Uint32Array;
   flags: Uint8Array;
   lastRowId: number;
@@ -136,6 +140,8 @@ export class CpuSliceTrack implements TrackRenderer {
         (z.ts / ${resolution}) * ${resolution} as tsQ,
         (((z.ts + z.dur) / ${resolution}) + 1) * ${resolution} as tsEndQ,
         z.count,
+        s.ts,
+        s.dur,
         s.utid,
         s.id,
         s.dur = -1 as isIncomplete,
@@ -155,6 +161,8 @@ export class CpuSliceTrack implements TrackRenderer {
       ids: new Float64Array(numRows),
       startQs: new BigInt64Array(numRows),
       endQs: new BigInt64Array(numRows),
+      tses: new BigInt64Array(numRows),
+      durs: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
       flags: new Uint8Array(numRows),
     };
@@ -163,6 +171,8 @@ export class CpuSliceTrack implements TrackRenderer {
       count: NUM,
       tsQ: LONG,
       tsEndQ: LONG,
+      ts: LONG,
+      dur: LONG,
       utid: NUM,
       id: NUM,
       isIncomplete: NUM,
@@ -172,6 +182,8 @@ export class CpuSliceTrack implements TrackRenderer {
       slices.counts[row] = it.count;
       slices.startQs[row] = it.tsQ;
       slices.endQs[row] = it.tsEndQ;
+      slices.tses[row] = it.ts;
+      slices.durs[row] = it.dur;
       slices.utids[row] = it.utid;
       slices.ids[row] = it.id;
 
@@ -338,7 +350,7 @@ export class CpuSliceTrack implements TrackRenderer {
       let title = `[utid:${utid}]`;
       let subTitle = '';
       if (threadInfo) {
-        if (threadInfo.pid !== undefined && threadInfo.pid !== 0) {
+        if (threadInfo.pid !== undefined && threadInfo.pid !== 0n) {
           let procName = threadInfo.procName ?? '';
           if (procName.startsWith('/')) {
             // Remove folder paths from name
@@ -426,11 +438,11 @@ export class CpuSliceTrack implements TrackRenderer {
     }
     this.utidHoveredInThisTrack = hoveredUtid;
     this.countHoveredInThisTrack = hoveredCount;
-    const threadInfo = exists(hoveredUtid) && this.threads.get(hoveredUtid);
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
+    const threadInfo = exists(hoveredUtid)
+      ? this.threads.get(hoveredUtid)
+      : undefined;
     this.trace.timeline.hoveredUtid = hoveredUtid;
-    this.trace.timeline.hoveredPid = hoveredPid;
+    this.trace.timeline.hoveredPid = threadInfo?.pid;
 
     // Trigger redraw to update tooltip
     m.redraw();
@@ -482,6 +494,62 @@ export class CpuSliceTrack implements TrackRenderer {
     } else {
       return undefined;
     }
+  }
+
+  getSnapPoint(
+    targetTime: time,
+    thresholdPx: number,
+    timescale: TimeScale,
+  ): SnapPoint | undefined {
+    const data = this.fetcher.data;
+    if (data === undefined) {
+      return undefined;
+    }
+
+    // Convert pixel threshold to time duration (in nanoseconds as number)
+    const thresholdNs = timescale.pxToDuration(thresholdPx);
+
+    // Use HighPrecisionTime to handle time arithmetic with fractional nanoseconds
+    const hpTargetTime = new HighPrecisionTime(targetTime);
+    const hpSearchStart = hpTargetTime.addNumber(-thresholdNs);
+    const hpSearchEnd = hpTargetTime.addNumber(thresholdNs);
+
+    // Convert back to time for comparisons
+    const searchStart = hpSearchStart.toTime();
+    const searchEnd = hpSearchEnd.toTime();
+
+    let closestSnap: SnapPoint | undefined = undefined;
+    let closestDistNs = thresholdNs;
+
+    // Helper function to check a boundary
+    const checkBoundary = (boundaryTime: time) => {
+      // Skip if outside search window
+      if (boundaryTime < searchStart || boundaryTime > searchEnd) {
+        return;
+      }
+
+      // Calculate distance using HighPrecisionTime for accuracy
+      const hpBoundary = new HighPrecisionTime(boundaryTime);
+      const distNs = Math.abs(hpTargetTime.sub(hpBoundary).toNumber());
+
+      if (distNs < closestDistNs) {
+        closestSnap = {
+          time: boundaryTime,
+        };
+        closestDistNs = distNs;
+      }
+    };
+
+    // Iterate through all slices in the cached data
+    for (let i = 0; i < data.startQs.length; i++) {
+      // Check start boundary
+      checkBoundary(Time.fromRaw(data.tses[i]));
+
+      // Check end boundary
+      checkBoundary(Time.fromRaw(data.tses[i] + data.durs[i]));
+    }
+
+    return closestSnap;
   }
 
   detailsPanel() {

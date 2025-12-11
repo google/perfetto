@@ -21,15 +21,16 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/storage/stats.h"
@@ -76,7 +77,7 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
 VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
     std::optional<UniquePid> upid,
     uint64_t iid) {
-  if (auto ptr = cached_mappings_.Find({upid, iid}); ptr) {
+  if (VirtualMemoryMapping** ptr = cached_mappings_.Find({upid, iid}); ptr) {
     return *ptr;
   }
   auto* decoder =
@@ -168,7 +169,7 @@ StackProfileSequenceState::LookupInternedMappingPath(uint64_t iid) {
 }
 
 std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
-    UniquePid upid,
+    std::optional<UniquePid> upid,
     uint64_t iid) {
   if (CallsiteId* id = cached_callstacks_.Find({upid, iid}); id) {
     return *id;
@@ -204,7 +205,7 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
 }
 
 std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
-    UniquePid upid,
+    std::optional<UniquePid> upid,
     uint64_t iid) {
   if (FrameId* id = cached_frames_.Find({upid, iid}); id) {
     return *id;
@@ -214,12 +215,6 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
                             protos::pbzero::Frame>(iid);
   if (!decoder) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
-    return std::nullopt;
-  }
-
-  VirtualMemoryMapping* mapping =
-      FindOrInsertMappingImpl(upid, decoder->mapping_id());
-  if (!mapping) {
     return std::nullopt;
   }
 
@@ -233,7 +228,48 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
     function_name = *func;
   }
 
-  FrameId frame_id = mapping->InternFrame(decoder->rel_pc(), function_name);
+  // Extract source file and line number (used by both dummy and regular frames)
+  std::optional<base::StringView> source_file;
+  if (decoder->has_source_path_iid()) {
+    source_file = LookupInternedSourcePath(decoder->source_path_iid());
+    if (!source_file) {
+      return std::nullopt;
+    }
+  }
+
+  std::optional<uint32_t> line_number;
+  if (decoder->has_line_number()) {
+    line_number = decoder->line_number();
+  }
+
+  // Check if mapping_id is 0, which means this is a "dummy" frame (no real
+  // mapping) In this case, we should use the dummy mapping API with source file
+  // and line number
+  if (decoder->mapping_id() == 0) {
+    // Get or create the dummy mapping for interned frames with mapping_id = 0
+    if (!dummy_mapping_for_interned_frames_) {
+      dummy_mapping_for_interned_frames_ =
+          &context_->mapping_tracker->CreateDummyMapping("");
+    }
+
+    FrameId frame_id = dummy_mapping_for_interned_frames_->InternDummyFrame(
+        function_name, source_file, line_number);
+    cached_frames_.Insert({upid, iid}, frame_id);
+    return frame_id;
+  }
+
+  // Regular frame with a real mapping
+  VirtualMemoryMapping* mapping =
+      FindOrInsertMappingImpl(upid, decoder->mapping_id());
+  if (!mapping) {
+    return std::nullopt;
+  }
+
+  // InternFrame will create the symbol entry if source_file or line_number is
+  // provided
+  FrameId frame_id = mapping->InternFrame(decoder->rel_pc(), function_name,
+                                          source_file, line_number);
+
   if (!mapping->is_jitted()) {
     cached_frames_.Insert({upid, iid}, frame_id);
   }
@@ -250,6 +286,22 @@ StackProfileSequenceState::LookupInternedFunctionName(uint64_t iid) {
   }
   auto* decoder = LookupInternedMessage<
       protos::pbzero::InternedData::kFunctionNamesFieldNumber,
+      protos::pbzero::InternedString>(iid);
+  if (!decoder) {
+    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    return std::nullopt;
+  }
+
+  return ToStringView(decoder->str());
+}
+
+std::optional<base::StringView>
+StackProfileSequenceState::LookupInternedSourcePath(uint64_t iid) {
+  if (iid == 0) {
+    return std::nullopt;
+  }
+  auto* decoder = LookupInternedMessage<
+      protos::pbzero::InternedData::kSourcePathsFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);

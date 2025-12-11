@@ -112,6 +112,11 @@ class AddressRange {
   // this range.
   constexpr bool empty() const { return length() == 0; }
 
+  template <typename H>
+  friend H PerfettoHashValue(H h, const AddressRange& range) {
+    return H::Combine(std::move(h), range.start_, range.end_);
+  }
+
  private:
   uint64_t start_;
   uint64_t end_;

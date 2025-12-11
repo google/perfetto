@@ -30,6 +30,7 @@ const WHITE = makeColorScheme(WHITE_COLOR);
 const LIGHT_GRAY = makeColorScheme(new HSLColor([0, 0, 70]));
 const ORANGE = makeColorScheme(new HSLColor([36, 100, 50]));
 const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
+const OFF_WHITE_YELLOW = makeColorScheme(new HSLColor([44, 63, 91]));
 
 export function colorForThreadState(state: string): ColorScheme {
   if (state === 'Created') {
@@ -47,6 +48,8 @@ export function colorForThreadState(state: string): ColorScheme {
     return GRAY;
   } else if (state.includes('Sleeping') || state.includes('Idle')) {
     return WHITE;
+  } else if (state.includes('Unknown')) {
+    return OFF_WHITE_YELLOW;
   }
   return INDIGO;
 }

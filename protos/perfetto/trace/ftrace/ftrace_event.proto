@@ -45,6 +45,7 @@ import "protos/perfetto/trace/ftrace/fence.proto";
 import "protos/perfetto/trace/ftrace/filemap.proto";
 import "protos/perfetto/trace/ftrace/fs.proto";
 import "protos/perfetto/trace/ftrace/ftrace.proto";
+import "protos/perfetto/trace/ftrace/fwtp_ftrace.proto";
 import "protos/perfetto/trace/ftrace/g2d.proto";
 import "protos/perfetto/trace/ftrace/google_icc_trace.proto";
 import "protos/perfetto/trace/ftrace/google_irm_trace.proto";
@@ -78,6 +79,7 @@ import "protos/perfetto/trace/ftrace/rpm.proto";
 import "protos/perfetto/trace/ftrace/samsung.proto";
 import "protos/perfetto/trace/ftrace/sched.proto";
 import "protos/perfetto/trace/ftrace/scm.proto";
+import "protos/perfetto/trace/ftrace/scsi.proto";
 import "protos/perfetto/trace/ftrace/sde.proto";
 import "protos/perfetto/trace/ftrace/signal.proto";
 import "protos/perfetto/trace/ftrace/skb.proto";
@@ -745,5 +747,9 @@ message FtraceEvent {
     DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
     DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
     DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
+    FwtpPerfettoCounterFtraceEvent fwtp_perfetto_counter = 596;
+    ScsiDispatchCmdErrorFtraceEvent scsi_dispatch_cmd_error = 597;
+    ScsiDispatchCmdTimeoutFtraceEvent scsi_dispatch_cmd_timeout = 598;
+    ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
   }
 }

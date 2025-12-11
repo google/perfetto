@@ -72,6 +72,7 @@ perfetto_unittest_source_set("unittests") {
     "../../gn:gtest_and_gmock",
     "../base",
     "../base:test_support",
+    "descriptor_diff:unittests",
     "filtering:unittests",
   ]
   sources = [

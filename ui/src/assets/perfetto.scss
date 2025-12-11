@@ -14,12 +14,11 @@
 
 @import "typefaces";
 @import "common";
-@import "viewer_page";
+@import "timeline_page";
 @import "home_page";
 @import "sidebar";
 @import "topbar";
 @import "details";
-@import "trace_info_page";
 @import "statusbar";
 @import "cookie_consent";
 @import "perf_monitor";
@@ -60,6 +59,7 @@
 @import "widgets/modal";
 @import "widgets/multiselect_input";
 @import "widgets/multiselect";
+@import "widgets/nodegraph";
 @import "widgets/overlay_container";
 @import "widgets/popup";
 @import "widgets/resize_handle";
@@ -71,7 +71,6 @@
 @import "widgets/split_panel";
 @import "widgets/sql_table";
 @import "widgets/stack";
-@import "widgets/switch";
 @import "widgets/tabs";
 @import "widgets/tag_input";
 @import "widgets/text_input";
@@ -84,8 +83,6 @@
 @import "widgets/ui_main";
 @import "widgets/vega_view";
 @import "widgets/virtual_overlay_canvas";
-@import "widgets/virtual_scroll_container";
-@import "widgets/virtual_table";
 
 // Auto generated imports
 @import "../gen/all_plugins";

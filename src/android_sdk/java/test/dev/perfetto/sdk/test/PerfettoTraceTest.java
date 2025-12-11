@@ -28,6 +28,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
 import dev.perfetto.sdk.PerfettoTrace;
 import dev.perfetto.sdk.PerfettoTrackEventBuilder;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.Before;
@@ -156,8 +157,10 @@ public class PerfettoTraceTest {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     PerfettoTrace.instant(FOO_CATEGORY, "event")
-        .setFlow(2)
-        .setTerminatingFlow(3)
+        .addFlow(2)
+        .addFlow(3)
+        .addTerminatingFlow(4)
+        .addTerminatingFlow(5)
         .addArg("long_val", 10000000000L)
         .addArg("bool_val", true)
         .addArg("double_val", 3.14)
@@ -178,8 +181,8 @@ public class PerfettoTraceTest {
 
         if (TrackEvent.Type.TYPE_INSTANT.equals(event.getType())
             && event.getDebugAnnotationsCount() == 4
-            && event.getFlowIdsCount() == 1
-            && event.getTerminatingFlowIdsCount() == 1) {
+            && event.getFlowIdsCount() == 2
+            && event.getTerminatingFlowIdsCount() == 2) {
           hasDebugAnnotations = true;
 
           List<DebugAnnotation> annotations = event.getDebugAnnotationsList();
@@ -188,6 +191,13 @@ public class PerfettoTraceTest {
           assertThat(annotations.get(1).getBoolValue()).isTrue();
           assertThat(annotations.get(2).getDoubleValue()).isEqualTo(3.14);
           assertThat(annotations.get(3).getStringValue()).isEqualTo(FOO);
+
+          // Flow IDs are transformed by PerfettoTeProcessScopedFlow in
+          // include/perfetto/public/track_event.h
+          // so we cannot assert for specific values. Instead, we check that
+          // there are exactly 2 distinct elements in each list.
+          assertThat(new HashSet<>(event.getFlowIdsList())).hasSize(2);
+          assertThat(new HashSet<>(event.getTerminatingFlowIdsList())).hasSize(2);
         }
       }
 
@@ -211,11 +221,11 @@ public class PerfettoTraceTest {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     PerfettoTrace.begin(FOO_CATEGORY, "event")
-        .usingNamedTrack(PerfettoTrace.getProcessTrackUuid(), FOO)
+        .usingNamedTrack(123, FOO, PerfettoTrace.getProcessTrackUuid())
         .emit();
 
     PerfettoTrace.end(FOO_CATEGORY)
-        .usingNamedTrack(PerfettoTrace.getThreadTrackUuid(Process.myTid()), "bar")
+        .usingNamedTrack(456, "bar", PerfettoTrace.getThreadTrackUuid(Process.myTid()))
         .emit();
 
     Trace trace = Trace.parseFrom(session.close());
@@ -254,9 +264,9 @@ public class PerfettoTraceTest {
 
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
-    PerfettoTrace.begin(FOO_CATEGORY, "event").usingProcessNamedTrack(FOO).emit();
+    PerfettoTrace.begin(FOO_CATEGORY, "event").usingProcessNamedTrack(123, FOO).emit();
 
-    PerfettoTrace.end(FOO_CATEGORY).usingThreadNamedTrack(Process.myTid(), "bar").emit();
+    PerfettoTrace.end(FOO_CATEGORY).usingThreadNamedTrack(456, "bar", Process.myTid()).emit();
 
     Trace trace = Trace.parseFrom(session.close());
 
@@ -460,6 +470,48 @@ public class PerfettoTraceTest {
     assertThat(hasTrackEvent).isTrue();
     assertThat(hasSourceLocation).isTrue();
     assertThat(mCategoryNames).contains(FOO);
+  }
+
+  @Test
+  public void testProtoWithInterning() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    final long fieldId = 1;
+    final long internedTypeId = 44; // InternedData.android_job_name
+    final String stringToIntern = "my_interned_string";
+
+    PerfettoTrace.instant(FOO_CATEGORY, "event_with_interning")
+        .beginProto()
+        .addFieldWithInterning(fieldId, stringToIntern, internedTypeId)
+        .endProto()
+        .emit();
+
+    byte[] traceBytes = session.close();
+
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    boolean hasInternedString = false;
+
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasInternedData()) {
+        InternedData internedData = packet.getInternedData();
+        if (internedData.getAndroidJobNameCount() > 0) {
+          if (internedData.getAndroidJobName(0).getName().equals(stringToIntern)) {
+            hasInternedString = true;
+          }
+        }
+      }
+
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(hasInternedString).isTrue();
   }
 
   @Test

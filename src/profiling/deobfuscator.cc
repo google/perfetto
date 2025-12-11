@@ -16,6 +16,8 @@
 
 #include "src/profiling/deobfuscator.h"
 
+#include <stdlib.h>
+
 #include <optional>
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -257,7 +259,7 @@ bool ReadProguardMapsToDeobfuscationPackets(
     std::function<void(std::string)> fn) {
   for (const ProguardMap& map : maps) {
     const char* filename = map.filename.c_str();
-    base::ScopedFstream f(fopen(filename, base::kFopenReadFlag));
+    base::ScopedFstream f = base::OpenFstream(filename, base::kFopenReadFlag);
     if (!f) {
       PERFETTO_ELOG("Failed to open %s", filename);
       return false;

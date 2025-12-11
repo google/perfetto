@@ -340,9 +340,7 @@ GraphicsFrameEventParser::InsertPhaseSlice(
     StringId layer_name_id) {
   // If the frame_number is known, set it as the name of the slice.
   // If not known (DEQUEUE), set the name as the timestamp.
-  // Timestamp is chosen here because the stack_id is hashed based on the name
-  // of the slice. To not have any conflicting stack_id with any of the
-  // existing slices, we use timestamp as the temporary name.
+  // Timestamp is chosen here to ensure unique names for slices.
   StringId slice_name;
   if (event.frame_number() != 0) {
     slice_name =

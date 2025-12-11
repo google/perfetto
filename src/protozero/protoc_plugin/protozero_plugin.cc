@@ -763,14 +763,11 @@ case $full_class$::$value_name$:
 
   void GenerateDecoder(const Descriptor* message) {
     int max_field_id = 0;
-    bool has_nonpacked_repeated_fields = false;
     for (int i = 0; i < message->field_count(); ++i) {
       const FieldDescriptor* field = message->field(i);
       if (field->number() > kMaxDecoderFieldId)
         continue;
       max_field_id = std::max(max_field_id, field->number());
-      if (field->is_repeated() && !field->is_packed())
-        has_nonpacked_repeated_fields = true;
     }
     // Iterate over all fields in "extend" blocks.
     for (int i = 0; i < message->extension_range_count(); ++i) {
@@ -785,10 +782,8 @@ case $full_class$::$value_name$:
     std::string class_name = GetCppClassName(message) + "_Decoder";
     stub_h_->Print(
         "class $name$ : public "
-        "::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/$max$, "
-        "/*HAS_NONPACKED_REPEATED_FIELDS=*/$rep$> {\n",
-        "name", class_name, "max", std::to_string(max_field_id), "rep",
-        has_nonpacked_repeated_fields ? "true" : "false");
+        "::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/$max$> {\n",
+        "name", class_name, "max", std::to_string(max_field_id));
     stub_h_->Print(" public:\n");
     stub_h_->Indent();
     stub_h_->Print(

@@ -103,7 +103,7 @@ export default class implements PerfettoPlugin {
     });
 
     const trackNode = new TrackNode({uri, name, sortOrder: -90});
-    ctx.workspace.addChildInOrder(trackNode);
+    ctx.defaultWorkspace.addChildInOrder(trackNode);
   }
 
   async findValidTargets(engine: Engine) {

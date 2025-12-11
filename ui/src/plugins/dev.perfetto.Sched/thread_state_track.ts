@@ -45,27 +45,23 @@ export function createThreadStateTrack(
         ts: LONG,
         dur: LONG,
         layer: NUM,
-        cpu: NUM_NULL,
+        ucpu: NUM_NULL,
         utid: NUM,
         state: STR,
         depth: NUM,
       },
-      src: `
-        SELECT
-          id,
-          ts,
-          dur,
-          cpu,
-          utid,
-          sched_state_io_to_human_readable_string(state, io_wait) AS state,
-          -- Move sleeping and idle slices to the back layer, others on top
-          CASE
-            WHEN state IN ('S', 'I') THEN 0
-            ELSE 1
-          END AS layer,
-          0 AS depth
-        FROM thread_state
-      `,
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        ucpu: 'ucpu',
+        utid: 'utid',
+        state: 'sched_state_io_to_human_readable_string(state, io_wait)',
+        depth: '0',
+        // Move sleeping and idle slices to the back layer, others on top
+        layer: "CASE WHEN state IN ('S', 'I') THEN 0 ELSE 1 END",
+      },
+      src: 'thread_state',
       filter: {
         col: 'utid',
         eq: utid,
@@ -76,9 +72,9 @@ export function createThreadStateTrack(
       sliceHeight: 12,
       titleSizePx: 10,
     },
-    sliceName: (row) => row.state,
+    sliceName: (row) => row.state || '[Unknown]',
     colorizer: (row): ColorScheme => {
-      const colorForState = colorForThreadState(row.state);
+      const colorForState = colorForThreadState(row.state || '[Unknown]');
       if (row.state.includes('Sleeping') || row.state.includes('Idle')) {
         // For sleeping/idle slices, return a transparent color scheme with
         // transparent text + a subtle gray variant displayed when hovering the

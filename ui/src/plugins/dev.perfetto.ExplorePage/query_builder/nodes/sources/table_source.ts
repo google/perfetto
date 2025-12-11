@@ -22,23 +22,24 @@ import {
   createSelectColumnsProto,
   QueryNodeState,
   NodeType,
+  createFinalColumns,
+  nextNodeId,
 } from '../../../query_node';
+import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
-import {TextParagraph} from '../../../../../widgets/text_paragraph';
-import {Button} from '../../../../../widgets/button';
 import {Trace} from '../../../../../public/trace';
-import {createFiltersProto, FilterOperation} from '../../operations/filter';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
-import {SourceNode} from '../../source_node';
+import {setValidationError} from '../../node_issues';
+import {TableDescription} from '../../widgets';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
+import {loadNodeDoc} from '../../node_doc_loader';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
-  filters: FilterDefinition[];
-  customTitle?: string;
+  comment?: string;
 }
 
 export interface TableSourceState extends QueryNodeState {
@@ -56,62 +57,112 @@ interface TableSelectionResult {
 
 export function modalForTableSelection(
   sqlModules: SqlModules,
-): Promise<TableSelectionResult | undefined> {
+): Promise<TableSelectionResult[] | undefined> {
   return new Promise((resolve) => {
     let searchQuery = '';
+    const selectedTables = new Set<string>();
 
-    showModal({
-      title: 'Choose a table',
-      content: () => {
-        return m(
-          '.pf-node-explorer-help',
-          m(TableList, {
-            sqlModules,
-            onTableClick: (tableName: string) => {
-              const sqlTable = sqlModules.getTable(tableName);
-              if (!sqlTable) {
-                resolve(undefined);
-                return;
-              }
-              const sourceCols = sqlTable.columns.map((c) =>
-                columnInfoFromSqlColumn(c, true),
-              );
-              resolve({sqlTable, sourceCols});
-              closeModal();
-            },
-            searchQuery,
-            onSearchQueryChange: (query) => {
-              searchQuery = query;
-              redrawModal();
-            },
-            autofocus: true,
-          }),
+    const updateModal = () => {
+      showModal({
+        key: 'table-selection-modal',
+        title:
+          selectedTables.size > 0
+            ? `Choose tables - ${selectedTables.size} selected`
+            : 'Choose a table - Ctrl+click for multiple selection',
+        content: () => {
+          return m(
+            '.pf-exp-node-explorer-help',
+            m(TableList, {
+              sqlModules,
+              onTableClick: handleTableClick,
+              searchQuery,
+              onSearchQueryChange: (query) => {
+                searchQuery = query;
+                redrawModal();
+              },
+              autofocus: true,
+              selectedTables,
+            }),
+          );
+        },
+        buttons:
+          selectedTables.size > 0
+            ? [
+                {
+                  text: `Add ${selectedTables.size} table${selectedTables.size > 1 ? 's' : ''}`,
+                  primary: true,
+                  action: handleConfirm,
+                },
+              ]
+            : [],
+      });
+    };
+
+    const handleTableClick = (tableName: string, event: MouseEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        // Multi-select mode: toggle selection
+        if (selectedTables.has(tableName)) {
+          selectedTables.delete(tableName);
+        } else {
+          selectedTables.add(tableName);
+        }
+        updateModal();
+      } else {
+        // Single-select mode: immediately select and close
+        const sqlTable = sqlModules.getTable(tableName);
+        if (!sqlTable) {
+          resolve(undefined);
+          return;
+        }
+        const sourceCols = sqlTable.columns.map((c) =>
+          columnInfoFromSqlColumn(c, true),
         );
-      },
-      buttons: [],
-    });
+        resolve([{sqlTable, sourceCols}]);
+        closeModal();
+      }
+    };
+
+    const handleConfirm = () => {
+      if (selectedTables.size === 0) {
+        resolve(undefined);
+        closeModal();
+        return;
+      }
+
+      const results: TableSelectionResult[] = [];
+      for (const tableName of selectedTables) {
+        const sqlTable = sqlModules.getTable(tableName);
+        if (sqlTable) {
+          const sourceCols = sqlTable.columns.map((c) =>
+            columnInfoFromSqlColumn(c, true),
+          );
+          results.push({sqlTable, sourceCols});
+        }
+      }
+      resolve(results);
+      closeModal();
+    };
+
+    updateModal();
   });
 }
 
-export class TableSourceNode extends SourceNode {
+export class TableSourceNode implements QueryNode {
+  readonly nodeId: string;
   readonly state: TableSourceState;
-  readonly prevNodes: QueryNode[] = [];
-  showColumns: boolean = false;
-
-  get sourceCols() {
-    return (
-      this.state.sqlTable?.columns.map((c) =>
-        columnInfoFromSqlColumn(c, true),
-      ) ?? []
-    );
-  }
+  readonly finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
 
   constructor(attrs: TableSourceState) {
-    super(attrs);
+    this.nodeId = nextNodeId();
     this.state = attrs;
     this.state.onchange = attrs.onchange;
-
-    this.state.filters = attrs.filters ?? [];
+    this.finalCols = createFinalColumns(
+      this.state.sqlTable?.columns.map((c) =>
+        columnInfoFromSqlColumn(c, true),
+      ) ?? [],
+    );
+    this.nextNodes = [];
   }
 
   get type() {
@@ -123,96 +174,53 @@ export class TableSourceNode extends SourceNode {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
-      filters: this.state.filters.map((f) => ({...f})),
-      customTitle: this.state.customTitle,
       onchange: this.state.onchange,
     };
     return new TableSourceNode(stateCopy);
   }
 
   nodeSpecificModify(): m.Child {
-    if (this.state.sqlTable != null) {
-      const table = this.state.sqlTable;
-      return m(
-        '.pf-stdlib-table-node',
-        m(
-          '.pf-details-box',
-          m(TextParagraph, {text: table.description}),
-          m(Button, {
-            label: this.showColumns ? 'Hide Columns' : 'Show Columns',
-            onclick: () => {
-              this.showColumns = !this.showColumns;
-            },
-          }),
-          this.showColumns &&
-            m(
-              'table.pf-table.pf-table-striped',
-              m(
-                'thead',
-                m(
-                  'tr',
-                  m('th', 'Column'),
-                  m('th', 'Type'),
-                  m('th', 'Description'),
-                ),
-              ),
-              m(
-                'tbody',
-                table.columns.map((col) => {
-                  return m(
-                    'tr',
-                    m('td', col.name),
-                    m('td', col.type.name),
-                    m('td', col.description),
-                  );
-                }),
-              ),
-            ),
-        ),
-        m(FilterOperation, {
-          filters: this.state.filters,
-          sourceCols: this.sourceCols,
-          onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-            this.state.filters = newFilters as FilterDefinition[];
-            this.state.onchange?.();
-          },
-        }),
-      );
-    }
-    return m(TextParagraph, 'No description available for this table.');
+    return undefined;
   }
 
   validate(): boolean {
-    return this.state.sqlTable !== undefined;
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.state.sqlTable === undefined) {
+      setValidationError(this.state, 'No table selected');
+      return false;
+    }
+
+    return true;
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
+    return `${this.state.sqlTable?.name}`;
   }
 
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: this.state.sqlTable?.name ?? '',
+    };
   }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
     if (!this.state.sqlTable) return;
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-    sq.table.tableName = this.state.sqlTable.name;
-    sq.table.moduleName = this.state.sqlTable.includeKey
-      ? this.state.sqlTable.includeKey
-      : undefined;
-    sq.table.columnNames = this.sourceCols
+    const columnNames = this.finalCols
       .filter((c) => c.checked)
       .map((c) => c.column.name);
 
-    const filtersProto = createFiltersProto(
-      this.state.filters,
-      this.sourceCols,
+    const sq = StructuredQueryBuilder.fromTable(
+      this.state.sqlTable.name,
+      this.state.sqlTable.includeKey || undefined,
+      columnNames,
+      this.nodeId,
     );
-    if (filtersProto) sq.filters = filtersProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
@@ -222,9 +230,30 @@ export class TableSourceNode extends SourceNode {
   serializeState(): TableSourceSerializedState {
     return {
       sqlTable: this.state.sqlTable?.name,
-      filters: this.state.filters,
-      customTitle: this.state.customTitle,
     };
+  }
+
+  nodeInfo(): m.Children {
+    // Show general documentation
+    const docContent = loadNodeDoc('table_source');
+
+    // If a table is selected, also show table-specific information
+    if (this.state.sqlTable != null) {
+      return m(
+        'div',
+        docContent,
+        m(
+          '.pf-table-source-selected',
+          m('h2', 'Selected Table'),
+          m(
+            '.pf-details-box',
+            m(TableDescription, {table: this.state.sqlTable}),
+          ),
+        ),
+      );
+    }
+
+    return docContent;
   }
 
   static deserializeState(

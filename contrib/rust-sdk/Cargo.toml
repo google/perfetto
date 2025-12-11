@@ -1,0 +1,3 @@
+[workspace]
+resolver = "2"
+members = ["perfetto", "perfetto-derive", "perfetto-protos-gpu", "perfetto-sys"]

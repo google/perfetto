@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../../assets/theme";
+@import "../../common";
 
 .pf-stdlib-table-node {
   .pf-details-box {
-    border: 1px solid var(--pf-color-border);
-    border-radius: 0.5rem;
-    padding: 1rem;
-    background-color: var(--pf-color-background);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
   }
+}
+
+// Table description component styles (used in table source info and join modal)
+.pf-exp-table-description {
   table {
     width: 100%;
     border-collapse: collapse;

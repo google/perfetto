@@ -19,10 +19,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
+#include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "src/trace_processor/importers/common/address_range.h"
@@ -31,8 +32,7 @@
 #include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceStorage;
 class UserMemoryMapping;
@@ -87,9 +87,8 @@ class V8Tracker {
  private:
   struct JsFunctionHash {
     size_t operator()(const tables::V8JsFunctionTable::Row& v) const {
-      return static_cast<size_t>(base::FnvHasher::Combine(
-          v.name.raw_id(), v.v8_js_script_id.value, v.is_toplevel,
-          v.kind.raw_id(), v.line.value_or(0), v.col.value_or(0)));
+      return static_cast<size_t>(base::MurmurHashCombine(
+          v.name, v.v8_js_script_id, v.is_toplevel, v.kind, v.line, v.col));
     }
   };
 
@@ -109,26 +108,19 @@ class V8Tracker {
 
   // V8 internal isolate_id and upid uniquely identify an isolate in a trace.
   struct IsolateKey {
-    struct Hasher {
-      size_t operator()(const IsolateKey& v) const {
-        return base::FnvHasher::Combine(v.upid, v.isolate_id);
-      }
-    };
-
     bool operator==(const IsolateKey& other) const {
       return upid == other.upid && isolate_id == other.isolate_id;
     }
 
     bool operator!=(const IsolateKey& other) const { return !(*this == other); }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const IsolateKey& v) {
+      return H::Combine(std::move(h), v.upid, v.isolate_id);
+    }
+
     UniquePid upid;
     int32_t isolate_id;
-  };
-
-  struct ScriptIndexHash {
-    size_t operator()(const std::pair<IsolateId, int32_t>& v) const {
-      return static_cast<size_t>(
-          base::FnvHasher::Combine(v.first.value, v.second));
-    }
   };
 
   StringId InternV8String(const protos::pbzero::V8String::Decoder& v8_string);
@@ -169,15 +161,17 @@ class V8Tracker {
   // those here.
   base::FlatHashMap<UniquePid, SharedCodeRanges> shared_code_ranges_;
 
-  base::FlatHashMap<IsolateKey, std::optional<IsolateId>, IsolateKey::Hasher>
+  base::FlatHashMap<IsolateKey,
+                    std::optional<IsolateId>,
+                    base::MurmurHash<IsolateKey>>
       isolate_index_;
   base::FlatHashMap<std::pair<IsolateId, int32_t>,
                     tables::V8JsScriptTable::Id,
-                    ScriptIndexHash>
+                    base::MurmurHash<std::pair<IsolateId, int32_t>>>
       js_script_index_;
   base::FlatHashMap<std::pair<IsolateId, int32_t>,
                     tables::V8WasmScriptTable::Id,
-                    ScriptIndexHash>
+                    base::MurmurHash<std::pair<IsolateId, int32_t>>>
       wasm_script_index_;
   base::FlatHashMap<tables::V8JsFunctionTable::Row,
                     tables::V8JsFunctionTable::Id,
@@ -185,7 +179,6 @@ class V8Tracker {
       js_function_index_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_V8_TRACKER_H_

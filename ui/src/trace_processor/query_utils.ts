@@ -46,6 +46,12 @@ export function escapeSearchQuery(s: string): string {
   return escape(s, EscapeFlag.CaseInsensitive | EscapeFlag.MatchAny);
 }
 
+export function escapeRegexQuery(s: string): string {
+  // Keeping special pattern characters as is.
+  s = s.replaceAll("'", "''");
+  return `'${s}'`;
+}
+
 export function escapeGlob(s: string): string {
   // For globs we are only preoccupied by mismatching single quotes.
   s = s.replaceAll("'", "''");

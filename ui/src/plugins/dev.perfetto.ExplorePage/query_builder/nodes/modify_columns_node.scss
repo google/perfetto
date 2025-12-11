@@ -12,26 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-column-list {
+// Switch/If component layouts - just basic flex, let Form widgets handle spacing
+.pf-exp-switch-component,
+.pf-exp-if-component {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.pf-column {
+.pf-exp-switch-case,
+.pf-exp-switch-default-row,
+.pf-exp-if-clause,
+.pf-exp-else-clause {
   display: flex;
   align-items: center;
   gap: 8px;
-
-  &[draggable="true"] {
-    cursor: grab;
-  }
-
-  .pf-text-input {
-    width: 100px;
-  }
 }
 
-.pf-add-column-button {
-  margin-top: 8px;
+// Join modal two-column layout
+.pf-join-modal-layout {
+  display: flex;
+  gap: 24px;
+  min-height: 300px;
+}
+
+.pf-join-modal-controls {
+  flex: 0 0 300px;
+}
+
+.pf-join-modal-info {
+  flex: 1;
+  border-left: 1px solid var(--pf-color-border);
+  padding-left: 24px;
+  overflow: auto;
+  max-height: 400px;
 }

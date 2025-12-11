@@ -88,7 +88,7 @@ export default class implements PerfettoPlugin {
           isSummary: true,
         });
         workPeriodByGpu.set(gpuId, workPeriod);
-        ctx.workspace.addChildInOrder(workPeriod);
+        ctx.defaultWorkspace.addChildInOrder(workPeriod);
       }
       workPeriod.addChildInOrder(new TrackNode({name: packageName, uri: uri}));
     }

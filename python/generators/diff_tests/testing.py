@@ -84,6 +84,12 @@ class BinaryProto:
 
 
 @dataclass
+class SimpleperfProto:
+  """Represents a simpleperf_proto binary file with inline generation."""
+  records: List[str]  # List of textproto strings for Record messages
+
+
+@dataclass
 class PprofTextproto:
   """Represents a pprof file in textproto format."""
   contents: str
@@ -164,6 +170,9 @@ class DiffTestBlueprint:
 
   def is_trace_rawtext(self):
     return isinstance(self.trace, RawText)
+
+  def is_trace_simpleperf_proto(self):
+    return isinstance(self.trace, SimpleperfProto)
 
   def is_query_file(self):
     return isinstance(self.query, Path)

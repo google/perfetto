@@ -266,7 +266,7 @@ function generateCujTrackConfig(
       sqlSource: `${cujQuery}${filterCuj}`,
       columns: cujColumns,
     },
-    argColumns: cujColumns,
+    rawColumns: cujColumns,
   };
 }
 
@@ -323,7 +323,7 @@ export default class implements PerfettoPlugin {
               columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
             },
             title: 'Blocking calls during CUJs',
-            argColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
+            rawColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
           }),
         );
       },

@@ -67,6 +67,7 @@ export interface Color {
   // Set one or more HSL values.
   setHSL(hsl: Partial<HSL>): Color;
 
+  // Set the alpha value (0-1) or remove it (undefined).
   setAlpha(alpha: number | undefined): Color;
 }
 

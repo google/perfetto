@@ -45,7 +45,7 @@ export default class implements PerfettoPlugin {
       collapsed: groupCollapsed,
     });
     this.groups.set(groupName, group);
-    ctx.workspace.addChildInOrder(group);
+    ctx.defaultWorkspace.addChildInOrder(group);
     return group;
   }
 
@@ -59,7 +59,7 @@ export default class implements PerfettoPlugin {
       const group = this.getOrCreateGroup(ctx, groupName, groupCollapsed);
       group.addChildInOrder(track);
     } else {
-      ctx.workspace.addChildInOrder(track);
+      ctx.defaultWorkspace.addChildInOrder(track);
     }
   }
 

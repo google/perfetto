@@ -37,7 +37,8 @@ PixelMmKswapdEventTracker::PixelMmKswapdEventTracker(
           context->storage->InternString("kswapd_efficiency")),
       efficiency_pct_name_(context->storage->InternString("efficiency %")),
       pages_scanned_name_(context->storage->InternString("pages scanned")),
-      pages_reclaimed_name_(context->storage->InternString("pages reclaimed")) {
+      pages_reclaimed_name_(context->storage->InternString("pages reclaimed")),
+      pages_allocated_name_(context->storage->InternString("pages allocated")) {
 }
 
 void PixelMmKswapdEventTracker::ParsePixelMmKswapdWake(int64_t timestamp,
@@ -81,6 +82,12 @@ void PixelMmKswapdEventTracker::ParsePixelMmKswapdDone(
           inserter->AddArg(efficiency_pct_name_,
                            Variadic::UnsignedInteger(
                                static_cast<uint64_t>(std::round(efficiency))));
+        }
+
+        if (decoder.has_delta_nr_allocated()) {
+          inserter->AddArg(
+              pages_allocated_name_,
+              Variadic::UnsignedInteger(decoder.delta_nr_allocated()));
         }
       });
 }

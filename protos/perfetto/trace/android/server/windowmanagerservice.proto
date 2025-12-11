@@ -232,6 +232,7 @@ message DisplayContentProto {
   optional IdentifierProto input_method_control_target_identifier = 42;
   optional IdentifierProto current_focus_identifier = 43;
   optional RemoteInsetsControlTargetProto remote_insets_control_target = 44;
+  optional int32 engagement_mode = 45;
 }
 
 // represents DisplayArea object
@@ -411,6 +412,7 @@ message WindowTokenProto {
   repeated WindowStateProto windows = 3 [deprecated = true];
   optional bool waiting_to_show = 5 [deprecated = true];
   optional bool paused = 6;
+  optional bool client_visible = 7;
 }
 
 // represents WindowState
@@ -468,6 +470,7 @@ message WindowStateProto {
   optional RectProto dim_bounds = 49;
   optional int32 buffer_seq_id = 50;
   optional int32 sync_seq_id = 51;
+  optional int32 animating_types = 52;
 }
 
 // represents RemoteInsetsControlTarget
@@ -523,6 +526,7 @@ message WindowContainerProto {
   repeated WindowContainerChildProto children = 5;
   optional IdentifierProto identifier = 6;
   optional SurfaceControlProto surface_control = 7;
+  optional bool visible_requested = 8;
 }
 
 // represents a generic child of a WindowContainer
@@ -546,7 +550,7 @@ message WindowContainerChildProto {
   optional WindowTokenProto window_token = 7;
   // represents a WindowState child
   optional WindowStateProto window = 8;
-  // represents a WindowState child
+  // represents a TaskFragment child
   optional TaskFragmentProto task_fragment = 9;
 }
 

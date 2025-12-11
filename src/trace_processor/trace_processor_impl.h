@@ -157,7 +157,8 @@ class TraceProcessorImpl : public TraceProcessor,
       const DescriptorPool* metrics_descriptor_pool,
       std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
       TraceProcessor*,
-      bool notify_eof_called);
+      bool notify_eof_called,
+      std::pair<int64_t, int64_t> cached_trace_bounds);
 
   static std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
   GetUnfinalizedStaticTables(TraceStorage* storage);
@@ -196,6 +197,11 @@ class TraceProcessorImpl : public TraceProcessor,
   // NotifyEndOfFile should only be called once. Set to true whenever it is
   // called.
   bool notify_eof_called_ = false;
+
+  // Cached trace timestamp bounds. This is set in NotifyEndOfFile before
+  // tables are finalized and reused in RestoreInitialTables to avoid
+  // iterating over finalized dataframes.
+  std::pair<int64_t, int64_t> cached_trace_bounds_ = {0, 0};
 };
 
 }  // namespace perfetto::trace_processor

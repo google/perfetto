@@ -28,6 +28,8 @@ export let COLOR_BACKGROUND = 'hotpink';
 export let COLOR_TEXT = 'hotpink';
 export let COLOR_TEXT_MUTED = 'hotpink';
 export let COLOR_NEUTRAL = 'hotpink';
+export let COLOR_HIGHLIGHT = 'hotpink';
+export let COLOR_TIMELINE_OVERLAY = 'hotpink';
 
 export function initCssConstants(element?: Element) {
   function getCssStr(prop: string): string | undefined {
@@ -63,4 +65,7 @@ export function initCssConstants(element?: Element) {
   FONT_COMPACT = getCssStr('--pf-font-compact') ?? FONT_COMPACT;
   COLOR_TEXT_MUTED = getCssStr('--pf-color-text-muted') ?? COLOR_TEXT_MUTED;
   COLOR_NEUTRAL = getCssStr('--pf-color-neutral') ?? COLOR_NEUTRAL;
+  COLOR_HIGHLIGHT = getCssStr('--pf-color-highlight') ?? COLOR_HIGHLIGHT;
+  COLOR_TIMELINE_OVERLAY =
+    getCssStr('--pf-color-timeline-overlay') ?? COLOR_TIMELINE_OVERLAY;
 }

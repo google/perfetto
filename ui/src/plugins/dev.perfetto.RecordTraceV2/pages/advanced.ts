@@ -19,6 +19,7 @@ import {Slider} from './widgets/slider';
 import {Toggle} from './widgets/toggle';
 
 export const ADV_PROC_ASSOC_PROBE_ID = 'adv_proc_thread_assoc';
+export const ADV_PROC_ASSOC_BUF_ID = 'proc_assoc';
 export const PROC_STATS_DS_NAME = 'linux.process_stats';
 export const ADV_FTRACE_PROBE_ID = 'advanced_ftrace';
 
@@ -138,16 +139,15 @@ function procThreadAssociation(): RecordProbe {
     settings,
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addFtraceEvents(...ftraceEvents);
-      const bufId = 'proc_assoc';
       // Set to 1/16th of the main buffer size, with reasonable limits.
       const minMax = [256, 8 * 1024];
       const bufSizeKb = Math.min(
         Math.max(tc.defaultBuffer.sizeKb / 16, minMax[0]),
         minMax[1],
       );
-      tc.addBuffer(bufId, bufSizeKb);
+      tc.addBuffer(ADV_PROC_ASSOC_BUF_ID, bufSizeKb);
 
-      const ds = tc.addDataSource(PROC_STATS_DS_NAME, bufId);
+      const ds = tc.addDataSource(PROC_STATS_DS_NAME, ADV_PROC_ASSOC_BUF_ID);
       const cfg = (ds.processStatsConfig ??= {});
       cfg.scanAllProcessesOnStart = settings.initialScan.enabled || undefined;
     },

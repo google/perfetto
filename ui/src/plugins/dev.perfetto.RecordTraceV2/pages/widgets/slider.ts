@@ -99,10 +99,21 @@ export class Slider implements ProbeSetting {
 
     let spinnerCfg = {};
     if (attrs.isTime) {
+      const timeStr = new Date(val).toISOString().substring(11, 11 + 8);
       spinnerCfg = {
         type: 'text',
         pattern: '(0[0-9]|1[0-9]|2[0-3])(:[0-5][0-9]){2}', // hh:mm:ss
-        value: new Date(val).toISOString().substring(11, 11 + 8),
+        defaultValue: timeStr,
+        oncreate: (vnode: m.VnodeDOM) => {
+          (vnode.dom as HTMLInputElement).value = timeStr;
+        },
+        onupdate: (vnode: m.VnodeDOM) => {
+          const input = vnode.dom as HTMLInputElement;
+          // Only update if the input is not focused (i.e., user is not typing)
+          if (document.activeElement !== input) {
+            input.value = new Date(val).toISOString().substring(11, 11 + 8);
+          }
+        },
         oninput: (e: InputEvent) => {
           this.onTimeValueChange((e.target as HTMLInputElement).value);
         },

@@ -382,6 +382,9 @@ class TracingServiceImpl : public TracingService {
 
   // Reads all the tracing buffers from the tracing session `tsid` and writes
   // them into the associated file.
+  // If `async_flush_buffers_before_read` is `true` this function becomes
+  // asynchronous: immediately posts a `Flush` task and returns. Reads the
+  // buffers when the flush is done, inside the `FlushCallback`.
   //
   // Reads all the data in the buffers (or until the file is full) before
   // returning.
@@ -391,7 +394,8 @@ class TracingServiceImpl : public TracingService {
   // to be executed after write_period_ms.
   //
   // Returns false in case of error.
-  bool ReadBuffersIntoFile(TracingSessionID);
+  bool ReadBuffersIntoFile(TracingSessionID tsid,
+                           bool async_flush_buffers_before_read);
 
   void FreeBuffers(TracingSessionID tsid, const std::string& error = {});
 
@@ -508,6 +512,7 @@ class TracingServiceImpl : public TracingService {
     bool skip_trace_filter = false;
     std::optional<TriggerInfo> clone_trigger;
     int64_t clone_started_timestamp_ns = 0;
+    base::ScopedFile output_file_fd;
   };
 
   // Holds the state of a tracing session. A tracing session is uniquely bound
@@ -871,7 +876,8 @@ class TracingServiceImpl : public TracingService {
                                   bool final_flush_outcome,
                                   std::optional<TriggerInfo> clone_trigger,
                                   base::Uuid*,
-                                  int64_t clone_started_timestamp_ns);
+                                  int64_t clone_started_timestamp_ns,
+                                  base::ScopedFile output_file_fd);
   void OnFlushDoneForClone(TracingSessionID src_tsid,
                            PendingCloneID clone_id,
                            const std::set<BufferID>& buf_ids,

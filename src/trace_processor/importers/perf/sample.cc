@@ -163,7 +163,7 @@ base::Status Sample::Parse(int64_t in_trace_ts, const Record& record) {
 
   trace_ts = in_trace_ts;
   cpu_mode = record.GetCpuMode();
-  perf_session = record.session;
+  perf_invocation = record.session;
   attr = record.attr;
 
   Reader reader(record.payload.copy());

@@ -128,6 +128,9 @@ your `trace_converter_template.py` script.
 
 </details>
 
+If you only have symbolized function names, call `add_frame(...)` with just the
+interned function name ID: e.g. `add_frame(packet.interned_data, FRAME_MAIN, FUNC_MAIN)`.
+
 ![Associating Tracks with Processes](/docs/images/synthetic-track-event-process-counter.png)
 
 You can query process-associated counter data using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
@@ -674,6 +677,235 @@ your `trace_converter_template.py` script.
 </details>
 
 ![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
+
+### {#callstacks} Interned Callstacks
+
+The [Getting Started guide](/docs/getting-started/converting.md#callstacks)
+covers inline callstacks for simple use cases. This section covers interned
+callstacks for efficiency when callstacks repeat or when you need binary
+mapping information for symbolization.
+
+Interned callstacks define the callstack structure once in `InternedData` and
+reference it by ID from multiple events. At a minimum you only need to define
+**frames**, **callstacks**, and reference those callstacks from your events. The
+other pieces are optional and can be supplied when you have that information:
+
+1.  **Build IDs** and **Mapping Paths** → **Mappings** (binaries/libraries). You
+    may skip this entirely if you do not have binary metadata.
+2.  **Mappings** → **Frames** (function + location). `mapping_id`, `rel_pc`,
+    `source_file_id`, `line_number`, etc. are all optional—set only what makes
+    sense for your data.
+3.  **Frames** → **Callstacks** (frame sequences)
+4.  **Callstacks** → Events (via `callstack_iid`)
+
+#### Python Example: Interned Callstacks
+
+This example demonstrates the complete workflow for interning callstacks,
+including mappings, frames, and callstacks. For minimal traces you can skip the
+mapping entries and populate frames with just function names (and whatever
+location details you have).
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import TracePacket
+    TRUSTED_PACKET_SEQUENCE_ID = 9001
+
+    # --- Define Track UUID ---
+    interned_callstack_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    def add_function_name(entry, iid, name):
+        item = entry.function_names.add()
+        item.iid = iid
+        item.str = name.encode()
+
+    def add_mapping(entry, iid, build_id, start, end, path_id):
+        mapping_entry = entry.mappings.add()
+        mapping_entry.iid = iid
+        mapping_entry.build_id = build_id
+        mapping_entry.exact_offset = 0
+        mapping_entry.start = start
+        mapping_entry.end = end
+        mapping_entry.load_bias = 0
+        mapping_entry.path_string_ids.append(path_id)
+
+    def add_frame(entry, iid, function_name_id, mapping_id=None, rel_pc=None):
+        frame_entry = entry.frames.add()
+        frame_entry.iid = iid
+        frame_entry.function_name_id = function_name_id
+        if mapping_id is not None:
+            frame_entry.mapping_id = mapping_id
+        if rel_pc is not None:
+            frame_entry.rel_pc = rel_pc
+
+    def add_callstack(entry, iid, frame_ids):
+        callstack_entry = entry.callstacks.add()
+        callstack_entry.iid = iid
+        callstack_entry.frame_ids.extend(frame_ids)
+
+    def emit_track_event(
+        ts,
+        event_type,
+        name,
+        callstack_iid,
+    ):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = interned_callstack_track_uuid
+        if name is not None:
+            packet.track_event.name = name
+        if callstack_iid is not None:
+            packet.track_event.callstack_iid = callstack_iid
+        packet.sequence_flags = TracePacket.SEQ_NEEDS_INCREMENTAL_STATE
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 1. Define the track
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = interned_callstack_track_uuid
+    desc.name = "Interned Callstack Demo"
+
+    # 2. Define interned data (mappings, frames, callstacks)
+    # We'll create this in a single packet that initializes the interning state
+
+    packet = builder.add_packet()
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    packet.sequence_flags = (TracePacket.SEQ_INCREMENTAL_STATE_CLEARED |
+                            TracePacket.SEQ_NEEDS_INCREMENTAL_STATE)
+
+    # Define Build IDs
+    BUILD_ID_APP = 1
+    BUILD_ID_LIBC = 2
+
+    build_id_entry = packet.interned_data.build_ids.add()
+    build_id_entry.iid = BUILD_ID_APP
+    build_id_entry.str = b"a1b2c3d4e5f67890"  # Hex-encoded build ID
+
+    build_id_entry = packet.interned_data.build_ids.add()
+    build_id_entry.iid = BUILD_ID_LIBC
+    build_id_entry.str = b"1234567890abcdef"
+
+    # Define Mapping Paths
+    PATH_APP = 1
+    PATH_LIBC = 2
+
+    path_entry = packet.interned_data.mapping_paths.add()
+    path_entry.iid = PATH_APP
+    path_entry.str = b"/usr/bin/myapp"
+
+    path_entry = packet.interned_data.mapping_paths.add()
+    path_entry.iid = PATH_LIBC
+    path_entry.str = b"/lib/x86_64-linux-gnu/libc.so.6"
+
+    # Define Mappings
+    MAPPING_APP = 1
+    MAPPING_LIBC = 2
+
+    add_mapping(packet.interned_data, MAPPING_APP, BUILD_ID_APP, 0x400000, 0x500000, PATH_APP)
+    add_mapping(packet.interned_data, MAPPING_LIBC, BUILD_ID_LIBC, 0x7F0000000000, 0x7F0000200000, PATH_LIBC)
+
+    # Define Frames
+    FUNC_MAIN = 1
+    FUNC_PROCESS_REQUESTS = 2
+    FUNC_HANDLE_REQUEST = 3
+    FUNC_MALLOC = 4
+
+    add_function_name(packet.interned_data, FUNC_MAIN, "main")
+    add_function_name(packet.interned_data, FUNC_PROCESS_REQUESTS, "ProcessRequests")
+    add_function_name(packet.interned_data, FUNC_HANDLE_REQUEST, "HandleRequest")
+    add_function_name(packet.interned_data, FUNC_MALLOC, "malloc")
+
+    FRAME_MAIN = 1
+    FRAME_PROCESS_REQUESTS = 2
+    FRAME_HANDLE_REQUEST = 3
+    FRAME_MALLOC = 4
+
+    add_frame(packet.interned_data, FRAME_MAIN, FUNC_MAIN, MAPPING_APP, 0x1234)
+    add_frame(packet.interned_data, FRAME_PROCESS_REQUESTS, FUNC_PROCESS_REQUESTS, MAPPING_APP, 0x2345)
+    add_frame(packet.interned_data, FRAME_HANDLE_REQUEST, FUNC_HANDLE_REQUEST, MAPPING_APP, 0x3456)
+    add_frame(packet.interned_data, FRAME_MALLOC, FUNC_MALLOC, MAPPING_LIBC, 0x8765)
+
+    # Define Callstacks
+    # Callstack 1: main -> ProcessRequests -> HandleRequest
+    CALLSTACK_1 = 1
+    add_callstack(packet.interned_data, CALLSTACK_1, [FRAME_MAIN, FRAME_PROCESS_REQUESTS, FRAME_HANDLE_REQUEST])
+
+    # Callstack 2: main -> ProcessRequests -> HandleRequest -> malloc
+    CALLSTACK_2 = 2
+    add_callstack(
+        packet.interned_data,
+        CALLSTACK_2,
+        [FRAME_MAIN, FRAME_PROCESS_REQUESTS, FRAME_HANDLE_REQUEST, FRAME_MALLOC],
+    )
+
+    # 3. Create events that reference the interned callstacks
+    # Event 1: References CALLSTACK_1
+    emit_track_event(
+        ts=5000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="HandleRequest",
+        callstack_iid=CALLSTACK_1,
+    )
+
+    emit_track_event(
+        ts=5300,
+        event_type=TrackEvent.TYPE_SLICE_END,
+        name=None,
+        callstack_iid=None,
+    )
+
+    # Event 2: References CALLSTACK_2
+    emit_track_event(
+        ts=5100,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="AllocateMemory",
+        callstack_iid=CALLSTACK_2,
+    )
+
+    emit_track_event(
+        ts=5200,
+        event_type=TrackEvent.TYPE_SLICE_END,
+        name=None,
+        callstack_iid=None,
+    )
+
+    # Event 3: Another event with CALLSTACK_1 (reusing the interned data)
+    emit_track_event(
+        ts=6000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="HandleRequest",
+        callstack_iid=CALLSTACK_1,
+    )
+
+    emit_track_event(
+        ts=6400,
+        event_type=TrackEvent.TYPE_SLICE_END,
+        name=None,
+        callstack_iid=None,
+    )
+```
+
+</details>
+
+**Notes:**
+
+-   Sequence flags: Use `SEQ_INCREMENTAL_STATE_CLEARED |
+    SEQ_NEEDS_INCREMENTAL_STATE` when defining interned data (for the first time); use only
+    `SEQ_NEEDS_INCREMENTAL_STATE` when referencing it or defining *more* incremental data.
+-   Frame order: `frame_ids` are ordered outermost to innermost (same as inline
+    callstacks).
+-   Reuse: Event 3 reuses `CALLSTACK_1`, demonstrating the efficiency gain.
+
+After running the script, opening the generated trace in the
+[Perfetto UI](https://ui.perfetto.dev) and doing an area selection will display
+the following output:
+
+![Interned Callstacks](/docs/images/synthetic-track-event-interned-callstack.png)
 
 ### Linking Related Events with Correlation IDs
 
