@@ -39,9 +39,10 @@ source_set("traced_perf_main") {
     "traced_perf.cc",
     "traced_perf.h",
   ]
+
   # Abseil is only used in Perfetto via the gRPC/libprotobuf.
   if (perfetto_build_standalone || is_perfetto_build_generator) {
-    assert_no_deps = [ "buildtools:abseil_cpp" ]
+    assert_no_deps = [ "../../../buildtools:abseil_cpp" ]
   }
 }
 
