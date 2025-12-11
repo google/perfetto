@@ -187,7 +187,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/protobuf',
         'https://chromium.googlesource.com/external/github.com/protocolbuffers/protobuf.git',
-        '2434ef2adf0c74149b9d547ac5fb545a1ff8b6b5',  # refs/tags/v26.1
+        '74211c0dfc2777318ab53c2cd2c317a2ef9012de',  # refs/tags/v31.1
         'all',
         'all'),
 
@@ -196,7 +196,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/abseil-cpp',
         'https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git',
-        '4a2c63365eff8823a5221db86ef490e828306f9d',  # 20240116.0
+        '76bb24329e8bf5f39704eb10d21b9a80befa7c81',  # 20250512.1
         'all',
         'all'),
 
@@ -498,7 +498,8 @@ BIGTRACE_DEPS = [
     Dependency(
         'buildtools/grpc/src',
         'https://chromium.googlesource.com/external/github.com/grpc/grpc.git',
-        '4795c5e69b25e8c767b498bea784da0ef8c96fd5', 'all', 'all', True),
+        'f5ffb68d8a2fd603dff16287e90a4ac571e1fec6', 'all', 'all',
+        True),  # v1.76.0
     Dependency('buildtools/cpp-httplib',
                'https://github.com/yhirose/cpp-httplib.git',
                '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)

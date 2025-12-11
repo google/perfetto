@@ -22,13 +22,13 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 
 def perfetto_deps():
     # For bzlmod users, protobuf is provided via MODULE.bazel.
-    # For non-bzlmod users, this provides protobuf v29.0.
+    # For non-bzlmod users, this provides protobuf v31.1.
     _add_repo_if_not_existing(
         http_archive,
         name = "com_google_protobuf",
-        strip_prefix = "protobuf-29.0",
-        url = "https://github.com/protocolbuffers/protobuf/archive/v29.0.tar.gz",
-        sha256 = "10a0d58f39a1a909e95e00e8ba0b5b1dc64d02997f741151953a2b3659f6e78c",
+        strip_prefix = "protobuf-31.1",
+        url = "https://github.com/protocolbuffers/protobuf/archive/v31.1.tar.gz",
+        sha256 = "c3a0a9ece8932e31c3b736e2db18b1c42e7070cd9b881388b26d01aa71e24ca2",
     )
 
     _add_repo_if_not_existing(
