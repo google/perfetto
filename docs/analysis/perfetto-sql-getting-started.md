@@ -7,7 +7,7 @@ and provides guidance on how to write queries.
 
 ## Overview of Trace Querying
 
-The Perfetto UI is a powerful tool for visual analysis, offering call stacks, timeline views, thread tracks, and slices. However, it also includes a robust SQL query engine (PerfettoSQL) that allows you to extract data programmatically.
+The Perfetto UI is a powerful tool for visual analysis, offering call stacks, timeline views, thread tracks, and slices. However, it also includes a robust SQL query language (PerfettoSQL) which is interpreted by a query engine ([TraceProcessor](trace-processor.md)) which allows you to extract data programmatically.
 
 While the UI is powerful for myriad of analyses, users are able to write and execute queries within the Perfetto UI for multiple purposes such as:
 
@@ -16,9 +16,9 @@ While the UI is powerful for myriad of analyses, users are able to write and exe
 - Creating derived metrics.
 - Identify performance bottlenecks using data-driven logic.
 
-It is also possible to query programmatically instead of using the Perfetto UI, querying programmatically is currently supported in C++ with the [C++ Trace Processor](trace-processor.md) and via python using the [Python Trace Processor APIs](trace-processor-python.md).
+Beyond the Perfetto UI, you can query traces programmatically using the [Python Trace Processor API](trace-processor-python.md) or the [C++ Trace Processor](trace-processor.md).
 
-It is also possible to query traces in bulk and a nice feature about perfetto is that multiple traces can be queried using the same PerfettoSQL queries that can run in individual traces. For more information on bulk trace analysis, checkout the [batch trace processor](batch-trace-processor.md) section.
+Perfetto also supports bulk trace analysis through the [Batch Trace Processor](batch-trace-processor.md). A key advantage of this system is query reusability: the same PerfettoSQL queries used for individual traces can be applied to large datasets without modification.
 
 ## Core Concepts
 
