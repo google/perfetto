@@ -1841,6 +1841,14 @@ class AndroidInputEventConfig(_message.Message):
     trace_dispatcher_window_dispatch: bool
     def __init__(self, mode: _Optional[_Union[AndroidInputEventConfig.TraceMode, str]] = ..., rules: _Optional[_Iterable[_Union[AndroidInputEventConfig.TraceRule, _Mapping]]] = ..., trace_dispatcher_input_events: bool = ..., trace_dispatcher_window_dispatch: bool = ...) -> None: ...
 
+class AndroidJobName(_message.Message):
+    __slots__ = ["iid", "name"]
+    IID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    iid: int
+    name: str
+    def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ...) -> None: ...
+
 class AndroidLogConfig(_message.Message):
     __slots__ = ["filter_tags", "log_ids", "min_prio"]
     FILTER_TAGS_FIELD_NUMBER: _ClassVar[int]
@@ -7384,7 +7392,7 @@ class FileIoCreateEtwEvent(_message.Message):
     def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., ttid: _Optional[int] = ..., create_options: _Optional[int] = ..., file_attributes: _Optional[int] = ..., share_access: _Optional[int] = ..., open_path: _Optional[str] = ...) -> None: ...
 
 class FileIoDirEnumEtwEvent(_message.Message):
-    __slots__ = ["file_index", "file_key", "file_name", "file_object", "info_class", "irp_ptr", "length", "ttid"]
+    __slots__ = ["file_index", "file_key", "file_name", "file_object", "info_class", "irp_ptr", "length", "opcode", "ttid"]
     FILE_INDEX_FIELD_NUMBER: _ClassVar[int]
     FILE_KEY_FIELD_NUMBER: _ClassVar[int]
     FILE_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -7392,6 +7400,7 @@ class FileIoDirEnumEtwEvent(_message.Message):
     INFO_CLASS_FIELD_NUMBER: _ClassVar[int]
     IRP_PTR_FIELD_NUMBER: _ClassVar[int]
     LENGTH_FIELD_NUMBER: _ClassVar[int]
+    OPCODE_FIELD_NUMBER: _ClassVar[int]
     TTID_FIELD_NUMBER: _ClassVar[int]
     file_index: int
     file_key: int
@@ -7400,24 +7409,27 @@ class FileIoDirEnumEtwEvent(_message.Message):
     info_class: int
     irp_ptr: int
     length: int
+    opcode: int
     ttid: int
-    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ..., length: _Optional[int] = ..., info_class: _Optional[int] = ..., file_index: _Optional[int] = ..., file_name: _Optional[str] = ...) -> None: ...
+    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ..., length: _Optional[int] = ..., info_class: _Optional[int] = ..., file_index: _Optional[int] = ..., file_name: _Optional[str] = ..., opcode: _Optional[int] = ...) -> None: ...
 
 class FileIoInfoEtwEvent(_message.Message):
-    __slots__ = ["extra_info", "file_key", "file_object", "info_class", "irp_ptr", "ttid"]
+    __slots__ = ["extra_info", "file_key", "file_object", "info_class", "irp_ptr", "opcode", "ttid"]
     EXTRA_INFO_FIELD_NUMBER: _ClassVar[int]
     FILE_KEY_FIELD_NUMBER: _ClassVar[int]
     FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
     INFO_CLASS_FIELD_NUMBER: _ClassVar[int]
     IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    OPCODE_FIELD_NUMBER: _ClassVar[int]
     TTID_FIELD_NUMBER: _ClassVar[int]
     extra_info: int
     file_key: int
     file_object: int
     info_class: int
     irp_ptr: int
+    opcode: int
     ttid: int
-    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., extra_info: _Optional[int] = ..., ttid: _Optional[int] = ..., info_class: _Optional[int] = ...) -> None: ...
+    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., extra_info: _Optional[int] = ..., ttid: _Optional[int] = ..., info_class: _Optional[int] = ..., opcode: _Optional[int] = ...) -> None: ...
 
 class FileIoOpEndEtwEvent(_message.Message):
     __slots__ = ["extra_info", "irp_ptr", "nt_status"]
@@ -7430,13 +7442,14 @@ class FileIoOpEndEtwEvent(_message.Message):
     def __init__(self, irp_ptr: _Optional[int] = ..., extra_info: _Optional[int] = ..., nt_status: _Optional[int] = ...) -> None: ...
 
 class FileIoReadWriteEtwEvent(_message.Message):
-    __slots__ = ["file_key", "file_object", "io_flags", "io_size", "irp_ptr", "offset", "ttid"]
+    __slots__ = ["file_key", "file_object", "io_flags", "io_size", "irp_ptr", "offset", "opcode", "ttid"]
     FILE_KEY_FIELD_NUMBER: _ClassVar[int]
     FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
     IO_FLAGS_FIELD_NUMBER: _ClassVar[int]
     IO_SIZE_FIELD_NUMBER: _ClassVar[int]
     IRP_PTR_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
+    OPCODE_FIELD_NUMBER: _ClassVar[int]
     TTID_FIELD_NUMBER: _ClassVar[int]
     file_key: int
     file_object: int
@@ -7444,20 +7457,23 @@ class FileIoReadWriteEtwEvent(_message.Message):
     io_size: int
     irp_ptr: int
     offset: int
+    opcode: int
     ttid: int
-    def __init__(self, offset: _Optional[int] = ..., irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ..., io_size: _Optional[int] = ..., io_flags: _Optional[int] = ...) -> None: ...
+    def __init__(self, offset: _Optional[int] = ..., irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ..., io_size: _Optional[int] = ..., io_flags: _Optional[int] = ..., opcode: _Optional[int] = ...) -> None: ...
 
 class FileIoSimpleOpEtwEvent(_message.Message):
-    __slots__ = ["file_key", "file_object", "irp_ptr", "ttid"]
+    __slots__ = ["file_key", "file_object", "irp_ptr", "opcode", "ttid"]
     FILE_KEY_FIELD_NUMBER: _ClassVar[int]
     FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
     IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    OPCODE_FIELD_NUMBER: _ClassVar[int]
     TTID_FIELD_NUMBER: _ClassVar[int]
     file_key: int
     file_object: int
     irp_ptr: int
+    opcode: int
     ttid: int
-    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ...) -> None: ...
+    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ..., opcode: _Optional[int] = ...) -> None: ...
 
 class FloatRectProto(_message.Message):
     __slots__ = ["bottom", "left", "right", "top"]
@@ -10047,7 +10063,8 @@ class InterceptorConfig(_message.Message):
     def __init__(self, name: _Optional[str] = ..., console_config: _Optional[_Union[ConsoleConfig, _Mapping]] = ...) -> None: ...
 
 class InternedData(_message.Message):
-    __slots__ = ["app_wakelock_info", "build_ids", "callstacks", "correlation_id_str", "debug_annotation_names", "debug_annotation_string_values", "debug_annotation_value_type_names", "event_categories", "event_names", "frames", "function_names", "gpu_specifications", "graphics_contexts", "histogram_names", "kernel_symbols", "log_message_body", "mapping_paths", "mappings", "packet_context", "protolog_stacktrace", "protolog_string_args", "source_locations", "source_paths", "unsymbolized_source_locations", "v8_isolate", "v8_js_function", "v8_js_function_name", "v8_js_script", "v8_wasm_script", "viewcapture_class_name", "viewcapture_package_name", "viewcapture_view_id", "viewcapture_window_name", "vulkan_memory_keys"]
+    __slots__ = ["android_job_name", "app_wakelock_info", "build_ids", "callstacks", "correlation_id_str", "debug_annotation_names", "debug_annotation_string_values", "debug_annotation_value_type_names", "event_categories", "event_names", "frames", "function_names", "gpu_specifications", "graphics_contexts", "histogram_names", "kernel_symbols", "log_message_body", "mapping_paths", "mappings", "packet_context", "protolog_stacktrace", "protolog_string_args", "source_locations", "source_paths", "unsymbolized_source_locations", "v8_isolate", "v8_js_function", "v8_js_function_name", "v8_js_script", "v8_wasm_script", "viewcapture_class_name", "viewcapture_package_name", "viewcapture_view_id", "viewcapture_window_name", "vulkan_memory_keys"]
+    ANDROID_JOB_NAME_FIELD_NUMBER: _ClassVar[int]
     APP_WAKELOCK_INFO_FIELD_NUMBER: _ClassVar[int]
     BUILD_IDS_FIELD_NUMBER: _ClassVar[int]
     CALLSTACKS_FIELD_NUMBER: _ClassVar[int]
@@ -10082,6 +10099,7 @@ class InternedData(_message.Message):
     VIEWCAPTURE_VIEW_ID_FIELD_NUMBER: _ClassVar[int]
     VIEWCAPTURE_WINDOW_NAME_FIELD_NUMBER: _ClassVar[int]
     VULKAN_MEMORY_KEYS_FIELD_NUMBER: _ClassVar[int]
+    android_job_name: _containers.RepeatedCompositeFieldContainer[AndroidJobName]
     app_wakelock_info: _containers.RepeatedCompositeFieldContainer[AppWakelockInfo]
     build_ids: _containers.RepeatedCompositeFieldContainer[InternedString]
     callstacks: _containers.RepeatedCompositeFieldContainer[Callstack]
@@ -10116,7 +10134,7 @@ class InternedData(_message.Message):
     viewcapture_view_id: _containers.RepeatedCompositeFieldContainer[InternedString]
     viewcapture_window_name: _containers.RepeatedCompositeFieldContainer[InternedString]
     vulkan_memory_keys: _containers.RepeatedCompositeFieldContainer[InternedString]
-    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., packet_context: _Optional[_Iterable[_Union[NetworkPacketContext, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ..., protolog_string_args: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., protolog_stacktrace: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_package_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_window_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_view_id: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_class_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., app_wakelock_info: _Optional[_Iterable[_Union[AppWakelockInfo, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ...) -> None: ...
+    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., packet_context: _Optional[_Iterable[_Union[NetworkPacketContext, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ..., protolog_string_args: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., protolog_stacktrace: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_package_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_window_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_view_id: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_class_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., app_wakelock_info: _Optional[_Iterable[_Union[AppWakelockInfo, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., android_job_name: _Optional[_Iterable[_Union[AndroidJobName, _Mapping]]] = ...) -> None: ...
 
 class InternedGpuRenderStageSpecification(_message.Message):
     __slots__ = ["category", "description", "iid", "name"]
