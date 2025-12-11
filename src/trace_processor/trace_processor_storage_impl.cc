@@ -119,7 +119,6 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
     return base::ErrStatus("Unrecoverable parsing error already occurred");
   }
   eof_ = true;
-  Flush();
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
   // NotifyEndOfFile might have pushed packets to the sorter.
   Flush();
