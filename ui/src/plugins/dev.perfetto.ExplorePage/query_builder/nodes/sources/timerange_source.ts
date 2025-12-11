@@ -160,30 +160,36 @@ export class TimeRangeSourceNode implements QueryNode {
     };
   }
 
-  private static generateSql(start: time, dur: bigint): string {
-    return `SELECT 0 AS id, ${start} AS ts, ${dur} AS dur`;
-  }
-
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (!this.validate()) {
-      return undefined;
-    }
-
-    // Type narrowing - validate() already checked that start and end are defined
+    // For dynamic nodes without start/end set, we can still generate a query
+    // that uses trace_start() and trace_end() - the backend handles this.
+    // Only validate for static nodes or when we have explicit values.
     const start = this.state.start;
     const end = this.state.end;
-    if (start === undefined || end === undefined) {
-      return undefined;
+
+    // If both are set, calculate duration
+    if (start !== undefined && end !== undefined) {
+      if (end < start) {
+        // Invalid range - can't generate query
+        return undefined;
+      }
+      const dur = end - start;
+      return StructuredQueryBuilder.fromTimeRange(start, dur, this.nodeId);
     }
 
-    const dur = end - start;
+    // If only start is set, let backend calculate dur from trace_end()
+    if (start !== undefined) {
+      return StructuredQueryBuilder.fromTimeRange(
+        start,
+        undefined,
+        this.nodeId,
+      );
+    }
 
-    const sql = TimeRangeSourceNode.generateSql(start, dur);
-
-    return StructuredQueryBuilder.fromSql(
-      sql,
-      [], // no dependencies
-      ['id', 'ts', 'dur'], // column names
+    // If neither is set (dynamic node), let backend use trace bounds
+    return StructuredQueryBuilder.fromTimeRange(
+      undefined,
+      undefined,
       this.nodeId,
     );
   }
