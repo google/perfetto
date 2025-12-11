@@ -84,6 +84,68 @@ def extract_referenced_entities(sql_file: str) -> Set[str]:
       'TOTAL_CHANGES', 'CHANGES', 'LAST_INSERT_ROWID'
   }
 
+  # Perfetto SQL type names and common SQL keywords to filter out
+  SQL_TYPES_AND_KEYWORDS = {
+      # Perfetto SQL types
+      'TABLEORSUBQUERY',
+      'COLUMNNAME',
+      'EXPR',
+      'STRING',
+      'LONG',
+      'INT',
+      'BOOL',
+      'DOUBLE',
+      'TIMESTAMP',
+      'DURATION',
+      'ARGSETID',
+      'ID',
+      'JOINID',
+      # SQL keywords
+      'SELECT',
+      'FROM',
+      'WHERE',
+      'JOIN',
+      'LEFT',
+      'RIGHT',
+      'INNER',
+      'OUTER',
+      'ON',
+      'USING',
+      'GROUP',
+      'BY',
+      'ORDER',
+      'HAVING',
+      'LIMIT',
+      'OFFSET',
+      'AS',
+      'ASC',
+      'DESC',
+      'AND',
+      'OR',
+      'NOT',
+      'IN',
+      'IS',
+      'NULL',
+      'TRUE',
+      'FALSE',
+      'CASE',
+      'WHEN',
+      'THEN',
+      'ELSE',
+      'END',
+      'WITH',
+      'PARTITION',
+      'PARTITIONED',
+      'OVER',
+      'RETURNS',
+      'CREATE',
+      'DROP',
+      'INSERT',
+      'UPDATE',
+      'DELETE',
+      'CROSS'
+  }
+
   references = set()
 
   try:
@@ -152,6 +214,34 @@ def extract_referenced_entities(sql_file: str) -> Set[str]:
           # Strip trailing '!' from macro invocations (macros are defined without '!' but invoked with it)
           entity_normalized = entity.rstrip('!')
           references.add(entity_normalized)
+
+    # Extract table arguments from macro calls
+    # Pattern: macro_name!(arg1, arg2, ...) where args could be table references
+    macro_call_pattern = r'\b([a-zA-Z_][a-zA-Z0-9_]*!)\s*\('
+    for match in re.finditer(macro_call_pattern, content):
+      # Find matching closing paren
+      start_pos = match.end()
+      paren_depth = 1
+      pos = start_pos
+      while pos < len(content) and paren_depth > 0:
+        if content[pos] == '(':
+          paren_depth += 1
+        elif content[pos] == ')':
+          paren_depth -= 1
+        pos += 1
+
+      if paren_depth == 0:
+        args_str = content[start_pos:pos - 1]
+        # Split by commas (simple split, doesn't handle nested parens perfectly)
+        # Extract simple identifiers that could be table references
+        for arg in args_str.split(','):
+          arg = arg.strip()
+          # Match simple identifier: not starting with $, not containing dots or SELECT
+          if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', arg):
+            # Filter out keywords and types
+            if (arg.upper() not in SQL_BUILTINS and
+                arg.upper() not in SQL_TYPES_AND_KEYWORDS):
+              references.add(arg)
 
   except IOError as e:
     sys.stderr.write(f"Warning: Failed to read {sql_file}: {e}\n")

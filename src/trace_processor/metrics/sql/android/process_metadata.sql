@@ -29,6 +29,7 @@ SELECT NULL_IF_EMPTY(AndroidProcessMetadata(
     'name', process_name,
     'uid', uid,
     'android_user_id', user_id,
+    'android_user_type', user_type,
     'pid', pid,
     'is_kernel_task', is_kernel_task,
     'package', NULL_IF_EMPTY(AndroidProcessMetadata_Package(

@@ -14,7 +14,25 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../../../widgets/menu';
-import {NodeDescriptor} from '../node_registry';
+import {NodeDescriptor, nodeRegistry} from '../node_registry';
+
+/**
+ * Build menu items for a specific node type.
+ *
+ * @param nodeType - Type of nodes to include
+ * @param onAddNode - Callback when a menu item is clicked
+ * @returns Array of Mithril children representing the menu items
+ */
+export function buildMenuItems(
+  nodeType: 'source' | 'multisource' | 'modification',
+  onAddNode: (id: string) => void,
+): m.Children[] {
+  const nodes = nodeRegistry
+    .list()
+    .filter(([_id, descriptor]) => descriptor.type === nodeType);
+
+  return buildCategorizedMenuItems(nodes, onAddNode);
+}
 
 /**
  * Build categorized menu items from a list of node descriptors.

@@ -21,6 +21,10 @@ export type TextInputAttrs = HTMLInputAttrs & {
   readonly autofocus?: boolean;
   // Optional icon to display on the left of the text field.
   readonly leftIcon?: string;
+  // Callback fired when the input value changes (on every keystroke).
+  readonly onInput?: (value: string) => void;
+  // Callback fired when the input loses focus or enter is pressed.
+  readonly onChange?: (value: string) => void;
 };
 
 export class TextInput implements m.ClassComponent<TextInputAttrs> {
@@ -35,17 +39,31 @@ export class TextInput implements m.ClassComponent<TextInputAttrs> {
   }
 
   view({attrs}: m.CVnode<TextInputAttrs>) {
-    const {leftIcon, className, ...inputAttrs} = attrs; // Destructure icon from other attrs
+    const {leftIcon, className, onInput, onChange, ...inputAttrs} = attrs;
 
     return m(
-      '.pf-text-input', // Add a wrapper div
+      '.pf-text-input',
       {
         className,
       },
       leftIcon &&
-        m(Icon, {icon: leftIcon, className: 'pf-text-input__left-icon'}), // Conditionally render icon
+        m(Icon, {icon: leftIcon, className: 'pf-text-input__left-icon'}),
       m('input.pf-text-input__input', {
-        ...inputAttrs, // Pass remaining attrs to the input
+        ...inputAttrs,
+        oninput: onInput
+          ? (e: InputEvent) => {
+              inputAttrs.oninput?.(e);
+              const target = e.target as HTMLInputElement;
+              onInput(target.value);
+            }
+          : inputAttrs.oninput,
+        onchange: onChange
+          ? (e: InputEvent) => {
+              inputAttrs.onchange?.(e);
+              const target = e.target as HTMLInputElement;
+              onChange(target.value);
+            }
+          : inputAttrs.onchange,
       }),
     );
   }

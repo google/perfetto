@@ -234,7 +234,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
           cursorWhileDragging: 'grabbing',
           onDrag: (event) => {
             const delta = timescale.pxToDuration(event.deltaSinceLastEvent.x);
-            trace.timeline.panVisibleWindow(delta);
+            trace.timeline.pan(delta);
           },
         },
       },
@@ -253,7 +253,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
             const span = timescale.pxSpanToHpTimeSpan(
               Rect2D.fromPoints(event.dragStart, event.dragCurrent),
             );
-            trace.timeline.updateVisibleTimeHP(span);
+            trace.timeline.setVisibleWindow(span);
           },
         },
       },

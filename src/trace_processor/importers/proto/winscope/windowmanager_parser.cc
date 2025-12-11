@@ -39,15 +39,14 @@ void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
 
   auto snapshot_id = InsertSnapshotRow(timestamp, entry_decoder);
 
-  auto window_containers =
-      hierarchy_walker_.ExtractWindowContainers(entry_decoder);
-  if (!window_containers.ok()) {
+  auto result = hierarchy_walker_.ExtractWindowContainers(entry_decoder);
+  if (result.has_parse_error) {
     context_->trace_processor_context_->storage->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
     return;
   }
 
-  InsertWindowContainerRows(timestamp, snapshot_id, *window_containers);
+  InsertWindowContainerRows(timestamp, snapshot_id, result.window_containers);
 }
 
 tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(

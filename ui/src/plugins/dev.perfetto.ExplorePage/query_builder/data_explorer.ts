@@ -16,29 +16,32 @@ import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
-  FilterNull,
-  FilterValue,
-} from '../../../components/widgets/data_grid/common';
+  CellRenderer,
+  ColumnDefinition,
+} from '../../../components/widgets/datagrid/common';
 import {
   DataGrid,
-  renderCell,
-} from '../../../components/widgets/data_grid/data_grid';
-import {SqlValue} from '../../../trace_processor/query_result';
+  columnsToSchema,
+} from '../../../components/widgets/datagrid/datagrid';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {DetailsShell} from '../../../widgets/details_shell';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
-import {TextParagraph} from '../../../widgets/text_paragraph';
 import {Query, QueryNode, isAQuery} from '../query_node';
-import {QueryService} from './query_service';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {Icon} from '../../../widgets/icon';
-import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
+import {UIFilter, normalizeDataGridFilter} from './operations/filter';
+import {DataExplorerEmptyState} from './widgets';
+import {Trace} from '../../../public/trace';
+import {Timestamp} from '../../../components/widgets/timestamp';
+import {DurationWidget} from '../../../components/widgets/duration';
+import {Time, Duration} from '../../../base/time';
+import {ColumnInfo} from './column_info';
+import {DetailsShell} from '../../../widgets/details_shell';
+
 export interface DataExplorerAttrs {
-  readonly queryService: QueryService;
+  readonly trace: Trace;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
@@ -48,8 +51,52 @@ export interface DataExplorerAttrs {
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
+  readonly onExportToTimeline?: () => void;
   readonly onchange?: () => void;
-  readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
+  readonly onFilterAdd?: (
+    filter: UIFilter | UIFilter[],
+    filterOperator?: 'AND' | 'OR',
+  ) => void;
+}
+
+// Create cell renderer for timestamp columns
+function createTimestampCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
+    if (typeof value !== 'bigint') {
+      return String(value);
+    }
+    return m(Timestamp, {
+      trace,
+      ts: Time.fromRaw(value),
+    });
+  };
+}
+
+// Create cell renderer for duration columns
+function createDurationCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
+    if (typeof value !== 'bigint') {
+      return String(value);
+    }
+    return m(DurationWidget, {
+      trace,
+      dur: Duration.fromRaw(value),
+    });
+  };
+}
+
+// Get column info by name from the node's finalCols
+function getColumnInfo(
+  node: QueryNode,
+  columnName: string,
+): ColumnInfo | undefined {
+  return node.finalCols.find((col) => col.name === columnName);
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
@@ -58,8 +105,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       DetailsShell,
       {
         title: 'Query data',
-        fillHeight: true,
         buttons: this.renderMenu(attrs),
+        fillHeight: true,
       },
       this.renderContent(attrs),
     );
@@ -95,20 +142,12 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         const target = e.target as HTMLInputElement;
         attrs.node.state.autoExecute = target.checked;
         attrs.onchange?.();
+        // Execute the query when auto-execute is toggled on
+        if (target.checked && isAQuery(attrs.query) && attrs.node.validate()) {
+          attrs.onExecute();
+        }
       },
     });
-
-    // Add materialization indicator icon with tooltip
-    const materializationIndicator =
-      attrs.node.state.materialized && attrs.node.state.materializationTableName
-        ? m(
-            Tooltip,
-            {
-              trigger: m(Icon, {icon: 'database'}),
-            },
-            `Materialized as ${attrs.node.state.materializationTableName}`,
-          )
-        : null;
 
     // Helper to create separator dot
     const separator = () =>
@@ -139,8 +178,31 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
       [
         m(MenuItem, {
-          label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
-          onclick: () => attrs.onFullScreenToggle(),
+          label: 'Export to Timeline',
+          icon: 'open_in_new',
+          onclick: () => attrs.onExportToTimeline?.(),
+          title: 'Export query results to timeline tab',
+          disabled: !(
+            attrs.onExportToTimeline &&
+            attrs.response &&
+            !attrs.isQueryRunning &&
+            attrs.node.state.materialized
+          ),
+        }),
+        m(MenuItem, {
+          label: 'Copy Materialized Table Name',
+          icon: 'content_copy',
+          onclick: () => {
+            const tableName = attrs.node.state.materializationTableName;
+            if (tableName) {
+              navigator.clipboard.writeText(tableName);
+            }
+          },
+          title: 'Copy the materialized table name to clipboard',
+          disabled: !(
+            attrs.node.state.materialized &&
+            attrs.node.state.materializationTableName
+          ),
         }),
       ],
     );
@@ -149,11 +211,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       runButton,
       statusIndicator,
       queryStats,
-      queryStats !== null && materializationIndicator !== null
-        ? separator()
-        : null,
-      materializationIndicator,
-      materializationIndicator !== null ? separator() : null,
+      queryStats !== null ? separator() : null,
       autoExecuteSwitch,
       positionMenu,
     ];
@@ -162,20 +220,30 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   private renderContent(attrs: DataExplorerAttrs): m.Children {
     const errors = findErrors(attrs.query, attrs.response);
 
-    // Show execution errors first (e.g., when materialization fails due to
+    // Show validation errors first (queryError is set by validate() methods).
+    // Validation errors take priority over execution errors because if validation
+    // fails, we should not execute the query at all.
+    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
+      // Clear any stale execution error when validation fails
+      attrs.node.state.issues.clearExecutionError();
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.queryError.message,
+      });
+    }
+
+    // Show execution errors (e.g., when materialization fails due to
     // invalid column names). These are stored separately from validation errors
     // so they survive validate() calls during rendering.
     if (attrs.node.state.issues?.executionError) {
       return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
+        DataExplorerEmptyState,
+        {
           icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.executionError.message,
-        ),
+          variant: 'warning',
+          title: attrs.node.state.issues.executionError.message,
+        },
         m(Button, {
           label: 'Retry',
           icon: 'refresh',
@@ -189,146 +257,124 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       );
     }
 
-    // Show validation errors (queryError is set by validate() methods).
-    // Only show if validation fails - validate() returns false when queryError is set.
-    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.queryError.message,
-        ),
-      );
-    }
-
     // Show execution errors with centered warning icon
     if (errors) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m('.pf-data-explorer-warning-message', `Error: ${errors.message}`),
-      );
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: `Error: ${errors.message}`,
+      });
     }
 
     // Show response warnings with centered warning icon
     if (attrs.node.state.issues?.responseError) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.responseError.message,
-        ),
-      );
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.responseError.message,
+      });
     }
 
     // Show data errors (like "no rows returned") with centered warning icon
     if (attrs.node.state.issues?.dataError) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(Icon, {
-          className: 'pf-data-explorer-warning-icon',
-          icon: 'warning',
-        }),
-        m(
-          '.pf-data-explorer-warning-message',
-          attrs.node.state.issues.dataError.message,
-        ),
-      );
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.dataError.message,
+      });
     }
 
     // Show spinner overlay when query is running
     if (attrs.isQueryRunning) {
-      return m(
-        '.pf-data-explorer-empty-state',
-        m(
-          '.pf-exp-query-running-spinner',
-          {
-            style: {
-              fontSize: '64px',
-            },
-          },
-          m(Spinner, {
-            easing: true,
-          }),
-        ),
-      );
+      return m(DataExplorerEmptyState, {}, m(Spinner, {easing: true}));
     }
 
     // Show "No data to display" when no query is available
     if (attrs.query === undefined) {
-      return m(TextParagraph, {text: 'No data to display'});
+      return m(DataExplorerEmptyState, {
+        title: 'No data to display',
+      });
     }
 
     if (attrs.response && attrs.dataSource && attrs.node.validate()) {
       // Show warning for multiple statements with centered icon
       const warning =
         attrs.response.statementWithOutputCount > 1
-          ? m(
-              '.pf-data-explorer-empty-state',
-              m(Icon, {
-                className: 'pf-data-explorer-warning-icon',
-                icon: 'warning',
-              }),
-              m(
-                '.pf-data-explorer-warning-message',
-                `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} `,
-                'statements returned a result. ',
+          ? m(DataExplorerEmptyState, {
+              icon: 'warning',
+              variant: 'warning',
+              title:
+                `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} ` +
+                'statements returned a result. ' +
                 'Only the results for the last statement are displayed.',
-              ),
-            )
+            })
           : null;
+
+      const columnDefs: ColumnDefinition[] = attrs.response.columns.map((c) => {
+        let cellRenderer: CellRenderer | undefined;
+
+        // Get column type information from the node
+        const columnInfo = getColumnInfo(attrs.node, c);
+        if (columnInfo) {
+          // Check if this is a timestamp column
+          if (columnInfo.type === 'TIMESTAMP') {
+            cellRenderer = createTimestampCellRenderer(attrs.trace);
+          }
+          // Check if this is a duration column
+          else if (columnInfo.type === 'DURATION') {
+            cellRenderer = createDurationCellRenderer(attrs.trace);
+          }
+        }
+
+        return {
+          name: c,
+          cellRenderer,
+        };
+      });
 
       return [
         warning,
         m(DataGrid, {
+          ...columnsToSchema(columnDefs),
           fillHeight: true,
-          columns: attrs.response.columns.map((c) => ({name: c})),
           data: attrs.dataSource,
-          showFiltersInToolbar: true,
+          structuredQueryCompatMode: true,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.
           filters: [],
           onFilterAdd: (filter) => {
-            // These are the filters supported by the explore page currently.
-            const supportedOps = [
-              '=',
-              '!=',
-              '<',
-              '<=',
-              '>',
-              '>=',
-              'glob',
-              'is null',
-              'is not null',
-            ];
-            if (supportedOps.includes(filter.op)) {
-              if (attrs.onFilterAdd) {
-                // Delegate to the parent handler which will create a FilterNode
-                attrs.onFilterAdd(filter as FilterValue | FilterNull);
-              } else {
-                // Fallback: add filter directly to node state (legacy behavior)
-                attrs.node.state.filters = [
-                  ...(attrs.node.state.filters ?? []),
-                  filter as FilterValue | FilterNull,
-                ];
-                attrs.onchange?.();
+            // Normalize the filter (expands IN/NOT IN to multiple equality filters)
+            const normalizedFilters = normalizeDataGridFilter(filter);
+
+            if (attrs.onFilterAdd) {
+              // Pass all normalized filters at once
+              // Determine logical operator based on original filter type:
+              // - IN: multiple values ORed together (value = X OR value = Y)
+              // - NOT IN: multiple values ANDed together (value != X AND value != Y)
+              //   (De Morgan's law: NOT(A OR B) = NOT A AND NOT B)
+              let operator: 'AND' | 'OR' | undefined;
+              if (normalizedFilters.length > 1) {
+                operator = filter.op === 'not in' ? 'AND' : 'OR';
+              }
+              attrs.onFilterAdd(
+                normalizedFilters.length === 1
+                  ? normalizedFilters[0]
+                  : normalizedFilters,
+                operator,
+              );
+            } else {
+              // Legacy: add filters directly to node state
+              attrs.node.state.filters = [
+                ...(attrs.node.state.filters ?? []),
+                ...normalizedFilters,
+              ];
+              if (normalizedFilters.length > 1) {
+                attrs.node.state.filterOperator =
+                  filter.op === 'not in' ? 'AND' : 'OR';
               }
             }
-          },
-          cellRenderer: (value: SqlValue, name: string) => {
-            return renderCell(value, name);
+            attrs.onchange?.();
           },
         }),
       ];
@@ -344,7 +390,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       !attrs.isAnalyzing
     ) {
       return m(
-        '.pf-data-explorer-empty-state',
+        DataExplorerEmptyState,
+        {},
         m(Button, {
           label: 'Run Query',
           icon: 'play_arrow',

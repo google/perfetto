@@ -80,6 +80,18 @@
     margin: 5px 0 5px 0;
   }
 
+  // Remove duplicate dividers and dividers at the start or end of the menu
+  .pf-menu-divider:first-child,
+  .pf-menu-divider + .pf-menu-divider,
+  .pf-menu-divider:not(:has(~ :not(.pf-menu-divider))) {
+    display: none;
+  }
+
+  // Remove a menu divider if it directly follows another divider
+  .pf-menu-divider + .pf-menu-divider {
+    display: none;
+  }
+
   .pf-menu-title {
     font-family: var(--pf-font-compact);
     font-weight: 800;

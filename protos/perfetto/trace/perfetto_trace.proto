@@ -879,8 +879,34 @@ message SurfaceFlingerTransactionsConfig {
 // Data source that lists details (such as version code) about users on an
 // Android device.
 message AndroidUserListConfig {
-  // If not empty, emit info about only the following list of user types
-  // (exact match, no regex). Otherwise, emit info about all users.
+  // An allowlist of user type strings, used to control the granularity of
+  // user type information emitted in the trace. Exact, case-sensitive string
+  // matching is used.
+  //
+  // Any user type read from the device that is NOT present in the
+  // effective allowlist will have its type reported as
+  // "android.os.usertype.FILTERED".
+  //
+  // The effective allowlist is determined as follows:
+  //
+  // 1. If this 'user_type_filter' field is provided and non-empty:
+  //    This list itself is the effective allowlist.
+  //    Example TraceConfig:
+  //    --------------------
+  //    data_sources {
+  //        config {
+  //            name: "android.user_list"
+  //            target_buffer: 0
+  //            user_list_config {
+  //              # Only report these specific types, others become FILTERED.
+  //              user_type_filter: "android.os.usertype.full.SYSTEM"
+  //              user_type_filter: "android.os.usertype.system.HEADLESS"
+  //            }
+  //        }
+  //    }
+  //
+  //
+  // Note: This field does not support regular expressions.
   repeated string user_type_filter = 1;
 }
 
@@ -15226,7 +15252,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 44.
+// Next id: 45.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -15318,8 +15344,17 @@ message InternedData {
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
+  // Interned job names for Android Job Names. These are separate from
+  // other strings because they are under app control.
+  repeated AndroidJobName android_job_name = 44;
+
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
+}
+
+message AndroidJobName {
+  optional uint64 iid = 1;
+  optional string name = 2;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto

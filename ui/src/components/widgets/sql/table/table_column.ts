@@ -26,6 +26,22 @@ export interface TableManager {
   getSqlQuery(data: {[key: string]: SqlColumn}): string;
 }
 
+// Context passed to renderCell to allow interaction with the table.
+export interface RenderCellContext {
+  filters: Filters;
+  trace: Trace;
+  getSqlQuery(data: {[key: string]: SqlColumn}): string;
+  hasColumn(column: TableColumn): boolean;
+  addColumn(column: TableColumn): void;
+}
+
+// Context passed to listDerivedColumns to provide information about the table.
+export interface ListColumnsContext {
+  filters: Filters;
+  trace: Trace;
+  getSqlQuery(data: {[key: string]: SqlColumn}): string;
+}
+
 export interface TableColumnParams {
   // See TableColumn.tag.
   tag?: string;
@@ -59,12 +75,12 @@ export interface TableColumn {
   }): m.Children;
 
   /**
-   * Render a table cell. tableManager can be undefined, in which case the cell should provide basic rendering (e.g. for pivot table).
+   * Render a table cell. context can be undefined, in which case the cell should provide basic rendering (e.g. for pivot table).
    *
    * @param value The value to be rendered.
-   * @param tableManager Optional table manager to allow interaction with the table (e.g. adding filters).
+   * @param context Optional context to allow interaction with the table (e.g. adding filters).
    */
-  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell;
+  renderCell(value: SqlValue, context?: RenderCellContext): RenderedCell;
 
   // A set of columns to be added when opening this table.
   // It has two primary purposes:
@@ -75,7 +91,7 @@ export interface TableColumn {
   // Some columns / values (arg_set_ids, table ids, etc) are primarily used to reference other data.
   // This method allows showing the user list of additional columns which can be fetched using this column.
   listDerivedColumns?(
-    manager: TableManager,
+    context: ListColumnsContext,
   ): undefined | (() => Promise<Map<string, TableColumn>>);
 }
 

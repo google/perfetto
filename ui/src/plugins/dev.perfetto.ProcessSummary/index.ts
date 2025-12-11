@@ -38,7 +38,6 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
-    await this.addKernelThreadSummary(ctx);
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
@@ -192,6 +191,7 @@ export default class implements PerfettoPlugin {
       });
     }
   }
+<<<<<<< HEAD
 
   private async addKernelThreadSummary(ctx: Trace): Promise<void> {
     const {engine} = ctx;
@@ -260,4 +260,6 @@ export default class implements PerfettoPlugin {
       ),
     });
   }
+=======
+>>>>>>> origin/main
 }

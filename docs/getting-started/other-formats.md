@@ -411,6 +411,16 @@ stacks, timestamps, process/thread identifiers, CPU number, and event names.
 
     ![](/docs/images/perf-profile-in-ui.png)
 
+**External Resources:**
+
+- **`perf-script` man page:** `man perf-script` (or search online, e.g.,
+  [perf-script Linux man page](https://man7.org/linux/man-pages/man1/perf-script.1.html))
+- **`perf` tool general information:**
+  [perf Wiki (kernel.org)](https://perf.wiki.kernel.org/index.php/Main_Page)
+- **Brendan Gregg's `perf` examples:**
+  [Brendan Gregg's perf page](https://www.brendangregg.com/perf.html) (Contains
+  many examples of `perf script` usage, especially for flame graphs)
+
 ## Simpleperf proto format
 
 **Description:** Simpleperf is Android's profiling tool built on top of the
@@ -717,16 +727,6 @@ consumes the resulting XML file).
   [Instruments User Guide](https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/InstrumentsUserGuide/)
   or search for current Instruments documentation on
   [developer.apple.com](https://developer.apple.com).
-
-**External Resources:**
-
-- **`perf-script` man page:** `man perf-script` (or search online, e.g.,
-  [perf-script Linux man page](https://man7.org/linux/man-pages/man1/perf-script.1.html))
-- **`perf` tool general information:**
-  [perf Wiki (kernel.org)](https://perf.wiki.kernel.org/index.php/Main_Page)
-- **Brendan Gregg's `perf` examples:**
-  [Brendan Gregg's perf page](https://www.brendangregg.com/perf.html) (Contains
-  many examples of `perf script` usage, especially for flame graphs)
 
 ## Ninja logs format (`.ninja_log`)
 

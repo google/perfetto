@@ -41,8 +41,14 @@ function parseJson(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function parseJsonWithBigints(text: string): any {
   return parseJson(text, (_, value, context) => {
-    if (typeof value === 'number' && Number.isInteger(value)) {
-      return BigInt(context.source);
+    if (typeof value === 'number') {
+      // Even an integer value can be spelled as '1.0', which can't be converted to BigInt,
+      // so we try converting sources for all values to BigInt and fallback to the original value if it fails.
+      try {
+        return BigInt(context.source);
+      } catch (e) {
+        return value;
+      }
     }
     return value;
   });
