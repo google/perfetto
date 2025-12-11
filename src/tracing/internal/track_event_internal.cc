@@ -44,6 +44,7 @@ TrackEventSessionObserver::~TrackEventSessionObserver() = default;
 void TrackEventSessionObserver::OnSetup(const DataSourceBase::SetupArgs&) {}
 void TrackEventSessionObserver::OnStart(const DataSourceBase::StartArgs&) {}
 void TrackEventSessionObserver::OnStop(const DataSourceBase::StopArgs&) {}
+void TrackEventSessionObserver::OnDidStop(const DataSourceBase::StopArgs&) {}
 void TrackEventSessionObserver::WillClearIncrementalState(
     const DataSourceBase::ClearIncrementalStateArgs&) {}
 
@@ -294,6 +295,14 @@ void TrackEventInternal::OnStop(const DataSourceBase::StopArgs& args) {
       ->ForEachObserverForRegistries(
           GetInstance().GetRegistries(),
           [&](TrackEventSessionObserver* o) { o->OnStop(args); });
+}
+
+// static
+void TrackEventInternal::OnDidStop(const DataSourceBase::StopArgs& args) {
+  TrackEventSessionObserverRegistry::GetInstance()
+      ->ForEachObserverForRegistries(
+          GetInstance().GetRegistries(),
+          [&](TrackEventSessionObserver* o) { o->OnDidStop(args); });
 }
 
 // static

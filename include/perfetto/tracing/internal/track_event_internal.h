@@ -77,11 +77,14 @@ class PERFETTO_EXPORT_COMPONENT TrackEventSessionObserver {
   // emit track events from this callback. TRACE_EVENT_CATEGORY_ENABLED() will
   // include the session being started.
   virtual void OnStart(const DataSourceBase::StartArgs&);
-  // Called when a track event tracing session is stopped.
-  // TRACE_EVENT_CATEGORY_ENABLED() will not include the session being stopped.
-  // Unlike DataSource::OnStop, it is no longer possible to emit track events
-  // from this callback.
+  // Called when a track event tracing session is stopped. It is still possible
+  // to emit track events from this callback.
   virtual void OnStop(const DataSourceBase::StopArgs&);
+  // Called after a track event tracing session is stopped.
+  // TRACE_EVENT_CATEGORY_ENABLED() will reflect the session being stopped.
+  // Unlike OnStop, it is no longer possible to emit track events from this
+  // callback.
+  virtual void OnDidStop(const DataSourceBase::StopArgs&);
   // Called when tracing muxer requests to clear incremental state.
   virtual void WillClearIncrementalState(
       const DataSourceBase::ClearIncrementalStateArgs&);
@@ -210,6 +213,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
                              uint32_t internal_instance_index);
   static void OnStart(const DataSourceBase::StartArgs&);
   static void OnStop(const DataSourceBase::StopArgs&);
+  static void OnDidStop(const DataSourceBase::StopArgs&);
   static void WillClearIncrementalState(
       const DataSourceBase::ClearIncrementalStateArgs&);
 

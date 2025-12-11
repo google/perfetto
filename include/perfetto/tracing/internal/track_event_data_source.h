@@ -231,11 +231,13 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
 
   void OnStop(const DataSourceBase::StopArgs& args) override {
     uint32_t internal_instance_index = args.internal_instance_index;
-    TrackEventInternal::GetInstance().DisableTracing(internal_instance_index);
 
     StopArgsImpl inner_stop_args{};
     inner_stop_args.internal_instance_index = internal_instance_index;
+
     TrackEventInternal::OnStop(inner_stop_args);
+    TrackEventInternal::GetInstance().DisableTracing(internal_instance_index);
+    TrackEventInternal::OnDidStop(inner_stop_args);
   }
 
   void WillClearIncrementalState(
