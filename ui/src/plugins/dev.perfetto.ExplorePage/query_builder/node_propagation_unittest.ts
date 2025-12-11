@@ -14,33 +14,14 @@
 
 import {ModifyColumnsNode} from './nodes/modify_columns_node';
 import {AggregationNode} from './nodes/aggregation_node';
-import {QueryNode, NodeType} from '../query_node';
-import {columnInfoFromSqlColumn} from './column_info';
-import {NodeDetailsAttrs} from './node_explorer_types';
+import {
+  createMockSourceNode,
+  connectNodes,
+  initializeNodeChain,
+  expectColumnNames,
+} from './testing/test_utils';
 
 describe('Node Propagation', () => {
-  function createMockSourceNode(): QueryNode {
-    return {
-      nodeId: 'source',
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: [
-        columnInfoFromSqlColumn({name: 'id', type: {kind: 'int'}}, true),
-        columnInfoFromSqlColumn({name: 'name', type: {kind: 'string'}}, true),
-        columnInfoFromSqlColumn({name: 'value', type: {kind: 'int'}}, true),
-      ],
-      state: {},
-      validate: () => true,
-      getTitle: () => 'Source',
-      nodeSpecificModify: () => null,
-      nodeDetails: (): NodeDetailsAttrs => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockSourceNode(),
-      getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
-    } as QueryNode;
-  }
-
   describe('column rename propagation', () => {
     it('REGRESSION: should update AggregationNode when ModifyColumnsNode columns change', () => {
       // This test reproduces the original bug: when you rename a column in
@@ -55,14 +36,11 @@ describe('Node Propagation', () => {
       });
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = sourceNode;
-      modifyNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = modifyNode;
+      connectNodes(sourceNode, modifyNode);
+      connectNodes(modifyNode, aggNode);
 
       // Initialize the nodes
-      modifyNode.onPrevNodesUpdated?.();
-      aggNode.onPrevNodesUpdated?.();
+      initializeNodeChain([modifyNode, aggNode]);
 
       // Initial state: AggregationNode should have columns: id, name, value
       expect(aggNode.state.groupByColumns.map((c) => c.name)).toEqual([
@@ -95,10 +73,8 @@ describe('Node Propagation', () => {
       });
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = sourceNode;
-      modifyNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = modifyNode;
+      connectNodes(sourceNode, modifyNode);
+      connectNodes(modifyNode, aggNode);
 
       // Initialize the modify node to get columns from source
       modifyNode.onPrevNodesUpdated?.();
@@ -148,14 +124,11 @@ describe('Node Propagation', () => {
       });
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = sourceNode;
-      modifyNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = modifyNode;
+      connectNodes(sourceNode, modifyNode);
+      connectNodes(modifyNode, aggNode);
 
       // Initialize both nodes
-      modifyNode.onPrevNodesUpdated?.();
-      aggNode.onPrevNodesUpdated?.();
+      initializeNodeChain([modifyNode, aggNode]);
 
       // Check a column in the aggregation node
       aggNode.state.groupByColumns[1].checked = true; // Check 'name'
@@ -186,14 +159,11 @@ describe('Node Propagation', () => {
       });
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = sourceNode;
-      modifyNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = modifyNode;
+      connectNodes(sourceNode, modifyNode);
+      connectNodes(modifyNode, aggNode);
 
       // Initialize both nodes
-      modifyNode.onPrevNodesUpdated?.();
-      aggNode.onPrevNodesUpdated?.();
+      initializeNodeChain([modifyNode, aggNode]);
 
       // Initially should have 3 columns
       expect(aggNode.state.groupByColumns).toHaveLength(3);
@@ -225,28 +195,21 @@ describe('Node Propagation', () => {
       });
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = sourceNode;
-      modifyNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = modifyNode;
+      connectNodes(sourceNode, modifyNode);
+      connectNodes(modifyNode, aggNode);
 
       // Initialize both nodes
-      modifyNode.onPrevNodesUpdated?.();
-      aggNode.onPrevNodesUpdated?.();
+      initializeNodeChain([modifyNode, aggNode]);
 
       // Initially: id, name, value
-      expect(modifyNode.finalCols[0].name).toBe('id');
-      expect(modifyNode.finalCols[1].name).toBe('name');
-      expect(modifyNode.finalCols[2].name).toBe('value');
+      expectColumnNames(modifyNode, ['id', 'name', 'value']);
 
       // Reorder: move 'value' to the front
       const cols = modifyNode.state.selectedColumns;
       modifyNode.state.selectedColumns = [cols[2], cols[0], cols[1]];
 
       // Verify modify node's finalCols are reordered
-      expect(modifyNode.finalCols[0].name).toBe('value');
-      expect(modifyNode.finalCols[1].name).toBe('id');
-      expect(modifyNode.finalCols[2].name).toBe('name');
+      expectColumnNames(modifyNode, ['value', 'id', 'name']);
 
       // Notify downstream
       aggNode.onPrevNodesUpdated?.();
@@ -267,58 +230,28 @@ describe('Node Propagation', () => {
       const modify3 = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modify1);
-      modify1.primaryInput = sourceNode;
-      modify1.nextNodes.push(modify2);
-      modify2.primaryInput = modify1;
-      modify2.nextNodes.push(modify3);
-      modify3.primaryInput = modify2;
+      connectNodes(sourceNode, modify1);
+      connectNodes(modify1, modify2);
+      connectNodes(modify2, modify3);
 
       // Initialize all nodes
-      modify1.onPrevNodesUpdated?.();
-      modify2.onPrevNodesUpdated?.();
-      modify3.onPrevNodesUpdated?.();
+      initializeNodeChain([modify1, modify2, modify3]);
 
       // Verify initial state - all have 'id', 'name', 'value'
-      expect(modify1.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'name',
-        'value',
-      ]);
-      expect(modify2.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'name',
-        'value',
-      ]);
-      expect(modify3.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'name',
-        'value',
-      ]);
+      expectColumnNames(modify1, ['id', 'name', 'value']);
+      expectColumnNames(modify2, ['id', 'name', 'value']);
+      expectColumnNames(modify3, ['id', 'name', 'value']);
 
       // Rename 'name' to 'user_name' in modify1
       modify1.state.selectedColumns[1].alias = 'user_name';
 
       // Notify all downstream nodes (simulating builder's onchange)
-      modify2.onPrevNodesUpdated?.();
-      modify3.onPrevNodesUpdated?.();
+      initializeNodeChain([modify2, modify3]);
 
       // All downstream nodes should see the renamed column
-      expect(modify1.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'user_name',
-        'value',
-      ]);
-      expect(modify2.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'user_name',
-        'value',
-      ]);
-      expect(modify3.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'user_name',
-        'value',
-      ]);
+      expectColumnNames(modify1, ['id', 'user_name', 'value']);
+      expectColumnNames(modify2, ['id', 'user_name', 'value']);
+      expectColumnNames(modify3, ['id', 'user_name', 'value']);
     });
 
     it('should propagate changes through 5-node chain with middle node edit', () => {
@@ -331,59 +264,29 @@ describe('Node Propagation', () => {
       const modify5 = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modify1);
-      modify1.primaryInput = sourceNode;
-      modify1.nextNodes.push(modify2);
-      modify2.primaryInput = modify1;
-      modify2.nextNodes.push(modify3);
-      modify3.primaryInput = modify2;
-      modify3.nextNodes.push(modify4);
-      modify4.primaryInput = modify3;
-      modify4.nextNodes.push(modify5);
-      modify5.primaryInput = modify4;
+      connectNodes(sourceNode, modify1);
+      connectNodes(modify1, modify2);
+      connectNodes(modify2, modify3);
+      connectNodes(modify3, modify4);
+      connectNodes(modify4, modify5);
 
       // Initialize all nodes
-      modify1.onPrevNodesUpdated?.();
-      modify2.onPrevNodesUpdated?.();
-      modify3.onPrevNodesUpdated?.();
-      modify4.onPrevNodesUpdated?.();
-      modify5.onPrevNodesUpdated?.();
+      initializeNodeChain([modify1, modify2, modify3, modify4, modify5]);
 
       // Edit the MIDDLE node (modify3) - rename 'value' to 'amount'
       modify3.state.selectedColumns[2].alias = 'amount';
 
       // Notify all downstream nodes (simulating builder's onchange)
-      modify4.onPrevNodesUpdated?.();
-      modify5.onPrevNodesUpdated?.();
+      initializeNodeChain([modify4, modify5]);
 
       // Nodes before modify3 should not be affected
-      expect(modify1.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'name',
-        'value',
-      ]);
-      expect(modify2.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'name',
-        'value',
-      ]);
+      expectColumnNames(modify1, ['id', 'name', 'value']);
+      expectColumnNames(modify2, ['id', 'name', 'value']);
 
       // modify3 and all downstream nodes should see the change
-      expect(modify3.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'name',
-        'amount',
-      ]);
-      expect(modify4.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'name',
-        'amount',
-      ]);
-      expect(modify5.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'name',
-        'amount',
-      ]);
+      expectColumnNames(modify3, ['id', 'name', 'amount']);
+      expectColumnNames(modify4, ['id', 'name', 'amount']);
+      expectColumnNames(modify5, ['id', 'name', 'amount']);
     });
 
     it('should propagate changes through mixed node types: Modify -> Agg -> Modify', () => {
@@ -397,16 +300,12 @@ describe('Node Propagation', () => {
       const modify2 = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modify1);
-      modify1.primaryInput = sourceNode;
-      modify1.nextNodes.push(aggNode);
-      aggNode.primaryInput = modify1;
-      aggNode.nextNodes.push(modify2);
-      modify2.primaryInput = aggNode;
+      connectNodes(sourceNode, modify1);
+      connectNodes(modify1, aggNode);
+      connectNodes(aggNode, modify2);
 
       // Initialize all nodes
-      modify1.onPrevNodesUpdated?.();
-      aggNode.onPrevNodesUpdated?.();
+      initializeNodeChain([modify1, aggNode]);
 
       // Check columns BEFORE renaming and BEFORE initializing modify2
       aggNode.state.groupByColumns[0].checked = true; // Check 'id'
@@ -423,8 +322,7 @@ describe('Node Propagation', () => {
       modify1.state.selectedColumns[1].alias = 'user_name';
 
       // Notify all downstream nodes
-      aggNode.onPrevNodesUpdated?.();
-      modify2.onPrevNodesUpdated?.();
+      initializeNodeChain([aggNode, modify2]);
 
       // Aggregation should see the renamed column in its available columns
       // Note: The old 'name' column is preserved as a "missing" column
@@ -462,48 +360,30 @@ describe('Node Propagation', () => {
       const modify3 = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modify1);
-      modify1.primaryInput = sourceNode;
-      modify1.nextNodes.push(modify2);
-      modify2.primaryInput = modify1;
-      modify2.nextNodes.push(modify3);
-      modify3.primaryInput = modify2;
+      connectNodes(sourceNode, modify1);
+      connectNodes(modify1, modify2);
+      connectNodes(modify2, modify3);
 
       // Initialize all nodes
-      modify1.onPrevNodesUpdated?.();
-      modify2.onPrevNodesUpdated?.();
-      modify3.onPrevNodesUpdated?.();
+      initializeNodeChain([modify1, modify2, modify3]);
 
       // First edit: modify1 renames 'name' to 'user_name'
       modify1.state.selectedColumns[1].alias = 'user_name';
-      modify2.onPrevNodesUpdated?.();
-      modify3.onPrevNodesUpdated?.();
+      initializeNodeChain([modify2, modify3]);
 
-      expect(modify3.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'user_name',
-        'value',
-      ]);
+      expectColumnNames(modify3, ['id', 'user_name', 'value']);
 
       // Second edit: modify2 renames 'user_name' to 'username'
       modify2.state.selectedColumns[1].alias = 'username';
       modify3.onPrevNodesUpdated?.();
 
-      expect(modify3.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'username',
-        'value',
-      ]);
+      expectColumnNames(modify3, ['id', 'username', 'value']);
 
       // Third edit: modify2 also renames 'id' to 'identifier'
       modify2.state.selectedColumns[0].alias = 'identifier';
       modify3.onPrevNodesUpdated?.();
 
-      expect(modify3.finalCols.map((c) => c.name)).toEqual([
-        'identifier',
-        'username',
-        'value',
-      ]);
+      expectColumnNames(modify3, ['identifier', 'username', 'value']);
     });
 
     it('should propagate column removal through entire chain', () => {
@@ -515,34 +395,26 @@ describe('Node Propagation', () => {
       const modify4 = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modify1);
-      modify1.primaryInput = sourceNode;
-      modify1.nextNodes.push(modify2);
-      modify2.primaryInput = modify1;
-      modify2.nextNodes.push(modify3);
-      modify3.primaryInput = modify2;
-      modify3.nextNodes.push(modify4);
-      modify4.primaryInput = modify3;
+      connectNodes(sourceNode, modify1);
+      connectNodes(modify1, modify2);
+      connectNodes(modify2, modify3);
+      connectNodes(modify3, modify4);
 
       // Initialize all nodes
-      modify1.onPrevNodesUpdated?.();
-      modify2.onPrevNodesUpdated?.();
-      modify3.onPrevNodesUpdated?.();
-      modify4.onPrevNodesUpdated?.();
+      initializeNodeChain([modify1, modify2, modify3, modify4]);
 
       // All should have 3 columns initially
       expect(modify4.finalCols).toHaveLength(3);
 
       // Remove 'name' column in modify2 (middle of chain)
       modify2.state.selectedColumns[1].checked = false;
-      modify3.onPrevNodesUpdated?.();
-      modify4.onPrevNodesUpdated?.();
+      initializeNodeChain([modify3, modify4]);
 
       // All downstream nodes should only have 2 columns now
       expect(modify2.finalCols).toHaveLength(2);
       expect(modify3.finalCols).toHaveLength(2);
       expect(modify4.finalCols).toHaveLength(2);
-      expect(modify4.finalCols.map((c) => c.name)).toEqual(['id', 'value']);
+      expectColumnNames(modify4, ['id', 'value']);
     });
   });
 
@@ -556,10 +428,8 @@ describe('Node Propagation', () => {
       });
 
       // Connect the nodes
-      sourceNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = sourceNode;
-      modifyNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = modifyNode;
+      connectNodes(sourceNode, modifyNode);
+      connectNodes(modifyNode, aggNode);
 
       // Spy on onPrevNodesUpdated
       const aggOnPrevNodesUpdatedSpy = jest.spyOn(
@@ -568,8 +438,7 @@ describe('Node Propagation', () => {
       );
 
       // Initialize
-      modifyNode.onPrevNodesUpdated?.();
-      aggNode.onPrevNodesUpdated?.();
+      initializeNodeChain([modifyNode, aggNode]);
 
       // Clear the spy
       aggOnPrevNodesUpdatedSpy.mockClear();
@@ -600,10 +469,8 @@ describe('Node Propagation', () => {
       const modifyNode = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = sourceNode;
-      aggNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = aggNode;
+      connectNodes(sourceNode, aggNode);
+      connectNodes(aggNode, modifyNode);
 
       // Initialize the aggregation node
       aggNode.onPrevNodesUpdated?.();
@@ -663,10 +530,8 @@ describe('Node Propagation', () => {
       const modifyNode = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = sourceNode;
-      aggNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = aggNode;
+      connectNodes(sourceNode, aggNode);
+      connectNodes(aggNode, modifyNode);
 
       // Initialize the aggregation node
       aggNode.onPrevNodesUpdated?.();
@@ -721,12 +586,9 @@ describe('Node Propagation', () => {
       const modify2 = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = sourceNode;
-      aggNode.nextNodes.push(modify1);
-      modify1.primaryInput = aggNode;
-      modify1.nextNodes.push(modify2);
-      modify2.primaryInput = modify1;
+      connectNodes(sourceNode, aggNode);
+      connectNodes(aggNode, modify1);
+      connectNodes(modify1, modify2);
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
@@ -736,29 +598,21 @@ describe('Node Propagation', () => {
         newColumnName: 'count',
       });
 
-      modify1.onPrevNodesUpdated?.();
-      modify2.onPrevNodesUpdated?.();
+      initializeNodeChain([modify1, modify2]);
 
       // Verify initial state - both modify nodes should see 'name' and 'count'
-      expect(modify1.finalCols.map((c) => c.name)).toEqual(['name', 'count']);
-      expect(modify2.finalCols.map((c) => c.name)).toEqual(['name', 'count']);
+      expectColumnNames(modify1, ['name', 'count']);
+      expectColumnNames(modify2, ['name', 'count']);
 
       // Rename aggregation column
       aggNode.state.aggregations[0].newColumnName = 'total_count';
 
       // Propagate to both downstream nodes
-      modify1.onPrevNodesUpdated?.();
-      modify2.onPrevNodesUpdated?.();
+      initializeNodeChain([modify1, modify2]);
 
       // Both should see the change
-      expect(modify1.finalCols.map((c) => c.name)).toEqual([
-        'name',
-        'total_count',
-      ]);
-      expect(modify2.finalCols.map((c) => c.name)).toEqual([
-        'name',
-        'total_count',
-      ]);
+      expectColumnNames(modify1, ['name', 'total_count']);
+      expectColumnNames(modify2, ['name', 'total_count']);
     });
 
     it('should handle propagation with filter node between: Source -> Agg -> Filter -> ModifyColumns', () => {
@@ -773,12 +627,9 @@ describe('Node Propagation', () => {
       const modifyNode = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect: Source -> Agg -> MiddleNode -> ModifyColumns
-      sourceNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = sourceNode;
-      aggNode.nextNodes.push(middleNode);
-      middleNode.primaryInput = aggNode;
-      middleNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = middleNode;
+      connectNodes(sourceNode, aggNode);
+      connectNodes(aggNode, middleNode);
+      connectNodes(middleNode, modifyNode);
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
@@ -788,24 +639,19 @@ describe('Node Propagation', () => {
         newColumnName: 'count',
       });
 
-      middleNode.onPrevNodesUpdated?.();
-      modifyNode.onPrevNodesUpdated?.();
+      initializeNodeChain([middleNode, modifyNode]);
 
       // Verify initial state
-      expect(modifyNode.finalCols.map((c) => c.name)).toEqual(['id', 'count']);
+      expectColumnNames(modifyNode, ['id', 'count']);
 
       // Rename aggregation column
       aggNode.state.aggregations[0].newColumnName = 'row_count';
 
       // Propagate through middle node to modify node
-      middleNode.onPrevNodesUpdated?.();
-      modifyNode.onPrevNodesUpdated?.();
+      initializeNodeChain([middleNode, modifyNode]);
 
       // Verify change propagated through the chain
-      expect(modifyNode.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'row_count',
-      ]);
+      expectColumnNames(modifyNode, ['id', 'row_count']);
     });
 
     it('should handle multiple stacked aggregations: Source -> Agg1 -> Agg2 -> ModifyColumns', () => {
@@ -821,12 +667,9 @@ describe('Node Propagation', () => {
       const modifyNode = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect: Source -> Agg1 -> Agg2 -> ModifyColumns
-      sourceNode.nextNodes.push(agg1);
-      agg1.primaryInput = sourceNode;
-      agg1.nextNodes.push(agg2);
-      agg2.primaryInput = agg1;
-      agg2.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = agg2;
+      connectNodes(sourceNode, agg1);
+      connectNodes(agg1, agg2);
+      connectNodes(agg2, modifyNode);
 
       // Initialize agg1
       agg1.onPrevNodesUpdated?.();
@@ -853,7 +696,7 @@ describe('Node Propagation', () => {
 
       // Initialize modify node
       modifyNode.onPrevNodesUpdated?.();
-      expect(modifyNode.finalCols.map((c) => c.name)).toEqual(['id', 'count']);
+      expectColumnNames(modifyNode, ['id', 'count']);
 
       // Now change column name in FIRST aggregation (agg1)
       agg1.state.aggregations[0].newColumnName = 'sum_value';
@@ -866,17 +709,14 @@ describe('Node Propagation', () => {
 
       // The modify node should still see 'id' and 'count'
       // because agg2 is doing COUNT(*) which doesn't depend on agg1's output column names
-      expect(modifyNode.finalCols.map((c) => c.name)).toEqual(['id', 'count']);
+      expectColumnNames(modifyNode, ['id', 'count']);
 
       // Now also change column name in SECOND aggregation (agg2)
       agg2.state.aggregations[0].newColumnName = 'num_groups';
 
       // Propagate to modify node
       modifyNode.onPrevNodesUpdated?.();
-      expect(modifyNode.finalCols.map((c) => c.name)).toEqual([
-        'id',
-        'num_groups',
-      ]);
+      expectColumnNames(modifyNode, ['id', 'num_groups']);
     });
 
     it('REGRESSION: should not propagate invalid aggregations to downstream nodes', () => {
@@ -892,10 +732,8 @@ describe('Node Propagation', () => {
       const modifyNode = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = sourceNode;
-      aggNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = aggNode;
+      connectNodes(sourceNode, aggNode);
+      connectNodes(aggNode, modifyNode);
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
@@ -945,10 +783,8 @@ describe('Node Propagation', () => {
       const modifyNode = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = sourceNode;
-      aggNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = aggNode;
+      connectNodes(sourceNode, aggNode);
+      connectNodes(aggNode, modifyNode);
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
@@ -992,10 +828,8 @@ describe('Node Propagation', () => {
       const modifyNode = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = sourceNode;
-      aggNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = aggNode;
+      connectNodes(sourceNode, aggNode);
+      connectNodes(aggNode, modifyNode);
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
@@ -1051,10 +885,8 @@ describe('Node Propagation', () => {
       const modifyNode = new ModifyColumnsNode({selectedColumns: []});
 
       // Connect the nodes
-      sourceNode.nextNodes.push(aggNode);
-      aggNode.primaryInput = sourceNode;
-      aggNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = aggNode;
+      connectNodes(sourceNode, aggNode);
+      connectNodes(aggNode, modifyNode);
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();

@@ -15,7 +15,7 @@
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
-INCLUDE PERFETTO MODULE android.cujs.cujs_base;
+INCLUDE PERFETTO MODULE android.cujs.base;
 
 -- Table tracking all jank CUJs information.
 CREATE PERFETTO TABLE android_sysui_jank_cujs (

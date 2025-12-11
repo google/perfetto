@@ -14,4 +14,4 @@
 -- limitations under the License.
 
 -- Add a dependency on the base CUJs module for access to the android_jank_cuj table.
-INCLUDE PERFETTO MODULE android.cujs.cujs_base;
+INCLUDE PERFETTO MODULE android.cujs.base;
