@@ -23,7 +23,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     text-align: left;
     padding: 2px 8px;
     border-bottom: solid 1px grey;
-    font-weight: bolder;
+    font-weight: 500;
   }
   td {
     padding: 2px 8px;
@@ -40,7 +40,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     }
   }
   td.pf-treetable-maincol {
-    font-weight: bolder;
+    font-weight: 500;
   }
   td.pf-treetable-node {
     .pf-treetable-gutter {
