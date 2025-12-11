@@ -51,7 +51,6 @@
     .pf-home-page__hints {
       display: flex;
       flex-direction: column;
-      align-items: center;
       gap: 24px;
       margin-bottom: 32px;
 
@@ -61,25 +60,82 @@
       }
     }
 
-    .pf-home-page__shortcuts {
+    .pf-home-page__links {
+      width: 100%;
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: baseline;
+      gap: 24px;
+      margin-top: 8px;
+      font-size: 0.9em;
+      color: var(--pf-color-text-muted);
+
+      &-separator {
+        width: 1px;
+        height: 16px;
+        background-color: var(--pf-color-border);
+      }
+    }
+
+    .pf-home-page__section {
       background: var(--pf-color-background-secondary);
       border-radius: 7px;
       padding: 20px 24px;
-      min-width: 280px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
 
       &-title {
         font-size: 12px;
         font-weight: 500;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        // letter-spacing: 0;
         color: var(--pf-color-text-muted);
         margin-bottom: 12px;
       }
 
-      &-list {
+      &-content {
+        flex: 1;
         display: flex;
         flex-direction: column;
         gap: 8px;
+      }
+
+      &-footer {
+        margin-top: auto;
+        padding-top: 12px;
+        border-top: 1px solid var(--pf-color-border);
+      }
+    }
+
+    .pf-home-page__getting-started-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: -4px -8px; // Offset button padding to align text with section
+    }
+
+    .pf-home-page__button {
+      font-family: var(--pf-font-compact);
+      line-height: 1;
+      user-select: none;
+      border-radius: $border-radius;
+      padding: 4px 8px;
+      white-space: nowrap;
+      cursor: pointer;
+
+      & > .pf-left-icon {
+        margin-right: 6px;
+        // color: var(--pf-color-text-muted);
+      }
+
+      &:hover {
+        background: color_hover(transparent);
+      }
+
+      &:active {
+        background: color_active(transparent);
       }
     }
 
@@ -91,20 +147,6 @@
 
       &-label {
         color: var(--pf-color-text);
-      }
-    }
-
-    .pf-home-page__actions {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      color: var(--pf-color-text-muted);
-      font-size: 0.9em;
-
-      &-divider {
-        width: 1px;
-        height: 16px;
-        background: var(--pf-color-border);
       }
     }
   } // .pf-home-page__center
