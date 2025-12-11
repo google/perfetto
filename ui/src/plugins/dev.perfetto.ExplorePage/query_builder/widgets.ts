@@ -910,24 +910,28 @@ export class SelectDeselectAllButtons
 }
 
 /**
- * Shows a confirmation modal warning the user that their current state will be lost.
- * This modal is used when importing JSON or loading an example graph.
- *
- * @returns Promise that resolves to true if user confirms, false if cancelled
+ * Configuration for a warning modal.
  */
-export function showStateOverwriteWarning(): Promise<boolean> {
+export interface WarningModalConfig {
+  readonly key: string;
+  readonly title: string;
+  readonly paragraphs: m.Children[];
+  readonly confirmText: string;
+}
+
+/**
+ * Shows a warning modal with customizable content.
+ * Returns a promise that resolves to true if user confirms, false if cancelled.
+ */
+export function showWarningModal(config: WarningModalConfig): Promise<boolean> {
   return new Promise((resolve) => {
     showModal({
-      key: 'state-overwrite-warning',
-      title: 'Warning: Current State Will Be Lost',
+      key: config.key,
+      title: config.title,
       icon: 'warning',
       content: m(
-        '.pf-state-overwrite-warning',
-        m(
-          'p',
-          'This action will replace your current graph with a new one. All current nodes and connections will be lost.',
-        ),
-        m('p', 'Do you want to continue?'),
+        '.pf-warning-modal',
+        config.paragraphs.map((p) => m('p', p)),
       ),
       buttons: [
         {
@@ -937,7 +941,7 @@ export function showStateOverwriteWarning(): Promise<boolean> {
           },
         },
         {
-          text: 'Continue',
+          text: config.confirmText,
           primary: true,
           action: () => {
             resolve(true);
@@ -948,5 +952,46 @@ export function showStateOverwriteWarning(): Promise<boolean> {
         resolve(false);
       },
     });
+  });
+}
+
+/**
+ * Shows a confirmation modal warning the user that their current state will be lost.
+ * This modal is used when importing JSON or loading an example graph.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showStateOverwriteWarning(): Promise<boolean> {
+  return showWarningModal({
+    key: 'state-overwrite-warning',
+    title: 'Warning: Current State Will Be Lost',
+    paragraphs: [
+      'This action will replace your current graph with a new one. All current nodes and connections will be lost.',
+      'Do you want to continue?',
+    ],
+    confirmText: 'Continue',
+  });
+}
+
+/**
+ * Shows a warning modal before exporting to JSON.
+ * Warns users that the Explore Page is in active development and
+ * future imports of the exported JSON are not guaranteed.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showExportWarning(): Promise<boolean> {
+  return showWarningModal({
+    key: 'export-warning',
+    title: 'Experimental Feature Warning',
+    paragraphs: [
+      'The Explore Page is still in active development. The JSON export format may change in future versions.',
+      m(
+        'strong',
+        'We do not guarantee that you will be able to import this JSON file in future versions of the Explore Page.',
+      ),
+      'Do you want to continue with the export?',
+    ],
+    confirmText: 'Export Anyway',
   });
 }

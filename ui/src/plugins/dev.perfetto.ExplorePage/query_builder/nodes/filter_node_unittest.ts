@@ -14,75 +14,28 @@
 
 import {FilterNode} from './filter_node';
 import {ModifyColumnsNode} from './modify_columns_node';
-import {QueryNode, NodeType} from '../../query_node';
-import {ColumnInfo} from '../column_info';
 import {UIFilter} from '../operations/filter';
+import {
+  createMockSourceNode,
+  createColumnInfo,
+  connectNodes,
+} from '../testing/test_utils';
 
 describe('FilterNode', () => {
-  function createMockTableNode(): QueryNode {
-    return {
-      nodeId: 'mock-table',
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: [
-        {
-          name: 'id',
-          type: 'INT',
-          checked: true,
-          column: {name: 'id', type: {kind: 'int'}},
-        },
-        {
-          name: 'name',
-          type: 'STRING',
-          checked: true,
-          column: {name: 'name', type: {kind: 'string'}},
-        },
-        {
-          name: 'value',
-          type: 'INT',
-          checked: true,
-          column: {name: 'value', type: {kind: 'int'}},
-        },
-      ],
-      state: {},
-      validate: () => true,
-      getTitle: () => 'Mock Table',
-      nodeSpecificModify: () => ({sections: []}),
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockTableNode(),
-      getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
-    } as QueryNode;
-  }
-
-  function createColumnInfo(name: string, type: string): ColumnInfo {
-    return {
-      name,
-      type,
-      checked: true,
-      column: {name, type: {kind: type.toLowerCase() as 'int' | 'string'}},
-    };
-  }
-
   describe('filter invalidation when columns are aliased', () => {
     it('should mark filter as invalid when column is aliased in modify columns node', () => {
       // Create a table source
-      const tableNode = createMockTableNode();
+      const tableNode = createMockSourceNode('mock-table');
 
       // Create a ModifyColumnsNode that aliases 'name' to 'full_name'
       const modifyNode = new ModifyColumnsNode({
         selectedColumns: [
-          createColumnInfo('id', 'INT'),
-          {
-            ...createColumnInfo('name', 'STRING'),
-            alias: 'full_name',
-          },
-          createColumnInfo('value', 'INT'),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string', {alias: 'full_name'}),
+          createColumnInfo('value', 'int'),
         ],
       });
-      tableNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = tableNode;
+      connectNodes(tableNode, modifyNode);
 
       // Create a FilterNode that filters on 'name' (the original column name)
       const filterNode = new FilterNode({
@@ -95,8 +48,7 @@ describe('FilterNode', () => {
           } as UIFilter,
         ],
       });
-      modifyNode.nextNodes.push(filterNode);
-      filterNode.primaryInput = modifyNode;
+      connectNodes(modifyNode, filterNode);
 
       // The filter should be invalid because 'name' doesn't exist in finalCols
       // (it's been aliased to 'full_name')
@@ -133,21 +85,17 @@ describe('FilterNode', () => {
 
     it('should mark filter as invalid when column is unchecked in modify columns node', () => {
       // Create a table source
-      const tableNode = createMockTableNode();
+      const tableNode = createMockSourceNode('mock-table');
 
       // Create a ModifyColumnsNode that unchecks 'name'
       const modifyNode = new ModifyColumnsNode({
         selectedColumns: [
-          createColumnInfo('id', 'INT'),
-          {
-            ...createColumnInfo('name', 'STRING'),
-            checked: false, // Column is unchecked
-          },
-          createColumnInfo('value', 'INT'),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string', {checked: false}),
+          createColumnInfo('value', 'int'),
         ],
       });
-      tableNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = tableNode;
+      connectNodes(tableNode, modifyNode);
 
       // Create a FilterNode that filters on 'name'
       const filterNode = new FilterNode({
@@ -160,8 +108,7 @@ describe('FilterNode', () => {
           } as UIFilter,
         ],
       });
-      modifyNode.nextNodes.push(filterNode);
-      filterNode.primaryInput = modifyNode;
+      connectNodes(modifyNode, filterNode);
 
       // The filter should be invalid because 'name' doesn't exist in finalCols
       const sourceCols = filterNode.sourceCols;
@@ -189,21 +136,17 @@ describe('FilterNode', () => {
 
     it('should keep filter valid when column is aliased but filter uses new name', () => {
       // Create a table source
-      const tableNode = createMockTableNode();
+      const tableNode = createMockSourceNode('mock-table');
 
       // Create a ModifyColumnsNode that aliases 'name' to 'full_name'
       const modifyNode = new ModifyColumnsNode({
         selectedColumns: [
-          createColumnInfo('id', 'INT'),
-          {
-            ...createColumnInfo('name', 'STRING'),
-            alias: 'full_name',
-          },
-          createColumnInfo('value', 'INT'),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string', {alias: 'full_name'}),
+          createColumnInfo('value', 'int'),
         ],
       });
-      tableNode.nextNodes.push(modifyNode);
-      modifyNode.primaryInput = tableNode;
+      connectNodes(tableNode, modifyNode);
 
       // Create a FilterNode that filters on 'full_name' (the aliased name)
       const filterNode = new FilterNode({
@@ -216,8 +159,7 @@ describe('FilterNode', () => {
           } as UIFilter,
         ],
       });
-      modifyNode.nextNodes.push(filterNode);
-      filterNode.primaryInput = modifyNode;
+      connectNodes(modifyNode, filterNode);
 
       // The filter should be valid because 'full_name' exists in finalCols
       const sourceCols = filterNode.sourceCols;
