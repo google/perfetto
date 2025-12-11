@@ -191,7 +191,8 @@ BUILD_DEPS_HOST = [
         'all',
         'all'),
 
-    # Required by protobuf v22+ and gRPC.
+    # Required by protobuf v22+ and gRPC. It's not allowed in our repo beyond
+    # the usage by those deps.
     Dependency(
         'buildtools/abseil-cpp',
         'https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git',
