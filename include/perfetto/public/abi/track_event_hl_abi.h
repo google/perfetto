@@ -46,6 +46,7 @@ enum PerfettoTeHlProtoFieldType {
   PERFETTO_TE_HL_PROTO_TYPE_FIXED32 = 5,
   PERFETTO_TE_HL_PROTO_TYPE_DOUBLE = 6,
   PERFETTO_TE_HL_PROTO_TYPE_FLOAT = 7,
+  PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED = 8,
 };
 
 // Common header for all the proto fields.
@@ -60,6 +61,17 @@ struct PerfettoTeHlProtoFieldCstr {
   struct PerfettoTeHlProtoField header;
   // Null terminated string.
   const char* str;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED
+struct PerfettoTeHlProtoFieldCstrInterned {
+  struct PerfettoTeHlProtoField header;
+  // Null terminated string.
+  const char* str;
+  // The field id of the interned data message (e.g., InternedData.event_names).
+  // `str` will be interned and the resulting iid will be written in the proto
+  // field `header.id`. If zero, `str` is silently dropped.
+  uint32_t interned_type_id;
 };
 
 // PERFETTO_TE_HL_PROTO_TYPE_BYTES
@@ -116,6 +128,7 @@ union PerfettoTeHlProtoFieldUnion {
   struct PerfettoTeHlProtoFieldFixed32 field_fixed32;
   struct PerfettoTeHlProtoFieldDouble field_double;
   struct PerfettoTeHlProtoFieldFloat field_float;
+  struct PerfettoTeHlProtoFieldCstrInterned field_cstr_interned;
 };
 
 // The type of an event extra parameter.
