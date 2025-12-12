@@ -4852,6 +4852,21 @@ message TraceConfig {
       repeated StringFilterRule rules = 1;
     }
     optional StringFilterChain string_filter_chain = 3;
+
+    // Bytecode overlay for Perfetto v54+. This overlay is applied on top of
+    // bytecode_v2 to upgrade specific fields to FilterString. Old Perfetto
+    // versions ignore this field; new versions apply it.
+    //
+    // Unlike bytecode_v2 (which uses implicit message indices via EndOfMessage
+    // markers), this overlay uses a triplet format with explicit indices:
+    //   [msg_index, field_id, semantic_type] ... [checksum]
+    // Each value is varint-encoded. Triplets must be sorted by (msg_index,
+    // field_id). The parser processes bytecode_v2 and this overlay
+    // simultaneously, upgrading matching fields to FilterString.
+    //
+    // See /rfcs/0011-subset-string-filter-rules.md for design details.
+    // Introduced in: Perfetto v54.
+    optional bytes bytecode_overlay_v54 = 4;
   }
   // old field number for trace_filter
   reserved 32;
