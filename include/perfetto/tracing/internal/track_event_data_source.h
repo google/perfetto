@@ -393,15 +393,17 @@ class TrackEvent {
 
   static bool IsCategoryEnabledByConfig(
       const protos::gen::TrackEventConfig& config,
-      const char* category_name,
-      bool is_dynamic) {
-    size_t category_index = Registry->Find(category_name, is_dynamic);
-    if (category_index == TrackEventCategoryRegistry::kDynamicCategoryIndex) {
-      return TrackEventInternal::IsCategoryEnabled(
-          *Registry, config, Category::FromDynamicCategory(category_name));
-    }
+      const char* category_name) {
+    size_t category_index = Registry->Find(category_name, false);
     return TrackEventInternal::IsCategoryEnabled(
         *Registry, config, *Registry->GetCategory(category_index));
+  }
+
+  static bool IsCategoryEnabledByConfig(
+      const protos::gen::TrackEventConfig& config,
+      const DynamicCategory& category) {
+    return TrackEventInternal::IsCategoryEnabled(
+        *Registry, config, Category::FromDynamicCategory(category));
   }
 
   static bool IsCategoryEnabledBySession(size_t internal_instance_index,
