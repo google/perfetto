@@ -15,18 +15,16 @@
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
+import {DataSource, DataSourceModel, DataSourceResult} from './data_source';
 import {
   DataGridColumn,
-  DataGridDataSource,
-  DataSourceResult,
-  Sorting,
+  SortBy,
   SortByColumn,
-  DataGridModel,
-  DataGridFilter,
+  Filter,
   PivotModel,
 } from './model';
 
-export class InMemoryDataSource implements DataGridDataSource {
+export class InMemoryDataSource implements DataSource {
   private data: ReadonlyArray<Row> = [];
   private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
@@ -34,8 +32,8 @@ export class InMemoryDataSource implements DataGridDataSource {
   private aggregateTotalsCache = new Map<string, SqlValue>();
 
   // Cached state for diffing
-  private oldSorting: Sorting = {direction: 'UNSORTED'};
-  private oldFilters: ReadonlyArray<DataGridFilter> = [];
+  private oldSorting: SortBy = {direction: 'UNSORTED'};
+  private oldFilters: ReadonlyArray<Filter> = [];
   private oldPivot?: PivotModel;
 
   constructor(data: ReadonlyArray<Row>) {
@@ -43,7 +41,7 @@ export class InMemoryDataSource implements DataGridDataSource {
     this.filteredSortedData = data;
   }
 
-  get rows(): DataSourceResult {
+  get result(): DataSourceResult {
     return {
       rowOffset: 0,
       rows: this.filteredSortedData,
@@ -54,14 +52,14 @@ export class InMemoryDataSource implements DataGridDataSource {
     };
   }
 
-  notifyUpdate({
+  notify({
     columns,
     sorting = {direction: 'UNSORTED'},
     filters = [],
     pivot,
     distinctValuesColumns,
     parameterKeyColumns,
-  }: DataGridModel): void {
+  }: DataSourceModel): void {
     if (
       !this.isSortByEqual(sorting, this.oldSorting) ||
       !this.areFiltersEqual(filters, this.oldFilters) ||
@@ -192,7 +190,7 @@ export class InMemoryDataSource implements DataGridDataSource {
     return this.filteredSortedData;
   }
 
-  private isSortByEqual(a: Sorting, b: Sorting): boolean {
+  private isSortByEqual(a: SortBy, b: SortBy): boolean {
     if (a.direction === 'UNSORTED' && b.direction === 'UNSORTED') {
       return true;
     }
@@ -211,8 +209,8 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   // Helper function to compare arrays of filter definitions for equality.
   private areFiltersEqual(
-    filtersA: ReadonlyArray<DataGridFilter>,
-    filtersB: ReadonlyArray<DataGridFilter>,
+    filtersA: ReadonlyArray<Filter>,
+    filtersB: ReadonlyArray<Filter>,
   ): boolean {
     if (filtersA.length !== filtersB.length) return false;
 
@@ -227,7 +225,7 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   private applyFilters(
     data: ReadonlyArray<Row>,
-    filters: ReadonlyArray<DataGridFilter>,
+    filters: ReadonlyArray<Filter>,
   ): ReadonlyArray<Row> {
     if (filters.length === 0) {
       return data;
@@ -290,7 +288,7 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   private applySorting(
     data: ReadonlyArray<Row>,
-    sortBy: Sorting,
+    sortBy: SortBy,
   ): ReadonlyArray<Row> {
     if (sortBy.direction === 'UNSORTED') {
       return data;

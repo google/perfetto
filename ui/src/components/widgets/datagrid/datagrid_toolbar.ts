@@ -18,7 +18,7 @@ import {Box} from '../../../widgets/box';
 import {Button} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Stack, StackAuto} from '../../../widgets/stack';
-import {DataGridFilter} from './model';
+import {Filter} from './model';
 import {DataGridApi} from './datagrid';
 import {DataGridExportButton} from './export_button';
 
@@ -70,7 +70,7 @@ export interface DrillDownIndicatorAttrs {
 }
 
 export interface DataGridToolbarAttrs {
-  readonly filters: ReadonlyArray<DataGridFilter>;
+  readonly filters: ReadonlyArray<Filter>;
   readonly schema: unknown; // SchemaRegistry - avoid circular import
   readonly rootSchema: string;
   readonly totalRows: number;
@@ -80,7 +80,7 @@ export interface DataGridToolbarAttrs {
   readonly toolbarItemsRight?: m.Children;
   readonly dataGridApi: DataGridApi;
   readonly onFilterRemove: OnFilterRemove;
-  readonly formatFilter: (filter: DataGridFilter) => string;
+  readonly formatFilter: (filter: Filter) => string;
   readonly drillDown?: DrillDownIndicatorAttrs;
 }
 

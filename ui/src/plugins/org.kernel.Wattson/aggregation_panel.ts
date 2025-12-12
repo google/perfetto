@@ -16,11 +16,7 @@ import m from 'mithril';
 import {Duration} from '../../base/time';
 import {BarChartData, ColumnDef} from '../../components/aggregation';
 import {AggregationPanelAttrs} from '../../components/aggregation_panel';
-import {
-  DataGridColumn,
-  DataGridDataSource,
-  Sorting,
-} from '../../components/widgets/datagrid/model';
+import {DataGridColumn, SortBy} from '../../components/widgets/datagrid/model';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {
   ColumnSchema,
@@ -30,6 +26,7 @@ import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {AggregatePivotModel} from '../../components/aggregation_adapter';
+import {DataSource} from '../../components/widgets/datagrid/data_source';
 
 export class WattsonAggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
@@ -46,8 +43,8 @@ export class WattsonAggregationPanel
   }
 
   private renderTable(
-    dataSource: DataGridDataSource,
-    sorting: Sorting,
+    dataSource: DataSource,
+    sorting: SortBy,
     columns: ReadonlyArray<ColumnDef> | AggregatePivotModel,
   ) {
     // TODO: Support pivot tables

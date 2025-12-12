@@ -28,7 +28,7 @@ import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
-import {DataGridDataSource, PivotModel} from './widgets/datagrid/model';
+import {PivotModel} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
 import {
@@ -37,6 +37,7 @@ import {
 } from '../trace_processor/sql_utils';
 import {DataGridApi} from './widgets/datagrid/datagrid';
 import {DataGridExportButton} from './widgets/datagrid/export_button';
+import {DataSource} from './widgets/datagrid/data_source';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -96,7 +97,7 @@ export interface Aggregator {
 }
 
 export interface AggregationPanelAttrs {
-  readonly dataSource: DataGridDataSource;
+  readonly dataSource: DataSource;
   readonly sorting: Sorting;
   readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
   readonly barChartData?: ReadonlyArray<BarChartData>;

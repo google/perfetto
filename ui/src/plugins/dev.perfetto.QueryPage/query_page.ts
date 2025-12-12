@@ -17,7 +17,6 @@ import {findRef, toHTMLElement} from '../../base/dom_utils';
 import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
-import {DataGridDataSource} from '../../components/widgets/datagrid/model';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {
   CellRenderer,
@@ -38,6 +37,7 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
 import {getSliceId, isSliceish} from '../../components/query_table/query_table';
+import {DataSource} from '../../components/widgets/datagrid/data_source';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -53,7 +53,7 @@ export interface QueryPageAttrs {
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
-  private dataSource?: DataGridDataSource;
+  private dataSource?: DataSource;
   private editorHeight: number = 0;
   private editorElement?: HTMLElement;
 
@@ -200,7 +200,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private renderQueryResult(
     trace: Trace,
     queryResult: QueryResponse,
-    dataSource: DataGridDataSource,
+    dataSource: DataSource,
   ) {
     const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
     if (queryResult.error) {

@@ -18,7 +18,7 @@ import {Intent} from '../../../../widgets/common';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {DataGridFilter} from '../../../../components/widgets/datagrid/model';
+import {Filter} from '../../../../components/widgets/datagrid/model';
 
 // ============================================================================
 // Filter Type Definitions
@@ -103,7 +103,7 @@ export function formatFilterValue(
  * @param filter The filter from the DataGrid to normalize
  * @returns Array of UIFilters (single filter unless IN/NOT IN)
  */
-export function normalizeDataGridFilter(filter: DataGridFilter): UIFilter[] {
+export function normalizeDataGridFilter(filter: Filter): UIFilter[] {
   // Handle IN/NOT IN filters by converting to multiple equality filters
   if (filter.op === 'in' || filter.op === 'not in') {
     const values = filter.value as ReadonlyArray<SqlValue>;

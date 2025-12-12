@@ -20,7 +20,6 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {DataGrid, renderCell, DataGridApi} from '../widgets/datagrid/datagrid';
-import {DataGridDataSource} from '../widgets/datagrid/model';
 import {
   CellRenderer,
   ColumnSchema,
@@ -31,6 +30,7 @@ import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
 import {DataGridExportButton} from '../widgets/datagrid/export_button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
+import {DataSource} from '../widgets/datagrid/data_source';
 
 type Numeric = bigint | number;
 
@@ -87,7 +87,7 @@ interface QueryTableAttrs {
 
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   private readonly trace: Trace;
-  private dataSource?: DataGridDataSource;
+  private dataSource?: DataSource;
   private dataGridApi?: DataGridApi;
 
   constructor({attrs}: m.CVnode<QueryTableAttrs>) {
@@ -146,10 +146,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     ];
   }
 
-  private renderTableContent(
-    resp: QueryResponse,
-    dataSource: DataGridDataSource,
-  ) {
+  private renderTableContent(resp: QueryResponse, dataSource: DataSource) {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
@@ -164,7 +161,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     );
   }
 
-  private renderContent(resp: QueryResponse, dataSource: DataGridDataSource) {
+  private renderContent(resp: QueryResponse, dataSource: DataSource) {
     if (resp.error) {
       return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }

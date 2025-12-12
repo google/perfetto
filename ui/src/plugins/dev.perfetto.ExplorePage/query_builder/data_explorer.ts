@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {DataGridDataSource} from '../../../components/widgets/datagrid/model';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {
   CellRenderer,
@@ -37,13 +36,14 @@ import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {DataSource} from '../../../components/widgets/datagrid/data_source';
 
 export interface DataExplorerAttrs {
   readonly trace: Trace;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
-  readonly dataSource?: DataGridDataSource;
+  readonly dataSource?: DataSource;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;

@@ -22,24 +22,24 @@ export type AggregationFunction =
   | 'MAX'
   | 'ANY';
 
-export interface FilterValue {
+export interface ValueFilter {
   readonly column: string;
   readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
   readonly value: SqlValue;
 }
 
-export interface FilterIn {
+export interface InFilter {
   readonly column: string;
   readonly op: 'in' | 'not in';
   readonly value: ReadonlyArray<SqlValue>;
 }
 
-export interface FilterNull {
+export interface NullFilter {
   readonly column: string;
   readonly op: 'is null' | 'is not null';
 }
 
-export type DataGridFilter = FilterValue | FilterNull | FilterIn;
+export type Filter = ValueFilter | NullFilter | InFilter;
 
 export interface SortByColumn {
   readonly column: string;
@@ -50,19 +50,7 @@ export interface Unsorted {
   readonly direction: 'UNSORTED';
 }
 
-export type Sorting = SortByColumn | Unsorted;
-
-export interface DataSourceResult {
-  readonly totalRows: number;
-  readonly rowOffset: number;
-  readonly rows: ReadonlyArray<Row>;
-  readonly isLoading?: boolean;
-  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
-  // Available parameter keys for parameterized columns (e.g., for 'args' -> ['foo', 'bar'])
-  readonly parameterKeys?: ReadonlyMap<string, readonly string[]>;
-  // Computed aggregate totals for each aggregate column (grand total across all filtered rows)
-  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
-}
+export type SortBy = SortByColumn | Unsorted;
 
 export interface Pagination {
   readonly offset: number;
@@ -112,27 +100,4 @@ export interface DataGridColumn {
   // Optional aggregation function to compute for this column.
   // Results are returned in DataSourceResult.aggregateTotals.
   readonly aggregation?: AggregationFunction;
-}
-
-export interface DataGridModel {
-  readonly columns?: ReadonlyArray<DataGridColumn>;
-  readonly sorting?: Sorting;
-  readonly filters?: ReadonlyArray<DataGridFilter>;
-  readonly pagination?: Pagination;
-  readonly pivot?: PivotModel;
-  readonly distinctValuesColumns?: ReadonlySet<string>;
-  // Request parameter keys for these parameterized column prefixes (e.g., 'args', 'skills')
-  readonly parameterKeyColumns?: ReadonlySet<string>;
-}
-
-export interface DataGridDataSource {
-  readonly rows?: DataSourceResult;
-  readonly isLoading?: boolean;
-  notifyUpdate(model: DataGridModel): void;
-
-  /**
-   * Export all data with current filters/sorting applied.
-   * Returns a promise that resolves to all filtered and sorted rows.
-   */
-  exportData(): Promise<readonly Row[]>;
 }

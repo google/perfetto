@@ -52,11 +52,10 @@ import {
 import {
   AggregationFunction,
   DataGridColumn,
-  DataGridDataSource,
-  DataGridFilter,
+  Filter,
   PivotModel,
   PivotValue,
-  Sorting,
+  SortBy,
 } from './model';
 import {DataGridToolbar} from './datagrid_toolbar';
 import {
@@ -76,6 +75,7 @@ import {
   buildAddColumnMenuFromSchema,
   ParameterizedColumnSubmenu,
 } from './add_column_menu';
+import {DataSource} from './data_source';
 
 export interface AggregationCellAttrs extends m.Attributes {
   readonly symbol?: string;
@@ -114,9 +114,9 @@ export class AggregationCell implements m.ClassComponent<AggregationCellAttrs> {
  * (uncontrolled mode).
  */
 
-type OnFilterAdd = (filter: DataGridFilter) => void;
+type OnFilterAdd = (filter: Filter) => void;
 export type OnFilterRemove = (index: number) => void;
-type OnSortingChanged = (sorting: Sorting) => void;
+type OnSortingChanged = (sorting: SortBy) => void;
 
 function noOp() {}
 
@@ -169,7 +169,7 @@ export interface DataGridAttrs {
    * The data source is responsible for applying the filters, sorting, and
    * paging and providing the rows that are displayed in the grid.
    */
-  readonly data: DataGridDataSource | ReadonlyArray<Row>;
+  readonly data: DataSource | ReadonlyArray<Row>;
 
   /**
    * Current sort configuration - can operate in controlled or uncontrolled
@@ -182,13 +182,13 @@ export interface DataGridAttrs {
    * Specifies which column to sort by and the direction (asc/DESC/unsorted). If
    * not provided, defaults to internal state with direction 'unsorted'.
    */
-  readonly sorting?: Sorting;
+  readonly sorting?: SortBy;
 
   /**
    * Initial sorting to apply to the grid on first load.
    * This is ignored in controlled mode (i.e. when `sorting` is provided).
    */
-  readonly initialSorting?: Sorting;
+  readonly initialSorting?: SortBy;
 
   /**
    * Callback triggered when the sort configuration changes.
@@ -210,13 +210,13 @@ export interface DataGridAttrs {
    * Each filter contains a column name, operator, and comparison value. If not
    * provided, defaults to an empty array (no filters initially applied).
    */
-  readonly filters?: ReadonlyArray<DataGridFilter>;
+  readonly filters?: ReadonlyArray<Filter>;
 
   /**
    * Initial filters to apply to the grid on first load.
    * This is ignored in controlled mode (i.e. when `filters` is provided).
    */
-  readonly initialFilters?: ReadonlyArray<DataGridFilter>;
+  readonly initialFilters?: ReadonlyArray<Filter>;
 
   /**
    * These callbacks are triggered when filters are added or removed by the
@@ -342,8 +342,8 @@ export interface DataGridApi {
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Internal state
-  private sorting: Sorting = {direction: 'UNSORTED'};
-  private filters: ReadonlyArray<DataGridFilter> = [];
+  private sorting: SortBy = {direction: 'UNSORTED'};
+  private filters: ReadonlyArray<Filter> = [];
   private pivot: PivotModel | undefined = undefined;
   private internalColumns: ReadonlyArray<DataGridColumn> = [];
   // Track pagination state from virtual scrolling
@@ -368,10 +368,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       );
     },
     getRowCount: () => {
-      return this.currentDataSource?.rows?.totalRows ?? 0;
+      return this.currentDataSource?.result?.totalRows ?? 0;
     },
   };
-  private currentDataSource?: DataGridDataSource;
+  private currentDataSource?: DataSource;
   private currentSchema?: SchemaRegistry;
   private currentRootSchema?: string;
   private currentVisibleColumns?: ReadonlyArray<string>;
@@ -462,18 +462,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       });
 
     // Initialize the datasource if required
-    let dataSource: DataGridDataSource;
+    let dataSource: DataSource;
     if (Array.isArray(data)) {
       // If raw data supplied - just create a new in memory data source every
       // render cycle.
       dataSource = new InMemoryDataSource(data);
     } else {
-      dataSource = data as DataGridDataSource;
+      dataSource = data as DataSource;
     }
 
     // Update datasource with current state (sorting, filtering, pagination, pivot)
     // This is called every view cycle to catch changes
-    dataSource.notifyUpdate({
+    dataSource.notify({
       columns: [...columns],
       sorting,
       filters,
@@ -634,7 +634,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Filters group
       if (filterControls) {
-        const distinctState = dataSource.rows?.distinctValues?.get(columnPath);
+        const distinctState =
+          dataSource.result?.distinctValues?.get(columnPath);
 
         const filterSubmenuItems = renderFilterMenuItems({
           columnPath,
@@ -738,7 +739,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           );
 
           // Get available keys from the datasource
-          const availableKeys = dataSource.rows?.parameterKeys?.get(basePath);
+          const availableKeys = dataSource.result?.parameterKeys?.get(basePath);
 
           columnManagementItems.push(
             m(
@@ -861,7 +862,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Get the aggregate total value for this column (grand total across all pivot groups)
       const aggregateTotalValue: SqlValue =
-        dataSource.rows?.aggregateTotals?.get(columnPath) ?? null;
+        dataSource.result?.aggregateTotals?.get(columnPath) ?? null;
 
       // Build aggregation sub-content for pivot aggregate columns
       // Don't show grand total for ANY aggregation (it's just an arbitrary value)
@@ -935,7 +936,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       });
     }
 
-    const rows = dataSource.rows;
+    const rows = dataSource.result;
     const virtualGridRows = (() => {
       if (!rows) return [];
 
@@ -1207,7 +1208,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private async formatData(
-    dataSource: DataGridDataSource,
+    dataSource: DataSource,
     schema: SchemaRegistry | undefined,
     rootSchema: string | undefined,
     columns: ReadonlyArray<string>,
@@ -1297,7 +1298,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private formatFilter(
-    filter: DataGridFilter,
+    filter: Filter,
     schema: SchemaRegistry,
     rootSchema: string,
   ) {
