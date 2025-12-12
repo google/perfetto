@@ -43,9 +43,9 @@ SELECT
               'missed_sf_frames', missed_sf_frames,
               'missed_frames_max_successive', missed_frames_max_successive,
               -- convert from jank per second to total janks.
-              'weighted_missed_app_frames', weighted_missed_app_frames,
+              'weighted_missed_app_frames', weighted_missed_app_frames * anim_duration_ms / 1000,
               'weighted_missed_sf_frames', weighted_missed_sf_frames * anim_duration_ms / 1000,
-              'sf_callback_missed_frames', sf_callback_missed_frames * anim_duration_ms / 1000,
+              'sf_callback_missed_frames', sf_callback_missed_frames,
               'hwui_callback_missed_frames', hwui_callback_missed_frames,
               'frame_dur_max', frame_dur_max,
               -- convert from ms to ns.
