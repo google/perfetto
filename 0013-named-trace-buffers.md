@@ -2,7 +2,8 @@
 
 **Authors:** @primiano
 
-**Status:** Draft
+**Status:** Implemented
+**PR:** https://github.com/google/perfetto/pull/4112
 
 ## Problem
 
