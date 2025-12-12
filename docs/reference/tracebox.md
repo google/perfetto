@@ -6,95 +6,102 @@ tracebox - all-in-one binary for Perfetto tracing services
 
 ## DESCRIPTION
 
-`tracebox` is a bundle containing all the tracing services (`traced`,
-`traced_probes`) and the `perfetto` commandline client in one binary.
+`tracebox` bundles all Perfetto tracing services (`traced`, `traced_probes`,
+`traced_perf`) and the `perfetto` command-line client into a single binary. It
+is the primary tool for recording traces on Linux systems where Perfetto is not
+pre-installed as a system service.
 
-It can be used either to spawn manually the various subprocess or in "autostart"
-mode, which will take care of starting and tearing down the services for you.
+**Key behavior change (2025):** `tracebox` no longer spawns temporary daemons by default.
+It expects daemons to be already running. Use `tracebox ctl` to manage them or
+`--autodaemonize` for the classic self-contained mode.
 
-## AUTOSTART MODE
+## MODES OF OPERATION
 
-If no applet name is specified, `tracebox` will behave like the `perfetto`
-command, but will also start `traced` and `traced_probes`.
+`tracebox` supports three distinct modes of operation depending on how you want
+to manage the lifecycle of the tracing services.
 
-See [perfetto(1)](perfetto-cli.md) for the documentation of the commandline client.
+### 1. Managed Mode (Recommended)
 
-### Autostart Mode Usage
+In this mode, you explicitly start and stop the tracing services using the `ctl`
+applet. This creates persistent background daemons that remain active across
+multiple tracing sessions.
 
-The autostart mode supports both simple and normal modes of `perfetto`'s
-operation, and additionally provides a `--system-sockets` flag.
+**Commands:**
 
-The general syntax for using `tracebox` in *autostart mode* is as follows:
+`tracebox ctl start`
+:   Starts `traced` and `traced_probes` in the background.
 
-```
- tracebox [PERFETTO_OPTIONS] [TRACEBOX_OPTIONS] [EVENT_SPECIFIERS]
-```
+`tracebox ctl stop`
+:   Stops daemons started via `ctl start`.
 
-`--system-sockets`
-:    Forces the use of system-sockets when using autostart mode.
-     By default, `tracebox` uses a private socket namespace to avoid
-     conflicts with system-wide `traced` daemons. This flag forces it to
-     use the standard system sockets, which is useful for debugging
-     interactions with the system `traced` service.
+`tracebox ctl status`
+:   Checks if daemons are running, accessible, and which sockets they are using.
 
-#### Simple Mode Example
-
-To capture a 10-second trace of `sched/sched_switch` events in autostart mode:
+**Example Workflow:**
 
 ```bash
-tracebox -t 10s -o trace_file.perfetto-trace sched/sched_switch
+# Start services once (as root for full system/SDK support)
+./tracebox ctl start
+
+# Record multiple traces
+./tracebox -t 10s -o trace1.pftrace sched
+./tracebox -t 10s -o trace2.pftrace sched
+
+# Stop services when finished
+./tracebox ctl stop
 ```
 
-#### Normal Mode Example
+### 2. Autodaemonize Mode
 
-To capture a trace using a custom configuration file in autostart mode:
+In this mode, `tracebox` spawns temporary, ephemeral daemons solely for the
+duration of a single command. The daemons are cleaned up automatically when the
+command finishes.
+
+**Usage:**
+
+Pass the `--autodaemonize` flag before other arguments.
 
 ```bash
-cat <<EOF > config.pbtx
-duration_ms: 5000
-buffers {
-  size_kb: 1024
-  fill_policy: RING_BUFFER
-}
-data_sources {
-  config {
-    name: "linux.ftrace"
-    ftrace_config {
-      ftrace_events: "sched/sched_switch"
-    }
-  }
-}
-EOF
-
-tracebox -c config.pbtx --txt -o custom_trace.perfetto-trace
+# Start daemons, record trace, stop daemons
+./tracebox --autodaemonize -t 10s -o trace.pftrace sched
 ```
 
-## MANUAL MODE
+### 3. Applet Mode
 
-`tracebox` can be used to invoke the bundled applets.
+`tracebox` can behave like any of the bundled binaries if invoked with that
+binary's name as the first argument (or if symlinked to that name).
 
-The general syntax for using `tracebox` in *manual mode* is as follows:
+**Available Applets:** `traced`, `traced_probes`, `traced_perf`, `perfetto`,
+`trigger_perfetto`, `websocket_bridge`, `ctl`.
 
+**Example:**
+
+```bash
+# equivalent to running the standalone 'perfetto' client
+./tracebox perfetto -t 10s -o trace.pftrace sched
 ```
- tracebox [applet_name] [args ...]
-```
 
-The following applets are available:
+## CHOOSING BETWEEN MANAGED AND AUTODAEMONIZE
 
-`traced`
-:    The Perfetto tracing service daemon.
+Choosing the right mode depends on your specific tracing needs, particularly
+regarding application instrumentation and workflow frequency.
 
-`traced_probes`
-:    Probes for system-wide tracing (ftrace, /proc pollers).
+### When to use Managed Mode (`ctl`)
 
-`traced_perf`
-:    Perf-based CPU profiling data source.
+This is the preferred mode for most workflows.
 
-`perfetto`
-:    The commandline client for controlling tracing sessions.
+*   **SDK/App Tracing:** If you are tracing applications instrumented with the
+    Perfetto SDK (using `track_event`), you **must** use Managed Mode (usually
+    as root). SDK applications connect to the standard system socket paths
+    (e.g., `/run/perfetto/` on Linux).
+*   **Repeated Tracing:** If you are recording multiple traces in succession,
+    Managed Mode avoids the overhead of restarting the services for every trace.
+*   **Interactivity:** Useful when manually exploring system behavior and you
+    want the tracing service to be always available.
 
-`trigger_perfetto`
-:    A utility to activate triggers for a tracing session.
+### When to use Autodaemonize Mode
 
-`websocket_bridge`
-:    A bridge for connecting to the tracing service via websockets.
+*   **One-off Scripts:** Useful for self-contained scripts or cron jobs where
+    you want to ensure no leftover processes remain after execution.
+*   **Debugging:** Quick verification of ftrace events where setting up a full
+    service is unnecessary.
