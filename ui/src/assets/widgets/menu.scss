@@ -80,12 +80,10 @@
     margin: 5px 0 5px 0;
   }
 
-  // Hide the first and last menu section divider to avoid leading divider
-  .pf-menu-divider:last-child {
-    display: none;
-  }
-
-  .pf-menu-divider:first-child {
+  // Remove duplicate dividers and dividers at the start or end of the menu
+  .pf-menu-divider:first-child,
+  .pf-menu-divider + .pf-menu-divider,
+  .pf-menu-divider:not(:has(~ :not(.pf-menu-divider))) {
     display: none;
   }
 

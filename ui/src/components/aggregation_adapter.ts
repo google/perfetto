@@ -28,15 +28,15 @@ import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
-import {DataGridDataSource} from './widgets/data_grid/common';
-import {SQLDataSource} from './widgets/data_grid/sql_data_source';
+import {DataGridDataSource, PivotModel} from './widgets/datagrid/common';
+import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
 import {
   createPerfettoTable,
   DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
-import {DataGridApi} from './widgets/data_grid/data_grid';
-import {DataGridExportButton} from './widgets/data_grid/export_button';
+import {DataGridApi} from './widgets/datagrid/datagrid';
+import {DataGridExportButton} from './widgets/datagrid/export_button';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -55,47 +55,9 @@ export interface Aggregation {
   prepareData(engine: Engine): Promise<AggregationData>;
 }
 
-export interface Aggregator {
-  readonly id: string;
-
-  /**
-   * This function is called every time the area selection changes. The purpose
-   * of this function is to test whether this aggregator applies to the given
-   * area selection. If it does, it returns an aggregation object which gives
-   * further instructions on how to prepare the aggregation data.
-   *
-   * Aggregators are arranged this way because often the computation required to
-   * work out whether this aggregation applies is the same as the computation
-   * required to actually do the aggregation, so doing it like this means the
-   * prepareData() function returned can capture intermediate state avoiding
-   * having to do it again or awkwardly cache it somewhere in the aggregators
-   * local state.
-   */
-  probe(area: AreaSelection): Aggregation | undefined;
-  getTabName(): string;
-  getDefaultSorting(): Sorting;
-  getColumnDefinitions(): ColumnDef[];
-
-  /**
-   * Optionally override which component is used to render the data in the
-   * details panel. This can be used to define customize how the data is
-   * rendered.
-   */
-  readonly PanelComponent?: PanelComponent;
-}
-
-export interface AggregationPanelAttrs {
-  readonly dataSource: DataGridDataSource;
-  readonly sorting: Sorting;
+export interface AggregatePivotModel extends PivotModel {
   readonly columns: ReadonlyArray<ColumnDef>;
-  readonly barChartData?: ReadonlyArray<BarChartData>;
-  readonly onReady?: (api: DataGridApi) => void;
 }
-
-// Define a type for the expected props of the panel components so that a
-// generic AggregationPanel can be specificed as an argument to
-// createBaseAggregationToTabAdaptor()
-export type PanelComponent = m.ComponentTypes<AggregationPanelAttrs>;
 
 export interface Aggregator {
   readonly id: string;
@@ -123,8 +85,28 @@ export interface Aggregator {
   probe(area: AreaSelection): Aggregation | undefined;
   getTabName(): string;
   getDefaultSorting(): Sorting;
-  getColumnDefinitions(): ColumnDef[];
+  getColumnDefinitions(): ColumnDef[] | AggregatePivotModel;
+
+  /**
+   * Optionally override which component is used to render the data in the
+   * details panel. This can be used to define customize how the data is
+   * rendered.
+   */
+  readonly PanelComponent?: PanelComponent;
 }
+
+export interface AggregationPanelAttrs {
+  readonly dataSource: DataGridDataSource;
+  readonly sorting: Sorting;
+  readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
+  readonly onReady?: (api: DataGridApi) => void;
+}
+
+// Define a type for the expected props of the panel components so that a
+// generic AggregationPanel can be specificed as an argument to
+// createBaseAggregationToTabAdaptor()
+export type PanelComponent = m.ComponentTypes<AggregationPanelAttrs>;
 
 export function selectTracksAndGetDataset<T extends DatasetSchema>(
   tracks: ReadonlyArray<Track>,
@@ -254,7 +236,10 @@ export function createAggregationTab(
           data = undefined;
           if (aggregation) {
             data = await aggregation?.prepareData(trace.engine);
-            dataSource = new SQLDataSource(trace.engine, data.tableName);
+            dataSource = new SQLDataSource({
+              engine: trace.engine,
+              baseQuery: data.tableName,
+            });
           }
         });
       }

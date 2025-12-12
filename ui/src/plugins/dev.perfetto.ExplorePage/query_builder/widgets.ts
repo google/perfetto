@@ -32,6 +32,7 @@ import {
 } from '../../../widgets/multiselect';
 import {classNames} from '../../../base/classnames';
 import {Tooltip} from '../../../widgets/tooltip';
+import {showModal} from '../../../widgets/modal';
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -906,4 +907,91 @@ export class SelectDeselectAllButtons
       }),
     );
   }
+}
+
+/**
+ * Configuration for a warning modal.
+ */
+export interface WarningModalConfig {
+  readonly key: string;
+  readonly title: string;
+  readonly paragraphs: m.Children[];
+  readonly confirmText: string;
+}
+
+/**
+ * Shows a warning modal with customizable content.
+ * Returns a promise that resolves to true if user confirms, false if cancelled.
+ */
+export function showWarningModal(config: WarningModalConfig): Promise<boolean> {
+  return new Promise((resolve) => {
+    showModal({
+      key: config.key,
+      title: config.title,
+      icon: 'warning',
+      content: m(
+        '.pf-warning-modal',
+        config.paragraphs.map((p) => m('p', p)),
+      ),
+      buttons: [
+        {
+          text: 'Cancel',
+          action: () => {
+            resolve(false);
+          },
+        },
+        {
+          text: config.confirmText,
+          primary: true,
+          action: () => {
+            resolve(true);
+          },
+        },
+      ],
+      onClose: () => {
+        resolve(false);
+      },
+    });
+  });
+}
+
+/**
+ * Shows a confirmation modal warning the user that their current state will be lost.
+ * This modal is used when importing JSON or loading an example graph.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showStateOverwriteWarning(): Promise<boolean> {
+  return showWarningModal({
+    key: 'state-overwrite-warning',
+    title: 'Warning: Current State Will Be Lost',
+    paragraphs: [
+      'This action will replace your current graph with a new one. All current nodes and connections will be lost.',
+      'Do you want to continue?',
+    ],
+    confirmText: 'Continue',
+  });
+}
+
+/**
+ * Shows a warning modal before exporting to JSON.
+ * Warns users that the Explore Page is in active development and
+ * future imports of the exported JSON are not guaranteed.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showExportWarning(): Promise<boolean> {
+  return showWarningModal({
+    key: 'export-warning',
+    title: 'Experimental Feature Warning',
+    paragraphs: [
+      'The Explore Page is still in active development. The JSON export format may change in future versions.',
+      m(
+        'strong',
+        'We do not guarantee that you will be able to import this JSON file in future versions of the Explore Page.',
+      ),
+      'Do you want to continue with the export?',
+    ],
+    confirmText: 'Export Anyway',
+  });
 }

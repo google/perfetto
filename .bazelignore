@@ -11,6 +11,7 @@ ui
 # $ find buildtools -regex ".*/BUILD\(\.bazel\)?" | \
 # xargs -I {} sh -c 'echo "{}" | awk "{ print \$1, \$2 }" FS=/ OFS=/' | \
 # uniq | grep -v expat
+buildtools/abseil-cpp
 buildtools/googletest
 buildtools/protobuf
 buildtools/ndk

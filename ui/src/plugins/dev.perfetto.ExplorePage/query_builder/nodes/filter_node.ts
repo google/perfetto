@@ -427,6 +427,11 @@ export class FilterNode implements QueryNode {
       return false;
     }
 
+    if (!this.primaryInput.validate()) {
+      this.setValidationError('Previous node is invalid');
+      return false;
+    }
+
     // Check if there are columns available from the previous node
     if (this.sourceCols.length === 0) {
       this.setValidationError(

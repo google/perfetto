@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
+#include <cstdio>
+#include <cstring>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include <google/protobuf/compiler/importer.h>
+#include <google/protobuf/descriptor.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -39,26 +44,34 @@ class MultiFileErrorCollectorImpl
     : public google::protobuf::compiler::MultiFileErrorCollector {
  public:
   ~MultiFileErrorCollectorImpl() override;
-  void AddError(const std::string&, int, int, const std::string&) override;
-  void AddWarning(const std::string&, int, int, const std::string&) override;
+  void RecordError(std::string_view filename,
+                   int line,
+                   int column,
+                   std::string_view message) override;
+  void RecordWarning(std::string_view filename,
+                     int line,
+                     int column,
+                     std::string_view message) override;
 };
 
 MultiFileErrorCollectorImpl::~MultiFileErrorCollectorImpl() = default;
 
-void MultiFileErrorCollectorImpl::AddError(const std::string& filename,
-                                           int line,
-                                           int column,
-                                           const std::string& message) {
-  PERFETTO_ELOG("Error %s %d:%d: %s", filename.c_str(), line, column,
-                message.c_str());
+void MultiFileErrorCollectorImpl::RecordError(std::string_view filename,
+                                              int line,
+                                              int column,
+                                              std::string_view message) {
+  PERFETTO_ELOG("Error %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
+                filename.data(), line, column, static_cast<int>(message.size()),
+                message.data());
 }
 
-void MultiFileErrorCollectorImpl::AddWarning(const std::string& filename,
-                                             int line,
-                                             int column,
-                                             const std::string& message) {
-  PERFETTO_ELOG("Warning %s %d:%d: %s", filename.c_str(), line, column,
-                message.c_str());
+void MultiFileErrorCollectorImpl::RecordWarning(std::string_view filename,
+                                                int line,
+                                                int column,
+                                                std::string_view message) {
+  PERFETTO_ELOG("Warning %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
+                filename.data(), line, column, static_cast<int>(message.size()),
+                message.data());
 }
 
 struct ImportResult {

@@ -322,9 +322,10 @@
   flex-wrap: wrap;
   gap: 12px;
   align-items: stretch;
+  flex: 1;
 
-  // When container is narrow (< 500px), stack vertically
-  @container (max-width: 500px) {
+  // When container is narrow (< 400px), stack vertically
+  @container (max-width: 400px) {
     flex-direction: column;
 
     .pf-exp-equal-width-row__separator {
@@ -670,4 +671,9 @@
   justify-content: flex-end;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+// Wider modal for computed column forms
+.pf-computed-column-modal-wide {
+  min-width: 30vw;
 }

@@ -31,7 +31,7 @@ SELECT
         AndroidJankCujMetric_Cuj(
           'id', cuj_id,
           'name', cuj_name,
-          'process', process_metadata,
+          'process', process_metadata_proto(cuj.upid),
           'layer_name', layer_name,
           'ts', COALESCE(boundary.ts, cuj.ts),
           'dur', COALESCE(boundary.dur, cuj.dur),

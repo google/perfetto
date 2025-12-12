@@ -147,14 +147,20 @@ export class ModifyColumnsNode implements QueryNode {
       this.state.issues.clear();
     }
 
+    // Check if primary input exists and is valid
+    if (this.primaryInput === undefined) {
+      this.setValidationError('No input node connected');
+      return false;
+    }
+
+    if (!this.primaryInput.validate()) {
+      return false;
+    }
+
     const colNames = new Set<string>();
     for (const col of this.state.selectedColumns) {
       if (!col.checked) continue;
-      // Check for empty or whitespace-only alias
-      if (col.alias !== undefined && col.alias.trim() === '') {
-        this.setValidationError('Empty alias not allowed');
-        return false;
-      }
+      // Empty aliases are allowed - they just mean use the original column name
       const name = col.alias ? col.alias.trim() : col.column.name;
       if (colNames.has(name)) {
         this.setValidationError('Duplicate column names');
@@ -351,9 +357,11 @@ export class ModifyColumnsNode implements QueryNode {
       m(TextInput, {
         oninput: (e: Event) => {
           const newSelectedColumns = [...this.state.selectedColumns];
+          const inputValue = (e.target as HTMLInputElement).value;
           newSelectedColumns[index] = {
             ...newSelectedColumns[index],
-            alias: (e.target as HTMLInputElement).value,
+            // Normalize empty strings to undefined (no alias)
+            alias: inputValue.trim() === '' ? undefined : inputValue,
           };
           this.state.selectedColumns = newSelectedColumns;
           this.state.onchange?.();

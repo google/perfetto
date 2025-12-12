@@ -433,4 +433,9 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     topLevelGroup: 'THREAD',
     group: undefined,
   },
+  {
+    type: 'pixel_fwtp_counters',
+    topLevelGroup: 'HARDWARE',
+    group: 'Pixel Firmware',
+  },
 ];

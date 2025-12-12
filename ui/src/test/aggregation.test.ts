@@ -41,7 +41,8 @@ test('sched', async () => {
   // Now test sorting.
   const hdr = page
     .getByRole('columnheader')
-    .filter({has: page.getByText('Avg Wall duration', {exact: true})});
+    .filter({has: page.getByText('Wall Duration', {exact: true})})
+    .filter({has: page.getByText('AVG', {exact: true})});
   await hdr.hover();
 
   // Press the sort button to sort ascending.
@@ -54,7 +55,7 @@ test('sched', async () => {
 
   const hdrCount = page
     .getByRole('columnheader')
-    .filter({has: page.getByText('Occurrences', {exact: true})});
+    .filter({has: page.getByText('Count', {exact: true})});
   await hdrCount.hover();
 
   // Press the sort button to sort ascending on this column.

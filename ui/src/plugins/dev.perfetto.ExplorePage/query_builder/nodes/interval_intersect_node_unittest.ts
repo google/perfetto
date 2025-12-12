@@ -14,30 +14,21 @@
 
 import {IntervalIntersectNode} from './interval_intersect_node';
 import {ModifyColumnsNode} from './modify_columns_node';
-import {QueryNode, NodeType, notifyNextNodes} from '../../query_node';
+import {QueryNode, notifyNextNodes} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import {
   PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
+import {createMockNode} from '../testing/test_utils';
 
 describe('IntervalIntersectNode', () => {
   function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return {
+    return createMockNode({
       nodeId: id,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: columns,
-      state: {},
-      validate: () => true,
+      columns,
       getTitle: () => `Mock ${id}`,
-      nodeSpecificModify: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockPrevNode(id, columns),
-      getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
-    } as QueryNode;
+    });
   }
 
   function createColumnInfo(

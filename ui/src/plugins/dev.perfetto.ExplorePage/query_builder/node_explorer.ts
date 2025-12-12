@@ -15,13 +15,7 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {
-  analyzeNode,
-  isAQuery,
-  Query,
-  QueryNode,
-  queryToRun,
-} from '../query_node';
+import {isAQuery, Query, QueryNode, queryToRun} from '../query_node';
 import {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
@@ -31,17 +25,33 @@ import {TabStrip} from '../../../widgets/tabs';
 import {NodeModifyAttrs} from './node_explorer_types';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {DataExplorerEmptyState, InfoBox} from './widgets';
+import {QueryExecutionService} from './query_execution_service';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
-  readonly onQueryAnalyzed: (query: Query | Error) => void;
+  readonly queryExecutionService: QueryExecutionService;
+  /** Called when analysis completes (with query, error, or undefined if skipped) */
+  readonly onQueryAnalyzed: (query: Query | Error | undefined) => void;
   readonly onAnalysisStateChange?: (isAnalyzing: boolean) => void;
+  /** Called when execution starts */
+  readonly onExecutionStart?: () => void;
+  /** Called when execution succeeds */
+  readonly onExecutionSuccess?: (result: {
+    tableName: string;
+    rowCount: number;
+    columns: string[];
+    durationMs: number;
+  }) => void;
+  /** Called when execution fails */
+  readonly onExecutionError?: (error: unknown) => void;
   readonly onchange?: () => void;
   readonly resolveNode: (nodeId: string) => QueryNode | undefined;
   readonly isCollapsed?: boolean;
   readonly selectedView?: number;
   readonly onViewChange?: (view: number) => void;
+  /** Whether there's already a result displayed (for reuse optimization) */
+  readonly hasExistingResult?: boolean;
 }
 
 enum SelectedView {
@@ -103,25 +113,42 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       if (node.state.hasOperationChanged) {
         node.state.hasOperationChanged = false;
       }
-      attrs.onAnalysisStateChange?.(true);
+
+      // Use the centralized service to handle analysis and execution.
+      // The service decides whether to analyze/execute based on autoExecute flag.
       this.tableAsyncLimiter.schedule(async () => {
         try {
-          this.currentQuery = await analyzeNode(node, attrs.trace.engine);
-          if (!isAQuery(this.currentQuery)) {
-            attrs.onAnalysisStateChange?.(false);
-            return;
+          const result = await attrs.queryExecutionService.processNode(
+            node,
+            attrs.trace.engine,
+            {
+              manual: false, // This is automatic processing, not manual "Run Query"
+              hasExistingResult: attrs.hasExistingResult,
+              onAnalysisStart: () => attrs.onAnalysisStateChange?.(true),
+              onAnalysisComplete: (query) => {
+                this.currentQuery = query;
+                if (isAQuery(query) && node instanceof AggregationNode) {
+                  node.updateGroupByColumns();
+                }
+                attrs.onQueryAnalyzed(query);
+                this.prevSqString = curSqString;
+                attrs.onAnalysisStateChange?.(false);
+              },
+              onExecutionStart: () => attrs.onExecutionStart?.(),
+              onExecutionSuccess: (result) =>
+                attrs.onExecutionSuccess?.(result),
+              onExecutionError: (error) => attrs.onExecutionError?.(error),
+            },
+          );
+
+          // If skipped (autoExecute=false), update tracking but don't notify
+          if (result.query === undefined) {
+            this.prevSqString = curSqString;
           }
-          if (node instanceof AggregationNode) {
-            node.updateGroupByColumns();
-          }
-          attrs.onQueryAnalyzed(this.currentQuery);
-          this.prevSqString = curSqString;
-          attrs.onAnalysisStateChange?.(false);
         } catch (e) {
           // Silently handle "Already analyzing" errors - the AsyncLimiter
           // will retry when the current analysis completes
           if (e instanceof Error && e.message.includes('Already analyzing')) {
-            // Keep isAnalyzing = true, will retry automatically
             return;
           }
           // For other errors, set them as the current query and stop analyzing
@@ -294,8 +321,10 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     // This ensures that changes in the node's UI components trigger the callback chain
     node.state.onchange = attrs.onchange;
 
-    // Always analyze to generate the query object (needed to enable Run button)
-    // The autoExecute flag only controls whether we automatically execute after analysis
+    // Process the node via the centralized service.
+    // The service handles all autoExecute logic internally:
+    // - If autoExecute=true: Analyze and execute automatically
+    // - If autoExecute=false: Skip until user clicks "Run Query"
     this.updateQuery(node, attrs);
 
     if (isCollapsed) {

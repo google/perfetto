@@ -263,6 +263,11 @@ if (!build_with_chromium) {
     ]
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "gn:protobuf_lite" ]
+
+    # Abseil is only used in Perfetto via the gRPC/libprotobuf.
+    if (perfetto_build_standalone || is_perfetto_build_generator) {
+      assert_no_deps += [ "buildtools:abseil_cpp" ]
+    }
   }
 
   all_targets += [ "src/shared_lib:libperfetto_c" ]

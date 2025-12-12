@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {SqlValue} from '../../../trace_processor/query_result';
 import {Box} from '../../../widgets/box';
+import {Button} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Stack, StackAuto} from '../../../widgets/stack';
-import {ColumnDefinition, DataGridFilter} from './common';
-import {DataGridApi} from './data_grid';
+import {DataGridFilter} from './common';
+import {DataGridApi} from './datagrid';
 import {DataGridExportButton} from './export_button';
 
 export class GridFilterBar implements m.ClassComponent {
@@ -46,30 +48,47 @@ export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
 
 export type OnFilterRemove = (index: number) => void;
 
+// Format a drill-down value for display
+function formatDrillDownValue(value: SqlValue): string {
+  if (value === null) return 'NULL';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return value.toLocaleString();
+  }
+  if (value instanceof Uint8Array) return `<${value.length} bytes>`;
+  return String(value);
+}
+
+export interface DrillDownIndicatorAttrs {
+  readonly onBack: () => void;
+  // The groupBy column names in order
+  readonly groupBy: ReadonlyArray<string>;
+  // The drill-down values keyed by column name
+  readonly values: {readonly [key: string]: SqlValue};
+  // Function to format a column name for display
+  readonly formatColumnName: (columnName: string) => string;
+}
+
 export interface DataGridToolbarAttrs {
   readonly filters: ReadonlyArray<DataGridFilter>;
-  readonly columns: ReadonlyArray<ColumnDefinition>;
+  readonly schema: unknown; // SchemaRegistry - avoid circular import
+  readonly rootSchema: string;
   readonly totalRows: number;
-  readonly showFilters: boolean;
   readonly showRowCount: boolean;
   readonly showExportButton: boolean;
   readonly toolbarItemsLeft?: m.Children;
   readonly toolbarItemsRight?: m.Children;
   readonly dataGridApi: DataGridApi;
   readonly onFilterRemove: OnFilterRemove;
-  readonly formatFilter: (
-    filter: DataGridFilter,
-    columns: ReadonlyArray<ColumnDefinition>,
-  ) => string;
+  readonly formatFilter: (filter: DataGridFilter) => string;
+  readonly drillDown?: DrillDownIndicatorAttrs;
 }
 
 export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
   view({attrs}: m.Vnode<DataGridToolbarAttrs>): m.Children {
     const {
       filters,
-      columns,
       totalRows,
-      showFilters,
       showRowCount,
       showExportButton,
       toolbarItemsLeft,
@@ -77,23 +96,47 @@ export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
       dataGridApi,
       onFilterRemove,
       formatFilter,
+      drillDown,
     } = attrs;
 
     // Build left-side toolbar items
     const leftItems: m.Children[] = [];
+
+    // Show back button and drill-down context when in drill-down mode
+    if (drillDown) {
+      leftItems.push(
+        m(Button, {
+          icon: 'arrow_back',
+          label: 'Back to pivot',
+          onclick: drillDown.onBack,
+        }),
+      );
+      // Show chips for each drill-down value
+      drillDown.groupBy.forEach((colName) => {
+        const value = drillDown.values[colName];
+        const displayName = drillDown.formatColumnName(colName);
+        const displayValue = formatDrillDownValue(value);
+        leftItems.push(
+          m(Chip, {
+            label: `${displayName}: ${displayValue}`,
+            title: `Drilling down where ${displayName} = ${displayValue}`,
+          }),
+        );
+      });
+    }
 
     if (Boolean(toolbarItemsLeft)) {
       leftItems.push(toolbarItemsLeft);
     }
 
     // Filter chips in auto-expanding section
-    if (showFilters && filters.length > 0) {
+    if (filters.length > 0) {
       leftItems.push(
         m(StackAuto, [
           m(GridFilterBar, [
             filters.map((filter) => {
               return m(GridFilterChip, {
-                content: formatFilter(filter, columns),
+                content: formatFilter(filter),
                 onRemove: () => {
                   const filterIndex = filters.indexOf(filter);
                   onFilterRemove(filterIndex);

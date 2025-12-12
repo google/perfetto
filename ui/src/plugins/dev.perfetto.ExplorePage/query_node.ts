@@ -48,7 +48,10 @@ export enum NodeType {
   kIntervalIntersect,
   kUnion,
   kJoin,
-  kMerge = kJoin, // Deprecated alias for backward compatibility
+  kCreateSlices,
+
+  // Deprecated (kept for backward compatibility)
+  kMerge = kJoin,
 }
 
 export function singleNodeOperation(type: NodeType): boolean {

@@ -39,6 +39,10 @@ import {
   IntervalIntersectNodeState,
 } from './nodes/interval_intersect_node';
 import {JoinNode, JoinNodeState} from './nodes/join_node';
+import {
+  CreateSlicesNode,
+  CreateSlicesNodeState,
+} from './nodes/create_slices_node';
 import {SortNode, SortNodeState} from './nodes/sort_node';
 import {FilterNode, FilterNodeState} from './nodes/filter_node';
 import {UnionNode, UnionNodeState} from './nodes/union_node';
@@ -237,6 +241,23 @@ export function registerCoreNodes() {
         sqlExpression: '',
       };
       return new JoinNode(fullState);
+    },
+  });
+
+  nodeRegistry.register('create_slices', {
+    name: 'Create Slices',
+    description:
+      'Create slices by pairing start and end timestamps from two sources.',
+    icon: 'add_circle',
+    type: 'multisource',
+    category: 'Time',
+    factory: (state) => {
+      const fullState: CreateSlicesNodeState = {
+        ...state,
+        startsTsColumn: 'ts',
+        endsTsColumn: 'ts',
+      };
+      return new CreateSlicesNode(fullState);
     },
   });
 

@@ -255,7 +255,7 @@ export interface GridColumn {
   readonly header?: m.Children;
   readonly minWidth?: number;
   readonly thickRightBorder?: boolean;
-  readonly reorderable?: {readonly handle: string};
+  readonly reorderable?: {readonly reorderGroup: string};
 }
 
 /**
@@ -600,7 +600,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
     for (const column of columns) {
       // Only consider columns with matching handle
-      if (column.reorderable?.handle !== handle) continue;
+      if (column.reorderable?.reorderGroup !== handle) continue;
 
       const bounds = this.columnRefs.get(column.key);
       if (bounds && x >= bounds.left && x < bounds.left + bounds.width) {
@@ -1264,7 +1264,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       });
     };
 
-    const reorderHandle = column.reorderable?.handle;
+    const reorderHandle = column.reorderable?.reorderGroup;
 
     // Check if this column is the drag target
     const isDragTarget =

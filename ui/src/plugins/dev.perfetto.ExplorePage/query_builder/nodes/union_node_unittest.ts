@@ -13,62 +13,41 @@
 // limitations under the License.
 
 import {UnionNode} from './union_node';
-import {QueryNode, NodeType} from '../../query_node';
+import {QueryNode} from '../../query_node';
 import {ColumnInfo} from '../column_info';
-import protos from '../../../../protos';
+import {
+  createMockNode,
+  createColumnInfo,
+  createMockStructuredQuery,
+} from '../testing/test_utils';
 
 describe('UnionNode', () => {
-  function createMockNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return {
+  function createMockNodeWithSq(id: string, columns: ColumnInfo[]): QueryNode {
+    const sq = createMockStructuredQuery(id);
+    return createMockNode({
       nodeId: id,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: columns,
-      state: {},
-      validate: () => true,
+      columns,
       getTitle: () => `Mock ${id}`,
-      nodeSpecificModify: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockNode(id, columns),
-      getStructuredQuery: () => {
-        const sq = new protos.PerfettoSqlStructuredQuery();
-        sq.id = id;
-        return sq;
-      },
-      serializeState: () => ({}),
-    } as QueryNode;
-  }
-
-  function createColumnInfo(
-    name: string,
-    type: string,
-    checked: boolean = true,
-  ): ColumnInfo {
-    return {
-      name,
-      type,
-      checked,
-      column: {name},
-    };
+      getStructuredQuery: () => sq,
+    });
   }
 
   describe('constructor', () => {
     it('should initialize with default values', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
         selectedColumns: [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('name', 'STRING'),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string'),
         ],
       });
 
@@ -79,9 +58,9 @@ describe('UnionNode', () => {
     });
 
     it('should initialize connections from inputNodes', () => {
-      const node1 = createMockNode('node1', []);
-      const node2 = createMockNode('node2', []);
-      const node3 = createMockNode('node3', []);
+      const node1 = createMockNodeWithSq('node1', []);
+      const node2 = createMockNodeWithSq('node2', []);
+      const node3 = createMockNodeWithSq('node3', []);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2, node3],
@@ -106,9 +85,9 @@ describe('UnionNode', () => {
     });
 
     it('should return all columns from single input', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
 
       const unionNode = new UnionNode({
@@ -122,15 +101,15 @@ describe('UnionNode', () => {
     });
 
     it('should return only common columns between two inputs', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('ts', 'INT64'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('value', 'INT'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('value', 'int'),
       ]);
 
       const unionNode = new UnionNode({
@@ -144,19 +123,19 @@ describe('UnionNode', () => {
     });
 
     it('should return only columns present in all inputs', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('ts', 'INT64'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('value', 'INT'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('value', 'int'),
       ]);
-      const node3 = createMockNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('other', 'STRING'),
+      const node3 = createMockNodeWithSq('node3', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('other', 'string'),
       ]);
 
       const unionNode = new UnionNode({
@@ -170,13 +149,13 @@ describe('UnionNode', () => {
     });
 
     it('should return empty array when there are no common columns', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('value', 'INT'),
-        createColumnInfo('ts', 'INT64'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('value', 'int'),
+        createColumnInfo('ts', 'int'),
       ]);
 
       const unionNode = new UnionNode({
@@ -189,13 +168,13 @@ describe('UnionNode', () => {
     });
 
     it('should set all columns as checked by default', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
 
       const unionNode = new UnionNode({
@@ -210,20 +189,20 @@ describe('UnionNode', () => {
 
   describe('finalCols', () => {
     it('should return only checked columns', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
         selectedColumns: [
-          createColumnInfo('id', 'INT', true),
-          createColumnInfo('name', 'STRING', false),
+          createColumnInfo('id', 'int'),
+          {...createColumnInfo('name', 'string'), checked: false},
         ],
       });
 
@@ -233,12 +212,16 @@ describe('UnionNode', () => {
     });
 
     it('should return empty array when no columns are checked', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
-      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'INT', false)],
+        selectedColumns: [{...createColumnInfo('id', 'int'), checked: false}],
       });
 
       expect(unionNode.finalCols).toEqual([]);
@@ -247,27 +230,27 @@ describe('UnionNode', () => {
 
   describe('onPrevNodesUpdated', () => {
     it('should update selectedColumns based on new common columns', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
         selectedColumns: [
-          createColumnInfo('id', 'INT', true),
-          createColumnInfo('name', 'STRING', false),
+          createColumnInfo('id', 'int'),
+          {...createColumnInfo('name', 'string'), checked: false},
         ],
       });
 
       // Update node2 to remove 'name'
-      const updatedNode2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('value', 'INT'),
+      const updatedNode2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('value', 'int'),
       ]);
       unionNode.secondaryInputs.connections.set(1, updatedNode2);
 
@@ -281,23 +264,23 @@ describe('UnionNode', () => {
     });
 
     it('should preserve checked status for columns that still exist', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('ts', 'INT64'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('ts', 'INT64'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('ts', 'int'),
       ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
         selectedColumns: [
-          createColumnInfo('id', 'INT', true),
-          createColumnInfo('name', 'STRING', false),
-          createColumnInfo('ts', 'INT64', true),
+          createColumnInfo('id', 'int'),
+          {...createColumnInfo('name', 'string'), checked: false},
+          createColumnInfo('ts', 'int'),
         ],
       });
 
@@ -325,7 +308,9 @@ describe('UnionNode', () => {
 
   describe('validate', () => {
     it('should fail when there are fewer than 2 input nodes', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1],
@@ -339,8 +324,12 @@ describe('UnionNode', () => {
     });
 
     it('should fail when there are no common columns', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
-      const node2 = createMockNode('node2', [createColumnInfo('value', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('value', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
@@ -354,7 +343,9 @@ describe('UnionNode', () => {
     });
 
     it('should fail when input nodes have disconnected inputs', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1],
@@ -374,20 +365,20 @@ describe('UnionNode', () => {
     });
 
     it('should pass validation with valid inputs', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
       ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
         selectedColumns: [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('name', 'STRING'),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string'),
         ],
       });
 
@@ -395,12 +386,16 @@ describe('UnionNode', () => {
     });
 
     it('should clear previous errors on successful validation', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
-      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'INT')],
+        selectedColumns: [createColumnInfo('id', 'int')],
       });
 
       // First validate with error
@@ -429,12 +424,16 @@ describe('UnionNode', () => {
 
   describe('clone', () => {
     it('should create a deep copy of the node', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
-      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'INT', true)],
+        selectedColumns: [createColumnInfo('id', 'int')],
       });
       unionNode.comment = 'test comment';
 
@@ -447,12 +446,16 @@ describe('UnionNode', () => {
     });
 
     it('should not share state with original', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
-      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'INT', true)],
+        selectedColumns: [createColumnInfo('id', 'int')],
       });
 
       const cloned = unionNode.clone() as UnionNode;
@@ -467,7 +470,9 @@ describe('UnionNode', () => {
 
   describe('getStructuredQuery', () => {
     it('should return undefined when there are fewer than 2 inputs', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1],
@@ -478,23 +483,29 @@ describe('UnionNode', () => {
     });
 
     it('should return undefined when there are no checked columns', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
-      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'INT', false)],
+        selectedColumns: [{...createColumnInfo('id', 'int'), checked: false}],
       });
 
       expect(unionNode.getStructuredQuery()).toBeUndefined();
     });
 
     it('should return undefined when any input node is undefined', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1],
-        selectedColumns: [createColumnInfo('id', 'INT')],
+        selectedColumns: [createColumnInfo('id', 'int')],
       });
 
       unionNode.secondaryInputs.connections.set(
@@ -506,22 +517,22 @@ describe('UnionNode', () => {
     });
 
     it('should create union query with wrapped selects for common columns', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('ts', 'INT64'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('value', 'INT'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('value', 'int'),
       ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
         selectedColumns: [
-          createColumnInfo('id', 'INT', true),
-          createColumnInfo('name', 'STRING', true),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string'),
         ],
       });
 
@@ -534,23 +545,23 @@ describe('UnionNode', () => {
     });
 
     it('should only select checked common columns', () => {
-      const node1 = createMockNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('ts', 'INT64'),
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('ts', 'INT64'),
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('ts', 'int'),
       ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
         selectedColumns: [
-          createColumnInfo('id', 'INT', true),
-          createColumnInfo('name', 'STRING', false), // unchecked
-          createColumnInfo('ts', 'INT64', true),
+          createColumnInfo('id', 'int'),
+          {...createColumnInfo('name', 'string'), checked: false}, // unchecked
+          createColumnInfo('ts', 'int'),
         ],
       });
 
@@ -576,12 +587,16 @@ describe('UnionNode', () => {
 
   describe('serializeState', () => {
     it('should serialize all input node IDs and selected columns', () => {
-      const node1 = createMockNode('node1', [createColumnInfo('id', 'INT')]);
-      const node2 = createMockNode('node2', [createColumnInfo('id', 'INT')]);
+      const node1 = createMockNodeWithSq('node1', [
+        createColumnInfo('id', 'int'),
+      ]);
+      const node2 = createMockNodeWithSq('node2', [
+        createColumnInfo('id', 'int'),
+      ]);
 
       const unionNode = new UnionNode({
         inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'INT', true)],
+        selectedColumns: [createColumnInfo('id', 'int')],
       });
       unionNode.comment = 'test comment';
 
@@ -598,7 +613,7 @@ describe('UnionNode', () => {
     it('should deserialize state correctly', () => {
       const serialized = {
         unionNodes: ['node1', 'node2'],
-        selectedColumns: [createColumnInfo('id', 'INT', true)],
+        selectedColumns: [createColumnInfo('id', 'int')],
         comment: 'test comment',
       };
 
@@ -612,9 +627,9 @@ describe('UnionNode', () => {
 
   describe('deserializeConnections', () => {
     it('should deserialize connections correctly', () => {
-      const node1 = createMockNode('node1', []);
-      const node2 = createMockNode('node2', []);
-      const node3 = createMockNode('node3', []);
+      const node1 = createMockNodeWithSq('node1', []);
+      const node2 = createMockNodeWithSq('node2', []);
+      const node3 = createMockNodeWithSq('node3', []);
       const nodes = new Map([
         ['node1', node1],
         ['node2', node2],
@@ -633,7 +648,7 @@ describe('UnionNode', () => {
     });
 
     it('should handle missing nodes gracefully', () => {
-      const node1 = createMockNode('node1', []);
+      const node1 = createMockNodeWithSq('node1', []);
       const nodes = new Map([['node1', node1]]);
 
       const connections = UnionNode.deserializeConnections(nodes, {

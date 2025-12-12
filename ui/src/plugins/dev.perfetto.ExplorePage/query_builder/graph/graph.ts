@@ -135,6 +135,17 @@ function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
 // NODE PORT AND MENU UTILITIES
 // ========================================
 
+// Calculate the number of ports to display for secondary inputs.
+// Shows one extra empty port for adding new connections, but respects max limit.
+function calculateNumPorts(
+  currentConnections: number,
+  max: number | 'unbounded',
+): number {
+  return max === 'unbounded'
+    ? currentConnections + 1
+    : Math.min(currentConnections + 1, max);
+}
+
 function getInputLabels(node: QueryNode): NodePort[] {
   // Single-input operation nodes always have a top port (even when disconnected)
   if (singleNodeOperation(node.type)) {
@@ -145,7 +156,11 @@ function getInputLabels(node: QueryNode): NodePort[] {
     if (node.secondaryInputs) {
       // Show side ports using the node's custom port names
       const portNames = node.secondaryInputs.portNames;
-      const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
+      const currentConnections = node.secondaryInputs.connections.size ?? 0;
+      const numPorts = calculateNumPorts(
+        currentConnections,
+        node.secondaryInputs.max,
+      );
 
       for (let i = 0; i < numPorts; i++) {
         const portName = getPortName(portNames, i);
@@ -158,8 +173,11 @@ function getInputLabels(node: QueryNode): NodePort[] {
   // Multi-source nodes (IntervalIntersect, Join, Union) - no primaryInput
   if (node.secondaryInputs) {
     const portNames = node.secondaryInputs.portNames;
-    // Always show one extra empty port for adding new connections
-    const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
+    const currentConnections = node.secondaryInputs.connections.size ?? 0;
+    const numPorts = calculateNumPorts(
+      currentConnections,
+      node.secondaryInputs.max,
+    );
     const labels: NodePort[] = [];
 
     for (let i = 0; i < numPorts; i++) {
@@ -240,26 +258,21 @@ function ensureNodeLayouts(
   attrs: GraphAttrs,
   nodeGraphApi: NodeGraphApi | null,
 ): void {
-  // Assign layouts to new nodes using smart placement
-  let nodeOffset = 0;
+  if (!nodeGraphApi) return;
+
+  let lastPlacement: Position | undefined;
+
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
       let placement: Position;
 
-      // Use NodeGraph API to find optimal non-overlapping placement
-      if (nodeGraphApi) {
-        // Create a simple node config without 'next' to get accurate placement
-        // The 'next' property would include docked children and affect size calculation
+      if (!lastPlacement) {
+        // First node - use API placement
         const canDockTop = shouldShowTopPort(qnode);
         const nodeTemplate: Omit<Node, 'x' | 'y'> = {
           id: qnode.nodeId,
           inputs: getInputLabels(qnode),
-          outputs: [
-            {
-              content: 'Output',
-              direction: 'bottom',
-            },
-          ],
+          outputs: [{content: 'Output', direction: 'bottom'}],
           canDockBottom: true,
           canDockTop,
           hue: getNodeHue(qnode),
@@ -268,22 +281,17 @@ function ensureNodeLayouts(
             node: qnode,
             onAddOperationNode: attrs.onAddOperationNode,
           }),
-          // Don't include 'next' here - we want placement for just this node
         };
         placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
       } else {
-        // Fallback to default position if API not ready yet
-        // Offset nodes horizontally by BATCH_NODE_HORIZONTAL_OFFSET
-        // when multiple nodes are created in a batch to prevent overlap
+        // Subsequent nodes - place to the right of previous
         placement = {
-          x:
-            LAYOUT_CONSTANTS.INITIAL_X +
-            nodeOffset * LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
-          y: LAYOUT_CONSTANTS.INITIAL_Y,
+          x: lastPlacement.x + LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
+          y: lastPlacement.y,
         };
-        nodeOffset++;
       }
 
+      lastPlacement = placement;
       attrs.onNodeLayoutChange(qnode.nodeId, placement);
     }
   }
@@ -324,6 +332,8 @@ function getNodeHue(node: QueryNode): number {
       return 187; // Cyan (#b2ebf2)
     case NodeType.kJoin:
       return 14; // Deep Orange (#ffccbc)
+    case NodeType.kCreateSlices:
+      return 100; // Green (#c8e6c9)
     default:
       return 65; // Lime (#f0f4c3)
   }

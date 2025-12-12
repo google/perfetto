@@ -241,8 +241,8 @@ Proto::Proto(std::string evt_name, const google::protobuf::Descriptor& desc)
   for (int i = 0; i < desc.field_count(); ++i) {
     const google::protobuf::FieldDescriptor* field = desc.field(i);
     PERFETTO_CHECK(field);
-    AddField(Field{ProtoType::FromDescriptor(field->type()), field->name(),
-                   uint32_t(field->number())});
+    AddField(Field{ProtoType::FromDescriptor(field->type()),
+                   std::string(field->name()), uint32_t(field->number())});
   }
 }
 

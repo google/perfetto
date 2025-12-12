@@ -57,6 +57,10 @@ import {SortNode, SortNodeState} from './query_builder/nodes/sort_node';
 import {FilterNode, FilterNodeState} from './query_builder/nodes/filter_node';
 import {JoinNode, JoinSerializedState} from './query_builder/nodes/join_node';
 import {
+  CreateSlicesNode,
+  CreateSlicesSerializedState,
+} from './query_builder/nodes/create_slices_node';
+import {
   UnionNode,
   UnionSerializedState,
 } from './query_builder/nodes/union_node';
@@ -78,6 +82,7 @@ type SerializedNodeState =
   | SortNodeState
   | FilterNodeState
   | JoinSerializedState
+  | CreateSlicesSerializedState
   | UnionSerializedState
   | FilterDuringNodeState;
 
@@ -237,6 +242,10 @@ function createNodeInstance(
       return new JoinNode(
         JoinNode.deserializeState(state as JoinSerializedState),
       );
+    case NodeType.kCreateSlices:
+      return new CreateSlicesNode(
+        CreateSlicesNode.deserializeState(state as CreateSlicesSerializedState),
+      );
     case NodeType.kUnion:
       return new UnionNode(
         UnionNode.deserializeState(state as UnionSerializedState),
@@ -357,6 +366,25 @@ export function deserializeState(
         joinNode.secondaryInputs.connections.set(
           1,
           deserializedConnections.rightNode,
+        );
+      }
+    }
+    if (serializedNode.type === NodeType.kCreateSlices) {
+      const createSlicesNode = node as CreateSlicesNode;
+      const deserializedConnections = CreateSlicesNode.deserializeConnections(
+        nodes,
+        serializedNode.state as CreateSlicesSerializedState,
+      );
+      if (deserializedConnections.startsNode) {
+        createSlicesNode.secondaryInputs.connections.set(
+          0,
+          deserializedConnections.startsNode,
+        );
+      }
+      if (deserializedConnections.endsNode) {
+        createSlicesNode.secondaryInputs.connections.set(
+          1,
+          deserializedConnections.endsNode,
         );
       }
     }

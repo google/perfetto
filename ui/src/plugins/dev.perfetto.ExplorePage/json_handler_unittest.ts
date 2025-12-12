@@ -1952,7 +1952,7 @@ describe('JSON serialization/deserialization', () => {
       deserializedSlicesNode.nodeId,
     );
 
-    // Verify secondaryInputs connection
+    // Verify secondaryInput connection
     expect(deserializedFilterDuringNode.secondaryInputs.connections.size).toBe(
       1,
     );
@@ -1964,58 +1964,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedFilterDuringNode.state.filterNegativeDurSecondary).toBe(
       false,
     );
-  });
-
-  test('serializes and deserializes filter during node with multiple secondary inputs', () => {
-    const slicesNode = new SlicesSourceNode({});
-    const timeRangeNode1 = new TimeRangeSourceNode({trace});
-    const timeRangeNode2 = new TimeRangeSourceNode({trace});
-    const timeRangeNode3 = new TimeRangeSourceNode({trace});
-
-    const filterDuringNode = new FilterDuringNode({});
-
-    // Connect slicesNode as primaryInput
-    slicesNode.nextNodes.push(filterDuringNode);
-    filterDuringNode.primaryInput = slicesNode;
-
-    // Connect multiple timeRangeNodes as secondaryInputs
-    timeRangeNode1.nextNodes.push(filterDuringNode);
-    filterDuringNode.secondaryInputs.connections.set(0, timeRangeNode1);
-
-    timeRangeNode2.nextNodes.push(filterDuringNode);
-    filterDuringNode.secondaryInputs.connections.set(1, timeRangeNode2);
-
-    timeRangeNode3.nextNodes.push(filterDuringNode);
-    filterDuringNode.secondaryInputs.connections.set(2, timeRangeNode3);
-
-    const initialState: ExplorePageState = {
-      rootNodes: [slicesNode, timeRangeNode1, timeRangeNode2, timeRangeNode3],
-      nodeLayouts: new Map(),
-    };
-
-    const json = serializeState(initialState);
-    const deserializedState = deserializeState(json, trace, sqlModules);
-
-    expect(deserializedState.rootNodes.length).toBe(4);
-
-    // Find the deserialized filter during node
-    const deserializedSlicesNode = deserializedState.rootNodes[0];
-    const deserializedFilterDuringNode = deserializedSlicesNode
-      .nextNodes[0] as FilterDuringNode;
-
-    // Verify all secondary inputs are preserved
-    expect(deserializedFilterDuringNode.secondaryInputs.connections.size).toBe(
-      3,
-    );
-    expect(
-      deserializedFilterDuringNode.secondaryInputs.connections.get(0)?.nodeId,
-    ).toBe(deserializedState.rootNodes[1].nodeId);
-    expect(
-      deserializedFilterDuringNode.secondaryInputs.connections.get(1)?.nodeId,
-    ).toBe(deserializedState.rootNodes[2].nodeId);
-    expect(
-      deserializedFilterDuringNode.secondaryInputs.connections.get(2)?.nodeId,
-    ).toBe(deserializedState.rootNodes[3].nodeId);
   });
 
   // ========================================

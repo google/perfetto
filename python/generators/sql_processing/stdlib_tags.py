@@ -484,6 +484,17 @@ TABLE_IMPORTANCE = {
     'android_process_metadata': 'mid',  # Process metadata and information
     'android_statsd_atoms': 'mid',  # StatsD atom events and counters
 
+    # HIGH IMPORTANCE - Chrome performance analysis
+    'chrome_event_latencies':
+        'high',  # Input event latency tracking for jank analysis
+    'chrome_tasks': 'high',  # Chrome task execution tracking
+
+    # MID IMPORTANCE - Chrome graphics and metadata
+    'chrome_graphics_pipeline_surface_frame_steps':
+        'mid',  # Graphics pipeline pre-surface aggregation
+    'chrome_graphics_pipeline_display_frame_steps':
+        'mid',  # Graphics pipeline post-surface aggregation
+
     # LOW IMPORTANCE - Raw/specialized tables, less frequently needed
     'slices':
         'low',  # Raw slice table, prefer thread_or_process_slice for most use cases

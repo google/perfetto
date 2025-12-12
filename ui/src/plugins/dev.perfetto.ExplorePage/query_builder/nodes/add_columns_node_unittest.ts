@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import {AddColumnsNode, AddColumnsNodeState} from './add_columns_node';
-import {QueryNode, NodeType} from '../../query_node';
+import {QueryNode} from '../../query_node';
 import protos from '../../../../protos';
+import {createMockNode, createColumnInfo} from '../testing/test_utils';
 
 describe('AddColumnsNode', () => {
   function createMockPrimaryNode(): QueryNode {
@@ -25,40 +26,16 @@ describe('AddColumnsNode', () => {
     table.columnNames = ['id', 'ts', 'dur'];
     sq.table = table;
 
-    return {
+    return createMockNode({
       nodeId: 'primary',
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: [
-        {
-          name: 'id',
-          type: 'INT',
-          checked: true,
-          column: {name: 'id'},
-        },
-        {
-          name: 'ts',
-          type: 'INT',
-          checked: true,
-          column: {name: 'ts'},
-        },
-        {
-          name: 'dur',
-          type: 'INT',
-          checked: true,
-          column: {name: 'dur'},
-        },
+      columns: [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'int'),
+        createColumnInfo('dur', 'int'),
       ],
-      state: {},
-      validate: () => true,
       getTitle: () => 'Primary Table',
-      nodeSpecificModify: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockPrimaryNode(),
       getStructuredQuery: () => sq,
-      serializeState: () => ({}),
-    } as QueryNode;
+    });
   }
 
   function createMockSecondaryNode(): QueryNode {
@@ -69,40 +46,16 @@ describe('AddColumnsNode', () => {
     table.columnNames = ['id', 'name', 'category'];
     sq.table = table;
 
-    return {
+    return createMockNode({
       nodeId: 'secondary',
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: [
-        {
-          name: 'id',
-          type: 'INT',
-          checked: true,
-          column: {name: 'id'},
-        },
-        {
-          name: 'name',
-          type: 'STRING',
-          checked: true,
-          column: {name: 'name'},
-        },
-        {
-          name: 'category',
-          type: 'STRING',
-          checked: true,
-          column: {name: 'category'},
-        },
+      columns: [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('category', 'string'),
       ],
-      state: {},
-      validate: () => true,
       getTitle: () => 'Secondary Table',
-      nodeSpecificModify: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockSecondaryNode(),
       getStructuredQuery: () => sq,
-      serializeState: () => ({}),
-    } as QueryNode;
+    });
   }
 
   function createAddColumnsNodeWithInputs(

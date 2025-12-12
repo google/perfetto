@@ -343,6 +343,9 @@ config("protobuf_gen_config") {
       perfetto_isystem_cflag,
       rebase_path("../buildtools/protobuf/src", root_build_dir),
     ]
+
+    # Protobuf v22+ headers include abseil headers.
+    include_dirs = [ "../buildtools/abseil-cpp" ]
   }
 }
 

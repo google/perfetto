@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- Create a proto using process metadata.
+SELECT RUN_METRIC('android/process_metadata.sql');
 -- Create the base table (`android_jank_cuj`) containing all completed CUJs
 -- found in the trace.
 SELECT RUN_METRIC('android/jank/cujs.sql');

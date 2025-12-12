@@ -70,7 +70,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             },
             pivotId(pivot),
           ),
-          reorderable: {handle: 'pivot'},
+          reorderable: {reorderGroup: 'pivot'},
           thickRightBorder: index === pivots.length - 1,
         };
         return gridColumn;
@@ -89,7 +89,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             },
             aggregationId(agg),
           ),
-          reorderable: {handle: 'aggregation'},
+          reorderable: {reorderGroup: 'aggregation'},
         };
         return gridColumn;
       }),
