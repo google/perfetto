@@ -94,19 +94,49 @@ void RedactMatches(const Matches& matches) {
 
 void StringFilter::AddRule(Policy policy,
                            std::string_view pattern_str,
-                           std::string atrace_payload_starts_with) {
-  rules_.emplace_back(StringFilter::Rule{
+                           std::string atrace_payload_starts_with,
+                           std::string name,
+                           std::vector<uint32_t> semantic_types) {
+  Rule new_rule{
       policy,
       std::regex(pattern_str.begin(), pattern_str.end(),
                  std::regex::ECMAScript | std::regex_constants::optimize),
-      std::move(atrace_payload_starts_with)});
+      std::move(atrace_payload_starts_with), std::move(name),
+      std::move(semantic_types)};
+
+  // If name is non-empty, look for existing rule with same name and replace.
+  if (!new_rule.name.empty()) {
+    for (Rule& existing : rules_) {
+      if (existing.name == new_rule.name) {
+        existing = std::move(new_rule);
+        return;
+      }
+    }
+  }
+  rules_.push_back(std::move(new_rule));
 }
 
-bool StringFilter::MaybeFilterInternal(char* ptr, size_t len) const {
+bool StringFilter::MaybeFilterInternal(char* ptr,
+                                        size_t len,
+                                        uint32_t semantic_type) const {
   std::match_results<char*> matches;
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
   for (const Rule& rule : rules_) {
+    // Skip rules that don't match the semantic type.
+    // Empty semantic_types means the rule applies to all fields.
+    if (!rule.semantic_types.empty()) {
+      bool found = false;
+      for (uint32_t t : rule.semantic_types) {
+        if (t == semantic_type) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        continue;
+      }
+    }
     switch (rule.policy) {
       case Policy::kMatchRedactGroups:
       case Policy::kMatchBreak:

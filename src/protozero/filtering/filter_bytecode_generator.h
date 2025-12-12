@@ -55,6 +55,11 @@ class FilterBytecodeGenerator {
   // Allows a string field which needs to be filtered.
   void AddFilterStringField(uint32_t field_id);
 
+  // Allows a string field which needs to be filtered with a specific semantic
+  // type. The semantic type tells the filter what kind of data the field
+  // contains, so it can apply type-specific rules.
+  void AddFilterStringFieldWithType(uint32_t field_id, uint32_t semantic_type);
+
   // Allows a range of simple fields. |range_start| is the id of the first field
   // in range, |range_len| the number of fields in the range.
   // AddSimpleFieldRange(N,1) is semantically equivalent to AddSimpleField(N)
