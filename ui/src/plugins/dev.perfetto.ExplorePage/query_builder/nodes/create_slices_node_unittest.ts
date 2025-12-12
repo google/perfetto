@@ -13,58 +13,42 @@
 // limitations under the License.
 
 import {CreateSlicesNode} from './create_slices_node';
-import {QueryNode, NodeType} from '../../query_node';
+import {QueryNode} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
+import {
+  createMockNode,
+  createColumnInfo,
+  createMockStructuredQuery,
+  createNodeIssuesWithQueryError,
+  ColumnType,
+} from '../testing/test_utils';
 
 describe('CreateSlicesNode', () => {
   function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return {
+    return createMockNode({
       nodeId: id,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: columns,
-      state: {},
-      validate: () => true,
+      columns,
       getTitle: () => `Mock ${id}`,
-      nodeSpecificModify: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockPrevNode(id, columns),
-      getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
-    } as QueryNode;
+    });
   }
 
-  function createColumnInfo(
+  function createCol(
     name: string,
-    type:
-      | 'int'
-      | 'double'
-      | 'boolean'
-      | 'string'
-      | 'bytes'
-      | 'timestamp'
-      | 'duration'
-      | 'arg_set_id',
-    checked: boolean = true,
+    type: ColumnType,
+    checked = true,
   ): ColumnInfo {
-    return {
-      name,
-      type,
-      checked,
-      column: {name, type: {kind: type}},
-    };
+    return createColumnInfo(name, type, {checked});
   }
 
   describe('constructor', () => {
     it('should initialize with default values', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('ts', 'timestamp'),
-        createColumnInfo('name', 'string'),
+        createCol('ts', 'timestamp'),
+        createCol('name', 'string'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -96,10 +80,10 @@ describe('CreateSlicesNode', () => {
 
     it('should accept custom timestamp column names', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('acquire_ts', 'timestamp'),
+        createCol('acquire_ts', 'timestamp'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('release_ts', 'timestamp'),
+        createCol('release_ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -117,7 +101,7 @@ describe('CreateSlicesNode', () => {
   describe('finalCols', () => {
     it('should return empty array when only starts node is provided', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -132,7 +116,7 @@ describe('CreateSlicesNode', () => {
 
     it('should return empty array when only ends node is provided', () => {
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -147,10 +131,10 @@ describe('CreateSlicesNode', () => {
 
     it('should return ts and dur columns when both nodes are provided', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -173,13 +157,13 @@ describe('CreateSlicesNode', () => {
 
     it('should always return the same ts and dur columns regardless of input columns', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('acquire_ts', 'timestamp'),
-        createColumnInfo('lock_id', 'int'),
-        createColumnInfo('thread_name', 'string'),
+        createCol('acquire_ts', 'timestamp'),
+        createCol('lock_id', 'int'),
+        createCol('thread_name', 'string'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('release_ts', 'timestamp'),
-        createColumnInfo('lock_id', 'int'),
+        createCol('release_ts', 'timestamp'),
+        createCol('lock_id', 'int'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -248,7 +232,7 @@ describe('CreateSlicesNode', () => {
 
     it('should fail when ends timestamp column is empty', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
       const endsNode = createMockPrevNode('ends', []);
 
@@ -266,17 +250,16 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should fail when starts node validation fails', () => {
-      const startsNode = {
-        ...createMockPrevNode('starts', [createColumnInfo('ts', 'timestamp')]),
+      const startsNode = createMockNode({
+        nodeId: 'starts',
+        columns: [createCol('ts', 'timestamp')],
         validate: () => false,
         state: {
-          issues: {
-            queryError: new Error('Starts node has errors'),
-          },
+          issues: createNodeIssuesWithQueryError('Starts node has errors'),
         },
-      } as QueryNode;
+      });
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -294,17 +277,16 @@ describe('CreateSlicesNode', () => {
 
     it('should fail when ends node validation fails', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
-      const endsNode = {
-        ...createMockPrevNode('ends', [createColumnInfo('ts', 'timestamp')]),
+      const endsNode = createMockNode({
+        nodeId: 'ends',
+        columns: [createCol('ts', 'timestamp')],
         validate: () => false,
         state: {
-          issues: {
-            queryError: new Error('Ends node has errors'),
-          },
+          issues: createNodeIssuesWithQueryError('Ends node has errors'),
         },
-      } as QueryNode;
+      });
 
       const createSlicesNode = new CreateSlicesNode({
         startsNode,
@@ -321,10 +303,10 @@ describe('CreateSlicesNode', () => {
 
     it('should fail when starts timestamp column does not exist in starts node', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('other_column', 'int'),
+        createCol('other_column', 'int'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -342,10 +324,10 @@ describe('CreateSlicesNode', () => {
 
     it('should fail when ends timestamp column does not exist in ends node', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('other_column', 'int'),
+        createCol('other_column', 'int'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -363,10 +345,10 @@ describe('CreateSlicesNode', () => {
 
     it('should pass validation with valid inputs', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -381,12 +363,12 @@ describe('CreateSlicesNode', () => {
 
     it('should pass validation with custom timestamp columns', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('acquire_ts', 'timestamp'),
-        createColumnInfo('lock_id', 'int'),
+        createCol('acquire_ts', 'timestamp'),
+        createCol('lock_id', 'int'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('release_ts', 'timestamp'),
-        createColumnInfo('lock_id', 'int'),
+        createCol('release_ts', 'timestamp'),
+        createCol('lock_id', 'int'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -512,12 +494,13 @@ describe('CreateSlicesNode', () => {
 
     it('should return undefined if starts node has no structured query', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
-      const endsNode = {
-        ...createMockPrevNode('ends', [createColumnInfo('ts', 'timestamp')]),
+      const endsNode = createMockNode({
+        nodeId: 'ends',
+        columns: [createCol('ts', 'timestamp')],
         getStructuredQuery: () => new protos.PerfettoSqlStructuredQuery(),
-      } as QueryNode;
+      });
 
       const createSlicesNode = new CreateSlicesNode({
         startsNode,
@@ -530,12 +513,13 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should return undefined if ends node has no structured query', () => {
-      const startsNode = {
-        ...createMockPrevNode('starts', [createColumnInfo('ts', 'timestamp')]),
+      const startsNode = createMockNode({
+        nodeId: 'starts',
+        columns: [createCol('ts', 'timestamp')],
         getStructuredQuery: () => new protos.PerfettoSqlStructuredQuery(),
-      } as QueryNode;
+      });
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('ts', 'timestamp'),
+        createCol('ts', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -549,18 +533,20 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should create ExperimentalCreateSlices structured query', () => {
-      const mockSq1 = new protos.PerfettoSqlStructuredQuery();
-      const mockSq2 = new protos.PerfettoSqlStructuredQuery();
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
-      const startsNode = {
-        ...createMockPrevNode('starts', [createColumnInfo('ts', 'timestamp')]),
+      const startsNode = createMockNode({
+        nodeId: 'starts',
+        columns: [createCol('ts', 'timestamp')],
         getStructuredQuery: () => mockSq1,
-      } as QueryNode;
+      });
 
-      const endsNode = {
-        ...createMockPrevNode('ends', [createColumnInfo('ts', 'timestamp')]),
+      const endsNode = createMockNode({
+        nodeId: 'ends',
+        columns: [createCol('ts', 'timestamp')],
         getStructuredQuery: () => mockSq2,
-      } as QueryNode;
+      });
 
       const createSlicesNode = new CreateSlicesNode({
         startsNode,
@@ -580,22 +566,20 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should use custom timestamp column names', () => {
-      const mockSq1 = new protos.PerfettoSqlStructuredQuery();
-      const mockSq2 = new protos.PerfettoSqlStructuredQuery();
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
-      const startsNode = {
-        ...createMockPrevNode('starts', [
-          createColumnInfo('acquire_ts', 'timestamp'),
-        ]),
+      const startsNode = createMockNode({
+        nodeId: 'starts',
+        columns: [createCol('acquire_ts', 'timestamp')],
         getStructuredQuery: () => mockSq1,
-      } as QueryNode;
+      });
 
-      const endsNode = {
-        ...createMockPrevNode('ends', [
-          createColumnInfo('release_ts', 'timestamp'),
-        ]),
+      const endsNode = createMockNode({
+        nodeId: 'ends',
+        columns: [createCol('release_ts', 'timestamp')],
         getStructuredQuery: () => mockSq2,
-      } as QueryNode;
+      });
 
       const createSlicesNode = new CreateSlicesNode({
         startsNode,
@@ -612,18 +596,20 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should set the node id on the structured query', () => {
-      const mockSq1 = new protos.PerfettoSqlStructuredQuery();
-      const mockSq2 = new protos.PerfettoSqlStructuredQuery();
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
-      const startsNode = {
-        ...createMockPrevNode('starts', [createColumnInfo('ts', 'timestamp')]),
+      const startsNode = createMockNode({
+        nodeId: 'starts',
+        columns: [createCol('ts', 'timestamp')],
         getStructuredQuery: () => mockSq1,
-      } as QueryNode;
+      });
 
-      const endsNode = {
-        ...createMockPrevNode('ends', [createColumnInfo('ts', 'timestamp')]),
+      const endsNode = createMockNode({
+        nodeId: 'ends',
+        columns: [createCol('ts', 'timestamp')],
         getStructuredQuery: () => mockSq2,
-      } as QueryNode;
+      });
 
       const createSlicesNode = new CreateSlicesNode({
         startsNode,
@@ -638,21 +624,20 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should handle ts_dur mode for starts input', () => {
-      const mockSq1 = new protos.PerfettoSqlStructuredQuery();
-      const mockSq2 = new protos.PerfettoSqlStructuredQuery();
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
-      const startsNode = {
-        ...createMockPrevNode('starts', [
-          createColumnInfo('ts', 'timestamp'),
-          createColumnInfo('dur', 'duration'),
-        ]),
+      const startsNode = createMockNode({
+        nodeId: 'starts',
+        columns: [createCol('ts', 'timestamp'), createCol('dur', 'duration')],
         getStructuredQuery: () => mockSq1,
-      } as QueryNode;
+      });
 
-      const endsNode = {
-        ...createMockPrevNode('ends', [createColumnInfo('ts', 'timestamp')]),
+      const endsNode = createMockNode({
+        nodeId: 'ends',
+        columns: [createCol('ts', 'timestamp')],
         getStructuredQuery: () => mockSq2,
-      } as QueryNode;
+      });
 
       const createSlicesNode = new CreateSlicesNode({
         startsNode,
@@ -682,21 +667,20 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should handle ts_dur mode for ends input', () => {
-      const mockSq1 = new protos.PerfettoSqlStructuredQuery();
-      const mockSq2 = new protos.PerfettoSqlStructuredQuery();
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
-      const startsNode = {
-        ...createMockPrevNode('starts', [createColumnInfo('ts', 'timestamp')]),
+      const startsNode = createMockNode({
+        nodeId: 'starts',
+        columns: [createCol('ts', 'timestamp')],
         getStructuredQuery: () => mockSq1,
-      } as QueryNode;
+      });
 
-      const endsNode = {
-        ...createMockPrevNode('ends', [
-          createColumnInfo('ts', 'timestamp'),
-          createColumnInfo('dur', 'duration'),
-        ]),
+      const endsNode = createMockNode({
+        nodeId: 'ends',
+        columns: [createCol('ts', 'timestamp'), createCol('dur', 'duration')],
         getStructuredQuery: () => mockSq2,
-      } as QueryNode;
+      });
 
       const createSlicesNode = new CreateSlicesNode({
         startsNode,
@@ -726,24 +710,20 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should handle ts_dur mode for both inputs', () => {
-      const mockSq1 = new protos.PerfettoSqlStructuredQuery();
-      const mockSq2 = new protos.PerfettoSqlStructuredQuery();
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
-      const startsNode = {
-        ...createMockPrevNode('starts', [
-          createColumnInfo('ts', 'timestamp'),
-          createColumnInfo('dur', 'duration'),
-        ]),
+      const startsNode = createMockNode({
+        nodeId: 'starts',
+        columns: [createCol('ts', 'timestamp'), createCol('dur', 'duration')],
         getStructuredQuery: () => mockSq1,
-      } as QueryNode;
+      });
 
-      const endsNode = {
-        ...createMockPrevNode('ends', [
-          createColumnInfo('ts', 'timestamp'),
-          createColumnInfo('dur', 'duration'),
-        ]),
+      const endsNode = createMockNode({
+        nodeId: 'ends',
+        columns: [createCol('ts', 'timestamp'), createCol('dur', 'duration')],
         getStructuredQuery: () => mockSq2,
-      } as QueryNode;
+      });
 
       const createSlicesNode = new CreateSlicesNode({
         startsNode,
@@ -896,11 +876,11 @@ describe('CreateSlicesNode', () => {
     it('should auto-select timestamp column based on type, not name', () => {
       // Create a node with a single timestamp column with a custom name
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('custom_timestamp', 'timestamp'),
-        createColumnInfo('name', 'string'),
+        createCol('custom_timestamp', 'timestamp'),
+        createCol('name', 'string'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('another_ts_name', 'timestamp'),
+        createCol('another_ts_name', 'timestamp'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({
@@ -919,12 +899,12 @@ describe('CreateSlicesNode', () => {
 
     it('should auto-select duration column based on type, not name', () => {
       const startsNode = createMockPrevNode('starts', [
-        createColumnInfo('my_ts', 'timestamp'),
-        createColumnInfo('my_duration', 'duration'),
+        createCol('my_ts', 'timestamp'),
+        createCol('my_duration', 'duration'),
       ]);
       const endsNode = createMockPrevNode('ends', [
-        createColumnInfo('end_ts', 'timestamp'),
-        createColumnInfo('end_duration', 'duration'),
+        createCol('end_ts', 'timestamp'),
+        createCol('end_duration', 'duration'),
       ]);
 
       const createSlicesNode = new CreateSlicesNode({

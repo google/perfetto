@@ -18,17 +18,15 @@ import {maybeUndefined} from '../../../base/utils';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../query_table/queries';
+import {DataSource, DataSourceModel, DataSourceResult} from './data_source';
 import {
   DataGridColumn,
-  DataGridDataSource,
-  DataSourceResult,
-  DataGridFilter,
-  Sorting,
+  Filter,
+  SortBy,
   SortByColumn,
-  DataGridModel,
   Pagination,
   PivotModel,
-} from './common';
+} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
@@ -106,7 +104,7 @@ export interface SQLDataSourceConfig {
  * });
  * ```
  */
-export class SQLDataSource implements DataGridDataSource {
+export class SQLDataSource implements DataSource {
   private readonly engine: Engine;
   private readonly limiter = new AsyncLimiter();
   private readonly baseQuery?: string;
@@ -147,7 +145,7 @@ export class SQLDataSource implements DataGridDataSource {
   /**
    * Getter for the current rows result
    */
-  get rows(): DataSourceResult | undefined {
+  get result(): DataSourceResult | undefined {
     return this.cachedResult;
   }
 
@@ -158,7 +156,7 @@ export class SQLDataSource implements DataGridDataSource {
   /**
    * Notify of parameter changes and trigger data update
    */
-  notifyUpdate({
+  notify({
     columns,
     sorting = {direction: 'UNSORTED'},
     filters = [],
@@ -166,7 +164,7 @@ export class SQLDataSource implements DataGridDataSource {
     pivot,
     distinctValuesColumns,
     parameterKeyColumns,
-  }: DataGridModel): void {
+  }: DataSourceModel): void {
     this.limiter.schedule(async () => {
       this.isLoadingFlag = true;
 
@@ -328,8 +326,8 @@ export class SQLDataSource implements DataGridDataSource {
    */
   private buildWorkingQuery(
     columns: ReadonlyArray<DataGridColumn> | undefined,
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
+    filters: ReadonlyArray<Filter>,
+    sorting: SortBy,
     pivot?: PivotModel,
   ): string {
     if (this.useSchema) {
@@ -344,8 +342,8 @@ export class SQLDataSource implements DataGridDataSource {
    */
   private buildSimpleWorkingQuery(
     columns: ReadonlyArray<DataGridColumn> | undefined,
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
+    filters: ReadonlyArray<Filter>,
+    sorting: SortBy,
     pivot?: PivotModel,
   ): string {
     const colNames = columns?.map((c) => c.column) ?? ['*'];
@@ -432,8 +430,8 @@ export class SQLDataSource implements DataGridDataSource {
    */
   private buildSchemaWorkingQuery(
     columns: ReadonlyArray<DataGridColumn> | undefined,
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
+    filters: ReadonlyArray<Filter>,
+    sorting: SortBy,
     pivot?: PivotModel,
   ): string {
     const resolver = new SQLSchemaResolver(
@@ -524,8 +522,8 @@ ${joinClauses}`;
    */
   private buildSchemaPivotQuery(
     resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<DataGridFilter>,
-    sorting: Sorting,
+    filters: ReadonlyArray<Filter>,
+    sorting: SortBy,
     pivot: PivotModel,
   ): string {
     const baseTable = resolver.getBaseTable();
@@ -650,7 +648,7 @@ ${joinClauses}`;
   /**
    * Converts a filter to SQL using the resolved column expression.
    */
-  private filterToSql(filter: DataGridFilter, sqlExpr: string): string {
+  private filterToSql(filter: Filter, sqlExpr: string): string {
     switch (filter.op) {
       case '=':
       case '!=':
@@ -687,7 +685,7 @@ ${joinClauses}`;
 
   private async getPivotAggregates(
     _columns: ReadonlyArray<DataGridColumn> | undefined,
-    filters: ReadonlyArray<DataGridFilter>,
+    filters: ReadonlyArray<Filter>,
     pivot: PivotModel,
   ): Promise<Row> {
     if (this.useSchema) {
@@ -698,7 +696,7 @@ ${joinClauses}`;
   }
 
   private async getSimplePivotAggregates(
-    filters: ReadonlyArray<DataGridFilter>,
+    filters: ReadonlyArray<Filter>,
     pivot: PivotModel,
   ): Promise<Row> {
     let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
@@ -735,7 +733,7 @@ ${joinClauses}`;
   }
 
   private async getSchemaPivotAggregates(
-    filters: ReadonlyArray<DataGridFilter>,
+    filters: ReadonlyArray<Filter>,
     pivot: PivotModel,
   ): Promise<Row> {
     const resolver = new SQLSchemaResolver(
@@ -798,7 +796,7 @@ ${joinClauses}`;
   }
 
   private async getColumnAggregates(
-    filters: ReadonlyArray<DataGridFilter>,
+    filters: ReadonlyArray<Filter>,
     columns: ReadonlyArray<DataGridColumn>,
   ): Promise<Row> {
     if (this.useSchema) {
@@ -809,7 +807,7 @@ ${joinClauses}`;
   }
 
   private async getSimpleColumnAggregates(
-    filters: ReadonlyArray<DataGridFilter>,
+    filters: ReadonlyArray<Filter>,
     columns: ReadonlyArray<DataGridColumn>,
   ): Promise<Row> {
     let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
@@ -846,7 +844,7 @@ ${joinClauses}`;
   }
 
   private async getSchemaColumnAggregates(
-    filters: ReadonlyArray<DataGridFilter>,
+    filters: ReadonlyArray<Filter>,
     columns: ReadonlyArray<DataGridColumn>,
   ): Promise<Row> {
     const resolver = new SQLSchemaResolver(
@@ -923,7 +921,7 @@ ${joinClauses}`;
   }
 }
 
-function simpleFilter2Sql(filter: DataGridFilter): string {
+function simpleFilter2Sql(filter: Filter): string {
   switch (filter.op) {
     case '=':
     case '!=':

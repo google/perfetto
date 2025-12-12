@@ -223,7 +223,7 @@ class TableCard
 // It orchestrates the search bar, the list of tables, and handles filtering.
 export class TableList implements m.ClassComponent<TableListAttrs> {
   private selectedTags: Set<string> = new Set();
-  private hideDisabledModules: boolean = false;
+  private hideDisabledModules: boolean = true;
   private onlyShowTimestampedTables: boolean = false;
 
   view({attrs}: m.CVnode<TableListAttrs>) {
