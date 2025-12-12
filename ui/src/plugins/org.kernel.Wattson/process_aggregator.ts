@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {exists} from '../../base/utils';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 import {Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -111,6 +111,7 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
         columnId: 'active_mws',
         sum: true,
         formatHint: 'NUMERIC',
+        sort: 'DESC',
       },
       {
         title: 'Idle transitions overhead (estimated mWs)',
@@ -135,9 +136,5 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Wattson by process';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'active_mws', direction: 'DESC'};
   }
 }
