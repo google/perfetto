@@ -58,11 +58,11 @@ PERFETTO_CONFIG = struct(
         open_csd = ["@perfetto_dep_open_csd//:open_csd"],
 
         android_test_common = [
-            "@maven//:androidx_test_runner",
-            "@maven//:androidx_test_monitor",
-            "@maven//:junit_junit",
-            "@maven//:com_google_truth_truth",
-            "@maven//:androidx_test_ext_junit",
+            "@perfetto_maven//:androidx_test_runner",
+            "@perfetto_maven//:androidx_test_monitor",
+            "@perfetto_maven//:junit_junit",
+            "@perfetto_maven//:com_google_truth_truth",
+            "@perfetto_maven//:androidx_test_ext_junit",
         ],
 
         # The Python targets are empty on the standalone build because we assume
