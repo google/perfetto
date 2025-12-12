@@ -22,7 +22,7 @@ import {
   isSchemaRef,
   SchemaRegistry,
 } from './column_schema';
-import {AggregationFunction, PivotModel, PivotValue} from './common';
+import {AggregationFunction, PivotModel, PivotValue} from './model';
 import {Icons} from '../../../base/semantic_icons';
 
 export type OnPivotChanged = (pivot: PivotModel | undefined) => void;

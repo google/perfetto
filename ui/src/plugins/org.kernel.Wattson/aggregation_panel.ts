@@ -16,21 +16,17 @@ import m from 'mithril';
 import {Duration} from '../../base/time';
 import {BarChartData, ColumnDef} from '../../components/aggregation';
 import {AggregationPanelAttrs} from '../../components/aggregation_panel';
+import {DataGridColumn, SortBy} from '../../components/widgets/datagrid/model';
+import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {
-  ColumnDefinition,
-  DataGridColumn,
-  DataGridDataSource,
-  Sorting,
-} from '../../components/widgets/datagrid/common';
-import {
-  DataGrid,
-  renderCell,
-  columnsToSchema,
-} from '../../components/widgets/datagrid/datagrid';
+  ColumnSchema,
+  SchemaRegistry,
+} from '../../components/widgets/datagrid/column_schema';
 import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {AggregatePivotModel} from '../../components/aggregation_adapter';
+import {DataSource} from '../../components/widgets/datagrid/data_source';
 
 export class WattsonAggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
@@ -47,8 +43,8 @@ export class WattsonAggregationPanel
   }
 
   private renderTable(
-    dataSource: DataGridDataSource,
-    sorting: Sorting,
+    dataSource: DataSource,
+    sorting: SortBy,
     columns: ReadonlyArray<ColumnDef> | AggregatePivotModel,
   ) {
     // TODO: Support pivot tables
@@ -61,44 +57,42 @@ export class WattsonAggregationPanel
       aggregation: c.sum ? 'SUM' : undefined,
     }));
 
-    const columnDefs: ColumnDefinition[] = columns.map(
-      (c): ColumnDefinition => {
-        const displayTitle = this.scaleNumericData
-          ? c.title.replace('estimated mW', 'estimated µW')
-          : c.title;
-        return {
-          name: c.columnId,
-          title: displayTitle,
-          filterType: filterTypeForColumnDef(c.formatHint),
-          cellRenderer: (value) => {
-            const formatHint = c.formatHint;
-            if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
-              return m(
-                'span.pf-data-grid__cell--number',
-                Duration.humanise(value),
-              );
-            } else if (formatHint === 'PERCENT' && typeof value === 'number') {
-              return m(
-                'span.pf-data-grid__cell--number',
-                `${(value * 100).toFixed(2)}%`,
-              );
-            } else {
-              let v = value;
-              if (
-                this.scaleNumericData &&
-                c.columnId.includes('_mw') &&
-                typeof value === 'number'
-              ) {
-                v = value * 1000;
-              }
-              return renderCell(v, c.columnId);
+    // Build schema directly
+    const columnSchema: ColumnSchema = {};
+    for (const c of columns) {
+      const displayTitle = this.scaleNumericData
+        ? c.title.replace('estimated mW', 'estimated µW')
+        : c.title;
+      columnSchema[c.columnId] = {
+        title: displayTitle,
+        filterType: filterTypeForColumnDef(c.formatHint),
+        cellRenderer: (value) => {
+          const formatHint = c.formatHint;
+          if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+            return m(
+              'span.pf-data-grid__cell--number',
+              Duration.humanise(value),
+            );
+          } else if (formatHint === 'PERCENT' && typeof value === 'number') {
+            return m(
+              'span.pf-data-grid__cell--number',
+              `${(value * 100).toFixed(2)}%`,
+            );
+          } else {
+            let v = value;
+            if (
+              this.scaleNumericData &&
+              c.columnId.includes('_mw') &&
+              typeof value === 'number'
+            ) {
+              v = value * 1000;
             }
-          },
-        };
-      },
-    );
-
-    const {schema, rootSchema} = columnsToSchema(columnDefs);
+            return renderCell(v, c.columnId);
+          }
+        },
+      };
+    }
+    const schema: SchemaRegistry = {data: columnSchema};
 
     return m(DataGrid, {
       toolbarItemsLeft: m(
@@ -115,7 +109,7 @@ export class WattsonAggregationPanel
       initialColumns,
       fillHeight: true,
       schema,
-      rootSchema,
+      rootSchema: 'data',
       data: dataSource,
       initialSorting: sorting,
       enablePivotControls: true,

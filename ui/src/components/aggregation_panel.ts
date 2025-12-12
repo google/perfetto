@@ -18,18 +18,19 @@ import {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
-import {
-  CellRenderer,
-  DataGridColumn,
-  DataGridDataSource,
-} from './widgets/datagrid/common';
+import {DataGridColumn} from './widgets/datagrid/model';
 import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
 import {defaultValueFormatter} from './widgets/datagrid/export_utils';
 import {AggregatePivotModel} from './aggregation_adapter';
-import {ColumnSchema, SchemaRegistry} from './widgets/datagrid/column_schema';
+import {
+  CellRenderer,
+  ColumnSchema,
+  SchemaRegistry,
+} from './widgets/datagrid/column_schema';
+import {DataSource} from './widgets/datagrid/data_source';
 
 export interface AggregationPanelAttrs {
-  readonly dataSource: DataGridDataSource;
+  readonly dataSource: DataSource;
   readonly sorting: Sorting;
   readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
   readonly barChartData?: ReadonlyArray<BarChartData>;
@@ -55,7 +56,7 @@ export class AggregationPanel
   }
 
   private renderTable(
-    dataSource: DataGridDataSource,
+    dataSource: DataSource,
     sorting: Sorting,
     model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
     onReady?: (api: DataGridApi) => void,
