@@ -18,15 +18,15 @@ import {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
-import {
-  CellRenderer,
-  DataGridColumn,
-  DataGridDataSource,
-} from './widgets/datagrid/model';
+import {DataGridColumn, DataGridDataSource} from './widgets/datagrid/model';
 import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
 import {defaultValueFormatter} from './widgets/datagrid/export_utils';
 import {AggregatePivotModel} from './aggregation_adapter';
-import {ColumnSchema, SchemaRegistry} from './widgets/datagrid/column_schema';
+import {
+  CellRenderer,
+  ColumnSchema,
+  SchemaRegistry,
+} from './widgets/datagrid/column_schema';
 
 export interface AggregationPanelAttrs {
   readonly dataSource: DataGridDataSource;

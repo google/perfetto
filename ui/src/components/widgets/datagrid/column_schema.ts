@@ -15,7 +15,10 @@
 import m from 'mithril';
 import {maybeUndefined} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {CellFormatter, CellRenderer, RowDef} from './model';
+import {RowDef} from './model';
+
+export type CellRenderer = (value: SqlValue, row: RowDef) => m.Children;
+export type CellFormatter = (value: SqlValue, row: RowDef) => string;
 
 /**
  * A registry of named schemas that can reference each other.

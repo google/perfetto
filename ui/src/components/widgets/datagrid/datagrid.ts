@@ -35,7 +35,6 @@ import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {renderCellFilterMenuItem} from './cell_filter_menu';
 import {renderFilterMenuItems} from './column_filter_menu';
 import {
-  ColumnSchema,
   SchemaRegistry,
   getColumnCellContextMenuRenderer,
   getColumnCellFormatter,
@@ -52,7 +51,6 @@ import {
 } from './column_schema';
 import {
   AggregationFunction,
-  ColumnDefinition,
   DataGridColumn,
   DataGridDataSource,
   DataGridFilter,
@@ -341,44 +339,6 @@ export interface DataGridApi {
    * @returns The total row count
    */
   getRowCount(): number;
-}
-
-/**
- * Helper function to convert old-style ColumnDefinition[] to the new schema format.
- * This provides backwards compatibility during migration.
- *
- * The grid will operate in uncontrolled mode for columns, with initialColumns
- * set to show all columns in the order they are defined. Users can add/remove/reorder
- * columns via the column header menu.
- *
- * @param columns Array of column definitions in the old format
- * @returns An object with schema, rootSchema, and initialColumns for use with DataGrid
- */
-export function columnsToSchema(columns: ReadonlyArray<ColumnDefinition>): {
-  schema: SchemaRegistry;
-  rootSchema: string;
-  initialColumns: ReadonlyArray<string>;
-} {
-  const schema: ColumnSchema = {};
-
-  // Build schema in the order columns are provided
-  for (const col of columns) {
-    schema[col.name] = {
-      title: typeof col.title === 'string' ? col.title : undefined,
-      filterType: col.filterType,
-      cellRenderer: col.cellRenderer,
-      cellFormatter: col.cellFormatter,
-      distinctValues: col.distinctValues,
-      contextMenuRenderer: col.contextMenuRenderer,
-      cellContextMenuRenderer: col.cellContextMenuRenderer,
-    };
-  }
-
-  return {
-    schema: {data: schema},
-    rootSchema: 'data',
-    initialColumns: columns.map((col) => col.name),
-  };
 }
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {

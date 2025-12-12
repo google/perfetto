@@ -17,16 +17,13 @@ import {findRef, toHTMLElement} from '../../base/dom_utils';
 import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
+import {DataGridDataSource} from '../../components/widgets/datagrid/model';
+import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {
   CellRenderer,
-  ColumnDefinition,
-  DataGridDataSource,
-} from '../../components/widgets/datagrid/model';
-import {
-  DataGrid,
-  renderCell,
-  columnsToSchema,
-} from '../../components/widgets/datagrid/datagrid';
+  ColumnSchema,
+  SchemaRegistry,
+} from '../../components/widgets/datagrid/column_schema';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import {Trace} from '../../public/trace';
@@ -222,43 +219,44 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             ]),
           ]),
         (() => {
-          const columnDefs: ColumnDefinition[] = queryResult.columns.map(
-            (column) => {
-              const cellRenderer: CellRenderer | undefined =
-                column === 'id'
-                  ? (value, row) => {
-                      const sliceId = getSliceId(row);
-                      const cell = renderCell(value, column);
-                      if (sliceId !== undefined && isSliceish(row)) {
-                        return m(
-                          Anchor,
-                          {
-                            title: 'Go to slice on the timeline',
-                            icon: Icons.UpdateSelection,
-                            onclick: () => {
-                              // Navigate to the timeline page
-                              trace.navigate('#!/viewer');
-                              trace.selection.selectSqlEvent('slice', sliceId, {
-                                switchToCurrentSelectionTab: false,
-                                scrollToSelection: true,
-                              });
-                            },
+          // Build schema directly
+          const columnSchema: ColumnSchema = {};
+          for (const column of queryResult.columns) {
+            const cellRenderer: CellRenderer | undefined =
+              column === 'id'
+                ? (value, row) => {
+                    const sliceId = getSliceId(row);
+                    const cell = renderCell(value, column);
+                    if (sliceId !== undefined && isSliceish(row)) {
+                      return m(
+                        Anchor,
+                        {
+                          title: 'Go to slice on the timeline',
+                          icon: Icons.UpdateSelection,
+                          onclick: () => {
+                            // Navigate to the timeline page
+                            trace.navigate('#!/viewer');
+                            trace.selection.selectSqlEvent('slice', sliceId, {
+                              switchToCurrentSelectionTab: false,
+                              scrollToSelection: true,
+                            });
                           },
-                          cell,
-                        );
-                      } else {
-                        return renderCell(value, column);
-                      }
+                        },
+                        cell,
+                      );
+                    } else {
+                      return renderCell(value, column);
                     }
-                  : undefined;
-              return {
-                name: column,
-                cellRenderer,
-              };
-            },
-          );
+                  }
+                : undefined;
+            columnSchema[column] = {cellRenderer};
+          }
+          const schema: SchemaRegistry = {data: columnSchema};
+
           return m(DataGrid, {
-            ...columnsToSchema(columnDefs),
+            schema,
+            rootSchema: 'data',
+            initialColumns: queryResult.columns,
             className: 'pf-query-page__results',
             data: dataSource,
             showExportButton: true,

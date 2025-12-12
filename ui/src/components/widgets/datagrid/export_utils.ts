@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {SqlValue} from '../../../trace_processor/query_result';
-import {CellFormatter} from './model';
+import {CellFormatter} from './column_schema';
 
 /**
  * Default value formatter that converts SqlValue to string.

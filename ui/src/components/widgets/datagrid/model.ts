@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {SqlValue} from '../../../trace_processor/query_result';
 
 export type AggregationFunction =
@@ -22,79 +21,6 @@ export type AggregationFunction =
   | 'MIN'
   | 'MAX'
   | 'ANY';
-
-/**
- * Represents a column that can be added to the grid via the "Add Column" menu.
- * Used to build hierarchical menus of available columns, supporting both static
- * columns and dynamically-discovered ones (e.g., arg keys, parent chains).
- */
-export interface AvailableColumn {
-  // Display name for the menu item
-  readonly label: string;
-
-  // The column name to add when selected (e.g., "parent.ts", "arg[foo]")
-  readonly columnName: string;
-
-  // If defined, this item has a submenu with lazy-loaded children.
-  // The function is called when the user expands the submenu.
-  readonly getChildren?: () => Promise<AvailableColumn[]>;
-}
-
-export type CellRenderer = (value: SqlValue, row: RowDef) => m.Children;
-export type CellFormatter = (value: SqlValue, row: RowDef) => string;
-
-export interface ColumnDefinition {
-  // Name/id of the column - this should match the key in the data.
-  readonly name: string;
-
-  // Human readable title to display instead of the name.
-  readonly title?: m.Children;
-
-  // Custom renderer for this column's cells
-  readonly cellRenderer?: CellRenderer;
-
-  // Optional value formatter for this column. This is used when exporting
-  // data to format the value as a string.
-  readonly cellFormatter?: CellFormatter;
-
-  // Optional function that receives default menu item groups and returns
-  // the complete menu structure. This allows full control over menu organization.
-  // Default groups provided:
-  // - sorting: Sort ascending/descending/clear items
-  // - filters: Filter options (null filters, equals, contains, etc.)
-  // - fitToContent: Fit column to content width
-  // - columnManagement: Hide column, manage columns visibility
-  readonly contextMenuRenderer?: (builtins: {
-    readonly sorting?: m.Children;
-    readonly filters?: m.Children;
-    readonly fitToContent?: m.Children;
-    readonly columnManagement?: m.Children;
-  }) => m.Children;
-
-  // Optional function that receives the default filter menu item and returns
-  // the complete cell context menu structure. This allows full control over
-  // the cell menu organization.
-  // Default item provided:
-  // - addFilter: "Add filter..." menu item with context-sensitive filter options
-  readonly cellContextMenuRenderer?: (
-    value: SqlValue,
-    row: RowDef,
-    builtins: {
-      addFilter?: m.Children;
-    },
-  ) => m.Children;
-
-  // Enable distinct values filtering for this column. When enabled, adds a
-  // "Filter by values..." menu item that shows all distinct values. Only
-  // enable for columns with low cardinality (e.g., strings, enums).
-  readonly distinctValues?: boolean;
-
-  // Control which types of filters are available for this column.
-  // - 'numeric': Shows comparison filters (=, !=, <, <=, >, >=) and null filters
-  // - 'string': Shows text filters (contains, glob) and equals/null filters
-  // - undefined: Shows all applicable filters based on other settings
-  readonly filterType?: 'numeric' | 'string';
-}
 
 export interface FilterValue {
   readonly column: string;

@@ -17,14 +17,9 @@ import {SearchManagerImpl} from '../../core/search_manager';
 import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
-import {
-  DataGrid,
-  columnsToSchema,
-} from '../../components/widgets/datagrid/datagrid';
-import {
-  ColumnDefinition,
-  RowDef,
-} from '../../components/widgets/datagrid/model';
+import {DataGrid} from '../../components/widgets/datagrid/datagrid';
+import {RowDef} from '../../components/widgets/datagrid/model';
+import {SchemaRegistry} from '../../components/widgets/datagrid/column_schema';
 
 interface TabAttrs {
   trace: Trace;
@@ -37,42 +32,41 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
     const searchResults = searchManager.searchResults;
     const searchText = searchManager.searchText;
 
-    const columns: ColumnDefinition[] = [
-      {
-        name: 'id',
-        title: 'Event ID',
-        cellRenderer: (value, row) => {
-          if (typeof row.trackUri === 'string') {
-            return m(
-              Anchor,
-              {
-                onclick: () => {
-                  trace.selection.selectTrackEvent(
-                    row.trackUri as string,
-                    value as number,
-                    {
-                      switchToCurrentSelectionTab: false,
-                      clearSearch: false,
-                      scrollToSelection: true,
-                    },
-                  );
+    const schema: SchemaRegistry = {
+      data: {
+        id: {
+          title: 'Event ID',
+          cellRenderer: (value, row) => {
+            if (typeof row.trackUri === 'string') {
+              return m(
+                Anchor,
+                {
+                  onclick: () => {
+                    trace.selection.selectTrackEvent(
+                      row.trackUri as string,
+                      value as number,
+                      {
+                        switchToCurrentSelectionTab: false,
+                        clearSearch: false,
+                        scrollToSelection: true,
+                      },
+                    );
+                  },
                 },
-              },
-              String(value),
-            );
-          }
-          return String(value);
+                String(value),
+              );
+            }
+            return String(value);
+          },
+        },
+        ts: {
+          title: 'Timestamp',
+        },
+        trackUri: {
+          title: 'Track URI',
         },
       },
-      {
-        name: 'ts',
-        title: 'Timestamp',
-      },
-      {
-        name: 'trackUri',
-        title: 'Track URI',
-      },
-    ];
+    };
 
     const rowData: RowDef[] = [];
 
@@ -102,7 +96,9 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
         fillHeight: true,
       },
       m(DataGrid, {
-        ...columnsToSchema(columns),
+        schema,
+        rootSchema: 'data',
+        initialColumns: ['id', 'ts', 'trackUri'],
         data: rowData,
         fillHeight: true,
       }),
