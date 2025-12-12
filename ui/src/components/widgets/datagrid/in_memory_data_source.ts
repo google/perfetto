@@ -14,12 +14,11 @@
 
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
-import {SqlValue} from '../../../trace_processor/query_result';
+import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {
   DataGridColumn,
   DataGridDataSource,
   DataSourceResult,
-  RowDef,
   Sorting,
   SortByColumn,
   DataGridModel,
@@ -28,8 +27,8 @@ import {
 } from './model';
 
 export class InMemoryDataSource implements DataGridDataSource {
-  private data: ReadonlyArray<RowDef> = [];
-  private filteredSortedData: ReadonlyArray<RowDef> = [];
+  private data: ReadonlyArray<Row> = [];
+  private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
   private aggregateTotalsCache = new Map<string, SqlValue>();
@@ -39,7 +38,7 @@ export class InMemoryDataSource implements DataGridDataSource {
   private oldFilters: ReadonlyArray<DataGridFilter> = [];
   private oldPivot?: PivotModel;
 
-  constructor(data: ReadonlyArray<RowDef>) {
+  constructor(data: ReadonlyArray<Row>) {
     this.data = data;
     this.filteredSortedData = data;
   }
@@ -188,7 +187,7 @@ export class InMemoryDataSource implements DataGridDataSource {
   /**
    * Export all data with current filters/sorting applied.
    */
-  async exportData(): Promise<readonly RowDef[]> {
+  async exportData(): Promise<readonly Row[]> {
     // Return all the filtered and sorted data
     return this.filteredSortedData;
   }
@@ -227,9 +226,9 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private applyFilters(
-    data: ReadonlyArray<RowDef>,
+    data: ReadonlyArray<Row>,
     filters: ReadonlyArray<DataGridFilter>,
-  ): ReadonlyArray<RowDef> {
+  ): ReadonlyArray<Row> {
     if (filters.length === 0) {
       return data;
     }
@@ -290,9 +289,9 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private applySorting(
-    data: ReadonlyArray<RowDef>,
+    data: ReadonlyArray<Row>,
     sortBy: Sorting,
-  ): ReadonlyArray<RowDef> {
+  ): ReadonlyArray<Row> {
     if (sortBy.direction === 'UNSORTED') {
       return data;
     }
@@ -342,10 +341,10 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private applyPivoting(
-    data: ReadonlyArray<RowDef>,
+    data: ReadonlyArray<Row>,
     pivot: PivotModel,
-  ): ReadonlyArray<RowDef> {
-    const groups = new Map<string, RowDef[]>();
+  ): ReadonlyArray<Row> {
+    const groups = new Map<string, Row[]>();
 
     for (const row of data) {
       const key = pivot.groupBy.map((col) => row[col]).join('-');
@@ -355,10 +354,10 @@ export class InMemoryDataSource implements DataGridDataSource {
       groups.get(key)!.push(row);
     }
 
-    const result: RowDef[] = [];
+    const result: Row[] = [];
 
     for (const group of groups.values()) {
-      const newRow: RowDef = {};
+      const newRow: Row = {};
       for (const col of pivot.groupBy) {
         newRow[col] = group[0][col];
       }
@@ -415,9 +414,9 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private applyDrillDown(
-    data: ReadonlyArray<RowDef>,
+    data: ReadonlyArray<Row>,
     pivot: PivotModel,
-  ): ReadonlyArray<RowDef> {
+  ): ReadonlyArray<Row> {
     const drillDown = pivot.drillDown!;
 
     return data.filter((row) => {
@@ -437,7 +436,7 @@ export class InMemoryDataSource implements DataGridDataSource {
    * For MIN/MAX, we find the min/max across all groups.
    */
   private computeAggregateTotals(
-    pivotedData: ReadonlyArray<RowDef>,
+    pivotedData: ReadonlyArray<Row>,
     pivot: PivotModel,
   ): void {
     for (const [alias, pivotValue] of Object.entries(pivot.values)) {
@@ -494,7 +493,7 @@ export class InMemoryDataSource implements DataGridDataSource {
    * This is used in non-pivot mode when columns have individual aggregations.
    */
   private computeColumnAggregates(
-    data: ReadonlyArray<RowDef>,
+    data: ReadonlyArray<Row>,
     columns: ReadonlyArray<DataGridColumn>,
   ): void {
     for (const col of columns) {

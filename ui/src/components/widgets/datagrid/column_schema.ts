@@ -14,11 +14,10 @@
 
 import m from 'mithril';
 import {maybeUndefined} from '../../../base/utils';
-import {SqlValue} from '../../../trace_processor/query_result';
-import {RowDef} from './model';
+import {Row, SqlValue} from '../../../trace_processor/query_result';
 
-export type CellRenderer = (value: SqlValue, row: RowDef) => m.Children;
-export type CellFormatter = (value: SqlValue, row: RowDef) => string;
+export type CellRenderer = (value: SqlValue, row: Row) => m.Children;
+export type CellFormatter = (value: SqlValue, row: Row) => string;
 
 /**
  * A registry of named schemas that can reference each other.
@@ -87,7 +86,7 @@ export interface ColumnDef {
   // Optional function for custom cell context menu.
   readonly cellContextMenuRenderer?: (
     value: SqlValue,
-    row: RowDef,
+    row: Row,
     builtins: CellContextMenuBuiltins,
   ) => m.Children;
 }
@@ -127,7 +126,7 @@ export interface ParameterizedColumnDef {
   readonly contextMenuRenderer?: (builtins: ContextMenuBuiltins) => m.Children;
   readonly cellContextMenuRenderer?: (
     value: SqlValue,
-    row: RowDef,
+    row: Row,
     builtins: CellContextMenuBuiltins,
   ) => m.Children;
 }
@@ -483,7 +482,7 @@ export function getColumnCellContextMenuRenderer(
 ):
   | ((
       value: SqlValue,
-      row: RowDef,
+      row: Row,
       builtins: CellContextMenuBuiltins,
     ) => m.Children)
   | undefined {

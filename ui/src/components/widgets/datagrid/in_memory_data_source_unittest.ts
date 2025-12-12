@@ -13,10 +13,11 @@
 // limitations under the License.
 
 import {InMemoryDataSource} from './in_memory_data_source';
-import {DataGridFilter, RowDef, Sorting} from './model';
+import {Row} from '../../../trace_processor/query_result';
+import {DataGridFilter, Sorting} from './model';
 
 describe('InMemoryDataSource', () => {
-  const sampleData: ReadonlyArray<RowDef> = [
+  const sampleData: ReadonlyArray<Row> = [
     {
       id: 1,
       name: 'Alice',

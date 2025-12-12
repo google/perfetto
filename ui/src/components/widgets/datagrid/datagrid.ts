@@ -17,7 +17,7 @@ import {classNames} from '../../../base/classnames';
 import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
 import {exists, isNumeric} from '../../../base/utils';
-import {SqlValue} from '../../../trace_processor/query_result';
+import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
@@ -56,7 +56,6 @@ import {
   DataGridFilter,
   PivotModel,
   PivotValue,
-  RowDef,
   Sorting,
 } from './model';
 import {DataGridToolbar} from './datagrid_toolbar';
@@ -170,7 +169,7 @@ export interface DataGridAttrs {
    * The data source is responsible for applying the filters, sorting, and
    * paging and providing the rows that are displayed in the grid.
    */
-  readonly data: DataGridDataSource | ReadonlyArray<RowDef>;
+  readonly data: DataGridDataSource | ReadonlyArray<Row>;
 
   /**
    * Current sort configuration - can operate in controlled or uncontrolled
@@ -950,7 +949,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         (_, i) => i + start,
       );
 
-      // Convert RowDef data to vnode rows for VirtualGrid
+      // Convert Row data to vnode rows for VirtualGrid
       return rowIndices
         .map((index) => {
           const row = rows.rows[index - rows.rowOffset];
@@ -1038,7 +1037,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           // Add drill-down button cell when in pivot mode
           if (showDrillDownColumn) {
             // Build the drillDown values from the groupBy columns
-            const drillDownValues: RowDef = {};
+            const drillDownValues: Row = {};
             for (const colName of pivot.groupBy) {
               drillDownValues[colName] = row[colName];
             }
@@ -1229,7 +1228,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private formatAsTSV(
-    rows: readonly RowDef[],
+    rows: readonly Row[],
     schema: SchemaRegistry | undefined,
     rootSchema: string | undefined,
     columns: ReadonlyArray<string>,
@@ -1240,7 +1239,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private formatAsJSON(
-    rows: readonly RowDef[],
+    rows: readonly Row[],
     schema: SchemaRegistry | undefined,
     rootSchema: string | undefined,
     columns: ReadonlyArray<string>,
@@ -1250,7 +1249,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private formatAsMarkdown(
-    rows: readonly RowDef[],
+    rows: readonly Row[],
     schema: SchemaRegistry | undefined,
     rootSchema: string | undefined,
     columns: ReadonlyArray<string>,
@@ -1261,7 +1260,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private formatRows(
-    rows: readonly RowDef[],
+    rows: readonly Row[],
     schema: SchemaRegistry | undefined,
     rootSchema: string | undefined,
     columns: ReadonlyArray<string>,

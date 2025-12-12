@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlValue} from '../../../trace_processor/query_result';
+import {Row, SqlValue} from '../../../trace_processor/query_result';
 
 export type AggregationFunction =
   | 'SUM'
@@ -55,7 +55,7 @@ export type Sorting = SortByColumn | Unsorted;
 export interface DataSourceResult {
   readonly totalRows: number;
   readonly rowOffset: number;
-  readonly rows: ReadonlyArray<RowDef>;
+  readonly rows: ReadonlyArray<Row>;
   readonly isLoading?: boolean;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
   // Available parameter keys for parameterized columns (e.g., for 'args' -> ['foo', 'bar'])
@@ -63,8 +63,6 @@ export interface DataSourceResult {
   // Computed aggregate totals for each aggregate column (grand total across all filtered rows)
   readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
 }
-
-export type RowDef = {[key: string]: SqlValue};
 
 export interface Pagination {
   readonly offset: number;
@@ -103,7 +101,7 @@ export interface PivotModel {
   // When set, shows raw rows filtered by these groupBy column values.
   // This allows drilling down into a specific pivot group to see the
   // underlying data. The keys are the groupBy column names.
-  readonly drillDown?: RowDef;
+  readonly drillDown?: Row;
 }
 
 /**
@@ -136,5 +134,5 @@ export interface DataGridDataSource {
    * Export all data with current filters/sorting applied.
    * Returns a promise that resolves to all filtered and sorted rows.
    */
-  exportData(): Promise<readonly RowDef[]>;
+  exportData(): Promise<readonly Row[]>;
 }

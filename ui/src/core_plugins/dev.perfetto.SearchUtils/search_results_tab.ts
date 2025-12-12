@@ -18,7 +18,7 @@ import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {RowDef} from '../../components/widgets/datagrid/model';
+import {Row} from '../../trace_processor/query_result';
 import {SchemaRegistry} from '../../components/widgets/datagrid/column_schema';
 
 interface TabAttrs {
@@ -68,7 +68,7 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
       },
     };
 
-    const rowData: RowDef[] = [];
+    const rowData: Row[] = [];
 
     if (searchResults) {
       for (let i = 0; i < searchResults.totalResults; i++) {
