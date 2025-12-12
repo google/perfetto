@@ -42,9 +42,14 @@ SELECT
               'missed_app_frames', missed_app_frames,
               'missed_sf_frames', missed_sf_frames,
               'missed_frames_max_successive', missed_frames_max_successive,
-              'sf_callback_missed_frames', sf_callback_missed_frames,
+              -- convert from jank per second to total janks.
+              'weighted_missed_app_frames', weighted_missed_app_frames,
+              'weighted_missed_sf_frames', weighted_missed_sf_frames * anim_duration_ms / 1000,
+              'sf_callback_missed_frames', sf_callback_missed_frames * anim_duration_ms / 1000,
               'hwui_callback_missed_frames', hwui_callback_missed_frames,
-              'frame_dur_max', frame_dur_max)
+              'frame_dur_max', frame_dur_max,
+              -- convert from ms to ns.
+              'anim_duration', anim_duration_ms * 1000000)
             FROM android_jank_cuj_counter_metrics cm
             WHERE cm.cuj_id = cuj.cuj_id),
           'trace_metrics', (
