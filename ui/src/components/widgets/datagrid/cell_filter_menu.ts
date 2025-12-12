@@ -16,8 +16,8 @@ import m from 'mithril';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {MenuItem} from '../../../widgets/menu';
 import {OnFilterAdd} from './column_filter_menu';
-import {isNumeric} from './common';
 import {Icons} from '../../../base/semantic_icons';
+import {isNumeric} from '../../../base/utils';
 
 export function renderCellFilterMenuItem({
   columnPath,

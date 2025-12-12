@@ -14,37 +14,34 @@
 
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
-import {SqlValue} from '../../../trace_processor/query_result';
+import {Row, SqlValue} from '../../../trace_processor/query_result';
+import {DataSource, DataSourceModel, DataSourceResult} from './data_source';
 import {
   DataGridColumn,
-  DataGridDataSource,
-  DataSourceResult,
-  RowDef,
-  Sorting,
+  SortBy,
   SortByColumn,
-  DataGridModel,
-  DataGridFilter,
+  Filter,
   PivotModel,
-} from './common';
+} from './model';
 
-export class InMemoryDataSource implements DataGridDataSource {
-  private data: ReadonlyArray<RowDef> = [];
-  private filteredSortedData: ReadonlyArray<RowDef> = [];
+export class InMemoryDataSource implements DataSource {
+  private data: ReadonlyArray<Row> = [];
+  private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
   private aggregateTotalsCache = new Map<string, SqlValue>();
 
   // Cached state for diffing
-  private oldSorting: Sorting = {direction: 'UNSORTED'};
-  private oldFilters: ReadonlyArray<DataGridFilter> = [];
+  private oldSorting: SortBy = {direction: 'UNSORTED'};
+  private oldFilters: ReadonlyArray<Filter> = [];
   private oldPivot?: PivotModel;
 
-  constructor(data: ReadonlyArray<RowDef>) {
+  constructor(data: ReadonlyArray<Row>) {
     this.data = data;
     this.filteredSortedData = data;
   }
 
-  get rows(): DataSourceResult {
+  get result(): DataSourceResult {
     return {
       rowOffset: 0,
       rows: this.filteredSortedData,
@@ -55,14 +52,14 @@ export class InMemoryDataSource implements DataGridDataSource {
     };
   }
 
-  notifyUpdate({
+  notify({
     columns,
     sorting = {direction: 'UNSORTED'},
     filters = [],
     pivot,
     distinctValuesColumns,
     parameterKeyColumns,
-  }: DataGridModel): void {
+  }: DataSourceModel): void {
     if (
       !this.isSortByEqual(sorting, this.oldSorting) ||
       !this.areFiltersEqual(filters, this.oldFilters) ||
@@ -188,12 +185,12 @@ export class InMemoryDataSource implements DataGridDataSource {
   /**
    * Export all data with current filters/sorting applied.
    */
-  async exportData(): Promise<readonly RowDef[]> {
+  async exportData(): Promise<readonly Row[]> {
     // Return all the filtered and sorted data
     return this.filteredSortedData;
   }
 
-  private isSortByEqual(a: Sorting, b: Sorting): boolean {
+  private isSortByEqual(a: SortBy, b: SortBy): boolean {
     if (a.direction === 'UNSORTED' && b.direction === 'UNSORTED') {
       return true;
     }
@@ -212,8 +209,8 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   // Helper function to compare arrays of filter definitions for equality.
   private areFiltersEqual(
-    filtersA: ReadonlyArray<DataGridFilter>,
-    filtersB: ReadonlyArray<DataGridFilter>,
+    filtersA: ReadonlyArray<Filter>,
+    filtersB: ReadonlyArray<Filter>,
   ): boolean {
     if (filtersA.length !== filtersB.length) return false;
 
@@ -227,9 +224,9 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private applyFilters(
-    data: ReadonlyArray<RowDef>,
-    filters: ReadonlyArray<DataGridFilter>,
-  ): ReadonlyArray<RowDef> {
+    data: ReadonlyArray<Row>,
+    filters: ReadonlyArray<Filter>,
+  ): ReadonlyArray<Row> {
     if (filters.length === 0) {
       return data;
     }
@@ -290,9 +287,9 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private applySorting(
-    data: ReadonlyArray<RowDef>,
-    sortBy: Sorting,
-  ): ReadonlyArray<RowDef> {
+    data: ReadonlyArray<Row>,
+    sortBy: SortBy,
+  ): ReadonlyArray<Row> {
     if (sortBy.direction === 'UNSORTED') {
       return data;
     }
@@ -342,10 +339,10 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private applyPivoting(
-    data: ReadonlyArray<RowDef>,
+    data: ReadonlyArray<Row>,
     pivot: PivotModel,
-  ): ReadonlyArray<RowDef> {
-    const groups = new Map<string, RowDef[]>();
+  ): ReadonlyArray<Row> {
+    const groups = new Map<string, Row[]>();
 
     for (const row of data) {
       const key = pivot.groupBy.map((col) => row[col]).join('-');
@@ -355,10 +352,10 @@ export class InMemoryDataSource implements DataGridDataSource {
       groups.get(key)!.push(row);
     }
 
-    const result: RowDef[] = [];
+    const result: Row[] = [];
 
     for (const group of groups.values()) {
-      const newRow: RowDef = {};
+      const newRow: Row = {};
       for (const col of pivot.groupBy) {
         newRow[col] = group[0][col];
       }
@@ -415,9 +412,9 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 
   private applyDrillDown(
-    data: ReadonlyArray<RowDef>,
+    data: ReadonlyArray<Row>,
     pivot: PivotModel,
-  ): ReadonlyArray<RowDef> {
+  ): ReadonlyArray<Row> {
     const drillDown = pivot.drillDown!;
 
     return data.filter((row) => {
@@ -437,7 +434,7 @@ export class InMemoryDataSource implements DataGridDataSource {
    * For MIN/MAX, we find the min/max across all groups.
    */
   private computeAggregateTotals(
-    pivotedData: ReadonlyArray<RowDef>,
+    pivotedData: ReadonlyArray<Row>,
     pivot: PivotModel,
   ): void {
     for (const [alias, pivotValue] of Object.entries(pivot.values)) {
@@ -494,7 +491,7 @@ export class InMemoryDataSource implements DataGridDataSource {
    * This is used in non-pivot mode when columns have individual aggregations.
    */
   private computeColumnAggregates(
-    data: ReadonlyArray<RowDef>,
+    data: ReadonlyArray<Row>,
     columns: ReadonlyArray<DataGridColumn>,
   ): void {
     for (const col of columns) {

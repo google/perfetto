@@ -21,9 +21,9 @@ import {Form} from '../../../widgets/form';
 import {Icon} from '../../../widgets/icon';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
-import {DataGridFilter} from './common';
+import {Filter} from './model';
 
-export type OnFilterAdd = (filter: DataGridFilter) => void;
+export type OnFilterAdd = (filter: Filter) => void;
 
 // Helper to convert search text to case-insensitive glob pattern
 export function toCaseInsensitiveGlob(text: string): string {
