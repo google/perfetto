@@ -544,10 +544,9 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       "Discard", "Trimmed",  "Pause", "Resize",
   };
 
-  f2fs_checkpoint_reason_ids_.reserve(std::size(kReasonStrings));
-  for (const auto* reason : kReasonStrings) {
-    f2fs_checkpoint_reason_ids_.push_back(
-        context->storage->InternString(reason));
+  for (size_t i = 0; i < std::size(kReasonStrings); ++i) {
+    f2fs_checkpoint_reason_ids_[i] =
+        context->storage->InternString(kReasonStrings[i]);
   }
 
   // Build the lookup table for the strings inside ftrace events (e.g. the
@@ -4405,6 +4404,11 @@ constexpr auto kF2fsCheckpointBlueprint = tracks::SliceBlueprint(
       return base::StackString<255>("f2fs_ckpt-%u", pid);
     }));
 
+enum F2fsCheckpointPhase {
+  kF2fsCpPhaseStart = 0,
+  kF2fsCpPhaseFinishBlockOps = 1,
+  kF2fsCpPhaseFinish = 2,
+};
 }  // namespace
 
 void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
@@ -4413,14 +4417,14 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
   protos::pbzero::F2fsWriteCheckpointFtraceEvent::Decoder evt(blob);
 
   uint32_t phase = evt.phase();
-  if (phase == 1) {
+  if (phase == kF2fsCpPhaseFinishBlockOps) {
     return;
   }
 
   TrackId track_id = context_->track_tracker->InternTrack(
       kF2fsCheckpointBlueprint, tracks::Dimensions(pid));
 
-  if (phase == 0) {
+  if (phase == kF2fsCpPhaseStart) {
     int32_t reason_int = evt.reason();
     uint64_t dev = evt.dev();
 
@@ -4447,7 +4451,7 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
             }
           }
         });
-  } else if (phase == 2) {
+  } else if (phase == kF2fsCpPhaseFinish) {
     context_->slice_tracker->End(ts, track_id);
   }
 }
