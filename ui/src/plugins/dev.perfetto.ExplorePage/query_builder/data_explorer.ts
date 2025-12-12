@@ -18,7 +18,7 @@ import {
   DataGridDataSource,
   CellRenderer,
   ColumnDefinition,
-} from '../../../components/widgets/datagrid/common';
+} from '../../../components/widgets/datagrid/model';
 import {
   DataGrid,
   columnsToSchema,

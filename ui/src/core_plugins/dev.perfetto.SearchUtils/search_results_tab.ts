@@ -24,7 +24,7 @@ import {
 import {
   ColumnDefinition,
   RowDef,
-} from '../../components/widgets/datagrid/common';
+} from '../../components/widgets/datagrid/model';
 
 interface TabAttrs {
   trace: Trace;

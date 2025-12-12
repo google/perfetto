@@ -21,7 +21,7 @@ import {
   DataGridColumn,
   DataGridDataSource,
   Sorting,
-} from '../../components/widgets/datagrid/common';
+} from '../../components/widgets/datagrid/model';
 import {
   DataGrid,
   renderCell,

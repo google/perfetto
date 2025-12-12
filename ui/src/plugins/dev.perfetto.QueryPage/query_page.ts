@@ -21,7 +21,7 @@ import {
   CellRenderer,
   ColumnDefinition,
   DataGridDataSource,
-} from '../../components/widgets/datagrid/common';
+} from '../../components/widgets/datagrid/model';
 import {
   DataGrid,
   renderCell,

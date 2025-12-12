@@ -18,7 +18,7 @@ import {Box} from '../../../widgets/box';
 import {Button} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Stack, StackAuto} from '../../../widgets/stack';
-import {DataGridFilter} from './common';
+import {DataGridFilter} from './model';
 import {DataGridApi} from './datagrid';
 import {DataGridExportButton} from './export_button';
 

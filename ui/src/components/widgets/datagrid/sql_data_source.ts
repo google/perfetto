@@ -28,7 +28,7 @@ import {
   DataGridModel,
   Pagination,
   PivotModel,
-} from './common';
+} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,

@@ -29,7 +29,7 @@ import {
   DataGridDataSource,
   CellRenderer,
   ColumnDefinition,
-} from '../widgets/datagrid/common';
+} from '../widgets/datagrid/model';
 import {InMemoryDataSource} from '../widgets/datagrid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';

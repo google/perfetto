@@ -22,7 +22,7 @@ import {
   CellRenderer,
   DataGridColumn,
   DataGridDataSource,
-} from './widgets/datagrid/common';
+} from './widgets/datagrid/model';
 import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
 import {defaultValueFormatter} from './widgets/datagrid/export_utils';
 import {AggregatePivotModel} from './aggregation_adapter';

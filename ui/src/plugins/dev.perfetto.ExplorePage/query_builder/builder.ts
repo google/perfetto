@@ -82,7 +82,7 @@ import {
   SplitPanel,
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
-import {DataGridDataSource} from '../../../components/widgets/datagrid/common';
+import {DataGridDataSource} from '../../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';

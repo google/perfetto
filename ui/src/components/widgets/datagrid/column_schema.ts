@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {maybeUndefined} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {CellFormatter, CellRenderer, RowDef} from './common';
+import {CellFormatter, CellRenderer, RowDef} from './model';
 
 /**
  * A registry of named schemas that can reference each other.

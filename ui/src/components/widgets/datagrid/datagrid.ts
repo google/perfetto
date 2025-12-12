@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
-import {exists} from '../../../base/utils';
+import {exists, isNumeric} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
@@ -56,12 +56,11 @@ import {
   DataGridColumn,
   DataGridDataSource,
   DataGridFilter,
-  normalizeColumn,
   PivotModel,
   PivotValue,
   RowDef,
   Sorting,
-} from './common';
+} from './model';
 import {DataGridToolbar} from './datagrid_toolbar';
 import {
   defaultValueFormatter,
@@ -1420,7 +1419,7 @@ export function renderCell(value: SqlValue, columnName: string) {
   }
 }
 
-// Check if the value is numeric (number or bigint)
-export function isNumeric(value: SqlValue): value is number | bigint {
-  return typeof value === 'number' || typeof value === 'bigint';
+// Helper to normalize column input (string or DataGridColumn) to DataGridColumn
+export function normalizeColumn(col: string | DataGridColumn): DataGridColumn {
+  return typeof col === 'string' ? {column: col} : col;
 }

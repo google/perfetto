@@ -25,7 +25,7 @@ import {
   DataGridModel,
   DataGridFilter,
   PivotModel,
-} from './common';
+} from './model';
 
 export class InMemoryDataSource implements DataGridDataSource {
   private data: ReadonlyArray<RowDef> = [];

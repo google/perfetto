@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../../components/widgets/datagrid/column_schema';
-import {RowDef} from '../../../components/widgets/datagrid/common';
+import {RowDef} from '../../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';

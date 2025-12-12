@@ -18,7 +18,7 @@ import {Intent} from '../../../../widgets/common';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {DataGridFilter} from '../../../../components/widgets/datagrid/common';
+import {DataGridFilter} from '../../../../components/widgets/datagrid/model';
 
 // ============================================================================
 // Filter Type Definitions

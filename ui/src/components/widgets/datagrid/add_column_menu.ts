@@ -25,7 +25,7 @@ import {
   isParameterizedColumnDef,
   isSchemaRef,
 } from './column_schema';
-import {DataGridDataSource} from './common';
+import {DataGridDataSource} from './model';
 
 interface AddColumnMenuContext {
   readonly dataSource: DataGridDataSource;

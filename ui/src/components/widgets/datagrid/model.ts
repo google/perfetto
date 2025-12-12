@@ -190,16 +190,6 @@ export interface DataGridColumn {
   readonly aggregation?: AggregationFunction;
 }
 
-// Helper to normalize column input (string or DataGridColumn) to DataGridColumn
-export function normalizeColumn(col: string | DataGridColumn): DataGridColumn {
-  return typeof col === 'string' ? {column: col} : col;
-}
-
-// Helper to get column name from string or DataGridColumn
-export function getColumnName(col: string | DataGridColumn): string {
-  return typeof col === 'string' ? col : col.column;
-}
-
 export interface DataGridModel {
   readonly columns?: ReadonlyArray<DataGridColumn>;
   readonly sorting?: Sorting;
@@ -209,11 +199,6 @@ export interface DataGridModel {
   readonly distinctValuesColumns?: ReadonlySet<string>;
   // Request parameter keys for these parameterized column prefixes (e.g., 'args', 'skills')
   readonly parameterKeyColumns?: ReadonlySet<string>;
-}
-
-// Check if the value is numeric (number or bigint)
-export function isNumeric(value: SqlValue): value is number | bigint {
-  return typeof value === 'number' || typeof value === 'bigint';
 }
 
 export interface DataGridDataSource {

@@ -21,7 +21,7 @@ import {Form} from '../../../widgets/form';
 import {Icon} from '../../../widgets/icon';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
-import {DataGridFilter} from './common';
+import {DataGridFilter} from './model';
 
 export type OnFilterAdd = (filter: DataGridFilter) => void;
 

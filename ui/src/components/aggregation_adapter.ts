@@ -28,7 +28,7 @@ import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
-import {DataGridDataSource, PivotModel} from './widgets/datagrid/common';
+import {DataGridDataSource, PivotModel} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
 import {
