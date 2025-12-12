@@ -82,7 +82,6 @@ import {
   SplitPanel,
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
-import {DataGridDataSource} from '../../../components/widgets/datagrid/common';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
@@ -96,6 +95,7 @@ import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
+import {DataSource} from '../../../components/widgets/datagrid/data_source';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
@@ -183,7 +183,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private previousSelectedNode?: QueryNode;
   private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
-  private dataSource?: DataGridDataSource;
+  private dataSource?: DataSource;
   private drawerVisibility = SplitPanelDrawerVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
   private sidebarWidth: number = 500; // Default width in pixels

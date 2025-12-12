@@ -4828,4 +4828,182 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesNoMatchingEnds) {
   )"));
 }
 
+TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeSource) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_time_range: {
+      mode: STATIC
+      ts: 100
+      dur: 400
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT *
+      FROM (SELECT 0 AS id, 100 AS ts, 400 AS dur)
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeSourceWithFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_time_range: {
+      mode: STATIC
+      ts: 1000
+      dur: 500
+    }
+    filters: {
+      column_name: "dur"
+      op: GREATER_THAN
+      int64_rhs: 0
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT *
+      FROM (SELECT 0 AS id, 1000 AS ts, 500 AS dur)
+      WHERE dur > 0
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeSourceMissingTs) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_time_range: {
+      mode: DYNAMIC
+      dur: 400
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When ts is missing in DYNAMIC mode, use trace_start()
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT *
+      FROM (SELECT 0 AS id, trace_start() AS ts, 400 AS dur)
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeSourceMissingDur) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_time_range: {
+      mode: DYNAMIC
+      ts: 100
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When dur is missing in DYNAMIC mode, use trace_dur()
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT *
+      FROM (SELECT 0 AS id, 100 AS ts, trace_dur() AS dur)
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeSourceMissingBoth) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_time_range: {
+      mode: DYNAMIC
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When both are missing in DYNAMIC mode, use trace_start() and trace_dur()
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT *
+      FROM (SELECT 0 AS id, trace_start() AS ts, trace_dur() AS dur)
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalTimeRangeSourceWithIntervalIntersect) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "slice"
+          column_names: "id"
+          column_names: "ts"
+          column_names: "dur"
+          column_names: "name"
+        }
+      }
+      interval_intersect: {
+        experimental_time_range: {
+          mode: STATIC
+          ts: 100
+          dur: 400
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Verify that experimental_time_range can be used as an interval source
+  EXPECT_THAT(res, testing::HasSubstr("SELECT 0 AS id, 100 AS ts, 400 AS dur"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("intervals.intersect"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeMissingMode) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_time_range: {
+      ts: 100
+      dur: 400
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("mode field is required"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeStaticMissingTs) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_time_range: {
+      mode: STATIC
+      dur: 400
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("ts is required for STATIC mode"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeStaticMissingDur) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_time_range: {
+      mode: STATIC
+      ts: 100
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("dur is required for STATIC mode"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

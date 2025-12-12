@@ -23,10 +23,12 @@
 @import "./nodes/sources/slices_source.scss";
 @import "./nodes/sources/table_source.scss";
 @import "./nodes/sources/timerange_source.scss";
+@import "./nodes/add_columns_node.scss";
 @import "./nodes/aggregation_node.scss";
 @import "./nodes/modify_columns_node.scss";
 @import "./table_list.scss";
 @import "./widgets.scss";
+@import "./join_widgets.scss";
 
 .pf-query-builder-layout {
   // CSS variable for side panel width, used in both SCSS and TypeScript

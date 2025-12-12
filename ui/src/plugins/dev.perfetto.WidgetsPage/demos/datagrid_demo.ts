@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../../components/widgets/datagrid/column_schema';
-import {RowDef} from '../../../components/widgets/datagrid/common';
+import {Row} from '../../../trace_processor/query_result';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
@@ -364,7 +364,7 @@ const EMPLOYEE_SCHEMA: SchemaRegistry = {
 };
 
 // Sample data with flattened relationships using dot notation
-const EMPLOYEE_DATA: RowDef[] = [
+const EMPLOYEE_DATA: Row[] = [
   {
     'id': 1,
     'name': 'Alice Chen',
