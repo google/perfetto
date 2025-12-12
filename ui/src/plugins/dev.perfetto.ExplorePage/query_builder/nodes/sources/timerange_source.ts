@@ -186,6 +186,11 @@ export class TimeRangeSourceNode implements QueryNode {
       );
     }
 
+    // If only end is set without start, we cannot generate a meaningful query
+    if (end !== undefined) {
+      return undefined;
+    }
+
     // If neither is set (dynamic node), let backend use trace bounds
     return StructuredQueryBuilder.fromTimeRange(
       undefined,
