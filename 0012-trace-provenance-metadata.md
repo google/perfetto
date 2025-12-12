@@ -2,9 +2,9 @@
 
 **Authors:** @primiano
 
-**Contributors:** @rukkal
+**Contributors:** @rukkal @LalitMaganti @sashwinbalaji
 
-**Status:** Draft
+**Status:** Decided
 
 ## Problem
 
@@ -83,10 +83,13 @@ For each buffer we can tell the contribution of each producer (and viceversa)
 An open problem is the fact that producers and data sources can come and go
 during a tracing session. The proposal here is:
 
-- Short term: only grab a snapshot at the beginning (or end, TBD) of the trace.
-- Long term: every time a data source connects/disconnects record the timestamp
-  of the event in a per-trace-session buffer, so we have the full history
-  (however can leak on long traces, maybe have some limits, TBD).
+**Short term:**
+only grab a snapshot at the beginning (or end, TBD) of the trace.
+
+**Long term:**
+ - Changes should go into metatrace. This requires however that we:
+ - Make it possible to use metatrace in traced
+ - Allow to use N instances of metatrace, each targeting a different buffer.
 
 ## Detailed design
 
@@ -172,18 +175,22 @@ message TraceProvenance {
 }
 ```
 
-## Open questions
 
 #### Should we report all Producers & DataSources, or only the producers that are active in the current trace?
 
 * Why not: we should not pollute the trace with irrelevant info.
 * Why yes: in some cases the knowledge that some producers existed at all can help debugging (e.g. selinux, typos, etc)
 
-Overall, I'd say yes, we should pay the cost of reporting all of them (and in a boolean say whether it's involved in the current session)
+DECISION: we decided to list all the producers and data sources but
+ - clearly mark if they have instances in the current trace or not
+ - report less details for inactive data sources (e.g. omit the descriptor)
+
 
 #### How to model this in TraceProcessor (and in the UI)
 
-Let's leave this for a dedicated RFC.
+DECISION: expose this as a blob in the metadata table and do all the reasoning in the UI.
+
+#### Misc
 
 NOTE: as part of this work we should probably kill TraceStats.WriterStats histograms.
 They were added for a specific problem but never used in practice.
