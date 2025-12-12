@@ -355,15 +355,42 @@ int Main(int argc, char** argv) {
     config.ParseFromArray(config_bytes.data(), config_bytes.size());
 
     const auto& trace_filter = config.trace_filter();
+
+    // Helper to convert semantic types from proto to vector<uint32_t>.
+    auto convert_semantic_types =
+        [](const auto& rule) -> std::vector<uint32_t> {
+      std::vector<uint32_t> types;
+      for (const auto& type : rule.semantic_type()) {
+        types.push_back(static_cast<uint32_t>(type));
+      }
+      return types;
+    };
+
+    // Load base string filter chain.
     for (const auto& rule : trace_filter.string_filter_chain().rules()) {
       auto opt_policy = ConvertPolicy(rule.policy());
       if (!opt_policy) {
         PERFETTO_ELOG("Unknown string filter policy %d", rule.policy());
         return 1;
       }
-      msg_filter.string_filter().AddRule(*opt_policy, rule.regex_pattern(),
-                                         rule.atrace_payload_starts_with());
+      msg_filter.string_filter().AddRule(
+          *opt_policy, rule.regex_pattern(), rule.atrace_payload_starts_with(),
+          rule.name(), convert_semantic_types(rule));
     }
+
+    // Load v54 string filter chain. Rules with matching names will replace
+    // existing rules; others will be appended.
+    for (const auto& rule : trace_filter.string_filter_chain_v54().rules()) {
+      auto opt_policy = ConvertPolicy(rule.policy());
+      if (!opt_policy) {
+        PERFETTO_ELOG("Unknown string filter policy %d", rule.policy());
+        return 1;
+      }
+      msg_filter.string_filter().AddRule(
+          *opt_policy, rule.regex_pattern(), rule.atrace_payload_starts_with(),
+          rule.name(), convert_semantic_types(rule));
+    }
+
     filter_data = trace_filter.bytecode_v2().empty()
                       ? trace_filter.bytecode()
                       : trace_filter.bytecode_v2();

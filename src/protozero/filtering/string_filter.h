@@ -17,9 +17,11 @@
 #ifndef SRC_PROTOZERO_FILTERING_STRING_FILTER_H_
 #define SRC_PROTOZERO_FILTERING_STRING_FILTER_H_
 
+#include <cstdint>
 #include <regex>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace protozero {
 
@@ -35,18 +37,30 @@ class StringFilter {
     kAtraceRepeatedSearchRedactGroups = 5,
   };
 
-  // Adds a new rule for filtering strings.
+  // Adds a new rule for filtering strings. If |name| is non-empty and a rule
+  // with the same name already exists, it will be replaced; otherwise the rule
+  // is appended. |semantic_types| specifies which field types this rule applies
+  // to; if empty, the rule applies to all fields.
   void AddRule(Policy policy,
                std::string_view pattern,
-               std::string atrace_payload_starts_with);
+               std::string atrace_payload_starts_with,
+               std::string name = {},
+               std::vector<uint32_t> semantic_types = {});
 
   // Tries to filter the given string. Returns true if the string was modified
-  // in any way, false otherwise.
+  // in any way, false otherwise. Uses semantic_type=0 (unspecified).
   bool MaybeFilter(char* ptr, size_t len) const {
+    return MaybeFilter(ptr, len, /*semantic_type=*/0);
+  }
+
+  // Tries to filter the given string with a specific semantic type.
+  // Only rules that match the semantic type (or have no type restriction)
+  // are applied.
+  bool MaybeFilter(char* ptr, size_t len, uint32_t semantic_type) const {
     if (len == 0 || rules_.empty()) {
       return false;
     }
-    return MaybeFilterInternal(ptr, len);
+    return MaybeFilterInternal(ptr, len, semantic_type);
   }
 
  private:
@@ -54,9 +68,11 @@ class StringFilter {
     Policy policy;
     std::regex pattern;
     std::string atrace_payload_starts_with;
+    std::string name;
+    std::vector<uint32_t> semantic_types;  // Empty means applies to all.
   };
 
-  bool MaybeFilterInternal(char* ptr, size_t len) const;
+  bool MaybeFilterInternal(char* ptr, size_t len, uint32_t semantic_type) const;
 
   std::vector<Rule> rules_;
 };

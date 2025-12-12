@@ -310,7 +310,7 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
       const uint32_t field_id = id_and_field.first;
       const auto& field = id_and_field.second;
 
-      FilterBytecodeParser::QueryResult result{0, false};
+      FilterBytecodeParser::QueryResult result{false, 0, 0};
       if (filter_bytecode) {
         result = parser.Query(msg_index, field_id);
         if (!result.allowed) {
