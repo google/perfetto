@@ -14,77 +14,51 @@
 
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 
-export type AggregationFunction =
-  | 'SUM'
-  | 'AVG'
-  | 'COUNT'
-  | 'MIN'
-  | 'MAX'
-  | 'ANY';
+export type AggregateFunction = 'ANY' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
+export type SortDirection = 'ASC' | 'DESC';
 
-export interface ValueFilter {
-  readonly column: string;
-  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
-  readonly value: SqlValue;
+export interface Column {
+  readonly field: string;
+  readonly sort?: SortDirection;
+  readonly aggregate?: AggregateFunction;
 }
 
-export interface InFilter {
-  readonly column: string;
-  readonly op: 'in' | 'not in';
-  readonly value: ReadonlyArray<SqlValue>;
+export type Filter = {readonly field: string} & FilterOpAndValue;
+
+export type FilterOpAndValue =
+  | {
+      readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
+      readonly value: SqlValue;
+    }
+  | {
+      readonly op: 'in' | 'not in';
+      readonly value: ReadonlyArray<SqlValue>;
+    }
+  | {
+      readonly op: 'is null' | 'is not null';
+    };
+
+export type AggregateColumn = (
+  | {
+      readonly field: string;
+      readonly function: AggregateFunction;
+    }
+  | {
+      readonly function: 'COUNT';
+    }
+) & {readonly sort?: SortDirection};
+
+export interface GroupByColumn {
+  readonly field: string;
+  readonly sort?: SortDirection;
 }
 
-export interface NullFilter {
-  readonly column: string;
-  readonly op: 'is null' | 'is not null';
-}
+export interface Pivot {
+  // List of fields to group by - supports both new GroupByColumn[] and legacy string[]
+  readonly groupBy: readonly GroupByColumn[];
 
-export type Filter = ValueFilter | NullFilter | InFilter;
-
-export interface SortByColumn {
-  readonly column: string;
-  readonly direction: 'ASC' | 'DESC';
-}
-
-export interface Unsorted {
-  readonly direction: 'UNSORTED';
-}
-
-export type SortBy = SortByColumn | Unsorted;
-
-export interface Pagination {
-  readonly offset: number;
-  readonly limit: number;
-}
-
-/**
- * A pivot value that aggregates a specific column.
- */
-interface PivotValueWithCol {
-  readonly col: string;
-  readonly func: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'ANY';
-}
-
-/**
- * A pivot value that counts rows (doesn't need a specific column).
- */
-interface PivotValueCount {
-  readonly func: 'COUNT';
-}
-
-export type PivotValue = PivotValueWithCol | PivotValueCount;
-
-/**
- * Model for pivot/grouping state of the data grid.
- */
-export interface PivotModel {
-  // Columns to group by, in order
-  readonly groupBy: ReadonlyArray<string>;
-
-  // Aggregated values to compute - keys are alias names, values define the aggregation
-  readonly values: {
-    readonly [key: string]: PivotValue;
-  };
+  // List of aggregate column definitions.
+  readonly aggregates?: readonly AggregateColumn[];
 
   // When set, shows raw rows filtered by these groupBy column values.
   // This allows drilling down into a specific pivot group to see the
@@ -92,12 +66,12 @@ export interface PivotModel {
   readonly drillDown?: Row;
 }
 
-/**
- * A column in the DataGridModel, with optional aggregation.
- */
-export interface DataGridColumn {
-  readonly column: string;
-  // Optional aggregation function to compute for this column.
-  // Results are returned in DataSourceResult.aggregateTotals.
-  readonly aggregation?: AggregationFunction;
+export interface Model {
+  readonly columns: readonly Column[];
+  readonly filters: readonly Filter[];
+
+  // When pivot mode is enabled, columns are ignored.
+  // Filters are treated as pre-aggregate filters.
+  // TODO(stevegolton): Add post-aggregate (HAVING) filters.
+  readonly pivot?: Pivot;
 }

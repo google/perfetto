@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -131,6 +131,7 @@ export class CounterSelectionAggregator implements Aggregator {
       {
         title: 'Name',
         columnId: 'name',
+        sort: 'DESC',
       },
       {
         title: 'Delta value',
@@ -178,9 +179,5 @@ export class CounterSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Counters';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'name', direction: 'DESC'};
   }
 }

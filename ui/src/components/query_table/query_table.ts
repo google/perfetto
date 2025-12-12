@@ -24,7 +24,7 @@ import {
   CellRenderer,
   ColumnSchema,
   SchemaRegistry,
-} from '../widgets/datagrid/column_schema';
+} from '../widgets/datagrid/datagrid_schema';
 import {InMemoryDataSource} from '../widgets/datagrid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
@@ -142,7 +142,8 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         title: 'Copy executed query to clipboard',
         label: 'Copy Query',
       }),
-      this.dataGridApi && m(DataGridExportButton, {api: this.dataGridApi}),
+      this.dataGridApi &&
+        m(DataGridExportButton, {onExportData: this.dataGridApi.exportData}),
     ];
   }
 
@@ -199,7 +200,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return m(DataGrid, {
       schema,
       rootSchema: 'data',
-      initialColumns: resp.columns,
+      initialColumns: resp.columns.map((col) => ({field: col})),
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
       fillHeight: true,

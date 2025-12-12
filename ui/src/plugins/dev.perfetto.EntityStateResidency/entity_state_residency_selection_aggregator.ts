@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 import {Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -81,6 +81,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
       {
         title: 'Entity',
         columnId: 'entity_name',
+        sort: 'DESC',
       },
       {
         title: 'State',
@@ -108,9 +109,5 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Entity State Residency';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'entity_name', direction: 'DESC'};
   }
 }

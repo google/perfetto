@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {MithrilEvent} from '../base/mithril_utils';
+import {isEmpty, MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 import {exists} from '../base/utils';
 import {Button} from './button';
@@ -109,7 +109,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
     };
 
     const renderMenu = () => {
-      if (menuItems === undefined) return undefined;
+      if (isEmpty(menuItems)) return undefined;
       return m(
         PopupMenu,
         {
@@ -223,7 +223,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       renderIndent(),
       renderChevron(),
       m('.pf-grid-cell__content', children),
-      Boolean(menuItems) &&
+      !isEmpty(menuItems) &&
         m(
           PopupMenu,
           {

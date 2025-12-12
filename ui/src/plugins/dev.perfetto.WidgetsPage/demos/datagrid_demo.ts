@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../../components/widgets/datagrid/column_schema';
+import {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Row} from '../../../trace_processor/query_result';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
@@ -75,19 +75,23 @@ const SLICE_UI_SCHEMA: SchemaRegistry = {
   slice: {
     id: {
       title: 'ID',
-      filterType: 'numeric',
+      columnType: 'identifier',
     },
     ts: {
       title: 'Timestamp',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
     dur: {
       title: 'Duration',
-      filterType: 'numeric',
+      columnType: 'quantitative',
+    },
+    name: {
+      title: 'Name',
+      columnType: 'text',
     },
     track_id: {
       title: 'Track ID',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
     track: {
       ref: 'track',
@@ -99,11 +103,11 @@ const SLICE_UI_SCHEMA: SchemaRegistry = {
     },
     args: {
       parameterized: true,
-      title: 'Args',
+      title: 'Arg',
     },
     all_args: {
       title: 'All Args',
-      filterType: 'string',
+      columnType: 'text',
       cellRenderer: (value) => {
         if (value === null || value === undefined) {
           return m('span.pf-null-value', 'NULL');
@@ -135,11 +139,11 @@ const SLICE_UI_SCHEMA: SchemaRegistry = {
   track: {
     id: {
       title: 'ID',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
     name: {
       title: 'Name',
-      filterType: 'string',
+      columnType: 'text',
     },
   },
 };
@@ -210,8 +214,8 @@ export function renderDataGrid(app: App): m.Children {
         'pre',
         `const schema: SchemaRegistry = {
   slice: {
-    id: { filterType: 'numeric' },
-    name: { title: 'Slice Name', filterType: 'string' },
+    id: { filterType: 'quantitative' },
+    name: { title: 'Slice Name', filterType: 'text' },
     parent: { ref: 'slice' },  // Self-referential
     thread: { ref: 'thread' },
     args: { parameterized: true },  // Dynamic keys
@@ -222,7 +226,7 @@ export function renderDataGrid(app: App): m.Children {
   },
   process: {
     name: { title: 'Process Name' },
-    pid: { filterType: 'numeric' },
+    pid: { filterType: 'quantitative' },
   },
 };`,
       ),
@@ -244,7 +248,12 @@ export function renderDataGrid(app: App): m.Children {
                 schema: SLICE_UI_SCHEMA,
                 rootSchema: 'slice',
                 data: cachedSliceDataSource!,
-                initialColumns: ['id', 'ts', 'dur', 'track.name'],
+                initialColumns: [
+                  {field: 'id'},
+                  {field: 'ts'},
+                  {field: 'dur'},
+                  {field: 'track.name'},
+                ],
               });
             },
             initialOpts: {
@@ -265,27 +274,27 @@ const EMPLOYEE_SCHEMA: SchemaRegistry = {
   employee: {
     id: {
       title: 'ID',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
     name: {
       title: 'Name',
-      filterType: 'string',
+      columnType: 'text',
     },
     title: {
       title: 'Job Title',
-      filterType: 'string',
+      columnType: 'text',
     },
     email: {
       title: 'Email',
-      filterType: 'string',
+      columnType: 'text',
     },
     salary: {
       title: 'Salary',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
     hireDate: {
       title: 'Hire Date',
-      filterType: 'string',
+      columnType: 'text',
     },
     // Self-referential: manager is also an employee
     manager: {
@@ -306,25 +315,25 @@ const EMPLOYEE_SCHEMA: SchemaRegistry = {
     skills: {
       parameterized: true,
       title: 'Skills',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
   },
   department: {
     id: {
       title: 'Dept ID',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
     name: {
       title: 'Name',
-      filterType: 'string',
+      columnType: 'text',
     },
     budget: {
       title: 'Budget',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
     location: {
       title: 'Location',
-      filterType: 'string',
+      columnType: 'text',
     },
     // Head of department is an employee
     head: {
@@ -335,20 +344,20 @@ const EMPLOYEE_SCHEMA: SchemaRegistry = {
   project: {
     id: {
       title: 'Project ID',
-      filterType: 'numeric',
+      columnType: 'quantitative',
     },
     name: {
       title: 'Project Name',
-      filterType: 'string',
+      columnType: 'text',
     },
     status: {
       title: 'Status',
-      filterType: 'string',
+      columnType: 'text',
       distinctValues: true,
     },
     deadline: {
       title: 'Deadline',
-      filterType: 'string',
+      columnType: 'text',
     },
     // Project lead is an employee
     lead: {

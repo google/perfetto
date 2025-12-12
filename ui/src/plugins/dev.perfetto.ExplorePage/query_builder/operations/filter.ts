@@ -111,7 +111,7 @@ export function normalizeDataGridFilter(filter: Filter): UIFilter[] {
     // Reject empty arrays - this indicates a programming error
     if (values.length === 0) {
       throw new Error(
-        `Cannot add ${filter.op} filter with empty values for column "${filter.column}". ` +
+        `Cannot add ${filter.op} filter with empty values for column "${filter.field}". ` +
           `This likely indicates a bug in the filter selection UI.`,
       );
     }
@@ -119,14 +119,30 @@ export function normalizeDataGridFilter(filter: Filter): UIFilter[] {
     const equalityOp = filter.op === 'in' ? '=' : '!=';
 
     return values.map((value) => ({
-      column: filter.column,
+      column: filter.field,
       op: equalityOp,
       value: value,
     }));
   }
 
-  // All other filter types pass through as-is
-  return [filter as UIFilter];
+  // Null filters (is null / is not null)
+  if (filter.op === 'is null' || filter.op === 'is not null') {
+    return [{column: filter.field, op: filter.op}];
+  }
+
+  // Value filters - map 'not glob' to 'glob' (UIFilter doesn't have 'not glob')
+  // Note: this loses the negation, but preserves the pattern matching behavior
+  // After excluding null filters and in/not in, we know filter has a single value
+  const valueFilter = filter as {
+    readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
+    readonly field: string;
+    readonly value: SqlValue;
+  };
+  const mappedOp =
+    valueFilter.op === 'not glob'
+      ? ('glob' as const)
+      : (valueFilter.op as FilterValue['op']);
+  return [{column: valueFilter.field, op: mappedOp, value: valueFilter.value}];
 }
 
 /**

@@ -19,7 +19,7 @@ import {
   CellRenderer,
   ColumnSchema,
   SchemaRegistry,
-} from '../../../components/widgets/datagrid/column_schema';
+} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -344,7 +344,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         m(DataGrid, {
           schema,
           rootSchema: 'data',
-          initialColumns: attrs.response.columns,
+          initialColumns: attrs.response.columns.map((col) => ({field: col})),
           fillHeight: true,
           data: attrs.dataSource,
           structuredQueryCompatMode: true,

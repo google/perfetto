@@ -19,7 +19,7 @@ import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {Row} from '../../trace_processor/query_result';
-import {SchemaRegistry} from '../../components/widgets/datagrid/column_schema';
+import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 
 interface TabAttrs {
   trace: Trace;
@@ -98,7 +98,7 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
       m(DataGrid, {
         schema,
         rootSchema: 'data',
-        initialColumns: ['id', 'ts', 'trackUri'],
+        initialColumns: [{field: 'id'}, {field: 'ts'}, {field: 'trackUri'}],
         data: rowData,
         fillHeight: true,
       }),

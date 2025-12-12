@@ -13,184 +13,120 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SqlValue} from '../../../trace_processor/query_result';
-import {MenuItem} from '../../../widgets/menu';
-import {OnFilterAdd} from './column_filter_menu';
 import {Icons} from '../../../base/semantic_icons';
 import {isNumeric} from '../../../base/utils';
+import {SqlValue} from '../../../trace_processor/query_result';
+import {MenuItem} from '../../../widgets/menu';
+import {FilterOpAndValue} from './model';
 
-export function renderCellFilterMenuItem({
-  columnPath,
-  value,
-  onFilterAdd,
-  colFilterType,
-}: {
-  readonly columnPath: string;
+interface CellFilterMenuAttrs {
   readonly value: SqlValue;
-  readonly onFilterAdd: OnFilterAdd;
-  readonly colFilterType: undefined | 'numeric' | 'string';
-}): m.Children {
-  const cellFilterItems = [];
+  readonly onFilterAdd: (filter: FilterOpAndValue) => void;
+}
 
-  if (value !== null) {
-    cellFilterItems.push(
-      m(MenuItem, {
-        label: 'Equal to this',
-        onclick: () => {
-          onFilterAdd({
-            column: columnPath,
-            op: '=',
-            value: value,
-          });
-        },
-      }),
-    );
-    cellFilterItems.push(
-      m(MenuItem, {
-        label: 'Not equal to this',
-        onclick: () => {
-          onFilterAdd({
-            column: columnPath,
-            op: '!=',
-            value: value,
-          });
-        },
-      }),
-    );
-  }
+/**
+ * Renders "Add filter" menu item for cell context menus.
+ * Shows filter options based on the cell's value type.
+ */
+export class CellFilterMenu implements m.ClassComponent<CellFilterMenuAttrs> {
+  view({attrs}: m.Vnode<CellFilterMenuAttrs>): m.Children {
+    const {value, onFilterAdd} = attrs;
+    const cellFilterItems: m.Children[] = [];
 
-  // Add glob filter option for string columns with text selection
-  // Only show if filterType is not 'numeric'
-  if (typeof value === 'string' && colFilterType !== 'numeric') {
-    const selectedText = window.getSelection()?.toString().trim();
-    if (selectedText && selectedText.length > 0) {
+    if (value !== null) {
       cellFilterItems.push(
-        m(
-          MenuItem,
-          {
-            label: 'Filter glob',
-          },
-          m(MenuItem, {
-            label: `"${selectedText}*"`,
-            onclick: () => {
-              onFilterAdd({
-                column: columnPath,
-                op: 'glob',
-                value: `${selectedText}*`,
-              });
-            },
-          }),
-          m(MenuItem, {
-            label: `"*${selectedText}"`,
-            onclick: () => {
-              onFilterAdd({
-                column: columnPath,
-                op: 'glob',
-                value: `*${selectedText}`,
-              });
-            },
-          }),
-          m(MenuItem, {
-            label: `"*${selectedText}*"`,
-            onclick: () => {
-              onFilterAdd({
-                column: columnPath,
-                op: 'glob',
-                value: `*${selectedText}*`,
-              });
-            },
-          }),
-        ),
+        m(MenuItem, {
+          label: 'Equals',
+          onclick: () => onFilterAdd({op: '=', value}),
+        }),
+      );
+      cellFilterItems.push(
+        m(MenuItem, {
+          label: 'Not equals',
+          onclick: () => onFilterAdd({op: '!=', value}),
+        }),
       );
     }
+
+    // Add glob filter option for string columns with text selection
+    if (typeof value === 'string') {
+      const selectedText = window.getSelection()?.toString().trim();
+      if (selectedText && selectedText.length > 0) {
+        cellFilterItems.push(
+          m(
+            MenuItem,
+            {label: 'Glob'},
+            m(MenuItem, {
+              label: `"${selectedText}*"`,
+              onclick: () =>
+                onFilterAdd({op: 'glob', value: `${selectedText}*`}),
+            }),
+            m(MenuItem, {
+              label: `"*${selectedText}"`,
+              onclick: () =>
+                onFilterAdd({op: 'glob', value: `*${selectedText}`}),
+            }),
+            m(MenuItem, {
+              label: `"*${selectedText}*"`,
+              onclick: () =>
+                onFilterAdd({op: 'glob', value: `*${selectedText}*`}),
+            }),
+          ),
+        );
+      }
+    }
+
+    // Numeric comparison filters
+    if (isNumeric(value)) {
+      cellFilterItems.push(
+        m(MenuItem, {
+          label: 'Greater than',
+          onclick: () => onFilterAdd({op: '>', value}),
+        }),
+      );
+      cellFilterItems.push(
+        m(MenuItem, {
+          label: 'Greater than or equals',
+          onclick: () => onFilterAdd({op: '>=', value}),
+        }),
+      );
+      cellFilterItems.push(
+        m(MenuItem, {
+          label: 'Less than',
+          onclick: () => onFilterAdd({op: '<', value}),
+        }),
+      );
+      cellFilterItems.push(
+        m(MenuItem, {
+          label: 'Less than or equals',
+          onclick: () => onFilterAdd({op: '<=', value}),
+        }),
+      );
+    }
+
+    if (value === null) {
+      cellFilterItems.push(
+        m(MenuItem, {
+          label: 'Is not null',
+          onclick: () => onFilterAdd({op: 'is not null'}),
+        }),
+      );
+      cellFilterItems.push(
+        m(MenuItem, {
+          label: 'Is null',
+          onclick: () => onFilterAdd({op: 'is null'}),
+        }),
+      );
+    }
+
+    if (cellFilterItems.length === 0) {
+      return undefined;
+    }
+
+    return m(
+      MenuItem,
+      {label: 'Add filter', icon: Icons.Filter},
+      cellFilterItems,
+    );
   }
-
-  // Numeric comparison filters - only show if filterType is not 'string'
-  if (isNumeric(value) && colFilterType !== 'string') {
-    cellFilterItems.push(
-      m(MenuItem, {
-        label: 'Greater than this',
-        onclick: () => {
-          onFilterAdd({
-            column: columnPath,
-            op: '>',
-            value: value,
-          });
-        },
-      }),
-    );
-    cellFilterItems.push(
-      m(MenuItem, {
-        label: 'Greater than or equal to this',
-        onclick: () => {
-          onFilterAdd({
-            column: columnPath,
-            op: '>=',
-            value: value,
-          });
-        },
-      }),
-    );
-    cellFilterItems.push(
-      m(MenuItem, {
-        label: 'Less than this',
-        onclick: () => {
-          onFilterAdd({
-            column: columnPath,
-            op: '<',
-            value: value,
-          });
-        },
-      }),
-    );
-    cellFilterItems.push(
-      m(MenuItem, {
-        label: 'Less than or equal to this',
-        onclick: () => {
-          onFilterAdd({
-            column: columnPath,
-            op: '<=',
-            value: value,
-          });
-        },
-      }),
-    );
-  }
-
-  if (value === null) {
-    cellFilterItems.push(
-      m(MenuItem, {
-        label: 'Filter out nulls',
-        onclick: () => {
-          onFilterAdd({
-            column: columnPath,
-            op: 'is not null',
-          });
-        },
-      }),
-    );
-    cellFilterItems.push(
-      m(MenuItem, {
-        label: 'Only show nulls',
-        onclick: () => {
-          onFilterAdd({
-            column: columnPath,
-            op: 'is null',
-          });
-        },
-      }),
-    );
-  }
-
-  // Build "Add filter..." menu item to pass to renderer
-  const addFilterItem =
-    cellFilterItems.length > 0
-      ? m(
-          MenuItem,
-          {label: 'Add filter...', icon: Icons.Filter},
-          cellFilterItems,
-        )
-      : undefined;
-
-  return addFilterItem;
 }
