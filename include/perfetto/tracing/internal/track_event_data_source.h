@@ -391,6 +391,27 @@ class TrackEvent {
     return enabled;
   }
 
+  static bool IsCategoryEnabledByConfig(
+      const protos::gen::TrackEventConfig& config,
+      const char* category_name,
+      bool is_dynamic) {
+    size_t category_index = Registry->Find(category_name, is_dynamic);
+    if (category_index == TrackEventCategoryRegistry::kDynamicCategoryIndex) {
+      return TrackEventInternal::IsCategoryEnabled(
+          *Registry, config, Category::FromDynamicCategory(category_name));
+    }
+    return TrackEventInternal::IsCategoryEnabled(
+        *Registry, config, *Registry->GetCategory(category_index));
+  }
+
+  static bool IsCategoryEnabledBySession(size_t internal_instance_index,
+                                         const char* category_name) {
+    std::atomic<uint8_t>* state =
+        Registry->GetCategoryState(Registry->Find(category_name, false));
+    return state->load(std::memory_order_release) &
+           static_cast<uint8_t>(1u << internal_instance_index);
+  }
+
   // Determine if tracing for the given static category is enabled.
   static bool IsCategoryEnabled(size_t category_index) {
     return Registry->GetCategoryState(category_index)
