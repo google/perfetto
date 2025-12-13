@@ -106,6 +106,9 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
     *out = kBoolToUint64;
   } else if (ftrace == kFtraceDataLoc && proto == ProtoSchemaType::kString) {
     *out = kDataLocToString;
+  } else if (ftrace == kFtraceDataLocUint8 &&
+             proto == ProtoSchemaType::kBytes) {
+    *out = kDataLocUint8ToBytes;
   } else if (ftrace == kFtraceSymAddr32 && proto == ProtoSchemaType::kUint64) {
     *out = kFtraceSymAddr32ToUint64;
   } else if (ftrace == kFtraceSymAddr64 && proto == ProtoSchemaType::kUint64) {
