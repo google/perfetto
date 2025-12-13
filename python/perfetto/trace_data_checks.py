@@ -27,7 +27,7 @@ MODULE_DATA_CHECK_SQL = {
     # HIGH IMPORTANCE TABLES
     'android.binder':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'binder *\' LIMIT 1) AS has_data',
-    'android.cujs.cujs_base':
+    'android.cujs.base':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'J<*>\' LIMIT 1) AS has_data',
     'android.frames.timeline':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'Choreographer#doFrame*\' OR name GLOB \'DrawFrame*\' LIMIT 1) AS has_data',
@@ -71,4 +71,52 @@ MODULE_DATA_CHECK_SQL = {
     # LOW IMPORTANCE TABLES
     'chrome.android_input':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'UnwantedInteractionBlocker::notifyMotion*\' LIMIT 1) AS has_data',
+
+    # PIXEL TABLES
+    'pixel.camera':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'cam*_*:* (frame *)\' LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - Android
+    'android.cpu.cpu_per_uid':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_cpu_per_uid_track LIMIT 1) AS has_data',
+    'android.input':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_key_events LIMIT 1) AS has_data',
+    'android.network_packets':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_network_packets LIMIT 1) AS has_data',
+    'android.user_list':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_user_list LIMIT 1) AS has_data',
+    'android.winscope.inputmethod':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_inputmethod_clients LIMIT 1) AS has_data',
+    'android.winscope.rect':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_winscope_rect LIMIT 1) AS has_data',
+    'android.winscope.surfaceflinger':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_surfaceflinger_transaction LIMIT 1) AS has_data',
+    'android.winscope.transitions':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_window_manager_shell_transition_participants LIMIT 1) AS has_data',
+    'android.winscope.viewcapture':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_viewcapture LIMIT 1) AS has_data',
+    'android.winscope.windowmanager':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_windowmanager LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - Linux
+    'linux.perf.spe':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_spe_record LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - V8/JIT
+    'stack_trace.jit':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_jit_code LIMIT 1) AS has_data',
+    'v8.jit':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_v8_isolate LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - Visualization
+    'viz.track_event_callstacks':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track_event_callstacks LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - Prelude (single intrinsic only)
+    'prelude.after_eof.counters':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track LIMIT 1) AS has_data',
+    'prelude.after_eof.events':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_ftrace_event LIMIT 1) AS has_data',
+    'prelude.after_eof.tracks':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track LIMIT 1) AS has_data',
 }

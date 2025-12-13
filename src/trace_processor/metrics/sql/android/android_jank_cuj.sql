@@ -15,8 +15,8 @@
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 INCLUDE PERFETTO MODULE android.surfaceflinger;
+INCLUDE PERFETTO MODULE android.cujs.base;
 INCLUDE PERFETTO MODULE android.cujs.cuj_frame_counters;
-INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 INCLUDE PERFETTO MODULE android.frames.jank_type;
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
@@ -51,7 +51,7 @@ frames_in_cuj AS (
     on_time_finish,
     sf_callback_missed,
     hwui_callback_missed
-  FROM _android_frames_in_cuj frame
+  FROM _android_distinct_frames_layers_cuj frame
   JOIN actual_timeline_with_vsync AS actual_frame
     ON frame.frame_id = actual_frame.vsync
   LEFT JOIN _vsync_missed_callback AS missed_callback USING(vsync)

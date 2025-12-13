@@ -268,6 +268,26 @@ describe('FilterDuringNode', () => {
 
       expect(node.validate()).toBe(true);
     });
+
+    it('should pass validation when secondary input has no id column', () => {
+      const primaryNode = createMockNode('primary', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'TIMESTAMP'),
+        createColumnInfo('dur', 'DURATION'),
+        createColumnInfo('name', 'STRING'),
+      ]);
+
+      const secondaryNode = createMockNode('secondary', [
+        createColumnInfo('ts', 'TIMESTAMP'),
+        createColumnInfo('dur', 'DURATION'),
+      ]);
+
+      const node = new FilterDuringNode({});
+      node.primaryInput = primaryNode;
+      node.secondaryInputs.connections.set(0, secondaryNode);
+
+      expect(node.validate()).toBe(true);
+    });
   });
 
   describe('getStructuredQuery', () => {
@@ -411,6 +431,29 @@ describe('FilterDuringNode', () => {
 
       // The query should be created successfully
       expect(sq).toBeDefined();
+    });
+
+    it('should generate query when secondary input has no id column', () => {
+      const primaryNode = createMockNode('primary', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'TIMESTAMP'),
+        createColumnInfo('dur', 'DURATION'),
+        createColumnInfo('name', 'STRING'),
+      ]);
+
+      const secondaryNode = createMockNode('secondary', [
+        createColumnInfo('ts', 'TIMESTAMP'),
+        createColumnInfo('dur', 'DURATION'),
+      ]);
+
+      const node = new FilterDuringNode({});
+      node.primaryInput = primaryNode;
+      node.secondaryInputs.connections.set(0, secondaryNode);
+
+      const sq = node.getStructuredQuery();
+
+      expect(sq).toBeDefined();
+      expect(sq?.id).toBe(node.nodeId);
     });
   });
 

@@ -16,7 +16,7 @@ INCLUDE PERFETTO MODULE android.cujs.base;
 INCLUDE PERFETTO MODULE android.cujs.cuj_frame_counters;
 
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
-CREATE PERFETTO TABLE z AS
+CREATE PERFETTO TABLE android_jank_cuj_counter_metrics AS
 -- Order CUJs to get the ts of the next CUJ with the same name.
 -- This is to avoid selecting counters logged for the next CUJ in case multiple
 -- CUJs happened in a short succession.

@@ -33,6 +33,10 @@ import {
 import {classNames} from '../../../base/classnames';
 import {Tooltip} from '../../../widgets/tooltip';
 import {showModal} from '../../../widgets/modal';
+import {Editor} from '../../../widgets/editor';
+import {ResizeHandle} from '../../../widgets/resize_handle';
+import {findRef, toHTMLElement} from '../../../base/dom_utils';
+import {assertExists} from '../../../base/logging';
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -669,6 +673,29 @@ export class OutlinedField implements m.ClassComponent<OutlinedFieldAttrs> {
   }
 }
 
+// Read-only version of OutlinedField for displaying static information
+// Uses the same visual style but shows text instead of an input
+export interface OutlinedFieldReadOnlyAttrs {
+  label: string;
+  value: string;
+  className?: string;
+}
+
+export class OutlinedFieldReadOnly
+  implements m.ClassComponent<OutlinedFieldReadOnlyAttrs>
+{
+  view({attrs}: m.Vnode<OutlinedFieldReadOnlyAttrs>) {
+    const {label, value, className} = attrs;
+
+    return m(
+      'fieldset.pf-outlined-field',
+      {className},
+      m('legend.pf-outlined-field-legend', label),
+      m('.pf-outlined-field-input.pf-read-only', value),
+    );
+  }
+}
+
 // Wrapper around PopupMultiSelect with more obvious clickable styling
 export interface OutlinedMultiSelectAttrs {
   label: string;
@@ -910,24 +937,28 @@ export class SelectDeselectAllButtons
 }
 
 /**
- * Shows a confirmation modal warning the user that their current state will be lost.
- * This modal is used when importing JSON or loading an example graph.
- *
- * @returns Promise that resolves to true if user confirms, false if cancelled
+ * Configuration for a warning modal.
  */
-export function showStateOverwriteWarning(): Promise<boolean> {
+export interface WarningModalConfig {
+  readonly key: string;
+  readonly title: string;
+  readonly paragraphs: m.Children[];
+  readonly confirmText: string;
+}
+
+/**
+ * Shows a warning modal with customizable content.
+ * Returns a promise that resolves to true if user confirms, false if cancelled.
+ */
+export function showWarningModal(config: WarningModalConfig): Promise<boolean> {
   return new Promise((resolve) => {
     showModal({
-      key: 'state-overwrite-warning',
-      title: 'Warning: Current State Will Be Lost',
+      key: config.key,
+      title: config.title,
       icon: 'warning',
       content: m(
-        '.pf-state-overwrite-warning',
-        m(
-          'p',
-          'This action will replace your current graph with a new one. All current nodes and connections will be lost.',
-        ),
-        m('p', 'Do you want to continue?'),
+        '.pf-warning-modal',
+        config.paragraphs.map((p) => m('p', p)),
       ),
       buttons: [
         {
@@ -937,7 +968,7 @@ export function showStateOverwriteWarning(): Promise<boolean> {
           },
         },
         {
-          text: 'Continue',
+          text: config.confirmText,
           primary: true,
           action: () => {
             resolve(true);
@@ -949,4 +980,87 @@ export function showStateOverwriteWarning(): Promise<boolean> {
       },
     });
   });
+}
+
+/**
+ * Shows a confirmation modal warning the user that their current state will be lost.
+ * This modal is used when importing JSON or loading an example graph.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showStateOverwriteWarning(): Promise<boolean> {
+  return showWarningModal({
+    key: 'state-overwrite-warning',
+    title: 'Warning: Current State Will Be Lost',
+    paragraphs: [
+      'This action will replace your current graph with a new one. All current nodes and connections will be lost.',
+      'Do you want to continue?',
+    ],
+    confirmText: 'Continue',
+  });
+}
+
+/**
+ * Shows a warning modal before exporting to JSON.
+ * Warns users that the Explore Page is in active development and
+ * future imports of the exported JSON are not guaranteed.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showExportWarning(): Promise<boolean> {
+  return showWarningModal({
+    key: 'export-warning',
+    title: 'Experimental Feature Warning',
+    paragraphs: [
+      'The Explore Page is still in active development. The JSON export format may change in future versions.',
+      m(
+        'strong',
+        'We do not guarantee that you will be able to import this JSON file in future versions of the Explore Page.',
+      ),
+      'Do you want to continue with the export?',
+    ],
+    confirmText: 'Export Anyway',
+  });
+}
+
+// Resizable SQL editor with resize handle
+// Provides consistent SQL editing experience across SQL source and join nodes
+export interface ResizableSqlEditorAttrs {
+  sql: string;
+  onUpdate: (text: string) => void;
+  onExecute?: (text: string) => void;
+  autofocus?: boolean;
+}
+
+export class ResizableSqlEditor
+  implements m.ClassComponent<ResizableSqlEditorAttrs>
+{
+  private editorHeight: number = 0;
+  private editorElement?: HTMLElement;
+
+  oncreate({dom}: m.VnodeDOM<ResizableSqlEditorAttrs>) {
+    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
+    this.editorElement.style.height = '400px';
+  }
+
+  view({attrs}: m.CVnode<ResizableSqlEditorAttrs>) {
+    return [
+      m(Editor, {
+        ref: 'editor',
+        text: attrs.sql,
+        onUpdate: attrs.onUpdate,
+        onExecute: attrs.onExecute,
+        autofocus: attrs.autofocus,
+      }),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          this.editorHeight += deltaPx;
+          this.editorElement!.style.height = `${this.editorHeight}px`;
+        },
+        onResizeStart: () => {
+          this.editorHeight = this.editorElement!.clientHeight;
+        },
+      }),
+    ];
+  }
 }

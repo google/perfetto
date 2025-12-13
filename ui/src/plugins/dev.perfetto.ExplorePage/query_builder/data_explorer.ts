@@ -14,15 +14,12 @@
 
 import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
+import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {
-  DataGridDataSource,
   CellRenderer,
-  ColumnDefinition,
-} from '../../../components/widgets/datagrid/common';
-import {
-  DataGrid,
-  columnsToSchema,
-} from '../../../components/widgets/datagrid/datagrid';
+  ColumnSchema,
+  SchemaRegistry,
+} from '../../../components/widgets/datagrid/column_schema';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -39,13 +36,14 @@ import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {DataSource} from '../../../components/widgets/datagrid/data_source';
 
 export interface DataExplorerAttrs {
   readonly trace: Trace;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
-  readonly dataSource?: DataGridDataSource;
+  readonly dataSource?: DataSource;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
@@ -208,14 +206,27 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       ],
     );
 
-    return [
+    // Collect all items that should have separators between them
+    const itemsWithSeparators = [
       runButton,
       statusIndicator,
       queryStats,
-      queryStats !== null ? separator() : null,
       autoExecuteSwitch,
-      positionMenu,
-    ];
+    ].filter((item) => item !== null && item !== false);
+
+    // Add separators between items
+    const menuItems: m.Children = [];
+    for (let i = 0; i < itemsWithSeparators.length; i++) {
+      menuItems.push(itemsWithSeparators[i]);
+      if (i < itemsWithSeparators.length - 1) {
+        menuItems.push(separator());
+      }
+    }
+
+    // Add menu at the end without a separator
+    menuItems.push(positionMenu);
+
+    return menuItems;
   }
 
   private renderContent(attrs: DataExplorerAttrs): m.Children {
@@ -306,7 +317,9 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             })
           : null;
 
-      const columnDefs: ColumnDefinition[] = attrs.response.columns.map((c) => {
+      // Build schema directly
+      const columnSchema: ColumnSchema = {};
+      for (const c of attrs.response.columns) {
         let cellRenderer: CellRenderer | undefined;
 
         // Get column type information from the node
@@ -322,16 +335,16 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           }
         }
 
-        return {
-          name: c,
-          cellRenderer,
-        };
-      });
+        columnSchema[c] = {cellRenderer};
+      }
+      const schema: SchemaRegistry = {data: columnSchema};
 
       return [
         warning,
         m(DataGrid, {
-          ...columnsToSchema(columnDefs),
+          schema,
+          rootSchema: 'data',
+          initialColumns: attrs.response.columns,
           fillHeight: true,
           data: attrs.dataSource,
           structuredQueryCompatMode: true,
