@@ -26,6 +26,7 @@ perfetto_host_executable("proto_filter") {
     "../../protozero/filtering:bytecode_generator",
     "../../protozero/filtering:filter_util",
     "../../protozero/filtering:message_filter",
+    "../../protozero/filtering:string_filter",
     "../../trace_config_utils:txt_to_pb",
   ]
   sources = [ "proto_filter.cc" ]
