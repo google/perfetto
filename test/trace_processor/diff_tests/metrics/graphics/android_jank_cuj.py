@@ -284,6 +284,21 @@ trace.add_atrace_counter(
 trace.add_atrace_counter(
     ts=150_300_000, tid=PID, pid=PID, buf="J<FIRST_CUJ>#missedSfFrames", cnt=1)
 trace.add_atrace_counter(
+    ts=150_300_000, tid=PID, pid=PID, buf="J<FIRST_CUJ>#totalAnimTime", cnt=500)
+trace.add_atrace_counter(
+    ts=150_300_000,
+    tid=PID,
+    pid=PID,
+    buf="J<FIRST_CUJ>#weightedAppJank",
+    cnt=225)
+trace.add_atrace_counter(
+    ts=150_300_000,
+    tid=PID,
+    pid=PID,
+    buf="J<FIRST_CUJ>#weightedSfJank",
+    cnt=421)
+
+trace.add_atrace_counter(
     ts=150_400_000,
     tid=PID,
     pid=PID,
@@ -320,6 +335,24 @@ trace.add_atrace_counter(
     pid=PID,
     buf="J<SHADE_ROW_EXPAND>#maxSuccessiveMissedFrames",
     cnt=5)
+trace.add_atrace_counter(
+    ts=950_300_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#totalAnimTime",
+    cnt=250)
+trace.add_atrace_counter(
+    ts=950_300_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#weightedAppJank",
+    cnt=1025)
+trace.add_atrace_counter(
+    ts=950_300_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#weightedSfJank",
+    cnt=142)
 trace.add_atrace_counter(
     ts=950_400_000,
     tid=PID,

@@ -775,8 +775,8 @@ maxRuntime
 totalCountc
 threshold_metric (28.perfetto.protos.AndroidIrqRuntimeMetric.ThresholdMetricRthresholdMetric_
 longest_irq_slices (21.perfetto.protos.AndroidIrqRuntimeMetric.IrqSliceRlongestIrqSlices
-œ
-5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"™
+¹
+5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¶
 AndroidJankCujMetric;
 cuj (2).perfetto.protos.AndroidJankCujMetric.CujRcuj¾
 Cuj
@@ -803,14 +803,17 @@ layer_name (	R	layerName¡
 app_missed (R	appMissed
 	sf_missed (RsfMissed,
 sf_callback_missed (RsfCallbackMissed0
-hwui_callback_missed	 (RhwuiCallbackMissedÞ
+hwui_callback_missed	 (RhwuiCallbackMissedû
 Metrics!
 total_frames (RtotalFrames#
 missed_frames (RmissedFrames*
 missed_app_frames (RmissedAppFrames(
-missed_sf_frames (RmissedSfFrames?
+missed_sf_frames (RmissedSfFrames;
+weighted_missed_app_frames (RweightedMissedAppFrames9
+weighted_missed_sf_frames (RweightedMissedSfFrames?
 missed_frames_max_successive (RmissedFramesMaxSuccessive"
-frame_dur_max (RframeDurMax"
+frame_dur_max (RframeDurMax#
+anim_duration (RanimDuration"
 frame_dur_avg (RframeDurAvg"
 frame_dur_p50 (RframeDurP50"
 frame_dur_p90	 (RframeDurP90"

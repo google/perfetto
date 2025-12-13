@@ -1754,7 +1754,7 @@ message AndroidJankCujMetric {
     optional bool hwui_callback_missed = 9;
   }
 
-  // Next id: 18
+  // Next id: 21
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
@@ -1768,12 +1768,21 @@ message AndroidJankCujMetric {
     // Number of frames missed due to SF.
     optional int64 missed_sf_frames = 4;
 
+    // Weighted number of frames missed due to the app missing the deadline.
+    optional double weighted_missed_app_frames = 19;
+
+    // Weighted number of frames missed due to SF.
+    optional double weighted_missed_sf_frames = 20;
+
     // Number of successive frames missed.
     // Not available in timeline_metrics and trace_metrics.
     optional int64 missed_frames_max_successive = 5;
 
     // Max frame duration in nanoseconds.
     optional int64 frame_dur_max = 6;
+
+    // Duration in ns of the animation.
+    optional int64 anim_duration = 18;
 
     // Average frame duration in nanoseconds.
     // Not available in counter_metrics.
