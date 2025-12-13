@@ -19,6 +19,54 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExplorePageState} from './explore_page';
 import {nodeRegistry} from './query_builder/node_registry';
 import {QueryNodeState} from './query_node';
+import {serializeState, deserializeState} from './json_handler';
+
+const LOCAL_STORAGE_KEY = 'perfetto.explorePage.lastState';
+
+/**
+ * Saves the Explore Page state to local storage.
+ */
+function saveStateToLocalStorage(state: ExplorePageState): void {
+  try {
+    const json = serializeState(state);
+    localStorage.setItem(LOCAL_STORAGE_KEY, json);
+  } catch (error) {
+    console.warn('Failed to save Explore Page state to local storage:', error);
+  }
+}
+
+/**
+ * Loads the Explore Page state from local storage.
+ * Returns undefined if no state is found or if deserialization fails.
+ */
+function loadStateFromLocalStorage(trace: Trace): ExplorePageState | undefined {
+  try {
+    const json = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!json) {
+      console.warn('No local storage state found for Explore Page.');
+      return undefined;
+    }
+
+    const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      console.warn(
+        'SQL Modules not available, cannot load Explore Page state.',
+      );
+      return undefined;
+    }
+
+    return deserializeState(json, trace, sqlModules);
+  } catch (error) {
+    console.warn(
+      'Failed to load Explore Page state from local storage:',
+      error,
+    );
+    // Clear invalid state
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    return undefined;
+  }
+}
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
@@ -42,10 +90,19 @@ export default class implements PerfettoPlugin {
     } else {
       this.state = update;
     }
+
+    saveStateToLocalStorage(this.state);
+
     m.redraw();
   };
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    // Try to load state from local storage
+    const savedState = loadStateFromLocalStorage(trace);
+    if (savedState !== undefined) {
+      this.state = savedState;
+    }
+
     trace.pages.registerPage({
       route: '/explore',
       render: () => {

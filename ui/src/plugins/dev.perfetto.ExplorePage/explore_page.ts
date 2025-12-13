@@ -62,6 +62,8 @@ export interface ExplorePageState {
     width: number;
     text: string;
   }>;
+  isExplorerCollapsed?: boolean;
+  sidebarWidth?: number;
 }
 
 interface ExplorePageAttrs {
@@ -1012,11 +1014,25 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
         labels: state.labels,
+        isExplorerCollapsed: state.isExplorerCollapsed,
+        sidebarWidth: state.sidebarWidth,
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
             rootNodes: [...currentState.rootNodes, node],
             selectedNode: node,
+          }));
+        },
+        onExplorerCollapsedChange: (collapsed) => {
+          wrappedAttrs.onStateUpdate((currentState) => ({
+            ...currentState,
+            isExplorerCollapsed: collapsed,
+          }));
+        },
+        onSidebarWidthChange: (width) => {
+          wrappedAttrs.onStateUpdate((currentState) => ({
+            ...currentState,
+            sidebarWidth: width,
           }));
         },
         onNodeSelected: (node) => {

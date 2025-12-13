@@ -40,7 +40,7 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    docs.then(async (resolvedDocs) => {
+    await docs.then(async (resolvedDocs) => {
       const impl = new SqlModulesImpl(trace, resolvedDocs);
       await impl.waitForInit();
       this.sqlModules = impl;
