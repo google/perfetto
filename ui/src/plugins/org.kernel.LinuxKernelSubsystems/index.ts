@@ -16,7 +16,7 @@ import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TABLE_TRACK, SLICE_TRACK} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 
@@ -70,7 +70,7 @@ export default class implements PerfettoPlugin {
           trackIds: [trackId],
         }),
         tags: {
-          kinds: [SLICE_TRACK_KIND],
+          kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
           trackIds: [trackId],
         },
       });
