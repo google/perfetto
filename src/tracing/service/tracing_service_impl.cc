@@ -55,6 +55,7 @@
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flags.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -741,25 +742,79 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
-  if (cfg.buffers_size() > kMaxBuffersPerConsumer) {
+  const size_t num_buffers = static_cast<size_t>(cfg.buffers_size());
+  if (num_buffers > kMaxBuffersPerConsumer) {
     MaybeLogUploadEvent(cfg, uuid,
                         PerfettoStatsdAtom::kTracedEnableTracingTooManyBuffers);
-    return PERFETTO_SVC_ERR("Too many buffers configured (%d)",
-                            cfg.buffers_size());
+    return PERFETTO_SVC_ERR("Too many buffers configured (%zu)", num_buffers);
   }
+
+  // Build a map of buffer names to indices for named buffer resolution.
+  // Also validate that buffer names are unique within the session.
+  base::FlatHashMap<std::string, size_t> buffer_name_to_index;
+  for (size_t i = 0; i < num_buffers; ++i) {
+    const auto& buf = cfg.buffers()[i];
+    if (!buf.name().empty()) {
+      size_t* existing_idx = buffer_name_to_index.Find(buf.name());
+      if (existing_idx) {
+        MaybeLogUploadEvent(
+            cfg, uuid,
+            PerfettoStatsdAtom::kTracedEnableTracingDuplicateBufferName);
+        return PERFETTO_SVC_ERR(
+            "Duplicate buffer name \"%s\" at index %zu (first occurrence at "
+            "index %zu)",
+            buf.name().c_str(), i, *existing_idx);
+      }
+      buffer_name_to_index.Insert(buf.name(), i);
+    }
+  }
+
   // Check that the config specifies all buffers for its data sources. This
   // is also checked in SetupDataSource, but it is simpler to return a proper
   // error to the consumer from here (and there will be less state to undo).
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
-    size_t num_buffers = static_cast<size_t>(cfg.buffers_size());
-    size_t target_buffer = cfg_data_source.config().target_buffer();
+    const auto& ds_config = cfg_data_source.config();
+
+    // Resolve target buffer: if target_buffer_name is set, look it up.
+    size_t target_buffer = ds_config.target_buffer();
+    if (!ds_config.target_buffer_name().empty()) {
+      size_t* resolved_index_ptr =
+          buffer_name_to_index.Find(ds_config.target_buffer_name());
+      if (!resolved_index_ptr) {
+        MaybeLogUploadEvent(
+            cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingOobTargetBuffer);
+        return PERFETTO_SVC_ERR(
+            "Data source \"%s\" specified target_buffer_name \"%s\" which does "
+            "not match any buffer",
+            ds_config.name().c_str(), ds_config.target_buffer_name().c_str());
+      }
+      size_t resolved_index = *resolved_index_ptr;
+
+      // If both target_buffer and target_buffer_name are specified, they must
+      // resolve to the same index. This allows configs to work with both old
+      // and new versions of the tracing service.
+      // We have to be lax on target_buffer = 0, because we shouldn't try to
+      // distinguish between a missing target_buffer and = 0, as per
+      // proto best practices.
+      if (target_buffer > 0 && target_buffer != resolved_index) {
+        MaybeLogUploadEvent(
+            cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingOobTargetBuffer);
+        return PERFETTO_SVC_ERR(
+            "Data source \"%s\" specified both target_buffer=%zu and "
+            "target_buffer_name=\"%s\" (index %zu) but they don't match",
+            ds_config.name().c_str(), target_buffer,
+            ds_config.target_buffer_name().c_str(), resolved_index);
+      }
+      target_buffer = resolved_index;
+    }
+
     if (target_buffer >= num_buffers) {
       MaybeLogUploadEvent(
           cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingOobTargetBuffer);
       return PERFETTO_SVC_ERR(
           "Data source \"%s\" specified an out of bounds target_buffer (%zu >= "
           "%zu)",
-          cfg_data_source.config().name().c_str(), target_buffer, num_buffers);
+          ds_config.name().c_str(), target_buffer, num_buffers);
     }
   }
 
@@ -1076,7 +1131,6 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // corresponding BufferID, which is a global ID namespace for the service and
   // all producers.
   size_t total_buf_size_kb = 0;
-  const size_t num_buffers = static_cast<size_t>(cfg.buffers_size());
   tracing_session->buffers_index.reserve(num_buffers);
   for (size_t i = 0; i < num_buffers; i++) {
     const TraceConfig::BufferConfig& buffer_cfg = cfg.buffers()[i];
@@ -3206,7 +3260,20 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     }
   }
 
-  auto relative_buffer_id = cfg_data_source.config().target_buffer();
+  // Resolve the target buffer index. If target_buffer_name is specified, look
+  // up the index from the buffer names in the config.
+  uint32_t relative_buffer_id = cfg_data_source.config().target_buffer();
+  const auto& ds_cfg = cfg_data_source.config();
+  if (!ds_cfg.target_buffer_name().empty()) {
+    // Look up the buffer index by name from the trace config.
+    for (size_t i = 0; i < tracing_session->num_buffers(); ++i) {
+      const auto& buf = tracing_session->config.buffers()[i];
+      if (buf.name() == ds_cfg.target_buffer_name()) {
+        relative_buffer_id = static_cast<uint32_t>(i);
+        break;
+      }
+    }
+  }
   if (relative_buffer_id >= tracing_session->num_buffers()) {
     PERFETTO_LOG(
         "The TraceConfig for DataSource %s specified a target_buffer out of "
