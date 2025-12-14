@@ -43,17 +43,30 @@ export interface SegmentedButtonsAttrs extends HTMLAttrs {
   // Whether the segmented buttons is disabled.
   // false by default.
   readonly disabled?: boolean;
+
+  // Whether the buttons should stretch to fill the container width.
+  // false by default.
+  readonly fillWidth?: boolean;
 }
 
 export class SegmentedButtons
   implements m.ClassComponent<SegmentedButtonsAttrs>
 {
   view({attrs}: m.CVnode<SegmentedButtonsAttrs>) {
-    const {options, selectedOption, disabled, onOptionSelected, ...htmlAttrs} =
-      attrs;
+    const {
+      options,
+      selectedOption,
+      disabled,
+      onOptionSelected,
+      fillWidth,
+      ...htmlAttrs
+    } = attrs;
     return m(
       '.pf-segmented-buttons',
-      htmlAttrs,
+      {
+        ...htmlAttrs,
+        className: fillWidth ? 'pf-segmented-buttons--fill-width' : undefined,
+      },
       options.map((o, i) =>
         m(Button, {
           ...o,
