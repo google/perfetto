@@ -164,6 +164,33 @@ constexpr std::array<protos::pbzero::HeapGraphRoot::Type, 3>
         protos::pbzero::HeapGraphRoot::ROOT_JNI_GLOBAL,
         protos::pbzero::HeapGraphRoot::ROOT_JNI_LOCAL,
 };
+
+void SortRoots(TraceStorage* storage,
+               const std::set<ObjectTable::RowNumber>& roots,
+               std::vector<ObjectTable::RowNumber>& sorted_roots) {
+  std::vector<std::pair<base::StringView, ObjectTable::RowNumber>>
+      sorted_with_names;
+  sorted_with_names.reserve(roots.size());
+  auto* object_table = storage->mutable_heap_graph_object_table();
+  auto* class_table = storage->mutable_heap_graph_class_table();
+  for (ObjectTable::RowNumber root : roots) {
+    auto obj_row = root.ToRowReference(object_table);
+    auto cls_row = *class_table->FindById(obj_row.type_id());
+    sorted_with_names.emplace_back(storage->GetString(cls_row.name()), root);
+  }
+  std::sort(sorted_with_names.begin(), sorted_with_names.end(),
+            [](const auto& a, const auto& b) {
+              if (a.first != b.first) {
+                return a.first < b.first;
+              }
+              return a.second.row_number() < b.second.row_number();
+            });
+  sorted_roots.clear();
+  sorted_roots.reserve(roots.size());
+  for (const auto& p : sorted_with_names) {
+    sorted_roots.push_back(p.second);
+  }
+}
 }  // namespace
 
 std::optional<base::StringView> GetStaticClassTypeName(base::StringView type) {
@@ -1141,7 +1168,10 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 
   // First pass to calculate shortest paths
   PathFromRoot init_path;
-  for (ObjectTable::RowNumber root : roots) {
+  std::vector<ObjectTable::RowNumber> sorted_roots;
+  SortRoots(storage_, roots, sorted_roots);
+
+  for (ObjectTable::RowNumber root : sorted_roots) {
     FindPathFromRoot(root.ToRowReference(object_table), &init_path);
   }
 
