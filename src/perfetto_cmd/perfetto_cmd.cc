@@ -102,8 +102,9 @@ const uint32_t kCloneTimeoutMs = 30000;
 
 bool ParseTraceConfigPbtxt(const std::string& file_name,
                            const std::string& pbtxt,
-                           TraceConfig* config) {
-  auto res = TraceConfigTxtToPb(pbtxt, file_name);
+                           TraceConfig* config,
+                           bool allow_unknown_fields = false) {
+  auto res = TraceConfigTxtToPb(pbtxt, file_name, allow_unknown_fields);
   if (!res.ok()) {
     fprintf(stderr, "%s\n", res.status().c_message());
     return false;
@@ -168,6 +169,9 @@ Usage: %s
                              (e.g., file.0, file.1, file.2).
   --txt                    : Parse config as pbtxt. Not for production use.
                              Not a stable API.
+  --txt-lossy              : Like --txt, but silently ignores unknown fields
+                             in the textproto instead of failing. Not for
+                             production use. Not a stable API.
   --query [--long]         : Queries the service state and prints it as
                              human-readable text. --long allows the output to
                              extend past 80 chars.
@@ -226,6 +230,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_SUBSCRIPTION_ID,
     OPT_RESET_GUARDRAILS,
     OPT_PBTXT_CONFIG,
+    OPT_PBTXT_CONFIG_LOSSY,
     OPT_DROPBOX,
     OPT_UPLOAD,
     OPT_IGNORE_GUARDRAILS,
@@ -251,6 +256,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"app", required_argument, nullptr, 'a'},
       {"no-guardrails", no_argument, nullptr, OPT_IGNORE_GUARDRAILS},
       {"txt", no_argument, nullptr, OPT_PBTXT_CONFIG},
+      {"txt-lossy", no_argument, nullptr, OPT_PBTXT_CONFIG_LOSSY},
       {"upload", no_argument, nullptr, OPT_UPLOAD},
       {"dropbox", required_argument, nullptr, OPT_DROPBOX},
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
@@ -277,6 +283,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   std::string config_file_name;
   std::string trace_config_raw;
   bool parse_as_pbtxt = false;
+  bool parse_as_pbtxt_lossy = false;
   TraceConfig::StatsdMetadata statsd_metadata;
 
   ConfigOptions config_options;
@@ -422,6 +429,12 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
     if (option == OPT_PBTXT_CONFIG) {
       parse_as_pbtxt = true;
+      continue;
+    }
+
+    if (option == OPT_PBTXT_CONFIG_LOSSY) {
+      parse_as_pbtxt = true;
+      parse_as_pbtxt_lossy = true;
       continue;
     }
 
@@ -616,7 +629,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
     if (parse_as_pbtxt) {
       parsed = ParseTraceConfigPbtxt(config_file_name, trace_config_raw,
-                                     trace_config_.get());
+                                     trace_config_.get(), parse_as_pbtxt_lossy);
     } else {
       parsed = trace_config_->ParseFromString(trace_config_raw);
       cfg_could_be_txt =
