@@ -239,6 +239,8 @@ export function registerCoreNodes() {
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       };
       return new JoinNode(fullState);
     },

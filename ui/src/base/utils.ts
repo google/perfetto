@@ -98,3 +98,8 @@ export function sleepMs(ms: number): Promise<void> {
 //   const x = undefinable(arr[10]); // x is number | undefined
 //   if (exists(x)) { /* x is number here */ }
 export const maybeUndefined = <T>(value: T) => value as T | undefined;
+
+// Check if the value a number or a bigint
+export function isNumeric(value: unknown): value is number | bigint {
+  return typeof value === 'number' || typeof value === 'bigint';
+}

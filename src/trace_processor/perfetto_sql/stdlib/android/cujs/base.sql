@@ -132,62 +132,68 @@ RETURNS STRING AS
 SELECT
   substr($cuj_slice_name, 3, length($cuj_slice_name) - 3);
 
--- Track all distinct frames that overlap with the CUJ slice.
-CREATE PERFETTO VIEW _android_frames_in_cuj AS
--- Captures all frames in the CUJ boundary. In cases where there are multiple actual frames, there
--- can be multiple rows with the same frame_id.
-WITH
-  all_frames_in_cuj AS (
-    SELECT
-      _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
-      cuj.upid,
-      cuj.process_name,
-      frame.layer_id,
-      frame.frame_id,
-      frame.do_frame_id,
-      frame.expected_frame_timeline_id,
-      cuj.cuj_id,
-      frame.ts AS frame_ts,
-      frame.dur AS dur,
+-- Information about all frames in a process that overlap with a CUJ from the same process.
+-- This can include multiple frames for the same frame_id (for eg. frames with different layers).
+CREATE PERFETTO VIEW _all_frames_in_cuj AS
+SELECT
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
+  cuj.upid,
+  cuj.process_name,
+  cie.layer_id AS cuj_layer_id,
+  frame.layer_id,
+  frame.layer_name,
+  frame.frame_id,
+  frame.do_frame_id,
+  frame.expected_frame_timeline_id,
+  cuj.cuj_id,
+  frame.ts AS frame_ts,
+  frame.dur AS dur,
+  (
+    frame.ts + frame.dur
+  ) AS ts_end,
+  ui_thread_utid
+FROM android_frames_layers AS frame
+JOIN _cuj_instant_events AS cie
+  ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
+JOIN _jank_cujs_slices AS cuj
+  ON cie.cuj_id = cuj.cuj_id
+-- Check whether the frame_id falls within the begin and end vsync of the cuj.
+-- Also check if the frame start or end timestamp falls within the cuj boundary.
+WHERE
+  frame_id >= begin_vsync
+  AND frame_id <= end_vsync
+  AND (
+    -- frame start within cuj
+    (
+      frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end
+    )
+    -- frame end within cuj
+    OR (
       (
         frame.ts + frame.dur
-      ) AS ts_end,
-      ui_thread_utid
-    FROM android_frames_layers AS frame
-    JOIN _cuj_instant_events AS cie
-      ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
-    JOIN _jank_cujs_slices AS cuj
-      ON cie.cuj_id = cuj.cuj_id
-    -- Check whether the frame_id falls within the begin and end vsync of the cuj.
-    -- Also check if the frame start or end timestamp falls within the cuj boundary.
-    WHERE
-      frame_id >= begin_vsync
-      AND frame_id <= end_vsync
-      AND (
-        -- frame start within cuj
-        (
-          frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end
-        )
-        -- frame end within cuj
-        OR (
-          (
-            frame.ts + frame.dur
-          ) >= cuj.ts AND (
-            frame.ts + frame.dur
-          ) <= cuj.ts_end
-        )
-      )
-  )
+      ) >= cuj.ts AND (
+        frame.ts + frame.dur
+      ) <= cuj.ts_end
+    )
+  );
+
+-- Track all distinct frames that overlap with the CUJ slice. In this table two frames are considered
+-- distinct if they have different frame_id/vsync.
+CREATE PERFETTO VIEW _android_distinct_frames_in_cuj AS
+-- Captures all frames in the CUJ boundary. In cases where there are multiple actual frames, there
+-- can be multiple rows with the same frame_id.
 SELECT
   row_number() OVER (PARTITION BY cuj_id ORDER BY min(frame_ts)) AS frame_idx,
   count(*) OVER (PARTITION BY cuj_id) AS frame_cnt,
-  -- Column values with no aggregation function will stay identical across rows. For eg.
+  -- With a 'GROUP BY' clause for this table, there is no aggregations function used for the
+  -- selected columns. This is because these columns values are expected to remain identical. For eg.
   -- a cuj_name, upid will be the same for a given cuj_id. do_frame_id or expected_frame_timeline_id
-  -- will be the same for a given frame_id. Hence it is ok to not have aggregation functions for
-  -- all selected columns.
+  -- will be the same for a given frame_id.
   cuj_name,
   upid,
+  cuj_layer_id,
   layer_id,
+  layer_name,
   process_name,
   frame_id,
   do_frame_id,
@@ -201,10 +207,39 @@ SELECT
   (
     max(ts_end) - min(frame_ts)
   ) AS dur
-FROM all_frames_in_cuj
+FROM _all_frames_in_cuj
 GROUP BY
   frame_id,
   cuj_id;
+
+-- Track all distinct frames with layer_id consideration that overlap with the CUJ slice.
+CREATE PERFETTO VIEW _android_distinct_frames_layers_cuj AS
+-- Captures all frames in the CUJ boundary. In cases where there are multiple actual frames, there
+-- can be multiple rows with the same frame_id.
+SELECT
+  -- With a 'GROUP BY' clause for this table, there is no aggregations function used for the
+  -- selected columns. This is because these columns values are expected to remain identical. For eg.
+  -- a cuj_name, upid will be the same for a given cuj_id. do_frame_id or expected_frame_timeline_id
+  -- will be the same for a given frame_id and layer_id.
+  cuj_name,
+  upid,
+  cuj_layer_id,
+  layer_id,
+  layer_name,
+  process_name,
+  frame_id,
+  do_frame_id,
+  expected_frame_timeline_id,
+  cuj_id,
+  ui_thread_utid,
+  frame_ts,
+  ts_end,
+  dur
+FROM _all_frames_in_cuj
+GROUP BY
+  frame_id,
+  cuj_id,
+  layer_id;
 
 -- Table captures all Choreographer#doFrame within a CUJ boundary.
 CREATE PERFETTO TABLE _android_jank_cuj_do_frames AS

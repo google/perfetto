@@ -25,10 +25,10 @@ import {
   isParameterizedColumnDef,
   isSchemaRef,
 } from './column_schema';
-import {DataGridDataSource} from './common';
+import {DataSource} from './data_source';
 
 interface AddColumnMenuContext {
-  readonly dataSource: DataGridDataSource;
+  readonly dataSource: DataSource;
   readonly parameterKeyColumns: Set<string>;
 }
 
@@ -100,7 +100,7 @@ export function buildAddColumnMenuFromSchema(
       // Parameterized column - show available keys from datasource
       const title = typeof entry.title === 'string' ? entry.title : columnName;
       const availableKeys =
-        context.dataSource.rows?.parameterKeys?.get(fullPath);
+        context.dataSource.result?.parameterKeys?.get(fullPath);
       menuItems.push(
         m(
           MenuItem,
