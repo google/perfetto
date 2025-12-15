@@ -12,20 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {
-  getThreadTable,
-  getProcessTable,
-  getSliceTable,
-  getAndroidLogsTable,
-  getSchedTable,
-  getThreadStateTable,
-} from './table_definitions';
+import {SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+
+// Custom table definition for slices using the viz module
+export const SLICE_TABLE: SqlTable = {
+  name: '_viz_slices_for_ui_table',
+  description: 'Slices',
+  type: 'table',
+  columns: [
+    {name: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
+    {name: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+    {name: 'dur', type: PerfettoSqlTypes.DURATION},
+    {name: 'category', type: PerfettoSqlTypes.STRING},
+    {name: 'name', type: PerfettoSqlTypes.STRING},
+    {
+      name: 'utid',
+      type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
+    },
+    {
+      name: 'upid',
+      type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
+    },
+    {
+      name: 'track_id',
+      type: {kind: 'joinid', source: {table: 'track', column: 'id'}},
+    },
+    {name: 'arg_set_id', type: PerfettoSqlTypes.ARG_SET_ID},
+    {name: 'depth', type: PerfettoSqlTypes.INT},
+    {
+      name: 'parent_id',
+      type: {kind: 'joinid', source: {table: 'slice', column: 'id'}},
+    },
+  ],
+};
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'org.chromium.OpenTableCommands';
+  static readonly id = 'org.Chromium.OpenTableCommands';
 
   async onTraceLoad(ctx: Trace) {
     ctx.commands.registerCommand({
@@ -33,10 +59,20 @@ export default class implements PerfettoPlugin {
       name: 'Open table: slice',
       callback: () => {
         const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        const sliceTable = getSliceTable();
-        sqlModules?.openTableExplorer(sliceTable.name, {
-          customTables: [sliceTable, getThreadTable(), getProcessTable()],
+        sqlModules?.openTableExplorer(SLICE_TABLE.name, {
+          customTables: [SLICE_TABLE],
           preamble: 'INCLUDE PERFETTO MODULE viz.slices;',
+          initialColumns: [
+            'id',
+            'ts',
+            'dur',
+            'category',
+            'name',
+            'utid',
+            'upid',
+            'track_id',
+            'arg_set_id',
+          ],
         });
       },
     });
@@ -46,9 +82,16 @@ export default class implements PerfettoPlugin {
       name: 'Open table: thread',
       callback: () => {
         const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        const threadTable = getThreadTable();
-        sqlModules?.openTableExplorer(threadTable.name, {
-          customTables: [threadTable, getProcessTable()],
+        sqlModules?.openTableExplorer('thread', {
+          initialColumns: [
+            'utid',
+            'tid',
+            'name',
+            'start_ts',
+            'end_ts',
+            'upid',
+            'is_main_thread',
+          ],
         });
       },
     });
@@ -58,9 +101,19 @@ export default class implements PerfettoPlugin {
       name: 'Open table: process',
       callback: () => {
         const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        const processTable = getProcessTable();
-        sqlModules?.openTableExplorer(processTable.name, {
-          customTables: [processTable],
+        sqlModules?.openTableExplorer('process', {
+          initialColumns: [
+            'upid',
+            'pid',
+            'name',
+            'start_ts',
+            'end_ts',
+            'parent_upid',
+            'uid',
+            'android_appid',
+            'machine_id',
+            'arg_set_id',
+          ],
         });
       },
     });
@@ -70,9 +123,17 @@ export default class implements PerfettoPlugin {
       name: 'Open table: sched',
       callback: () => {
         const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        const schedTable = getSchedTable();
-        sqlModules?.openTableExplorer(schedTable.name, {
-          customTables: [schedTable, getThreadTable(), getProcessTable()],
+        sqlModules?.openTableExplorer('sched', {
+          initialColumns: [
+            'id',
+            'ts',
+            'dur',
+            'cpu',
+            'priority',
+            'utid',
+            'end_state',
+            'ucpu',
+          ],
         });
       },
     });
@@ -82,9 +143,21 @@ export default class implements PerfettoPlugin {
       name: 'Open table: thread_state',
       callback: () => {
         const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        const threadStateTable = getThreadStateTable();
-        sqlModules?.openTableExplorer(threadStateTable.name, {
-          customTables: [threadStateTable, getThreadTable(), getProcessTable()],
+        sqlModules?.openTableExplorer('thread_state', {
+          initialColumns: [
+            'id',
+            'ts',
+            'dur',
+            'state',
+            'cpu',
+            'utid',
+            'io_wait',
+            'blocked_function',
+            'waker_utid',
+            'waker_id',
+            'irq_context',
+            'ucpu',
+          ],
         });
       },
     });
@@ -94,9 +167,8 @@ export default class implements PerfettoPlugin {
       name: 'Open table: android_logs',
       callback: () => {
         const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        const androidLogsTable = getAndroidLogsTable();
-        sqlModules?.openTableExplorer(androidLogsTable.name, {
-          customTables: [androidLogsTable, getThreadTable()],
+        sqlModules?.openTableExplorer('android_logs', {
+          initialColumns: ['id', 'ts', 'tag', 'prio', 'utid', 'msg'],
         });
       },
     });
