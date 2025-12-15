@@ -4396,24 +4396,21 @@ void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
                                        event.value(), track_id);
 }
 
-namespace {
-constexpr auto kF2fsCheckpointBlueprint = tracks::SliceBlueprint(
-    "f2fs_write_checkpoint",
-    tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("pid")),
-    tracks::FnNameBlueprint([](uint32_t pid) {
-      return base::StackString<255>("f2fs_ckpt-%u", pid);
-    }));
-
-enum F2fsCheckpointPhase {
-  kF2fsCpPhaseStart = 0,
-  kF2fsCpPhaseFinishBlockOps = 1,
-  kF2fsCpPhaseFinish = 2,
-};
-}  // namespace
-
 void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
                                             uint32_t pid,
                                             ConstBytes blob) {
+  enum F2fsCheckpointPhase {
+    kF2fsCpPhaseStart = 0,
+    kF2fsCpPhaseFinishBlockOps = 1,
+    kF2fsCpPhaseFinish = 2,
+  };
+  constexpr auto kF2fsCheckpointBlueprint = tracks::SliceBlueprint(
+      "f2fs_write_checkpoint",
+      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("pid")),
+      tracks::FnNameBlueprint([](uint32_t pid) {
+        return base::StackString<255>("f2fs_ckpt-%u", pid);
+      }));
+
   protos::pbzero::F2fsWriteCheckpointFtraceEvent::Decoder evt(blob);
 
   uint32_t phase = evt.phase();
@@ -4445,8 +4442,9 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
             for (size_t i = 0; i < f2fs_checkpoint_reason_ids_.size(); ++i) {
               if (reason_int & (1 << i)) {
                 inserter->AddArg(
-                    f2fs_reason_str_arg_id_,
+                    f2fs_reason_str_arg_id_, f2fs_reason_str_arg_id_,
                     Variadic::String(f2fs_checkpoint_reason_ids_[i]));
+                inserter->IncrementArrayEntryIndex(f2fs_reason_str_arg_id_);
               }
             }
           }
