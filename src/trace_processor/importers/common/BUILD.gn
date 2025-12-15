@@ -131,7 +131,6 @@ source_set("synthetic_tid_hdr") {
 
 source_set("unittests") {
   sources = [
-    "../etw/file_io_tracker_unittest.cc",
     "address_range_unittest.cc",
     "args_translation_table_unittest.cc",
     "clock_converter_unittest.cc",
