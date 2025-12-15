@@ -36,9 +36,10 @@ class FlowImpl {
     return Global(flow_id ^ Track::process_uuid);
   }
 
+  // Same as above, but combines the flow id with an extra `named_scope`'s hash.
   static PERFETTO_ALWAYS_INLINE inline FlowImpl ProcessScoped(
-      const char* named_scope,
-      uint64_t flow_id) {
+      uint64_t flow_id,
+      const char* named_scope) {
     return Global(flow_id ^ internal::Fnv1a(named_scope) ^ Track::process_uuid);
   }
 
@@ -52,9 +53,10 @@ class FlowImpl {
     return ProcessScoped(reinterpret_cast<uintptr_t>(ptr));
   }
 
+  // Same as above, but combines the flow id with an extra `named_scope`'s hash.
   static PERFETTO_ALWAYS_INLINE inline FlowImpl FromPointer(
-      const char* named_scope,
-      void* ptr) {
+      void* ptr,
+      const char* named_scope) {
     return ProcessScoped(named_scope, reinterpret_cast<uintptr_t>(ptr));
   }
 
@@ -65,8 +67,10 @@ class FlowImpl {
     return FlowImpl(flow_id);
   }
 
-  static PERFETTO_ALWAYS_INLINE inline FlowImpl Global(const char* named_scope,
-                                                       uint64_t flow_id) {
+  // Same as above, but combines the flow id with an extra `named_scope`'s hash.
+  static PERFETTO_ALWAYS_INLINE inline FlowImpl Global(
+      uint64_t flow_id,
+      const char* named_scope) {
     return FlowImpl(internal::Fnv1a(named_scope) ^ flow_id);
   }
 
