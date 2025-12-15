@@ -17,24 +17,24 @@
  */
 
 import m from 'mithril';
-import {Time} from '../../../base/time';
-import {Timestamp} from '../../widgets/timestamp';
-import {Trace} from '../../../public/trace';
-import {SqlTable} from '../../../plugins/dev.perfetto.SqlModules/sql_modules';
+import {Time} from '../../base/time';
+import {Timestamp} from '../../components/widgets/timestamp';
+import {Trace} from '../../public/trace';
+import {SqlTable} from './sql_modules';
 import {
   SQLSchemaRegistry,
   SQLColumnDef,
   SQLJoinDef,
   SQLExpressionDef,
   SQLTableSchema,
-} from './sql_schema';
+} from '../../components/widgets/datagrid/sql_schema';
 import {
   SchemaRegistry,
   ColumnDef,
   ParameterizedColumnDef,
   CellRenderer,
-} from './datagrid_schema';
-import {DurationWidget} from '../duration';
+} from '../../components/widgets/datagrid/datagrid_schema';
+import {DurationWidget} from '../../components/widgets/duration';
 
 /**
  * Creates a cell renderer for timestamp columns.

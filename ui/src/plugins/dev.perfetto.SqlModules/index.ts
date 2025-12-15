@@ -32,7 +32,7 @@ import {
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {addEphemeralTab} from '../../components/details/add_ephemeral_tab';
 import {DetailsShell} from '../../widgets/details_shell';
-import {sqlTablesToSchemas} from '../../components/widgets/datagrid/sql_table_converter';
+import {sqlTablesToSchemas} from './sql_table_converter';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {SqlTable} from './sql_modules';
 import {Filter} from '../../components/widgets/datagrid/model';
@@ -42,6 +42,8 @@ const docs = defer<SqlModulesDocsSchema>();
 
 export default class SqlModulesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
+  static readonly description =
+    'Provides access to stdlib SQL modules and their tables via commands and APIs.';
 
   private sqlModules: SqlModules | undefined;
   private trace?: Trace;

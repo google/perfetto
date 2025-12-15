@@ -21,31 +21,138 @@ import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
 import {Anchor} from '../../../widgets/anchor';
-import SqlModulesPlugin from '../../dev.perfetto.SqlModules';
-import {sqlTablesToSchemas} from '../../../components/widgets/datagrid/sql_table_converter';
 
 // Cache for the SQL data source - created once when page is first opened with a trace
 let cachedSliceDataSource: SQLDataSource | undefined;
-let cachedTableData:
-  | {sqlSchema: SQLSchemaRegistry; displaySchema: SchemaRegistry}
-  | undefined;
+
+// SQL schema for slice table with track join
+const SLICE_SQL_SCHEMA: SQLSchemaRegistry = {
+  slice: {
+    table: 'slice',
+    columns: {
+      id: {},
+      ts: {},
+      dur: {},
+      track_id: {},
+      track: {
+        ref: 'track',
+        foreignKey: 'track_id',
+      },
+      parent: {
+        ref: 'slice',
+        foreignKey: 'parent_id',
+      },
+      args: {
+        expression: (alias, key) =>
+          `extract_arg(${alias}.arg_set_id, '${key}')`,
+        parameterized: true,
+        parameterKeysQuery: (baseTable) => `
+          SELECT DISTINCT args.key
+          FROM ${baseTable}
+          JOIN args ON args.arg_set_id = ${baseTable}.arg_set_id
+          WHERE args.key IS NOT NULL
+          ORDER BY args.key
+          LIMIT 1000
+        `,
+      },
+      all_args: {
+        expression: (alias) =>
+          `__intrinsic_arg_set_to_json(${alias}.arg_set_id)`,
+      },
+    },
+  },
+  track: {
+    table: 'track',
+    columns: {
+      id: {},
+      name: {},
+    },
+  },
+};
+
+// UI schema for slice table (defines how columns are displayed)
+const SLICE_UI_SCHEMA: SchemaRegistry = {
+  slice: {
+    id: {
+      title: 'ID',
+      columnType: 'quantitative',
+    },
+    ts: {
+      title: 'Timestamp',
+      columnType: 'quantitative',
+    },
+    dur: {
+      title: 'Duration',
+      columnType: 'quantitative',
+    },
+    track_id: {
+      title: 'Track ID',
+      columnType: 'quantitative',
+    },
+    track: {
+      ref: 'track',
+      title: 'Track',
+    },
+    parent: {
+      ref: 'slice',
+      title: 'Parent',
+    },
+    args: {
+      parameterized: true,
+      title: 'Args',
+    },
+    all_args: {
+      title: 'All Args',
+      columnType: 'text',
+      cellRenderer: (value) => {
+        if (value === null || value === undefined) {
+          return m('span.pf-null-value', 'NULL');
+        }
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          if (typeof parsed !== 'object' || parsed === null) {
+            return String(value);
+          }
+          const entries = Object.entries(parsed);
+          if (entries.length === 0) {
+            return m('span.pf-empty-value', '{}');
+          }
+          return m(
+            'span.pf-args-list',
+            entries.map(([key, val], i) => [
+              i > 0 ? ', ' : '',
+              m('b', key),
+              ': ',
+              String(val),
+            ]),
+          );
+        } catch {
+          return String(value);
+        }
+      },
+    },
+  },
+  track: {
+    id: {
+      title: 'ID',
+      columnType: 'quantitative',
+    },
+    name: {
+      title: 'Name',
+      columnType: 'text',
+    },
+  },
+};
 
 export function renderDataGrid(app: App): m.Children {
-  if (app.trace && !cachedTableData) {
-    const tables = app.trace.plugins
-      .getPlugin(SqlModulesPlugin)
-      ?.getSqlModules()
-      ?.listTables();
-
-    cachedTableData = sqlTablesToSchemas(tables || [], app.trace);
+  // Create the SQL data source once when the page is first opened with a trace
+  if (app.trace && !cachedSliceDataSource) {
     cachedSliceDataSource = new SQLDataSource({
       engine: app.trace.engine,
-      sqlSchema: cachedTableData.sqlSchema,
+      sqlSchema: SLICE_SQL_SCHEMA,
       rootSchemaName: 'slice',
     });
   }
-
-  const tableData = cachedTableData;
 
   return [
     m(
@@ -103,8 +210,8 @@ export function renderDataGrid(app: App): m.Children {
         'pre',
         `const schema: SchemaRegistry = {
   slice: {
-    id: { filterType: 'quantitative' },
-    name: { title: 'Slice Name', filterType: 'text' },
+    id: { columnType: 'quantitative' },
+    name: { title: 'Slice Name', columnType: 'text' },
     parent: { ref: 'slice' },  // Self-referential
     thread: { ref: 'thread' },
     args: { parameterized: true },  // Dynamic keys
@@ -115,7 +222,7 @@ export function renderDataGrid(app: App): m.Children {
   },
   process: {
     name: { title: 'Process Name' },
-    pid: { filterType: 'quantitative' },
+    pid: { columnType: 'quantitative' },
   },
 };`,
       ),
@@ -128,19 +235,20 @@ export function renderDataGrid(app: App): m.Children {
           'column paths. This example queries the slice table and can join to the ' +
           'track table via "track.name".',
       ),
-      tableData
+      cachedSliceDataSource
         ? renderWidgetShowcase({
             renderWidget: ({...rest}) => {
               return m(DataGrid, {
                 ...rest,
                 fillHeight: true,
-                schema: tableData.displaySchema,
+                schema: SLICE_UI_SCHEMA,
                 rootSchema: 'slice',
                 data: cachedSliceDataSource!,
                 initialColumns: [
                   {field: 'id'},
                   {field: 'ts'},
                   {field: 'dur'},
+                  {field: 'name'},
                   {field: 'track.name'},
                 ],
               });
