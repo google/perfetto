@@ -57,7 +57,7 @@ class FlowImpl {
   static PERFETTO_ALWAYS_INLINE inline FlowImpl FromPointer(
       void* ptr,
       const char* named_scope) {
-    return ProcessScoped(named_scope, reinterpret_cast<uintptr_t>(ptr));
+    return ProcessScoped(reinterpret_cast<uintptr_t>(ptr), named_scope);
   }
 
   // Add the |flow_id|. The caller is responsible for ensuring that it's
