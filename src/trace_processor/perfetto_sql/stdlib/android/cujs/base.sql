@@ -367,3 +367,18 @@ WHERE
   )
 ORDER BY
   ts ASC;
+
+-- Captures the layer information associated with a CUJ.
+CREATE PERFETTO VIEW _android_jank_cuj_layer AS
+SELECT
+  cuj_id,
+  layer_id,
+  layer_name
+FROM android_jank_cuj AS cujs
+JOIN actual_frame_timeline_slice AS timeline
+  USING (upid)
+WHERE
+  cujs.layer_id = CAST(str_split(timeline.layer_name, '#', 1) AS INTEGER)
+GROUP BY
+  cuj_id,
+  layer_id;

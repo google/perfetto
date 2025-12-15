@@ -172,6 +172,23 @@ SELECT
  ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY vsync ASC) AS frame_number
 FROM android_jank_cuj_sf_frame_base;
 
+-- Intermediate table to keep the ts and dur in sync with the original implementation
+-- in android_jank_cuj_boundary, which was earlier used for metric calculation.
+DROP TABLE IF EXISTS android_jank_cuj_legacy_boundary;
+CREATE PERFETTO TABLE android_jank_cuj_legacy_boundary AS
+WITH cuj_frame_based_boundary AS (
+SELECT cuj_id,
+    min(ts) AS ts,
+    MAX(ts_end) AS ts_end
+FROM android_jank_cuj_frame_trace_data
+GROUP BY cuj_id)
+SELECT frame_boundary.cuj_id,
+    frame_boundary.ts,
+    MAX(frame_boundary.ts_end, cuj.ts_end) AS ts_end,
+    (MAX(frame_boundary.ts_end, cuj.ts_end) - frame_boundary.ts) AS dur
+FROM cuj_frame_based_boundary frame_boundary
+JOIN android_jank_cuj cuj USING(cuj_id);
+
 -- Table captures various missed frames and callbacks counters from counter tracks in a process.
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
 CREATE PERFETTO TABLE android_jank_cuj_counter_metrics AS
@@ -195,7 +212,7 @@ WITH cujs_ordered AS (
       ELSE MAX(ts, ts_end - 4000000)
     END AS ts_earliest_allowed_counter,
     LEAD(ts_end) OVER (PARTITION BY cuj_name ORDER BY ts_end ASC) AS ts_end_next_cuj
-  FROM android_sysui_jank_cujs
+  FROM android_jank_cuj
 )
 SELECT
   cuj_id,
@@ -221,8 +238,8 @@ SELECT
           'name', cuj_name,
           'process', process_metadata_proto(cuj.upid),
           'layer_name', layer_name,
-          'ts', cuj.ts,
-          'dur', cuj.dur,
+          'ts', COALESCE(boundary.ts, cuj.ts),
+          'dur', COALESCE(boundary.dur, cuj.dur),
           'counter_metrics', (
             SELECT AndroidJankCujMetric_Metrics(
               'total_frames', total_frames,
@@ -303,5 +320,7 @@ SELECT
             WHERE f.cuj_id = cuj.cuj_id
             ORDER BY frame_number ASC)
         ))
-      FROM android_sysui_jank_cujs cuj
+      FROM android_jank_cuj cuj
+      LEFT JOIN android_jank_cuj_legacy_boundary boundary USING(cuj_id)
+      LEFT JOIN _android_jank_cuj_layer USING(cuj_id)
       ORDER BY cuj.cuj_id ASC));

@@ -16,7 +16,7 @@ android_jank_cuj {
       is_kernel_task: false
     }
     ts: 0
-    dur: 115000000
+    dur: 123000000
     frame {
       frame_number: 1
       vsync: 10
@@ -194,7 +194,7 @@ android_jank_cuj {
       is_kernel_task: false
     }
     ts: 0
-    dur: 702000000
+    dur: 901000010
     frame {
       frame_number: 1
       vsync: 10
