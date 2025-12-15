@@ -2207,6 +2207,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/etw/etw_parser.h",
         "src/trace_processor/importers/etw/etw_tokenizer.cc",
         "src/trace_processor/importers/etw/etw_tokenizer.h",
+        "src/trace_processor/importers/etw/file_io_tracker.cc",
+        "src/trace_processor/importers/etw/file_io_tracker.h",
     ],
 )
 

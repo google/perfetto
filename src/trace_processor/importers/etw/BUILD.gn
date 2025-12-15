@@ -34,6 +34,8 @@ source_set("full") {
     "etw_parser.h",
     "etw_tokenizer.cc",
     "etw_tokenizer.h",
+    "file_io_tracker.cc",
+    "file_io_tracker.h",
   ]
   deps = [
     ":minimal",

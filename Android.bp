@@ -14229,6 +14229,7 @@ filegroup {
         "src/trace_processor/importers/common/slice_translation_table_unittest.cc",
         "src/trace_processor/importers/common/thread_state_tracker_unittest.cc",
         "src/trace_processor/importers/common/track_compressor_unittest.cc",
+        "src/trace_processor/importers/etw/file_io_tracker_unittest.cc",
     ],
 }
 
@@ -14239,6 +14240,7 @@ filegroup {
         "src/trace_processor/importers/etw/etw_module_impl.cc",
         "src/trace_processor/importers/etw/etw_parser.cc",
         "src/trace_processor/importers/etw/etw_tokenizer.cc",
+        "src/trace_processor/importers/etw/file_io_tracker.cc",
     ],
 }
 
