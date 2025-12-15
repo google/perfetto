@@ -86,6 +86,7 @@ export const defaultPlugins = [
   'dev.perfetto.TraceProcessorTrack',
   'dev.perfetto.TrackEvent',
   'dev.perfetto.TrackUtils',
+  'org.chromium.OpenTableCommands',
   'org.kernel.LinuxKernelSubsystems',
   'org.kernel.SuspendResumeLatency',
   'org.kernel.Wattson',

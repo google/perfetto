@@ -37,7 +37,7 @@ export function renderDataGrid(app: App): m.Children {
       ?.getSqlModules()
       ?.listTables();
 
-    cachedTableData = sqlTablesToSchemas(tables || []);
+    cachedTableData = sqlTablesToSchemas(tables || [], app.trace);
     cachedSliceDataSource = new SQLDataSource({
       engine: app.trace.engine,
       sqlSchema: cachedTableData.sqlSchema,

@@ -64,7 +64,7 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
       this.sqlModules = impl;
 
       const tables = impl.listTables();
-      const {sqlSchema, displaySchema} = sqlTablesToSchemas(tables);
+      const {sqlSchema, displaySchema} = sqlTablesToSchemas(tables, trace);
       this.sqlSchema = sqlSchema;
       this.displaySchema = displaySchema;
 
@@ -165,7 +165,10 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
 
     if (options?.customTables && options.customTables.length > 0) {
       // Convert custom tables to schemas
-      const customSchemas = sqlTablesToSchemas(options.customTables);
+      const customSchemas = sqlTablesToSchemas(
+        options.customTables,
+        this.trace,
+      );
 
       // Merge custom schemas with base schemas
       // Custom tables override base tables with the same name

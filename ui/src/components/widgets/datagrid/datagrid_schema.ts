@@ -79,7 +79,7 @@ export interface SchemaRef {
   readonly title?: string;
 
   // Override filter type for all columns accessed through this reference
-  readonly columnType?: 'quantitative' | 'text';
+  readonly columnType?: ColumnType;
 }
 
 /**
@@ -95,7 +95,7 @@ export interface ParameterizedColumnDef {
   // Plain string title for exports. Falls back to column path if not provided.
   readonly titleString?: string;
 
-  readonly columnType?: 'quantitative' | 'text';
+  readonly columnType?: ColumnType;
   readonly cellRenderer?: CellRenderer;
   readonly cellFormatter?: CellFormatter;
   readonly distinctValues?: boolean;

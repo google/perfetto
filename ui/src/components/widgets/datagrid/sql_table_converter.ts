@@ -16,6 +16,10 @@
  * Converter utilities for migrating from old SqlTable format to new DataGrid schema format.
  */
 
+import m from 'mithril';
+import {Time} from '../../../base/time';
+import {Timestamp} from '../../widgets/timestamp';
+import {Trace} from '../../../public/trace';
 import {SqlTable} from '../../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {
   SQLSchemaRegistry,
@@ -28,7 +32,31 @@ import {
   SchemaRegistry,
   ColumnDef,
   ParameterizedColumnDef,
+  CellRenderer,
 } from './datagrid_schema';
+import {DurationWidget} from '../duration';
+
+/**
+ * Creates a cell renderer for timestamp columns.
+ * Converts numeric or bigint values to the Timestamp widget.
+ *
+ * @param trace The trace context for timestamp formatting
+ * @returns A cell renderer function for timestamp values
+ */
+export function createTimestampCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
+    if (typeof value !== 'bigint') {
+      return String(value);
+    }
+    return m(Timestamp, {
+      trace,
+      ts: Time.fromRaw(value),
+    });
+  };
+}
 
 /**
  * Converts multiple SqlTables into unified SQL and display schemas.
@@ -55,7 +83,10 @@ import {
  * @param tables Array of SqlTables to convert
  * @returns Complete schemas with all tables and relationships
  */
-export function sqlTablesToSchemas(tables: readonly SqlTable[]): {
+export function sqlTablesToSchemas(
+  tables: readonly SqlTable[],
+  trace: Trace,
+): {
   sqlSchema: SQLSchemaRegistry;
   displaySchema: SchemaRegistry;
 } {
@@ -70,9 +101,9 @@ export function sqlTablesToSchemas(tables: readonly SqlTable[]): {
 
     for (const col of table.columns) {
       const colName = col.name;
+      const kind = col.type?.kind;
 
-      // Handle special column types
-      if (col.type?.kind === 'joinid') {
+      if (kind === 'joinid' && col.type) {
         // This is a foreign key to another table
         const targetTable = col.type.source.table;
         const foreignKey = colName;
@@ -91,10 +122,11 @@ export function sqlTablesToSchemas(tables: readonly SqlTable[]): {
           title: colName,
           columnType: 'quantitative',
         };
-      } else if (col.type?.kind === 'arg_set_id') {
+      } else if (kind === 'arg_set_id') {
         // arg_set_id becomes a parameterized column for args
         // Use 'args' as the parameterized column name
         const argColName = 'args';
+        const allArgsColName = 'all_args';
 
         // SQL schema: Expression to extract arg by key
         sqlColumns[argColName] = <SQLExpressionDef>{
@@ -119,7 +151,54 @@ export function sqlTablesToSchemas(tables: readonly SqlTable[]): {
         displayColumns[argColName] = <ParameterizedColumnDef>{
           parameterized: true,
           title: (key) => `Arg: ${key}`,
+          titleString: 'Arg',
+        };
+
+        // SQL schema: Expression to get all args as JSON
+        sqlColumns[allArgsColName] = <SQLExpressionDef>{
+          expression: (alias) => {
+            return `(
+              SELECT json_group_object(args.key, args.display_value)
+              FROM args
+              WHERE args.arg_set_id = ${alias}.${colName}
+            )`;
+          },
+        };
+
+        // Display schema: All args column with custom renderer
+        displayColumns[allArgsColName] = <ColumnDef>{
+          title: 'Args',
           titleString: 'Args',
+          columnType: 'text',
+          cellRenderer: (value) => {
+            if (value === null || value === undefined) {
+              return m('span.pf-null-value', 'NULL');
+            }
+            try {
+              const parsed =
+                typeof value === 'string' ? JSON.parse(value) : value;
+              if (typeof parsed !== 'object' || parsed === null) {
+                return String(value);
+              }
+              const entries = Object.entries(parsed);
+              if (entries.length === 0) {
+                return m('span.pf-empty-value', '{}');
+              }
+              return m(
+                'span.pf-args-list',
+                '{',
+                entries.map(([key, val], i) => [
+                  i > 0 ? ', ' : '',
+                  m('b', key),
+                  ': ',
+                  String(val),
+                ]),
+                '}',
+              );
+            } catch {
+              return String(value);
+            }
+          },
         };
 
         // Also keep the raw arg_set_id column
@@ -129,25 +208,79 @@ export function sqlTablesToSchemas(tables: readonly SqlTable[]): {
           titleString: colName,
           filterType: 'numeric',
         };
-      } else {
-        // Regular column
+      } else if (kind === 'int' || kind === 'double') {
         sqlColumns[colName] = <SQLColumnDef>{};
-
-        displayColumns[colName] = <ColumnDef>{
+        displayColumns[colName] = {
           title: colName,
           titleString: colName,
-          filterType:
-            col.type?.kind === 'int' ||
-            col.type?.kind === 'double' ||
-            col.type?.kind === 'timestamp' ||
-            col.type?.kind === 'duration'
-              ? 'numeric'
-              : col.type?.kind === 'string'
-                ? 'string'
-                : undefined,
+          columnType: 'quantitative',
         };
-
-        // TODO: Add cellRenderers for special types (timestamp, duration)
+      } else if (kind === 'string') {
+        sqlColumns[colName] = <SQLColumnDef>{};
+        displayColumns[colName] = {
+          title: colName,
+          titleString: colName,
+          columnType: 'text',
+        };
+      } else if (kind === 'boolean' || kind === 'id') {
+        sqlColumns[colName] = <SQLColumnDef>{};
+        displayColumns[colName] = {
+          title: colName,
+          titleString: colName,
+          columnType: 'identifier',
+        };
+      } else if (kind === 'bytes') {
+        sqlColumns[colName] = <SQLColumnDef>{};
+        displayColumns[colName] = {
+          title: colName,
+          titleString: colName,
+          columnType: 'text',
+        };
+      } else if (kind === 'duration') {
+        sqlColumns[colName] = <SQLColumnDef>{};
+        displayColumns[colName] = {
+          title: colName,
+          titleString: colName,
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            if (typeof value === 'number') {
+              value = BigInt(Math.round(value));
+            }
+            if (typeof value !== 'bigint') {
+              return String(value);
+            }
+            return m(DurationWidget, {
+              trace,
+              dur: value,
+            });
+          },
+        };
+      } else if (kind === 'timestamp') {
+        sqlColumns[colName] = <SQLColumnDef>{};
+        displayColumns[colName] = {
+          title: colName,
+          titleString: colName,
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            if (typeof value === 'number') {
+              value = BigInt(Math.round(value));
+            }
+            if (typeof value !== 'bigint') {
+              return String(value);
+            }
+            return m(Timestamp, {
+              trace,
+              ts: Time.fromRaw(value),
+            });
+          },
+        };
+      } else {
+        // For undefined and any other unhandled types
+        sqlColumns[colName] = <SQLColumnDef>{};
+        displayColumns[colName] = {
+          title: colName,
+          titleString: colName,
+        };
       }
     }
 
@@ -160,24 +293,4 @@ export function sqlTablesToSchemas(tables: readonly SqlTable[]): {
   }
 
   return {sqlSchema, displaySchema};
-}
-
-/**
- * Converts a single SqlTable to schemas (simpler version for single-table use).
- *
- * @param table The SqlTable from SqlModules
- * @returns SQL schema registry with single table entry
- */
-export function sqlTableToSQLSchema(table: SqlTable): {
-  sqlSchema: SQLSchemaRegistry;
-  displaySchema: SchemaRegistry;
-  rootSchema: string;
-} {
-  const {sqlSchema, displaySchema} = sqlTablesToSchemas([table]);
-
-  return {
-    sqlSchema,
-    displaySchema,
-    rootSchema: table.name,
-  };
 }
