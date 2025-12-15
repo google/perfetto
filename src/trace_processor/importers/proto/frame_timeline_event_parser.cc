@@ -297,8 +297,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
 
   int64_t cookie = event.cookie();
   int64_t token = event.token();
-  float jank_severity_score = event.jank_severity_score();
-  float jank_debug_metadata = event.jank_debug_metadata();
+  double jank_severity_score = static_cast<double>(event.jank_severity_score());
+  double jank_debug_metadata = static_cast<double>(event.jank_debug_metadata());
   double present_delay_millis =
       static_cast<double>(event.present_delay_millis());
   StringId name_id =
@@ -494,8 +494,8 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
-  float jank_severity_score = event.jank_severity_score();
-  float jank_debug_metadata = event.jank_debug_metadata();
+  double jank_severity_score = static_cast<double>(event.jank_severity_score());
+  double jank_debug_metadata = static_cast<double>(event.jank_debug_metadata());
   double present_delay_millis =
       static_cast<double>(event.present_delay_millis());
   double vsync_resynced_jitter_millis =
