@@ -27,11 +27,116 @@
 
 namespace perfetto::trace_processor {
 
+// Type for an "I/O Request Packet", which identifies a file I/O operation.
+using Irp = uint64_t;
+
+// Opcodes for the file I/O event types. Source: `FileIo` class docs:
+// https://learn.microsoft.com/en-us/windows/win32/etw/fileio
+enum EventType {
+  kCreateFile = 64,
+  kDirectoryEnumeration = 72,
+  kDirectoryNotification = 77,
+  kSetInformation = 69,
+  kDeleteFile = 70,
+  kRenameFile = 71,
+  kQueryFileInformation = 74,
+  kFilesystemControlEvent = 75,
+  kReadFile = 67,
+  kWriteFile = 68,
+  kCleanup = 65,
+  kClose = 66,
+  kFlush = 73,
+  kEndOperation = 76,
+};
+
+// Values for the "File Info" argument. Source: `FILE_INFORMATION_CLASS` docs:
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_file_information_class
+enum FileInfoClass {
+  kFileDirectoryInformation = 1,
+  kFileFullDirectoryInformation = 2,
+  kFileBothDirectoryInformation = 3,
+  kFileBasicInformation = 4,
+  kFileStandardInformation = 5,
+  kFileInternalInformation = 6,
+  kFileEaInformation = 7,
+  kFileAccessInformation = 8,
+  kFileNameInformation = 9,
+  kFileRenameInformation = 10,
+  kFileLinkInformation = 11,
+  kFileNamesInformation = 12,
+  kFileDispositionInformation = 13,
+  kFilePositionInformation = 14,
+  kFileFullEaInformation = 15,
+  kFileModeInformation = 16,
+  kFileAlignmentInformation = 17,
+  kFileAllInformation = 18,
+  kFileAllocationInformation = 19,
+  kFileEndOfFileInformation = 20,
+  kFileAlternateNameInformation = 21,
+  kFileStreamInformation = 22,
+  kFilePipeInformation = 23,
+  kFilePipeLocalInformation = 24,
+  kFilePipeRemoteInformation = 25,
+  kFileMailslotQueryInformation = 26,
+  kFileMailslotSetInformation = 27,
+  kFileCompressionInformation = 28,
+  kFileObjectIdInformation = 29,
+  kFileCompletionInformation = 30,
+  kFileMoveClusterInformation = 31,
+  kFileQuotaInformation = 32,
+  kFileReparsePointInformation = 33,
+  kFileNetworkOpenInformation = 34,
+  kFileAttributeTagInformation = 35,
+  kFileTrackingInformation = 36,
+  kFileIdBothDirectoryInformation = 37,
+  kFileIdFullDirectoryInformation = 38,
+  kFileValidDataLengthInformation = 39,
+  kFileShortNameInformation = 40,
+  kFileIoCompletionNotificationInformation = 41,
+  kFileIoStatusBlockRangeInformation = 42,
+  kFileIoPriorityHintInformation = 43,
+  kFileSfioReserveInformation = 44,
+  kFileSfioVolumeInformation = 45,
+  kFileHardLinkInformation = 46,
+  kFileProcessIdsUsingFileInformation = 47,
+  kFileNormalizedNameInformation = 48,
+  kFileNetworkPhysicalNameInformation = 49,
+  kFileIdGlobalTxDirectoryInformation = 50,
+  kFileIsRemoteDeviceInformation = 51,
+  kFileUnusedInformation = 52,
+  kFileNumaNodeInformation = 53,
+  kFileStandardLinkInformation = 54,
+  kFileRemoteProtocolInformation = 55,
+  kFileRenameInformationBypassAccessCheck = 56,
+  kFileLinkInformationBypassAccessCheck = 57,
+  kFileVolumeNameInformation = 58,
+  kFileIdInformation = 59,
+  kFileIdExtdDirectoryInformation = 60,
+  kFileReplaceCompletionInformation = 61,
+  kFileHardLinkFullIdInformation = 62,
+  kFileIdExtdBothDirectoryInformation = 63,
+  kFileDispositionInformationEx = 64,
+  kFileRenameInformationEx = 65,
+  kFileRenameInformationExBypassAccessCheck = 66,
+  kFileDesiredStorageClassInformation = 67,
+  kFileStatInformation = 68,
+  kFileMemoryPartitionInformation = 69,
+  kFileStatLxInformation = 70,
+  kFileCaseSensitiveInformation = 71,
+  kFileLinkInformationEx = 72,
+  kFileLinkInformationExBypassAccessCheck = 73,
+  kFileStorageReserveIdInformation = 74,
+  kFileCaseSensitiveInformationForceAccessCheck = 75,
+  kFileKnownFolderInformation = 76,
+  kFileStatBasicInformation = 77,
+  kFileId64ExtdDirectoryInformation = 78,
+  kFileId64ExtdBothDirectoryInformation = 79,
+  kFileIdAllExtdDirectoryInformation = 80,
+  kFileIdAllExtdBothDirectoryInformation = 81
+};
+
 // A class to keep track of file I/O events recorded by Event Tracing for
-// Windows (ETW). File operations start and end in separate ETW events, so this
-// class tracks operations that have started and records the end time when a
-// corresponding "operation end" event is found. Events without a corresponding
-// end event are ignored.
+// Windows (ETW).
 class FileIoTracker {
  public:
   explicit FileIoTracker(TraceProcessorContext* context);
@@ -43,27 +148,89 @@ class FileIoTracker {
   void ParseFileIoSimpleOp(int64_t timestamp, protozero::ConstBytes);
   void ParseFileIoOpEnd(int64_t timestamp, protozero::ConstBytes);
 
+  void NotifyEndOfFile();
+
  private:
-  struct FileIoEvent {
+  struct StartedEvent {
+    StringId name;
     int64_t timestamp;
-    uint32_t opcode;
-    SliceTracker::SetArgsCallback set_args;
   };
 
   // Starts tracking `event`, to be added to the trace when its matching end
   // event is parsed.
-  void StartEvent(uint64_t irp, FileIoEvent event);
+  void StartEvent(std::optional<Irp> irp,
+                  StringId name,
+                  int64_t timestamp,
+                  SliceTracker::SetArgsCallback args);
 
   // Adds the ending event to the trace as a slice.
-  void EndEvent(int64_t end_timestamp,
-                uint64_t irp,
-                SliceTracker::SetArgsCallback set_args_callback);
+  void EndEvent(std::optional<Irp> irp,
+                int64_t timestamp,
+                SliceTracker::SetArgsCallback args);
+
+  // Ends the given event with a duration of zero, and adds an argument labeling
+  // it as missing a matching end event.
+  void EndUnmatchedStart(Irp irp, int64_t timestamp);
+
+  // Records an "EndOperation" event with a duration of zero, and adds an
+  // argument labeling it as missing a matching start event.
+  void RecordUnmatchedEnd(int64_t timestamp);
+
+  // Records an event without an IRP identifier with a duration of zero (as it's
+  // unable to be matched with a corresponding start or end event).
+  void RecordEventWithoutIrp(StringId name,
+                             int64_t timestamp,
+                             SliceTracker::SetArgsCallback args);
+
+  // Helper function to get the value to display for `info_class`: either its
+  // string representation, if known, or its numerical value.
+  Variadic GetInfoClassArgValue(uint32_t info_class) const;
+
+  // Helper function to get the readable name of the event with `opcode`, if
+  // known.
+  std::optional<StringId> GetEventName(uint32_t opcode) const;
 
   TraceProcessorContext* context_;
 
-  // Keeps track of events parsed so far for which a corresponding "operation
-  // end" event has not yet been parsed.
-  std::map<uint64_t, FileIoEvent> started_events_;
+  // Tracks events parsed so far for which a corresponding "operation end" event
+  // has not yet been parsed. This enables events with no matching end event to
+  // be closed with a zero duration at the end of parsing.
+  std::map<Irp, StartedEvent> started_events_;
+
+  // Strings interned in the constructor to improve performance.
+  const StringId create_options_arg_;
+  const StringId disposition_arg_;
+  const StringId enumeration_path_arg_;
+  const StringId extra_info_arg_;
+  const StringId file_attributes_arg_;
+  const StringId file_index_arg_;
+  const StringId file_key_arg_;
+  const StringId file_object_arg_;
+  const StringId file_size_arg_;
+  const StringId info_class_arg_;
+  const StringId io_flags_arg_;
+  const StringId irp_arg_;
+  const StringId io_size_arg_;
+  const StringId nt_status_arg_;
+  const StringId offset_arg_;
+  const StringId open_path_arg_;
+  const StringId share_access_arg_;
+  const StringId thread_id_arg_;
+  const StringId category_;
+  const StringId missing_event_arg_;
+  const StringId missing_start_event_;
+  const StringId missing_end_event_;
+  const StringId unknown_event_;
+  const StringId dir_enum_event_;
+  const StringId info_event_;
+  const StringId read_write_event_;
+  const StringId simple_op_event_;
+
+  // Readable descriptions for the file I/O event types.
+  std::map<EventType, StringId> event_types_;
+
+  // Readable descriptions for known "File Info" argument values.
+  std::map<FileInfoClass, StringId> file_info_classes_;
 };
 
 }  // namespace perfetto::trace_processor
