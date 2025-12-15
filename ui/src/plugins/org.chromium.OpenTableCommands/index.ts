@@ -51,7 +51,9 @@ export const SLICE_TABLE: SqlTable = {
 };
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'org.Chromium.OpenTableCommands';
+  static readonly id = 'org.chromium.OpenTableCommands';
+  static readonly description =
+    'Adds commands to open some common opinionated tables in table explorer';
 
   async onTraceLoad(ctx: Trace) {
     ctx.commands.registerCommand({
@@ -69,8 +71,13 @@ export default class implements PerfettoPlugin {
             'category',
             'name',
             'utid',
+            'utid.tid',
+            'utid.name',
             'upid',
+            'upid.pid',
+            'upid.name',
             'track_id',
+            'track_id.name',
             'arg_set_id',
           ],
         });
@@ -90,6 +97,8 @@ export default class implements PerfettoPlugin {
             'start_ts',
             'end_ts',
             'upid',
+            'upid.pid',
+            'upid.name',
             'is_main_thread',
           ],
         });
@@ -131,6 +140,10 @@ export default class implements PerfettoPlugin {
             'cpu',
             'priority',
             'utid',
+            'utid.tid',
+            'utid.name',
+            'utid.upid.pid',
+            'utid.upid.name',
             'end_state',
             'ucpu',
           ],
@@ -151,9 +164,15 @@ export default class implements PerfettoPlugin {
             'state',
             'cpu',
             'utid',
+            'utid.tid',
+            'utid.name',
+            'utid.upid.pid',
+            'utid.upid.name',
             'io_wait',
             'blocked_function',
             'waker_utid',
+            'waker_utid.tid',
+            'waker_utid.name',
             'waker_id',
             'irq_context',
             'ucpu',
