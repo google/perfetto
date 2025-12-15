@@ -12,15 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
-
-.pf-pivot-table {
-  &__total-values {
-    font-weight: bolder;
-  }
-
-  &__cell--indent {
-    display: inline-block;
-    width: 24px;
-  }
+.pf-table-explorer__row-count {
+  margin-right: 8px;
+  color: var(--pf-color-text-muted);
 }

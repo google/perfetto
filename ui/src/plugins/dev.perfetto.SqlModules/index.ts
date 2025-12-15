@@ -18,25 +18,20 @@ import {defer} from '../../base/deferred';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {Tab} from '../../public/tab';
 import {SqlModules} from './sql_modules';
 import {
   SQL_MODULES_DOCS_SCHEMA,
   SqlModulesDocsSchema,
   SqlModulesImpl,
 } from './sql_modules_impl';
-import {
-  DataGrid,
-  DataGridAttrs,
-} from '../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {addEphemeralTab} from '../../components/details/add_ephemeral_tab';
-import {DetailsShell} from '../../widgets/details_shell';
 import {sqlTablesToSchemas} from './sql_table_converter';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {SqlTable} from './sql_modules';
 import {Filter} from '../../components/widgets/datagrid/model';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {TableExplorer} from './table_explorer';
 
 const docs = defer<SqlModulesDocsSchema>();
 
@@ -220,8 +215,9 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
     // Create and open tab
     addEphemeralTab(
       this.trace,
-      'sqlTable',
-      new DataGridSqlTableTab({
+      'tableExplorer',
+      new TableExplorer({
+        trace: this.trace,
         displayName: tableName,
         dataSource,
         schema: displaySchema,
@@ -234,60 +230,6 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
 
   getSqlModules(): SqlModules | undefined {
     return this.sqlModules;
-  }
-}
-
-/**
- * Tab implementation for DataGrid-based SQL table viewer
- */
-class DataGridSqlTableTab implements Tab {
-  private readonly displayName: string;
-  private readonly dataSource: SQLDataSource;
-  private readonly schema: SchemaRegistry;
-  private readonly rootSchema: string;
-  private readonly initialFilters?: Filter[];
-  private readonly initialColumns?: string[];
-
-  constructor(config: {
-    displayName: string;
-    dataSource: SQLDataSource;
-    schema: SchemaRegistry;
-    rootSchema: string;
-    initialFilters?: Filter[];
-    initialColumns?: string[];
-  }) {
-    this.displayName = config.displayName;
-    this.dataSource = config.dataSource;
-    this.schema = config.schema;
-    this.rootSchema = config.rootSchema;
-    this.initialFilters = config.initialFilters;
-    this.initialColumns = config.initialColumns;
-  }
-
-  getTitle(): string {
-    return `Table: ${this.displayName}`;
-  }
-
-  render(): m.Children {
-    return m(
-      DetailsShell,
-      {
-        title: 'Table',
-        description: this.displayName,
-        fillHeight: true,
-      },
-      m(DataGrid, {
-        schema: this.schema,
-        rootSchema: this.rootSchema,
-        data: this.dataSource,
-        initialFilters: this.initialFilters,
-        initialColumns: this.initialColumns?.map((colName) => ({
-          field: colName,
-        })),
-        fillHeight: true,
-        showExportButton: true,
-      } satisfies DataGridAttrs),
-    );
   }
 }
 
