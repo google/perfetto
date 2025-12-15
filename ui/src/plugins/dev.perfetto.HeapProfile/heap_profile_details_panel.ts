@@ -44,7 +44,10 @@ import {
   FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphOptionalAction,
 } from '../../widgets/flamegraph';
-import {PerfettoSqlTypes, PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import {
+  PerfettoSqlTypes,
+  PerfettoSqlType,
+} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
 
@@ -781,7 +784,8 @@ function getHeapGraphNodeOptionalActions(
               // Create view to be returned
               await trace.engine.query(statement);
               const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
-              const tableDef = getHeapGraphRetainedObjectCountsView(isDominator);
+              const tableDef =
+                getHeapGraphRetainedObjectCountsView(isDominator);
               sqlModules?.openTableExplorer(tableDef.name, {
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
@@ -809,7 +813,8 @@ function getHeapGraphNodeOptionalActions(
               // Create view to be returned
               await trace.engine.query(statement);
               const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
-              const tableDef = getHeapGraphRetainingObjectCountsView(isDominator);
+              const tableDef =
+                getHeapGraphRetainingObjectCountsView(isDominator);
               sqlModules?.openTableExplorer(tableDef.name, {
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });

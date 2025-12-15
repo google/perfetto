@@ -84,11 +84,7 @@ export default class implements PerfettoPlugin {
         const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
         const threadStateTable = getThreadStateTable();
         sqlModules?.openTableExplorer(threadStateTable.name, {
-          customTables: [
-            threadStateTable,
-            getThreadTable(),
-            getProcessTable(),
-          ],
+          customTables: [threadStateTable, getThreadTable(), getProcessTable()],
         });
       },
     });
