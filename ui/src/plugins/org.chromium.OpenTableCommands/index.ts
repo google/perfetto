@@ -52,6 +52,7 @@ export const SLICE_TABLE: SqlTable = {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.OpenTableCommands';
+  static readonly dependencies = [SqlModulesPlugin];
   static readonly description =
     'Adds commands to open some common opinionated tables in table explorer';
 

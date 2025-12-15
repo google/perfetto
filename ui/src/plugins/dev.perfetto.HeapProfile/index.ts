@@ -24,6 +24,7 @@ import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 import {assertExists} from '../../base/logging';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
@@ -35,7 +36,7 @@ type HeapProfilePluginState = z.infer<typeof HEAP_PROFILE_PLUGIN_STATE_SCHEMA>;
 
 export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
-  static readonly dependencies = [ProcessThreadGroupsPlugin];
+  static readonly dependencies = [ProcessThreadGroupsPlugin, SqlModulesPlugin];
 
   private readonly trackMap = new Map<number, Track>();
   private store?: Store<HeapProfilePluginState>;
