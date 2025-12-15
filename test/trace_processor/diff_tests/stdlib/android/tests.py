@@ -1335,6 +1335,31 @@ class AndroidStdlib(TestSuite):
         5533919,5487703,25013,7964,"droid.launcher3",7964,"com.android.launcher3","0x1","0xa","[Gesture Monitor] swipe-up (server)",582051112236,1258,582051137249,1771
       """))
 
+  def test_input_events_end_to_end_latency(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_input_tracing_e2e_latency.pb.gz'),
+        query="""
+        INCLUDE PERFETTO MODULE android.input;
+        SELECT
+        total_latency_dur,
+        handling_latency_dur,
+        dispatch_latency_dur,
+        end_to_end_latency_dur,
+        tid,
+        thread_name,
+        pid,
+        process_name,
+        event_type
+        FROM android_input_events
+        WHERE end_to_end_latency_dur IS NOT NULL
+        ORDER BY dispatch_ts
+      """,
+        out=Csv("""
+        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","pid","process_name","event_type"
+        3422992,2937418,363000,51007097,4816,"ndroid.settings",4816,"com.android.settings","MOTION"
+        2139405,1956366,81387,50642855,4816,"ndroid.settings",4816,"com.android.settings","MOTION"
+      """))
+
   def test_job_scheduler_events(self):
     return DiffTestBlueprint(
         trace=DataPath('post_boot_trace.atr'),
