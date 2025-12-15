@@ -91,6 +91,7 @@ class FrameTimelineEventParser {
   const StringId jank_type_experimental_id_;
   const StringId jank_severity_type_id_;
   const StringId jank_severity_score_id_;
+  const StringId jank_debug_metadata_id_;
   const StringId layer_name_id_;
   const StringId prediction_type_id_;
   const StringId jank_tag_id_;

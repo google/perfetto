@@ -5745,6 +5745,9 @@ message FrameTimelineEvent {
 
     // experimental value for present_type. Do not consider in jank analysis.
     optional PresentType present_type_experimental = 17;
+
+    // jank metadata information (for debug).
+    optional float jank_debug_metadata = 18;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -5800,6 +5803,9 @@ message FrameTimelineEvent {
 
     // experimental value for present_type. Do not consider in jank analysis.
     optional PresentType present_type_experimental = 13;
+
+    // jank metadata information (for debug).
+    optional float jank_debug_metadata = 14;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding

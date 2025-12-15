@@ -214,6 +214,8 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("Jank severity type")),
       jank_severity_score_id_(
           context->storage->InternString("Jank Severity Score (experimental)")),
+      jank_debug_metadata_id_(
+          context->storage->InternString("Jank Metadata (debugging only)")),
       layer_name_id_(context->storage->InternString("Layer name")),
       prediction_type_id_(context->storage->InternString("Prediction type")),
       jank_tag_id_(context->storage->InternString("Jank tag")),
@@ -295,7 +297,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
 
   int64_t cookie = event.cookie();
   int64_t token = event.token();
-  double jank_severity_score = static_cast<double>(event.jank_severity_score());
+  float jank_severity_score = event.jank_severity_score();
+  float jank_debug_metadata = event.jank_debug_metadata();
   double present_delay_millis =
       static_cast<double>(event.present_delay_millis());
   StringId name_id =
@@ -380,6 +383,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
         inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
         inserter->AddArg(jank_tag_experimental_id_,
                          Variadic::String(jank_tag_experimental));
+        inserter->AddArg(jank_debug_metadata_id_,
+                         Variadic::Real(jank_debug_metadata));
       });
 
   // SurfaceFrames will always be parsed before the matching DisplayFrame
@@ -489,7 +494,8 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
-  double jank_severity_score = static_cast<double>(event.jank_severity_score());
+  float jank_severity_score = event.jank_severity_score();
+  float jank_debug_metadata = event.jank_debug_metadata();
   double present_delay_millis =
       static_cast<double>(event.present_delay_millis());
   double vsync_resynced_jitter_millis =
@@ -606,6 +612,8 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
         inserter->AddArg(jank_tag_experimental_id_,
                          Variadic::String(jank_tag_experimental));
         inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
+        inserter->AddArg(jank_debug_metadata_id_,
+                         Variadic::Real(jank_debug_metadata));
       });
 
   if (opt_slice_id) {
