@@ -63,7 +63,7 @@ export interface SQLDataSourceConfig {
    * Optional SQL prelude to execute before each query.
    * Useful for imports like "INCLUDE PERFETTO MODULE xyz;"
    */
-  prelude?: string;
+  preamble?: string;
 }
 
 /**
@@ -128,7 +128,7 @@ export class SQLDataSource implements DataSource {
     this.baseQuery = config.baseQuery;
     this.sqlSchema = config.sqlSchema;
     this.rootSchemaName = config.rootSchemaName;
-    this.prelude = config.prelude;
+    this.prelude = config.preamble;
 
     // Validate configuration
     if (!this.baseQuery && !this.sqlSchema) {

@@ -138,6 +138,8 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
    * @param options.customTables Custom table definitions to inject into the schema
    *   for this invocation only. Useful for adding ad-hoc table relationships or
    *   overriding existing table definitions.
+   * @param options.preamble SQL statements to execute before the main query.
+   *   Typically used for INCLUDE statements.
    */
   openTableExplorer(
     tableName: string,
@@ -145,6 +147,7 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
       filters?: Filter[];
       initialColumns?: string[];
       customTables?: SqlTable[];
+      preamble?: string;
     },
   ): void {
     if (!this.sqlModules || !this.trace) {
@@ -190,18 +193,26 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
       throw new Error(`Table not found: ${tableName}`);
     }
 
-    // Get the module for INCLUDE statement (from base table if available)
-    const module = this.sqlModules.getModuleForTable(tableName);
-    const includeKey = module?.includeKey;
+    // Build preamble from options or module includes
+    let preamble: string | undefined;
+
+    if (options?.preamble) {
+      // Use provided preamble directly
+      preamble = options.preamble;
+    } else {
+      // Fall back to module include if available
+      const module = this.sqlModules.getModuleForTable(tableName);
+      if (module?.includeKey) {
+        preamble = `INCLUDE PERFETTO MODULE ${module.includeKey};`;
+      }
+    }
 
     // Create datasource with (potentially merged) schema
     const dataSource = new SQLDataSource({
       engine: this.trace.engine,
       sqlSchema,
       rootSchemaName: tableName,
-      prelude: includeKey
-        ? `INCLUDE PERFETTO MODULE ${includeKey};`
-        : undefined,
+      preamble,
     });
 
     // Create and open tab
