@@ -32,31 +32,12 @@ import {
   SchemaRegistry,
   ColumnDef,
   ParameterizedColumnDef,
-  CellRenderer,
 } from '../../components/widgets/datagrid/datagrid_schema';
 import {DurationWidget} from '../../components/widgets/duration';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
 
-/**
- * Creates a cell renderer for timestamp columns.
- * Converts numeric or bigint values to the Timestamp widget.
- *
- * @param trace The trace context for timestamp formatting
- * @returns A cell renderer function for timestamp values
- */
-export function createTimestampCellRenderer(trace: Trace): CellRenderer {
-  return (value) => {
-    if (typeof value === 'number') {
-      value = BigInt(Math.round(value));
-    }
-    if (typeof value !== 'bigint') {
-      return String(value);
-    }
-    return m(Timestamp, {
-      trace,
-      ts: Time.fromRaw(value),
-    });
-  };
-}
+const SUPPORTED_LINKTO_TABLES = ['slice', 'thread_state', 'sched'];
 
 /**
  * Converts multiple SqlTables into unified SQL and display schemas.
@@ -222,12 +203,54 @@ export function sqlTablesToSchemas(
           titleString: colName,
           columnType: 'text',
         };
-      } else if (kind === 'boolean' || kind === 'id') {
+      } else if (kind === 'boolean') {
+        sqlColumns[colName] = <SQLColumnDef>{};
+        displayColumns[colName] = {
+          title: colName,
+          titleString: colName,
+          columnType: 'identifier', // Not really an identifier, but we need the same filter types.
+        };
+      } else if (kind === 'id') {
         sqlColumns[colName] = <SQLColumnDef>{};
         displayColumns[colName] = {
           title: colName,
           titleString: colName,
           columnType: 'identifier',
+          cellRenderer: (value) => {
+            function getTableName() {
+              if (col.type?.kind === 'id') {
+                return col.type.source.table;
+              } else {
+                return undefined;
+              }
+            }
+            const tableName = getTableName();
+
+            if (
+              tableName &&
+              SUPPORTED_LINKTO_TABLES.includes(tableName) &&
+              (typeof value === 'number' || typeof value === 'bigint')
+            ) {
+              // Return an identifier-styled cell - is is an Anchor widget with a
+              // link to the slice in the timeline.
+              return m(
+                Anchor,
+                {
+                  onclick: () => {
+                    trace.selection.selectSqlEvent(tableName, Number(value), {
+                      scrollToSelection: true,
+                      switchToCurrentSelectionTab: false,
+                    });
+                  },
+                  icon: Icons.UpdateSelection,
+                  title: 'Show event in timeline',
+                },
+                String(value),
+              );
+            } else {
+              return String(value);
+            }
+          },
         };
       } else if (kind === 'bytes') {
         sqlColumns[colName] = <SQLColumnDef>{};
