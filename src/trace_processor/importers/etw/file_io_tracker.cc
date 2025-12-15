@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/importers/etw/file_io_tracker.h"
 
-#include <map>
-
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/etw/etw.pbzero.h"
 #include "protos/perfetto/trace/etw/etw_event.pbzero.h"
@@ -71,22 +69,38 @@ enum EventType {
   kFlush = 73
 };
 
-// Readable descriptions for the file I/O event types.
-const std::map<EventType, const char*> kEventTypes{
-    {kFileCreate, "FileCreate"},
-    {kDirectoryEnumeration, "DirectoryEnumeration"},
-    {kDirectoryNotification, "DirectoryNotification"},
-    {kSetInformation, "SetInformation"},
-    {kDeleteFile, "DeleteFile"},
-    {kRenameFile, "RenameFile"},
-    {kQueryFileInformation, "QueryFileInformation"},
-    {kFilesystemControlEvent, "FilesystemControlEvent"},
-    {kFileRead, "FileRead"},
-    {kFileWrite, "FileWrite"},
-    {kCleanup, "Cleanup"},
-    {kClose, "Close"},
-    {kFlush, "Flush"},
-};
+// Returns a readable description for a file I/O event type.
+const char* GetEventTypeString(EventType event_type) {
+  switch (event_type) {
+    case kFileCreate:
+      return "FileCreate";
+    case kDirectoryEnumeration:
+      return "DirectoryEnumeration";
+    case kDirectoryNotification:
+      return "DirectoryNotification";
+    case kSetInformation:
+      return "SetInformation";
+    case kDeleteFile:
+      return "DeleteFile";
+    case kRenameFile:
+      return "RenameFile";
+    case kQueryFileInformation:
+      return "QueryFileInformation";
+    case kFilesystemControlEvent:
+      return "FilesystemControlEvent";
+    case kFileRead:
+      return "FileRead";
+    case kFileWrite:
+      return "FileWrite";
+    case kCleanup:
+      return "Cleanup";
+    case kClose:
+      return "Close";
+    case kFlush:
+      return "Flush";
+  }
+  return nullptr;
+}
 
 // Values for the "File Info" argument. Source: `FILE_INFORMATION_CLASS` docs:
 // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_file_information_class
@@ -174,98 +188,174 @@ enum FileInfoClass {
   kFileIdAllExtdBothDirectoryInformation = 81
 };
 
-// Readable descriptions for known "File Info" argument values.
-const std::map<FileInfoClass, const char*> kFileInfoClasses{
-    {kFileDirectoryInformation, "FileDirectoryInformation"},
-    {kFileFullDirectoryInformation, "FileFullDirectoryInformation"},
-    {kFileBothDirectoryInformation, "FileBothDirectoryInformation"},
-    {kFileBasicInformation, "FileBasicInformation"},
-    {kFileStandardInformation, "FileStandardInformation"},
-    {kFileInternalInformation, "FileInternalInformation"},
-    {kFileEaInformation, "FileEaInformation"},
-    {kFileAccessInformation, "FileAccessInformation"},
-    {kFileNameInformation, "FileNameInformation"},
-    {kFileRenameInformation, "FileRenameInformation"},
-    {kFileLinkInformation, "FileLinkInformation"},
-    {kFileNamesInformation, "FileNamesInformation"},
-    {kFileDispositionInformation, "FileDispositionInformation"},
-    {kFilePositionInformation, "FilePositionInformation"},
-    {kFileFullEaInformation, "FileFullEaInformation"},
-    {kFileModeInformation, "FileModeInformation"},
-    {kFileAlignmentInformation, "FileAlignmentInformation"},
-    {kFileAllInformation, "FileAllInformation"},
-    {kFileAllocationInformation, "FileAllocationInformation"},
-    {kFileEndOfFileInformation, "FileEndOfFileInformation"},
-    {kFileAlternateNameInformation, "FileAlternateNameInformation"},
-    {kFileStreamInformation, "FileStreamInformation"},
-    {kFilePipeInformation, "FilePipeInformation"},
-    {kFilePipeLocalInformation, "FilePipeLocalInformation"},
-    {kFilePipeRemoteInformation, "FilePipeRemoteInformation"},
-    {kFileMailslotQueryInformation, "FileMailslotQueryInformation"},
-    {kFileMailslotSetInformation, "FileMailslotSetInformation"},
-    {kFileCompressionInformation, "FileCompressionInformation"},
-    {kFileObjectIdInformation, "FileObjectIdInformation"},
-    {kFileCompletionInformation, "FileCompletionInformation"},
-    {kFileMoveClusterInformation, "FileMoveClusterInformation"},
-    {kFileQuotaInformation, "FileQuotaInformation"},
-    {kFileReparsePointInformation, "FileReparsePointInformation"},
-    {kFileNetworkOpenInformation, "FileNetworkOpenInformation"},
-    {kFileAttributeTagInformation, "FileAttributeTagInformation"},
-    {kFileTrackingInformation, "FileTrackingInformation"},
-    {kFileIdBothDirectoryInformation, "FileIdBothDirectoryInformation"},
-    {kFileIdFullDirectoryInformation, "FileIdFullDirectoryInformation"},
-    {kFileValidDataLengthInformation, "FileValidDataLengthInformation"},
-    {kFileShortNameInformation, "FileShortNameInformation"},
-    {kFileIoCompletionNotificationInformation,
-     "FileIoCompletionNotificationInformation"},
-    {kFileIoStatusBlockRangeInformation, "FileIoStatusBlockRangeInformation"},
-    {kFileIoPriorityHintInformation, "FileIoPriorityHintInformation"},
-    {kFileSfioReserveInformation, "FileSfioReserveInformation"},
-    {kFileSfioVolumeInformation, "FileSfioVolumeInformation"},
-    {kFileHardLinkInformation, "FileHardLinkInformation"},
-    {kFileProcessIdsUsingFileInformation, "FileProcessIdsUsingFileInformation"},
-    {kFileNormalizedNameInformation, "FileNormalizedNameInformation"},
-    {kFileNetworkPhysicalNameInformation, "FileNetworkPhysicalNameInformation"},
-    {kFileIdGlobalTxDirectoryInformation, "FileIdGlobalTxDirectoryInformation"},
-    {kFileIsRemoteDeviceInformation, "FileIsRemoteDeviceInformation"},
-    {kFileUnusedInformation, "FileUnusedInformation"},
-    {kFileNumaNodeInformation, "FileNumaNodeInformation"},
-    {kFileStandardLinkInformation, "FileStandardLinkInformation"},
-    {kFileRemoteProtocolInformation, "FileRemoteProtocolInformation"},
-    {kFileRenameInformationBypassAccessCheck,
-     "FileRenameInformationBypassAccessCheck"},
-    {kFileLinkInformationBypassAccessCheck,
-     "FileLinkInformationBypassAccessCheck"},
-    {kFileVolumeNameInformation, "FileVolumeNameInformation"},
-    {kFileIdInformation, "FileIdInformation"},
-    {kFileIdExtdDirectoryInformation, "FileIdExtdDirectoryInformation"},
-    {kFileReplaceCompletionInformation, "FileReplaceCompletionInformation"},
-    {kFileHardLinkFullIdInformation, "FileHardLinkFullIdInformation"},
-    {kFileIdExtdBothDirectoryInformation, "FileIdExtdBothDirectoryInformation"},
-    {kFileDispositionInformationEx, "FileDispositionInformationEx"},
-    {kFileRenameInformationEx, "FileRenameInformationEx"},
-    {kFileRenameInformationExBypassAccessCheck,
-     "FileRenameInformationExBypassAccessCheck"},
-    {kFileDesiredStorageClassInformation, "FileDesiredStorageClassInformation"},
-    {kFileStatInformation, "FileStatInformation"},
-    {kFileMemoryPartitionInformation, "FileMemoryPartitionInformation"},
-    {kFileStatLxInformation, "FileStatLxInformation"},
-    {kFileCaseSensitiveInformation, "FileCaseSensitiveInformation"},
-    {kFileLinkInformationEx, "FileLinkInformationEx"},
-    {kFileLinkInformationExBypassAccessCheck,
-     "FileLinkInformationExBypassAccessCheck"},
-    {kFileStorageReserveIdInformation, "FileStorageReserveIdInformation"},
-    {kFileCaseSensitiveInformationForceAccessCheck,
-     "FileCaseSensitiveInformationForceAccessCheck"},
-    {kFileKnownFolderInformation, "FileKnownFolderInformation"},
-    {kFileStatBasicInformation, "FileStatBasicInformation"},
-    {kFileId64ExtdDirectoryInformation, "FileId64ExtdDirectoryInformation"},
-    {kFileId64ExtdBothDirectoryInformation,
-     "FileId64ExtdBothDirectoryInformation"},
-    {kFileIdAllExtdDirectoryInformation, "FileIdAllExtdDirectoryInformation"},
-    {kFileIdAllExtdBothDirectoryInformation,
-     "FileIdAllExtdBothDirectoryInformation"},
-};
+// Returns a readable description for a "File Info" argument value.
+const char* GetFileInfoClassString(FileInfoClass file_info_class) {
+  switch (file_info_class) {
+    case kFileDirectoryInformation:
+      return "FileDirectoryInformation";
+    case kFileFullDirectoryInformation:
+      return "FileFullDirectoryInformation";
+    case kFileBothDirectoryInformation:
+      return "FileBothDirectoryInformation";
+    case kFileBasicInformation:
+      return "FileBasicInformation";
+    case kFileStandardInformation:
+      return "FileStandardInformation";
+    case kFileInternalInformation:
+      return "FileInternalInformation";
+    case kFileEaInformation:
+      return "FileEaInformation";
+    case kFileAccessInformation:
+      return "FileAccessInformation";
+    case kFileNameInformation:
+      return "FileNameInformation";
+    case kFileRenameInformation:
+      return "FileRenameInformation";
+    case kFileLinkInformation:
+      return "FileLinkInformation";
+    case kFileNamesInformation:
+      return "FileNamesInformation";
+    case kFileDispositionInformation:
+      return "FileDispositionInformation";
+    case kFilePositionInformation:
+      return "FilePositionInformation";
+    case kFileFullEaInformation:
+      return "FileFullEaInformation";
+    case kFileModeInformation:
+      return "FileModeInformation";
+    case kFileAlignmentInformation:
+      return "FileAlignmentInformation";
+    case kFileAllInformation:
+      return "FileAllInformation";
+    case kFileAllocationInformation:
+      return "FileAllocationInformation";
+    case kFileEndOfFileInformation:
+      return "FileEndOfFileInformation";
+    case kFileAlternateNameInformation:
+      return "FileAlternateNameInformation";
+    case kFileStreamInformation:
+      return "FileStreamInformation";
+    case kFilePipeInformation:
+      return "FilePipeInformation";
+    case kFilePipeLocalInformation:
+      return "FilePipeLocalInformation";
+    case kFilePipeRemoteInformation:
+      return "FilePipeRemoteInformation";
+    case kFileMailslotQueryInformation:
+      return "FileMailslotQueryInformation";
+    case kFileMailslotSetInformation:
+      return "FileMailslotSetInformation";
+    case kFileCompressionInformation:
+      return "FileCompressionInformation";
+    case kFileObjectIdInformation:
+      return "FileObjectIdInformation";
+    case kFileCompletionInformation:
+      return "FileCompletionInformation";
+    case kFileMoveClusterInformation:
+      return "FileMoveClusterInformation";
+    case kFileQuotaInformation:
+      return "FileQuotaInformation";
+    case kFileReparsePointInformation:
+      return "FileReparsePointInformation";
+    case kFileNetworkOpenInformation:
+      return "FileNetworkOpenInformation";
+    case kFileAttributeTagInformation:
+      return "FileAttributeTagInformation";
+    case kFileTrackingInformation:
+      return "FileTrackingInformation";
+    case kFileIdBothDirectoryInformation:
+      return "FileIdBothDirectoryInformation";
+    case kFileIdFullDirectoryInformation:
+      return "FileIdFullDirectoryInformation";
+    case kFileValidDataLengthInformation:
+      return "FileValidDataLengthInformation";
+    case kFileShortNameInformation:
+      return "FileShortNameInformation";
+    case kFileIoCompletionNotificationInformation:
+      return "FileIoCompletionNotificationInformation";
+    case kFileIoStatusBlockRangeInformation:
+      return "FileIoStatusBlockRangeInformation";
+    case kFileIoPriorityHintInformation:
+      return "FileIoPriorityHintInformation";
+    case kFileSfioReserveInformation:
+      return "FileSfioReserveInformation";
+    case kFileSfioVolumeInformation:
+      return "FileSfioVolumeInformation";
+    case kFileHardLinkInformation:
+      return "FileHardLinkInformation";
+    case kFileProcessIdsUsingFileInformation:
+      return "FileProcessIdsUsingFileInformation";
+    case kFileNormalizedNameInformation:
+      return "FileNormalizedNameInformation";
+    case kFileNetworkPhysicalNameInformation:
+      return "FileNetworkPhysicalNameInformation";
+    case kFileIdGlobalTxDirectoryInformation:
+      return "FileIdGlobalTxDirectoryInformation";
+    case kFileIsRemoteDeviceInformation:
+      return "FileIsRemoteDeviceInformation";
+    case kFileUnusedInformation:
+      return "FileUnusedInformation";
+    case kFileNumaNodeInformation:
+      return "FileNumaNodeInformation";
+    case kFileStandardLinkInformation:
+      return "FileStandardLinkInformation";
+    case kFileRemoteProtocolInformation:
+      return "FileRemoteProtocolInformation";
+    case kFileRenameInformationBypassAccessCheck:
+      return "FileRenameInformationBypassAccessCheck";
+    case kFileLinkInformationBypassAccessCheck:
+      return "FileLinkInformationBypassAccessCheck";
+    case kFileVolumeNameInformation:
+      return "FileVolumeNameInformation";
+    case kFileIdInformation:
+      return "FileIdInformation";
+    case kFileIdExtdDirectoryInformation:
+      return "FileIdExtdDirectoryInformation";
+    case kFileReplaceCompletionInformation:
+      return "FileReplaceCompletionInformation";
+    case kFileHardLinkFullIdInformation:
+      return "FileHardLinkFullIdInformation";
+    case kFileIdExtdBothDirectoryInformation:
+      return "FileIdExtdBothDirectoryInformation";
+    case kFileDispositionInformationEx:
+      return "FileDispositionInformationEx";
+    case kFileRenameInformationEx:
+      return "FileRenameInformationEx";
+    case kFileRenameInformationExBypassAccessCheck:
+      return "FileRenameInformationExBypassAccessCheck";
+    case kFileDesiredStorageClassInformation:
+      return "FileDesiredStorageClassInformation";
+    case kFileStatInformation:
+      return "FileStatInformation";
+    case kFileMemoryPartitionInformation:
+      return "FileMemoryPartitionInformation";
+    case kFileStatLxInformation:
+      return "FileStatLxInformation";
+    case kFileCaseSensitiveInformation:
+      return "FileCaseSensitiveInformation";
+    case kFileLinkInformationEx:
+      return "FileLinkInformationEx";
+    case kFileLinkInformationExBypassAccessCheck:
+      return "FileLinkInformationExBypassAccessCheck";
+    case kFileStorageReserveIdInformation:
+      return "FileStorageReserveIdInformation";
+    case kFileCaseSensitiveInformationForceAccessCheck:
+      return "FileCaseSensitiveInformationForceAccessCheck";
+    case kFileKnownFolderInformation:
+      return "FileKnownFolderInformation";
+    case kFileStatBasicInformation:
+      return "FileStatBasicInformation";
+    case kFileId64ExtdDirectoryInformation:
+      return "FileId64ExtdDirectoryInformation";
+    case kFileId64ExtdBothDirectoryInformation:
+      return "FileId64ExtdBothDirectoryInformation";
+    case kFileIdAllExtdDirectoryInformation:
+      return "FileIdAllExtdDirectoryInformation";
+    case kFileIdAllExtdBothDirectoryInformation:
+      return "FileIdAllExtdBothDirectoryInformation";
+  }
+  return nullptr;
+}
 
 }  // namespace
 
@@ -367,14 +457,13 @@ void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp, ConstBytes blob) {
         if (info_class) {
           // If a string version of `info_class` is known, use that as the arg.
           // Otherwise, use its numerical value.
-          const auto info_class_str =
-              kFileInfoClasses.find(static_cast<FileInfoClass>(*info_class));
+          const char* info_class_str =
+              GetFileInfoClassString(static_cast<FileInfoClass>(*info_class));
           inserter->AddArg(
               context_->storage->InternString(kInfoClassArg),
-              info_class_str != kFileInfoClasses.end()
-                  ? Variadic::String(
-                        context_->storage->InternString(info_class_str->second))
-                  : Variadic::UnsignedInteger(*info_class));
+              info_class_str ? Variadic::String(context_->storage->InternString(
+                                   info_class_str))
+                             : Variadic::UnsignedInteger(*info_class));
         }
         if (file_index) {
           inserter->AddArg(context_->storage->InternString(kFileIndexArg),
@@ -443,14 +532,13 @@ void FileIoTracker::ParseFileIoInfo(int64_t timestamp, ConstBytes blob) {
         if (info_class) {
           // If a string version of `info_class` is known, use that as the arg.
           // Otherwise, use its numerical value.
-          const auto info_class_str =
-              kFileInfoClasses.find(static_cast<FileInfoClass>(*info_class));
+          const char* info_class_str =
+              GetFileInfoClassString(static_cast<FileInfoClass>(*info_class));
           inserter->AddArg(
               context_->storage->InternString(kInfoClassArg),
-              info_class_str != kFileInfoClasses.end()
-                  ? Variadic::String(
-                        context_->storage->InternString(info_class_str->second))
-                  : Variadic::UnsignedInteger(*info_class));
+              info_class_str ? Variadic::String(context_->storage->InternString(
+                                   info_class_str))
+                             : Variadic::UnsignedInteger(*info_class));
         }
       };
   StartEvent(irp, {timestamp, decoder.opcode(), std::move(set_args)});
@@ -585,12 +673,12 @@ void FileIoTracker::EndEvent(int64_t end_timestamp,
 
   // Use the event type (e.g., "RenameFile") as the name shown for the event.
   // Events are color-coded by name.
-  const auto event_type =
-      kEventTypes.find(static_cast<EventType>(event.opcode));
-  if (event_type == kEventTypes.end()) {
+  const char* event_type =
+      GetEventTypeString(static_cast<EventType>(event.opcode));
+  if (!event_type) {
     return;
   }
-  const StringId name = context_->storage->InternString(event_type->second);
+  const StringId name = context_->storage->InternString(event_type);
 
   // The value of the "Category" field for file I/O events.
   static constexpr char kCategory[] = "ETW File I/O";
