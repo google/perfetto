@@ -20,8 +20,12 @@ Unreleased:
       dragging selection handles or creating area selections, the cursor
       automatically snaps to nearby slice boundaries to enable exact
       measurement of slice durations. Hold Alt to temporarily disable snapping.
+  Tracing service and probes:
+    * Updated TraceConfig proto to allow referring to target buffers by name
+      rather than index.
   SDK:
     *
+
 
 v53.0 - 2025-11-12:
   SDK:
