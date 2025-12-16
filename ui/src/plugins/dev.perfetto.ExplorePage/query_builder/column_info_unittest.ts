@@ -19,7 +19,7 @@ import {
   newColumnInfo,
   newColumnInfoList,
 } from './column_info';
-import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlColumn} from '../../../public/sql_modules';
 import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
 
 describe('column_info utilities', () => {

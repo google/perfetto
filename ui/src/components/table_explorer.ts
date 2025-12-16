@@ -1,23 +1,23 @@
 import m from 'mithril';
-import {Tab} from '../../public/tab';
+import {Tab} from '../public/tab';
 import {
   DataGrid,
   DataGridApi,
   DataGridAttrs,
-} from '../../components/widgets/datagrid/datagrid';
-import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {DetailsShell} from '../../widgets/details_shell';
-import {Filter, Column, Pivot} from '../../components/widgets/datagrid/model';
+} from './widgets/datagrid/datagrid';
+import {SQLDataSource} from './widgets/datagrid/sql_data_source';
+import {DetailsShell} from '../widgets/details_shell';
+import {Filter, Column, Pivot} from './widgets/datagrid/model';
 import {
   getDefaultVisibleFields,
   SchemaRegistry,
-} from '../../components/widgets/datagrid/datagrid_schema';
-import {DataGridExportButton} from '../../components/widgets/datagrid/export_button';
-import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
-import {Button} from '../../widgets/button';
-import {PopupMenu} from '../../widgets/menu';
-import {PopupPosition} from '../../widgets/popup';
-import {Trace} from '../../public/trace';
+} from './widgets/datagrid/datagrid_schema';
+import {DataGridExportButton} from './widgets/datagrid/export_button';
+import {AddDebugTrackMenu} from './tracks/add_debug_track_menu';
+import {Button} from '../widgets/button';
+import {PopupMenu} from '../widgets/menu';
+import {PopupPosition} from '../widgets/popup';
+import {Trace} from '../public/trace';
 
 export interface TableExplorerConfig {
   trace: Trace;
@@ -37,6 +37,7 @@ export interface TableExplorerState {
   pivot?: Pivot;
 }
 
+// Wraps a DataGrid in a Details shell for use inside tab.
 export class TableExplorer implements Tab {
   private readonly trace: Trace;
   private readonly displayName: string;

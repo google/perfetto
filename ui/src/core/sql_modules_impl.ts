@@ -23,13 +23,13 @@ import {
   SqlPackage,
   SqlTable,
   SqlTableFunction,
-} from './sql_modules';
-import {Trace} from '../../public/trace';
+} from '../public/sql_modules';
+import {Trace} from '../public/trace';
 import {
   parsePerfettoSqlTypeFromString,
   PerfettoSqlType,
-} from '../../trace_processor/perfetto_sql_type';
-import {unwrapResult} from '../../base/result';
+} from '../trace_processor/perfetto_sql_type';
+import {unwrapResult} from '../base/result';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];

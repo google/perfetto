@@ -19,7 +19,6 @@ import {Trace} from '../../public/trace';
 import {QueryResult, Row} from '../../trace_processor/query_result';
 import {SqlRef} from '../../widgets/sql_ref';
 import {MenuItem} from '../../widgets/menu';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 export const SCROLLS_TRACK_URI = 'perfetto.ChromeScrollJank#toplevelScrolls';
 export const EVENT_LATENCY_TRACK_URI = 'perfetto.ChromeScrollJank#eventLatency';
@@ -50,7 +49,6 @@ export function renderSqlRef(args: {
   tableName: string;
   id: number | bigint;
 }) {
-  const sqlModulesPlugin = args.trace.plugins.getPlugin(SqlModulesPlugin);
   return m(SqlRef, {
     table: args.tableName,
     id: args.id,
@@ -59,8 +57,9 @@ export function renderSqlRef(args: {
         label: 'Show query results',
         icon: 'table',
         onclick: () => {
-          sqlModulesPlugin.openTableExplorer(args.tableName, {
-            filters: [
+          args.trace.openTableExplorer({
+            tableName: args.tableName,
+            initialFilters: [
               {
                 field: 'id',
                 op: '=',

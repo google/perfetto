@@ -18,8 +18,7 @@ import {assertFalse} from '../../base/logging';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {time} from '../../base/time';
 import {uuidv4Sql} from '../../base/uuid';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {SqlTable, SqlColumn} from '../dev.perfetto.SqlModules/sql_modules';
+import {SqlTable, SqlColumn} from '../../public/table';
 import {
   QueryFlamegraph,
   QueryFlamegraphMetric,
@@ -685,9 +684,9 @@ function getHeapGraphNodeOptionalActions(
 
           // Create view to be returned
           await trace.engine.query(statement);
-          const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
           const tableDef = getHeapGraphObjectReferencesView(isDominator);
-          sqlModules?.openTableExplorer(tableDef.name, {
+          trace.openTableExplorer({
+            tableName: tableDef.name,
             customTables: [sqlTableDefToSqlTable(tableDef)],
           });
         }
@@ -719,9 +718,9 @@ function getHeapGraphNodeOptionalActions(
 
               // Create view to be returned
               await trace.engine.query(statement);
-              const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
               const tableDef = getHeapGraphIncomingReferencesView(isDominator);
-              sqlModules?.openTableExplorer(tableDef.name, {
+              trace.openTableExplorer({
+                tableName: tableDef.name,
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
             }
@@ -747,9 +746,9 @@ function getHeapGraphNodeOptionalActions(
 
               // Create view to be returned
               await trace.engine.query(statement);
-              const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
               const tableDef = getHeapGraphOutgoingReferencesView(isDominator);
-              sqlModules?.openTableExplorer(tableDef.name, {
+              trace.openTableExplorer({
+                tableName: tableDef.name,
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
             }
@@ -783,10 +782,10 @@ function getHeapGraphNodeOptionalActions(
 
               // Create view to be returned
               await trace.engine.query(statement);
-              const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
               const tableDef =
                 getHeapGraphRetainedObjectCountsView(isDominator);
-              sqlModules?.openTableExplorer(tableDef.name, {
+              trace.openTableExplorer({
+                tableName: tableDef.name,
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
             }
@@ -812,10 +811,10 @@ function getHeapGraphNodeOptionalActions(
 
               // Create view to be returned
               await trace.engine.query(statement);
-              const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
               const tableDef =
                 getHeapGraphRetainingObjectCountsView(isDominator);
-              sqlModules?.openTableExplorer(tableDef.name, {
+              trace.openTableExplorer({
+                tableName: tableDef.name,
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
             }
@@ -841,9 +840,9 @@ function getHeapGraphRootOptionalActions(
 
         // Create view to be returned
         await trace.engine.query(statement);
-        const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
         const tableDef = getHeapGraphDuplicateObjectsView(isDominator);
-        sqlModules?.openTableExplorer(tableDef.name, {
+        trace.openTableExplorer({
+          tableName: tableDef.name,
           customTables: [sqlTableDefToSqlTable(tableDef)],
         });
       },

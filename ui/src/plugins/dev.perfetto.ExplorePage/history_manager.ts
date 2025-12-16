@@ -15,7 +15,7 @@
 import {ExplorePageState} from './explore_page';
 import {serializeState, deserializeState} from './json_handler';
 import {Trace} from '../../public/trace';
-import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import {SqlModules} from '../../public/sql_modules';
 
 const MAX_HISTORY_SIZE = 10;
 

@@ -44,7 +44,6 @@ import {JANKS_TRACK_URI, renderSliceRef} from './utils';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {renderSliceArguments} from '../../components/details/slice_args';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 // Given a node in the slice tree, return a path from root to it.
 function getPath(slice: SliceTreeNode): string[] {
@@ -518,9 +517,10 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
                   Tree,
                   renderSliceArguments(this.trace, slice.args, {
                     openTableExplorer: (tableName, options) => {
-                      const sqlModules =
-                        this.trace.plugins.getPlugin(SqlModulesPlugin);
-                      sqlModules?.openTableExplorer(tableName, options);
+                      this.trace.openTableExplorer({
+                        tableName,
+                        initialFilters: options?.filters,
+                      });
                     },
                   }),
                 ),

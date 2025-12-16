@@ -77,7 +77,6 @@ export const defaultPlugins = [
   'dev.perfetto.Sched',
   'dev.perfetto.Screenshots',
   'dev.perfetto.SettingsPage',
-  'dev.perfetto.SqlModules',
   'dev.perfetto.StandardGroups',
   'dev.perfetto.Thread',
   'dev.perfetto.TimelineSync',

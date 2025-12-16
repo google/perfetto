@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {assetSrc} from '../../base/assets';
 
 import {Builder} from './query_builder/builder';
@@ -66,7 +65,6 @@ export interface ExplorePageState {
 
 interface ExplorePageAttrs {
   readonly trace: Trace;
-  readonly sqlModulesPlugin: SqlModulesPlugin;
   readonly state: ExplorePageState;
   readonly onStateUpdate: (
     update:
@@ -135,7 +133,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     if (descriptor) {
       let initialState: PreCreateState | PreCreateState[] | null = {};
       if (descriptor.preCreate) {
-        const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+        const sqlModules = attrs.trace.getSqlModules();
         if (!sqlModules) return;
         initialState = await descriptor.preCreate({sqlModules});
       }
@@ -153,7 +151,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         return;
       }
 
-      const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+      const sqlModules = attrs.trace.getSqlModules();
       if (!sqlModules) return;
 
       // Use a wrapper object to hold the node reference (allows mutation without 'let')
@@ -231,7 +229,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     let initialState: PreCreateState | PreCreateState[] | null = {};
 
     if (descriptor.preCreate) {
-      const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+      const sqlModules = attrs.trace.getSqlModules();
       if (!sqlModules) return;
       initialState = await descriptor.preCreate({sqlModules});
     }
@@ -277,7 +275,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private async autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
     this.hasAutoInitialized = true;
 
-    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    const sqlModules = attrs.trace.getSqlModules();
     if (!sqlModules) return;
 
     try {
@@ -306,7 +304,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     targetNode: QueryNode,
     portIndex: number,
   ) {
-    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    const sqlModules = attrs.trace.getSqlModules();
     if (!sqlModules) return;
 
     // Get the table descriptor
@@ -345,7 +343,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     targetNode: QueryNode,
     portIndex: number,
   ) {
-    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    const sqlModules = attrs.trace.getSqlModules();
     if (!sqlModules) return;
 
     // Get the ModifyColumns descriptor
@@ -788,8 +786,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
    * Handles cleanup of existing nodes and state update.
    */
   private async loadStateFromJson(attrs: ExplorePageAttrs, json: string) {
-    const {trace, sqlModulesPlugin, state, onStateUpdate} = attrs;
-    const sqlModules = sqlModulesPlugin.getSqlModules();
+    const {trace, state, onStateUpdate} = attrs;
+    const sqlModules = trace.getSqlModules();
     if (!sqlModules) return;
 
     await this.cleanupExistingNodes(state.rootNodes);
@@ -928,7 +926,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
     const {trace, state} = attrs;
 
-    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    const sqlModules = attrs.trace.getSqlModules();
 
     if (!sqlModules) {
       return m(

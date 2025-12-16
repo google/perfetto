@@ -24,10 +24,7 @@ import {
 } from '../widgets';
 import {JoinSourceCard} from '../join_widgets';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
-import {
-  SqlTable,
-  SqlColumn,
-} from '../../../dev.perfetto.SqlModules/sql_modules';
+import {SqlTable, SqlColumn} from '../../../../public/sql_modules';
 
 /**
  * Modal for suggesting and connecting a new table to join

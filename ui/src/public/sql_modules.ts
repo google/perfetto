@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import {SqlTable, SqlColumn} from './table';
+
+// Re-export for convenience
+export {SqlTable, SqlColumn};
 
 // Handles the access to all of the Perfetto SQL modules accessible to Trace
 //  Processor.
@@ -72,16 +75,6 @@ export interface SqlModule {
   getTable(tableName: string): SqlTable | undefined;
 }
 
-// The definition of Perfetto SQL table/view.
-export interface SqlTable {
-  readonly name: string;
-  readonly includeKey?: string;
-  readonly description: string;
-  readonly type: string;
-  readonly importance?: 'high' | 'mid' | 'low';
-  readonly columns: SqlColumn[];
-}
-
 // The definition of Perfetto SQL function.
 export interface SqlFunction {
   readonly name: string;
@@ -105,13 +98,6 @@ export interface SqlMacro {
   readonly description: string;
   readonly args: SqlArgument[];
   readonly returnType: string;
-}
-
-// The definition of Perfetto SQL column.
-export interface SqlColumn {
-  readonly name: string;
-  readonly description?: string;
-  readonly type?: PerfettoSqlType;
 }
 
 // The definition of Perfetto SQL argument. Can be used for functions, table

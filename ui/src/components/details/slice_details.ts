@@ -30,7 +30,6 @@ import {renderProcessRef} from '../widgets/process';
 import {renderThreadRef} from '../widgets/thread';
 import {Timestamp} from '../widgets/timestamp';
 import {Trace} from '../../public/trace';
-import SqlModulesPlugin from '../../plugins/dev.perfetto.SqlModules';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
@@ -54,11 +53,9 @@ export function renderDetails(
           m(MenuItem, {
             label: 'Slices with the same name',
             onclick: () => {
-              const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
-              if (sqlModules === undefined) return;
-
-              sqlModules.openTableExplorer('slice', {
-                filters: [
+              trace.openTableExplorer({
+                tableName: 'slice',
+                initialFilters: [
                   slice.name === undefined
                     ? {field: 'name', op: 'is null'}
                     : {field: 'name', op: '=', value: slice.name},

@@ -13,10 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  SqlTable,
-  SqlModules,
-} from '../../../../dev.perfetto.SqlModules/sql_modules';
+import {SqlTable, SqlModules} from '../../../../../public/sql_modules';
 import {
   QueryNode,
   createSelectColumnsProto,

@@ -21,10 +21,7 @@ import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
 import {serializeState, deserializeState, SerializedNode} from './json_handler';
 import {Trace} from '../../public/trace';
-import {
-  SqlModules,
-  SqlTable,
-} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
+import {SqlModules, SqlTable} from '../../public/sql_modules';
 import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
 import {LimitAndOffsetNode} from './query_builder/nodes/limit_and_offset_node';
 import {SortNode} from './query_builder/nodes/sort_node';

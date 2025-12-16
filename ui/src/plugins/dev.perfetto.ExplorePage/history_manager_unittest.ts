@@ -15,7 +15,7 @@
 import {HistoryManager} from './history_manager';
 import {ExplorePageState} from './explore_page';
 import {Trace} from '../../public/trace';
-import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+import {SqlModules, SqlTable} from '../../public/sql_modules';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {FilterNode} from './query_builder/nodes/filter_node';

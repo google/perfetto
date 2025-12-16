@@ -70,6 +70,7 @@ import {
 } from '../core/command_manager';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
+import {initSqlModulesLoader} from '../core/sql_modules_manager';
 
 // =============================================================================
 // UI INITIALIZATION STAGES
@@ -201,6 +202,9 @@ function main() {
   // Setup content security policy before anything else.
   setupContentSecurityPolicy();
   initAssets();
+
+  // Start loading SQL modules schema in the background (used by table explorer)
+  initSqlModulesLoader();
 
   // Create settings Manager
   const settingsManager = new SettingsManagerImpl(

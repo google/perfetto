@@ -42,7 +42,6 @@ import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
-import SqlModulesPlugin from '../../plugins/dev.perfetto.SqlModules';
 
 interface ContextMenuItem {
   name: string;
@@ -315,8 +314,10 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
           Tree,
           renderSliceArguments(trace, slice.args, {
             openTableExplorer: (tableName, options) => {
-              const sqlModules = trace.plugins.getPlugin(SqlModulesPlugin);
-              sqlModules?.openTableExplorer(tableName, options);
+              trace.openTableExplorer({
+                tableName,
+                initialFilters: options?.filters,
+              });
             },
           }),
         ),

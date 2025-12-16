@@ -25,12 +25,11 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
 import {fromSqlBool, renderSqlRef} from './utils';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ScrollTimelineModel} from './scroll_timeline_model';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {SqlRef} from '../../widgets/sql_ref';
 import {MenuItem} from '../../widgets/menu';
-import {SqlColumn} from '../dev.perfetto.SqlModules/sql_modules';
+import {SqlColumn} from '../../public/table';
 
 const SCROLL_TIMELINE_TABLE_COLUMNS: SqlColumn[] = [
   {name: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
@@ -187,10 +186,9 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
                 label: 'Show query results',
                 icon: 'table',
                 onclick: () => {
-                  const sqlModulesPlugin =
-                    this.trace.plugins.getPlugin(SqlModulesPlugin);
-                  sqlModulesPlugin.openTableExplorer(this.model.tableName, {
-                    filters: [
+                  this.trace.openTableExplorer({
+                    tableName: this.model.tableName,
+                    initialFilters: [
                       {
                         field: 'id',
                         op: '=',

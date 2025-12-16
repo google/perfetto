@@ -14,9 +14,8 @@
 
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {SqlTable} from '../../public/table';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 
 // Custom table definition for slices using the viz module
 export const SLICE_TABLE: SqlTable = {
@@ -52,7 +51,6 @@ export const SLICE_TABLE: SqlTable = {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.OpenTableCommands';
-  static readonly dependencies = [SqlModulesPlugin];
   static readonly description =
     'Adds commands to open some common opinionated tables in table explorer';
 
@@ -61,8 +59,8 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.slice',
       name: 'Open table: slice',
       callback: () => {
-        const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        sqlModules?.openTableExplorer(SLICE_TABLE.name, {
+        ctx.openTableExplorer({
+          tableName: SLICE_TABLE.name,
           customTables: [SLICE_TABLE],
           preamble: 'INCLUDE PERFETTO MODULE viz.slices;',
           initialColumns: [
@@ -89,8 +87,8 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.thread',
       name: 'Open table: thread',
       callback: () => {
-        const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        sqlModules?.openTableExplorer('thread', {
+        ctx.openTableExplorer({
+          tableName: 'thread',
           initialColumns: [
             {field: 'utid'},
             {field: 'tid'},
@@ -110,8 +108,8 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.process',
       name: 'Open table: process',
       callback: () => {
-        const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        sqlModules?.openTableExplorer('process', {
+        ctx.openTableExplorer({
+          tableName: 'process',
           initialColumns: [
             {field: 'upid'},
             {field: 'pid'},
@@ -132,8 +130,8 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.sched',
       name: 'Open table: sched',
       callback: () => {
-        const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        sqlModules?.openTableExplorer('sched', {
+        ctx.openTableExplorer({
+          tableName: 'sched',
           initialColumns: [
             {field: 'id'},
             {field: 'ts'},
@@ -156,8 +154,8 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {
-        const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        sqlModules?.openTableExplorer('thread_state', {
+        ctx.openTableExplorer({
+          tableName: 'thread_state',
           initialColumns: [
             {field: 'id'},
             {field: 'ts'},
@@ -186,8 +184,8 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.android_logs',
       name: 'Open table: android_logs',
       callback: () => {
-        const sqlModules = ctx.plugins.getPlugin(SqlModulesPlugin);
-        sqlModules?.openTableExplorer('android_logs', {
+        ctx.openTableExplorer({
+          tableName: 'android_logs',
           initialColumns: [
             {field: 'id'},
             {field: 'ts'},

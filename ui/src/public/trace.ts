@@ -28,6 +28,8 @@ import {Evt} from '../base/events';
 import {StatusbarManager} from './statusbar';
 import {MinimapManager} from './minimap';
 import {SearchManager} from './search';
+import {Column, Filter, Pivot, SqlTable} from './table';
+import {SqlModules} from './sql_modules';
 
 // Lists all the possible event listeners using the key as the event name and
 // the type as the type of the callback.
@@ -78,8 +80,28 @@ export interface Trace extends App {
   // code. These are on top of traceInfo.importErrors, which is a summary of
   // what TraceProcessor reports on the stats table at import time.
   get loadingErrors(): ReadonlyArray<string>;
+
   // Trace scoped disposables. Will be destroyed when the trace is unloaded.
   readonly trash: DisposableStack;
+
+  // Returns the SqlModules instance for accessing stdlib tables and modules.
+  // May return undefined if not yet initialized.
+  getSqlModules(): SqlModules | undefined;
+
+  // Creates a new Table Explorer tab with the given configuration.
+  openTableExplorer(config: {
+    tableName: string;
+    initialFilters?: Filter[];
+    initialColumns?: Column[];
+    initialPivot?: Pivot;
+    // Custom table definitions to inject into the schema for this invocation
+    // only. Useful for adding ad-hoc table relationships or overriding existing
+    // table definitions.
+    customTables?: SqlTable[];
+    // SQL statements to execute before the main query. Typically used for
+    // INCLUDE statements.
+    preamble?: string;
+  }): void;
 }
 
 /**

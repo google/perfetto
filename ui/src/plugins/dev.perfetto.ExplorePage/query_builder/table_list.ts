@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {FuzzyFinder, FuzzySegment} from '../../../base/fuzzy';
-import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlModules, SqlTable} from '../../../public/sql_modules';
 import {Card, CardStack} from '../../../widgets/card';
 import {EmptyState} from '../../../widgets/empty_state';
 import {Chip} from '../../../widgets/chip';
