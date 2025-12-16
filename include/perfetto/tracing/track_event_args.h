@@ -49,13 +49,13 @@ class FlowImpl {
   // Please ensure that you emit a trace event with the flow id of
   // perfetto::TerminatingFlow::FromPointer(this) from the destructor of the
   // object to avoid accidental conflicts.
-  static PERFETTO_ALWAYS_INLINE inline FlowImpl FromPointer(void* ptr) {
+  static PERFETTO_ALWAYS_INLINE inline FlowImpl FromPointer(const void* ptr) {
     return ProcessScoped(reinterpret_cast<uintptr_t>(ptr));
   }
 
   // Same as above, but combines the flow id with an extra `named_scope`'s hash.
   static PERFETTO_ALWAYS_INLINE inline FlowImpl FromPointer(
-      void* ptr,
+      const void* ptr,
       const char* named_scope) {
     return ProcessScoped(reinterpret_cast<uintptr_t>(ptr), named_scope);
   }
