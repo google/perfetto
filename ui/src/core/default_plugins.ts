@@ -43,6 +43,7 @@ export const defaultPlugins = [
   'com.android.WearLongBatteryTracing',
   'com.google.PixelCpmTrace',
   'com.google.PixelMemory',
+  'dev.perfetto.AggregationBenchmark',
   'dev.perfetto.AutoPinAndExpandTracks',
   'dev.perfetto.BookmarkletApi',
   'dev.perfetto.CoreCommands',

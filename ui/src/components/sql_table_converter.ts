@@ -36,6 +36,7 @@ import {
 import {DurationWidget} from './widgets/duration';
 import {Anchor} from '../widgets/anchor';
 import {Icons} from '../base/semantic_icons';
+import {SqlValue} from '../trace_processor/query_result';
 
 const SUPPORTED_LINKTO_TABLES = ['slice', 'thread_state', 'sched'];
 
@@ -208,7 +209,9 @@ export function sqlTablesToSchemas(
         displayColumns[colName] = {
           title: colName,
           titleString: colName,
-          columnType: 'identifier', // Not really an identifier, but we need the same filter types.
+          columnType: 'identifier',
+          cellRenderer: booleanFormatter,
+          cellFormatter: booleanFormatter,
         };
       } else if (kind === 'id') {
         sqlColumns[colName] = <SQLColumnDef>{};
@@ -316,4 +319,10 @@ export function sqlTablesToSchemas(
   }
 
   return {sqlSchema, displaySchema};
+}
+
+function booleanFormatter(value: SqlValue): string {
+  if (value === null) return 'null';
+  if (value === undefined) return '';
+  return String(!!value);
 }

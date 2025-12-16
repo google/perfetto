@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {ColorScheme} from '../base/color_scheme';
+import {Row, SqlValue} from '../trace_processor/query_result';
+
+export type AggregationCellRenderer = (value: SqlValue, row: Row) => m.Children;
 
 export interface ColumnDef {
   readonly columnId: string;
@@ -20,6 +24,11 @@ export interface ColumnDef {
   readonly formatHint?: string;
   readonly sum?: boolean;
   readonly sort?: 'ASC' | 'DESC';
+  readonly cellRenderer?: AggregationCellRenderer;
+  // Additional fields this column depends on for rendering.
+  // These fields will be included in queries and made available in the row
+  // parameter passed to cellRenderer.
+  readonly dependsOn?: readonly string[];
 }
 
 export interface BarChartData {

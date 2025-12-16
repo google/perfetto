@@ -46,6 +46,14 @@ export interface QueryWithLineageConfig<T, Schema extends DatasetSchema> {
   skipPartitionFilters?: boolean;
 
   /**
+   * When true, executes all source groups in a single SQL query using UNION ALL
+   * with a __groupid column for lineage resolution. This is more efficient when
+   * querying many source groups as it reduces round-trips to SQLite.
+   * Default: false (executes separate queries per source group)
+   */
+  singleQuery?: boolean;
+
+  /**
    * Optional query builder to wrap the union.
    * @param baseQuery - The optimized union query with result + partition + filter columns
    * @param resultCols - The columns that should be selected in the final result
@@ -97,6 +105,35 @@ export interface PlannedQuery<T = unknown> {
     string,
     ReadonlyMap<SqlValue, ReadonlySet<T>>
   >;
+}
+
+/**
+ * A lineage resolver that maps (groupid, partition) -> input.
+ * Used to resolve track lineage from query results.
+ */
+export interface LineageResolver<T> {
+  /**
+   * Resolve the source input(s) for a given groupid and partition value.
+   * Returns undefined if no match is found.
+   */
+  resolve(groupId: number, partitionValue: SqlValue): T | undefined;
+
+  /**
+   * Get all inputs that belong to a specific group.
+   */
+  getGroupInputs(groupId: number): ReadonlyArray<T>;
+}
+
+/**
+ * Result from buildQueryWithLineage containing SQL and lineage resolver.
+ */
+export interface QueryWithLineage<T> {
+  /** The SQL query string with __groupid and __partition columns */
+  readonly sql: string;
+  /** Resolver to map (groupid, partition) back to source inputs */
+  readonly lineageResolver: LineageResolver<T>;
+  /** The columns that are selected (excluding __groupid and __partition) */
+  readonly columns: ReadonlyArray<string>;
 }
 
 /**
@@ -153,6 +190,42 @@ function buildPartitionMap<T>(
   }
 
   return partitionMap;
+}
+
+const CTE_CHUNK_SIZE = 500;
+
+/**
+ * Builds a query from an array of subqueries using UNION ALL.
+ * If over CTE_CHUNK_SIZE items, breaks into CTEs to help the query parser.
+ */
+function buildUnionAllQuery(queries: string[]): string {
+  if (queries.length === 0) {
+    throw new Error('Cannot build union from empty query list');
+  }
+  if (queries.length === 1) {
+    return queries[0];
+  }
+  if (queries.length <= CTE_CHUNK_SIZE) {
+    return queries.join('\nUNION ALL\n');
+  }
+
+  // Break into chunks and create CTEs
+  const ctes: string[] = [];
+  const cteNames: string[] = [];
+
+  for (let i = 0; i < queries.length; i += CTE_CHUNK_SIZE) {
+    const chunk = queries.slice(i, i + CTE_CHUNK_SIZE);
+    const cteName = `_chunk_${Math.floor(i / CTE_CHUNK_SIZE)}`;
+    cteNames.push(cteName);
+    ctes.push(`${cteName} AS (\n${chunk.join('\nUNION ALL\n')}\n)`);
+  }
+
+  const cteSection = `WITH ${ctes.join(',\n')}`;
+  const finalUnion = cteNames
+    .map((name) => `SELECT * FROM ${name}`)
+    .join('\nUNION ALL\n');
+
+  return `${cteSection}\n${finalUnion}`;
 }
 
 /**
@@ -391,6 +464,9 @@ export function planQuery<T, Schema extends DatasetSchema>(
     });
   }
 
+  // Build array of source groups indexed by groupid for single query mode
+  const sourceGroupArray = Array.from(sourceGroups.entries());
+
   // Return the query plan
   return {
     queries: plannedQueries,
@@ -398,6 +474,20 @@ export function planQuery<T, Schema extends DatasetSchema>(
     async execute(
       engine: Engine,
     ): Promise<readonly QueryWithLineageResult<T, Schema>[]> {
+      // Single query mode: UNION ALL groups with __groupid and __partition
+      if ((config.singleQuery ?? true) && sourceGroupArray.length > 0) {
+        return executeSingleQuery(
+          engine,
+          sourceGroupArray,
+          unionDatasets,
+          partitionMaps,
+          config.columns,
+          config.filterColumns,
+          config.queryBuilder,
+        );
+      }
+
+      // Multi-query mode: execute each source group separately
       let allResults: readonly QueryWithLineageResult<T, Schema>[] = [];
 
       for (const [src, group] of sourceGroups.entries()) {
@@ -419,3 +509,344 @@ export function planQuery<T, Schema extends DatasetSchema>(
     },
   };
 }
+
+/**
+ * Execute all source groups in a single SQL query using UNION ALL with
+ * __groupid and __partition columns for lineage resolution.
+ */
+async function executeSingleQuery<T, Schema extends DatasetSchema>(
+  engine: Engine,
+  sourceGroupArray: Array<[string, Array<SourceGroup<T>>]>,
+  unionDatasets: Map<string, UnionDataset>,
+  partitionMaps: Map<string, PartitionMapWithUnfiltered<T>>,
+  columns: Schema,
+  filterColumns: DatasetSchema | undefined,
+  queryBuilder?: (baseQuery: string, resultCols: string[]) => string,
+): Promise<readonly QueryWithLineageResult<T, Schema>[]> {
+  const resultColNames = Object.keys(columns);
+  const filterColNames = filterColumns ? Object.keys(filterColumns) : [];
+
+  // Build per-group queries with normalized __groupid and __partition columns
+  const groupQueries: string[] = [];
+
+  for (let groupId = 0; groupId < sourceGroupArray.length; groupId++) {
+    const [src, _group] = sourceGroupArray[groupId];
+    const unionDataset = unionDatasets.get(src)!;
+    const partitionMap = partitionMaps.get(src)!;
+    const partitionColumns = Array.from(partitionMap.columns.keys());
+
+    // Build query schema: result columns + partition columns + filter columns
+    const querySchema: DatasetSchema = {
+      ...columns,
+      ...Object.fromEntries(partitionColumns.map((col) => [col, NUM])),
+      ...(filterColumns ?? {}),
+    };
+
+    const baseQuery = unionDataset.query(querySchema);
+
+    // Normalize partition to single __partition column (use first partition col or NULL)
+    const partitionExpr =
+      partitionColumns.length > 0 ? partitionColumns[0] : 'NULL';
+
+    // Select result columns + filter columns + groupid + partition
+    // Filter columns must be included so queryBuilder can reference them in WHERE clauses
+    const selectCols = [...resultColNames, ...filterColNames].join(', ');
+    groupQueries.push(
+      `SELECT ${selectCols}, ${groupId} AS __groupid, ${partitionExpr} AS __partition FROM (${baseQuery})`,
+    );
+  }
+
+  // Combine all groups with UNION ALL
+  const combinedQuery = buildUnionAllQuery(groupQueries);
+
+  // Apply query builder if provided
+  // Include filter columns so they're available for WHERE clauses
+  const resultCols = [
+    ...resultColNames,
+    ...filterColNames,
+    '__groupid',
+    '__partition',
+  ];
+  const finalQuery = queryBuilder
+    ? queryBuilder(combinedQuery, resultCols)
+    : combinedQuery;
+
+  // Execute the combined query
+  const result = await engine.query(finalQuery);
+
+  // Build schema for result iteration
+  const resultSchema: DatasetSchema = {
+    ...columns,
+    __groupid: NUM,
+    __partition: NUM,
+  };
+
+  // Process results and resolve lineage
+  const results: Array<QueryWithLineageResult<T, Schema>> = [];
+
+  for (
+    const iter = result.iter(resultSchema);
+    iter.valid() === true;
+    iter.next()
+  ) {
+    // Extract row data (without __groupid and __partition)
+    const row: Record<string, SqlValue> = {};
+    for (const col of resultColNames) {
+      row[col] = iter.get(col);
+    }
+
+    // Get groupid and partition for lineage resolution
+    const groupId = iter.get('__groupid') as number;
+    const partitionValue = iter.get('__partition');
+
+    // Look up the source group
+    const [src, group] = sourceGroupArray[groupId];
+    const partitionMap = partitionMaps.get(src)!;
+
+    // Resolve source via partition value
+    let sources: Set<T> = new Set();
+
+    if (partitionMap.columns.size === 0) {
+      // No partition columns - all inputs in group match
+      sources = new Set(group.map((g) => g.input));
+    } else {
+      // Find matching sources via partition value
+      for (const [_colName, valueMap] of partitionMap.columns.entries()) {
+        const matchingSources = valueMap.get(partitionValue);
+        if (matchingSources) {
+          for (const source of matchingSources) {
+            sources.add(source);
+          }
+          break;
+        }
+      }
+
+      // Also add unfiltered inputs - they match ALL rows
+      for (const unfilteredInput of partitionMap.unfilteredInputs) {
+        sources.add(unfilteredInput);
+      }
+
+      // Skip row if no sources matched
+      if (sources.size === 0) {
+        continue;
+      }
+    }
+
+    // Push one result per source
+    for (const source of sources) {
+      results.push({source, row: row as Schema});
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Configuration for buildQueryWithLineage.
+ */
+export interface BuildQueryWithLineageConfig<T, Schema extends DatasetSchema> {
+  /** The list of input objects (e.g., tracks) */
+  inputs: T[];
+
+  /** Function to extract dataset from each input */
+  datasetFetcher: (input: T) => SourceDataset;
+
+  /** Columns to select from the union */
+  columns: Schema;
+
+  /**
+   * Optional additional columns needed for filtering but not in result.
+   */
+  filterColumns?: DatasetSchema;
+}
+
+/**
+ * Builds a SQL query with __groupid and __partition columns for lineage tracking.
+ * Returns the SQL string and a resolver to map results back to source inputs.
+ *
+ * This is useful for aggregation panels that need to create SQL tables with
+ * lineage information, then resolve track URIs when rendering clickable IDs.
+ *
+ * @example
+ * ```ts
+ * const {sql, lineageResolver, columns} = buildQueryWithLineage({
+ *   inputs: tracks,
+ *   datasetFetcher: (t) => t.renderer.getDataset?.(),
+ *   columns: {id: NUM, ts: LONG, dur: LONG, name: STR_NULL},
+ * });
+ *
+ * // Create table with lineage columns
+ * await engine.query(`CREATE TABLE agg AS ${sql}`);
+ *
+ * // Later, when rendering a row:
+ * const track = lineageResolver.resolve(row.__groupid, row.__partition);
+ * if (track) {
+ *   trace.selection.selectTrackEvent(track.uri, row.id);
+ * }
+ * ```
+ */
+export function buildQueryWithLineage<T, Schema extends DatasetSchema>(
+  config: BuildQueryWithLineageConfig<T, Schema>,
+): QueryWithLineage<T> {
+  const resultColNames = Object.keys(config.columns);
+  const filterColNames = config.filterColumns
+    ? Object.keys(config.filterColumns)
+    : [];
+
+  // Group by source (SQL statement/table)
+  const sourceGroups = new Map<string, Array<SourceGroup<T>>>();
+
+  for (const input of config.inputs) {
+    const dataset = config.datasetFetcher(input);
+    const group = sourceGroups.get(dataset.src) ?? [];
+    group.push({input, dataset});
+    sourceGroups.set(dataset.src, group);
+  }
+
+  const sourceGroupArray = Array.from(sourceGroups.entries());
+
+  // Build partition maps for lineage resolution
+  const partitionMaps = new Map<string, PartitionMapWithUnfiltered<T>>();
+  for (const [src, group] of sourceGroupArray) {
+    partitionMaps.set(src, buildPartitionMap(group));
+  }
+
+  // Build per-group queries with __groupid and __partition columns
+  const groupQueries: string[] = [];
+
+  for (let groupId = 0; groupId < sourceGroupArray.length; groupId++) {
+    const [src, group] = sourceGroupArray[groupId];
+    const partitionMap = partitionMaps.get(src)!;
+    const partitionColumns = Array.from(partitionMap.columns.keys());
+
+    // Build union dataset for this group
+    const datasets = group.map((g) => g.dataset);
+    const unionDataset = UnionDataset.create(datasets);
+
+    // Build query schema: result columns + partition columns + filter columns
+    const querySchema: DatasetSchema = {
+      ...config.columns,
+      ...Object.fromEntries(partitionColumns.map((col) => [col, NUM])),
+      ...(config.filterColumns ?? {}),
+    };
+
+    const baseQuery = unionDataset.query(querySchema);
+
+    // Normalize partition to single __partition column
+    const partitionExpr =
+      partitionColumns.length > 0 ? partitionColumns[0] : 'NULL';
+
+    // Select result columns + filter columns + groupid + partition
+    const selectCols = [...resultColNames, ...filterColNames].join(', ');
+    groupQueries.push(
+      `SELECT ${selectCols}, ${groupId} AS __groupid, ${partitionExpr} AS __partition FROM (${baseQuery})`,
+    );
+  }
+
+  // Handle empty case
+  if (groupQueries.length === 0) {
+    // Return empty query with proper columns
+    const cols = [...resultColNames, ...filterColNames].join(', ');
+    return {
+      sql: `SELECT ${cols}, 0 AS __groupid, NULL AS __partition WHERE FALSE`,
+      columns: resultColNames,
+      lineageResolver: {
+        resolve: () => undefined,
+        getGroupInputs: () => [],
+      },
+    };
+  }
+
+  // Combine all groups with UNION ALL
+  const sql = buildUnionAllQuery(groupQueries);
+
+  // Build lineage resolver
+  const lineageResolver: LineageResolver<T> = {
+    resolve(groupId: number, partitionValue: SqlValue): T | undefined {
+      if (groupId < 0 || groupId >= sourceGroupArray.length) {
+        return undefined;
+      }
+
+      const [src, group] = sourceGroupArray[groupId];
+      const partitionMap = partitionMaps.get(src)!;
+
+      // No partition columns - return first input in group
+      if (partitionMap.columns.size === 0) {
+        return group[0]?.input;
+      }
+
+      // Find matching source via partition value
+      for (const [_colName, valueMap] of partitionMap.columns.entries()) {
+        const matchingSources = valueMap.get(partitionValue);
+        if (matchingSources && matchingSources.size > 0) {
+          // Return first matching source
+          return matchingSources.values().next().value;
+        }
+      }
+
+      // Check unfiltered inputs
+      if (partitionMap.unfilteredInputs.size > 0) {
+        return partitionMap.unfilteredInputs.values().next().value;
+      }
+
+      return undefined;
+    },
+
+    getGroupInputs(groupId: number): ReadonlyArray<T> {
+      if (groupId < 0 || groupId >= sourceGroupArray.length) {
+        return [];
+      }
+      const [_src, group] = sourceGroupArray[groupId];
+      return group.map((g) => g.input);
+    },
+  };
+
+  return {
+    sql,
+    lineageResolver,
+    columns: resultColNames,
+  };
+}
+
+/*
+Ok what I want to do is something like this:
+
+```ts
+const unionDataset = UnionDataset.create([...datasets], {includeLineage: true});
+```
+
+When lineage is enabled, the UnionDataset will automatically add __groupid and
+__partition columns to the query. The __groupid will identify which group the
+dataset came from, and __partition will indicate which dataset within that group
+the row came from.
+
+After running the query, you can use unionDataset.resolve(groupid, partition) to
+get the original dataset or input object.
+
+E.g.
+```ts
+const dataset = unionDataset.query();
+const result = await engine.query(dataset.query());
+const iter = result.iter({..., __groupid: NUM, __partition: UNKNOWN});
+
+for (; iter.valid(); iter.next()) {
+  const groupId = iter.__groupid;
+  const partition = iter.__partition;
+  const sourceDataset = unionDataset.resolve(groupId, partition);
+}
+
+// Or even....
+
+const datasets: Dataset<{id: NUM, ts: LONG, dur: LONG, name: STR}>[];
+
+// dataset ends up being of type {id: NUM, ts: LONG, dur: LONG, name: STR, __groupid: NUM, __partition: UNKNOWN}
+const dataset = UnionDatasetWithLineage.create([...datasets]);
+const result = await engine.query(dataset.query());
+const iter = result.iter(dataset.cols);
+
+for (; iter.valid(); iter.next()) {
+  const sourceDataset = unionDataset.resolve(iter);
+  console.log(sourceDataset, iter.id, iter.ts, iter.dur);
+}
+```
+*/
