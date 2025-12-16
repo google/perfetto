@@ -42,6 +42,7 @@ import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
+import {openTableExplorer} from '../table_explorer';
 
 interface ContextMenuItem {
   name: string;
@@ -314,7 +315,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
           Tree,
           renderSliceArguments(trace, slice.args, {
             openTableExplorer: (tableName, options) => {
-              trace.openTableExplorer({
+              openTableExplorer(trace, {
                 tableName,
                 initialFilters: options?.filters,
               });

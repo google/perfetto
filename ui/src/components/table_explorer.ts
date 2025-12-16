@@ -18,6 +18,9 @@ import {Button} from '../widgets/button';
 import {PopupMenu} from '../widgets/menu';
 import {PopupPosition} from '../widgets/popup';
 import {Trace} from '../public/trace';
+import {SqlTable} from '../public/sql_modules';
+import {sqlTablesToSchemas} from '../core/sql_table_converter';
+import {addEphemeralTab} from './details/add_ephemeral_tab';
 
 export interface TableExplorerConfig {
   trace: Trace;
@@ -141,4 +144,113 @@ export class TableExplorer implements Tab {
       } satisfies DataGridAttrs),
     );
   }
+}
+
+export interface OpenTableExplorerConfig {
+  tableName: string;
+  initialFilters?: Filter[];
+  initialColumns?: Column[];
+  initialPivot?: Pivot;
+  // Custom table definitions to inject into the schema for this invocation
+  // only. Useful for adding ad-hoc table relationships or overriding existing
+  // table definitions.
+  customTables?: SqlTable[];
+  // SQL statements to execute before the main query. Typically used for
+  // INCLUDE statements.
+  preamble?: string;
+}
+
+/**
+ * Opens a table in a new tab using DataGrid with full schema support.
+ * This is a standalone function that takes a trace object as a parameter.
+ */
+export function openTableExplorer(
+  trace: Trace,
+  config: OpenTableExplorerConfig,
+): void {
+  const {
+    tableName,
+    initialFilters,
+    initialColumns,
+    initialPivot,
+    customTables,
+  } = config;
+
+  const sqlModules = trace.getSqlModules();
+  if (!sqlModules) {
+    throw new Error('SqlModules not initialized');
+  }
+
+  // Get all tables and convert to schemas
+  const allTables = sqlModules.listTables();
+  const {sqlSchema: baseSqlSchema, displaySchema: baseDisplaySchema} =
+    sqlTablesToSchemas(allTables, trace);
+
+  // Determine which schemas to use
+  let sqlSchema = baseSqlSchema;
+  let displaySchema = baseDisplaySchema;
+
+  if (customTables && customTables.length > 0) {
+    // Convert custom tables to schemas and merge with base schemas
+    const customSchemas = sqlTablesToSchemas(customTables, trace);
+    sqlSchema = {...baseSqlSchema, ...customSchemas.sqlSchema};
+    displaySchema = {...baseDisplaySchema, ...customSchemas.displaySchema};
+  }
+
+  // Check if table exists in the merged schema
+  const table = sqlModules.getTable(tableName);
+  const customTable = customTables?.find((t) => t.name === tableName);
+  if (!table && !customTable) {
+    throw new Error(`Table not found: ${tableName}`);
+  }
+
+  // Build preamble from config or module include
+  let preamble: string | undefined;
+  if (config.preamble) {
+    preamble = config.preamble;
+  } else {
+    const module = sqlModules.getModuleForTable(tableName);
+    if (module?.includeKey) {
+      preamble = `INCLUDE PERFETTO MODULE ${module.includeKey};`;
+    }
+  }
+
+  // Create datasource with (potentially merged) schema
+  const dataSource = new SQLDataSource({
+    engine: trace.engine,
+    sqlSchema,
+    rootSchemaName: tableName,
+    preamble,
+  });
+
+  // Determine columns to use
+  const columns =
+    initialColumns ??
+    getDefaultVisibleFields(displaySchema, tableName).map((col) => ({
+      field: col,
+    }));
+
+  // Create and open tab
+  addEphemeralTab(
+    trace,
+    'tableExplorer',
+    new TableExplorer({
+      trace,
+      displayName: tableName,
+      dataSource,
+      schema: displaySchema,
+      rootSchema: tableName,
+      initialFilters,
+      initialColumns: columns,
+      initialPivot,
+      onDuplicate: (state) => {
+        openTableExplorer(trace, {
+          ...config,
+          initialFilters: [...state.filters],
+          initialColumns: [...state.columns],
+          initialPivot: state.pivot,
+        });
+      },
+    }),
+  );
 }

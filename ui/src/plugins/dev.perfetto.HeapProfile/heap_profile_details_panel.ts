@@ -49,6 +49,7 @@ import {
 } from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
+import {openTableExplorer} from '../../components/table_explorer';
 
 interface SqlTableDefinition {
   readonly name: string;
@@ -685,7 +686,7 @@ function getHeapGraphNodeOptionalActions(
           // Create view to be returned
           await trace.engine.query(statement);
           const tableDef = getHeapGraphObjectReferencesView(isDominator);
-          trace.openTableExplorer({
+          openTableExplorer(trace, {
             tableName: tableDef.name,
             customTables: [sqlTableDefToSqlTable(tableDef)],
           });
@@ -719,7 +720,7 @@ function getHeapGraphNodeOptionalActions(
               // Create view to be returned
               await trace.engine.query(statement);
               const tableDef = getHeapGraphIncomingReferencesView(isDominator);
-              trace.openTableExplorer({
+              openTableExplorer(trace, {
                 tableName: tableDef.name,
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
@@ -747,7 +748,7 @@ function getHeapGraphNodeOptionalActions(
               // Create view to be returned
               await trace.engine.query(statement);
               const tableDef = getHeapGraphOutgoingReferencesView(isDominator);
-              trace.openTableExplorer({
+              openTableExplorer(trace, {
                 tableName: tableDef.name,
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
@@ -784,7 +785,7 @@ function getHeapGraphNodeOptionalActions(
               await trace.engine.query(statement);
               const tableDef =
                 getHeapGraphRetainedObjectCountsView(isDominator);
-              trace.openTableExplorer({
+              openTableExplorer(trace, {
                 tableName: tableDef.name,
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
@@ -813,7 +814,7 @@ function getHeapGraphNodeOptionalActions(
               await trace.engine.query(statement);
               const tableDef =
                 getHeapGraphRetainingObjectCountsView(isDominator);
-              trace.openTableExplorer({
+              openTableExplorer(trace, {
                 tableName: tableDef.name,
                 customTables: [sqlTableDefToSqlTable(tableDef)],
               });
@@ -841,7 +842,7 @@ function getHeapGraphRootOptionalActions(
         // Create view to be returned
         await trace.engine.query(statement);
         const tableDef = getHeapGraphDuplicateObjectsView(isDominator);
-        trace.openTableExplorer({
+        openTableExplorer(trace, {
           tableName: tableDef.name,
           customTables: [sqlTableDefToSqlTable(tableDef)],
         });

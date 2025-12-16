@@ -53,7 +53,6 @@ import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {TraceStream} from '../public/stream';
 import {SqlModulesManager} from './sql_modules_manager';
-import {Column, Filter, Pivot, SqlTable} from '../public/table';
 import {SqlModules} from '../public/sql_modules';
 
 /**
@@ -329,17 +328,6 @@ export class TraceImpl implements Trace, Disposable {
 
   getSqlModules(): SqlModules | undefined {
     return this.sqlModulesManager.getSqlModules();
-  }
-
-  openTableExplorer(config: {
-    tableName: string;
-    initialFilters?: Filter[];
-    initialColumns?: Column[];
-    initialPivot?: Pivot;
-    customTables?: SqlTable[];
-    preamble?: string;
-  }): void {
-    this.sqlModulesManager.openTableExplorer(config);
   }
 }
 

@@ -30,6 +30,7 @@ import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {SqlRef} from '../../widgets/sql_ref';
 import {MenuItem} from '../../widgets/menu';
 import {SqlColumn} from '../../public/table';
+import {openTableExplorer} from '../../components/table_explorer';
 
 const SCROLL_TIMELINE_TABLE_COLUMNS: SqlColumn[] = [
   {name: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
@@ -186,7 +187,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
                 label: 'Show query results',
                 icon: 'table',
                 onclick: () => {
-                  this.trace.openTableExplorer({
+                  openTableExplorer(this.trace, {
                     tableName: this.model.tableName,
                     initialFilters: [
                       {

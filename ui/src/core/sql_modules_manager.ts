@@ -15,21 +15,12 @@
 import {assetSrc} from '../base/assets';
 import {defer, Deferred} from '../base/deferred';
 import {Trace} from '../public/trace';
-import {Column, Filter, Pivot, SqlTable} from '../public/table';
-import {SQLDataSource} from '../components/widgets/datagrid/sql_data_source';
-import {addEphemeralTab} from '../components/details/add_ephemeral_tab';
-import {TableExplorer} from '../components/table_explorer';
-import {
-  SchemaRegistry,
-  getDefaultVisibleFields,
-} from '../components/widgets/datagrid/datagrid_schema';
-import {SQLSchemaRegistry} from '../components/widgets/datagrid/sql_schema';
+import {openTableExplorer} from '../components/table_explorer';
 import {
   SQL_MODULES_DOCS_SCHEMA,
   SqlModulesDocsSchema,
   SqlModulesImpl,
 } from './sql_modules_impl';
-import {sqlTablesToSchemas} from './sql_table_converter';
 import {SqlModules} from '../public/sql_modules';
 
 // Deferred JSON loading - starts when initSqlModulesLoader() is called
@@ -54,13 +45,11 @@ async function loadJson(): Promise<SqlModulesDocsSchema> {
 }
 
 /**
- * Manager for SQL modules and table exploration.
- * Created per-trace to handle schema initialization and provide openTableExplorer.
+ * Manager for SQL modules.
+ * Created per-trace to handle schema initialization.
  */
 export class SqlModulesManager {
   private sqlModules: SqlModules | undefined;
-  private sqlSchema: SQLSchemaRegistry | undefined;
-  private displaySchema: SchemaRegistry | undefined;
   private initPromise: Promise<void>;
 
   constructor(private readonly trace: Trace) {
@@ -78,11 +67,6 @@ export class SqlModulesManager {
     const impl = new SqlModulesImpl(this.trace, docs);
     await impl.waitForInit();
     this.sqlModules = impl;
-
-    const tables = impl.listTables();
-    const {sqlSchema, displaySchema} = sqlTablesToSchemas(tables, this.trace);
-    this.sqlSchema = sqlSchema;
-    this.displaySchema = displaySchema;
 
     // Register the "Open table..." command
     this.trace.commands.registerCommand({
@@ -138,8 +122,8 @@ export class SqlModulesManager {
       }
     }
 
-    // Open the table
-    this.openTableExplorer({tableName: actualTableName});
+    // Open the table using the standalone function
+    openTableExplorer(this.trace, {tableName: actualTableName});
   }
 
   /**
@@ -155,100 +139,5 @@ export class SqlModulesManager {
    */
   getSqlModules(): SqlModules | undefined {
     return this.sqlModules;
-  }
-
-  /**
-   * Opens a table in a new tab using DataGrid with full schema support.
-   */
-  openTableExplorer(config: {
-    tableName: string;
-    initialFilters?: Filter[];
-    initialColumns?: Column[];
-    initialPivot?: Pivot;
-    customTables?: SqlTable[];
-    preamble?: string;
-  }): void {
-    const {
-      tableName,
-      initialFilters,
-      initialColumns,
-      initialPivot,
-      customTables,
-    } = config;
-
-    if (!this.sqlModules || !this.sqlSchema || !this.displaySchema) {
-      throw new Error('SqlModules not initialized');
-    }
-
-    // Determine which schemas to use
-    let sqlSchema: SQLSchemaRegistry;
-    let displaySchema: SchemaRegistry;
-
-    if (customTables && customTables.length > 0) {
-      // Convert custom tables to schemas and merge with base schemas
-      const customSchemas = sqlTablesToSchemas(customTables, this.trace);
-      sqlSchema = {...this.sqlSchema, ...customSchemas.sqlSchema};
-      displaySchema = {...this.displaySchema, ...customSchemas.displaySchema};
-    } else {
-      sqlSchema = this.sqlSchema;
-      displaySchema = this.displaySchema;
-    }
-
-    // Check if table exists in the merged schema
-    const table = this.sqlModules.getTable(tableName);
-    const customTable = customTables?.find((t) => t.name === tableName);
-    if (!table && !customTable) {
-      throw new Error(`Table not found: ${tableName}`);
-    }
-
-    // Build preamble from config or module include
-    let preamble: string | undefined;
-    if (config.preamble) {
-      preamble = config.preamble;
-    } else {
-      const module = this.sqlModules.getModuleForTable(tableName);
-      if (module?.includeKey) {
-        preamble = `INCLUDE PERFETTO MODULE ${module.includeKey};`;
-      }
-    }
-
-    // Create datasource with (potentially merged) schema
-    const dataSource = new SQLDataSource({
-      engine: this.trace.engine,
-      sqlSchema,
-      rootSchemaName: tableName,
-      preamble,
-    });
-
-    // Determine columns to use
-    const columns =
-      initialColumns ??
-      getDefaultVisibleFields(displaySchema, tableName).map((col) => ({
-        field: col,
-      }));
-
-    // Create and open tab
-    addEphemeralTab(
-      this.trace,
-      'tableExplorer',
-      new TableExplorer({
-        trace: this.trace,
-        displayName: tableName,
-        dataSource,
-        schema: displaySchema,
-        rootSchema: tableName,
-        initialFilters,
-        initialColumns: columns,
-        initialPivot,
-        onDuplicate: (state) => {
-          this.openTableExplorer({
-            ...config,
-            initialFilters: [...state.filters],
-            initialColumns: [...state.columns],
-            initialPivot: state.pivot,
-          });
-        },
-      }),
-    );
   }
 }

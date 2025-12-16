@@ -17,6 +17,7 @@ import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
 import {QueryResult, Row} from '../../trace_processor/query_result';
+import {openTableExplorer} from '../../components/table_explorer';
 import {SqlRef} from '../../widgets/sql_ref';
 import {MenuItem} from '../../widgets/menu';
 
@@ -57,7 +58,7 @@ export function renderSqlRef(args: {
         label: 'Show query results',
         icon: 'table',
         onclick: () => {
-          args.trace.openTableExplorer({
+          openTableExplorer(args.trace, {
             tableName: args.tableName,
             initialFilters: [
               {

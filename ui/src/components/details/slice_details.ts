@@ -30,6 +30,7 @@ import {renderProcessRef} from '../widgets/process';
 import {renderThreadRef} from '../widgets/thread';
 import {Timestamp} from '../widgets/timestamp';
 import {Trace} from '../../public/trace';
+import {openTableExplorer} from '../table_explorer';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
@@ -53,7 +54,7 @@ export function renderDetails(
           m(MenuItem, {
             label: 'Slices with the same name',
             onclick: () => {
-              trace.openTableExplorer({
+              openTableExplorer(trace, {
                 tableName: 'slice',
                 initialFilters: [
                   slice.name === undefined

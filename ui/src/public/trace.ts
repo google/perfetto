@@ -28,7 +28,6 @@ import {Evt} from '../base/events';
 import {StatusbarManager} from './statusbar';
 import {MinimapManager} from './minimap';
 import {SearchManager} from './search';
-import {Column, Filter, Pivot, SqlTable} from './table';
 import {SqlModules} from './sql_modules';
 
 // Lists all the possible event listeners using the key as the event name and
@@ -87,33 +86,4 @@ export interface Trace extends App {
   // Returns the SqlModules instance for accessing stdlib tables and modules.
   // May return undefined if not yet initialized.
   getSqlModules(): SqlModules | undefined;
-
-  // Creates a new Table Explorer tab with the given configuration.
-  openTableExplorer(config: {
-    tableName: string;
-    initialFilters?: Filter[];
-    initialColumns?: Column[];
-    initialPivot?: Pivot;
-    // Custom table definitions to inject into the schema for this invocation
-    // only. Useful for adding ad-hoc table relationships or overriding existing
-    // table definitions.
-    customTables?: SqlTable[];
-    // SQL statements to execute before the main query. Typically used for
-    // INCLUDE statements.
-    preamble?: string;
-  }): void;
-}
-
-/**
- * A convenience interface to inject the App in Mithril components.
- * Example usage:
- *
- * class MyComponent implements m.ClassComponent<TraceAttrs> {
- *   oncreate({attrs}: m.CVnodeDOM<AppAttrs>): void {
- *     attrs.trace.engine.runQuery(...);
- *   }
- * }
- */
-export interface TraceAttrs {
-  trace: Trace;
 }
