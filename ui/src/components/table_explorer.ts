@@ -19,7 +19,7 @@ import {PopupMenu} from '../widgets/menu';
 import {PopupPosition} from '../widgets/popup';
 import {Trace} from '../public/trace';
 import {SqlTable} from '../public/sql_modules';
-import {sqlTablesToSchemas} from '../core/sql_table_converter';
+import {sqlTablesToSchemas} from './sql_table_converter';
 import {addEphemeralTab} from './details/add_ephemeral_tab';
 
 export interface TableExplorerConfig {

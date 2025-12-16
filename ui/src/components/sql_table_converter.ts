@@ -18,7 +18,7 @@
 
 import m from 'mithril';
 import {Time} from '../base/time';
-import {Timestamp} from '../components/widgets/timestamp';
+import {Timestamp} from './widgets/timestamp';
 import {Trace} from '../public/trace';
 import {SqlTable} from '../public/sql_modules';
 import {
@@ -27,13 +27,13 @@ import {
   SQLJoinDef,
   SQLExpressionDef,
   SQLTableSchema,
-} from '../components/widgets/datagrid/sql_schema';
+} from './widgets/datagrid/sql_schema';
 import {
   SchemaRegistry,
   ColumnDef,
   ParameterizedColumnDef,
-} from '../components/widgets/datagrid/datagrid_schema';
-import {DurationWidget} from '../components/widgets/duration';
+} from './widgets/datagrid/datagrid_schema';
+import {DurationWidget} from './widgets/duration';
 import {Anchor} from '../widgets/anchor';
 import {Icons} from '../base/semantic_icons';
 
