@@ -40,7 +40,7 @@ class FlowImpl {
   static PERFETTO_ALWAYS_INLINE inline FlowImpl ProcessScoped(
       uint64_t flow_id,
       const char* named_scope) {
-    return Global(flow_id ^ internal::Fnv1a(named_scope) ^ Track::process_uuid);
+    return Global(flow_id, named_scope);
   }
 
   // Same as above, but construct an id from a pointer.
@@ -71,7 +71,7 @@ class FlowImpl {
   static PERFETTO_ALWAYS_INLINE inline FlowImpl Global(
       uint64_t flow_id,
       const char* named_scope) {
-    return FlowImpl(internal::Fnv1a(named_scope) ^ flow_id);
+    return FlowImpl(flow_id, internal::Fnv1a(named_scope));
   }
 
   // TODO(altimin): Remove once converting a single usage in Chromium.
