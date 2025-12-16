@@ -15,19 +15,24 @@
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 import {download} from '../../../base/download_utils';
+import {FuzzyFinder} from '../../../base/fuzzy';
 import {Icons} from '../../../base/semantic_icons';
 import {exists} from '../../../base/utils';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Box} from '../../../widgets/box';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
+import {EmptyState} from '../../../widgets/empty_state';
+import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
-import {MenuDivider, MenuItem} from '../../../widgets/menu';
+import {MenuDivider, MenuItem, MenuTitle} from '../../../widgets/menu';
 import {Stack, StackAuto} from '../../../widgets/stack';
+import {TextInput} from '../../../widgets/text_input';
 import {
   renderSortMenuItems,
   Grid,
+  GridApi,
   GridColumn,
   GridCell,
   GridHeaderCell,
@@ -39,8 +44,16 @@ import {
   DataGridFilter,
   RowDef,
   Sorting,
+  ValueFormatter,
 } from './common';
 import {InMemoryDataSource} from './in_memory_data_source';
+import {
+  defaultValueFormatter,
+  formatAsTSV,
+  formatAsJSON,
+  formatAsMarkdown,
+} from './export_utils';
+import {DataGridExportButton} from './export_buttons';
 
 export class GridFilterBar implements m.ClassComponent {
   view({children}: m.Vnode) {
@@ -185,6 +198,7 @@ export interface DataGridAttrs {
    */
   readonly onFilterAdd?: OnFilterAdd;
   readonly onFilterRemove?: OnFilterRemove;
+  readonly clearFilters?: () => void;
 
   /**
    * Order of columns to display - can operate in controlled or uncontrolled
@@ -263,6 +277,39 @@ export interface DataGridAttrs {
    * Optional class name added to the root element of the data grid.
    */
   readonly className?: string;
+
+  /**
+   * Enable export buttons in toolbar. When enabled, adds Copy and Download
+   * buttons that export the current filtered/sorted data.
+   * Default = false.
+   */
+  readonly showExportButtons?: boolean;
+
+  /**
+   * Optional value formatter for export. If not provided, uses the
+   * cellRenderer to get displayed values. This is useful when you want
+   * different formatting for export vs display (e.g., raw values vs formatted).
+   */
+  readonly valueFormatter?: ValueFormatter;
+
+  /**
+   * Callback that receives the DataGrid API when the grid is ready.
+   * Allows parent components to programmatically export data.
+   */
+  readonly onReady?: (api: DataGridApi) => void;
+}
+
+export interface DataGridApi {
+  /**
+   * Export all filtered and sorted data from the grid.
+   * @param format The format to export in
+   * @param valueFormatter Optional custom formatter for values
+   * @returns Promise<string> The formatted data as a string
+   */
+  exportData(
+    format: 'tsv' | 'json' | 'markdown',
+    valueFormatter?: ValueFormatter,
+  ): Promise<string>;
 }
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
@@ -275,6 +322,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
+  private gridApi?: GridApi;
+  // Track columns needing distinct values
+  private distinctValuesColumns = new Set<string>();
+  private dataGridApi: DataGridApi = {
+    exportData: async (format, customFormatter) => {
+      if (!this.currentDataSource || !this.currentColumns) {
+        throw new Error('DataGrid not ready for export');
+      }
+      return await this.formatData(
+        this.currentDataSource,
+        this.currentColumns,
+        customFormatter ?? this.currentValueFormatter,
+        format,
+      );
+    },
+  };
+  private currentDataSource?: DataGridDataSource;
+  private currentColumns?: ReadonlyArray<ColumnDefinition>;
+  private currentValueFormatter?: ValueFormatter;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -316,6 +382,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             this.filters = newFilters;
           }
         : noOp,
+      clearFilters = filters === this.filters
+        ? () => {
+            this.filters = [];
+          }
+        : noOp,
       columnOrder = this.columnOrder,
       onColumnOrderChanged = columnOrder === this.columnOrder
         ? (x) => (this.columnOrder = x)
@@ -328,6 +399,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsLeft,
       toolbarItemsRight,
       className,
+      showExportButtons = false,
+      valueFormatter,
+      onReady,
     } = attrs;
 
     // In uncontrolled mode, sync columnOrder with truly new columns
@@ -370,7 +444,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       aggregates: columns
         .filter((c) => c.aggregation)
         .map((c) => ({col: c.name, func: c.aggregation!})),
+      distinctValuesColumns: this.distinctValuesColumns,
     });
+
+    // Store current state for API access
+    this.currentDataSource = dataSource;
+    this.currentColumns = orderedColumns;
+    this.currentValueFormatter = valueFormatter;
+
+    // Create and expose DataGrid API if needed
+    onReady?.(this.dataGridApi);
 
     const sortControls = onSort !== noOp;
     const filtersUncontrolled = filters === this.filters;
@@ -391,6 +474,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       })();
 
       const menuItems: m.Children = [];
+      sortControls && menuItems.push(m(MenuTitle, {label: 'Sorting'}));
       sortControls &&
         menuItems.push(
           ...renderSortMenuItems(sort, (direction) => {
@@ -409,6 +493,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       if (filterControls && sortControls && menuItems.length > 0) {
         menuItems.push(m(MenuDivider));
+        menuItems.push(m(MenuTitle, {label: 'Filters'}));
       }
 
       if (filterControls) {
@@ -426,6 +511,41 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             },
           }),
         );
+
+        // Add "Filter by values..." for columns with distinct values enabled
+        if (column.distinctValues ?? true) {
+          const distinctState = dataSource.rows?.distinctValues?.get(
+            column.name,
+          );
+
+          menuItems.push(
+            m(
+              MenuItem,
+              {
+                label: 'Add filter...',
+                onChange: (isOpen) => {
+                  if (isOpen === true) {
+                    this.distinctValuesColumns.add(column.name);
+                  } else {
+                    this.distinctValuesColumns.delete(column.name);
+                  }
+                },
+              },
+              m(DistinctValuesSubmenu, {
+                columnName: column.name,
+                distinctState,
+                formatValue: this.formatDistinctValue.bind(this),
+                onApply: (selectedValues) => {
+                  onFilterAdd({
+                    column: column.name,
+                    op: 'in',
+                    value: Array.from(selectedValues),
+                  });
+                },
+              }),
+            ),
+          );
+        }
       }
 
       if (Boolean(column.headerMenuItems)) {
@@ -439,13 +559,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       if (columnReordering) {
         if (menuItems.length > 0) {
           menuItems.push(m(MenuDivider));
+          menuItems.push(m(MenuTitle, {label: 'Column'}));
+        }
+
+        if (this.gridApi) {
+          const gridApi = this.gridApi;
+          menuItems.push(
+            m(MenuItem, {
+              label: 'Fit to content',
+              icon: 'fit_width',
+              onclick: () => gridApi.autoFitColumn(column.name),
+            }),
+          );
         }
 
         // Hide current column (only if more than 1 visible)
         if (orderedColumns.length > 1) {
           menuItems.push(
             m(MenuItem, {
-              label: 'Hide column',
+              label: 'Hide',
               icon: Icons.Hide,
               onclick: () => {
                 const newOrder = columnOrder.filter(
@@ -532,6 +664,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           GridHeaderCell,
           {
             sort,
+            hintSortDirection:
+              sorting.direction === 'UNSORTED' ? undefined : sorting.direction,
             onSort: sortControls
               ? (direction) => {
                   onSort({
@@ -542,7 +676,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               : undefined,
             menuItems: menuItems.length > 0 ? menuItems : undefined,
             subContent,
-            label: column.name,
           },
           column.title ?? column.name,
         ),
@@ -604,6 +737,51 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     },
                   }),
                 );
+              }
+
+              // Add glob filter option for string columns with text selection
+              if (typeof value === 'string') {
+                const selectedText = window.getSelection()?.toString().trim();
+                if (selectedText && selectedText.length > 0) {
+                  menuItems.push(
+                    m(
+                      MenuItem,
+                      {
+                        label: 'Filter glob',
+                      },
+                      m(MenuItem, {
+                        label: `"${selectedText}*"`,
+                        onclick: () => {
+                          onFilterAdd({
+                            column: column.name,
+                            op: 'glob',
+                            value: `${selectedText}*`,
+                          });
+                        },
+                      }),
+                      m(MenuItem, {
+                        label: `"*${selectedText}"`,
+                        onclick: () => {
+                          onFilterAdd({
+                            column: column.name,
+                            op: 'glob',
+                            value: `*${selectedText}`,
+                          });
+                        },
+                      }),
+                      m(MenuItem, {
+                        label: `"*${selectedText}*"`,
+                        onclick: () => {
+                          onFilterAdd({
+                            column: column.name,
+                            op: 'glob',
+                            value: `*${selectedText}*`,
+                          });
+                        },
+                      }),
+                    ),
+                  );
+                }
               }
 
               if (isNumeric(value)) {
@@ -726,6 +904,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showResetButton,
         toolbarItemsLeft,
         toolbarItemsRight,
+        showExportButtons,
       ),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
@@ -760,8 +939,41 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               onColumnOrderChanged(newOrder);
             }
           : undefined,
+        onReady: (api) => {
+          this.gridApi = api;
+        },
+        emptyState:
+          rows?.totalRows === 0
+            ? m(
+                EmptyState,
+                {
+                  title:
+                    filters.length > 0
+                      ? 'No results match your filters'
+                      : 'No data available',
+                  fillHeight: true,
+                },
+                filters.length > 0 &&
+                  m(Button, {
+                    variant: ButtonVariant.Filled,
+                    icon: 'filter_alt_off',
+                    label: 'Clear filters',
+                    onclick: clearFilters,
+                  }),
+              )
+            : undefined,
       }),
     );
+  }
+
+  private formatDistinctValue(value: SqlValue): string {
+    if (value === null) {
+      return 'NULL';
+    }
+    if (value instanceof Uint8Array) {
+      return `Blob (${value.length} bytes)`;
+    }
+    return String(value);
   }
 
   private renderTableToolbar(
@@ -773,11 +985,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     showResetButton: boolean,
     toolbarItemsLeft: m.Children,
     toolbarItemsRight: m.Children,
+    showExportButtons: boolean,
   ) {
     if (
       filters.length === 0 &&
       !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
-      showResetButton === false
+      showResetButton === false &&
+      showExportButtons === false
     ) {
       return undefined;
     }
@@ -810,12 +1024,106 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             ]),
         ]),
         toolbarItemsRight,
+        showExportButtons && m(DataGridExportButton, {api: this.dataGridApi}),
       ]),
     ]);
   }
 
+  private async formatData(
+    dataSource: DataGridDataSource,
+    columns: ReadonlyArray<ColumnDefinition>,
+    valueFormatter?: ValueFormatter,
+    format: 'tsv' | 'json' | 'markdown' = 'tsv',
+  ): Promise<string> {
+    // Get all rows from the data source
+    const rows = await dataSource.exportData();
+
+    // Use provided formatter or default
+    const formatter = valueFormatter ?? defaultValueFormatter;
+
+    // Format the data based on the requested format
+    switch (format) {
+      case 'tsv':
+        return this.formatAsTSV(rows, columns, formatter);
+      case 'json':
+        return this.formatAsJSON(rows, columns, formatter);
+      case 'markdown':
+        return this.formatAsMarkdown(rows, columns, formatter);
+    }
+  }
+
+  private formatAsTSV(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+    formatter: ValueFormatter,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns, formatter);
+    const columnNames = this.buildColumnNames(columns);
+    return formatAsTSV(
+      columns.map((c) => c.name),
+      columnNames,
+      formattedRows,
+    );
+  }
+
+  private formatAsJSON(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+    formatter: ValueFormatter,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns, formatter);
+    return formatAsJSON(formattedRows);
+  }
+
+  private formatAsMarkdown(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+    formatter: ValueFormatter,
+  ): string {
+    const formattedRows = this.formatRows(rows, columns, formatter);
+    const columnNames = this.buildColumnNames(columns);
+    return formatAsMarkdown(
+      columns.map((c) => c.name),
+      columnNames,
+      formattedRows,
+    );
+  }
+
+  private formatRows(
+    rows: readonly RowDef[],
+    columns: ReadonlyArray<ColumnDefinition>,
+    formatter: ValueFormatter,
+  ): Array<Record<string, string>> {
+    return rows.map((row) => {
+      const formattedRow: Record<string, string> = {};
+      for (const col of columns) {
+        const value = row[col.name];
+        formattedRow[col.name] = formatter(value, col.name);
+      }
+      return formattedRow;
+    });
+  }
+
+  private buildColumnNames(
+    columns: ReadonlyArray<ColumnDefinition>,
+  ): Record<string, string> {
+    const columnNames: Record<string, string> = {};
+    for (const col of columns) {
+      columnNames[col.name] = String(col.title ?? col.name);
+    }
+    return columnNames;
+  }
+
   private formatFilter(filter: DataGridFilter) {
     if ('value' in filter) {
+      // Handle array values for 'in' operator
+      if (Array.isArray(filter.value)) {
+        if (filter.value.length > 3) {
+          return `${filter.column} ${filter.op} (${filter.value.length} values)`;
+        } else {
+          return `${filter.column} ${filter.op} (${filter.value.join(', ')})`;
+        }
+      }
       return `${filter.column} ${filter.op} ${filter.value}`;
     } else {
       return `${filter.column} ${filter.op}`;
@@ -909,5 +1217,150 @@ function aggregationFunIcon(func: AggregationFunction): string {
       return '↑';
     default:
       throw new Error(`Unknown aggregation function: ${func}`);
+  }
+}
+
+// Helper component to manage distinct values selection
+interface DistinctValuesSubmenuAttrs {
+  readonly columnName: string;
+  readonly distinctState: ReadonlyArray<SqlValue> | undefined;
+  readonly formatValue: (value: SqlValue) => string;
+  readonly onApply: (selectedValues: Set<SqlValue>) => void;
+}
+
+class DistinctValuesSubmenu
+  implements m.ClassComponent<DistinctValuesSubmenuAttrs>
+{
+  private selectedValues = new Set<SqlValue>();
+  private searchQuery = '';
+  private static readonly MAX_VISIBLE_ITEMS = 100;
+
+  view({attrs}: m.Vnode<DistinctValuesSubmenuAttrs>) {
+    const {distinctState, formatValue, onApply} = attrs;
+
+    if (distinctState === undefined) {
+      return m('.pf-distinct-values-menu', [
+        m(MenuItem, {label: 'Loading...', disabled: true}),
+      ]);
+    }
+
+    // Use fuzzy search to filter and get highlighted segments
+    const fuzzyResults = (() => {
+      if (this.searchQuery === '') {
+        // No search - show all values without highlighting
+        return distinctState.map((value) => ({
+          value,
+          segments: [{matching: false, value: formatValue(value)}],
+        }));
+      } else {
+        // Fuzzy search with highlighting
+        const finder = new FuzzyFinder(distinctState, (v) => formatValue(v));
+        return finder.find(this.searchQuery).map((result) => ({
+          value: result.item,
+          segments: result.segments,
+        }));
+      }
+    })();
+
+    // Limit the number of items rendered
+    const visibleResults = fuzzyResults.slice(
+      0,
+      DistinctValuesSubmenu.MAX_VISIBLE_ITEMS,
+    );
+    const remainingCount =
+      fuzzyResults.length - DistinctValuesSubmenu.MAX_VISIBLE_ITEMS;
+
+    return m('.pf-distinct-values-menu', [
+      m(
+        '.pf-distinct-values-menu__search',
+        {
+          onclick: (e: MouseEvent) => {
+            // Prevent menu from closing when clicking search box
+            e.stopPropagation();
+          },
+        },
+        m(TextInput, {
+          placeholder: 'Search...',
+          value: this.searchQuery,
+          oninput: (e: InputEvent) => {
+            this.searchQuery = (e.target as HTMLInputElement).value;
+          },
+          onkeydown: (e: KeyboardEvent) => {
+            if (this.searchQuery !== '' && e.key === 'Escape') {
+              this.searchQuery = '';
+              e.stopPropagation(); // Prevent menu from closing
+            }
+          },
+        }),
+      ),
+      m(
+        '.pf-distinct-values-menu__list',
+        fuzzyResults.length > 0
+          ? [
+              visibleResults.map((result) => {
+                const isSelected = this.selectedValues.has(result.value);
+                // Render highlighted label
+                const labelContent = result.segments.map((segment) => {
+                  if (segment.matching) {
+                    return m('strong.pf-fuzzy-match', segment.value);
+                  } else {
+                    return segment.value;
+                  }
+                });
+
+                // Render custom menu item with highlighted content
+                return m(
+                  'button.pf-menu-item',
+                  {
+                    onclick: () => {
+                      if (isSelected) {
+                        this.selectedValues.delete(result.value);
+                      } else {
+                        this.selectedValues.add(result.value);
+                      }
+                    },
+                  },
+                  m(Icon, {
+                    className: 'pf-menu-item__left-icon',
+                    icon: isSelected ? Icons.Checkbox : Icons.BlankCheckbox,
+                  }),
+                  m('.pf-menu-item__label', labelContent),
+                );
+              }),
+              remainingCount > 0 &&
+                m(MenuItem, {
+                  label: `...and ${remainingCount} more`,
+                  disabled: true,
+                }),
+            ]
+          : m(EmptyState, {
+              title: 'No matches',
+            }),
+      ),
+      m('.pf-distinct-values-menu__footer', [
+        m(MenuItem, {
+          label: 'Apply',
+          icon: 'check',
+          disabled: this.selectedValues.size === 0,
+          onclick: () => {
+            if (this.selectedValues.size > 0) {
+              onApply(this.selectedValues);
+              this.selectedValues.clear();
+              this.searchQuery = '';
+            }
+          },
+        }),
+        m(MenuItem, {
+          label: 'Clear selection',
+          icon: 'close',
+          disabled: this.selectedValues.size === 0,
+          closePopupOnClick: false,
+          onclick: () => {
+            this.selectedValues.clear();
+            m.redraw();
+          },
+        }),
+      ]),
+    ]);
   }
 }

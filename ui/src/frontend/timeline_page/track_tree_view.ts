@@ -46,6 +46,7 @@ import {
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
+import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
   COLOR_ACCENT,
@@ -81,6 +82,10 @@ const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
     improve performance on large traces.`,
   defaultValue: false,
 });
+
+// Snap-to-boundaries feature constants
+const SNAP_THRESHOLD_PX = 15;
+const SNAP_ENABLED_DEFAULT = true;
 
 export interface TrackTreeViewAttrs {
   // Access to the trace, for accessing the track registry / selection manager.
@@ -129,6 +134,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private areaDrag?: InProgressAreaSelection;
   private handleDrag?: InProgressHandleDrag;
   private canvasRect?: Rect2D;
+  private currentSnapPoint?: SnapPoint;
+  private snapEnabled = SNAP_ENABLED_DEFAULT;
 
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
@@ -507,22 +514,40 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
                 new HighPrecisionTime(areaSelection.end),
               );
             }
-            this.handleDrag.currentTime = timescale.pxToHpTime(e.dragCurrent.x);
+
+            this.currentSnapPoint = undefined;
+            const currentTime = this.trySnapToTrack(
+              timescale.pxToHpTime(e.dragCurrent.x),
+              e.dragCurrent.y,
+              e.altKey,
+              timescale,
+              renderedTracks,
+            );
+
+            this.handleDrag.currentTime = currentTime;
             trace.timeline.selectedSpan = this.handleDrag
               .timeSpan()
               .toTimeSpan();
+            this.trace.raf.scheduleCanvasRedraw();
           },
           onDragEnd: (e) => {
-            const newStartTime = timescale
-              .pxToHpTime(e.dragCurrent.x)
-              .toTime('ceil');
+            this.currentSnapPoint = undefined;
+            const newStartTime = this.trySnapToTrack(
+              timescale.pxToHpTime(e.dragCurrent.x),
+              e.dragCurrent.y,
+              e.altKey,
+              timescale,
+              renderedTracks,
+            );
+
             trace.selection.selectArea({
               ...areaSelection,
-              end: Time.max(newStartTime, areaSelection.end),
-              start: Time.min(newStartTime, areaSelection.end),
+              end: Time.max(newStartTime.toTime('ceil'), areaSelection.end),
+              start: Time.min(newStartTime.toTime('ceil'), areaSelection.end),
             });
             trace.timeline.selectedSpan = undefined;
             this.handleDrag = undefined;
+            this.currentSnapPoint = undefined;
           },
         },
       },
@@ -543,22 +568,40 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
                 new HighPrecisionTime(areaSelection.start),
               );
             }
-            this.handleDrag.currentTime = timescale.pxToHpTime(e.dragCurrent.x);
+
+            this.currentSnapPoint = undefined;
+            const currentTime = this.trySnapToTrack(
+              timescale.pxToHpTime(e.dragCurrent.x),
+              e.dragCurrent.y,
+              e.altKey,
+              timescale,
+              renderedTracks,
+            );
+
+            this.handleDrag.currentTime = currentTime;
             trace.timeline.selectedSpan = this.handleDrag
               .timeSpan()
               .toTimeSpan();
+            this.trace.raf.scheduleCanvasRedraw();
           },
           onDragEnd: (e) => {
-            const newEndTime = timescale
-              .pxToHpTime(e.dragCurrent.x)
-              .toTime('ceil');
+            this.currentSnapPoint = undefined;
+            const newEndTime = this.trySnapToTrack(
+              timescale.pxToHpTime(e.dragCurrent.x),
+              e.dragCurrent.y,
+              e.altKey,
+              timescale,
+              renderedTracks,
+            );
+
             trace.selection.selectArea({
               ...areaSelection,
-              end: Time.max(newEndTime, areaSelection.start),
-              start: Time.min(newEndTime, areaSelection.start),
+              end: Time.max(newEndTime.toTime('ceil'), areaSelection.start),
+              start: Time.min(newEndTime.toTime('ceil'), areaSelection.start),
             });
             trace.timeline.selectedSpan = undefined;
             this.handleDrag = undefined;
+            this.currentSnapPoint = undefined;
           },
         },
       },
@@ -580,7 +623,19 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
                 e.dragStart.y,
               );
             }
-            this.areaDrag.update(e, timescale);
+
+            this.currentSnapPoint = undefined;
+            const currentTime = this.trySnapToTrack(
+              timescale.pxToHpTime(e.dragCurrent.x),
+              e.dragCurrent.y,
+              e.altKey,
+              timescale,
+              renderedTracks,
+            );
+
+            this.areaDrag.currentTime = currentTime;
+            this.areaDrag.currentY = e.dragCurrent.y;
+
             this.trace.raf.scheduleCanvasRedraw();
             trace.timeline.selectedSpan = this.areaDrag.timeSpan().toTimeSpan();
           },
@@ -591,7 +646,18 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
                 e.dragStart.y,
               );
             }
-            this.areaDrag?.update(e, timescale);
+
+            this.currentSnapPoint = undefined;
+            const currentTime = this.trySnapToTrack(
+              timescale.pxToHpTime(e.dragCurrent.x),
+              e.dragCurrent.y,
+              e.altKey,
+              timescale,
+              renderedTracks,
+            );
+
+            this.areaDrag.currentTime = currentTime;
+            this.areaDrag.currentY = e.dragCurrent.y;
 
             // Find the list of tracks that intersect this selection
             const trackUris = findTracksInRect(
@@ -611,11 +677,42 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
             trace.timeline.selectedSpan = undefined;
             this.areaDrag = undefined;
+            this.currentSnapPoint = undefined;
           },
         },
       },
       wheelNavigationInteraction(trace, timelineRect, timescale),
     ]);
+  }
+
+  private trySnapToTrack(
+    targetTime: HighPrecisionTime,
+    y: number,
+    altKeyPressed: boolean,
+    timescale: TimeScale,
+    renderedTracks: ReadonlyArray<TrackView>,
+  ): HighPrecisionTime {
+    if (!this.snapEnabled || altKeyPressed) {
+      return targetTime;
+    }
+
+    const trackView = findTrackAtY(renderedTracks, y);
+    if (!trackView?.renderer?.track.getSnapPoint) {
+      return targetTime;
+    }
+
+    const snapPoint = trackView.renderer.track.getSnapPoint(
+      targetTime.toTime(),
+      SNAP_THRESHOLD_PX,
+      timescale,
+    );
+
+    if (snapPoint) {
+      this.currentSnapPoint = snapPoint;
+      return new HighPrecisionTime(snapPoint.time);
+    }
+
+    return targetTime;
   }
 
   private updatePerfStats(
@@ -635,29 +732,81 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     size: Size2D,
   ) {
     if (this.areaDrag) {
+      const rect = this.areaDrag.rect(timescale);
+      const snapPx = this.currentSnapPoint
+        ? timescale.timeToPx(this.currentSnapPoint.time)
+        : undefined;
+
       ctx.strokeStyle = COLOR_ACCENT;
       ctx.lineWidth = 1;
-      const rect = this.areaDrag.rect(timescale);
-      ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+      ctx.beginPath();
+
+      // Always draw top and bottom
+      ctx.moveTo(rect.x, rect.y);
+      ctx.lineTo(rect.x + rect.width, rect.y);
+      ctx.moveTo(rect.x, rect.y + rect.height);
+      ctx.lineTo(rect.x + rect.width, rect.y + rect.height);
+
+      // Draw left edge if not snapped
+      if (snapPx === undefined || Math.abs(snapPx - rect.x) > 1) {
+        ctx.moveTo(rect.x, rect.y);
+        ctx.lineTo(rect.x, rect.y + rect.height);
+      }
+
+      // Draw right edge if not snapped
+      if (
+        snapPx === undefined ||
+        Math.abs(snapPx - (rect.x + rect.width)) > 1
+      ) {
+        ctx.moveTo(rect.x + rect.width, rect.y);
+        ctx.lineTo(rect.x + rect.width, rect.y + rect.height);
+      }
+
+      ctx.stroke();
+
+      // Draw full-height dashed line if snapped
+      if (snapPx !== undefined) {
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(snapPx, 0);
+        ctx.lineTo(snapPx, size.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
 
     if (this.handleDrag) {
       const rect = this.handleDrag.hBounds(timescale);
+      const snapPx = this.currentSnapPoint
+        ? timescale.timeToPx(this.currentSnapPoint.time)
+        : undefined;
 
       ctx.strokeStyle = COLOR_ACCENT;
       ctx.lineWidth = 1;
 
+      // Draw left boundary
+      const leftSnapped =
+        snapPx !== undefined && Math.abs(snapPx - rect.left) < 1;
+      if (leftSnapped) {
+        ctx.setLineDash([4, 4]);
+      }
       ctx.beginPath();
       ctx.moveTo(rect.left, 0);
       ctx.lineTo(rect.left, size.height);
       ctx.stroke();
-      ctx.closePath();
+      ctx.setLineDash([]);
 
+      // Draw right boundary
+      const rightSnapped =
+        snapPx !== undefined && Math.abs(snapPx - rect.right) < 1;
+      if (rightSnapped) {
+        ctx.setLineDash([4, 4]);
+      }
       ctx.beginPath();
       ctx.moveTo(rect.right, 0);
       ctx.lineTo(rect.right, size.height);
       ctx.stroke();
-      ctx.closePath();
+      ctx.setLineDash([]);
     }
 
     const selection = this.trace.selection.selection;
@@ -752,6 +901,26 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       }
     }
   }
+}
+
+/**
+ * Helper function to find a single track at a given Y coordinate.
+ *
+ * @param renderedTracks - The list of tracks and their positions.
+ * @param y - The Y coordinate to check.
+ * @returns - The track at the given Y coordinate, or undefined if none found.
+ */
+function findTrackAtY(
+  renderedTracks: ReadonlyArray<TrackView>,
+  y: number,
+): TrackView | undefined {
+  for (const trackView of renderedTracks) {
+    const {verticalBounds} = trackView;
+    if (y >= verticalBounds.top && y < verticalBounds.bottom) {
+      return trackView;
+    }
+  }
+  return undefined;
 }
 
 /**

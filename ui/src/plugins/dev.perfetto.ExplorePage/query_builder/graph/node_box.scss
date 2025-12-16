@@ -23,6 +23,7 @@
   gap: 0.375rem;
   padding: 0.625rem 0.75rem;
   cursor: grab;
+  overflow: hidden;
   transition:
     border-color 0.2s ease-in-out,
     box-shadow 0.2s ease-in-out;
@@ -90,6 +91,19 @@
 .pf-exp-node-box__content {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1;
+  // Reserve space for the absolutely-positioned actions menu that appears on hover
+  // This prevents node content from being obscured by action buttons
+  // Value accommodates 2-3 icon buttons (each ~1.5rem) plus gaps
+  padding-right: 3.5rem;
+}
+
+.pf-exp-node-box__details {
+  .pf-exp-column-name {
+    font-weight: 600;
+  }
 }
 
 .pf-exp-node-box__filters {

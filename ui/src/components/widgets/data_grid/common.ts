@@ -34,6 +34,11 @@ export interface ColumnDefinition {
   // context menu. The function receives the cell value and the complete row
   // data.
   readonly cellMenuItems?: (value: SqlValue, row: RowDef) => m.Children;
+
+  // Enable distinct values filtering for this column. When enabled, adds a
+  // "Filter by values..." menu item that shows all distinct values. Only
+  // enable for columns with low cardinality (e.g., strings, enums).
+  readonly distinctValues?: boolean;
 }
 
 export interface FilterValue {
@@ -72,6 +77,7 @@ export interface DataSourceResult {
   readonly rows: ReadonlyArray<RowDef>;
   readonly aggregates: RowDef;
   readonly isLoading?: boolean;
+  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
 }
 
 export type RowDef = {[key: string]: SqlValue};
@@ -92,13 +98,29 @@ export interface DataGridModel {
   readonly filters?: ReadonlyArray<DataGridFilter>;
   readonly pagination?: Pagination;
   readonly aggregates?: ReadonlyArray<AggregateSpec>;
+  readonly distinctValuesColumns?: ReadonlySet<string>;
 }
 
 export interface DataGridDataSource {
   readonly rows?: DataSourceResult;
   readonly isLoading?: boolean;
   notifyUpdate(model: DataGridModel): void;
+
+  /**
+   * Export all data with current filters/sorting applied.
+   * Returns a promise that resolves to all filtered and sorted rows.
+   */
+  exportData(): Promise<readonly RowDef[]>;
 }
+
+/**
+ * Function to format a value as a string for export/clipboard.
+ */
+export type ValueFormatter = (
+  value: SqlValue,
+  columnName: string,
+  formatHint?: string,
+) => string;
 
 /**
  * Compares two arrays of AggregateSpec objects for equality.

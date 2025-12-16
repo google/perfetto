@@ -24,12 +24,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/pprof/profile.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -108,68 +110,54 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
 }
 
 bool IsPprofProfile(const uint8_t* data, size_t size) {
+  using perfetto::third_party::perftools::profiles::pbzero::Profile;
+  using protozero::proto_utils::ProtoWireType;
   // Minimum size to parse a protobuf tag and small varint
   constexpr size_t kMinPprofSize = 10;
   if (size < kMinPprofSize) {
     return false;
   }
 
-  const uint8_t* ptr = data;
-  const uint8_t* const end = ptr + size;
-
-  // Check if first field is sample_type (field 1, length-delimited)
-  uint64_t tag;
-  const uint8_t* next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
-  if (next == ptr) {
-    return false;
+  bool has_core_pprof_field = false;
+  protozero::ProtoDecoder decoder(data, size);
+  for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
+    switch (fld.id()) {
+      case Profile::kSampleFieldNumber:
+      case Profile::kMappingFieldNumber:
+      case Profile::kLocationFieldNumber:
+      case Profile::kFunctionFieldNumber:
+      case Profile::kStringTableFieldNumber:
+        has_core_pprof_field = true;
+        [[fallthrough]];
+      case Profile::kSampleTypeFieldNumber:
+      case Profile::kPeriodTypeFieldNumber:
+        if (fld.type() != ProtoWireType::kLengthDelimited) {
+          return false;
+        }
+        break;
+      case Profile::kCommentFieldNumber:
+        if (fld.type() != ProtoWireType::kLengthDelimited &&
+            fld.type() != ProtoWireType::kVarInt) {
+          return false;
+        }
+        break;
+      case Profile::kDropFramesFieldNumber:
+      case Profile::kKeepFramesFieldNumber:
+        has_core_pprof_field = true;
+        [[fallthrough]];
+      case Profile::kTimeNanosFieldNumber:
+      case Profile::kDurationNanosFieldNumber:
+      case Profile::kPeriodFieldNumber:
+      case Profile::kDefaultSampleTypeFieldNumber:
+        if (fld.type() != ProtoWireType::kVarInt) {
+          return false;
+        }
+        break;
+      default:
+        return false;
+    }
   }
-
-  constexpr uint64_t kSampleTypeTag =
-      protozero::proto_utils::MakeTagLengthDelimited(1);
-
-  if (tag != kSampleTypeTag) {
-    return false;
-  }
-
-  // Parse the length of the sample_type field
-  uint64_t sample_type_length;
-  const uint8_t* len_next =
-      protozero::proto_utils::ParseVarInt(next, end, &sample_type_length);
-  if (len_next == next ||
-      sample_type_length > static_cast<uint64_t>(end - len_next)) {
-    return false;
-  }
-
-  // Look inside the sample_type field for pprof ValueType structure
-  // In pprof: ValueType has field 1 (type) and field 2 (unit) as varints (wire
-  // type 0)
-  // In Perfetto: field 1 would contain length-delimited data (wire type 2)
-  const uint8_t* value_type_ptr = len_next;
-  const uint8_t* value_type_end = len_next + sample_type_length;
-
-  // Parse the first ValueType message
-  if (value_type_ptr >= value_type_end) {
-    return false;
-  }
-
-  // Check for field 1 (type) as varint
-  uint64_t inner_tag;
-  const uint8_t* inner_next = protozero::proto_utils::ParseVarInt(
-      value_type_ptr, value_type_end, &inner_tag);
-  if (inner_next == value_type_ptr) {
-    return false;
-  }
-
-  // Use proto_utils to create proper field tags for pprof ValueType fields:
-  // Field 1 (type) and Field 2 (unit) are both varints in pprof format
-  constexpr uint64_t kValueTypeTypeFieldTag =
-      protozero::proto_utils::MakeTagVarInt(1);
-  constexpr uint64_t kValueTypeUnitFieldTag =
-      protozero::proto_utils::MakeTagVarInt(2);
-
-  // Accept either field 1 (type) or field 2 (unit) as evidence of pprof format
-  return inner_tag == kValueTypeTypeFieldTag ||
-         inner_tag == kValueTypeUnitFieldTag;
+  return has_core_pprof_field;
 }
 
 }  // namespace

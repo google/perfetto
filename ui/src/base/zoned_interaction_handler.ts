@@ -63,6 +63,18 @@ export interface DragEvent {
 
   // The amount the mouse have moved by since the last drag event.
   readonly deltaSinceLastEvent: Vector2D;
+
+  // Whether the Alt key is held.
+  readonly altKey: boolean;
+
+  // Whether the Shift key is held.
+  readonly shiftKey: boolean;
+
+  // Whether the Ctrl key is held.
+  readonly ctrlKey: boolean;
+
+  // Whether the Meta key is held.
+  readonly metaKey: boolean;
 }
 
 export interface ClickEvent {
@@ -230,6 +242,10 @@ export class ZonedInteractionHandler implements Disposable {
             deltaSinceLastEvent: mousePosition.sub(
               currentDrag.previouslyNotifiedPosition,
             ),
+            altKey: e.altKey,
+            shiftKey: e.shiftKey,
+            ctrlKey: e.ctrlKey,
+            metaKey: e.metaKey,
           },
           this.target,
         );
@@ -303,6 +319,10 @@ export class ZonedInteractionHandler implements Disposable {
       dragCurrent: x,
       dragDelta: new Vector2D({x: e.movementX, y: e.movementY}),
       deltaSinceLastEvent: new Vector2D({x: e.movementX, y: e.movementY}),
+      altKey: e.altKey,
+      shiftKey: e.shiftKey,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
     };
 
     dragConfig.onDragEnd?.(dragEvent, element);

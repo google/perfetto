@@ -27,15 +27,13 @@ SOURCE_FILES = [
     {
         'files': [
             'protos/perfetto/common/builtin_clock.proto',
-            'protos/perfetto/common/data_source_descriptor.proto',
-            'protos/perfetto/common/ftrace_descriptor.proto',
-            'protos/perfetto/common/gpu_counter_descriptor.proto',
             'protos/perfetto/common/track_event_descriptor.proto',
             'protos/perfetto/config/priority_boost/priority_boost_config.proto',
             'protos/perfetto/config/test_config.proto',
             'protos/perfetto/config/trace_config.proto',
             'protos/perfetto/config/track_event/track_event_config.proto',
             'protos/perfetto/trace/clock_snapshot.proto',
+            'protos/perfetto/trace/profiling/profile_common.proto',
             'protos/perfetto/trace/test_event.proto',
             'protos/perfetto/trace/trace.proto',
             'protos/perfetto/trace/track_event/chrome_active_processes.proto',
@@ -66,12 +64,34 @@ SOURCE_FILES = [
             'protos/perfetto/trace/track_event/track_event.proto',
         ],
         'custom_files': [
+            'protos/perfetto/common/data_source_descriptor.proto',
             'protos/perfetto/config/data_source_config.proto',
             'protos/perfetto/trace/interned_data/interned_data.proto',
             'protos/perfetto/trace/trace_packet.proto',
         ],
         'path_strip_prefix': 'protos/perfetto',
         'path_add_prefix': 'contrib/rust-sdk/perfetto/src/protos',
+    },
+    {
+        'files': [
+            'protos/perfetto/common/gpu_counter_descriptor.proto',
+            'protos/perfetto/config/gpu/gpu_counter_config.proto',
+            'protos/perfetto/config/gpu/gpu_renderstages_config.proto',
+            'protos/perfetto/config/gpu/vulkan_memory_config.proto',
+            'protos/perfetto/trace/gpu/gpu_counter_event.proto',
+            'protos/perfetto/trace/gpu/gpu_log.proto',
+            'protos/perfetto/trace/gpu/gpu_render_stage_event.proto',
+            'protos/perfetto/trace/gpu/vulkan_api_event.proto',
+            'protos/perfetto/trace/gpu/vulkan_memory_event.proto',
+        ],
+        'custom_files': [
+            'protos/perfetto/common/data_source_descriptor.proto',
+            'protos/perfetto/config/data_source_config.proto',
+            'protos/perfetto/trace/interned_data/interned_data.proto',
+            'protos/perfetto/trace/trace_packet.proto',
+        ],
+        'path_strip_prefix': 'protos/perfetto',
+        'path_add_prefix': 'contrib/rust-sdk/perfetto-protos-gpu/src/protos',
     },
 ]
 

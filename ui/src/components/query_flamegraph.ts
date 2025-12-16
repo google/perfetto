@@ -16,7 +16,6 @@ import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/logging';
-import {Monitor} from '../base/monitor';
 import {uuidv4Sql} from '../base/uuid';
 import {Engine} from '../trace_processor/engine';
 import {
@@ -42,6 +41,7 @@ import {
 import {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
+import {Monitor} from '../base/monitor';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -116,10 +116,6 @@ export interface QueryFlamegraphMetric {
   readonly optionalMarker?: FlamegraphOptionalMarker;
 }
 
-export interface QueryFlamegraphState {
-  state: FlamegraphState;
-}
-
 // Given a table and columns on those table (corresponding to metrics),
 // returns an array of `QueryFlamegraphMetric` structs which can be passed
 // in QueryFlamegraph's attrs.
@@ -153,20 +149,40 @@ export function metricsFromTableOrSubquery(
   return metrics;
 }
 
+interface QueryFlamegraphAttrs {
+  // The metrics to display in the flamegraph. If undefined, the flamegraph will
+  // show a loading state.
+  readonly metrics?: ReadonlyArray<QueryFlamegraphMetric>;
+
+  // The current state of the flamegraph (filters, view, selected metric, etc).
+  readonly state?: FlamegraphState;
+
+  // Callback invoked when the flamegraph state changes (e.g., user changes
+  // filters, selects a different metric, etc).
+  readonly onStateChange: (state: FlamegraphState) => void;
+}
+
+export interface QueryFlamegraphWithMetrics {
+  flamegraph: QueryFlamegraph;
+  metrics: ReadonlyArray<QueryFlamegraphMetric>;
+}
+
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
 // data for the widget by querying an `Engine`.
 export class QueryFlamegraph implements AsyncDisposable {
   private data?: FlamegraphQueryData;
-  private readonly selMonitor = new Monitor([() => this.state.state]);
   private readonly queryLimiter = new AsyncLimiter();
   private readonly dependencies: ReadonlyArray<
     SharedAsyncDisposable<AsyncDisposable>
   >;
+  private lastAttrs?: QueryFlamegraphAttrs;
+  private monitor = new Monitor([
+    () => this.lastAttrs?.metrics,
+    () => this.lastAttrs?.state,
+  ]);
 
   constructor(
     private readonly trace: Trace,
-    private readonly metrics: ReadonlyArray<QueryFlamegraphMetric>,
-    private state: QueryFlamegraphState,
     dependencies: ReadonlyArray<AsyncDisposable> = [],
   ) {
     this.dependencies = dependencies.map((d) => SharedAsyncDisposable.wrap(d));
@@ -178,37 +194,52 @@ export class QueryFlamegraph implements AsyncDisposable {
     }
   }
 
-  render() {
-    if (this.selMonitor.ifStateChanged()) {
-      const metric = assertExists(
-        this.metrics.find(
-          (x) => this.state.state.selectedMetricName === x.name,
-        ),
-      );
-      const engine = this.trace.engine;
-      const state = this.state;
+  render(attrs: QueryFlamegraphAttrs) {
+    const {metrics, state, onStateChange} = attrs;
+    this.lastAttrs = attrs;
+    if (this.monitor.ifStateChanged()) {
       this.data = undefined;
-      this.queryLimiter.schedule(async () => {
-        this.data = undefined;
-        // Clone all the dependencies to make sure the the are not dropped while
-        // this function is running, adding them to the trash to make sure they
-        // are disposed after this function returns, but note this won't
-        // actually drop the tables unless this class instances have also been
-        // disposed due to the SharedAsyncDisposable logic.
-        await using trash = new AsyncDisposableStack();
-        for (const dependency of this.dependencies ?? []) {
-          trash.use(dependency.clone());
-        }
-        this.data = await computeFlamegraphTree(engine, metric, state.state);
-      });
+      if (metrics && state) {
+        this.fetchData(metrics, state);
+      }
     }
     return m(Flamegraph, {
-      metrics: this.metrics,
+      metrics: metrics ?? [],
       data: this.data,
-      state: this.state.state,
-      onStateChange: (state) => {
-        this.state.state = state;
+      state: state ?? {
+        view: {kind: 'TOP_DOWN'},
+        selectedMetricName: '',
+        filters: [],
       },
+      onStateChange,
+    });
+  }
+
+  fetchData(
+    metrics: ReadonlyArray<QueryFlamegraphMetric>,
+    state: FlamegraphState,
+  ) {
+    const metric = assertExists(
+      metrics.find((x) => state.selectedMetricName === x.name),
+    );
+    const engine = this.trace.engine;
+    this.queryLimiter.schedule(async () => {
+      this.data = undefined;
+      // Clone all the dependencies to make sure the the are not dropped while
+      // this function is running, adding them to the trash to make sure they
+      // are disposed after this function returns, but note this won't
+      // actually drop the tables unless this class instances have also been
+      // disposed due to the SharedAsyncDisposable logic.
+      await using trash = new AsyncDisposableStack();
+      for (const dependency of this.dependencies ?? []) {
+        // If the dependency is disposed, it means that we have already ended
+        // up cleaning up the object so none of this matters. Just return.
+        if (dependency.isDisposed) {
+          return;
+        }
+        trash.use(dependency.clone());
+      }
+      this.data = await computeFlamegraphTree(engine, metric, state);
     });
   }
 }

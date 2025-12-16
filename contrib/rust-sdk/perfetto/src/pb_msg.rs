@@ -14,7 +14,7 @@
 
 use crate::pb_utils::*;
 use crate::stream_writer::StreamWriter;
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{
     cell::RefCell,
     ptr,
@@ -55,18 +55,12 @@ struct PbMsgSizeField {
 
 impl PbMsgSizeField {
     pub fn patch(&mut self, writer: &PbMsgWriter) {
-        let mut dummy: [u8; PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE] =
-            [0; PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE];
-        let ptr = if self.ptr.is_null() {
-            dummy.as_mut_ptr()
-        } else {
-            self.ptr
-        };
+        assert!(!self.ptr.is_null());
         let mut writer = writer.writer.writer.borrow_mut();
         // SAFETY:
         // - `writer` must be a properly initialized PerfettoStreamWriter struct.
-        // - `ptr` must be pointing to a `PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE` sized buffer.
-        self.ptr = unsafe { PerfettoStreamWriterAnnotatePatch(&mut *writer as *mut _, ptr) };
+        // - `self.ptr` must be pointing to a `PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE` sized buffer.
+        self.ptr = unsafe { PerfettoStreamWriterAnnotatePatch(&mut *writer as *mut _, self.ptr) };
     }
 
     pub fn patch_stack(&mut self, writer: &PbMsgWriter) {
@@ -77,7 +71,7 @@ impl PbMsgSizeField {
                 inner_writer.end as *const u8,
             )
         };
-        if range_begin >= self.ptr && (self.ptr as *const u8) < range_end {
+        if range_begin <= self.ptr && (self.ptr as *const u8) < range_end {
             self.patch(writer);
             if let Some(parent) = self.parent.upgrade() {
                 parent.borrow_mut().patch_stack(writer);

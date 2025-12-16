@@ -16,7 +16,7 @@ import m from 'mithril';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
+import {Row} from '../../../../trace_processor/query_result';
 import {Spinner} from '../../../../widgets/spinner';
 import {
   Grid,
@@ -36,8 +36,10 @@ import {
   tableColumnId,
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
-import {SelectColumnMenu} from './select_column_menu';
-import {renderColumnFilterOptions} from './add_column_filter_menu';
+import {SelectColumnMenu} from './menus/select_column_menu';
+import {renderColumnFilterOptions} from './menus/add_column_filter_menu';
+import {renderCastColumnMenu} from './menus/cast_column_menu';
+import {renderTransformColumnMenu} from './menus/transform_column_menu';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -60,20 +62,9 @@ function renderCell(
   state: SqlTableState,
 ): RenderedCell {
   const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.column)]];
+  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]];
 
-  const additionalValues: {[key: string]: SqlValue} = {};
-  const supportingColumns: {[key: string]: SqlColumn} =
-    column.supportingColumns?.() ?? {};
-  for (const [key, col] of Object.entries(supportingColumns)) {
-    additionalValues[key] = row[columns[sqlColumnId(col)]];
-  }
-
-  const result = column.renderCell(
-    sqlValue,
-    getTableManager(state),
-    additionalValues,
-  );
+  const result = column.renderCell(sqlValue, getTableManager(state));
 
   return result;
 }
@@ -150,10 +141,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     });
   }
 
-  renderColumnFilterOptions(c: TableColumn): m.Children {
-    return renderColumnFilterOptions(c, this.state);
-  }
-
   getAdditionalColumnMenuItems(
     addColumnMenuItems?: (
       column: TableColumn,
@@ -198,10 +185,21 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
             icon: Icons.Hide,
             onclick: () => this.state.hideColumnAtIndex(i),
           }),
+        // Use the new getColumnSpecificMenuItems method if available
+        column.getColumnSpecificMenuItems?.({
+          replaceColumn: (newColumn: TableColumn) =>
+            this.state.replaceColumnAtIndex(i, newColumn),
+        }),
+        m(
+          MenuItem,
+          {label: 'Cast', icon: Icons.Change},
+          renderCastColumnMenu(column, i, this.state),
+        ),
+        renderTransformColumnMenu(column, i, this.state),
         m(
           MenuItem,
           {label: 'Add filter', icon: Icons.Filter},
-          this.renderColumnFilterOptions(column),
+          renderColumnFilterOptions(column, this.state),
         ),
         additionalColumnMenuItems &&
           additionalColumnMenuItems[
@@ -216,7 +214,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           index: i,
         }),
       ];
-
       const columnKey = tableColumnId(column);
 
       const gridColumn: GridColumn = {

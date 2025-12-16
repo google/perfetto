@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{cell::RefCell, ptr, slice};
 
 /// A `StreamWriter` owns a chunk of memory that the user can write to.

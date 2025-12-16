@@ -119,7 +119,9 @@ describe('column_info utilities', () => {
       expect(result.name).toBe('id');
       expect(result.type).toBe('INT');
       expect(result.checked).toBe(false);
-      expect(result.column).toBe(original.column);
+      // column is now a copy with name updated (not same reference)
+      expect(result.column.name).toBe('id');
+      expect(result.column.type).toBe(intType);
       expect(result.alias).toBeUndefined();
     });
 
@@ -136,7 +138,8 @@ describe('column_info utilities', () => {
 
       expect(result.name).toBe('identifier');
       expect(result.type).toBe('INT');
-      expect(result.column.name).toBe('id');
+      // column.name should also be replaced with the alias so child nodes see the aliased name
+      expect(result.column.name).toBe('identifier');
       expect(result.alias).toBeUndefined();
     });
 

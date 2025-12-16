@@ -156,6 +156,7 @@ from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
 from diff_tests.stdlib.slices.tests import Slices
+from diff_tests.stdlib.slices.tests_stack import SlicesStack
 from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
@@ -316,6 +317,7 @@ def fetch_all_diff_tests(
       PreludeSlices,
       StdlibSmoke,
       Slices,
+      SlicesStack,
       SpanJoinLeftJoin,
       SpanJoinOuterJoin,
       SpanJoinRegression,

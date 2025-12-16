@@ -119,3 +119,10 @@
     "GRAD" 0,
     "opsz" 24;
 }
+
+@mixin hidden-while-fonts-loading {
+  @at-root body.pf-fonts-loading & {
+    visibility: hidden;
+    max-width: 1em;
+  }
+}

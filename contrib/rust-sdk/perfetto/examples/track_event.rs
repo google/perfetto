@@ -18,7 +18,7 @@
     feature(core_intrinsics)
 )]
 
-use perfetto::{
+use perfetto_sdk::{
     producer::*,
     protos::trace::track_event::{
         source_location::SourceLocationFieldNumber, track_descriptor::TrackDescriptorFieldNumber,

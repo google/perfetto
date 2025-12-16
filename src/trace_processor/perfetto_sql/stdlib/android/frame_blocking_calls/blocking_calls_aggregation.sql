@@ -17,7 +17,7 @@
 -- This is used for capturing blocking call per frame metrics, and the related plugins.
 INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 
-INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+INCLUDE PERFETTO MODULE android.cujs.cujs_base;
 
 -- For cases when a blocking call starts within a frame, but does not end before the actual frame
 -- ends, a part of the blocking call can be missed while calculating the metric. To avoid this

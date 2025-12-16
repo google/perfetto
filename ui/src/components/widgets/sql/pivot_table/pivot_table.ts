@@ -20,7 +20,7 @@ import {Button} from '../../../../widgets/button';
 import {Icons} from '../../../../base/semantic_icons';
 import {TableColumn, tableColumnId} from '../table/table_column';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
-import {SelectColumnMenu} from '../table/select_column_menu';
+import {SelectColumnMenu} from '../table/menus/select_column_menu';
 import {SqlColumn} from '../table/sql_column';
 import {buildSqlQuery} from '../table/query_builder';
 import {Aggregation, AGGREGATIONS} from './aggregations';
@@ -36,6 +36,7 @@ import {
 
 export interface PivotTableAttrs {
   readonly state: PivotTableState;
+  readonly getSelectableColumns: () => TableColumn[];
   // Additional button to render at the end of each row. Typically used
   // for adding new filters.
   extraRowButton?(node: PivotTreeNode): m.Children;
@@ -269,7 +270,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           icon: Icons.Add,
         },
         m(SelectColumnMenu, {
-          columns: state.table.columns.map((column) => ({
+          columns: attrs.getSelectableColumns().map((column) => ({
             key: tableColumnId(column),
             column,
           })),
@@ -365,7 +366,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           icon: Icons.Add,
         },
         m(SelectColumnMenu, {
-          columns: state.table.columns.map((column) => ({
+          columns: attrs.getSelectableColumns().map((column) => ({
             key: tableColumnId(column),
             column,
           })),
@@ -380,7 +381,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
               }),
           },
           columnMenu: (column) => ({
-            rightIcon: '',
+            rightIcon: Icons.ContextMenuAlt,
             children: AGGREGATIONS.map((agg) =>
               m(MenuItem, {
                 label: agg,

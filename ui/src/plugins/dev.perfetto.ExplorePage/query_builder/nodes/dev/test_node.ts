@@ -18,13 +18,13 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
-  SourceNode,
   nextNodeId,
 } from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
 
-export class TestNode implements SourceNode {
+export class TestNode implements QueryNode {
   readonly nodeId: string;
   readonly state: QueryNodeState;
   isDevNode = true;
@@ -46,6 +46,12 @@ export class TestNode implements SourceNode {
     return 'Test Node';
   }
 
+  nodeDetails(): NodeDetailsAttrs {
+    return {
+      content: null,
+    };
+  }
+
   clone(): QueryNode {
     return new TestNode(this.state);
   }
@@ -56,6 +62,10 @@ export class TestNode implements SourceNode {
 
   nodeSpecificModify(_onExecute?: () => void): m.Child {
     return m('div', 'Test Node');
+  }
+
+  nodeInfo(): m.Children {
+    return m('div', 'Test Node Info');
   }
 
   serializeState(): object {

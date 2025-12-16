@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SourceDataset, UnionDataset} from './dataset';
+import {UnionDataset, SourceDataset} from './dataset';
 import {
   BLOB,
   BLOB_NULL,
@@ -63,7 +63,7 @@ test("get query for simple dataset with an 'in' filter", () => {
 });
 
 test('get query for union dataset', () => {
-  const dataset = new UnionDataset([
+  const dataset = UnionDataset.create([
     new SourceDataset({
       src: 'slice',
       schema: {id: NUM},
@@ -102,7 +102,7 @@ test('union dataset batches large numbers of unions', () => {
     );
   }
 
-  const query = new UnionDataset(datasets).query();
+  const query = UnionDataset.create(datasets).query();
 
   // Verify query structure with CTE batching.
   expect(query).toContain('with');
@@ -177,7 +177,7 @@ test('find the schema of a simple dataset', () => {
 });
 
 test('find the schema of a union where source sets differ in their names', () => {
-  const dataset = new UnionDataset([
+  const dataset = UnionDataset.create([
     new SourceDataset({
       src: 'slice',
       schema: {foo: NUM},
@@ -192,7 +192,7 @@ test('find the schema of a union where source sets differ in their names', () =>
 });
 
 test('find the schema of a union with differing source sets', () => {
-  const dataset = new UnionDataset([
+  const dataset = UnionDataset.create([
     new SourceDataset({
       src: 'slice',
       schema: {foo: NUM},
@@ -207,7 +207,7 @@ test('find the schema of a union with differing source sets', () => {
 });
 
 test('find the schema of a union with one column in common', () => {
-  const dataset = new UnionDataset([
+  const dataset = UnionDataset.create([
     new SourceDataset({
       src: 'slice',
       schema: {foo: NUM, bar: NUM},
@@ -222,7 +222,7 @@ test('find the schema of a union with one column in common', () => {
 });
 
 test('optimize a union dataset', () => {
-  const dataset = new UnionDataset([
+  const dataset = UnionDataset.create([
     new SourceDataset({
       src: 'slice',
       schema: {},
@@ -252,7 +252,7 @@ test('optimize a union dataset', () => {
 });
 
 test('optimize a union dataset with different types of filters', () => {
-  const dataset = new UnionDataset([
+  const dataset = UnionDataset.create([
     new SourceDataset({
       src: 'slice',
       schema: {},
@@ -282,7 +282,7 @@ test('optimize a union dataset with different types of filters', () => {
 });
 
 test('optimize a union dataset with different schemas', () => {
-  const dataset = new UnionDataset([
+  const dataset = UnionDataset.create([
     new SourceDataset({
       src: 'slice',
       schema: {foo: NUM},
@@ -306,7 +306,7 @@ test('optimize a union dataset with different schemas', () => {
 });
 
 test('union type widening', () => {
-  const dataset = new UnionDataset([
+  const dataset = UnionDataset.create([
     new SourceDataset({
       src: 'slice',
       schema: {foo: NUM, bar: STR_NULL, baz: BLOB, missing: UNKNOWN},

@@ -130,6 +130,7 @@ export class StdlibPackageImpl implements SqlPackage {
 
 export class StdlibModuleImpl implements SqlModule {
   readonly includeKey: string;
+  readonly tags: string[];
   readonly tables: SqlTable[];
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
@@ -137,6 +138,7 @@ export class StdlibModuleImpl implements SqlModule {
 
   constructor(trace: Trace, docs: DocsModuleSchemaType) {
     this.includeKey = docs.module_name;
+    this.tags = docs.tags;
 
     const neededInclude = this.includeKey.startsWith('prelude')
       ? undefined
@@ -203,7 +205,9 @@ class StdlibTableFunctionImpl implements SqlTableFunction {
     this.summaryDesc = docs.summary_desc;
     this.description = docs.desc;
     this.args = docs.args.map((json) => new StdlibFunctionArgImpl(json));
-    this.returnCols = docs.cols.map((json) => new StdlibColumnImpl(json));
+    this.returnCols = docs.cols.map(
+      (json) => new StdlibColumnImpl(json, this.name),
+    );
   }
 }
 
@@ -230,6 +234,7 @@ class SqlTableImpl implements SqlTable {
   includeKey?: string;
   description: string;
   type: string;
+  importance?: 'high' | 'mid' | 'low';
   columns: SqlColumn[];
   idColumn: SqlColumn | undefined;
 
@@ -242,14 +247,16 @@ class SqlTableImpl implements SqlTable {
     this.includeKey = includeKey;
     this.description = docs.desc;
     this.type = docs.type;
-    this.columns = docs.cols.map((json) => new StdlibColumnImpl(json));
+    this.importance = docs.importance ?? undefined;
+    this.columns = docs.cols.map(
+      (json) => new StdlibColumnImpl(json, this.name),
+    );
   }
 
   getTableColumns(): TableColumn[] {
     return this.columns.map((col) =>
       createTableColumn({
         trace: this.trace,
-        table: this.name,
         column: col.name,
         type: col.type,
       }),
@@ -262,10 +269,16 @@ class StdlibColumnImpl implements SqlColumn {
   type: PerfettoSqlType;
   description: string;
 
-  constructor(docs: DocsArgOrColSchemaType) {
-    this.type = unwrapResult(parsePerfettoSqlTypeFromString(docs.type));
-    this.description = docs.desc;
+  constructor(docs: DocsArgOrColSchemaType, tableName: string) {
     this.name = docs.name;
+    this.type = unwrapResult(
+      parsePerfettoSqlTypeFromString({
+        type: docs.type,
+        table: tableName,
+        column: this.name,
+      }),
+    );
+    this.description = docs.desc;
   }
 }
 
@@ -295,6 +308,7 @@ const DATA_OBJECT_SCHEMA = z.object({
   desc: z.string(),
   summary_desc: z.string(),
   type: z.string(),
+  importance: z.enum(['high', 'mid', 'low']).nullish(),
   cols: z.array(ARG_OR_COL_SCHEMA),
 });
 type DocsDataObjectSchemaType = z.infer<typeof DATA_OBJECT_SCHEMA>;
@@ -330,6 +344,7 @@ type DocsMacroSchemaType = z.infer<typeof MACRO_SCHEMA>;
 
 const MODULE_SCHEMA = z.object({
   module_name: z.string(),
+  tags: z.array(z.string()),
   data_objects: z.array(DATA_OBJECT_SCHEMA),
   functions: z.array(FUNCTION_SCHEMA),
   table_functions: z.array(TABLE_FUNCTION_SCHEMA),

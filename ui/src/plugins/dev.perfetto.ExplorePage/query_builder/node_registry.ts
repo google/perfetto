@@ -41,6 +41,10 @@ export interface NodeDescriptor {
   // Whether this node is a source, modification or a multi-source node.
   type: 'source' | 'modification' | 'multisource';
 
+  // Optional category for grouping related nodes in the UI.
+  // Nodes with the same category will be shown in a submenu.
+  category?: string;
+
   // An optional, async function that runs before the node is created.
   // It can be used for interactive setup, like showing a modal.
   // If it returns null, the creation is aborted.
@@ -53,6 +57,17 @@ export interface NodeDescriptor {
 
   // Whether this node is only available in dev mode.
   devOnly?: boolean;
+
+  /**
+   * Whether this node should be shown on the landing page.
+   *
+   * If false, the node is still available in menus but not on the landing page.
+   * This is useful for nodes that are better accessed via commands or menus
+   * rather than being a primary entry point.
+   *
+   * @default true for source nodes
+   */
+  showOnLandingPage?: boolean;
 }
 
 export class NodeRegistry {

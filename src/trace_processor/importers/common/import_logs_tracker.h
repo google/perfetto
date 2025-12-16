@@ -24,8 +24,6 @@
 #include <utility>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
 
@@ -82,13 +80,6 @@ class ImportLogsTracker {
 
   TraceProcessorContext* context_;
   uint32_t trace_id_;
-
-  // Cached string IDs for severity levels
-  StringId severity_info_id_;
-  StringId severity_data_loss_id_;
-  StringId severity_error_id_;
-
-  StringId SeverityToStringId(stats::Severity severity);
 };
 
 }  // namespace perfetto::trace_processor

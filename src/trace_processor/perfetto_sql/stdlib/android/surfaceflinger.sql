@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+INCLUDE PERFETTO MODULE android.cujs.cujs_base;
 
 CREATE PERFETTO TABLE _android_sf_process AS
 SELECT

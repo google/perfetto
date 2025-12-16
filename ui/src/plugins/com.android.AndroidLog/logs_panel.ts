@@ -23,6 +23,7 @@ import {AsyncLimiter} from '../../base/async_limiter';
 import {
   escapeQuery,
   escapeSearchQuery,
+  escapeRegexQuery,
 } from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
 import {
@@ -48,46 +49,46 @@ import {Trace} from '../../public/trace';
 const ROW_H = 24;
 
 export interface LogFilteringCriteria {
-  minimumLevel: number;
-  tags: string[];
-  textEntry: string;
-  hideNonMatching: boolean;
-  machineExcludeList: number[];
+  readonly minimumLevel: number;
+  readonly tags: string[];
+  readonly isTagRegex?: boolean;
+  readonly textEntry: string;
+  readonly hideNonMatching: boolean;
+  readonly machineExcludeList: number[];
 }
 
 export interface LogPanelCache {
-  uniqueMachineIds: number[];
+  readonly uniqueMachineIds: number[];
 }
 
 export interface LogPanelAttrs {
-  cache: LogPanelCache;
-  filterStore: Store<LogFilteringCriteria>;
-  trace: Trace;
+  readonly cache: LogPanelCache;
+  readonly filterStore: Store<LogFilteringCriteria>;
+  readonly trace: Trace;
 }
 
 interface Pagination {
-  offset: number;
-  count: number;
+  readonly offset: number;
+  readonly count: number;
 }
 
 interface LogEntries {
-  offset: number;
-  machineIds: number[];
-  timestamps: time[];
-  pids: bigint[];
-  tids: bigint[];
-  priorities: number[];
-  tags: string[];
-  messages: string[];
-  isHighlighted: boolean[];
-  processName: string[];
-  totalEvents: number; // Count of the total number of events within this window
+  readonly offset: number;
+  readonly machineIds: number[];
+  readonly timestamps: time[];
+  readonly pids: bigint[];
+  readonly tids: bigint[];
+  readonly priorities: number[];
+  readonly tags: string[];
+  readonly messages: string[];
+  readonly isHighlighted: boolean[];
+  readonly processName: string[];
+  readonly totalEvents: number; // Count of the total number of events within this window
 }
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
   private entries?: LogEntries;
-
   private pagination: Pagination = {
     offset: 0,
     count: 0,
@@ -109,7 +110,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
     if (this.rowsMonitor.ifStateChanged()) {
-      this.reloadData(attrs);
+      this.scheduleDataReload(attrs);
     }
 
     const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
@@ -158,7 +159,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           offset: this.entries?.offset ?? 0,
           onLoadData: (offset, count) => {
             this.pagination = {offset, count};
-            this.reloadData(attrs);
+            this.scheduleDataReload(attrs);
           },
         },
         virtualization: {
@@ -180,19 +181,19 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     );
   }
 
-  private reloadData(attrs: LogPanelAttrs) {
-    this.queryLimiter.schedule(async () => {
-      const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
+  private scheduleDataReload(attrs: LogPanelAttrs) {
+    const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
+    const filterStateChanged = this.filterMonitor.ifStateChanged();
+    const filterStoreState = attrs.filterStore.state;
+    const engine = attrs.trace.engine;
+    const pagination = this.pagination;
 
-      if (this.filterMonitor.ifStateChanged()) {
-        await updateLogView(attrs.trace.engine, attrs.filterStore.state);
+    this.queryLimiter.schedule(async () => {
+      if (filterStateChanged) {
+        await updateLogView(engine, filterStoreState);
       }
 
-      this.entries = await updateLogEntries(
-        attrs.trace.engine,
-        visibleSpan,
-        this.pagination,
-      );
+      this.entries = await updateLogEntries(engine, visibleSpan, pagination);
     });
   }
 
@@ -382,6 +383,16 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
           });
         },
       }),
+      m(Button, {
+        icon: 'regular_expression',
+        title: 'Use regular expression',
+        active: !!attrs.store.state.isTagRegex,
+        onclick: () => {
+          attrs.store.edit((draft) => {
+            draft.isTagRegex = !draft.isTagRegex;
+          });
+        },
+      }),
       m(LogTextWidget, {
         trace: attrs.trace,
         onChange: (text) => {
@@ -534,7 +545,14 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
       left join process using(upid)
       where prio >= ${filter.minimumLevel}`;
   if (filter.tags.length) {
-    selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+    if (filter.isTagRegex) {
+      const tagGlobClauses = filter.tags.map(
+        (pattern) => `tag glob ${escapeRegexQuery(pattern)}`,
+      );
+      selectedRows += ` and (${tagGlobClauses.join(' OR ')})`;
+    } else {
+      selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+    }
   }
   if (filter.machineExcludeList.length) {
     selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join(',')})`;

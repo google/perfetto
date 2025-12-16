@@ -245,7 +245,7 @@ namespace perfetto::trace_processor::stats {
       "TrackEventRangeOfInterest packet, and track event dropping is "         \
       "enabled."),                                                             \
   F(track_event_tokenizer_errors,         kSingle,  kInfo,     kAnalysis, ""), \
-  F(track_hierarchy_missing_uuid,         kSingle,  kError,    kAnalysis,      \
+  F(track_hierarchy_missing_uuid,         kSingle,  kInfo,     kAnalysis,      \
       "Upper bound on the number of events dropped due to track hierarchy "    \
       "validation failures where a parent UUID was not found. This stat is "   \
       "incremented each time trace processor attempts to resolve a track "     \
@@ -338,6 +338,8 @@ namespace perfetto::trace_processor::stats {
   F(metatrace_overruns,                   kSingle,  kError,    kTrace,    ""), \
   F(packages_list_has_parse_errors,       kSingle,  kError,    kTrace,    ""), \
   F(packages_list_has_read_errors,        kSingle,  kError,    kTrace,    ""), \
+  F(user_list_errors,       kSingle,  kError,    kTrace,                       \
+        "Errors occurred while reading or parsing the user.list file."),       \
   F(game_intervention_has_parse_errors,   kSingle,  kError,    kTrace,         \
        "One or more parsing errors occurred. This could result from "          \
        "unknown game more or intervention added to the file to be parsed."),   \
@@ -776,14 +778,14 @@ namespace perfetto::trace_processor::stats {
       "require a ThreadDescriptor to establish a baseline. Root cause: "       \
       "packet loss in the trace (check packet loss stats) or a bug in the "    \
       "trace producer (missing ThreadDescriptor)."),                           \
-  F(packet_skipped_seq_needs_incremental_state_invalid, kSingle, kError,       \
+  F(packet_skipped_seq_needs_incremental_state_invalid, kSingle, kInfo,        \
       kAnalysis,                                                               \
       "A packet with SEQ_NEEDS_INCREMENTAL_STATE flag was skipped because "    \
       "incremental state is invalid. Packets that depend on incremental "      \
       "state cannot be processed until state is reestablished. Root cause: "   \
       "packet loss in the trace (check packet loss stats) or a bug in the "    \
       "trace producer (missing incremental_state_cleared packet)."),           \
-  F(interned_data_skipped_incremental_state_invalid, kSingle, kError,          \
+  F(interned_data_skipped_incremental_state_invalid, kSingle, kInfo,           \
       kAnalysis,                                                               \
       "An InternedData packet was skipped because incremental state is "       \
       "invalid. InternedData must be associated with the correct state "       \

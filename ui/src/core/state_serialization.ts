@@ -16,13 +16,13 @@ import {
   SERIALIZED_STATE_VERSION,
   APP_STATE_SCHEMA,
   SerializedNote,
-  SerializedPluginState,
+  SerializedStoreState,
   SerializedSelection,
   SerializedAppState,
 } from './state_serialization_schema';
-import {TimeSpan} from '../base/time';
 import {TraceImpl} from './trace_impl';
 import {errResult, okResult, Result} from '../base/result';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
@@ -96,11 +96,11 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
     });
   }
 
-  const plugins = new Array<SerializedPluginState>();
-  const pluginsStore = trace.getPluginStoreForSerialization();
+  const store = new Array<SerializedStoreState>();
+  const traceStore = trace.store;
 
-  for (const [id, pluginState] of Object.entries(pluginsStore)) {
-    plugins.push({id, state: pluginState});
+  for (const [id, pluginState] of Object.entries(traceStore.state)) {
+    store.push({id, state: pluginState});
   }
 
   return {
@@ -115,7 +115,7 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
     },
     notes,
     selection,
-    plugins,
+    store,
   };
 }
 
@@ -151,9 +151,8 @@ export function deserializeAppStatePhase1(
   appState: SerializedAppState,
   trace: TraceImpl,
 ): void {
-  // Restore the plugin state.
-  trace.getPluginStoreForSerialization().edit((draft) => {
-    for (const p of appState.plugins ?? []) {
+  trace.store.edit((draft) => {
+    for (const p of appState.store ?? []) {
       draft[p.id] = p.state ?? {};
     }
   });
@@ -170,9 +169,11 @@ export function deserializeAppStatePhase2(
   trace: TraceImpl,
 ): void {
   if (appState.viewport !== undefined) {
-    trace.timeline.updateVisibleTime(
-      new TimeSpan(appState.viewport.start, appState.viewport.end),
+    const newViewport = HighPrecisionTimeSpan.fromTime(
+      appState.viewport.start,
+      appState.viewport.end,
     );
+    trace.timeline.setVisibleWindow(newViewport);
   }
 
   // Restore the pinned tracks for the default workspace, if they exist.

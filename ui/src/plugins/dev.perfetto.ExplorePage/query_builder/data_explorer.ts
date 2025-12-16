@@ -13,8 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {Icons} from '../../../base/semantic_icons';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
@@ -26,72 +24,123 @@ import {
   renderCell,
 } from '../../../components/widgets/data_grid/data_grid';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {Button} from '../../../widgets/button';
-import {Callout} from '../../../widgets/callout';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Spinner} from '../../../widgets/spinner';
+import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
-import {Query, QueryNode} from '../query_node';
-import {QueryService} from './query_service';
-
+import {Query, QueryNode, isAQuery} from '../query_node';
+import {Intent} from '../../../widgets/common';
+import {Icons} from '../../../base/semantic_icons';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {Icon} from '../../../widgets/icon';
+import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
-  readonly queryService: QueryService;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
   readonly dataSource?: DataGridDataSource;
-  readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
+  readonly isQueryRunning: boolean;
+  readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
+  readonly onExecute: () => void;
+  readonly onExportToTimeline?: () => void;
   readonly onchange?: () => void;
+  readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
-    const errors = findErrors(attrs.query, attrs.response);
-    const statusText = this.getStatusText(attrs.query, attrs.response);
-    const message = errors ? `Error: ${errors.message}` : statusText;
-
-    // Show spinner when data is updating (query exists but response hasn't arrived yet)
-    const isUpdating =
-      attrs.query !== undefined &&
-      !(attrs.query instanceof Error) &&
-      attrs.response === undefined;
-
     return m(
       DetailsShell,
       {
-        title: ['Query data', isUpdating && m(Spinner)],
+        title: 'Query data',
         fillHeight: true,
         buttons: this.renderMenu(attrs),
       },
-      this.renderContent(attrs, message),
+      this.renderContent(attrs),
     );
   }
 
-  private getStatusText(
-    query?: Query | Error,
-    response?: QueryResponse,
-  ): string | undefined {
-    if (query === undefined) {
-      return 'No data to display';
-    } else if (response === undefined) {
-      return 'Typing...';
-    }
-    return undefined;
-  }
-
   private renderMenu(attrs: DataExplorerAttrs): m.Children {
-    const fullScreenButton = m(Button, {
-      label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
-      onclick: () => attrs.onFullScreenToggle(),
+    const autoExecute = attrs.node.state.autoExecute ?? true;
+
+    const runButton =
+      !autoExecute &&
+      m(Button, {
+        label: 'Run Query',
+        icon: 'play_arrow',
+        intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
+        disabled: !isAQuery(attrs.query) || !attrs.node.validate(),
+        onclick: () => attrs.onExecute(),
+      });
+
+    // Show "Queued..." when analyzing (validating query)
+    // Show spinner when actually executing the query
+    const statusIndicator =
+      attrs.isAnalyzing && !attrs.isQueryRunning
+        ? m('span.status-indicator', 'Queued...')
+        : attrs.isQueryRunning
+          ? m(Spinner)
+          : null;
+
+    const autoExecuteSwitch = m(Switch, {
+      label: 'Auto Execute',
+      checked: autoExecute,
+      onchange: (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        attrs.node.state.autoExecute = target.checked;
+        attrs.onchange?.();
+      },
     });
 
-    if (attrs.isFullScreen) {
-      return fullScreenButton;
-    }
+    // Add materialization indicator icon with tooltip
+    const materializationIndicator =
+      attrs.node.state.materialized && attrs.node.state.materializationTableName
+        ? m(
+            Tooltip,
+            {
+              trigger: m(Icon, {icon: 'database'}),
+            },
+            `Materialized as ${attrs.node.state.materializationTableName}`,
+          )
+        : null;
+
+    // Helper to create separator dot
+    const separator = () =>
+      m(
+        'span.pf-query-stats-separator',
+        {
+          'aria-hidden': 'true',
+        },
+        '•',
+      );
+
+    // Add query stats display (row count and duration)
+    const queryStats =
+      attrs.response && !attrs.isQueryRunning
+        ? m('.pf-query-stats', [
+            m('span', `${attrs.response.totalRowCount.toLocaleString()} rows`),
+            separator(),
+            m('span', `${attrs.response.durationMs.toFixed(1)}ms`),
+          ])
+        : null;
+
+    const exportButton =
+      attrs.onExportToTimeline &&
+      attrs.response &&
+      !attrs.isQueryRunning &&
+      attrs.node.state.materialized
+        ? m(Button, {
+            label: 'Export to Timeline',
+            icon: 'open_in_new',
+            onclick: () => attrs.onExportToTimeline?.(),
+            title: 'Export query results to timeline tab',
+          })
+        : null;
 
     const positionMenu = m(
       PopupMenu,
@@ -102,40 +151,157 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
       [
         m(MenuItem, {
-          label: 'Left',
-          onclick: () => attrs.onPositionChange('left'),
-        }),
-        m(MenuItem, {
-          label: 'Right',
-          onclick: () => attrs.onPositionChange('right'),
-        }),
-        m(MenuItem, {
-          label: 'Bottom',
-          onclick: () => attrs.onPositionChange('bottom'),
+          label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
+          onclick: () => attrs.onFullScreenToggle(),
         }),
       ],
     );
 
-    return [fullScreenButton, positionMenu];
+    return [
+      runButton,
+      statusIndicator,
+      queryStats,
+      queryStats !== null && materializationIndicator !== null
+        ? separator()
+        : null,
+      materializationIndicator,
+      materializationIndicator !== null ? separator() : null,
+      autoExecuteSwitch,
+      exportButton,
+      positionMenu,
+    ];
   }
 
-  private renderContent(
-    attrs: DataExplorerAttrs,
-    message?: string,
-  ): m.Children {
-    if (message) {
-      return m(TextParagraph, {text: message});
+  private renderContent(attrs: DataExplorerAttrs): m.Children {
+    const errors = findErrors(attrs.query, attrs.response);
+
+    // Show validation errors first (queryError is set by validate() methods).
+    // Validation errors take priority over execution errors because if validation
+    // fails, we should not execute the query at all.
+    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
+      // Clear any stale execution error when validation fails
+      attrs.node.state.issues.clearExecutionError();
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.queryError.message,
+        ),
+      );
+    }
+
+    // Show execution errors (e.g., when materialization fails due to
+    // invalid column names). These are stored separately from validation errors
+    // so they survive validate() calls during rendering.
+    if (attrs.node.state.issues?.executionError) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.executionError.message,
+        ),
+        m(Button, {
+          label: 'Retry',
+          icon: 'refresh',
+          intent: Intent.Primary,
+          onclick: () => {
+            // Clear the execution error and re-run the query
+            attrs.node.state.issues?.clearExecutionError();
+            attrs.onExecute();
+          },
+        }),
+      );
+    }
+
+    // Show execution errors with centered warning icon
+    if (errors) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m('.pf-data-explorer-warning-message', `Error: ${errors.message}`),
+      );
+    }
+
+    // Show response warnings with centered warning icon
+    if (attrs.node.state.issues?.responseError) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.responseError.message,
+        ),
+      );
+    }
+
+    // Show data errors (like "no rows returned") with centered warning icon
+    if (attrs.node.state.issues?.dataError) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Icon, {
+          className: 'pf-data-explorer-warning-icon',
+          icon: 'warning',
+        }),
+        m(
+          '.pf-data-explorer-warning-message',
+          attrs.node.state.issues.dataError.message,
+        ),
+      );
+    }
+
+    // Show spinner overlay when query is running
+    if (attrs.isQueryRunning) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(
+          '.pf-exp-query-running-spinner',
+          {
+            style: {
+              fontSize: '64px',
+            },
+          },
+          m(Spinner, {
+            easing: true,
+          }),
+        ),
+      );
+    }
+
+    // Show "No data to display" when no query is available
+    if (attrs.query === undefined) {
+      return m(TextParagraph, {text: 'No data to display'});
     }
 
     if (attrs.response && attrs.dataSource && attrs.node.validate()) {
+      // Show warning for multiple statements with centered icon
       const warning =
         attrs.response.statementWithOutputCount > 1
           ? m(
-              Callout,
-              {icon: 'warning'},
-              `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} `,
-              'statements returned a result. ',
-              'Only the results for the last statement are displayed.',
+              '.pf-data-explorer-empty-state',
+              m(Icon, {
+                className: 'pf-data-explorer-warning-icon',
+                icon: 'warning',
+              }),
+              m(
+                '.pf-data-explorer-warning-message',
+                `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} `,
+                'statements returned a result. ',
+                'Only the results for the last statement are displayed.',
+              ),
             )
           : null;
 
@@ -159,15 +325,22 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
               '<=',
               '>',
               '>=',
+              'glob',
               'is null',
               'is not null',
             ];
             if (supportedOps.includes(filter.op)) {
-              attrs.node.state.filters = [
-                ...(attrs.node.state.filters ?? []),
-                filter as FilterValue | FilterNull,
-              ];
-              attrs.onchange?.();
+              if (attrs.onFilterAdd) {
+                // Delegate to the parent handler which will create a FilterNode
+                attrs.onFilterAdd(filter as FilterValue | FilterNull);
+              } else {
+                // Fallback: add filter directly to node state (legacy behavior)
+                attrs.node.state.filters = [
+                  ...(attrs.node.state.filters ?? []),
+                  filter as FilterValue | FilterNull,
+                ];
+                attrs.onchange?.();
+              }
             }
           },
           cellRenderer: (value: SqlValue, name: string) => {
@@ -176,6 +349,28 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         }),
       ];
     }
+
+    // Show a prominent execute button when query is ready but not executed
+    const autoExecute = attrs.node.state.autoExecute ?? true;
+    if (
+      !autoExecute &&
+      isAQuery(attrs.query) &&
+      !attrs.response &&
+      !attrs.isQueryRunning &&
+      !attrs.isAnalyzing
+    ) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Button, {
+          label: 'Run Query',
+          icon: 'play_arrow',
+          intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
+          onclick: () => attrs.onExecute(),
+        }),
+      );
+    }
+
     return null;
   }
 }

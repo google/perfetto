@@ -21,7 +21,7 @@ import {
   TrackEventSelection,
   AreaSelectionTab,
 } from '../public/selection';
-import {Time, TimeSpan} from '../base/time';
+import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
 import {exists, getOrCreate} from '../base/utils';
 import {TrackManagerImpl} from './track_manager';
@@ -34,10 +34,8 @@ import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
 import {showModal} from '../widgets/modal';
 import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
-import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
+import {UnionDataset, SourceDataset} from '../trace_processor/dataset';
 import {Track} from '../public/track';
-import {TimelineImpl} from './timeline';
-import {HighPrecisionTime} from '../base/high_precision_time';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;
@@ -64,7 +62,6 @@ export class SelectionManagerImpl implements SelectionManager {
 
   constructor(
     private readonly engine: Engine,
-    private timeline: TimelineImpl,
     private trackManager: TrackManagerImpl,
     private noteManager: NoteManagerImpl,
     private scrollHelper: ScrollHelper,
@@ -287,7 +284,7 @@ export class SelectionManagerImpl implements SelectionManager {
       });
 
       const datasets = values.map(([dataset]) => dataset);
-      const union = new UnionDataset(datasets).optimize();
+      const union = UnionDataset.create(datasets).optimize();
 
       // Make sure to include the filter value in the schema.
       const schema = {...union.schema, [colName]: UNKNOWN};
@@ -388,51 +385,31 @@ export class SelectionManagerImpl implements SelectionManager {
     }
   }
 
-  scrollToSelection() {
+  scrollToSelection(behavior?: 'pan' | 'focus') {
     const uri = (() => {
       switch (this.selection.kind) {
         case 'track_event':
         case 'track':
           return this.selection.trackUri;
-        // TODO(stevegolton): Handle scrolling to area and note selections.
+        case 'area':
+          // For area selections, scroll to the top track
+          return this.selection.trackUris.length > 0
+            ? this.selection.trackUris[0]
+            : undefined;
+        case 'note':
+          // Notes have no associated track, so only scroll horizontally
+          return undefined;
+        case 'empty':
+          return undefined;
         default:
           return undefined;
       }
     })();
     const range = this.getTimeSpanOfSelection();
+    // Note: DEFAULT notes return a TimeSpan with start === end (duration 0),
+    // so they're handled as instant events in the scroll helper.
     this.scrollHelper.scrollTo({
-      time: range ? {...range} : undefined,
-      track: uri ? {uri, expandGroup: true} : undefined,
-    });
-  }
-
-  zoomOnSelection() {
-    const uri = (() => {
-      switch (this.selection.kind) {
-        case 'track_event':
-        case 'track':
-          return this.selection.trackUri;
-        // TODO(stevegolton): Handle scrolling to area and note selections.
-        default:
-          return undefined;
-      }
-    })();
-    const range = this.getTimeSpanOfSelection();
-    if (!range) {
-      // If there is no range, we cannot zoom to selection.
-      // This can happen if the selection is empty or if it is a note without
-      // a time span.
-      return;
-    }
-    const newDuration = this.timeline.visibleWindow.duration / 100;
-    const halfDuration = newDuration / 2;
-    const midEvent = Time.fromRaw(range.start + range.duration / 2n);
-    const newStart = new HighPrecisionTime(midEvent).subNumber(halfDuration);
-    this.scrollHelper.scrollTo({
-      time: {
-        start: newStart.toTime(),
-        end: newStart.addNumber(newDuration).toTime(),
-      },
+      time: range ? {...range, behavior} : undefined,
       track: uri ? {uri, expandGroup: true} : undefined,
     });
   }

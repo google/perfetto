@@ -16,6 +16,8 @@
 
 #include "src/profiling/deobfuscator.h"
 
+#include <stdlib.h>
+
 #include <optional>
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"

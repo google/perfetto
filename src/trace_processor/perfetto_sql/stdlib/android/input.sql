@@ -186,7 +186,7 @@ JOIN _input_read_time
 -- 1. Input dispatch event sent from OS.
 -- 2. Input dispatch event received in app.
 -- 3. Input ACK event sent from app.
--- 4. Input ACk event received in OS.
+-- 4. Input ACK event received in OS.
 CREATE PERFETTO TABLE android_input_events (
   -- Duration from input dispatch to input received.
   dispatch_latency_dur DURATION,

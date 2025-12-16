@@ -14,10 +14,11 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
+import {HTMLAttrs} from './common';
+import {Icon} from './icon';
 
-export interface EmptyStateAttrs {
+export interface EmptyStateAttrs extends HTMLAttrs {
   // Which material icon to show.
   // Defaults to 'search'.
   readonly icon?: string;
@@ -38,12 +39,7 @@ export interface EmptyStateAttrs {
 // actions for things you might want to do next (e.g. clear a search box).
 export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
   view({attrs, children}: m.Vnode<EmptyStateAttrs, this>): void | m.Children {
-    const {
-      icon = Icons.Search, // Icon defaults to the search symbol
-      title,
-      className,
-      fillHeight,
-    } = attrs;
+    const {icon = Icons.NoData, title, className, fillHeight, ...rest} = attrs;
     return m(
       '.pf-empty-state',
       {
@@ -51,6 +47,7 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
           className,
           fillHeight && 'pf-empty-state--fill-height',
         ),
+        ...rest,
       },
       m(Icon, {className: 'pf-empty-state__main-icon', icon}),
       title && m('.pf-empty-state__title', title),

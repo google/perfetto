@@ -80,6 +80,8 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
+        nodeInfo: () => null,
         clone: () => createMockNode(columns),
         getStructuredQuery: () => undefined,
         serializeState: () => ({}),
@@ -212,7 +214,8 @@ describe('query_node utilities', () => {
 
       expect(result[0].name).toBe('identifier');
       expect(result[0].type).toBe('STRING');
-      expect(result[0].column.name).toBe('id');
+      // column.name should also be replaced with the alias so child nodes see the aliased name
+      expect(result[0].column.name).toBe('identifier');
     });
   });
 
@@ -236,6 +239,8 @@ describe('query_node utilities', () => {
       expect(result).toContain('INCLUDE PERFETTO MODULE android.slices;');
       expect(result).toContain('INCLUDE PERFETTO MODULE experimental.frames;');
       expect(result).toContain('SELECT * FROM table');
+      // Should have an empty line between includes and SQL
+      expect(result).toMatch(/INCLUDE PERFETTO MODULE.*\n\nSELECT/s);
     });
 
     it('should format query with preambles', () => {
@@ -251,6 +256,8 @@ describe('query_node utilities', () => {
 
       expect(result).toContain('CREATE VIEW test AS SELECT 1;');
       expect(result).toContain('SELECT * FROM table');
+      // Should have an empty line between preambles and SQL
+      expect(result).toMatch(/CREATE VIEW.*\n\nSELECT/s);
     });
 
     it('should format query with both modules and preambles', () => {
@@ -267,6 +274,8 @@ describe('query_node utilities', () => {
       expect(result).toContain('INCLUDE PERFETTO MODULE android.slices;');
       expect(result).toContain('-- This is a comment');
       expect(result).toContain('SELECT * FROM table');
+      // Should have an empty line before SQL
+      expect(result).toMatch(/-- This is a comment\n\nSELECT/s);
     });
 
     it('should handle empty modules and preambles', () => {
@@ -298,6 +307,8 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
+        nodeInfo: () => null,
         clone: () => createMockNode(nodeId, state),
         getStructuredQuery: () => undefined,
         serializeState: () => ({}),
@@ -313,7 +324,7 @@ describe('query_node utilities', () => {
       expect(state.hasOperationChanged).toBe(true);
     });
 
-    it('should propagate change to next nodes', () => {
+    it('should mark node as changed', () => {
       const state1: QueryNodeState = {hasOperationChanged: false};
       const state2: QueryNodeState = {hasOperationChanged: false};
       const state3: QueryNodeState = {hasOperationChanged: false};
@@ -327,46 +338,21 @@ describe('query_node utilities', () => {
 
       setOperationChanged(node1);
 
+      // Only the node itself should be marked, not children
+      // (propagation is handled by QueryExecutionService.invalidateNode)
       expect(state1.hasOperationChanged).toBe(true);
-      expect(state2.hasOperationChanged).toBe(true);
-      expect(state3.hasOperationChanged).toBe(true);
-    });
-
-    it('should stop propagation if node already marked as changed', () => {
-      const state1: QueryNodeState = {hasOperationChanged: false};
-      const state2: QueryNodeState = {hasOperationChanged: true};
-      const state3: QueryNodeState = {hasOperationChanged: false};
-
-      const node1 = createMockNode('node1', state1);
-      const node2 = createMockNode('node2', state2);
-      const node3 = createMockNode('node3', state3);
-
-      node1.nextNodes = [node2];
-      node2.nextNodes = [node3];
-
-      setOperationChanged(node1);
-
-      expect(state1.hasOperationChanged).toBe(true);
-      // Should stop at node2 since it was already marked as changed
+      expect(state2.hasOperationChanged).toBe(false);
       expect(state3.hasOperationChanged).toBe(false);
     });
 
-    it('should handle multiple next nodes', () => {
-      const state1: QueryNodeState = {hasOperationChanged: false};
-      const state2: QueryNodeState = {hasOperationChanged: false};
-      const state3: QueryNodeState = {hasOperationChanged: false};
+    it('should mark node as changed even if already changed', () => {
+      const state1: QueryNodeState = {hasOperationChanged: true};
 
       const node1 = createMockNode('node1', state1);
-      const node2 = createMockNode('node2', state2);
-      const node3 = createMockNode('node3', state3);
-
-      node1.nextNodes = [node2, node3];
 
       setOperationChanged(node1);
 
       expect(state1.hasOperationChanged).toBe(true);
-      expect(state2.hasOperationChanged).toBe(true);
-      expect(state3.hasOperationChanged).toBe(true);
     });
   });
 
@@ -414,6 +400,8 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
+        nodeInfo: () => null,
         clone: () => createPartialNode(nodeId, onPrevNodesUpdated),
         getStructuredQuery: () => undefined,
         serializeState: () => ({}),
@@ -437,6 +425,8 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
+        nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
         serializeState: () => ({}),
@@ -458,6 +448,8 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
+        nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
         serializeState: () => ({}),
@@ -476,6 +468,8 @@ describe('query_node utilities', () => {
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
+        nodeDetails: () => ({content: null}),
+        nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
         serializeState: () => ({}),

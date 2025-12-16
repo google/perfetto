@@ -19,7 +19,6 @@
   height: 100%;
   overflow: hidden;
   border: 1px solid var(--pf-color-border);
-  border-radius: 8px;
   background-color: var(--pf-color-background);
 
   // Ensure NodeGraph takes full height
@@ -34,6 +33,5 @@
   top: 1rem;
   left: 1rem;
   gap: 0.5rem;
-  z-index: 100;
   pointer-events: auto;
 }

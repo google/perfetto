@@ -40,6 +40,7 @@ class PixelMmKswapdEventTracker {
   const StringId efficiency_pct_name_;
   const StringId pages_scanned_name_;
   const StringId pages_reclaimed_name_;
+  const StringId pages_allocated_name_;
 };
 
 }  // namespace trace_processor

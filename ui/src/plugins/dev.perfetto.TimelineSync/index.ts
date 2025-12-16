@@ -20,6 +20,7 @@ import {redrawModal, showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
+import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 
 const PLUGIN_ID = 'dev.perfetto.TimelineSync';
 const DEFAULT_BROADCAST_CHANNEL = `${PLUGIN_ID}#broadcastChannel`;
@@ -350,9 +351,11 @@ export default class implements PerfettoPlugin {
     if (!this.getCurrentViewportBounds().equals(remappedViewport)) {
       this._lastReceivedUpdateMillis = Date.now();
       this._lastViewportBounds = remappedViewport;
-      this._ctx?.timeline.setViewportTime(
-        remappedViewport.start,
-        remappedViewport.end,
+      this._ctx?.timeline.setVisibleWindow(
+        HighPrecisionTimeSpan.fromTime(
+          remappedViewport.start,
+          remappedViewport.end,
+        ),
       );
     }
   }

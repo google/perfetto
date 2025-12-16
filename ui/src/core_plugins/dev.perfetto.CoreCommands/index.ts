@@ -44,6 +44,7 @@ import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
 import {Setting} from '../../public/settings';
+import {toggleHelp} from '../../frontend/help_modal';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
@@ -140,6 +141,22 @@ export default class CoreCommands implements PerfettoPlugin {
   static macrosSetting: Setting<MacroConfig> | undefined = undefined;
 
   static onActivate(ctx: AppImpl) {
+    // Register global commands (commands that are required even without a trace
+    // loaded).
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.OpenCommandPalette',
+      name: 'Open command palette',
+      callback: () => ctx.omnibox.setMode(OmniboxMode.Command),
+      defaultHotkey: '!Mod+Shift+P',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ShowHelp',
+      name: 'Show help',
+      callback: () => toggleHelp(),
+      defaultHotkey: '?',
+    });
+
     if (ctx.sidebar.enabled) {
       ctx.commands.registerCommand({
         id: 'dev.perfetto.ToggleLeftSidebar',
@@ -184,8 +201,9 @@ export default class CoreCommands implements PerfettoPlugin {
     });
     ctx.sidebar.addMenuItem({
       commandId: OPEN_TRACE_COMMAND_ID,
-      section: 'navigation',
+      section: 'trace_files',
       icon: 'folder_open',
+      sortOrder: 1,
     });
 
     const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
@@ -200,7 +218,7 @@ export default class CoreCommands implements PerfettoPlugin {
     if (SHOW_OPEN_WITH_LEGACY_UI_BUTTON.get()) {
       ctx.sidebar.addMenuItem({
         commandId: OPEN_LEGACY_COMMAND_ID,
-        section: 'navigation',
+        section: 'trace_files',
         icon: 'filter_none',
       });
     }
@@ -329,7 +347,7 @@ export default class CoreCommands implements PerfettoPlugin {
       callback: (tsRaw: unknown) => {
         const ts = getOrPromptForTimestamp(tsRaw);
         if (ts !== undefined) {
-          ctx.timeline.panToTimestamp(ts);
+          ctx.timeline.panIntoView(ts, {align: 'center'});
         }
       },
     });
@@ -549,14 +567,8 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.FocusSelection',
       name: 'Focus current selection',
-      callback: () => ctx.selection.scrollToSelection(),
+      callback: () => ctx.selection.scrollToSelection('focus'),
       defaultHotkey: 'F',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.ZoomOnSelection',
-      name: 'Zoom in on current selection',
-      callback: () => ctx.selection.zoomOnSelection(),
     });
 
     ctx.commands.registerCommand({

@@ -18,12 +18,12 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
 
-export default class implements PerfettoPlugin {
+export default class ChromiumEtmPlugin implements PerfettoPlugin {
   static readonly id = 'org.chromium.ETM';
 
   async onTraceLoad(trace: Trace) {
     const title = 'ETM Session ID';
-    const uri = `${trace.pluginId}#ETMSessionID`;
+    const uri = `${ChromiumEtmPlugin.id}#ETMSessionID`;
     const query =
       'select ts, value from counter inner join ' +
       'counter_track on counter_track.id = counter.track_id ' +

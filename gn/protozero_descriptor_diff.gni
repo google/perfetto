@@ -15,7 +15,8 @@
 import("perfetto.gni")
 
 template("protozero_descriptor_diff") {
-  if (build_with_chromium) {
+  if (build_with_chromium ||
+      (perfetto_build_with_embedder && !is_perfetto_build_generator)) {
     name = "${target_name}_gen"
   } else {
     name = "${target_name}"
@@ -34,7 +35,7 @@ template("protozero_descriptor_diff") {
     binary_rebased_path = "./" + rebase_path(binary_path, root_build_dir)
 
     deps = [
-      "${perfetto_root_path}/src/protozero/descriptor_diff:protozero_descriptor_diff",
+      "${perfetto_root_path}/src/protozero/descriptor_diff:protozero_descriptor_diff($host_toolchain)",
       invoker.minuend_descriptor_target,
       invoker.subtrahend_descriptor_target,
     ]
