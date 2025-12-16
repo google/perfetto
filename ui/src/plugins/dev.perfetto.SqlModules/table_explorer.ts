@@ -7,8 +7,11 @@ import {
 } from '../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Filter} from '../../components/widgets/datagrid/model';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {Filter, Column} from '../../components/widgets/datagrid/model';
+import {
+  getDefaultVisibleFields,
+  SchemaRegistry,
+} from '../../components/widgets/datagrid/datagrid_schema';
 import {DataGridExportButton} from '../../components/widgets/datagrid/export_button';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
@@ -22,9 +25,9 @@ export class TableExplorer implements Tab {
   private readonly dataSource: SQLDataSource;
   private readonly schema: SchemaRegistry;
   private readonly rootSchema: string;
-  private readonly initialFilters?: Filter[];
-  private readonly initialColumns?: string[];
+  private readonly initialFilters: readonly Filter[];
   private gridApi?: DataGridApi;
+  private columns: readonly Column[] = [];
 
   constructor(config: {
     trace: Trace;
@@ -40,8 +43,14 @@ export class TableExplorer implements Tab {
     this.dataSource = config.dataSource;
     this.schema = config.schema;
     this.rootSchema = config.rootSchema;
-    this.initialFilters = config.initialFilters;
-    this.initialColumns = config.initialColumns;
+    this.columns =
+      config.initialColumns?.map((colName) => ({
+        field: colName,
+      })) ??
+      getDefaultVisibleFields(this.schema, this.rootSchema).map((col) => {
+        return {field: col};
+      });
+    this.initialFilters = config.initialFilters ?? [];
   }
 
   getTitle(): string {
@@ -53,10 +62,8 @@ export class TableExplorer implements Tab {
     const rowCountText =
       rowCount !== undefined ? `${rowCount.toLocaleString()} rows` : '';
 
-    // Get available columns from schema for debug track menu
-    const schemaColumns = this.schema[this.rootSchema];
-    const availableColumns =
-      schemaColumns !== undefined ? Object.keys(schemaColumns) : [];
+    // Get the current query from the datasource
+    const currentQuery = this.dataSource.getCurrentQuery();
 
     return m(
       DetailsShell,
@@ -66,18 +73,21 @@ export class TableExplorer implements Tab {
         fillHeight: true,
         buttons: [
           rowCountText && m('span.pf-table-explorer__row-count', rowCountText),
-          m(
-            PopupMenu,
-            {
-              trigger: m(Button, {label: 'Add debug track'}),
-              position: PopupPosition.Top,
-            },
-            m(AddDebugTrackMenu, {
-              trace: this.trace,
-              query: `SELECT * FROM ${this.displayName}`,
-              availableColumns,
-            }),
-          ),
+          currentQuery &&
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  label: 'Add debug track',
+                }),
+                position: PopupPosition.Top,
+              },
+              m(AddDebugTrackMenu, {
+                trace: this.trace,
+                query: currentQuery,
+                availableColumns: this.columns.map((col) => col.field),
+              }),
+            ),
           m(DataGridExportButton, {
             onExportData: (format) => this.gridApi!.exportData(format),
           }),
@@ -88,12 +98,13 @@ export class TableExplorer implements Tab {
         rootSchema: this.rootSchema,
         data: this.dataSource,
         initialFilters: this.initialFilters,
-        initialColumns: this.initialColumns?.map((colName) => ({
-          field: colName,
-        })),
         fillHeight: true,
+        columns: this.columns,
         onReady: (api) => {
           this.gridApi = api;
+        },
+        onColumnsChanged: (columns) => {
+          this.columns = columns;
         },
       } satisfies DataGridAttrs),
     );

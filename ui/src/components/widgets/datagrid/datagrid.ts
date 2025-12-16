@@ -45,7 +45,7 @@ import {DataSource} from './data_source';
 import {
   SchemaRegistry,
   getColumnInfo,
-  getDefaultVisibleColumns,
+  getDefaultVisibleFields,
 } from './datagrid_schema';
 import {DataGridToolbar, GridFilterChip} from './datagrid_toolbar';
 import {DataGridExportButton} from './export_button';
@@ -328,7 +328,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialColumns) {
       this.columns = attrs.initialColumns;
     } else {
-      this.columns = getDefaultVisibleColumns(
+      this.columns = getDefaultVisibleFields(
         attrs.schema,
         attrs.rootSchema,
       ).map((field) => ({field}));

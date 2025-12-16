@@ -137,7 +137,7 @@ export function isParameterizedColumnDef(
  * @param rootSchema The root schema name
  * @returns Array of column names that are leaf columns
  */
-export function getDefaultVisibleColumns(
+export function getDefaultVisibleFields(
   registry: SchemaRegistry,
   rootSchema: string,
 ): string[] {
