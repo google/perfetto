@@ -22,47 +22,15 @@ import {createVisualizedArgsTrack} from './visualized_args_track';
 const VISUALIZED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualizedArgs';
 
 export async function addVisualizedArgTracks(trace: Trace, argName: string) {
-  const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
-  const tableName = `__arg_visualisation_helper_${escapedArgName}_slice`;
-
   const result = await trace.engine.query(`
-        drop table if exists ${tableName};
-
-        create table ${tableName} as
-        with slice_with_arg as (
-          select
-            slice.id,
-            slice.track_id,
-            slice.ts,
-            slice.dur,
-            slice.thread_dur,
-            NULL as cat,
-            args.display_value as name
-          from slice
-          join args using (arg_set_id)
-          where args.key='${argName}'
-        )
-        select
-          *,
-          (select count()
-           from ancestor_slice(s1.id) s2
-           join slice_with_arg s3 on s2.id=s3.id
-          ) as depth
-        from slice_with_arg s1
-        order by id;
-
-        select
-          track_id as trackId,
-          max(depth) as maxDepth
-        from ${tableName}
-        group by track_id;
-    `);
-
+    select distinct track_id
+    from slice
+    where arg_set_id in (select arg_set_id from args where key = '${argName}')
+  `);
   const addedTracks: TrackNode[] = [];
   const it = result.iter({trackId: NUM, maxDepth: NUM});
   for (; it.valid(); it.next()) {
     const trackId = it.trackId;
-    const maxDepth = it.maxDepth;
 
     const uri = `${VISUALIZED_ARGS_SLICE_TRACK_URI_PREFIX}#${uuidv4()}`;
     trace.tracks.registerTrack({
@@ -72,7 +40,6 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
         trace,
         uri,
         trackId,
-        maxDepth,
         argName,
         onClose: () => {
           // Remove all added for this argument

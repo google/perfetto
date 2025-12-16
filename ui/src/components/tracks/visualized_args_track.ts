@@ -15,8 +15,6 @@
 import m from 'mithril';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
-import {uuidv4Sql} from '../../base/uuid';
-import {createView} from '../../trace_processor/sql_utils';
 import {Trace} from '../../public/trace';
 import {SliceTrack} from './slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -29,7 +27,6 @@ export interface VisualizedArgsTrackAttrs {
   readonly uri: string;
   readonly trace: Trace;
   readonly trackId: number;
-  readonly maxDepth: number;
   readonly argName: string;
   readonly onClose: () => void;
 }
@@ -38,43 +35,10 @@ export async function createVisualizedArgsTrack({
   uri,
   trace,
   trackId,
-  maxDepth,
   argName,
   onClose,
 }: VisualizedArgsTrackAttrs) {
-  const uuid = uuidv4Sql();
-  const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
-  const viewName = `__arg_visualisation_helper_${escapedArgName}_${uuid}_slice`;
-
-  await createView({
-    engine: trace.engine,
-    name: viewName,
-    as: `
-      with slice_with_arg as (
-        select
-          slice.id,
-          slice.track_id,
-          slice.ts,
-          slice.dur,
-          slice.thread_dur,
-          NULL as cat,
-          args.display_value as name
-        from slice
-        join args using (arg_set_id)
-        where args.key='${argName}'
-      )
-      select
-        *,
-        (select count()
-        from ancestor_slice(s1.id) s2
-        join slice_with_arg s3 on s2.id=s3.id
-        ) as depth
-      from slice_with_arg s1
-      order by id
-    `,
-  });
-
-  return SliceTrack.create({
+  return SliceTrack.createMaterialized({
     trace,
     uri,
     dataset: new SourceDataset({
@@ -82,17 +46,21 @@ export async function createVisualizedArgsTrack({
         id: NUM,
         ts: LONG,
         dur: LONG,
-        depth: NUM,
         name: STR,
         thread_dur: LONG_NULL,
       },
-      src: viewName,
+      src: `
+        select id, ts, dur, name, thread_dur
+        from slice
+        where arg_set_id in (
+          select arg_set_id from args where key = '${argName}'
+        )
+      `,
       filter: {
         col: 'track_id',
         eq: trackId,
       },
     }),
-    initialMaxDepth: maxDepth,
     detailsPanel: () => new ThreadSliceDetailsPanel(trace),
     fillRatio: (row) => {
       if (row.dur > 0n && row.thread_dur !== null) {
