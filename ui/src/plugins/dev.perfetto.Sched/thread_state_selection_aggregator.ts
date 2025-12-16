@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {Icons} from '../../base/semantic_icons';
 import {Duration} from '../../base/time';
 import {BarChartData} from '../../components/aggregation';
 import {
@@ -19,47 +21,92 @@ import {
   Aggregation,
   Aggregator,
   createIITable,
-  selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
+import {Trace} from '../../public/trace';
+import {Track} from '../../public/track';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  Dataset,
+  DatasetSchema,
+  SourceDataset,
+  UnionDatasetWithLineage,
+} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,
   NUM_NULL,
+  Row,
   STR,
   STR_NULL,
+  UNKNOWN,
 } from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
 import {colorForThreadState} from './common';
+
+const THREAD_STATE_SPEC = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  ucpu: NUM_NULL,
+  state: STR,
+  utid: NUM,
+};
 
 export class ThreadStateSelectionAggregator implements Aggregator {
   readonly id = 'thread_state_aggregation';
 
-  probe(area: AreaSelection): Aggregation | undefined {
-    const dataset = selectTracksAndGetDataset(
-      area.tracks,
-      {
-        id: NUM,
-        ts: LONG,
-        dur: LONG,
-        ucpu: NUM_NULL,
-        state: STR,
-        utid: NUM,
-      },
-      THREAD_STATE_TRACK_KIND,
-    );
+  private readonly trace: Trace;
+  private trackDatasetMap?: Map<Dataset, Track>;
+  private unionDataset?: UnionDatasetWithLineage<DatasetSchema>;
 
-    // If we couldn't pick out a dataset, we have nothing to show for this
-    // selection so just return undefined to indicate that no tab should be
-    // displayed.
-    if (!dataset) return undefined;
+  constructor(trace: Trace) {
+    this.trace = trace;
+  }
+
+  probe(area: AreaSelection): Aggregation | undefined {
+    // Collect thread state tracks
+    const threadStateTracks: Track[] = [];
+
+    for (const track of area.tracks) {
+      if (!track.tags?.kinds?.includes(THREAD_STATE_TRACK_KIND)) continue;
+      const dataset = track.renderer.getDataset?.();
+      if (!dataset || !(dataset instanceof SourceDataset)) continue;
+      if (!dataset.implements(THREAD_STATE_SPEC)) continue;
+      threadStateTracks.push(track);
+    }
+
+    if (threadStateTracks.length === 0) return undefined;
 
     return {
       prepareData: async (engine: Engine) => {
+        // Build track-to-dataset mapping
+        this.trackDatasetMap = new Map();
+        const datasets: Dataset[] = [];
+        for (const track of threadStateTracks) {
+          const dataset = track.renderer.getDataset?.();
+          if (dataset) {
+            datasets.push(dataset);
+            this.trackDatasetMap.set(dataset, track);
+          }
+        }
+
+        // Create union dataset with lineage tracking
+        this.unionDataset = UnionDatasetWithLineage.create(datasets);
+
+        // Query with needed columns for II table
+        const iiQuerySchema = {
+          ...THREAD_STATE_SPEC,
+          __groupid: NUM,
+          __partition: UNKNOWN,
+        };
+        const sql = this.unionDataset.query(iiQuerySchema);
+
+        // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
           engine,
-          dataset,
+          new SourceDataset({src: `(${sql})`, schema: iiQuerySchema}),
           area.start,
           area.end,
         );
@@ -67,6 +114,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
+            tstate.id as id,
             process.name as process_name,
             process.pid as pid,
             thread.name as thread_name,
@@ -75,8 +123,11 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             utid,
             ucpu,
             dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total
-          from (${iiTable.name}) tstate
+            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
+            cluster.cluster_type as cluster,
+            __groupid,
+            __partition
+          from ${iiTable.name} tstate
           join thread using (utid)
           left join process using (upid)
         `);
@@ -85,7 +136,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           select
             tstate.state as state,
             sum(dur) as totalDur
-          from (${iiTable.name}) tstate
+          from ${iiTable.name} tstate
           join thread using (utid)
           group by tstate.state
         `;
@@ -129,8 +180,52 @@ export class ThreadStateSelectionAggregator implements Aggregator {
       ],
       columns: [
         {
+          title: 'ID',
+          columnId: 'id',
+          formatHint: 'ID',
+          dependsOn: ['__groupid', '__partition'],
+          cellRenderer: (value: unknown, row: Row) => {
+            if (typeof value !== 'bigint') {
+              return String(value);
+            }
+
+            const groupId = row['__groupid'];
+            const partition = row['__partition'];
+
+            if (typeof groupId !== 'bigint') {
+              return String(value);
+            }
+
+            // Resolve track from lineage
+            const track = this.resolveTrack(Number(groupId), partition);
+            if (!track) {
+              return String(value);
+            }
+
+            return m(
+              Anchor,
+              {
+                title: 'Go to thread state',
+                icon: Icons.UpdateSelection,
+                onclick: () => {
+                  this.trace.selection.selectTrackEvent(
+                    track.uri,
+                    Number(value),
+                    {
+                      scrollToSelection: true,
+                    },
+                  );
+                },
+              },
+              String(value),
+            );
+          },
+        },
+        {title: 'Cluster', columnId: 'cluster', formatHint: 'STRING'},
+        {
           title: 'Process',
           columnId: 'process_name',
+          formatHint: 'STRING',
         },
         {
           title: 'PID',
@@ -140,6 +235,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         {
           title: 'Thread',
           columnId: 'thread_name',
+          formatHint: 'STRING',
         },
         {
           title: 'TID',
@@ -176,5 +272,34 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Thread States';
+  }
+
+  /**
+   * Resolve a track from lineage information.
+   */
+  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+    if (!this.trackDatasetMap || !this.unionDataset) return undefined;
+
+    // Ensure partition is a valid SqlValue
+    const partitionValue =
+      partition === null ||
+      typeof partition === 'number' ||
+      typeof partition === 'bigint' ||
+      typeof partition === 'string' ||
+      partition instanceof Uint8Array
+        ? partition
+        : null;
+
+    const datasets = this.unionDataset.resolveLineage({
+      __groupid: groupId,
+      __partition: partitionValue,
+    });
+
+    for (const dataset of datasets) {
+      const track = this.trackDatasetMap.get(dataset);
+      if (track) return track;
+    }
+
+    return undefined;
   }
 }
