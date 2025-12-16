@@ -16,31 +16,37 @@
 -- Extract name of the device based on metadata from the trace.
 CREATE PERFETTO TABLE android_device_name (
   -- Device name.
-  name STRING
+  name STRING,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG
 ) AS
 WITH
   -- Example str_value:
   -- Android/aosp_raven/raven:VanillaIceCream/UDC/11197703:userdebug/test-keys
   -- Gets substring after first slash;
-  after_first_slash(str) AS (
+  after_first_slash(str, machine_id) AS (
     SELECT
-      substr(str_value, instr(str_value, '/') + 1)
-    FROM metadata
+      substr(android_build_fingerprint, instr(android_build_fingerprint, '/') + 1) AS str,
+      id AS machine_id
+    FROM machine
     WHERE
-      name = 'android_build_fingerprint'
+      android_build_fingerprint IS NOT NULL
   ),
   -- Gets substring after second slash
-  after_second_slash(str) AS (
+  after_second_slash(str, machine_id) AS (
     SELECT
-      substr(str, instr(str, '/') + 1)
+      substr(str, instr(str, '/') + 1) AS str,
+      machine_id
     FROM after_first_slash
   ),
   -- Gets substring after second slash and before the colon
-  before_colon(str) AS (
+  before_colon(str, machine_id) AS (
     SELECT
-      substr(str, 0, instr(str, ':'))
+      substr(str, 0, instr(str, ':')) AS str,
+      machine_id
     FROM after_second_slash
   )
 SELECT
-  str AS name
+  str AS name,
+  CASE WHEN machine_id = 0 THEN NULL ELSE machine_id END AS machine_id
 FROM before_colon;

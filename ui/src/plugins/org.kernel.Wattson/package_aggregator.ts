@@ -18,7 +18,7 @@ import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
 import {Aggregator} from '../../components/aggregation_adapter';
 import {WattsonAggregationPanel} from './aggregation_panel';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 
 export class WattsonPackageSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_package_aggregation';
@@ -96,26 +96,32 @@ export class WattsonPackageSelectionAggregator implements Aggregator {
       {
         title: 'Android app UID',
         columnId: 'uid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Active power (estimated mW)',
         columnId: 'active_mw',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Active energy (estimated mWs)',
         columnId: 'active_mws',
         sum: true,
+        formatHint: 'NUMERIC',
+        sort: 'DESC',
       },
       {
         title: 'Idle transitions overhead (estimated mWs)',
         columnId: 'idle_cost_mws',
         sum: false,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Total energy (estimated mWs)',
         columnId: 'total_mws',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: '% of total energy',
@@ -128,9 +134,5 @@ export class WattsonPackageSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Wattson by package';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'active_mws', direction: 'DESC'};
   }
 }

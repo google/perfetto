@@ -31,7 +31,7 @@ This workspace consists of three crates:
 - **Protozero integration** — auto-generated Rust code from Perfetto `.proto` files via a protoc plugin.
 - **Vendored or system builds** — link against a bundled `perfetto_c` library or use an external one.
 - **FFI isolation** — `perfetto-sys` is the only crate exposing an API with `unsafe` code.
-- **Cross-platform support** — Linux and macOS are tested.
+- **Cross-platform support** — Linux support is tested using CI.
 
 ---
 

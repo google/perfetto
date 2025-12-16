@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/trace_processor/trace_processor_shell.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -24,6 +26,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -1266,16 +1269,17 @@ void ExtendPoolWithBinaryDescriptor(
 }
 
 base::Status LoadTrace(TraceProcessor* trace_processor,
+                       TraceProcessorShell::PlatformInterface* platform,
                        const std::string& trace_file_path,
                        double* size_mb) {
-  base::Status read_status = ReadTraceUnfinalized(
-      trace_processor, trace_file_path.c_str(), [&size_mb](size_t parsed_size) {
+  base::Status load_status = platform->LoadTrace(
+      trace_processor, trace_file_path, [&size_mb](size_t parsed_size) {
         *size_mb = static_cast<double>(parsed_size) / 1E6;
         fprintf(stderr, "\rLoading trace: %.2f MB\r", *size_mb);
       });
-  if (!read_status.ok()) {
+  if (!load_status.ok()) {
     return base::ErrStatus("Could not read trace file (path: %s): %s",
-                           trace_file_path.c_str(), read_status.c_message());
+                           trace_file_path.c_str(), load_status.c_message());
   }
 
   bool is_proto_trace = false;
@@ -1886,10 +1890,49 @@ TraceSummaryOutputSpec::Format GetSummaryOutputFormat(
   exit(1);
 }
 
-base::Status TraceProcessorMain(int argc, char** argv) {
+class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
+ public:
+  ~DefaultPlatformInterface() override;
+
+  Config DefaultConfig() const override { return {}; }
+
+  base::Status OnTraceProcessorCreated(TraceProcessor*) override {
+    return base::OkStatus();
+  }
+
+  base::Status LoadTrace(
+      TraceProcessor* trace_processor,
+      const std::string& path,
+      std::function<void(size_t)> progress_callback) override {
+    return ReadTraceUnfinalized(trace_processor, path.c_str(),
+                                progress_callback);
+  }
+};
+
+DefaultPlatformInterface::~DefaultPlatformInterface() = default;
+
+}  // namespace
+
+TraceProcessorShell::TraceProcessorShell(
+    std::unique_ptr<PlatformInterface> platform_interface)
+    : platform_interface_(std::move(platform_interface)) {}
+
+std::unique_ptr<TraceProcessorShell> TraceProcessorShell::Create(
+    std::unique_ptr<PlatformInterface> platform_interface) {
+  return std::unique_ptr<TraceProcessorShell>(
+      new TraceProcessorShell(std::move(platform_interface)));
+}
+
+std::unique_ptr<TraceProcessorShell>
+TraceProcessorShell::CreateWithDefaultPlatform() {
+  return std::unique_ptr<TraceProcessorShell>(
+      new TraceProcessorShell(std::make_unique<DefaultPlatformInterface>()));
+}
+
+base::Status TraceProcessorShell::Run(int argc, char** argv) {
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
-  Config config;
+  Config config = platform_interface_->DefaultConfig();
   config.sorting_mode = options.force_full_sort
                             ? SortingMode::kForceFullSort
                             : SortingMode::kDefaultHeuristics;
@@ -1925,6 +1968,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
+  platform_interface_->OnTraceProcessorCreated(tp.get());
   RETURN_IF_ERROR(MaybeUpdateSqlPackages(tp.get(), options));
 
   // Enable metatracing as soon as possible.
@@ -1960,7 +2004,8 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   if (!options.trace_file_path.empty()) {
     base::TimeNanos t_load_start = base::GetWallTimeNs();
     double size_mb = 0;
-    RETURN_IF_ERROR(LoadTrace(tp.get(), options.trace_file_path, &size_mb));
+    RETURN_IF_ERROR(LoadTrace(tp.get(), platform_interface_.get(),
+                              options.trace_file_path, &size_mb));
     t_load = base::GetWallTimeNs() - t_load_start;
 
     double t_load_s = static_cast<double>(t_load.count()) / 1E9;
@@ -2073,7 +2118,10 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
   if (options.enable_httpd) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-    Rpc rpc(std::move(tp), !options.trace_file_path.empty());
+    Rpc rpc(std::move(tp), !options.trace_file_path.empty(), config,
+            [this](TraceProcessor* tp) {
+              platform_interface_->OnTraceProcessorCreated(tp);
+            });
 
 #if PERFETTO_HAS_SIGNAL_H()
     static Rpc* g_rpc_for_signal_handler = &rpc;
@@ -2104,7 +2152,10 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (options.enable_stdiod) {
-    Rpc rpc(std::move(tp), !options.trace_file_path.empty());
+    Rpc rpc(std::move(tp), !options.trace_file_path.empty(), config,
+            [this](TraceProcessor* tp) {
+              platform_interface_->OnTraceProcessorCreated(tp);
+            });
 #if PERFETTO_HAS_SIGNAL_H()
     static Rpc* g_rpc_for_signal_handler = &rpc;
     g_tp_for_signal_handler = nullptr;
@@ -2128,15 +2179,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   return base::OkStatus();
 }
 
-}  // namespace
+TraceProcessorShell_PlatformInterface::
+    ~TraceProcessorShell_PlatformInterface() = default;
 
 }  // namespace perfetto::trace_processor
-
-int main(int argc, char** argv) {
-  auto status = perfetto::trace_processor::TraceProcessorMain(argc, argv);
-  if (!status.ok()) {
-    fprintf(stderr, "%s\n", status.c_message());
-    return 1;
-  }
-  return 0;
-}

@@ -97,6 +97,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
@@ -1041,6 +1042,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> tables;
   AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_sample_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_android_cpu_per_uid_track_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_android_dumpstate_table());
   AddUnfinalizedStaticTable(
       tables, storage->mutable_android_game_intervenion_list_table());
@@ -1071,6 +1074,7 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables, storage->mutable_memory_snapshot_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_mmap_record_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_package_list_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_user_list_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_perf_session_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_process_memory_snapshot_table());
@@ -1167,6 +1171,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_android_network_packets_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_metadata_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_slice_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_track_event_callstacks_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_flow_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_stack_profile_frame_table());
@@ -1190,11 +1196,7 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   fns.emplace_back(std::make_unique<Ancestor>(
       Ancestor::Type::kStackProfileCallsite, storage));
   fns.emplace_back(
-      std::make_unique<Ancestor>(Ancestor::Type::kSliceByStack, storage));
-  fns.emplace_back(
       std::make_unique<Descendant>(Descendant::Type::kSlice, storage));
-  fns.emplace_back(
-      std::make_unique<Descendant>(Descendant::Type::kSliceByStack, storage));
   fns.emplace_back(std::make_unique<ConnectedFlow>(
       ConnectedFlow::Mode::kDirectlyConnectedFlow, storage));
   fns.emplace_back(std::make_unique<ConnectedFlow>(
@@ -1290,6 +1292,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<Import>(engine.get(), engine.get());
   RegisterFunction<ToFtrace>(engine.get(),
                              std::make_unique<ToFtrace::UserData>(context));
+  RegisterFunction<PackageLookup>(
+      engine.get(), std::make_unique<PackageLookup::Context>(storage));
 
   if constexpr (regex::IsRegexSupported()) {
     RegisterFunction<Regexp>(engine.get());

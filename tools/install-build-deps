@@ -183,11 +183,20 @@ BUILD_DEPS_HOST = [
         'https://android.googlesource.com/platform/external/googletest.git',
         '609281088cfefc76f9d0ce82e1ff6c30cc3591e5', 'all', 'all'),
 
-    # Keep in sync with Chromium's //third_party/protobuf.
+    # Keep in sync with gRPC's third_party/protobuf.
     Dependency(
         'buildtools/protobuf',
         'https://chromium.googlesource.com/external/github.com/protocolbuffers/protobuf.git',
-        'f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c',  # refs/tags/v21.12
+        '74211c0dfc2777318ab53c2cd2c317a2ef9012de',  # refs/tags/v31.1
+        'all',
+        'all'),
+
+    # Required by protobuf v22+ and gRPC. It's not allowed in our repo beyond
+    # the usage by those deps.
+    Dependency(
+        'buildtools/abseil-cpp',
+        'https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git',
+        '76bb24329e8bf5f39704eb10d21b9a80befa7c81',  # 20250512.1
         'all',
         'all'),
 
@@ -421,7 +430,7 @@ EMULATOR_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA256 = 'b30108e05268ce6c65bb4126b65f6bfac165d17f5c1fd285046e7e6fd76c209f'
 
-TYPEFACES_SHA256 = '12d79e4dbff8319dfd1739af839fecc9827e392843f10aad3de8109d2eedcf06'
+TYPEFACES_SHA256 = 'a26274ca7c3d97a37c29de0ffa5c41a8d6431fc8e07ecdd5856dde143999dcd3'
 
 UI_DEPS = [
     Dependency(
@@ -489,7 +498,8 @@ BIGTRACE_DEPS = [
     Dependency(
         'buildtools/grpc/src',
         'https://chromium.googlesource.com/external/github.com/grpc/grpc.git',
-        '4795c5e69b25e8c767b498bea784da0ef8c96fd5', 'all', 'all', True),
+        'f5ffb68d8a2fd603dff16287e90a4ac571e1fec6', 'all', 'all',
+        True),  # v1.76.0
     Dependency('buildtools/cpp-httplib',
                'https://github.com/yhirose/cpp-httplib.git',
                '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)
@@ -766,7 +776,8 @@ def CheckPythonVenv():
     return False
   # The venv can be invalidated if the version of python in the system is
   # upgraded. Detect that by trying to find its own pip.
-  venv_python = os.path.join(PYTHON_VENV_BIN_DIR, 'python3')
+  venv_python_exe = 'python3' if sys.platform != 'win32' else 'python'
+  venv_python = os.path.join(PYTHON_VENV_BIN_DIR, venv_python_exe)
   cmd = [venv_python, '-c', 'import pip']
   if subprocess.call(cmd, stderr=subprocess.DEVNULL) != 0:
     logging.warning('The python venv is stale due an upgrade of the system ' +

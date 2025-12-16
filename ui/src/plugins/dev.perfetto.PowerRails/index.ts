@@ -47,7 +47,7 @@ export default class implements PerfettoPlugin {
         COALESCE(friendly_name, raw_power_rail_name) as name,
         machine_id as machine
       FROM android_power_rails_metadata
-      ORDER BY name
+      ORDER BY machine_id, name
     `);
 
     if (result.numRows() === 0) {

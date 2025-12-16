@@ -68,15 +68,7 @@ Descendant::Cursor::Cursor(Type type, TraceStorage* storage)
     : type_(type),
       storage_(storage),
       table_(storage->mutable_string_pool()),
-      slice_cursor_(MakeCursor(storage->slice_table())),
-      stack_cursor_(storage->slice_table().CreateCursor({
-          dataframe::FilterSpec{
-              tables::SliceTable::ColumnIndex::stack_id,
-              0,
-              dataframe::Eq{},
-              std::nullopt,
-          },
-      })) {}
+      slice_cursor_(MakeCursor(storage->slice_table())) {}
 
 bool Descendant::Cursor::Run(const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.size() == 1);
@@ -101,19 +93,6 @@ bool Descendant::Cursor::Run(const std::vector<SqlValue>& arguments) {
       }
       break;
     }
-    case Type::kSliceByStack:
-      stack_cursor_.SetFilterValueUnchecked(0, start_val);
-      stack_cursor_.Execute();
-      for (; !stack_cursor_.Eof(); stack_cursor_.Next()) {
-        if (!GetDescendantsInternal(slice_table, slice_cursor_,
-                                    stack_cursor_.id(), descendants_,
-                                    status_)) {
-          return false;
-        }
-      }
-      // Sort to keep the slices in timestamp order, similar to Ancestor.
-      std::sort(descendants_.begin(), descendants_.end());
-      break;
   }
   for (const auto& descendant_row : descendants_) {
     auto ref = descendant_row.ToRowReference(slice_table);
@@ -151,8 +130,6 @@ std::string Descendant::TableName() {
   switch (type_) {
     case Type::kSlice:
       return "descendant_slice";
-    case Type::kSliceByStack:
-      return "descendant_slice_by_stack";
   }
   PERFETTO_FATAL("For GCC");
 }

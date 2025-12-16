@@ -66,7 +66,6 @@ import "protos/perfetto/metrics/android/rt_runtime_metric.proto";
 import "protos/perfetto/metrics/android/simpleperf.proto";
 import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/surfaceflinger.proto";
-import "protos/perfetto/metrics/android/task_names.proto";
 import "protos/perfetto/metrics/android/trace_quality.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 import "protos/perfetto/metrics/android/binder_metric.proto";
@@ -201,7 +200,8 @@ message TraceMetrics {
 
   optional AndroidDisplayMetrics display_metrics = 22;
 
-  optional AndroidTaskNames android_task_names = 23;
+  // Deprecated was AndroidTaskNames
+  reserved 23;
 
   // Deprecated was AndroidThreadTimeInStateMetric
   reserved 24;

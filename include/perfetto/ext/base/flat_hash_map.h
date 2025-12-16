@@ -120,10 +120,7 @@ struct FlatHashMapBase {
 
 template <typename Key,
           typename Value,
-          typename Hasher =
-              std::conditional_t<base::flags::use_murmur_hash_for_flat_hash_map,
-                                 base::MurmurHash<Key>,
-                                 base::FnvHash<Key>>,
+          typename Hasher = base::MurmurHash<Key>,
           typename Probe = QuadraticProbe,
           bool AppendOnly = false>
 class FlatHashMap : protected FlatHashMapBase {

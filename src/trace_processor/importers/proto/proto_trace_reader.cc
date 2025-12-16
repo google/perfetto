@@ -346,7 +346,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     uint32_t timestamp_clock_id =
         decoder.has_timestamp_clock_id()
             ? decoder.timestamp_clock_id()
-            : (defaults ? defaults->timestamp_clock_id() : 0);
+            : (defaults ? defaults->timestamp_clock_id()
+                        : static_cast<uint32_t>(
+                              protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
 
     if ((decoder.has_chrome_events() || decoder.has_chrome_metadata()) &&
         (!timestamp_clock_id ||

@@ -18,7 +18,7 @@ import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
 import {QueryResult, Row} from '../../trace_processor/query_result';
 import {SqlRef} from '../../widgets/sql_ref';
-import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {MenuItem} from '../../widgets/menu';
 import {extensions} from '../../components/extensions';
 
@@ -49,19 +49,20 @@ export function renderSliceRef(args: {
 export function renderSqlRef(args: {
   trace: Trace;
   tableName: string;
-  tableDescription: SqlTableDescription | undefined;
+  tableDefinition: SqlTableDefinition | undefined;
   id: number | bigint;
 }) {
+  const tableDefinition = args.tableDefinition;
   return m(SqlRef, {
     table: args.tableName,
     id: args.id,
-    additionalMenuItems: args.tableDescription && [
+    additionalMenuItems: tableDefinition && [
       m(MenuItem, {
         label: 'Show query results',
         icon: 'table',
         onclick: () =>
           extensions.addLegacySqlTableTab(args.trace, {
-            table: args.tableDescription!,
+            table: tableDefinition,
             filters: [
               {
                 op: ([columnName]) => `${columnName} = ${args.id}`,

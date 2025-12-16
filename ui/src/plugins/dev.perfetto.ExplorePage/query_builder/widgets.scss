@@ -1,0 +1,684 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "./common";
+@import "./node_styling_widgets";
+
+// General widget styles
+
+.pf-exp-column-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--pf-color-border);
+  flex-wrap: wrap;
+
+  label {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--pf-color-text-muted);
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+
+    label {
+      width: 100%;
+    }
+  }
+}
+
+.pf-exp-button-group {
+  display: flex;
+  gap: 8px;
+}
+
+// Card header widget
+.pf-exp-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+
+  &__title {
+    margin: 0;
+  }
+}
+
+// Section widget
+.pf-exp-section {
+  padding: 1rem;
+  border-bottom: 1px solid var(--pf-color-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.pf-exp-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+
+  h2 {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
+  }
+}
+
+// List item widget - displays an item with icon, name, description, and action button
+.pf-exp-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--pf-color-background);
+    border-color: var(--pf-color-primary);
+  }
+
+  &:focus {
+    outline: 2px solid var(--pf-color-accent, var(--pf-color-primary));
+    outline-offset: 2px;
+  }
+
+  &:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pf-color-accent, var(--pf-color-primary));
+    outline-offset: 2px;
+  }
+
+  &.pf-joined-source {
+    border-left: 4px solid var(--pf-color-primary);
+  }
+}
+
+.pf-exp-list-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; // Allow text truncation
+}
+
+.pf-exp-list-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pf-color-text);
+  font-family: "Roboto Mono", monospace;
+}
+
+.pf-exp-list-item-description {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-exp-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+// Action buttons widget - horizontal row of action buttons
+.pf-exp-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+
+  button {
+    justify-content: flex-start;
+  }
+}
+
+// Form row widget - labeled form row with children
+// Uses <label> as the root element for accessibility
+.pf-exp-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  span {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+    min-width: 100px;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    span {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+}
+
+// Labeled control widget - inline label with any control
+// Uses <label> as the root element for accessibility
+.pf-exp-labeled-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0; // Prevent margin stacking with section gaps
+
+  span {
+    color: var(--pf-color-text);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  // Allow inputs to shrink and not overflow
+  .pf-text-input {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    span {
+      width: 100%;
+      white-space: normal;
+    }
+
+    .pf-text-input {
+      width: 100%;
+    }
+  }
+}
+
+// Draggable list item widget
+.pf-exp-draggable-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  cursor: grab;
+  flex-wrap: wrap;
+
+  &:hover {
+    background: var(--pf-color-background);
+  }
+
+  .pf-exp-drag-handle {
+    cursor: grab;
+    color: var(--pf-color-text-muted);
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  // Ensure checkbox doesn't grow
+  .pf-checkbox {
+    flex-shrink: 0;
+  }
+}
+
+// Issue list widget - bulleted list inside a callout
+.pf-exp-issue-list {
+  margin-top: 4px;
+  margin-bottom: 0;
+  padding-left: 20px;
+}
+
+// Interval node input row widget
+.pf-exp-interval-node {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+
+  span {
+    flex: 1;
+  }
+}
+
+// Advanced mode change button - subtle text-like button for mode switching
+// Overrides Button widget styles for a more subtle appearance
+.pf-exp-advanced-mode-button.pf-button {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+
+  &:hover {
+    color: var(--pf-color-primary);
+    background: var(--pf-color-background-secondary);
+  }
+
+  .pf-left-icon {
+    font-size: 16px;
+  }
+
+  .pf-button__label {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+  }
+}
+
+// Modifiable item list - generic container for lists of editable items
+.pf-modifiable-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  container-type: inline-size;
+}
+
+// Sort criteria list - list of draggable sort items with gaps
+.pf-sort-criteria-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Limit and offset list - list of limit/offset items with gaps
+.pf-limit-offset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Equal width row widget - responsive layout for equal-width items
+.pf-exp-equal-width-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: stretch;
+  flex: 1;
+
+  // When container is narrow (< 400px), stack vertically
+  @container (max-width: 400px) {
+    flex-direction: column;
+
+    .pf-exp-equal-width-row__separator {
+      display: none; // Hide separator in vertical mode
+    }
+  }
+}
+
+.pf-exp-equal-width-row__item {
+  flex: 1 1 0; // Equal width, can grow and shrink
+  min-width: 0; // Allow items to shrink below content size
+  display: flex;
+  align-items: stretch;
+
+  // Make child elements fill the container
+  > * {
+    flex: 1;
+  }
+}
+
+.pf-exp-equal-width-row__separator {
+  display: flex;
+  align-items: center;
+  color: var(--pf-color-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  user-select: none;
+}
+
+// Info box widget - displays informational text in a styled box
+.pf-exp-info-box {
+  font-size: 13px;
+  color: var(--pf-color-text-muted);
+  padding: 12px 16px;
+  line-height: 1.5;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+// Secondary inputs container - vertical stack of input items
+.pf-exp-secondary-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Inline edit list container - vertical stack with spacing
+.pf-inline-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  container-type: inline-size;
+}
+
+// Form list item widget - inline form editing in a list item
+.pf-exp-form-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  min-height: 40px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+
+  &.pf-valid {
+    background: var(--pf-color-background-secondary);
+    border-color: var(--pf-color-border);
+
+    &:hover {
+      background: var(--pf-color-background);
+      border-color: var(--pf-color-primary);
+    }
+  }
+
+  &.pf-invalid {
+    border-color: var(--pf-color-danger);
+  }
+}
+
+.pf-exp-form-list-item-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+
+  // Ensure form controls don't overflow
+  .pf-select,
+  .pf-text-input {
+    min-width: 80px;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    .pf-select,
+    .pf-text-input,
+    .pf-outlined-field,
+    .pf-outlined-multiselect {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+}
+
+.pf-exp-form-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+// Material Design outlined input field with label on border
+.pf-outlined-field {
+  position: relative;
+  min-width: 120px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: border-color 0.15s ease-in-out;
+
+  &:hover:not(:disabled) {
+    border-color: var(--pf-color-text-muted);
+  }
+
+  &:focus-within:not(:disabled) {
+    // Use thicker border instead of box-shadow to avoid covering the legend
+    border-color: var(--pf-color-primary);
+    border-width: 2px;
+
+    .pf-outlined-field-legend {
+      color: var(--pf-color-primary);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--pf-color-background-secondary);
+  }
+
+  .pf-outlined-field-legend {
+    padding: 0 4px;
+    margin-left: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--pf-color-text-muted);
+    user-select: none;
+    transition: color 0.15s ease-in-out;
+  }
+
+  .pf-outlined-field-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--pf-color-text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+
+  select.pf-outlined-field-input {
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Outlined multiselect - styles the PopupMultiSelect button to look like a form field
+.pf-outlined-multiselect {
+  flex: 1;
+
+  .pf-button {
+    @extend .pf-exp-column-name;
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--pf-color-border) !important;
+    white-space: normal;
+    min-width: 0;
+
+    &:hover {
+      border-color: var(--pf-color-primary) !important;
+      background: var(--pf-color-background-secondary) !important;
+    }
+
+    &:focus {
+      border-color: var(--pf-color-primary) !important;
+    }
+
+    .pf-button__label {
+      white-space: normal;
+      word-break: break-word;
+    }
+  }
+}
+
+// Button styled like a form list item
+.pf-add-item-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  min-height: 40px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--pf-color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+
+  &:hover {
+    border-color: var(--pf-color-primary);
+    background: var(--pf-color-background);
+  }
+
+  &:focus {
+    outline: 2px solid var(--pf-color-primary);
+    outline-offset: 2px;
+  }
+
+  &:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pf-color-primary);
+    outline-offset: 2px;
+  }
+
+  .pf-add-item-placeholder__label {
+    font-weight: 500;
+  }
+}
+
+// Inline field widget - label on left, editable/read-only value on right
+.pf-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+
+  &:hover {
+    background: var(--pf-color-background);
+    border-color: var(--pf-color-primary);
+  }
+
+  &.pf-invalid {
+    border-color: var(--pf-color-danger);
+  }
+
+  .pf-inline-field__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+    white-space: nowrap;
+    min-width: 100px;
+  }
+
+  .pf-inline-field__value {
+    flex: 1;
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+    font-family: "Roboto Mono", monospace;
+  }
+
+  .pf-text-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Stack vertically when container is narrow
+  @container (max-width: 400px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    .pf-inline-field__label {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .pf-text-input {
+      width: 100%;
+    }
+  }
+}
+
+// Column list container - used by modify columns and union nodes
+.pf-column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Column type selector - aligns to the right in modify columns rows
+.pf-column-type {
+  margin-left: auto;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--pf-color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease-in-out;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--pf-color-primary);
+  }
+
+  &:focus {
+    outline: 2px solid var(--pf-color-primary);
+    outline-offset: 2px;
+  }
+}
+
+// Select/Deselect All buttons - aligns to the right with gap between buttons
+.pf-select-deselect-all-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+// Wider modal for computed column forms
+.pf-computed-column-modal-wide {
+  min-width: 30vw;
+}
+
+// Callout with spacing below
+.pf-callout-with-spacing {
+  margin-bottom: 16px;
+}

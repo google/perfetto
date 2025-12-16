@@ -301,18 +301,25 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
     const title = this.getTitle(row);
     const color = this.getColor(row, title);
     const dataset = getDataset(this.attrs);
-    // Take a copy of the row, only copying the keys listed in the schema.
-    const cols = Object.keys(dataset.schema);
-    const clonedRow = Object.fromEntries(
-      Object.entries(row).filter(([key]) => cols.includes(key)),
-    ) as T;
+
+    // Take a copy of the row, only copying the keys listed in the schema to
+    // avoid leaking internal columns.
+    // - Avoid using Object.keys() because it is slow.
+    // - We can avoid having to check hasOwnProperty() here as we dataset.schema
+    //   is almost always guaranteed to be a simple object, though we need to
+    //   disable the lint check.
+    const clonedRow: Record<string, SqlValue> = {};
+    // eslint-disable-next-line guard-for-in
+    for (const k in dataset.schema) {
+      clonedRow[k] = row[k];
+    }
 
     return {
       ...slice,
       title,
       colorScheme: color,
       fillRatio: this.attrs.fillRatio?.(row) ?? slice.fillRatio,
-      row: clonedRow,
+      row: clonedRow as T,
     };
   }
 

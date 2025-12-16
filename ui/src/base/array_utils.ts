@@ -77,3 +77,11 @@ export function valueIfAllEqual<T>(arr: ReadonlyArray<T>): T | undefined {
   if (arr.every((val) => val === arr[0])) return arr[0];
   return undefined;
 }
+
+// Inserts a separator between each element of an array. Similar to
+// Array.join(), but returns an array instead of a string.
+export function intersperse<T, S>(arr: T[], separator: S): (T | S)[] {
+  return arr.flatMap((item, i) =>
+    i < arr.length - 1 ? [item, separator] : [item],
+  );
+}

@@ -146,6 +146,7 @@ export default class SchedPlugin implements PerfettoPlugin {
         }
         return {
           where: `utid IN (${utids.join()})`,
+          columns: {utid: NUM_NULL},
         };
       },
     });

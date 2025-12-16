@@ -37,6 +37,7 @@ const availableOptions: ReadonlyArray<string> = [
   'plugh',
   'xyzzy',
   'thud',
+  'a really really long option to test overflow and wrapping handling',
 ];
 let selectedOptions: string[] = ['foo', 'qux', 'grault'];
 

@@ -15,20 +15,20 @@
 import m from 'mithril';
 import {Duration} from '../../base/time';
 import {BarChartData, ColumnDef} from '../../components/aggregation';
-import {AggregationPanelAttrs} from '../../components/aggregation_panel';
+import {Column} from '../../components/widgets/datagrid/model';
+import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {
-  ColumnDefinition,
-  DataGridDataSource,
-  Sorting,
-} from '../../components/widgets/data_grid/common';
-import {
-  DataGrid,
-  renderCell,
-} from '../../components/widgets/data_grid/data_grid';
-import {SqlValue} from '../../trace_processor/query_result';
+  ColumnSchema,
+  SchemaRegistry,
+} from '../../components/widgets/datagrid/datagrid_schema';
 import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
+import {
+  AggregatePivotModel,
+  AggregationPanelAttrs,
+} from '../../components/aggregation_adapter';
+import {DataSource} from '../../components/widgets/datagrid/data_source';
 
 export class WattsonAggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
@@ -36,20 +36,67 @@ export class WattsonAggregationPanel
   private scaleNumericData: boolean = false;
 
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    const {dataSource, sorting, columns, barChartData} = attrs;
+    const {dataSource, columns, barChartData} = attrs;
 
     return m(Stack, {fillHeight: true}, [
       barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
-      m(StackAuto, this.renderTable(dataSource, sorting, columns)),
+      m(StackAuto, this.renderTable(dataSource, columns)),
     ]);
   }
 
   private renderTable(
-    dataSource: DataGridDataSource,
-    sorting: Sorting,
-    columns: ReadonlyArray<ColumnDef>,
+    dataSource: DataSource,
+    model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
   ) {
-    const columnsById = new Map(columns.map((c) => [c.columnId, c]));
+    // TODO: Support pivot tables
+    if ('groupBy' in model) {
+      return undefined;
+    }
+
+    const initialColumns: readonly Column[] = model.map((c) => ({
+      field: c.columnId,
+      aggregate: c.sum ? 'SUM' : undefined,
+      sort: c.sort,
+    }));
+
+    // Build schema directly
+    const columnSchema: ColumnSchema = {};
+    for (const c of model) {
+      const displayTitle = this.scaleNumericData
+        ? c.title.replace('estimated mW', 'estimated µW')
+        : c.title;
+      columnSchema[c.columnId] = {
+        title: displayTitle,
+        titleString: displayTitle,
+        columnType: filterTypeForColumnDef(c.formatHint),
+        cellRenderer: (value) => {
+          const formatHint = c.formatHint;
+          if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+            return m(
+              'span.pf-data-grid__cell--number',
+              Duration.humanise(value),
+            );
+          } else if (formatHint === 'PERCENT' && typeof value === 'number') {
+            return m(
+              'span.pf-data-grid__cell--number',
+              `${(value * 100).toFixed(2)}%`,
+            );
+          } else {
+            let v = value;
+            if (
+              this.scaleNumericData &&
+              c.columnId.includes('_mw') &&
+              typeof value === 'number'
+            ) {
+              v = value * 1000;
+            }
+            return renderCell(v, c.columnId);
+          }
+        },
+      };
+    }
+    const schema: SchemaRegistry = {data: columnSchema};
+
     return m(DataGrid, {
       toolbarItemsLeft: m(
         Box,
@@ -62,24 +109,11 @@ export class WattsonAggregationPanel
           title: 'Select power units',
         }),
       ),
+      initialColumns,
       fillHeight: true,
-      showResetButton: false,
-      columns: columns.map((c): ColumnDefinition => {
-        const displayTitle = this.scaleNumericData
-          ? c.title.replace('estimated mW', 'estimated µW')
-          : c.title;
-        return {
-          name: c.columnId,
-          title: displayTitle,
-          aggregation: c.sum ? 'SUM' : undefined,
-        };
-      }),
+      schema,
+      rootSchema: 'data',
       data: dataSource,
-      initialSorting: sorting,
-      cellRenderer: (value: SqlValue, columnName: string) => {
-        const formatHint = columnsById.get(columnName)?.formatHint;
-        return this.renderValue(value, columnName, formatHint);
-      },
     });
   }
 
@@ -104,25 +138,19 @@ export class WattsonAggregationPanel
       }),
     );
   }
+}
 
-  private renderValue(value: SqlValue, colName: string, formatHint?: string) {
-    if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
-      return m('span.pf-data-grid__cell--number', Duration.humanise(value));
-    } else if (formatHint === 'PERCENT' && typeof value === 'number') {
-      return m(
-        'span.pf-data-grid__cell--number',
-        `${(value * 100).toFixed(2)}%`,
-      );
-    } else {
-      let v = value;
-      if (
-        this.scaleNumericData &&
-        colName.includes('_mw') &&
-        typeof value === 'number'
-      ) {
-        v = value * 1000;
-      }
-      return renderCell(v, colName);
-    }
+function filterTypeForColumnDef(
+  formatHint: string | undefined,
+): 'quantitative' | 'text' | undefined {
+  switch (formatHint) {
+    case 'UNDEFINED':
+      return undefined;
+    case 'NUMERIC':
+    case 'DURATION_NS':
+      return 'quantitative';
+    case 'STRING':
+    default:
+      return 'text';
   }
 }

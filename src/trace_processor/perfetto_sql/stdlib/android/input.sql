@@ -149,7 +149,7 @@ JOIN actual_frame_timeline_slice AS app
   ON surface_flinger.display_frame_token = app.display_frame_token
   AND surface_flinger.id != app.id
 WHERE
-  surface_flinger.surface_frame_token = 0 AND app.present_type != 'Dropped Frame';
+  surface_flinger.surface_frame_token IS NULL AND app.present_type != 'Dropped Frame';
 
 CREATE PERFETTO TABLE _first_non_dropped_frame_after_input AS
 SELECT
@@ -186,7 +186,7 @@ JOIN _input_read_time
 -- 1. Input dispatch event sent from OS.
 -- 2. Input dispatch event received in app.
 -- 3. Input ACK event sent from app.
--- 4. Input ACk event received in OS.
+-- 4. Input ACK event received in OS.
 CREATE PERFETTO TABLE android_input_events (
   -- Duration from input dispatch to input received.
   dispatch_latency_dur DURATION,

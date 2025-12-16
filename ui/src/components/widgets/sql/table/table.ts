@@ -16,7 +16,7 @@ import m from 'mithril';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
+import {Row} from '../../../../trace_processor/query_result';
 import {Spinner} from '../../../../widgets/spinner';
 import {
   Grid,
@@ -32,7 +32,7 @@ import {SqlTableDescription} from './table_description';
 import {
   RenderedCell,
   TableColumn,
-  TableManager,
+  RenderCellContext,
   tableColumnId,
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
@@ -60,21 +60,14 @@ function renderCell(
   column: TableColumn,
   row: Row,
   state: SqlTableState,
+  addColumn: (column: TableColumn) => void,
 ): RenderedCell {
   const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.column)]];
-
-  const additionalValues: {[key: string]: SqlValue} = {};
-  const supportingColumns: {[key: string]: SqlColumn} =
-    column.supportingColumns?.() ?? {};
-  for (const [key, col] of Object.entries(supportingColumns)) {
-    additionalValues[key] = row[columns[sqlColumnId(col)]];
-  }
+  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]];
 
   const result = column.renderCell(
     sqlValue,
-    getTableManager(state),
-    additionalValues,
+    getRenderCellContext(state, addColumn),
   );
 
   return result;
@@ -146,7 +139,15 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         key: columnTitle(column),
         column,
       })),
-      manager: getTableManager(this.state),
+      filters: this.state.filters,
+      trace: this.state.trace,
+      getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+        buildSqlQuery({
+          table: this.state.config.name,
+          columns,
+          filters: this.state.filters.get(),
+          orderBy: this.state.getOrderedBy(),
+        }),
       existingColumnIds,
       onColumnSelected: addColumn,
     });
@@ -240,7 +241,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           },
           columnTitle(column),
         ),
-        reorderable: {handle: 'column'},
+        reorderable: {reorderGroup: 'column'},
       };
 
       return gridColumn;
@@ -248,11 +249,14 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     // Build VirtualGrid rows
     const virtualGridRows = rows.map((row) => {
-      return columns.map((col) => {
+      return columns.map((col, i) => {
         const {content, menu, isNumerical, isNull} = renderCell(
           col,
           row,
           this.state,
+          (column) => {
+            this.state.addColumn(column, i);
+          },
         );
         return m(
           GridCell,
@@ -296,7 +300,10 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   }
 }
 
-export function getTableManager(state: SqlTableState): TableManager {
+function getRenderCellContext(
+  state: SqlTableState,
+  addColumn: (column: TableColumn) => void,
+): RenderCellContext {
   return {
     filters: state.filters,
     trace: state.trace,
@@ -307,5 +314,12 @@ export function getTableManager(state: SqlTableState): TableManager {
         filters: state.filters.get(),
         orderBy: state.getOrderedBy(),
       }),
+    hasColumn: (column: TableColumn) => {
+      const selectedColumns = state.getSelectedColumns();
+      return !selectedColumns.some(
+        (c) => tableColumnId(c) === tableColumnId(column),
+      );
+    },
+    addColumn,
   };
 }

@@ -1,5 +1,7 @@
-runtime: python38
-instance_class: B1
-basic_scaling:
-  max_instances: 4
-  idle_timeout: 10m
+runtime: python313
+instance_class: F2
+automatic_scaling:
+  target_cpu_utilization: 0.65
+  min_instances: 1
+  max_instances: 20
+  max_concurrent_requests: 40

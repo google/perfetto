@@ -184,7 +184,7 @@ export class MultiselectInput
 
     const filtered = this.filterOptions(attrs);
     if (filtered.length === 0) {
-      return m(EmptyState, {title: 'No results found', icon: 'search_off'});
+      return m(EmptyState, {title: 'No results found'});
     }
 
     return m(

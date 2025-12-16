@@ -1,0 +1,209 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Override modal's main margin for table list
+// The :has() selector provides sufficient specificity to override the default margin
+.pf-modal-dialog main:has(.pf-exp-node-explorer-help) {
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+
+// Make the table list scrollable
+.pf-exp-node-explorer-help {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pf-exp-table-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pf-table-cards-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.pf-tag-filter {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--divider-color);
+  background-color: var(--surface-variant);
+
+  .pf-tag-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pf-tag-chip {
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+  }
+}
+
+.pf-search-and-filter {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--divider-color);
+  background-color: var(--surface);
+
+  .pf-search {
+    flex: 1;
+    margin-bottom: 0;
+  }
+}
+
+.pf-table-card-header {
+  .pf-timestamp-icon {
+    color: var(--primary);
+    font-size: 18px;
+    margin-left: 4px;
+    opacity: 0.8;
+  }
+
+  .pf-match-type-chip {
+    background-color: var(--surface-variant);
+    color: var(--on-surface-variant);
+    font-size: 11px;
+    opacity: 0.8;
+  }
+
+  .pf-no-data-chip {
+    background-color: rgba(var(--rgb-error), 0.1);
+    color: var(--error);
+    font-size: 11px;
+    font-weight: 500;
+  }
+}
+
+// Styling for selected tables (multi-select mode)
+// Use same layer as cards but with higher specificity to override defaults
+@layer pf-widgets {
+  .pf-card-stack > .pf-card.pf-selected-table {
+    background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
+    border: 2px solid var(--pf-color-accent);
+    box-shadow: 0 2px 8px var(--pf-color-box-shadow);
+  }
+
+  .pf-card-stack > .pf-card.pf-selected-table.pf-interactive:hover {
+    background: color-mix(in srgb, var(--pf-color-accent) 25%, transparent);
+    box-shadow: 0 4px 12px var(--pf-color-box-shadow);
+  }
+}
+
+// Styling for cards with disabled modules (no data)
+@layer pf-widgets {
+  .pf-card-stack > .pf-card.pf-disabled-module {
+    opacity: 0.6;
+    background-color: var(--surface-variant);
+
+    &:hover {
+      opacity: 0.7;
+    }
+
+    .pf-table-card {
+      .table-name {
+        color: var(--on-surface-variant);
+      }
+
+      .table-module {
+        color: var(--on-surface-variant);
+        opacity: 0.7;
+      }
+
+      .table-description {
+        color: var(--on-surface-variant);
+        opacity: 0.8;
+      }
+    }
+  }
+}
+
+.table-description {
+  // Inline code styling
+  code {
+    background-color: var(--surface-variant);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: "Roboto Mono", monospace;
+    font-size: 0.9em;
+    color: var(--on-surface);
+  }
+
+  // Links
+  a {
+    color: var(--primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  // Bold text
+  strong {
+    font-weight: 500;
+  }
+
+  // Italic text
+  em {
+    font-style: italic;
+  }
+
+  // Paragraphs
+  p {
+    margin: 0.5em 0;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // Lists
+  ul,
+  ol {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+  }
+
+  // Code blocks
+  pre {
+    background-color: var(--surface-variant);
+    padding: 8px 12px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0.5em 0;
+
+    code {
+      background-color: transparent;
+      padding: 0;
+    }
+  }
+}

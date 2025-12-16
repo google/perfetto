@@ -17,7 +17,7 @@
 -- This is used for capturing blocking call per frame metrics, and the related plugins.
 INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 
-INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+INCLUDE PERFETTO MODULE android.cujs.base;
 
 -- For cases when a blocking call starts within a frame, but does not end before the actual frame
 -- ends, a part of the blocking call can be missed while calculating the metric. To avoid this
@@ -35,7 +35,7 @@ SELECT
   -- For the last frame, fall back to the default ts_end.
   coalesce(lead(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id ASC), ts_end) AS ts_end,
   frame_id
-FROM _android_frames_in_cuj
+FROM _android_distinct_frames_in_cuj
 ORDER BY
   frame_id;
 

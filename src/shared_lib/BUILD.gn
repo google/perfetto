@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/perfetto.gni")
+
 source_set("for_testing") {
   deps = [
     "../../gn:default_deps",
@@ -42,6 +44,11 @@ source_set("shared_lib") {
     "tracing_session.cc",
   ]
   defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
+
+  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
+  if (perfetto_build_standalone || is_perfetto_build_generator) {
+    assert_no_deps = [ "../../buildtools:abseil_cpp" ]
+  }
 }
 
 shared_library("libperfetto_c") {
