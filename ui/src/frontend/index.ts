@@ -47,10 +47,6 @@ import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
 import {configureExtensions} from '../components/extensions';
-import {
-  addDebugCounterTrack,
-  addDebugSliceTrack,
-} from '../components/tracks/debug_tracks';
 import {addVisualizedArgTracks} from '../components/tracks/visualized_args_tracks';
 import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {assetSrc, initAssets} from '../base/assets';
@@ -551,8 +547,6 @@ function maybeChangeRpcPortFromFragment() {
 // comment in sql_table_tab_interface.ts. Remove once we add an extension
 // point for context menus.
 configureExtensions({
-  addDebugCounterTrack,
-  addDebugSliceTrack,
   addVisualizedArgTracks,
   addQueryResultsTab,
 });
