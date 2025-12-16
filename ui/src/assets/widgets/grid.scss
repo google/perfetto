@@ -82,6 +82,8 @@ $indent-guide-offset: 12px;
   flex-direction: row;
   align-items: baseline;
   overflow: hidden;
+  height: 100%;
+
   --pf-cell-padding-block: 0;
   --pf-cell-padding-inline: 0;
   --pf-grid-cell-indent: 0;
@@ -111,6 +113,7 @@ $indent-guide-offset: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    height: 100%;
   }
 
   &--padded {
@@ -228,6 +231,16 @@ $indent-guide-offset: 12px;
     justify-content: flex-start;
     flex-direction: row;
     overflow: hidden;
+
+    .pf-visible-on-row-hover {
+      visibility: hidden;
+    }
+
+    &:hover {
+      .pf-visible-on-row-hover {
+        visibility: visible;
+      }
+    }
   }
 
   &__cell-container {
