@@ -255,9 +255,9 @@ $indent-guide-offset: 12px;
       }
     }
 
-    // &--border-right-thick {
-    //   border-right: $border-3;
-    // }
+    &--border-right-thick {
+      border-right: $border-3;
+    }
 
     // Drag indicator shown on all cells in the target column (header and body)
     &--drag-over-before::after,
