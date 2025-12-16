@@ -61,19 +61,3 @@ source_set("full") {
     "../syscalls:full",
   ]
 }
-
-source_set("unittests") {
-  testonly = true
-  sources = [ "file_io_tracker_unittest.cc" ]
-  deps = [
-    ":full",
-    ":minimal",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace/etw:zero",
-    "../../../protozero",
-    "../../storage",
-    "../../types",
-    "../common",
-  ]
-}

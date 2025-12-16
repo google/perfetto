@@ -14251,14 +14251,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/importers/etw:unittests
-filegroup {
-    name: "perfetto_src_trace_processor_importers_etw_unittests",
-    srcs: [
-        "src/trace_processor/importers/etw/file_io_tracker_unittest.cc",
-    ],
-}
-
 // GN: //src/trace_processor/importers/ftrace:ftrace_descriptors
 filegroup {
     name: "perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
@@ -18059,7 +18051,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_common_unittests",
         ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_etw_minimal",
-        ":perfetto_src_trace_processor_importers_etw_unittests",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
