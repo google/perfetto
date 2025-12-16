@@ -110,7 +110,7 @@ struct TBChunk {
   // exist at the ABI level, but are synthesized here.
   uint8_t flags = 0;
 
-  // This is used only for DCHECKS to verify the integrity of the chunk.
+  // This is used for (D)CHECKS to verify the integrity of the chunk.
   // This is a hash of the offset in the buffer and the size.
   uint8_t checksum = 0;
 
@@ -131,7 +131,7 @@ struct TBChunk {
   static inline constexpr size_t alignment() { return sizeof(TBChunk); }
 
   static inline size_t OuterSize(size_t sz) {
-    return base::AlignUp<alignment()>(sizeof(TBChunk) + sz);
+    return base::AlignUp(sizeof(TBChunk) + sz, alignment());
   }
   size_t outer_size() { return OuterSize(size); }
 
@@ -345,7 +345,7 @@ class ChunkSeqReader {
   Mode const mode_;
 
   // This is the chunk passed in the constructor and is our stopping point.
-  // It never changes throuhgout the lifetime of ChunkSeqReader.
+  // It never changes throughout the lifetime of ChunkSeqReader.
   // Note that this is NOT the end of the sequence. This is simply where we
   // want to stop iterating, which might be < seq_.end().
   TBChunk* const end_ = nullptr;
@@ -521,7 +521,10 @@ class TraceBufferV2 : public TraceBuffer {
   TBChunk* GetTBChunkAt(size_t off) {
     TBChunk* tbchunk = GetTBChunkAtUnchecked(off);
     PERFETTO_CHECK(tbchunk->outer_size() <= (size_ - off));
-    PERFETTO_DCHECK(tbchunk->IsChecksumValid(off));
+
+    // TODO(primiano): consider turning this into a DCHECK (and #ifdef-ing away
+    // the checksum code) once TBV2 proves to be reliable.
+    PERFETTO_CHECK(tbchunk->IsChecksumValid(off));
     return tbchunk;
   }
 

@@ -258,6 +258,69 @@ TEST(CircularQueueTest, InsertBeforeReverse) {
   ASSERT_THAT(queue, ElementsAre(1, 2, 3, 4, 5));
 }
 
+// Test that InsertBefore works correctly when it triggers a capacity growth.
+// This verifies that the iterator's pos_ (which is an abstract index) remains
+// valid after the internal storage is reallocated during Grow().
+TEST(CircularQueueTest, InsertBeforeWithGrow) {
+  // Use a small initial capacity so we can easily trigger growth.
+  CircularQueue<int> queue(/*initial_capacity=*/4);
+
+  // Fill the queue to capacity.
+  queue.emplace_back(10);
+  queue.emplace_back(20);
+  queue.emplace_back(30);
+  queue.emplace_back(40);
+  ASSERT_EQ(queue.size(), 4u);
+  ASSERT_EQ(queue.capacity(), 4u);
+
+  // Get the position where we want to insert (at element 30).
+  // Note: We can't use the iterator directly after InsertBefore because
+  // increment_generation() invalidates it. We use pos_ which is accessed
+  // directly by InsertBefore.
+  auto it = queue.begin() + 2;
+  ASSERT_EQ(*it, 30);
+
+  // This InsertBefore should trigger Grow() since we're at capacity.
+  // After Grow(), the iterator's pos_ (an abstract index) should still be
+  // valid because CircularQueue uses monotonic indices, not pointers.
+  queue.InsertBefore(it, 25);
+
+  // Verify the queue grew.
+  ASSERT_GT(queue.capacity(), 4u);
+  ASSERT_EQ(queue.size(), 5u);
+
+  // Verify all elements are in the correct order.
+  ASSERT_THAT(queue, ElementsAre(10, 20, 25, 30, 40));
+}
+
+// Test InsertBefore with growth when the queue has wrapped around internally.
+TEST(CircularQueueTest, InsertBeforeWithGrowAfterWrap) {
+  CircularQueue<int> queue(/*initial_capacity=*/4);
+
+  // Fill and then pop to move the internal begin_ forward.
+  queue.emplace_back(1);
+  queue.emplace_back(2);
+  queue.pop_front();
+  queue.pop_front();
+
+  // Now internal begin_ is at position 2. Add elements to wrap around.
+  queue.emplace_back(10);
+  queue.emplace_back(20);
+  queue.emplace_back(30);
+  queue.emplace_back(40);
+  ASSERT_EQ(queue.size(), 4u);
+  ASSERT_EQ(queue.capacity(), 4u);
+
+  // Insert in the middle, triggering growth while wrapped.
+  auto it = queue.begin() + 2;
+  ASSERT_EQ(*it, 30);
+  queue.InsertBefore(it, 25);
+
+  ASSERT_GT(queue.capacity(), 4u);
+  ASSERT_EQ(queue.size(), 5u);
+  ASSERT_THAT(queue, ElementsAre(10, 20, 25, 30, 40));
+}
+
 TEST(CircularQueueTest, ObjectLifetime) {
   class Checker {
    public:
