@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {Icons} from '../../base/semantic_icons';
 import {
   AggregatePivotModel,
   Aggregation,
@@ -20,15 +22,23 @@ import {
   createIITable,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
-import {Dataset, UnionDataset} from '../../trace_processor/dataset';
+import {Trace} from '../../public/trace';
+import {Track} from '../../public/track';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {
+  buildQueryWithLineage,
+  LineageResolver,
+} from '../../trace_processor/dataset_query_utils';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,
   NUM_NULL,
+  Row,
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {Anchor} from '../../widgets/anchor';
 
 const SLICE_WITH_PARENT_SPEC = {
   id: NUM,
@@ -48,51 +58,87 @@ const SLICELIKE_SPEC = {
 export class SliceSelectionAggregator implements Aggregator {
   readonly id = 'slice_aggregation';
 
-  probe(area: AreaSelection): Aggregation | undefined {
-    const sliceDatasets: Array<Dataset<typeof SLICE_WITH_PARENT_SPEC>> = [];
-    const slicelikeDatasets: Array<Dataset<typeof SLICELIKE_SPEC>> = [];
+  private readonly trace: Trace;
+  // Store lineage resolver for use when rendering clickable IDs
+  private lineageResolver?: LineageResolver<Track>;
 
-    // Pick tracks we can aggregate, sorting them into slice and slicelike
-    // buckets
+  constructor(trace: Trace) {
+    this.trace = trace;
+  }
+
+  probe(area: AreaSelection): Aggregation | undefined {
+    // Collect tracks with SourceDatasets, sorted by schema type
+    const sliceTracks: Track[] = [];
+    const slicelikeTracks: Track[] = [];
+
     for (const track of area.tracks) {
       const dataset = track.renderer.getDataset?.();
-      if (!dataset) continue;
+      if (!dataset || !(dataset instanceof SourceDataset)) continue;
 
       if (dataset.implements(SLICE_WITH_PARENT_SPEC)) {
-        sliceDatasets.push(dataset);
+        sliceTracks.push(track);
       } else if (dataset.implements(SLICELIKE_SPEC)) {
-        slicelikeDatasets.push(dataset);
+        slicelikeTracks.push(track);
       }
     }
 
-    if (sliceDatasets.length === 0 && slicelikeDatasets.length === 0) {
+    if (sliceTracks.length === 0 && slicelikeTracks.length === 0) {
       return undefined;
     }
 
     return {
       prepareData: async (engine: Engine) => {
         const unionQueries: string[] = [];
+        const lineageResolvers: LineageResolver<Track>[] = [];
         await using trash = new AsyncDisposableStack();
 
-        if (sliceDatasets.length > 0) {
-          const query = await this.buildSliceQuery(
+        if (sliceTracks.length > 0) {
+          const {query, resolver} = await this.buildSliceQuery(
             engine,
-            UnionDataset.create(sliceDatasets),
+            sliceTracks,
             area,
             trash,
           );
           unionQueries.push(query);
+          lineageResolvers.push(resolver);
         }
 
-        if (slicelikeDatasets.length > 0) {
-          const query = await this.buildSlicelikeQuery(
+        if (slicelikeTracks.length > 0) {
+          const {query, resolver} = await this.buildSlicelikeQuery(
             engine,
-            UnionDataset.create(slicelikeDatasets),
+            slicelikeTracks,
             area,
             trash,
           );
-          unionQueries.push(query);
+          // Offset groupids for slicelike resolver
+          const sliceGroupCount = sliceTracks.length > 0 ? 1 : 0;
+          unionQueries.push(
+            query.replace(
+              /z__groupid/g,
+              `z__groupid + ${sliceGroupCount} AS z__groupid`,
+            ),
+          );
+          lineageResolvers.push(resolver);
         }
+
+        // Combine lineage resolvers
+        this.lineageResolver = {
+          resolve: (groupId, partition) => {
+            // Route to correct resolver based on groupId
+            for (const resolver of lineageResolvers) {
+              const result = resolver.resolve(groupId, partition);
+              if (result) return result;
+            }
+            return undefined;
+          },
+          getGroupInputs: (groupId) => {
+            for (const resolver of lineageResolvers) {
+              const inputs = resolver.getGroupInputs(groupId);
+              if (inputs.length > 0) return inputs;
+            }
+            return [];
+          },
+        };
 
         await engine.query(`
           CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
@@ -100,24 +146,41 @@ export class SliceSelectionAggregator implements Aggregator {
             id,
             name,
             dur,
-            self_dur
+            self_dur,
+            z__groupid,
+            z__partition
           FROM (${unionQueries.join(' UNION ALL ')})
         `);
 
-        return {tableName: this.id};
+        return {tableName: this.id, lineageResolver: this.lineageResolver};
       },
     };
   }
 
   private async buildSliceQuery(
     engine: Engine,
-    sliceTracks: Dataset<typeof SLICE_WITH_PARENT_SPEC>,
+    tracks: Track[],
     area: AreaSelection,
     trash: AsyncDisposableStack,
-  ): Promise<string> {
+  ): Promise<{query: string; resolver: LineageResolver<Track>}> {
+    // Build query with lineage tracking
+    const {sql, lineageResolver} = buildQueryWithLineage({
+      inputs: tracks,
+      datasetFetcher: (t) => t.renderer.getDataset?.() as SourceDataset,
+      columns: SLICE_WITH_PARENT_SPEC,
+    });
+
+    // Schema including lineage columns
+    const schemaWithLineage = {
+      ...SLICE_WITH_PARENT_SPEC,
+      z__groupid: NUM,
+      z__partition: NUM,
+    };
+
+    // Create interval-intersect table for time filtering
     const iiTable = await createIITable(
       engine,
-      sliceTracks,
+      new SourceDataset({src: `(${sql})`, schema: schemaWithLineage}),
       area.start,
       area.end,
     );
@@ -137,41 +200,70 @@ export class SliceSelectionAggregator implements Aggregator {
     });
     trash.use(childDurTable);
 
-    return `
-      SELECT
-        id,
-        name,
-        ts,
-        dur,
-        dur - COALESCE(child_dur, 0) AS self_dur
-      FROM ${iiTable.name}
-      LEFT JOIN ${childDurTable.name} USING(id)
-    `;
+    return {
+      query: `
+        SELECT
+          id,
+          name,
+          ts,
+          dur,
+          dur - COALESCE(child_dur, 0) AS self_dur,
+          z__groupid,
+          z__partition
+        FROM ${iiTable.name}
+        LEFT JOIN ${childDurTable.name} USING(id)
+      `,
+      resolver: lineageResolver,
+    };
   }
 
   private async buildSlicelikeQuery(
     engine: Engine,
-    slicelikeTracks: Dataset<typeof SLICELIKE_SPEC>,
+    tracks: Track[],
     area: AreaSelection,
     trash: AsyncDisposableStack,
-  ): Promise<string> {
+  ): Promise<{query: string; resolver: LineageResolver<Track>}> {
+    // Build query with lineage tracking
+    const {sql, lineageResolver} = buildQueryWithLineage({
+      inputs: tracks,
+      datasetFetcher: (t) => t.renderer.getDataset?.() as SourceDataset,
+      columns: SLICELIKE_SPEC,
+    });
+
+    // Schema including lineage columns
+    const schemaWithLineage = {
+      ...SLICELIKE_SPEC,
+      z__groupid: NUM,
+      z__partition: NUM,
+    };
+
+    // Create interval-intersect table for time filtering
     const iiTable = await createIITable(
       engine,
-      slicelikeTracks,
+      new SourceDataset({src: `(${sql})`, schema: schemaWithLineage}),
       area.start,
       area.end,
     );
     trash.use(iiTable);
 
-    return `
-      SELECT
-        id,
-        name,
-        ts,
-        dur,
-        dur AS self_dur
-      FROM ${iiTable.name}
-    `;
+    return {
+      query: `
+        SELECT
+          id,
+          name,
+          ts,
+          dur,
+          dur AS self_dur,
+          z__groupid,
+          z__partition
+        FROM ${iiTable.name}
+      `,
+      resolver: lineageResolver,
+    };
+  }
+
+  getLineageResolver(): LineageResolver<Track> | undefined {
+    return this.lineageResolver;
   }
 
   getTabName() {
@@ -192,6 +284,47 @@ export class SliceSelectionAggregator implements Aggregator {
           title: 'ID',
           columnId: 'id',
           formatHint: 'ID',
+          cellRenderer: (value: unknown, row: Row) => {
+            if (typeof value !== 'bigint') {
+              return String(value);
+            }
+
+            const groupId = row['z__groupid'];
+            const partition = row['z__partition'];
+
+            if (
+              typeof groupId !== 'bigint' ||
+              (typeof partition !== 'bigint' && partition !== null)
+            ) {
+              return String(value);
+            }
+
+            const track = this.lineageResolver?.resolve(
+              Number(groupId),
+              Number(partition),
+            );
+            if (!track) {
+              return String(value);
+            }
+
+            return m(
+              Anchor,
+              {
+                title: 'Go to slice',
+                icon: Icons.UpdateSelection,
+                onclick: () => {
+                  this.trace.selection.selectTrackEvent(
+                    track.uri,
+                    Number(value),
+                    {
+                      scrollToSelection: true,
+                    },
+                  );
+                },
+              },
+              String(value),
+            );
+          },
         },
         {
           title: 'Name',
@@ -207,6 +340,16 @@ export class SliceSelectionAggregator implements Aggregator {
           title: 'Self Duration',
           formatHint: 'DURATION_NS',
           columnId: 'self_dur',
+        },
+        {
+          title: 'Partition',
+          columnId: 'z__partition',
+          formatHint: 'ID',
+        },
+        {
+          title: 'GroupID',
+          columnId: 'z__groupid',
+          formatHint: 'ID',
         },
       ],
     };

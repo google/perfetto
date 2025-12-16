@@ -508,7 +508,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       createAggregationTab(ctx, new CounterSelectionAggregator()),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new SliceSelectionAggregator()),
+      createAggregationTab(ctx, new SliceSelectionAggregator(ctx)),
     );
     ctx.selection.registerAreaSelectionTab(
       this.createSliceFlameGraphPanel(ctx),

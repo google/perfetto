@@ -69,6 +69,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
           create or replace perfetto table ${this.id} as
           select
+            tstate.id as id,
             process.name as process_name,
             process.pid as pid,
             thread.name as thread_name,
@@ -132,10 +133,12 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         {field: 'dur', function: 'AVG'},
       ],
       columns: [
+        {title: 'ID', columnId: 'id', formatHint: 'identifier'},
         {title: 'Cluster', columnId: 'cluster', formatHint: 'STRING'},
         {
           title: 'Process',
           columnId: 'process_name',
+          formatHint: 'STRING',
         },
         {
           title: 'PID',
@@ -145,6 +148,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         {
           title: 'Thread',
           columnId: 'thread_name',
+          formatHint: 'STRING',
         },
         {
           title: 'TID',
