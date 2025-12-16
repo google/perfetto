@@ -202,6 +202,44 @@ message PerfettoSqlStructuredQuery {
   }
 
   // DON'T USE. EXPERIMENTAL.
+  // A single-row source representing a time range interval.
+  //
+  // This is useful for representing a selected time range that can be used
+  // with interval_intersect or other operations that need to filter data
+  // to a specific time window.
+  //
+  // Produces a source with the schema (id, ts, dur) where:
+  //   - id is always 0 (single row)
+  //   - ts is the start timestamp
+  //   - dur is the duration
+  message ExperimentalTimeRange {
+    // The mode of the time range.
+    enum Mode {
+      // Static mode: ts and dur are fixed values and must be provided.
+      STATIC = 0;
+      // Dynamic mode: ts and dur are derived from trace bounds at runtime.
+      // If ts is not set, trace_start() is used.
+      // If dur is not set, trace_dur() is used.
+      DYNAMIC = 1;
+    }
+
+    // The mode of this time range. Required.
+    // - STATIC: ts and dur must be set.
+    // - MODE_DYNAMIC: ts and dur are optional (defaults to trace bounds).
+    optional Mode mode = 1;
+
+    // The start timestamp in nanoseconds.
+    // Required for STATIC, optional for DYNAMIC.
+    // If not set in DYNAMIC, the backend will use trace_start().
+    optional int64 ts = 2;
+
+    // The duration in nanoseconds.
+    // Required for STATIC, optional for DYNAMIC.
+    // If not set in DYNAMIC, the backend will use trace_dur().
+    optional int64 dur = 3;
+  }
+
+  // DON'T USE. EXPERIMENTAL.
   message ExperimentalJoin {
     message EqualityColumns {
       // The name of the column in the left query. Required.
@@ -432,6 +470,9 @@ message PerfettoSqlStructuredQuery {
 
     // DON'T USE. EXPERIMENTAL.
     ExperimentalCreateSlices experimental_create_slices = 104;
+
+    // DON'T USE. EXPERIMENTAL.
+    ExperimentalTimeRange experimental_time_range = 105;
   }
 
   // Evaluation order of operations:

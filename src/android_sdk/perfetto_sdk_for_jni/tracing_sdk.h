@@ -348,7 +348,7 @@ class DebugArg {
   const std::string name_;
 };
 
-template <typename T, bool is_interned = false>
+template <typename T>
 class ProtoField {
  public:
   template <typename>
@@ -360,18 +360,14 @@ class ProtoField {
   };
 
   struct TypeMap {
-    template <typename ProtoT = T>
+    template <typename ProtoT>
     static constexpr auto get_proto_type() {
       if constexpr (std::is_same_v<ProtoT, int64_t>) {
         return type_identity<PerfettoTeHlProtoFieldVarInt>{};
       } else if constexpr (std::is_same_v<ProtoT, double>) {
         return type_identity<PerfettoTeHlProtoFieldDouble>{};
       } else if constexpr (std::is_same_v<ProtoT, const char*>) {
-        if constexpr (is_interned) {
-          return type_identity<PerfettoTeHlProtoFieldCstrInterned>{};
-        } else {
-          return type_identity<PerfettoTeHlProtoFieldCstr>{};
-        }
+        return type_identity<PerfettoTeHlProtoFieldCstr>{};
       } else {
         return type_identity<void>{};
       }
@@ -384,11 +380,7 @@ class ProtoField {
       } else if constexpr (std::is_same_v<T, double>) {
         return PERFETTO_TE_HL_PROTO_TYPE_DOUBLE;
       } else if constexpr (std::is_same_v<T, const char*>) {
-        if constexpr (is_interned) {
-          return PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED;
-        } else {
-          return PERFETTO_TE_HL_PROTO_TYPE_CSTR;
-        }
+        return PERFETTO_TE_HL_PROTO_TYPE_CSTR;
       } else {
         static_assert(always_false<T>::value, "Unsupported type");
         return 0;  // Never reached, just to satisfy return type
@@ -406,24 +398,16 @@ class ProtoField {
   }
 
   void set_value(uint32_t id, T value) {
-    if constexpr (std::is_same_v<T, const char*>) {
-      static_assert(
-          !is_interned,
-          "For interned strings, you must provide an interned_type_id");
-      arg_.header.id = id;
-      arg_.str = value;
-    } else {
+    if constexpr (std::is_same_v<T, int64_t>) {
       arg_.header.id = id;
       arg_.value = value;
+    } else if constexpr (std::is_same_v<T, double>) {
+      arg_.header.id = id;
+      arg_.value = value;
+    } else if constexpr (std::is_same_v<T, const char*>) {
+      arg_.header.id = id;
+      arg_.str = value;
     }
-  }
-
-  void set_value(uint32_t id, T value, uint32_t interned_type_id) {
-    static_assert(is_interned && std::is_same_v<T, const char*>,
-                  "This overload is only available for interned string fields");
-    arg_.header.id = id;
-    arg_.str = value;
-    arg_.interned_type_id = interned_type_id;
   }
 
   static void delete_field(ProtoField* field) { delete field; }

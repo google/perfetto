@@ -33,6 +33,10 @@ import {
 import {classNames} from '../../../base/classnames';
 import {Tooltip} from '../../../widgets/tooltip';
 import {showModal} from '../../../widgets/modal';
+import {Editor} from '../../../widgets/editor';
+import {ResizeHandle} from '../../../widgets/resize_handle';
+import {findRef, toHTMLElement} from '../../../base/dom_utils';
+import {assertExists} from '../../../base/logging';
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -669,6 +673,29 @@ export class OutlinedField implements m.ClassComponent<OutlinedFieldAttrs> {
   }
 }
 
+// Read-only version of OutlinedField for displaying static information
+// Uses the same visual style but shows text instead of an input
+export interface OutlinedFieldReadOnlyAttrs {
+  label: string;
+  value: string;
+  className?: string;
+}
+
+export class OutlinedFieldReadOnly
+  implements m.ClassComponent<OutlinedFieldReadOnlyAttrs>
+{
+  view({attrs}: m.Vnode<OutlinedFieldReadOnlyAttrs>) {
+    const {label, value, className} = attrs;
+
+    return m(
+      'fieldset.pf-outlined-field',
+      {className},
+      m('legend.pf-outlined-field-legend', label),
+      m('.pf-outlined-field-input.pf-read-only', value),
+    );
+  }
+}
+
 // Wrapper around PopupMultiSelect with more obvious clickable styling
 export interface OutlinedMultiSelectAttrs {
   label: string;
@@ -994,4 +1021,46 @@ export function showExportWarning(): Promise<boolean> {
     ],
     confirmText: 'Export Anyway',
   });
+}
+
+// Resizable SQL editor with resize handle
+// Provides consistent SQL editing experience across SQL source and join nodes
+export interface ResizableSqlEditorAttrs {
+  sql: string;
+  onUpdate: (text: string) => void;
+  onExecute?: (text: string) => void;
+  autofocus?: boolean;
+}
+
+export class ResizableSqlEditor
+  implements m.ClassComponent<ResizableSqlEditorAttrs>
+{
+  private editorHeight: number = 0;
+  private editorElement?: HTMLElement;
+
+  oncreate({dom}: m.VnodeDOM<ResizableSqlEditorAttrs>) {
+    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
+    this.editorElement.style.height = '400px';
+  }
+
+  view({attrs}: m.CVnode<ResizableSqlEditorAttrs>) {
+    return [
+      m(Editor, {
+        ref: 'editor',
+        text: attrs.sql,
+        onUpdate: attrs.onUpdate,
+        onExecute: attrs.onExecute,
+        autofocus: attrs.autofocus,
+      }),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          this.editorHeight += deltaPx;
+          this.editorElement!.style.height = `${this.editorHeight}px`;
+        },
+        onResizeStart: () => {
+          this.editorHeight = this.editorElement!.clientHeight;
+        },
+      }),
+    ];
+  }
 }

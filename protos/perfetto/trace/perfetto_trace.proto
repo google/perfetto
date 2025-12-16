@@ -4031,12 +4031,30 @@ message DataSourceConfig {
   optional string name = 1;
 
   // The index of the logging buffer where TracePacket(s) will be stored.
-  // This field doesn't make a major difference for the Producer(s). The final
-  // logging buffers, in fact, are completely owned by the Service. We just ask
-  // the Producer to copy this number into the chunk headers it emits, so that
-  // the Service can quickly identify the buffer where to move the chunks into
-  // without expensive lookups on its fastpath.
+  // This field is quite subtle as it has a double semantic:
+  // 1) When the config is passed, this field is a 0-based index relative to the
+  //    buffer array in the TraceConfig and defines the mapping between data
+  //    sources and config. From v54 this is optional because the user can
+  //    instead use target_buffer_name.
+  // 2) When the TracingService issues a SetupDataSource/StartDataSource to the
+  //    producer, it overwrites this field with the global buffer index (which
+  //    depends on other tracing sessions active). This tells the producer which
+  //    buffer id should be passed to CreateTraceWriter. In this case, the trace
+  //    service always sets the resolved global id, even when using
+  //    `target_buffer_name`.
+  // In hindsight we should have used two different fields given even in v0 they
+  // had a different semantic. But now it's too late as this would be a major
+  // protocol breaking change.
   optional uint32 target_buffer = 2;
+
+  // Alternative to |target_buffer|. References a buffer by name (as specified
+  // in TraceConfig.BufferConfig.name) rather than by index. This is more
+  // readable and less error-prone than using buffer indices.
+  // If both |target_buffer| and |target_buffer_name| are specified, they must
+  // refer to the same buffer, otherwise the service will reject the config.
+  // Using both fields allows configs to work with both old and new versions
+  // of the tracing service. Introduced in v54.
+  optional string target_buffer_name = 11;
 
   // Set by the service to indicate the duration of the trace.
   // DO NOT SET in consumer as this will be overridden by the service.
@@ -4284,6 +4302,13 @@ message TraceConfig {
     // clone-related flush, we don't end up with a mixture of leftovers from
     // the previous write and new data.
     optional bool clear_before_clone = 6;
+
+    // Optional name for this buffer. If set, data sources can reference this
+    // buffer by name using |target_buffer_name| in DataSourceConfig instead of
+    // using the buffer index. Buffer names must be unique within a tracing
+    // session. This provides a more human-readable and less error-prone way to
+    // configure which buffer a data source writes to.
+    optional string name = 7;
   }
   repeated BufferConfig buffers = 1;
 
@@ -5784,6 +5809,9 @@ message FrameTimelineEvent {
 
     // experimental value for present_type. Do not consider in jank analysis.
     optional PresentType present_type_experimental = 17;
+
+    // jank metadata information (for debug).
+    optional float jank_debug_metadata = 18;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -5839,6 +5867,9 @@ message FrameTimelineEvent {
 
     // experimental value for present_type. Do not consider in jank analysis.
     optional PresentType present_type_experimental = 13;
+
+    // jank metadata information (for debug).
+    optional float jank_debug_metadata = 14;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding
@@ -7763,6 +7794,7 @@ message FileIoDirEnumEtwEvent {
   optional uint32 info_class = 6;
   optional uint32 file_index = 7;
   optional string file_name = 8;
+  optional uint32 opcode = 9;
 }
 
 // Proto definition based on the `FileIo_Info` class definition.
@@ -7773,6 +7805,7 @@ message FileIoInfoEtwEvent {
   optional uint64 extra_info = 4;
   optional uint32 ttid = 5;
   optional uint32 info_class = 6;
+  optional uint32 opcode = 7;
 }
 
 // Proto definition based on the `FileIo_ReadWrite` class definition.
@@ -7784,6 +7817,7 @@ message FileIoReadWriteEtwEvent {
   optional uint32 ttid = 5;
   optional uint32 io_size = 6;
   optional uint32 io_flags = 7;
+  optional uint32 opcode = 8;
 }
 
 // Proto definition based on the `FileIo_SimpleOp` class definition.
@@ -7792,6 +7826,7 @@ message FileIoSimpleOpEtwEvent {
   optional uint64 file_object = 2;
   optional uint64 file_key = 3;
   optional uint32 ttid = 4;
+  optional uint32 opcode = 5;
 }
 
 // Proto definition based on the `FileIo_OpEnd` class definition.
@@ -15252,7 +15287,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 45.
+// Next id: 44.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -15344,17 +15379,8 @@ message InternedData {
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
-  // Interned job names for Android Job Names. These are separate from
-  // other strings because they are under app control.
-  repeated AndroidJobName android_job_name = 44;
-
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
-}
-
-message AndroidJobName {
-  optional uint64 iid = 1;
-  optional string name = 2;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
