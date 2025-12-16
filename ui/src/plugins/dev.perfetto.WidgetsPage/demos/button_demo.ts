@@ -35,7 +35,7 @@ export function renderButtonDemo(): m.Children {
         icon,
         rightIcon,
         showAsGrid,
-        showInlineWithText,
+        showInlineText,
         ...rest
       }) =>
         showAsGrid
@@ -62,17 +62,18 @@ export function renderButtonDemo(): m.Children {
                 });
               }),
             )
-          : m('', [
-              showInlineWithText && 'Inline ',
-              m(Button, {
+          : (() => {
+              const button = m(Button, {
                 icon: icon ? 'send' : undefined,
                 rightIcon: rightIcon ? 'arrow_forward' : undefined,
                 label: (label ? 'Button' : undefined) as string,
                 onclick: () => console.log('button pressed'),
                 ...rest,
-              }),
-              showInlineWithText && ' text',
-            ]),
+              });
+              return showInlineText
+                ? m('span', 'Inline ', button, ' text')
+                : button;
+            })(),
       initialOpts: {
         label: true,
         icon: true,
@@ -87,7 +88,7 @@ export function renderButtonDemo(): m.Children {
           Object.values(ButtonVariant),
         ),
         showAsGrid: false,
-        showInlineWithText: false,
+        showInlineText: false,
         rounded: false,
       },
     }),
