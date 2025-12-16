@@ -245,19 +245,27 @@ class CircularQueue {
     PERFETTO_DCHECK(pos.queue_ == this);
     PERFETTO_DCHECK(pos.pos_ >= begin_ && pos.pos_ <= end_);
 
+    // Convert to relative position before potential Grow(), which rebases
+    // begin_ to 0.
+    uint64_t relative_pos = pos.pos_ - begin_;
+
     if (PERFETTO_UNLIKELY(size() >= capacity_))
       Grow();
 
-    // Move all elements one step forward from end_ - 1 to pos.pos_.
-    for (uint64_t i = end_++; i > pos.pos_; --i) {
+    // Calculate the actual insertion position (relative_pos from current
+    // begin_).
+    uint64_t insert_pos = begin_ + relative_pos;
+
+    // Move all elements one step forward from end_ - 1 to insert_pos.
+    for (uint64_t i = end_++; i > insert_pos; --i) {
       T* dst = Get(i);
       T* src = Get(i - 1);
       new (dst) T(std::move(*src));
       src->~T();
     }
 
-    // Place the new value at pos.
-    new (Get(pos.pos_)) T(std::move(value));
+    // Place the new value at insert_pos.
+    new (Get(insert_pos)) T(std::move(value));
   }
 
   void InsertAfter(ReverseIterator pos, T value) {
