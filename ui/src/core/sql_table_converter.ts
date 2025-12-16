@@ -105,12 +105,13 @@ export function sqlTablesToSchemas(
         };
       } else if (kind === 'arg_set_id') {
         // arg_set_id becomes a parameterized column for args
-        // Use 'args' as the parameterized column name
-        const argColName = 'args';
-        const allArgsColName = 'all_args';
+        // Use args(col_name) syntax to be clear about which arg_set_id column it refers to
+        const argColName = `args(${colName})`;
+        const printArgsColName = `print_args(${colName})`;
 
         // SQL schema: Expression to extract arg by key
         sqlColumns[argColName] = <SQLExpressionDef>{
+          titleString: argColName,
           expression: (alias, key) => {
             if (key) {
               return `extract_arg(${alias}.${colName}, '${key}')`;
@@ -131,12 +132,12 @@ export function sqlTablesToSchemas(
         // Display schema: Parameterized column
         displayColumns[argColName] = <ParameterizedColumnDef>{
           parameterized: true,
-          title: (key) => `Arg: ${key}`,
-          titleString: 'Arg',
+          title: (key) => `${argColName}[${key}]`,
+          titleString: argColName,
         };
 
         // SQL schema: Expression to get all args as JSON
-        sqlColumns[allArgsColName] = <SQLExpressionDef>{
+        sqlColumns[printArgsColName] = <SQLExpressionDef>{
           expression: (alias) => {
             return `(
               SELECT json_group_object(args.key, args.display_value)
@@ -146,14 +147,13 @@ export function sqlTablesToSchemas(
           },
         };
 
-        // Display schema: All args column with custom renderer
-        displayColumns[allArgsColName] = <ColumnDef>{
-          title: 'Args',
-          titleString: 'Args',
+        // Display schema: print_args column with custom renderer
+        displayColumns[printArgsColName] = <ColumnDef>{
+          titleString: printArgsColName,
           columnType: 'text',
           cellRenderer: (value) => {
             if (value === null || value === undefined) {
-              return m('span.pf-null-value', 'NULL');
+              return m('span.pf-null-value', 'null');
             }
             try {
               const parsed =
