@@ -1299,7 +1299,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         const fieldTitle = colInfo?.titleParts ?? [agg.field];
         title = buildColumnTitle(fieldTitle);
       } else {
-        title = 'COUNT';
+        title = 'Count';
       }
 
       // Build "Change function" submenu for field-based aggregates
