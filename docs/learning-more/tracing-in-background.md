@@ -23,6 +23,8 @@ that no data is lost at the beginning of the trace.
 Start recording a trace using `tracebox` or `perfetto`.
 
 ```bash
+# If using tracebox, ensure daemons are started first:
+# tracebox ctl start
 perfetto -c config.cfg --txt -o trace.pftrace --background-wait
 ```
 

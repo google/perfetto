@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <algorithm>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -30,6 +28,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/traced.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
+#include "src/tracebox/tracebox_ctl.h"
 #include "src/websocket_bridge/websocket_bridge.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TRACED_PERF)
@@ -54,70 +53,50 @@ const Applet g_applets[]{
     {"perfetto", PerfettoCmdMain},
     {"trigger_perfetto", TriggerPerfettoMain},
     {"websocket_bridge", WebsocketBridgeMain},
+    {"ctl", TraceboxCtlMain},
 };
 
-void PrintUsage() {
+void PrintTraceboxUsage() {
   printf(R"(Welcome to Perfetto tracing!
 
 Tracebox is a bundle containing all the tracing services and the perfetto
-cmdline client in one binary. It can be used either to spawn manually the
-various subprocess or in "autostart" mode, which will take care of starting
-and tearing down the services for you.
+cmdline client in one binary. It can be used in two modes:
 
-Usage in autostart mode:
-  tracebox -t 10s -o trace_file.perfetto-trace sched/sched_switch
-  See tracebox --help for more options.
+MODE 1: Daemon mode (Recommended)
+  Background daemons are started once and shared across multiple tracing sessions.
+  This supports SDKs (track_event), reduces latency and is generally more robust.
 
-Usage in manual mode:
-  tracebox applet_name [args ...]  (e.g. ./tracebox traced --help)
-  Applets:)");
+  > tracebox ctl start
+  > tracebox -t 10s -o trace.pftrace sched
+  > tracebox ctl stop
 
+MODE 2: Autodaemonize mode
+  Spawns temporary daemons only for the duration of the trace.
+  Useful for quick ftrace debugging or self-contained scripts.
+  Note: SDK apps (track_event) might not connect due to private sockets.
+
+  > tracebox --autodaemonize -t 10s -o trace.pftrace sched
+)");
+
+  PrintTraceboxCtlUsage();
+
+  std::string applets;
   for (const Applet& applet : g_applets)
-    printf(" %s", applet.name);
+    applets += " " + std::string(applet.name);
 
   printf(R"(
+Available applets:%s
 
 See also:
   * https://perfetto.dev/docs/
   * The config editor in the record page of https://ui.perfetto.dev/
-)");
+)",
+         applets.c_str());
 }
 
-void PrintTraceboxUsage() {
-  printf(R"(
-Tracebox-specific args
-  --system-sockets      : Forces the use of system-sockets when using autostart
-                          mode. Cannot be used in applet mode.
-)");
-}
-
-int TraceboxMain(int argc, char** argv) {
-  // Manual mode: if either the 1st argument (argv[1]) or the exe name (argv[0])
-  // match the name of an applet, directly invoke that without further
-  // modifications.
-
-  // Extract the file name from argv[0].
-  char* slash = strrchr(argv[0], '/');
-  char* argv0 = slash ? slash + 1 : argv[0];
-
-  for (const Applet& applet : g_applets) {
-    if (!strcmp(argv0, applet.name))
-      return applet.entrypoint(argc, argv);
-    if (argc > 1 && !strcmp(argv[1], applet.name))
-      return applet.entrypoint(argc - 1, &argv[1]);
-  }
-
-  // If no matching applet is found, switch to the autostart mode. In this mode
-  // we make tracebox behave like the cmdline client (without needing to prefix
-  // it with "perfetto"), but will also start traced and traced_probes.
-  // As part of this we also use a different namespace for the producer/consumer
-  // sockets, to avoid clashing with the system daemon.
-
-  if (argc <= 1) {
-    PrintUsage();
-    return 1;
-  }
-
+// Autodaemonize mode: spawns temporary daemons with private sockets for one
+// trace.
+int RunAutodaemonize(int argc, char** argv) {
   auto* end = std::remove_if(argv, argv + argc, [](char* arg) {
     return !strcmp(arg, "--system-sockets");
   });
@@ -248,6 +227,85 @@ int TraceboxMain(int argc, char** argv) {
 
   perfetto_cmd.ConnectToServiceRunAndMaybeNotify();
   return 0;
+}
+
+int TraceboxMain(int argc, char** argv) {
+  // Applet mode: invoke directly if argv[0] or argv[1] matches an applet name.
+  char* slash = strrchr(argv[0], '/');
+  char* argv0 = slash ? slash + 1 : argv[0];
+
+  for (const Applet& applet : g_applets) {
+    if (strcmp(argv0, applet.name) == 0)
+      return applet.entrypoint(argc, argv);
+    if (argc > 1 && strcmp(argv[1], applet.name) == 0)
+      return applet.entrypoint(argc - 1, &argv[1]);
+  }
+
+  if (argc <= 1) {
+    PrintTraceboxUsage();
+    return 1;
+  }
+
+  bool autodaemonize = false;
+  bool use_system_sockets = false;
+  for (int i = 1; i < argc;) {
+    if (strcmp(argv[i], "--autodaemonize") == 0) {
+      autodaemonize = true;
+      memmove(static_cast<void*>(&argv[i]), static_cast<void*>(&argv[i + 1]),
+              sizeof(char*) * static_cast<size_t>(argc - i - 1));
+      argc--;
+    } else {
+      if (strcmp(argv[i], "--system-sockets") == 0) {
+        use_system_sockets = true;
+      }
+      ++i;
+    }
+  }
+
+  if (autodaemonize) {
+    if (use_system_sockets) {
+      PERFETTO_ELOG(
+          "Warning: --system-sockets with --autodaemonize is supported but "
+          "not recommended. Prefer `tracebox ctl start` for persistent system "
+          "sockets.");
+    }
+    return RunAutodaemonize(argc, argv);
+  }
+
+  if (use_system_sockets) {
+    PERFETTO_FATAL(
+        "System sockets is the default. If you want the old self-contained "
+        "behavior (spawning temporary daemons), use --autodaemonize.");
+  }
+
+  ServiceSockets sockets = perfetto::GetRunningSockets();
+  if (!sockets.IsValid()) {
+    fprintf(
+        stderr,
+        R"(Error: Perfetto tracing daemons (traced, traced_probes) are not running.
+
+Tracebox behavior has changed. It no longer spawns temporary daemons by default.
+You have two options:
+1. Start the daemons manually (Recommended):
+     tracebox ctl start
+     tracebox ...
+
+2. Use the --autodaemonize flag for the old behavior:
+     tracebox --autodaemonize ...
+
+More info at: https://perfetto.dev/docs/reference/tracebox
+)");
+    return 1;
+  }
+
+  PerfettoCmd perfetto_cmd;
+  auto opt_res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
+  if (opt_res.has_value()) {
+    if (*opt_res != 0)
+      PrintTraceboxUsage();
+    return *opt_res;
+  }
+  return perfetto_cmd.ConnectToServiceRunAndMaybeNotify();
 }
 
 }  // namespace

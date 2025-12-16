@@ -22,6 +22,12 @@ Unreleased:
       measurement of slice durations. Hold Alt to temporarily disable snapping.
   SDK:
     *
+  Tools:
+    * Breaking change for tracebox users: `tracebox` no longer automatically
+      starts daemons by default. Daemons must be running before capturing a
+      trace. We recommend using the new `tracebox ctl` applet (e.g. `tracebox
+      ctl start`) to manage persistent daemons. To restore the previous
+      self-contained behavior, use the `--autodaemonize` flag.
 
 v53.0 - 2025-11-12:
   SDK:
