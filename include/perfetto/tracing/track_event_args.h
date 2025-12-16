@@ -71,7 +71,7 @@ class FlowImpl {
   static PERFETTO_ALWAYS_INLINE inline FlowImpl Global(
       uint64_t flow_id,
       const char* named_scope) {
-    return FlowImpl(flow_id, internal::Fnv1a(named_scope));
+    return FlowImpl(flow_id ^ internal::Fnv1a(named_scope));
   }
 
   // TODO(altimin): Remove once converting a single usage in Chromium.

@@ -21,7 +21,7 @@ import {
 } from './track_kinds';
 import {Aggregator} from '../../components/aggregation_adapter';
 import {WattsonAggregationPanel} from './aggregation_panel';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 
 export class WattsonEstimateSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_estimate_aggregation';
@@ -98,6 +98,7 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
       {
         title: 'Name',
         columnId: 'name',
+        sort: 'ASC',
       },
       {
         title: 'Power (estimated mW)',
@@ -116,9 +117,5 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Wattson estimates';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'name', direction: 'ASC'};
   }
 }

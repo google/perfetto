@@ -13,7 +13,12 @@
 // limitations under the License.
 
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {DataGridColumn, Filter, Pagination, PivotModel, SortBy} from './model';
+import {Column, Filter, Pivot} from './model';
+
+export interface Pagination {
+  readonly offset: number;
+  readonly limit: number;
+}
 
 export interface DataSource {
   readonly result?: DataSourceResult;
@@ -31,11 +36,10 @@ export interface DataSource {
 }
 
 export interface DataSourceModel {
-  readonly columns?: readonly DataGridColumn[];
-  readonly sorting?: SortBy;
+  readonly columns?: readonly Column[];
   readonly filters?: readonly Filter[];
   readonly pagination?: Pagination;
-  readonly pivot?: PivotModel;
+  readonly pivot?: Pivot;
   readonly distinctValuesColumns?: ReadonlySet<string>;
   // Request parameter keys for these parameterized column prefixes (e.g., 'args', 'skills')
   readonly parameterKeyColumns?: ReadonlySet<string>;
