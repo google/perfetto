@@ -36,6 +36,13 @@ class FlowImpl {
     return Global(flow_id ^ Track::process_uuid);
   }
 
+  // Same as above, but combines the flow id with an extra `named_scope`'s hash.
+  static PERFETTO_ALWAYS_INLINE inline FlowImpl ProcessScoped(
+      uint64_t flow_id,
+      const char* named_scope) {
+    return Global(flow_id, named_scope);
+  }
+
   // Same as above, but construct an id from a pointer.
   // NOTE: After the object is destroyed, the value of |ptr| can be reused for a
   // different object (in particular if the object is allocated on a stack).
@@ -46,11 +53,25 @@ class FlowImpl {
     return ProcessScoped(reinterpret_cast<uintptr_t>(ptr));
   }
 
+  // Same as above, but combines the flow id with an extra `named_scope`'s hash.
+  static PERFETTO_ALWAYS_INLINE inline FlowImpl FromPointer(
+      void* ptr,
+      const char* named_scope) {
+    return ProcessScoped(reinterpret_cast<uintptr_t>(ptr), named_scope);
+  }
+
   // Add the |flow_id|. The caller is responsible for ensuring that it's
   // globally-unique (e.g. by generating a random value). This should be used
   // only for flow events which cross the process boundary (e.g. IPCs).
   static PERFETTO_ALWAYS_INLINE inline FlowImpl Global(uint64_t flow_id) {
     return FlowImpl(flow_id);
+  }
+
+  // Same as above, but combines the flow id with an extra `named_scope`'s hash.
+  static PERFETTO_ALWAYS_INLINE inline FlowImpl Global(
+      uint64_t flow_id,
+      const char* named_scope) {
+    return FlowImpl(flow_id ^ internal::Fnv1a(named_scope));
   }
 
   // TODO(altimin): Remove once converting a single usage in Chromium.
