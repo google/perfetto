@@ -98,7 +98,6 @@ class StreamingTraceProtoBuilder:
             of `open('trace.pftrace', 'wb')`).
     """
     self._file = file
-    self._trace = Trace()
 
   def create_packet(self) -> TracePacket:
     """Creates a new, empty TracePacket object.
@@ -120,7 +119,6 @@ class StreamingTraceProtoBuilder:
     Args:
       packet: The `TracePacket` to be written to the file.
     """
-    # Clear the packet list.
-    del self._trace.packet[:]
-    self._trace.packet.append(packet)
-    self._file.write(self._trace.SerializeToString())
+    trace = Trace()
+    trace.packet.append(packet)
+    self._file.write(trace.SerializeToString())
