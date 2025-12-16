@@ -349,6 +349,6 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
   {
     type: 'etw_fileio',
     topLevelGroup: 'IO',
-    group: undefined,
+    group: 'ETW File I/O',
   },
 ];

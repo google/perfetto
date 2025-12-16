@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 
 namespace perfetto::trace_processor {
 
@@ -29,15 +30,151 @@ namespace {
 
 using protozero::ConstBytes;
 
-// The value of the "Category" field for file I/O events.
-constexpr char kCategory[] = "ETW File I/O";
+// Display file I/O under the "IO" heading in an "ETW File I/O" subheading (per
+// `slice_tracks.ts` entry for "etw_fileio"). Split data into one track (row)
+// per thread, each labeled e.g., "Thread 12345".
+const auto kBlueprint = TrackCompressor::SliceBlueprint(
+    "etw_fileio",
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t thread_id) {
+      return base::StackString<32>("Thread %" PRIu32, thread_id);
+    }));
 
-// Display file I/O events in a single row titled `kCategory` under the IO
-// header (per the schema for type "etw_fileio" in `slice_tracks.ts`).
-const auto kBlueprint =
-    TrackCompressor::SliceBlueprint("etw_fileio",
-                                    tracks::DimensionBlueprints(),
-                                    tracks::StaticNameBlueprint(kCategory));
+constexpr std::pair<EventType, const char*> kEventTypeNames[] = {
+    {EventType::kCreateFile, "CreateFile"},
+    {EventType::kCleanup, "Cleanup"},
+    {EventType::kClose, "Close"},
+    {EventType::kReadFile, "ReadFile"},
+    {EventType::kWriteFile, "WriteFile"},
+    {EventType::kSetInformation, "SetInformation"},
+    {EventType::kDeleteFile, "DeleteFile"},
+    {EventType::kRenameFile, "RenameFile"},
+    {EventType::kDirectoryEnumeration, "DirectoryEnumeration"},
+    {EventType::kFlush, "Flush"},
+    {EventType::kQueryFileInformation, "QueryFileInformation"},
+    {EventType::kFilesystemControlEvent, "FilesystemControlEvent"},
+    {EventType::kEndOperation, "EndOperation"},
+    {EventType::kDirectoryNotification, "DirectoryNotification"}};
+
+constexpr std::pair<FileInfoClass, const char*> kFileInfoClassNames[] = {
+    {FileInfoClass::kFileDirectoryInformation, "FileDirectoryInformation"},
+    {FileInfoClass::kFileFullDirectoryInformation,
+     "FileFullDirectoryInformation"},
+    {FileInfoClass::kFileBothDirectoryInformation,
+     "FileBothDirectoryInformation"},
+    {FileInfoClass::kFileBasicInformation, "FileBasicInformation"},
+    {FileInfoClass::kFileStandardInformation, "FileStandardInformation"},
+    {FileInfoClass::kFileInternalInformation, "FileInternalInformation"},
+    {FileInfoClass::kFileEaInformation, "FileEaInformation"},
+    {FileInfoClass::kFileAccessInformation, "FileAccessInformation"},
+    {FileInfoClass::kFileNameInformation, "FileNameInformation"},
+    {FileInfoClass::kFileRenameInformation, "FileRenameInformation"},
+    {FileInfoClass::kFileLinkInformation, "FileLinkInformation"},
+    {FileInfoClass::kFileNamesInformation, "FileNamesInformation"},
+    {FileInfoClass::kFileDispositionInformation, "FileDispositionInformation"},
+    {FileInfoClass::kFilePositionInformation, "FilePositionInformation"},
+    {FileInfoClass::kFileFullEaInformation, "FileFullEaInformation"},
+    {FileInfoClass::kFileModeInformation, "FileModeInformation"},
+    {FileInfoClass::kFileAlignmentInformation, "FileAlignmentInformation"},
+    {FileInfoClass::kFileAllInformation, "FileAllInformation"},
+    {FileInfoClass::kFileAllocationInformation, "FileAllocationInformation"},
+    {FileInfoClass::kFileEndOfFileInformation, "FileEndOfFileInformation"},
+    {FileInfoClass::kFileAlternateNameInformation,
+     "FileAlternateNameInformation"},
+    {FileInfoClass::kFileStreamInformation, "FileStreamInformation"},
+    {FileInfoClass::kFilePipeInformation, "FilePipeInformation"},
+    {FileInfoClass::kFilePipeLocalInformation, "FilePipeLocalInformation"},
+    {FileInfoClass::kFilePipeRemoteInformation, "FilePipeRemoteInformation"},
+    {FileInfoClass::kFileMailslotQueryInformation,
+     "FileMailslotQueryInformation"},
+    {FileInfoClass::kFileMailslotSetInformation, "FileMailslotSetInformation"},
+    {FileInfoClass::kFileCompressionInformation, "FileCompressionInformation"},
+    {FileInfoClass::kFileObjectIdInformation, "FileObjectIdInformation"},
+    {FileInfoClass::kFileCompletionInformation, "FileCompletionInformation"},
+    {FileInfoClass::kFileMoveClusterInformation, "FileMoveClusterInformation"},
+    {FileInfoClass::kFileQuotaInformation, "FileQuotaInformation"},
+    {FileInfoClass::kFileReparsePointInformation,
+     "FileReparsePointInformation"},
+    {FileInfoClass::kFileNetworkOpenInformation, "FileNetworkOpenInformation"},
+    {FileInfoClass::kFileAttributeTagInformation,
+     "FileAttributeTagInformation"},
+    {FileInfoClass::kFileTrackingInformation, "FileTrackingInformation"},
+    {FileInfoClass::kFileIdBothDirectoryInformation,
+     "FileIdBothDirectoryInformation"},
+    {FileInfoClass::kFileIdFullDirectoryInformation,
+     "FileIdFullDirectoryInformation"},
+    {FileInfoClass::kFileValidDataLengthInformation,
+     "FileValidDataLengthInformation"},
+    {FileInfoClass::kFileShortNameInformation, "FileShortNameInformation"},
+    {FileInfoClass::kFileIoCompletionNotificationInformation,
+     "FileIoCompletionNotificationInformation"},
+    {FileInfoClass::kFileIoStatusBlockRangeInformation,
+     "FileIoStatusBlockRangeInformation"},
+    {FileInfoClass::kFileIoPriorityHintInformation,
+     "FileIoPriorityHintInformation"},
+    {FileInfoClass::kFileSfioReserveInformation, "FileSfioReserveInformation"},
+    {FileInfoClass::kFileSfioVolumeInformation, "FileSfioVolumeInformation"},
+    {FileInfoClass::kFileHardLinkInformation, "FileHardLinkInformation"},
+    {FileInfoClass::kFileProcessIdsUsingFileInformation,
+     "FileProcessIdsUsingFileInformation"},
+    {FileInfoClass::kFileNormalizedNameInformation,
+     "FileNormalizedNameInformation"},
+    {FileInfoClass::kFileNetworkPhysicalNameInformation,
+     "FileNetworkPhysicalNameInformation"},
+    {FileInfoClass::kFileIdGlobalTxDirectoryInformation,
+     "FileIdGlobalTxDirectoryInformation"},
+    {FileInfoClass::kFileIsRemoteDeviceInformation,
+     "FileIsRemoteDeviceInformation"},
+    {FileInfoClass::kFileUnusedInformation, "FileUnusedInformation"},
+    {FileInfoClass::kFileNumaNodeInformation, "FileNumaNodeInformation"},
+    {FileInfoClass::kFileStandardLinkInformation,
+     "FileStandardLinkInformation"},
+    {FileInfoClass::kFileRemoteProtocolInformation,
+     "FileRemoteProtocolInformation"},
+    {FileInfoClass::kFileRenameInformationBypassAccessCheck,
+     "FileRenameInformationBypassAccessCheck"},
+    {FileInfoClass::kFileLinkInformationBypassAccessCheck,
+     "FileLinkInformationBypassAccessCheck"},
+    {FileInfoClass::kFileVolumeNameInformation, "FileVolumeNameInformation"},
+    {FileInfoClass::kFileIdInformation, "FileIdInformation"},
+    {FileInfoClass::kFileIdExtdDirectoryInformation,
+     "FileIdExtdDirectoryInformation"},
+    {FileInfoClass::kFileReplaceCompletionInformation,
+     "FileReplaceCompletionInformation"},
+    {FileInfoClass::kFileHardLinkFullIdInformation,
+     "FileHardLinkFullIdInformation"},
+    {FileInfoClass::kFileIdExtdBothDirectoryInformation,
+     "FileIdExtdBothDirectoryInformation"},
+    {FileInfoClass::kFileDispositionInformationEx,
+     "FileDispositionInformationEx"},
+    {FileInfoClass::kFileRenameInformationEx, "FileRenameInformationEx"},
+    {FileInfoClass::kFileRenameInformationExBypassAccessCheck,
+     "FileRenameInformationExBypassAccessCheck"},
+    {FileInfoClass::kFileDesiredStorageClassInformation,
+     "FileDesiredStorageClassInformation"},
+    {FileInfoClass::kFileStatInformation, "FileStatInformation"},
+    {FileInfoClass::kFileMemoryPartitionInformation,
+     "FileMemoryPartitionInformation"},
+    {FileInfoClass::kFileStatLxInformation, "FileStatLxInformation"},
+    {FileInfoClass::kFileCaseSensitiveInformation,
+     "FileCaseSensitiveInformation"},
+    {FileInfoClass::kFileLinkInformationEx, "FileLinkInformationEx"},
+    {FileInfoClass::kFileLinkInformationExBypassAccessCheck,
+     "FileLinkInformationExBypassAccessCheck"},
+    {FileInfoClass::kFileStorageReserveIdInformation,
+     "FileStorageReserveIdInformation"},
+    {FileInfoClass::kFileCaseSensitiveInformationForceAccessCheck,
+     "FileCaseSensitiveInformationForceAccessCheck"},
+    {FileInfoClass::kFileKnownFolderInformation, "FileKnownFolderInformation"},
+    {FileInfoClass::kFileStatBasicInformation, "FileStatBasicInformation"},
+    {FileInfoClass::kFileId64ExtdDirectoryInformation,
+     "FileId64ExtdDirectoryInformation"},
+    {FileInfoClass::kFileId64ExtdBothDirectoryInformation,
+     "FileId64ExtdBothDirectoryInformation"},
+    {FileInfoClass::kFileIdAllExtdDirectoryInformation,
+     "FileIdAllExtdDirectoryInformation"},
+    {FileInfoClass::kFileIdAllExtdBothDirectoryInformation,
+     "FileIdAllExtdBothDirectoryInformation"}};
 
 }  // namespace
 
@@ -61,9 +198,6 @@ FileIoTracker::FileIoTracker(TraceProcessorContext* context)
       offset_arg_(context->storage->InternString("Offset")),
       open_path_arg_(context->storage->InternString("Open Path")),
       share_access_arg_(context->storage->InternString("Share Access")),
-      thread_id_arg_(context->storage->InternString("Thread ID")),
-      // Event category:
-      category_(context->storage->InternString(kCategory)),
       // Labels for events with a missing start or end:
       missing_event_arg_(context->storage->InternString("Missing Event")),
       missing_start_event_(context->storage->InternString("Start")),
@@ -73,208 +207,20 @@ FileIoTracker::FileIoTracker(TraceProcessorContext* context)
       dir_enum_event_(context->storage->InternString("DirEnum")),
       info_event_(context->storage->InternString("Info")),
       read_write_event_(context->storage->InternString("ReadOrWrite")),
-      simple_op_event_(context->storage->InternString("SimpleOp")),
-      // Descriptive event names for when the event opcode is known:
-      event_types_{
-          {kCreateFile, context->storage->InternString("CreateFile")},
-          {kDirectoryEnumeration,
-           context->storage->InternString("DirectoryEnumeration")},
-          {kDirectoryNotification,
-           context->storage->InternString("DirectoryNotification")},
-          {kSetInformation, context->storage->InternString("SetInformation")},
-          {kDeleteFile, context->storage->InternString("DeleteFile")},
-          {kRenameFile, context->storage->InternString("RenameFile")},
-          {kQueryFileInformation,
-           context->storage->InternString("QueryFileInformation")},
-          {kFilesystemControlEvent,
-           context->storage->InternString("FilesystemControlEvent")},
-          {kReadFile, context->storage->InternString("ReadFile")},
-          {kWriteFile, context->storage->InternString("WriteFile")},
-          {kCleanup, context->storage->InternString("Cleanup")},
-          {kClose, context->storage->InternString("Close")},
-          {kFlush, context->storage->InternString("Flush")},
-          {kEndOperation, context->storage->InternString("EndOperation")},
-      },
-      // Values for "File Info" argument:
-      file_info_classes_{
-          {kFileDirectoryInformation,
-           context->storage->InternString("FileDirectoryInformation")},
-          {kFileFullDirectoryInformation,
-           context->storage->InternString("FileFullDirectoryInformation")},
-          {kFileBothDirectoryInformation,
-           context->storage->InternString("FileBothDirectoryInformation")},
-          {kFileBasicInformation,
-           context->storage->InternString("FileBasicInformation")},
-          {kFileStandardInformation,
-           context->storage->InternString("FileStandardInformation")},
-          {kFileInternalInformation,
-           context->storage->InternString("FileInternalInformation")},
-          {kFileEaInformation,
-           context->storage->InternString("FileEaInformation")},
-          {kFileAccessInformation,
-           context->storage->InternString("FileAccessInformation")},
-          {kFileNameInformation,
-           context->storage->InternString("FileNameInformation")},
-          {kFileRenameInformation,
-           context->storage->InternString("FileRenameInformation")},
-          {kFileLinkInformation,
-           context->storage->InternString("FileLinkInformation")},
-          {kFileNamesInformation,
-           context->storage->InternString("FileNamesInformation")},
-          {kFileDispositionInformation,
-           context->storage->InternString("FileDispositionInformation")},
-          {kFilePositionInformation,
-           context->storage->InternString("FilePositionInformation")},
-          {kFileFullEaInformation,
-           context->storage->InternString("FileFullEaInformation")},
-          {kFileModeInformation,
-           context->storage->InternString("FileModeInformation")},
-          {kFileAlignmentInformation,
-           context->storage->InternString("FileAlignmentInformation")},
-          {kFileAllInformation,
-           context->storage->InternString("FileAllInformation")},
-          {kFileAllocationInformation,
-           context->storage->InternString("FileAllocationInformation")},
-          {kFileEndOfFileInformation,
-           context->storage->InternString("FileEndOfFileInformation")},
-          {kFileAlternateNameInformation,
-           context->storage->InternString("FileAlternateNameInformation")},
-          {kFileStreamInformation,
-           context->storage->InternString("FileStreamInformation")},
-          {kFilePipeInformation,
-           context->storage->InternString("FilePipeInformation")},
-          {kFilePipeLocalInformation,
-           context->storage->InternString("FilePipeLocalInformation")},
-          {kFilePipeRemoteInformation,
-           context->storage->InternString("FilePipeRemoteInformation")},
-          {kFileMailslotQueryInformation,
-           context->storage->InternString("FileMailslotQueryInformation")},
-          {kFileMailslotSetInformation,
-           context->storage->InternString("FileMailslotSetInformation")},
-          {kFileCompressionInformation,
-           context->storage->InternString("FileCompressionInformation")},
-          {kFileObjectIdInformation,
-           context->storage->InternString("FileObjectIdInformation")},
-          {kFileCompletionInformation,
-           context->storage->InternString("FileCompletionInformation")},
-          {kFileMoveClusterInformation,
-           context->storage->InternString("FileMoveClusterInformation")},
-          {kFileQuotaInformation,
-           context->storage->InternString("FileQuotaInformation")},
-          {kFileReparsePointInformation,
-           context->storage->InternString("FileReparsePointInformation")},
-          {kFileNetworkOpenInformation,
-           context->storage->InternString("FileNetworkOpenInformation")},
-          {kFileAttributeTagInformation,
-           context->storage->InternString("FileAttributeTagInformation")},
-          {kFileTrackingInformation,
-           context->storage->InternString("FileTrackingInformation")},
-          {kFileIdBothDirectoryInformation,
-           context->storage->InternString("FileIdBothDirectoryInformation")},
-          {kFileIdFullDirectoryInformation,
-           context->storage->InternString("FileIdFullDirectoryInformation")},
-          {kFileValidDataLengthInformation,
-           context->storage->InternString("FileValidDataLengthInformation")},
-          {kFileShortNameInformation,
-           context->storage->InternString("FileShortNameInformation")},
-          {kFileIoCompletionNotificationInformation,
-           context->storage->InternString(
-               "FileIoCompletionNotificationInformation")},
-          {kFileIoStatusBlockRangeInformation,
-           context->storage->InternString("FileIoStatusBlockRangeInformation")},
-          {kFileIoPriorityHintInformation,
-           context->storage->InternString("FileIoPriorityHintInformation")},
-          {kFileSfioReserveInformation,
-           context->storage->InternString("FileSfioReserveInformation")},
-          {kFileSfioVolumeInformation,
-           context->storage->InternString("FileSfioVolumeInformation")},
-          {kFileHardLinkInformation,
-           context->storage->InternString("FileHardLinkInformation")},
-          {kFileProcessIdsUsingFileInformation,
-           context->storage->InternString(
-               "FileProcessIdsUsingFileInformation")},
-          {kFileNormalizedNameInformation,
-           context->storage->InternString("FileNormalizedNameInformation")},
-          {kFileNetworkPhysicalNameInformation,
-           context->storage->InternString(
-               "FileNetworkPhysicalNameInformation")},
-          {kFileIdGlobalTxDirectoryInformation,
-           context->storage->InternString(
-               "FileIdGlobalTxDirectoryInformation")},
-          {kFileIsRemoteDeviceInformation,
-           context->storage->InternString("FileIsRemoteDeviceInformation")},
-          {kFileUnusedInformation,
-           context->storage->InternString("FileUnusedInformation")},
-          {kFileNumaNodeInformation,
-           context->storage->InternString("FileNumaNodeInformation")},
-          {kFileStandardLinkInformation,
-           context->storage->InternString("FileStandardLinkInformation")},
-          {kFileRemoteProtocolInformation,
-           context->storage->InternString("FileRemoteProtocolInformation")},
-          {kFileRenameInformationBypassAccessCheck,
-           context->storage->InternString(
-               "FileRenameInformationBypassAccessCheck")},
-          {kFileLinkInformationBypassAccessCheck,
-           context->storage->InternString(
-               "FileLinkInformationBypassAccessCheck")},
-          {kFileVolumeNameInformation,
-           context->storage->InternString("FileVolumeNameInformation")},
-          {kFileIdInformation,
-           context->storage->InternString("FileIdInformation")},
-          {kFileIdExtdDirectoryInformation,
-           context->storage->InternString("FileIdExtdDirectoryInformation")},
-          {kFileReplaceCompletionInformation,
-           context->storage->InternString("FileReplaceCompletionInformation")},
-          {kFileHardLinkFullIdInformation,
-           context->storage->InternString("FileHardLinkFullIdInformation")},
-          {kFileIdExtdBothDirectoryInformation,
-           context->storage->InternString(
-               "FileIdExtdBothDirectoryInformation")},
-          {kFileDispositionInformationEx,
-           context->storage->InternString("FileDispositionInformationEx")},
-          {kFileRenameInformationEx,
-           context->storage->InternString("FileRenameInformationEx")},
-          {kFileRenameInformationExBypassAccessCheck,
-           context->storage->InternString(
-               "FileRenameInformationExBypassAccessCheck")},
-          {kFileDesiredStorageClassInformation,
-           context->storage->InternString(
-               "FileDesiredStorageClassInformation")},
-          {kFileStatInformation,
-           context->storage->InternString("FileStatInformation")},
-          {kFileMemoryPartitionInformation,
-           context->storage->InternString("FileMemoryPartitionInformation")},
-          {kFileStatLxInformation,
-           context->storage->InternString("FileStatLxInformation")},
-          {kFileCaseSensitiveInformation,
-           context->storage->InternString("FileCaseSensitiveInformation")},
-          {kFileLinkInformationEx,
-           context->storage->InternString("FileLinkInformationEx")},
-          {kFileLinkInformationExBypassAccessCheck,
-           context->storage->InternString(
-               "FileLinkInformationExBypassAccessCheck")},
-          {kFileStorageReserveIdInformation,
-           context->storage->InternString("FileStorageReserveIdInformation")},
-          {kFileCaseSensitiveInformationForceAccessCheck,
-           context->storage->InternString(
-               "FileCaseSensitiveInformationForceAccessCheck")},
-          {kFileKnownFolderInformation,
-           context->storage->InternString("FileKnownFolderInformation")},
-          {kFileStatBasicInformation,
-           context->storage->InternString("FileStatBasicInformation")},
-          {kFileId64ExtdDirectoryInformation,
-           context->storage->InternString("FileId64ExtdDirectoryInformation")},
-          {kFileId64ExtdBothDirectoryInformation,
-           context->storage->InternString(
-               "FileId64ExtdBothDirectoryInformation")},
-          {kFileIdAllExtdDirectoryInformation,
-           context->storage->InternString("FileIdAllExtdDirectoryInformation")},
-          {kFileIdAllExtdBothDirectoryInformation,
-           context->storage->InternString(
-               "FileIdAllExtdBothDirectoryInformation")},
-      } {}
+      simple_op_event_(context->storage->InternString("SimpleOp")) {
+  for (const auto& event_type : kEventTypeNames) {
+    event_types_[GetEventTypeIndex(event_type.first)] =
+        context->storage->InternString(event_type.second);
+  }
+  for (const auto& info_class : kFileInfoClassNames) {
+    file_info_classes_[GetFileInfoClassIndex(info_class.first)] =
+        context->storage->InternString(info_class.second);
+  }
+}
 
-void FileIoTracker::ParseFileIoCreate(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoCreate(int64_t timestamp,
+                                      uint32_t thread_id,
+                                      ConstBytes blob) {
   protos::pbzero::FileIoCreateEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -284,10 +230,6 @@ void FileIoTracker::ParseFileIoCreate(int64_t timestamp, ConstBytes blob) {
         if (decoder.has_file_object()) {
           inserter->AddArg(file_object_arg_,
                            Variadic::Pointer(decoder.file_object()));
-        }
-        if (decoder.has_ttid()) {
-          inserter->AddArg(thread_id_arg_,
-                           Variadic::UnsignedInteger(decoder.ttid()));
         }
         if (decoder.has_create_options()) {
           inserter->AddArg(create_options_arg_,
@@ -309,10 +251,13 @@ void FileIoTracker::ParseFileIoCreate(int64_t timestamp, ConstBytes blob) {
       };
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      event_types_.at(kCreateFile), timestamp, std::move(args));
+      event_types_.at(GetEventTypeIndex(EventType::kCreateFile)), timestamp,
+      decoder.has_ttid() ? decoder.ttid() : thread_id, std::move(args));
 }
 
-void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp,
+                                       uint32_t thread_id,
+                                       ConstBytes blob) {
   protos::pbzero::FileIoDirEnumEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -327,13 +272,10 @@ void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp, ConstBytes blob) {
           inserter->AddArg(file_key_arg_,
                            Variadic::Pointer(decoder.file_key()));
         }
-        if (decoder.has_ttid()) {
-          inserter->AddArg(thread_id_arg_,
-                           Variadic::UnsignedInteger(decoder.ttid()));
-        }
         if (decoder.has_info_class()) {
           inserter->AddArg(info_class_arg_,
-                           GetInfoClassArgValue(decoder.info_class()));
+                           GetInfoClassValue(static_cast<FileInfoClass>(
+                               decoder.info_class())));
         }
         if (decoder.has_file_index()) {
           inserter->AddArg(file_index_arg_,
@@ -352,10 +294,13 @@ void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp, ConstBytes blob) {
           : dir_enum_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, std::move(args));
+      name, timestamp, decoder.has_ttid() ? decoder.ttid() : thread_id,
+      std::move(args));
 }
 
-void FileIoTracker::ParseFileIoInfo(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoInfo(int64_t timestamp,
+                                    uint32_t thread_id,
+                                    ConstBytes blob) {
   protos::pbzero::FileIoInfoEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -376,26 +321,25 @@ void FileIoTracker::ParseFileIoInfo(int64_t timestamp, ConstBytes blob) {
             // Replace "Extra Info" with a more specific descriptor when the
             // type of information is known, per
             // https://learn.microsoft.com/en-us/windows/win32/etw/fileio-info.
-            switch (decoder.info_class()) {
-              case kFileDispositionInformation:
+            switch (static_cast<FileInfoClass>(decoder.info_class())) {
+              case FileInfoClass::kFileDispositionInformation:
                 extra_info_arg = disposition_arg_;
                 break;
-              case kFileEndOfFileInformation:
-              case kFileAllocationInformation:
+              case FileInfoClass::kFileEndOfFileInformation:
+              case FileInfoClass::kFileAllocationInformation:
                 extra_info_arg = file_size_arg_;
+                break;
+              default:
                 break;
             }
           }
           inserter->AddArg(extra_info_arg,
                            Variadic::UnsignedInteger(decoder.extra_info()));
         }
-        if (decoder.has_ttid()) {
-          inserter->AddArg(thread_id_arg_,
-                           Variadic::UnsignedInteger(decoder.ttid()));
-        }
         if (decoder.has_info_class()) {
           inserter->AddArg(info_class_arg_,
-                           GetInfoClassArgValue(decoder.info_class()));
+                           GetInfoClassValue(static_cast<FileInfoClass>(
+                               decoder.info_class())));
         }
       };
   // Get event name from the opcode if possible, otherwise use a generic name.
@@ -405,10 +349,13 @@ void FileIoTracker::ParseFileIoInfo(int64_t timestamp, ConstBytes blob) {
           : info_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, std::move(args));
+      name, timestamp, decoder.has_ttid() ? decoder.ttid() : thread_id,
+      std::move(args));
 }
 
-void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp,
+                                         uint32_t thread_id,
+                                         ConstBytes blob) {
   protos::pbzero::FileIoReadWriteEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -427,10 +374,6 @@ void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp, ConstBytes blob) {
           inserter->AddArg(file_key_arg_,
                            Variadic::Pointer(decoder.file_key()));
         }
-        if (decoder.has_ttid()) {
-          inserter->AddArg(thread_id_arg_,
-                           Variadic::UnsignedInteger(decoder.ttid()));
-        }
         if (decoder.has_io_size()) {
           inserter->AddArg(io_size_arg_,
                            Variadic::UnsignedInteger(decoder.io_size()));
@@ -447,10 +390,13 @@ void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp, ConstBytes blob) {
           : read_write_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, std::move(args));
+      name, timestamp, decoder.has_ttid() ? decoder.ttid() : thread_id,
+      std::move(args));
 }
 
-void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp,
+                                        uint32_t thread_id,
+                                        ConstBytes blob) {
   protos::pbzero::FileIoSimpleOpEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -465,10 +411,6 @@ void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp, ConstBytes blob) {
           inserter->AddArg(file_key_arg_,
                            Variadic::Pointer(decoder.file_key()));
         }
-        if (decoder.has_ttid()) {
-          inserter->AddArg(thread_id_arg_,
-                           Variadic::UnsignedInteger(decoder.ttid()));
-        }
       };
   // Get event name from the opcode if possible, otherwise use a generic name.
   const StringId name =
@@ -477,10 +419,13 @@ void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp, ConstBytes blob) {
           : simple_op_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, std::move(args));
+      name, timestamp, decoder.has_ttid() ? decoder.ttid() : thread_id,
+      std::move(args));
 }
 
-void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp,
+                                     uint32_t thread_id,
+                                     ConstBytes blob) {
   protos::pbzero::FileIoOpEndEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -495,7 +440,7 @@ void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp, ConstBytes blob) {
       };
   EndEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      timestamp, std::move(args));
+      timestamp, thread_id, std::move(args));
 }
 
 void FileIoTracker::NotifyEndOfFile() {
@@ -504,16 +449,17 @@ void FileIoTracker::NotifyEndOfFile() {
     // `EndUnmatchedStart()` removes the recorded event, so retrieve the first
     // event each loop.
     const auto& [irp, started_event] = *started_events_.begin();
-    EndUnmatchedStart(irp, started_event.timestamp);
+    EndUnmatchedStart(irp, started_event.timestamp, started_event.thread_id);
   }
 }
 
 void FileIoTracker::StartEvent(std::optional<Irp> irp,
                                StringId name,
                                int64_t timestamp,
+                               uint32_t thread_id,
                                SliceTracker::SetArgsCallback args) {
   if (!irp.has_value()) {
-    RecordEventWithoutIrp(name, timestamp, std::move(args));
+    RecordEventWithoutIrp(name, timestamp, thread_id, std::move(args));
     return;
   }
 
@@ -521,27 +467,31 @@ void FileIoTracker::StartEvent(std::optional<Irp> irp,
   if (previous_event_same_irp != started_events_.end()) {
     // The last event using this IRP never ended. Since the IRP is being reused,
     // the previous event must be done and its end event must have been dropped.
-    EndUnmatchedStart(*irp, previous_event_same_irp->second.timestamp);
+    EndUnmatchedStart(*irp, previous_event_same_irp->second.timestamp,
+                      previous_event_same_irp->second.thread_id);
   }
 
   // `track_id` controls the row the events appear in. This must be created via
   // `TrackCompressor` because slices may be partially overlapping, which is not
-  // supported in `SliceTracker`.
+  // supported by the Perfetto data model as-is.
   const auto track_id = context_->track_compressor->InternBegin(
-      kBlueprint, tracks::Dimensions(), /*cookie=*/static_cast<int64_t>(*irp));
+      kBlueprint, tracks::Dimensions(thread_id),
+      /*cookie=*/static_cast<int64_t>(*irp));
 
   // Begin a slice for the event.
-  context_->slice_tracker->Begin(timestamp, track_id, category_, name,
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name,
                                  std::move(args));
-  started_events_[*irp] = {name, timestamp};
+  started_events_[*irp] = {name, timestamp, thread_id};
 }
 
 void FileIoTracker::EndEvent(std::optional<Irp> irp,
                              int64_t timestamp,
+                             uint32_t thread_id,
                              SliceTracker::SetArgsCallback args) {
   if (!irp.has_value()) {
-    RecordEventWithoutIrp(event_types_.at(kEndOperation), timestamp,
-                          std::move(args));
+    RecordEventWithoutIrp(
+        event_types_.at(GetEventTypeIndex(EventType::kEndOperation)), timestamp,
+        thread_id, std::move(args));
     return;
   }
 
@@ -549,33 +499,39 @@ void FileIoTracker::EndEvent(std::optional<Irp> irp,
   const auto started_event = started_events_.find(*irp);
   if (started_event == started_events_.end()) {
     // This end event has no corresponding start.
-    RecordUnmatchedEnd(timestamp);
+    RecordUnmatchedEnd(timestamp, thread_id);
     return;
   }
   const auto name = started_event->second.name;
 
   // End the slice for this event.
   const auto track_id = context_->track_compressor->InternEnd(
-      kBlueprint, tracks::Dimensions(), /*cookie=*/static_cast<int64_t>(*irp));
-  context_->slice_tracker->End(timestamp, track_id, category_, name,
+      kBlueprint, tracks::Dimensions(thread_id),
+      /*cookie=*/static_cast<int64_t>(*irp));
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId, name,
                                std::move(args));
   started_events_.erase(started_event);
 }
 
-void FileIoTracker::EndUnmatchedStart(Irp irp, int64_t timestamp) {
+void FileIoTracker::EndUnmatchedStart(Irp irp,
+                                      int64_t timestamp,
+                                      uint32_t thread_id) {
   // End the given event with a duration of zero.
-  EndEvent(irp, timestamp, [this](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(missing_event_arg_, Variadic::String(missing_end_event_));
-  });
+  EndEvent(irp, timestamp, thread_id,
+           [this](ArgsTracker::BoundInserter* inserter) {
+             inserter->AddArg(missing_event_arg_,
+                              Variadic::String(missing_end_event_));
+           });
 }
 
-void FileIoTracker::RecordUnmatchedEnd(int64_t timestamp) {
+void FileIoTracker::RecordUnmatchedEnd(int64_t timestamp, uint32_t thread_id) {
   // Add a single "EndOperation" event with a duration of zero.
   const int64_t duration = 0;
   const auto track_id = context_->track_compressor->InternScoped(
-      kBlueprint, tracks::Dimensions(), timestamp, duration);
+      kBlueprint, tracks::Dimensions(thread_id), timestamp, duration);
   context_->slice_tracker->Scoped(
-      timestamp, track_id, category_, event_types_.at(kEndOperation), duration,
+      timestamp, track_id, kNullStringId,
+      event_types_.at(GetEventTypeIndex(EventType::kEndOperation)), duration,
       [this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(missing_event_arg_,
                          Variadic::String(missing_start_event_));
@@ -584,29 +540,46 @@ void FileIoTracker::RecordUnmatchedEnd(int64_t timestamp) {
 
 void FileIoTracker::RecordEventWithoutIrp(StringId name,
                                           int64_t timestamp,
+                                          uint32_t thread_id,
                                           SliceTracker::SetArgsCallback args) {
   const int64_t duration = 0;
   const auto track_id = context_->track_compressor->InternScoped(
-      kBlueprint, tracks::Dimensions(), timestamp, duration);
-  context_->slice_tracker->Scoped(timestamp, track_id, category_, name,
+      kBlueprint, tracks::Dimensions(thread_id), timestamp, duration);
+  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId, name,
                                   duration, std::move(args));
 }
 
-Variadic FileIoTracker::GetInfoClassArgValue(uint32_t info_class) const {
-  const auto info_class_str =
-      file_info_classes_.find(static_cast<FileInfoClass>(info_class));
-  if (info_class_str != file_info_classes_.end()) {
-    return Variadic::String(info_class_str->second);
+Variadic FileIoTracker::GetInfoClassValue(FileInfoClass info_class) const {
+  auto info_class_val = static_cast<uint32_t>(info_class);
+  if (info_class_val < static_cast<uint32_t>(FileInfoClass::kMinValue) ||
+      info_class_val > static_cast<uint32_t>(FileInfoClass::kMaxValue)) {
+    return Variadic::UnsignedInteger(info_class_val);
   }
-  return Variadic::UnsignedInteger(info_class);
+  auto string_id = file_info_classes_[GetFileInfoClassIndex(info_class)];
+  if (string_id.is_null()) {
+    return Variadic::UnsignedInteger(info_class_val);
+  }
+  return Variadic::String(string_id);
 }
 
 std::optional<StringId> FileIoTracker::GetEventName(uint32_t opcode) const {
-  const auto name = event_types_.find(static_cast<EventType>(opcode));
-  if (name != event_types_.end()) {
-    return name->second;
+  if (opcode < static_cast<uint32_t>(EventType::kMinValue) ||
+      opcode > static_cast<uint32_t>(EventType::kMaxValue)) {
+    return std::nullopt;
   }
-  return std::nullopt;
+  return event_types_[GetEventTypeIndex(static_cast<EventType>(opcode))];
+}
+
+// static
+size_t FileIoTracker::GetEventTypeIndex(EventType type) {
+  return static_cast<size_t>(static_cast<uint32_t>(type) -
+                             static_cast<uint32_t>(EventType::kMinValue));
+}
+
+// static
+size_t FileIoTracker::GetFileInfoClassIndex(FileInfoClass info_class) {
+  return static_cast<size_t>(static_cast<uint32_t>(info_class) -
+                             static_cast<uint32_t>(FileInfoClass::kMinValue));
 }
 
 }  // namespace perfetto::trace_processor

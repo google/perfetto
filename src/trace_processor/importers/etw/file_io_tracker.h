@@ -17,8 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETW_FILE_IO_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETW_FILE_IO_TRACKER_H_
 
+#include <array>
 #include <cstdint>
-#include <map>
+#include <unordered_map>
 
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -32,27 +33,30 @@ using Irp = uint64_t;
 
 // Opcodes for the file I/O event types. Source: `FileIo` class docs:
 // https://learn.microsoft.com/en-us/windows/win32/etw/fileio
-enum EventType {
+enum class EventType : uint32_t {
   kCreateFile = 64,
-  kDirectoryEnumeration = 72,
-  kDirectoryNotification = 77,
+  kMinValue = kCreateFile,
+  kCleanup = 65,
+  kClose = 66,
+  kReadFile = 67,
+  kWriteFile = 68,
   kSetInformation = 69,
   kDeleteFile = 70,
   kRenameFile = 71,
+  kDirectoryEnumeration = 72,
+  kFlush = 73,
   kQueryFileInformation = 74,
   kFilesystemControlEvent = 75,
-  kReadFile = 67,
-  kWriteFile = 68,
-  kCleanup = 65,
-  kClose = 66,
-  kFlush = 73,
   kEndOperation = 76,
+  kDirectoryNotification = 77,
+  kMaxValue = kDirectoryNotification,
 };
 
 // Values for the "File Info" argument. Source: `FILE_INFORMATION_CLASS` docs:
 // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_file_information_class
-enum FileInfoClass {
+enum class FileInfoClass : uint32_t {
   kFileDirectoryInformation = 1,
+  kMinValue = kFileDirectoryInformation,
   kFileFullDirectoryInformation = 2,
   kFileBothDirectoryInformation = 3,
   kFileBasicInformation = 4,
@@ -132,7 +136,8 @@ enum FileInfoClass {
   kFileId64ExtdDirectoryInformation = 78,
   kFileId64ExtdBothDirectoryInformation = 79,
   kFileIdAllExtdDirectoryInformation = 80,
-  kFileIdAllExtdBothDirectoryInformation = 81
+  kFileIdAllExtdBothDirectoryInformation = 81,
+  kMaxValue = kFileIdAllExtdBothDirectoryInformation,
 };
 
 // A class to keep track of file I/O events recorded by Event Tracing for
@@ -141,12 +146,24 @@ class FileIoTracker {
  public:
   explicit FileIoTracker(TraceProcessorContext* context);
 
-  void ParseFileIoCreate(int64_t timestamp, protozero::ConstBytes);
-  void ParseFileIoDirEnum(int64_t timestamp, protozero::ConstBytes);
-  void ParseFileIoInfo(int64_t timestamp, protozero::ConstBytes);
-  void ParseFileIoReadWrite(int64_t timestamp, protozero::ConstBytes);
-  void ParseFileIoSimpleOp(int64_t timestamp, protozero::ConstBytes);
-  void ParseFileIoOpEnd(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoCreate(int64_t timestamp,
+                         uint32_t thread_id,
+                         protozero::ConstBytes);
+  void ParseFileIoDirEnum(int64_t timestamp,
+                          uint32_t thread_id,
+                          protozero::ConstBytes);
+  void ParseFileIoInfo(int64_t timestamp,
+                       uint32_t thread_id,
+                       protozero::ConstBytes);
+  void ParseFileIoReadWrite(int64_t timestamp,
+                            uint32_t thread_id,
+                            protozero::ConstBytes);
+  void ParseFileIoSimpleOp(int64_t timestamp,
+                           uint32_t thread_id,
+                           protozero::ConstBytes);
+  void ParseFileIoOpEnd(int64_t timestamp,
+                        uint32_t thread_id,
+                        protozero::ConstBytes);
 
   void NotifyEndOfFile();
 
@@ -154,6 +171,7 @@ class FileIoTracker {
   struct StartedEvent {
     StringId name;
     int64_t timestamp;
+    uint32_t thread_id;
   };
 
   // Starts tracking `event`, to be added to the trace when its matching end
@@ -161,41 +179,63 @@ class FileIoTracker {
   void StartEvent(std::optional<Irp> irp,
                   StringId name,
                   int64_t timestamp,
+                  uint32_t thread_id,
                   SliceTracker::SetArgsCallback args);
 
   // Adds the ending event to the trace as a slice.
   void EndEvent(std::optional<Irp> irp,
                 int64_t timestamp,
+                uint32_t thread_id,
                 SliceTracker::SetArgsCallback args);
 
   // Ends the given event with a duration of zero, and adds an argument labeling
   // it as missing a matching end event.
-  void EndUnmatchedStart(Irp irp, int64_t timestamp);
+  void EndUnmatchedStart(Irp irp, int64_t timestamp, uint32_t thread_id);
 
   // Records an "EndOperation" event with a duration of zero, and adds an
   // argument labeling it as missing a matching start event.
-  void RecordUnmatchedEnd(int64_t timestamp);
+  void RecordUnmatchedEnd(int64_t timestamp, uint32_t thread_id);
 
   // Records an event without an IRP identifier with a duration of zero (as it's
   // unable to be matched with a corresponding start or end event).
   void RecordEventWithoutIrp(StringId name,
                              int64_t timestamp,
+                             uint32_t thread_id,
                              SliceTracker::SetArgsCallback args);
 
   // Helper function to get the value to display for `info_class`: either its
   // string representation, if known, or its numerical value.
-  Variadic GetInfoClassArgValue(uint32_t info_class) const;
+  Variadic GetInfoClassValue(FileInfoClass info_class) const;
 
   // Helper function to get the readable name of the event with `opcode`, if
   // known.
   std::optional<StringId> GetEventName(uint32_t opcode) const;
 
+  // Helper function to get `type`'s index in the `event_types_` array.
+  static size_t GetEventTypeIndex(EventType type);
+
+  // Helper function to get `info_class`'s index in the `file_info_classes_`
+  // array.
+  static size_t GetFileInfoClassIndex(FileInfoClass info_class);
+
   TraceProcessorContext* context_;
+
+  // Readable descriptions for the file I/O event types.
+  std::array<StringId,
+             static_cast<uint32_t>(EventType::kMaxValue) -
+                 static_cast<uint32_t>(EventType::kMinValue) + 1>
+      event_types_{};
+
+  // Readable descriptions for known "File Info" argument values.
+  std::array<StringId,
+             static_cast<uint32_t>(FileInfoClass::kMaxValue) -
+                 static_cast<uint32_t>(FileInfoClass::kMinValue) + 1>
+      file_info_classes_{};
 
   // Tracks events parsed so far for which a corresponding "operation end" event
   // has not yet been parsed. This enables events with no matching end event to
   // be closed with a zero duration at the end of parsing.
-  std::map<Irp, StartedEvent> started_events_;
+  std::unordered_map<Irp, StartedEvent> started_events_;
 
   // Strings interned in the constructor to improve performance.
   const StringId create_options_arg_;
@@ -215,8 +255,6 @@ class FileIoTracker {
   const StringId offset_arg_;
   const StringId open_path_arg_;
   const StringId share_access_arg_;
-  const StringId thread_id_arg_;
-  const StringId category_;
   const StringId missing_event_arg_;
   const StringId missing_start_event_;
   const StringId missing_end_event_;
@@ -225,12 +263,6 @@ class FileIoTracker {
   const StringId info_event_;
   const StringId read_write_event_;
   const StringId simple_op_event_;
-
-  // Readable descriptions for the file I/O event types.
-  std::map<EventType, StringId> event_types_;
-
-  // Readable descriptions for known "File Info" argument values.
-  std::map<FileInfoClass, StringId> file_info_classes_;
 };
 
 }  // namespace perfetto::trace_processor

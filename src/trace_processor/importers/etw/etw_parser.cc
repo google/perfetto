@@ -89,22 +89,28 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
 
   const auto& file_io_tracker = context_->file_io_tracker;
   if (decoder.has_file_io_create()) {
-    file_io_tracker->ParseFileIoCreate(ts, decoder.file_io_create());
+    file_io_tracker->ParseFileIoCreate(ts, decoder.thread_id(),
+                                       decoder.file_io_create());
   }
   if (decoder.has_file_io_dir_enum()) {
-    file_io_tracker->ParseFileIoDirEnum(ts, decoder.file_io_dir_enum());
+    file_io_tracker->ParseFileIoDirEnum(ts, decoder.thread_id(),
+                                        decoder.file_io_dir_enum());
   }
   if (decoder.has_file_io_info()) {
-    file_io_tracker->ParseFileIoInfo(ts, decoder.file_io_info());
+    file_io_tracker->ParseFileIoInfo(ts, decoder.thread_id(),
+                                     decoder.file_io_info());
   }
   if (decoder.has_file_io_read_write()) {
-    file_io_tracker->ParseFileIoReadWrite(ts, decoder.file_io_read_write());
+    file_io_tracker->ParseFileIoReadWrite(ts, decoder.thread_id(),
+                                          decoder.file_io_read_write());
   }
   if (decoder.has_file_io_simple_op()) {
-    file_io_tracker->ParseFileIoSimpleOp(ts, decoder.file_io_simple_op());
+    file_io_tracker->ParseFileIoSimpleOp(ts, decoder.thread_id(),
+                                         decoder.file_io_simple_op());
   }
   if (decoder.has_file_io_op_end()) {
-    file_io_tracker->ParseFileIoOpEnd(ts, decoder.file_io_op_end());
+    file_io_tracker->ParseFileIoOpEnd(ts, decoder.thread_id(),
+                                      decoder.file_io_op_end());
   }
 
   return base::OkStatus();
