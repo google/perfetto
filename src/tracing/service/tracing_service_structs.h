@@ -18,9 +18,13 @@
 #define SRC_TRACING_SERVICE_TRACING_SERVICE_STRUCTS_H_
 
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -36,9 +40,10 @@
 namespace perfetto {
 
 class TraceBuffer;
-class ConsumerEndpointImpl;
 
 namespace tracing_service {
+
+class ConsumerEndpointImpl;
 
 struct TriggerInfo {
   uint64_t boot_time_ns = 0;

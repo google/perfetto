@@ -17,36 +17,24 @@
 #ifndef SRC_TRACING_SERVICE_TRACING_SERVICE_IMPL_H_
 #define SRC_TRACING_SERVICE_TRACING_SERVICE_IMPL_H_
 
-#include <algorithm>
-#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
 #include <set>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/circular_queue.h"
-#include "perfetto/ext/base/clock_snapshots.h"
-#include "perfetto/ext/base/periodic_task.h"
-#include "perfetto/ext/base/scoped_sched_boost.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/base/weak_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
-#include "perfetto/ext/tracing/core/observable_events.h"
-#include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
-#include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/tracing/core/id_allocator.h"
 #include "src/tracing/service/clock.h"

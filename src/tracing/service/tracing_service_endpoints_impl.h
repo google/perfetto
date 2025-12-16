@@ -17,14 +17,22 @@
 #ifndef SRC_TRACING_SERVICE_TRACING_SERVICE_ENDPOINTS_IMPL_H_
 #define SRC_TRACING_SERVICE_TRACING_SERVICE_ENDPOINTS_IMPL_H_
 
+#include <functional>
 #include <map>
+#include <memory>
+#include <optional>
 #include <set>
+#include <string>
+#include <vector>
 
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/clock_snapshots.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/base/weak_runner.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
+#include "perfetto/ext/tracing/core/observable_events.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/forward_decls.h"
