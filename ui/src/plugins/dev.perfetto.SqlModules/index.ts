@@ -29,7 +29,7 @@ import {addEphemeralTab} from '../../components/details/add_ephemeral_tab';
 import {sqlTablesToSchemas} from './sql_table_converter';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {SqlTable} from './sql_modules';
-import {Filter} from '../../components/widgets/datagrid/model';
+import {Column, Filter, Pivot} from '../../components/widgets/datagrid/model';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {TableExplorer} from './table_explorer';
 
@@ -131,7 +131,8 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
    * @param tableName The name of the table to open
    * @param options Configuration options
    * @param options.filters Initial filters to apply
-   * @param options.initialColumns Initial columns to display
+   * @param options.initialColumns Initial columns to display (with optional sort/aggregate)
+   * @param options.initialPivot Initial pivot configuration to apply
    * @param options.customTables Custom table definitions to inject into the schema
    *   for this invocation only. Useful for adding ad-hoc table relationships or
    *   overriding existing table definitions.
@@ -142,7 +143,8 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
     tableName: string,
     options?: {
       filters?: Filter[];
-      initialColumns?: string[];
+      initialColumns?: Column[];
+      initialPivot?: Pivot;
       customTables?: SqlTable[];
       preamble?: string;
     },
@@ -224,6 +226,15 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
         rootSchema: tableName,
         initialFilters: options?.filters,
         initialColumns: options?.initialColumns,
+        initialPivot: options?.initialPivot,
+        onDuplicate: (state) => {
+          this.openTableExplorer(tableName, {
+            ...options,
+            filters: [...state.filters],
+            initialColumns: [...state.columns],
+            initialPivot: state.pivot,
+          });
+        },
       }),
     );
   }

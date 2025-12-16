@@ -592,6 +592,15 @@ ${joinClauses}`;
       }
     }
 
+    // Include column aggregates in the query string so changes trigger a reload
+    const aggregateSuffix = columns
+      ?.filter((c) => c.aggregate)
+      .map((c) => `${c.field}:${c.aggregate}`)
+      .join(',');
+    if (aggregateSuffix) {
+      query += ` /* aggregates: ${aggregateSuffix} */`;
+    }
+
     return query;
   }
 
