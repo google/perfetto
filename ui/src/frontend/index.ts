@@ -48,7 +48,6 @@ import {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
 import {configureExtensions} from '../components/extensions';
 import {addVisualizedArgTracks} from '../components/tracks/visualized_args_tracks';
-import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {assetSrc, initAssets} from '../base/assets';
 import {
   PERFETTO_SETTINGS_STORAGE_KEY,
@@ -548,7 +547,6 @@ function maybeChangeRpcPortFromFragment() {
 // point for context menus.
 configureExtensions({
   addVisualizedArgTracks,
-  addQueryResultsTab,
 });
 
 main();

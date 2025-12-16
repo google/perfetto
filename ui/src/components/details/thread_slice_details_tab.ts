@@ -39,11 +39,11 @@ import {assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
-import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
 import {openTableExplorer} from '../table_explorer';
 import {addDebugSliceTrack} from '../tracks/debug_tracks';
+import {addQueryResultsTab} from '../query_table/query_result_tab';
 
 interface ContextMenuItem {
   name: string;
@@ -128,7 +128,7 @@ const ITEMS: ContextMenuItem[] = [
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
     run: (slice: SliceDetails, trace: Trace) =>
-      extensions.addQueryResultsTab(trace, {
+      addQueryResultsTab(trace, {
         query: `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
         title: `${slice.name} average dur`,
       }),
