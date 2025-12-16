@@ -1335,7 +1335,7 @@ std::unique_ptr<LinuxFileWatch> WatchUnixSocketCreation(
     TaskRunner* task_runner,
     const char* sock_name,
     std::function<void()> callback) {
-  if (!base::flags::use_unix_socket_inotify)
+  if constexpr (!PERFETTO_FLAGS(USE_UNIX_SOCKET_INOTIFY))
     return nullptr;
 
   if (!sock_name || base::GetSockFamily(sock_name) != base::SockFamily::kUnix ||

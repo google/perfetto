@@ -24,7 +24,9 @@ Unreleased:
     * Updated TraceConfig proto to allow referring to target buffers by name
       rather than index.
   SDK:
-    *
+    * Added inotify support for UNIX sockets: if traced is unavailable or
+      crashes, on Linux and Android we reconnect immediately after the socke
+      has been recreated rather than relying on periodic retries.
 
 
 v53.0 - 2025-11-12:
