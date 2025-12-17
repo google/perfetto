@@ -111,8 +111,7 @@ std::optional<std::pair<uint32_t, uint32_t>> ParseLineRange(
   }
   char* end;
   std::string start_str = s.substr(0, colon);
-  uint32_t start =
-      static_cast<uint32_t>(strtoul(start_str.c_str(), &end, 10));
+  uint32_t start = static_cast<uint32_t>(strtoul(start_str.c_str(), &end, 10));
   if (*end != '\0') {
     return std::nullopt;
   }

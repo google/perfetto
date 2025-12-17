@@ -210,9 +210,9 @@ void DeobfuscationTracker::DeobfuscateProfiles(
     // Look up frames with this obfuscated name.
     std::vector<tables::StackProfileFrameTable::Id> frames;
     if (opt_package_name_id) {
-      for (FrameId fid : JavaFramesForName(
-               java_frames_for_name,
-               {merged_obfuscated_id, *opt_package_name_id})) {
+      for (FrameId fid :
+           JavaFramesForName(java_frames_for_name,
+                             {merged_obfuscated_id, *opt_package_name_id})) {
         frames.push_back(fid);
       }
     }
