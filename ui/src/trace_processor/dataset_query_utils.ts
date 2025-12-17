@@ -47,7 +47,7 @@ export interface QueryWithLineageConfig<T, Schema extends DatasetSchema> {
 
   /**
    * When true, executes all source groups in a single SQL query using UNION ALL
-   * with a z__groupid column for lineage resolution. This is more efficient when
+   * with a __groupid column for lineage resolution. This is more efficient when
    * querying many source groups as it reduces round-trips to SQLite.
    * Default: false (executes separate queries per source group)
    */
@@ -128,11 +128,11 @@ export interface LineageResolver<T> {
  * Result from buildQueryWithLineage containing SQL and lineage resolver.
  */
 export interface QueryWithLineage<T> {
-  /** The SQL query string with z__groupid and z__partition columns */
+  /** The SQL query string with __groupid and __partition columns */
   readonly sql: string;
   /** Resolver to map (groupid, partition) back to source inputs */
   readonly lineageResolver: LineageResolver<T>;
-  /** The columns that are selected (excluding z__groupid and z__partition) */
+  /** The columns that are selected (excluding __groupid and __partition) */
   readonly columns: ReadonlyArray<string>;
 }
 
@@ -474,7 +474,7 @@ export function planQuery<T, Schema extends DatasetSchema>(
     async execute(
       engine: Engine,
     ): Promise<readonly QueryWithLineageResult<T, Schema>[]> {
-      // Single query mode: UNION ALL groups with z__groupid and z__partition
+      // Single query mode: UNION ALL groups with __groupid and __partition
       if ((config.singleQuery ?? true) && sourceGroupArray.length > 0) {
         return executeSingleQuery(
           engine,
@@ -512,7 +512,7 @@ export function planQuery<T, Schema extends DatasetSchema>(
 
 /**
  * Execute all source groups in a single SQL query using UNION ALL with
- * z__groupid and z__partition columns for lineage resolution.
+ * __groupid and __partition columns for lineage resolution.
  */
 async function executeSingleQuery<T, Schema extends DatasetSchema>(
   engine: Engine,
@@ -526,7 +526,7 @@ async function executeSingleQuery<T, Schema extends DatasetSchema>(
   const resultColNames = Object.keys(columns);
   const filterColNames = filterColumns ? Object.keys(filterColumns) : [];
 
-  // Build per-group queries with normalized z__groupid and z__partition columns
+  // Build per-group queries with normalized __groupid and __partition columns
   const groupQueries: string[] = [];
 
   for (let groupId = 0; groupId < sourceGroupArray.length; groupId++) {
@@ -544,7 +544,7 @@ async function executeSingleQuery<T, Schema extends DatasetSchema>(
 
     const baseQuery = unionDataset.query(querySchema);
 
-    // Normalize partition to single z__partition column (use first partition col or NULL)
+    // Normalize partition to single __partition column (use first partition col or NULL)
     const partitionExpr =
       partitionColumns.length > 0 ? partitionColumns[0] : 'NULL';
 
@@ -552,7 +552,7 @@ async function executeSingleQuery<T, Schema extends DatasetSchema>(
     // Filter columns must be included so queryBuilder can reference them in WHERE clauses
     const selectCols = [...resultColNames, ...filterColNames].join(', ');
     groupQueries.push(
-      `SELECT ${selectCols}, ${groupId} AS z__groupid, ${partitionExpr} AS z__partition FROM (${baseQuery})`,
+      `SELECT ${selectCols}, ${groupId} AS __groupid, ${partitionExpr} AS __partition FROM (${baseQuery})`,
     );
   }
 
@@ -564,8 +564,8 @@ async function executeSingleQuery<T, Schema extends DatasetSchema>(
   const resultCols = [
     ...resultColNames,
     ...filterColNames,
-    'z__groupid',
-    'z__partition',
+    '__groupid',
+    '__partition',
   ];
   const finalQuery = queryBuilder
     ? queryBuilder(combinedQuery, resultCols)
@@ -577,8 +577,8 @@ async function executeSingleQuery<T, Schema extends DatasetSchema>(
   // Build schema for result iteration
   const resultSchema: DatasetSchema = {
     ...columns,
-    z__groupid: NUM,
-    z__partition: NUM,
+    __groupid: NUM,
+    __partition: NUM,
   };
 
   // Process results and resolve lineage
@@ -589,15 +589,15 @@ async function executeSingleQuery<T, Schema extends DatasetSchema>(
     iter.valid() === true;
     iter.next()
   ) {
-    // Extract row data (without z__groupid and z__partition)
+    // Extract row data (without __groupid and __partition)
     const row: Record<string, SqlValue> = {};
     for (const col of resultColNames) {
       row[col] = iter.get(col);
     }
 
     // Get groupid and partition for lineage resolution
-    const groupId = iter.get('z__groupid') as number;
-    const partitionValue = iter.get('z__partition');
+    const groupId = iter.get('__groupid') as number;
+    const partitionValue = iter.get('__partition');
 
     // Look up the source group
     const [src, group] = sourceGroupArray[groupId];
@@ -661,7 +661,7 @@ export interface BuildQueryWithLineageConfig<T, Schema extends DatasetSchema> {
 }
 
 /**
- * Builds a SQL query with z__groupid and z__partition columns for lineage tracking.
+ * Builds a SQL query with __groupid and __partition columns for lineage tracking.
  * Returns the SQL string and a resolver to map results back to source inputs.
  *
  * This is useful for aggregation panels that need to create SQL tables with
@@ -679,7 +679,7 @@ export interface BuildQueryWithLineageConfig<T, Schema extends DatasetSchema> {
  * await engine.query(`CREATE TABLE agg AS ${sql}`);
  *
  * // Later, when rendering a row:
- * const track = lineageResolver.resolve(row.z__groupid, row.z__partition);
+ * const track = lineageResolver.resolve(row.__groupid, row.__partition);
  * if (track) {
  *   trace.selection.selectTrackEvent(track.uri, row.id);
  * }
@@ -711,7 +711,7 @@ export function buildQueryWithLineage<T, Schema extends DatasetSchema>(
     partitionMaps.set(src, buildPartitionMap(group));
   }
 
-  // Build per-group queries with z__groupid and z__partition columns
+  // Build per-group queries with __groupid and __partition columns
   const groupQueries: string[] = [];
 
   for (let groupId = 0; groupId < sourceGroupArray.length; groupId++) {
@@ -732,14 +732,14 @@ export function buildQueryWithLineage<T, Schema extends DatasetSchema>(
 
     const baseQuery = unionDataset.query(querySchema);
 
-    // Normalize partition to single z__partition column
+    // Normalize partition to single __partition column
     const partitionExpr =
       partitionColumns.length > 0 ? partitionColumns[0] : 'NULL';
 
     // Select result columns + filter columns + groupid + partition
     const selectCols = [...resultColNames, ...filterColNames].join(', ');
     groupQueries.push(
-      `SELECT ${selectCols}, ${groupId} AS z__groupid, ${partitionExpr} AS z__partition FROM (${baseQuery})`,
+      `SELECT ${selectCols}, ${groupId} AS __groupid, ${partitionExpr} AS __partition FROM (${baseQuery})`,
     );
   }
 
@@ -748,7 +748,7 @@ export function buildQueryWithLineage<T, Schema extends DatasetSchema>(
     // Return empty query with proper columns
     const cols = [...resultColNames, ...filterColNames].join(', ');
     return {
-      sql: `SELECT ${cols}, 0 AS z__groupid, NULL AS z__partition WHERE FALSE`,
+      sql: `SELECT ${cols}, 0 AS __groupid, NULL AS __partition WHERE FALSE`,
       columns: resultColNames,
       lineageResolver: {
         resolve: () => undefined,

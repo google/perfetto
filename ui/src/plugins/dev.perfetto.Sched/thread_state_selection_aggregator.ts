@@ -90,8 +90,8 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         // Schema including lineage columns
         const schemaWithLineage = {
           ...THREAD_STATE_SPEC,
-          z__groupid: NUM,
-          z__partition: NUM,
+          __groupid: NUM,
+          __partition: NUM,
         };
 
         // Create interval-intersect table for time filtering
@@ -118,8 +118,8 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             dur,
             dur * 1.0 / sum(dur) OVER () as fraction_of_total,
             cluster.cluster_type as cluster,
-            z__groupid,
-            z__partition
+            __groupid,
+            __partition
           from ${iiTable.name} tstate
           join thread using (utid)
           left join process using (upid)
@@ -182,8 +182,8 @@ export class ThreadStateSelectionAggregator implements Aggregator {
               return String(value);
             }
 
-            const groupId = row['z__groupid'];
-            const partition = row['z__partition'];
+            const groupId = row['__groupid'];
+            const partition = row['__partition'];
 
             if (
               typeof groupId !== 'bigint' ||
@@ -266,12 +266,12 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         },
         {
           title: 'Partition',
-          columnId: 'z__partition',
+          columnId: '__partition',
           formatHint: 'ID',
         },
         {
           title: 'GroupID',
-          columnId: 'z__groupid',
+          columnId: '__groupid',
           formatHint: 'ID',
         },
       ],

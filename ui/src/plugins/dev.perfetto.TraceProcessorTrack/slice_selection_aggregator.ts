@@ -114,8 +114,8 @@ export class SliceSelectionAggregator implements Aggregator {
           const sliceGroupCount = sliceTracks.length > 0 ? 1 : 0;
           unionQueries.push(
             query.replace(
-              /z__groupid/g,
-              `z__groupid + ${sliceGroupCount} AS z__groupid`,
+              /__groupid/g,
+              `__groupid + ${sliceGroupCount} AS __groupid`,
             ),
           );
           lineageResolvers.push(resolver);
@@ -147,8 +147,8 @@ export class SliceSelectionAggregator implements Aggregator {
             name,
             dur,
             self_dur,
-            z__groupid,
-            z__partition
+            __groupid,
+            __partition
           FROM (${unionQueries.join(' UNION ALL ')})
         `);
 
@@ -173,8 +173,8 @@ export class SliceSelectionAggregator implements Aggregator {
     // Schema including lineage columns
     const schemaWithLineage = {
       ...SLICE_WITH_PARENT_SPEC,
-      z__groupid: NUM,
-      z__partition: NUM,
+      __groupid: NUM,
+      __partition: NUM,
     };
 
     // Create interval-intersect table for time filtering
@@ -208,8 +208,8 @@ export class SliceSelectionAggregator implements Aggregator {
           ts,
           dur,
           dur - COALESCE(child_dur, 0) AS self_dur,
-          z__groupid,
-          z__partition
+          __groupid,
+          __partition
         FROM ${iiTable.name}
         LEFT JOIN ${childDurTable.name} USING(id)
       `,
@@ -233,8 +233,8 @@ export class SliceSelectionAggregator implements Aggregator {
     // Schema including lineage columns
     const schemaWithLineage = {
       ...SLICELIKE_SPEC,
-      z__groupid: NUM,
-      z__partition: NUM,
+      __groupid: NUM,
+      __partition: NUM,
     };
 
     // Create interval-intersect table for time filtering
@@ -254,8 +254,8 @@ export class SliceSelectionAggregator implements Aggregator {
           ts,
           dur,
           dur AS self_dur,
-          z__groupid,
-          z__partition
+          __groupid,
+          __partition
         FROM ${iiTable.name}
       `,
       resolver: lineageResolver,
@@ -289,8 +289,8 @@ export class SliceSelectionAggregator implements Aggregator {
               return String(value);
             }
 
-            const groupId = row['z__groupid'];
-            const partition = row['z__partition'];
+            const groupId = row['__groupid'];
+            const partition = row['__partition'];
 
             if (
               typeof groupId !== 'bigint' ||
@@ -343,12 +343,12 @@ export class SliceSelectionAggregator implements Aggregator {
         },
         {
           title: 'Partition',
-          columnId: 'z__partition',
+          columnId: '__partition',
           formatHint: 'ID',
         },
         {
           title: 'GroupID',
-          columnId: 'z__groupid',
+          columnId: '__groupid',
           formatHint: 'ID',
         },
       ],
