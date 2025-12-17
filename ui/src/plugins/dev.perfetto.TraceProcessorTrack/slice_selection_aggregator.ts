@@ -24,11 +24,12 @@ import {
 import {AreaSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Track} from '../../public/track';
-import {SourceDataset} from '../../trace_processor/dataset';
 import {
-  buildQueryWithLineage,
-  LineageResolver,
-} from '../../trace_processor/dataset_query_utils';
+  Dataset,
+  DatasetSchema,
+  SourceDataset,
+  UnionDatasetWithLineage,
+} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
@@ -36,6 +37,7 @@ import {
   NUM_NULL,
   Row,
   STR_NULL,
+  UNKNOWN,
 } from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
@@ -59,8 +61,13 @@ export class SliceSelectionAggregator implements Aggregator {
   readonly id = 'slice_aggregation';
 
   private readonly trace: Trace;
-  // Store lineage resolver for use when rendering clickable IDs
-  private lineageResolver?: LineageResolver<Track>;
+  // Store track-to-dataset mapping for lineage resolution
+  private trackDatasetMap?: Map<Dataset, Track>;
+  // Store union datasets for lineage resolution
+  private sliceUnionDataset?: UnionDatasetWithLineage<DatasetSchema>;
+  private slicelikeUnionDataset?: UnionDatasetWithLineage<DatasetSchema>;
+  // Track the group count from slice union for offset calculation
+  private sliceGroupCount = 0;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -89,56 +96,45 @@ export class SliceSelectionAggregator implements Aggregator {
     return {
       prepareData: async (engine: Engine) => {
         const unionQueries: string[] = [];
-        const lineageResolvers: LineageResolver<Track>[] = [];
         await using trash = new AsyncDisposableStack();
+        this.trackDatasetMap = new Map();
+
+        this.sliceGroupCount = 0;
 
         if (sliceTracks.length > 0) {
-          const {query, resolver} = await this.buildSliceQuery(
-            engine,
-            sliceTracks,
-            area,
-            trash,
-          );
+          const {query, unionDataset, trackDatasetMap} =
+            await this.buildSliceQuery(engine, sliceTracks, area, trash);
           unionQueries.push(query);
-          lineageResolvers.push(resolver);
+          this.sliceUnionDataset = unionDataset;
+          this.sliceGroupCount = unionDataset.groupCount;
+          for (const [dataset, track] of trackDatasetMap.entries()) {
+            this.trackDatasetMap.set(dataset, track);
+          }
         }
 
         if (slicelikeTracks.length > 0) {
-          const {query, resolver} = await this.buildSlicelikeQuery(
-            engine,
-            slicelikeTracks,
-            area,
-            trash,
-          );
-          // Offset groupids for slicelike resolver
-          const sliceGroupCount = sliceTracks.length > 0 ? 1 : 0;
-          unionQueries.push(
-            query.replace(
-              /__groupid/g,
-              `__groupid + ${sliceGroupCount} AS __groupid`,
-            ),
-          );
-          lineageResolvers.push(resolver);
+          const {query, unionDataset, trackDatasetMap} =
+            await this.buildSlicelikeQuery(
+              engine,
+              slicelikeTracks,
+              area,
+              trash,
+            );
+          // Offset group IDs to avoid collision with slice groups
+          const groupOffset = this.sliceGroupCount;
+          const offsetQuery =
+            groupOffset === 0
+              ? query // No offset needed, keep original __groupid
+              : query.replace(
+                  '__groupid',
+                  `(__groupid + ${groupOffset}) AS __groupid`,
+                );
+          unionQueries.push(offsetQuery);
+          this.slicelikeUnionDataset = unionDataset;
+          for (const [dataset, track] of trackDatasetMap.entries()) {
+            this.trackDatasetMap.set(dataset, track);
+          }
         }
-
-        // Combine lineage resolvers
-        this.lineageResolver = {
-          resolve: (groupId, partition) => {
-            // Route to correct resolver based on groupId
-            for (const resolver of lineageResolvers) {
-              const result = resolver.resolve(groupId, partition);
-              if (result) return result;
-            }
-            return undefined;
-          },
-          getGroupInputs: (groupId) => {
-            for (const resolver of lineageResolvers) {
-              const inputs = resolver.getGroupInputs(groupId);
-              if (inputs.length > 0) return inputs;
-            }
-            return [];
-          },
-        };
 
         await engine.query(`
           CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
@@ -152,7 +148,7 @@ export class SliceSelectionAggregator implements Aggregator {
           FROM (${unionQueries.join(' UNION ALL ')})
         `);
 
-        return {tableName: this.id, lineageResolver: this.lineageResolver};
+        return {tableName: this.id};
       },
     };
   }
@@ -162,25 +158,37 @@ export class SliceSelectionAggregator implements Aggregator {
     tracks: Track[],
     area: AreaSelection,
     trash: AsyncDisposableStack,
-  ): Promise<{query: string; resolver: LineageResolver<Track>}> {
-    // Build query with lineage tracking
-    const {sql, lineageResolver} = buildQueryWithLineage({
-      inputs: tracks,
-      datasetFetcher: (t) => t.renderer.getDataset?.() as SourceDataset,
-      columns: SLICE_WITH_PARENT_SPEC,
-    });
+  ): Promise<{
+    query: string;
+    unionDataset: UnionDatasetWithLineage<DatasetSchema>;
+    trackDatasetMap: Map<Dataset, Track>;
+  }> {
+    // Build track-to-dataset mapping
+    const trackDatasetMap = new Map<Dataset, Track>();
+    const datasets: Dataset[] = [];
+    for (const track of tracks) {
+      const dataset = track.renderer.getDataset?.();
+      if (dataset) {
+        datasets.push(dataset);
+        trackDatasetMap.set(dataset, track);
+      }
+    }
 
-    // Schema including lineage columns
-    const schemaWithLineage = {
+    // Create union dataset with lineage tracking
+    const unionDataset = UnionDatasetWithLineage.create(datasets);
+
+    // Query with only needed columns for II table (ts, dur, id)
+    const iiQuerySchema = {
       ...SLICE_WITH_PARENT_SPEC,
       __groupid: NUM,
-      __partition: NUM,
+      __partition: UNKNOWN,
     };
+    const sql = unionDataset.query(iiQuerySchema);
 
     // Create interval-intersect table for time filtering
     const iiTable = await createIITable(
       engine,
-      new SourceDataset({src: `(${sql})`, schema: schemaWithLineage}),
+      new SourceDataset({src: `(${sql})`, schema: iiQuerySchema}),
       area.start,
       area.end,
     );
@@ -213,7 +221,8 @@ export class SliceSelectionAggregator implements Aggregator {
         FROM ${iiTable.name}
         LEFT JOIN ${childDurTable.name} USING(id)
       `,
-      resolver: lineageResolver,
+      unionDataset,
+      trackDatasetMap,
     };
   }
 
@@ -222,25 +231,37 @@ export class SliceSelectionAggregator implements Aggregator {
     tracks: Track[],
     area: AreaSelection,
     trash: AsyncDisposableStack,
-  ): Promise<{query: string; resolver: LineageResolver<Track>}> {
-    // Build query with lineage tracking
-    const {sql, lineageResolver} = buildQueryWithLineage({
-      inputs: tracks,
-      datasetFetcher: (t) => t.renderer.getDataset?.() as SourceDataset,
-      columns: SLICELIKE_SPEC,
-    });
+  ): Promise<{
+    query: string;
+    unionDataset: UnionDatasetWithLineage<DatasetSchema>;
+    trackDatasetMap: Map<Dataset, Track>;
+  }> {
+    // Build track-to-dataset mapping
+    const trackDatasetMap = new Map<Dataset, Track>();
+    const datasets: Dataset[] = [];
+    for (const track of tracks) {
+      const dataset = track.renderer.getDataset?.();
+      if (dataset) {
+        datasets.push(dataset);
+        trackDatasetMap.set(dataset, track);
+      }
+    }
 
-    // Schema including lineage columns
-    const schemaWithLineage = {
+    // Create union dataset with lineage tracking
+    const unionDataset = UnionDatasetWithLineage.create(datasets);
+
+    // Query with only needed columns for II table (ts, dur, id)
+    const iiQuerySchema = {
       ...SLICELIKE_SPEC,
       __groupid: NUM,
-      __partition: NUM,
+      __partition: UNKNOWN,
     };
+    const sql = unionDataset.query(iiQuerySchema);
 
     // Create interval-intersect table for time filtering
     const iiTable = await createIITable(
       engine,
-      new SourceDataset({src: `(${sql})`, schema: schemaWithLineage}),
+      new SourceDataset({src: `(${sql})`, schema: iiQuerySchema}),
       area.start,
       area.end,
     );
@@ -258,12 +279,9 @@ export class SliceSelectionAggregator implements Aggregator {
           __partition
         FROM ${iiTable.name}
       `,
-      resolver: lineageResolver,
+      unionDataset,
+      trackDatasetMap,
     };
-  }
-
-  getLineageResolver(): LineageResolver<Track> | undefined {
-    return this.lineageResolver;
   }
 
   getTabName() {
@@ -284,6 +302,7 @@ export class SliceSelectionAggregator implements Aggregator {
           title: 'ID',
           columnId: 'id',
           formatHint: 'ID',
+          dependsOn: ['__groupid', '__partition'],
           cellRenderer: (value: unknown, row: Row) => {
             if (typeof value !== 'bigint') {
               return String(value);
@@ -292,17 +311,12 @@ export class SliceSelectionAggregator implements Aggregator {
             const groupId = row['__groupid'];
             const partition = row['__partition'];
 
-            if (
-              typeof groupId !== 'bigint' ||
-              (typeof partition !== 'bigint' && partition !== null)
-            ) {
+            if (typeof groupId !== 'bigint') {
               return String(value);
             }
 
-            const track = this.lineageResolver?.resolve(
-              Number(groupId),
-              Number(partition),
-            );
+            // Resolve track from lineage
+            const track = this.resolveTrack(Number(groupId), partition);
             if (!track) {
               return String(value);
             }
@@ -341,17 +355,51 @@ export class SliceSelectionAggregator implements Aggregator {
           formatHint: 'DURATION_NS',
           columnId: 'self_dur',
         },
-        {
-          title: 'Partition',
-          columnId: '__partition',
-          formatHint: 'ID',
-        },
-        {
-          title: 'GroupID',
-          columnId: '__groupid',
-          formatHint: 'ID',
-        },
       ],
     };
+  }
+
+  /**
+   * Resolve a track from lineage information.
+   */
+  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+    if (!this.trackDatasetMap) return undefined;
+
+    // Ensure partition is a valid SqlValue
+    const partitionValue =
+      partition === null ||
+      typeof partition === 'number' ||
+      typeof partition === 'bigint' ||
+      typeof partition === 'string' ||
+      partition instanceof Uint8Array
+        ? partition
+        : null;
+
+    // Try slice union dataset first (groupIds 0 to sliceGroupCount-1)
+    if (this.sliceUnionDataset && groupId < this.sliceGroupCount) {
+      const datasets = this.sliceUnionDataset.resolveLineage({
+        __groupid: groupId,
+        __partition: partitionValue,
+      });
+      for (const dataset of datasets) {
+        const track = this.trackDatasetMap.get(dataset);
+        if (track) return track;
+      }
+    }
+
+    // Try slicelike union dataset (groupIds >= sliceGroupCount)
+    if (this.slicelikeUnionDataset && groupId >= this.sliceGroupCount) {
+      const adjustedGroupId = groupId - this.sliceGroupCount;
+      const datasets = this.slicelikeUnionDataset.resolveLineage({
+        __groupid: adjustedGroupId,
+        __partition: partitionValue,
+      });
+      for (const dataset of datasets) {
+        const track = this.trackDatasetMap.get(dataset);
+        if (track) return track;
+      }
+    }
+
+    return undefined;
   }
 }

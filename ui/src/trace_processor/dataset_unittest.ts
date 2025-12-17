@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {UnionDataset, SourceDataset} from './dataset';
+import {UnionDataset, UnionDatasetWithLineage, SourceDataset} from './dataset';
 import {
   BLOB,
   BLOB_NULL,
@@ -580,4 +580,206 @@ test('union type widening', () => {
     bar: STR_NULL,
     baz: UNKNOWN,
   });
+});
+
+// UnionDatasetWithLineage tests
+
+test('UnionDatasetWithLineage schema includes lineage columns', () => {
+  const dataset = UnionDatasetWithLineage.create([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR},
+    }),
+  ]);
+
+  expect(dataset.schema).toMatchObject({
+    id: NUM,
+    name: STR,
+    __groupid: NUM,
+    __partition: UNKNOWN,
+  });
+});
+
+test('UnionDatasetWithLineage with single dataset', () => {
+  const dataset = UnionDatasetWithLineage.create([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {col: 'track_id', eq: 123},
+    }),
+  ]);
+
+  expect(dataset.query()).toEqual(
+    'SELECT id, 0 AS __groupid, track_id AS __partition FROM (slice) WHERE track_id = 123',
+  );
+});
+
+test('UnionDatasetWithLineage groups datasets by source', () => {
+  const dataset = UnionDatasetWithLineage.create([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {col: 'track_id', eq: 123},
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {col: 'track_id', eq: 456},
+    }),
+  ]);
+
+  // Same source, so same __groupid (0), optimized to single IN filter
+  expect(dataset.query()).toEqual(
+    'SELECT id, 0 AS __groupid, track_id AS __partition FROM (slice) WHERE track_id IN (123, 456)',
+  );
+});
+
+test('UnionDatasetWithLineage different sources get different group ids', () => {
+  const dataset = UnionDatasetWithLineage.create([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {col: 'track_id', eq: 123},
+    }),
+    new SourceDataset({
+      src: 'thread_state',
+      schema: {id: NUM},
+      filter: {col: 'track_id', eq: 456},
+    }),
+  ]);
+
+  // Different sources, so different __groupid values, UNION ALL between groups
+  expect(dataset.query()).toEqual(
+    'SELECT id, 0 AS __groupid, track_id AS __partition FROM (slice) WHERE track_id = 123 UNION ALL SELECT id, 1 AS __groupid, track_id AS __partition FROM (thread_state) WHERE track_id = 456',
+  );
+});
+
+test('UnionDatasetWithLineage dataset without filter has NULL partition', () => {
+  const dataset = UnionDatasetWithLineage.create([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+    }),
+  ]);
+
+  expect(dataset.query()).toEqual(
+    'SELECT id, 0 AS __groupid, NULL AS __partition FROM (slice)',
+  );
+});
+
+test('UnionDatasetWithLineage with in filter', () => {
+  const dataset = UnionDatasetWithLineage.create([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {col: 'track_id', in: [123, 456]},
+    }),
+  ]);
+
+  expect(dataset.query()).toEqual(
+    'SELECT id, 0 AS __groupid, track_id AS __partition FROM (slice) WHERE track_id IN (123, 456)',
+  );
+});
+
+test('UnionDatasetWithLineage resolveLineage returns matching dataset', () => {
+  const ds1 = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    filter: {col: 'track_id', eq: 123},
+  });
+  const ds2 = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    filter: {col: 'track_id', eq: 456},
+  });
+
+  const union = UnionDatasetWithLineage.create([ds1, ds2]);
+
+  // Row with __groupid=0 and __partition=123 should resolve to ds1
+  const result1 = union.resolveLineage({__groupid: 0, __partition: 123});
+  expect(result1).toContain(ds1);
+  expect(result1).not.toContain(ds2);
+
+  // Row with __groupid=0 and __partition=456 should resolve to ds2
+  const result2 = union.resolveLineage({__groupid: 0, __partition: 456});
+  expect(result2).toContain(ds2);
+  expect(result2).not.toContain(ds1);
+});
+
+test('UnionDatasetWithLineage resolveLineage includes unfiltered datasets', () => {
+  const dsFiltered = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    filter: {col: 'track_id', eq: 123},
+  });
+  const dsUnfiltered = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+  });
+
+  const union = UnionDatasetWithLineage.create([dsFiltered, dsUnfiltered]);
+
+  // Any row should include the unfiltered dataset
+  const result = union.resolveLineage({__groupid: 0, __partition: 123});
+  expect(result).toContain(dsFiltered);
+  expect(result).toContain(dsUnfiltered);
+});
+
+test('UnionDatasetWithLineage resolveLineage with in filter matches any value', () => {
+  const ds = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    filter: {col: 'track_id', in: [123, 456, 789]},
+  });
+
+  const union = UnionDatasetWithLineage.create([ds]);
+
+  // Any of the values in the in filter should resolve to the dataset
+  expect(union.resolveLineage({__groupid: 0, __partition: 123})).toContain(ds);
+  expect(union.resolveLineage({__groupid: 0, __partition: 456})).toContain(ds);
+  expect(union.resolveLineage({__groupid: 0, __partition: 789})).toContain(ds);
+});
+
+test('UnionDatasetWithLineage with nested union dataset', () => {
+  const nestedUnion = UnionDataset.create([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {col: 'track_id', eq: 123},
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {col: 'track_id', eq: 456},
+    }),
+  ]);
+
+  const union = UnionDatasetWithLineage.create([nestedUnion]);
+
+  // Non-SourceDataset gets its own group
+  expect(union.query()).toContain('__groupid');
+  expect(union.query()).toContain('__partition');
+});
+
+test('UnionDatasetWithLineage schema is intersection of all datasets plus lineage', () => {
+  const dataset = UnionDatasetWithLineage.create([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR, dur: LONG},
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR, ts: LONG},
+    }),
+  ]);
+
+  // Only common columns plus lineage columns
+  expect(dataset.schema).toMatchObject({
+    id: NUM,
+    name: STR,
+    __groupid: NUM,
+    __partition: UNKNOWN,
+  });
+  expect(dataset.schema).not.toHaveProperty('dur');
+  expect(dataset.schema).not.toHaveProperty('ts');
 });

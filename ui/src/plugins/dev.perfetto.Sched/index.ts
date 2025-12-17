@@ -157,7 +157,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       createAggregationTab(ctx, new CpuSliceSelectionAggregator(ctx)),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator()),
+      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator(ctx)),
     );
 
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);

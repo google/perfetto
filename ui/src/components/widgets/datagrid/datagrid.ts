@@ -364,10 +364,32 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
 
+    // Collect all fields needed including dependencies
+    const visibleFields = this.columns.map((c) => c.field);
+    const dependencyFields = new Set<string>();
+
+    // Gather dependency fields from column definitions
+    for (const col of this.columns) {
+      const colInfo = getColumnInfo(schema, rootSchema, col.field);
+      if (colInfo?.dependsOn) {
+        for (const dep of colInfo.dependsOn) {
+          dependencyFields.add(dep);
+        }
+      }
+    }
+
+    // Create columns array with dependencies included
+    const columnsWithDeps: readonly Column[] = [
+      ...this.columns,
+      ...Array.from(dependencyFields)
+        .filter((field) => !visibleFields.includes(field))
+        .map((field) => ({field})),
+    ];
+
     // Notify the data source of the current model state.
     const datasource = getOrCreateDataSource(data);
     datasource.notify({
-      columns: this.columns,
+      columns: columnsWithDeps,
       filters: this.filters,
       pagination: {
         offset: this.paginationOffset,
@@ -1127,7 +1149,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
     const {attrs, result, columnInfoCache} = ctx;
 
-    if (!result) return [];
+    if (result === undefined) return [];
 
     // Find the intersection of rows between what we have and what is required
     // and only render those.
@@ -1402,7 +1424,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private buildPivotRows(ctx: PivotGridBuildContext): m.Children[][] {
     const {attrs, schema, rootSchema, result, pivot} = ctx;
 
-    if (!result) return [];
+    if (result === undefined) return [];
 
     // Find the intersection of rows between what we have and what is required
     // and only render those.

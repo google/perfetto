@@ -23,7 +23,7 @@ import {
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
-import {exists, getOrCreate} from '../base/utils';
+import {exists} from '../base/utils';
 import {TrackManagerImpl} from './track_manager';
 import {Engine} from '../trace_processor/engine';
 import {ScrollHelper} from './scroll_helper';
@@ -33,8 +33,12 @@ import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
 import {showModal} from '../widgets/modal';
-import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
-import {UnionDataset, SourceDataset} from '../trace_processor/dataset';
+import {NUM} from '../trace_processor/query_result';
+import {
+  UnionDatasetWithLineage,
+  SourceDataset,
+  Dataset,
+} from '../trace_processor/dataset';
 import {Track} from '../public/track';
 
 interface SelectionDetailsPanel {
@@ -227,17 +231,16 @@ export class SelectionManagerImpl implements SelectionManager {
     sqlTableName: string,
     ids: ReadonlyArray<number>,
   ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>> {
-    // This function:
-    // 1. Find the list of tracks whose rootTableName is the same as the one we
-    //    are looking for
-    // 2. Groups them by their filter column - i.e. utid, cpu, or track_id.
-    // 3. Builds a map of which of these column values match which track.
-    // 4. Run one query per group, reading out the filter column value, and
-    //    looking up the originating track in the map.
-    // One flaw of this approach is that.
-    const groups = new Map<string, [SourceDataset, Track][]>();
-    const tracksWithNoFilter: [SourceDataset, Track][] = [];
-    const matches: {eventId: number; trackUri: string}[] = [];
+    // This function uses UnionDatasetWithLineage to efficiently resolve which
+    // track(s) contain the given event IDs:
+    // 1. Find all tracks whose rootTableName matches
+    // 2. Build a map of dataset -> track for reverse lookup
+    // 3. Create a UnionDatasetWithLineage with all datasets
+    // 4. Query with lineage columns (__groupid, __partition)
+    // 5. Use resolveLineage() to find source datasets, then map back to tracks
+
+    const datasetToTrack = new Map<Dataset, Track>();
+    const datasets: SourceDataset[] = [];
 
     this.trackManager
       .getAllTracks()
@@ -250,65 +253,30 @@ export class SelectionManagerImpl implements SelectionManager {
       .filter(exists)
       .filter(([dataset]) => dataset.implements({id: NUM}))
       .forEach(([dataset, track]) => {
-        const col = dataset.filter?.col;
-        if (col) {
-          const existingGroup = getOrCreate(groups, col, () => []);
-          existingGroup.push([dataset, track]);
-        } else {
-          tracksWithNoFilter.push([dataset, track]);
-        }
+        datasetToTrack.set(dataset, track);
+        datasets.push(dataset);
       });
 
-    // Run one query per no-filter track. This is the only way we can reliably
-    // keep track of which track the event belonged to.
-    for (const [dataset, track] of tracksWithNoFilter) {
-      const query = `select id from (${dataset.query()}) where id IN (${ids.join(',')})`;
-      const result = await this.engine.query(query);
-      if (result.numRows() > 0) {
-        matches.push({
-          eventId: result.firstRow({id: NUM}).id,
-          trackUri: track.uri,
-        });
-      }
+    if (datasets.length === 0) {
+      return [];
     }
 
-    for (const [colName, values] of groups) {
-      // Build a map of the values -> track uri
-      const map = new Map<SqlValue, string>();
-      values.forEach(([dataset, track]) => {
-        const filter = dataset.filter;
-        if (filter) {
-          if ('eq' in filter) map.set(filter.eq, track.uri);
-          if ('in' in filter) filter.in.forEach((v) => map.set(v, track.uri));
-        }
-      });
+    const union = UnionDatasetWithLineage.create(datasets);
+    const schema = {...union.schema, id: NUM};
+    const query = `select * from (${union.query(schema)}) where id IN (${ids.join(',')})`;
+    const result = await this.engine.query(query);
 
-      const datasets = values.map(([dataset]) => dataset);
-      const union = UnionDataset.create(datasets);
+    const matches: {eventId: number; trackUri: string}[] = [];
+    const row = result.iter(schema);
 
-      // Make sure to include the filter value in the schema.
-      const schema = {...union.schema, [colName]: UNKNOWN};
-      const query = `select * from (${union.query(schema)}) where id IN (${ids.join(',')})`;
-      const result = await this.engine.query(query);
+    for (; row.valid(); row.next()) {
+      const sourceDatasets = union.resolveLineage(row);
 
-      const getTrackFromFilterValue = function (value: SqlValue) {
-        let trackUri = map.get(value);
-
-        // If that didn't work, try converting the value to a number if it's a
-        // bigint. Unless specified as a NUM type, any integers on the wire will
-        // be parsed as a bigint to avoid losing precision.
-        if (trackUri === undefined && typeof value === 'bigint') {
-          trackUri = map.get(Number(value));
-        }
-        return trackUri;
-      };
-
-      const row = result.iter(schema);
-      for (; row.valid(); row.next()) {
-        const value = row.get(colName);
-        const trackUri = getTrackFromFilterValue(value);
-        if (trackUri) {
-          matches.push({eventId: row.id as number, trackUri});
+      for (const sourceDataset of sourceDatasets) {
+        const track = datasetToTrack.get(sourceDataset);
+        if (track) {
+          matches.push({eventId: row.id as number, trackUri: track.uri});
+          break; // Only need one match per row
         }
       }
     }

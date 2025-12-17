@@ -25,6 +25,10 @@ export interface ColumnDef {
   readonly sum?: boolean;
   readonly sort?: 'ASC' | 'DESC';
   readonly cellRenderer?: AggregationCellRenderer;
+  // Additional fields this column depends on for rendering.
+  // These fields will be included in queries and made available in the row
+  // parameter passed to cellRenderer.
+  readonly dependsOn?: readonly string[];
 }
 
 export interface BarChartData {

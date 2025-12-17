@@ -26,11 +26,12 @@ import {AreaSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Track} from '../../public/track';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {SourceDataset} from '../../trace_processor/dataset';
 import {
-  buildQueryWithLineage,
-  LineageResolver,
-} from '../../trace_processor/dataset_query_utils';
+  Dataset,
+  DatasetSchema,
+  SourceDataset,
+  UnionDatasetWithLineage,
+} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
@@ -39,6 +40,7 @@ import {
   Row,
   STR,
   STR_NULL,
+  UNKNOWN,
 } from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {colorForThreadState} from './common';
@@ -56,7 +58,8 @@ export class ThreadStateSelectionAggregator implements Aggregator {
   readonly id = 'thread_state_aggregation';
 
   private readonly trace: Trace;
-  private lineageResolver?: LineageResolver<Track>;
+  private trackDatasetMap?: Map<Dataset, Track>;
+  private unionDataset?: UnionDatasetWithLineage<DatasetSchema>;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -78,26 +81,32 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        // Build query with lineage tracking
-        const {sql, lineageResolver} = buildQueryWithLineage({
-          inputs: threadStateTracks,
-          datasetFetcher: (t) => t.renderer.getDataset?.() as SourceDataset,
-          columns: THREAD_STATE_SPEC,
-        });
+        // Build track-to-dataset mapping
+        this.trackDatasetMap = new Map();
+        const datasets: Dataset[] = [];
+        for (const track of threadStateTracks) {
+          const dataset = track.renderer.getDataset?.();
+          if (dataset) {
+            datasets.push(dataset);
+            this.trackDatasetMap.set(dataset, track);
+          }
+        }
 
-        this.lineageResolver = lineageResolver;
+        // Create union dataset with lineage tracking
+        this.unionDataset = UnionDatasetWithLineage.create(datasets);
 
-        // Schema including lineage columns
-        const schemaWithLineage = {
+        // Query with needed columns for II table
+        const iiQuerySchema = {
           ...THREAD_STATE_SPEC,
           __groupid: NUM,
-          __partition: NUM,
+          __partition: UNKNOWN,
         };
+        const sql = this.unionDataset.query(iiQuerySchema);
 
         // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
           engine,
-          new SourceDataset({src: `(${sql})`, schema: schemaWithLineage}),
+          new SourceDataset({src: `(${sql})`, schema: iiQuerySchema}),
           area.start,
           area.end,
         );
@@ -177,6 +186,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           title: 'ID',
           columnId: 'id',
           formatHint: 'ID',
+          dependsOn: ['__groupid', '__partition'],
           cellRenderer: (value: unknown, row: Row) => {
             if (typeof value !== 'bigint') {
               return String(value);
@@ -185,17 +195,12 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             const groupId = row['__groupid'];
             const partition = row['__partition'];
 
-            if (
-              typeof groupId !== 'bigint' ||
-              (typeof partition !== 'bigint' && partition !== null)
-            ) {
+            if (typeof groupId !== 'bigint') {
               return String(value);
             }
 
-            const track = this.lineageResolver?.resolve(
-              Number(groupId),
-              Number(partition),
-            );
+            // Resolve track from lineage
+            const track = this.resolveTrack(Number(groupId), partition);
             if (!track) {
               return String(value);
             }
@@ -264,21 +269,40 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           formatHint: 'PERCENT',
           columnId: 'fraction_of_total',
         },
-        {
-          title: 'Partition',
-          columnId: '__partition',
-          formatHint: 'ID',
-        },
-        {
-          title: 'GroupID',
-          columnId: '__groupid',
-          formatHint: 'ID',
-        },
       ],
     };
   }
 
   getTabName() {
     return 'Thread States';
+  }
+
+  /**
+   * Resolve a track from lineage information.
+   */
+  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+    if (!this.trackDatasetMap || !this.unionDataset) return undefined;
+
+    // Ensure partition is a valid SqlValue
+    const partitionValue =
+      partition === null ||
+      typeof partition === 'number' ||
+      typeof partition === 'bigint' ||
+      typeof partition === 'string' ||
+      partition instanceof Uint8Array
+        ? partition
+        : null;
+
+    const datasets = this.unionDataset.resolveLineage({
+      __groupid: groupId,
+      __partition: partitionValue,
+    });
+
+    for (const dataset of datasets) {
+      const track = this.trackDatasetMap.get(dataset);
+      if (track) return track;
+    }
+
+    return undefined;
   }
 }

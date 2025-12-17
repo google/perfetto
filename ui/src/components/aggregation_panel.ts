@@ -61,6 +61,7 @@ export class AggregationPanel
           cellRenderer:
             c.cellRenderer ?? getCellRenderer(c.formatHint, c.columnId),
           cellFormatter: getValueFormatter(c.formatHint),
+          dependsOn: c.dependsOn,
         };
       }
       const schema: SchemaRegistry = {data: columnSchema};
@@ -87,6 +88,7 @@ export class AggregationPanel
           cellRenderer:
             c.cellRenderer ?? getCellRenderer(c.formatHint, c.columnId),
           cellFormatter: getValueFormatter(c.formatHint),
+          dependsOn: c.dependsOn,
         };
       }
       const schema: SchemaRegistry = {data: columnSchema};
