@@ -20,7 +20,14 @@ Unreleased:
       dragging selection handles or creating area selections, the cursor
       automatically snaps to nearby slice boundaries to enable exact
       measurement of slice durations. Hold Alt to temporarily disable snapping.
-  General:
+  Tracing service and probes:
+    * Updated TraceConfig proto to allow referring to target buffers by name
+      rather than index.
+  SDK:
+    * Added inotify support for UNIX sockets: if traced is unavailable or
+      crashes, on Linux and Android we reconnect immediately after the socke
+      has been recreated rather than relying on periodic retries.
+  Misc:
     * Upgraded standalone Bazel version to 8.5.0.
     * Switched Bazel usage to be fully based on bzlmod as, on Bazel 8, WORKSPACE
       builds are no longer supported.
