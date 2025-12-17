@@ -13,8 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {HTMLAttrs} from './common';
+import {classForIntent, HTMLAttrs, Intent} from './common';
 import {assertExists} from '../base/logging';
+import {Card} from './card';
+import {classNames} from '../base/classnames';
+import {Anchor} from './anchor';
+import {childrenValid} from '../base/mithril_utils';
 
 export interface SettingsShellAttrs extends HTMLAttrs {
   readonly title: string;
@@ -71,5 +75,69 @@ export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
 
   onremove() {
     this.observer?.disconnect();
+  }
+}
+
+export interface SettingsCardAttrs extends HTMLAttrs {
+  readonly id?: string;
+  readonly title: string;
+  readonly controls: m.Children;
+  readonly focused?: boolean;
+  readonly description?: m.Children;
+  readonly accent?: Intent;
+  readonly linkHref?: string;
+}
+
+export class SettingsCard implements m.ClassComponent<SettingsCardAttrs> {
+  oncreate(vnode: m.VnodeDOM<SettingsCardAttrs>) {
+    if (vnode.attrs.focused) {
+      vnode.dom.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+  }
+
+  view(vnode: m.Vnode<SettingsCardAttrs>) {
+    const {
+      className,
+      id,
+      title,
+      controls,
+      focused,
+      description,
+      accent,
+      linkHref,
+      ...rest
+    } = vnode.attrs;
+    return m(
+      Card,
+      {
+        ...rest,
+        id,
+        className: classNames(
+          'pf-settings-card',
+          accent !== undefined && classForIntent(accent),
+          focused && 'pf-settings-card--focused',
+          className,
+        ),
+      },
+      [
+        m(
+          '.pf-settings-card__details',
+          m(
+            '.pf-settings-card__title',
+            title,
+            m(Anchor, {
+              href: linkHref,
+              className: 'pf-settings-card__link',
+              icon: 'link',
+              title: 'Link to this flag',
+            }),
+          ),
+          id && m('.pf-settings-card__id', id),
+          childrenValid(description) &&
+            m('.pf-settings-card__description', description),
+        ),
+        controls,
+      ],
+    );
   }
 }

@@ -17,20 +17,20 @@ import {QueryResponse} from './queries';
 import {Row} from '../../trace_processor/query_result';
 import {Callout} from '../../widgets/callout';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Router} from '../../core/router';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
+import {DataGrid, renderCell, DataGridApi} from '../widgets/datagrid/datagrid';
 import {
-  DataGrid,
-  renderCell,
-  DataGridApi,
-} from '../widgets/data_grid/data_grid';
-import {DataGridDataSource} from '../widgets/data_grid/common';
-import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
+  CellRenderer,
+  ColumnSchema,
+  SchemaRegistry,
+} from '../widgets/datagrid/datagrid_schema';
+import {InMemoryDataSource} from '../widgets/datagrid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
-import {DataGridExportButton} from '../widgets/data_grid/export_buttons';
+import {DataGridExportButton} from '../widgets/datagrid/export_button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
+import {DataSource} from '../widgets/datagrid/data_source';
 
 type Numeric = bigint | number;
 
@@ -87,7 +87,7 @@ interface QueryTableAttrs {
 
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   private readonly trace: Trace;
-  private dataSource?: DataGridDataSource;
+  private dataSource?: DataSource;
   private dataGridApi?: DataGridApi;
 
   constructor({attrs}: m.CVnode<QueryTableAttrs>) {
@@ -142,14 +142,12 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         title: 'Copy executed query to clipboard',
         label: 'Copy Query',
       }),
-      this.dataGridApi && m(DataGridExportButton, {api: this.dataGridApi}),
+      this.dataGridApi &&
+        m(DataGridExportButton, {onExportData: this.dataGridApi.exportData}),
     ];
   }
 
-  private renderTableContent(
-    resp: QueryResponse,
-    dataSource: DataGridDataSource,
-  ) {
+  private renderTableContent(resp: QueryResponse, dataSource: DataSource) {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
@@ -164,46 +162,52 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     );
   }
 
-  private renderContent(resp: QueryResponse, dataSource: DataGridDataSource) {
+  private renderContent(resp: QueryResponse, dataSource: DataSource) {
     if (resp.error) {
       return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }
 
-    const onTimelinePage =
-      Router.parseUrl(window.location.href).page === '/viewer';
+    // Build schema directly
+    const columnSchema: ColumnSchema = {};
+    for (const column of resp.columns) {
+      const cellRenderer: CellRenderer | undefined =
+        column === 'id'
+          ? (value, row) => {
+              const sliceId = getSliceId(row);
+              const cell = renderCell(value, column);
+              if (sliceId !== undefined && isSliceish(row)) {
+                return m(
+                  Anchor,
+                  {
+                    title: 'Go to slice',
+                    icon: Icons.UpdateSelection,
+                    onclick: () => this.goToSlice(sliceId, false),
+                    ondblclick: () => this.goToSlice(sliceId, true),
+                  },
+                  cell,
+                );
+              } else {
+                return renderCell(value, column);
+              }
+            }
+          : undefined;
+
+      columnSchema[column] = {cellRenderer};
+    }
+
+    const schema: SchemaRegistry = {data: columnSchema};
 
     return m(DataGrid, {
+      schema,
+      rootSchema: 'data',
+      initialColumns: resp.columns.map((col) => ({field: col})),
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
       fillHeight: true,
       filters: [],
-      columns: resp.columns.map((c) => ({name: c})),
       data: dataSource,
       onReady: (api) => {
         this.dataGridApi = api;
-      },
-      cellRenderer: (value, name, row) => {
-        const sliceId = getSliceId(row);
-        const cell = renderCell(value, name);
-        if (
-          name === 'id' &&
-          sliceId !== undefined &&
-          onTimelinePage &&
-          isSliceish(row)
-        ) {
-          return m(
-            Anchor,
-            {
-              title: 'Go to slice',
-              icon: Icons.UpdateSelection,
-              onclick: () => this.goToSlice(sliceId, false),
-              ondblclick: () => this.goToSlice(sliceId, true),
-            },
-            cell,
-          );
-        } else {
-          return cell;
-        }
       },
     });
   }
@@ -212,6 +216,8 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     sliceId: number,
     switchToCurrentSelectionTab: boolean,
   ): void {
+    // Navigate to the timeline page
+    this.trace.navigate('#!/viewer');
     this.trace.selection.selectSqlEvent('slice', sliceId, {
       switchToCurrentSelectionTab,
       scrollToSelection: true,

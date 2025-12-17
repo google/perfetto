@@ -252,18 +252,18 @@ describe('utils', () => {
       });
     });
 
-    describe('COUNT_ALL operation', () => {
+    describe('COUNT(*) operation', () => {
       it('should allow all column types', () => {
         expect(
           isColumnValidForAggregation(
             createColumnInfo('name', 'STRING'),
-            'COUNT_ALL',
+            'COUNT(*)',
           ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
             createColumnInfo('dur', 'INT'),
-            'COUNT_ALL',
+            'COUNT(*)',
           ),
         ).toBe(true);
       });
@@ -346,8 +346,8 @@ describe('utils', () => {
       );
     });
 
-    it('should return correct requirements for COUNT_ALL', () => {
-      expect(getAggregationTypeRequirements('COUNT_ALL')).toBe(
+    it('should return correct requirements for COUNT(*)', () => {
+      expect(getAggregationTypeRequirements('COUNT(*)')).toBe(
         'No column required',
       );
     });

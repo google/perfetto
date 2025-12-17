@@ -116,10 +116,22 @@ const SIMPLE_TYPES: Record<string, SimpleType['kind']> = {
   argsetid: 'arg_set_id',
 };
 
+// List of all simple PerfettoSQL type kinds (excluding ID types).
+export const SIMPLE_TYPE_KINDS: SimpleType['kind'][] = [
+  'int',
+  'double',
+  'string',
+  'boolean',
+  'timestamp',
+  'duration',
+  'bytes',
+  'arg_set_id',
+];
+
 export function parsePerfettoSqlTypeFromString(args: {
   type: string;
-  table: string;
-  column: string;
+  table?: string;
+  column?: string;
 }): Result<PerfettoSqlType> {
   const value = args.type.toLowerCase();
   const maybeSimpleType = SIMPLE_TYPES[value];
@@ -130,6 +142,11 @@ export function parsePerfettoSqlTypeFromString(args: {
   }
   if (value === 'id') {
     // The plain `ID` are resolved into `ID($current_table.$current_column)`.
+    if (args.table === undefined || args.column === undefined) {
+      return errResult(
+        `Cannot parse plain 'id' type without table and column context`,
+      );
+    }
     return okResult({
       kind: 'id',
       source: {

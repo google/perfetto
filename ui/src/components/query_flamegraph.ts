@@ -232,6 +232,11 @@ export class QueryFlamegraph implements AsyncDisposable {
       // disposed due to the SharedAsyncDisposable logic.
       await using trash = new AsyncDisposableStack();
       for (const dependency of this.dependencies ?? []) {
+        // If the dependency is disposed, it means that we have already ended
+        // up cleaning up the object so none of this matters. Just return.
+        if (dependency.isDisposed) {
+          return;
+        }
         trash.use(dependency.clone());
       }
       this.data = await computeFlamegraphTree(engine, metric, state);

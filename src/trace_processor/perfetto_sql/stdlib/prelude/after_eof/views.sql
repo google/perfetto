@@ -259,7 +259,7 @@ SELECT
     WHEN 'int'
     THEN cast_string!(int_value)
     WHEN 'uint'
-    THEN cast_string!(int_value)
+    THEN printf('%u', int_value)
     WHEN 'string'
     THEN string_value
     WHEN 'real'

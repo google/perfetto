@@ -50,6 +50,7 @@ import {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
 import {parseUrlCommands} from './command_manager';
 import {isStartupCommandAllowed} from './startup_command_allowlist';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -239,7 +240,11 @@ async function loadTraceIntoEngine(
     engine,
   );
 
-  trace.timeline.updateVisibleTime(visibleTimeSpan);
+  const newViewport = HighPrecisionTimeSpan.fromTime(
+    visibleTimeSpan.start,
+    visibleTimeSpan.end,
+  );
+  trace.timeline.setVisibleWindow(newViewport);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
   Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);

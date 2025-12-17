@@ -12,71 +12,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ModifyColumnsNode} from './modify_columns_node';
-import {QueryNode, NodeType} from '../../query_node';
-import {ColumnInfo} from '../column_info';
+import {ModifyColumnsNode, ModifyColumnsState} from './modify_columns_node';
+import {QueryNode} from '../../query_node';
+import {
+  createMockNode,
+  createColumnInfo,
+  connectNodes,
+} from '../testing/test_utils';
 
 describe('ModifyColumnsNode', () => {
   function createMockPrevNode(): QueryNode {
-    return {
+    return createMockNode({
       nodeId: 'mock',
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: [
-        {
-          name: 'id',
-          type: 'INT',
-          checked: true,
-          column: {name: 'id'},
-        },
-        {
-          name: 'status',
-          type: 'STRING',
-          checked: true,
-          column: {name: 'status'},
-        },
-        {
-          name: 'value',
-          type: 'INT',
-          checked: true,
-          column: {name: 'value'},
-        },
+      columns: [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('status', 'string'),
+        createColumnInfo('value', 'int'),
       ],
-      state: {},
-      validate: () => true,
-      getTitle: () => 'Mock',
-      nodeSpecificModify: () => null,
-      nodeInfo: () => null,
-      clone: () => createMockPrevNode(),
-      getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
-    } as QueryNode;
+    });
   }
 
-  function createColumnInfo(name: string, type: string): ColumnInfo {
-    return {
-      name,
-      type,
-      checked: true,
-      column: {name},
-    };
+  function createModifyColumnsNodeWithInput(
+    state: ModifyColumnsState,
+    inputNode?: QueryNode,
+  ): ModifyColumnsNode {
+    const node = new ModifyColumnsNode(state);
+    if (inputNode) {
+      // Directly set the connection without triggering onPrevNodesUpdated
+      // to preserve the test's explicitly provided selectedColumns
+      connectNodes(inputNode, node);
+    }
+    return node;
   }
 
   describe('validation', () => {
     it('should validate when at least one column is selected', () => {
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [createColumnInfo('id', 'INT')],
-      });
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [createColumnInfo('id', 'int')],
+        },
+        createMockPrevNode(),
+      );
 
       expect(node.validate()).toBe(true);
     });
 
     it('should fail validation when no columns selected', () => {
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [],
-      });
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [],
+        },
+        createMockPrevNode(),
+      );
 
       // Uncheck all auto-populated columns
       node.state.selectedColumns.forEach((col) => {
@@ -86,37 +73,44 @@ describe('ModifyColumnsNode', () => {
       expect(node.validate()).toBe(false);
     });
 
-    it('should fail validation for empty alias', () => {
-      const col = createColumnInfo('id', 'INT');
+    it('should allow empty alias (uses original column name)', () => {
+      const col = createColumnInfo('id', 'int');
       col.alias = '';
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [col],
-      });
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col],
+        },
+        createMockPrevNode(),
+      );
 
-      expect(node.validate()).toBe(false);
+      // Empty alias is allowed - it just means use the original column name
+      expect(node.validate()).toBe(true);
     });
 
     it('should fail validation for duplicate column names', () => {
-      const col1 = createColumnInfo('id', 'INT');
-      const col2 = createColumnInfo('status', 'STRING');
-      col2.alias = 'id'; // Same as col1's name
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [col1, col2],
-      });
+      const col1 = createColumnInfo('id', 'int');
+      const col2 = createColumnInfo('status', 'string', {alias: 'id'});
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col1, col2],
+        },
+        createMockPrevNode(),
+      );
 
       expect(node.validate()).toBe(false);
     });
 
     it('should allow columns with different names', () => {
-      const col1 = createColumnInfo('id', 'INT');
-      const col2 = createColumnInfo('status', 'STRING');
-      col2.alias = 'status_renamed';
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [col1, col2],
+      const col1 = createColumnInfo('id', 'int');
+      const col2 = createColumnInfo('status', 'string', {
+        alias: 'status_renamed',
       });
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col1, col2],
+        },
+        createMockPrevNode(),
+      );
 
       expect(node.validate()).toBe(true);
     });
@@ -124,13 +118,15 @@ describe('ModifyColumnsNode', () => {
 
   describe('serialization', () => {
     it('should serialize selected columns correctly', () => {
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('status', 'STRING'),
-        ],
-      });
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            createColumnInfo('status', 'string'),
+          ],
+        },
+        createMockPrevNode(),
+      );
 
       const serialized = node.serializeState();
 
@@ -141,13 +137,16 @@ describe('ModifyColumnsNode', () => {
     });
 
     it('should serialize column aliases correctly', () => {
-      const col1 = createColumnInfo('id', 'INT');
-      const col2 = createColumnInfo('status', 'STRING');
-      col2.alias = 'status_renamed';
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [col1, col2],
+      const col1 = createColumnInfo('id', 'int');
+      const col2 = createColumnInfo('status', 'string', {
+        alias: 'status_renamed',
       });
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col1, col2],
+        },
+        createMockPrevNode(),
+      );
 
       const serialized = node.serializeState();
 
@@ -156,13 +155,14 @@ describe('ModifyColumnsNode', () => {
     });
 
     it('should serialize checked status correctly', () => {
-      const col1 = createColumnInfo('id', 'INT');
-      const col2 = createColumnInfo('status', 'STRING');
-      col2.checked = false;
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [col1, col2],
-      });
+      const col1 = createColumnInfo('id', 'int');
+      const col2 = createColumnInfo('status', 'string', {checked: false});
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col1, col2],
+        },
+        createMockPrevNode(),
+      );
 
       const serialized = node.serializeState();
 
@@ -173,14 +173,15 @@ describe('ModifyColumnsNode', () => {
 
   describe('finalCols computation', () => {
     it('should include only checked columns', () => {
-      const col1 = createColumnInfo('id', 'INT');
-      const col2 = createColumnInfo('status', 'STRING');
-      col2.checked = false;
-      const col3 = createColumnInfo('value', 'INT');
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [col1, col2, col3],
-      });
+      const col1 = createColumnInfo('id', 'int');
+      const col2 = createColumnInfo('status', 'string', {checked: false});
+      const col3 = createColumnInfo('value', 'int');
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col1, col2, col3],
+        },
+        createMockPrevNode(),
+      );
 
       const finalCols = node.finalCols;
 
@@ -190,12 +191,13 @@ describe('ModifyColumnsNode', () => {
     });
 
     it('should use alias as column name in finalCols', () => {
-      const col1 = createColumnInfo('id', 'INT');
-      col1.alias = 'identifier';
-      const node = new ModifyColumnsNode({
-        prevNode: createMockPrevNode(),
-        selectedColumns: [col1],
-      });
+      const col1 = createColumnInfo('id', 'int', {alias: 'identifier'});
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col1],
+        },
+        createMockPrevNode(),
+      );
 
       const finalCols = node.finalCols;
 

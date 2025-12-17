@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
+  AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
@@ -54,12 +54,8 @@ export class FrameSelectionAggregator implements Aggregator {
           create or replace perfetto table ${this.id} as
           select
             jank_type,
-            count(1) as occurrences,
-            min(dur) as minDur,
-            avg(dur) as meanDur,
-            max(dur) as maxDur
+            dur
           from (${iiTable.name})
-          group by jank_type
         `);
 
         return {
@@ -73,36 +69,38 @@ export class FrameSelectionAggregator implements Aggregator {
     return 'Frames';
   }
 
-  getDefaultSorting(): Sorting {
-    return {column: 'occurrences', direction: 'DESC'};
-  }
-
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Jank Type',
-        columnId: 'jank_type',
-      },
-      {
-        title: 'Min duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'minDur',
-      },
-      {
-        title: 'Max duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'maxDur',
-      },
-      {
-        title: 'Mean duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'meanDur',
-      },
-      {
-        title: 'Occurrences',
-        columnId: 'occurrences',
-        sum: true,
-      },
-    ];
+  getColumnDefinitions(): AggregatePivotModel {
+    return {
+      groupBy: [{field: 'jank_type'}],
+      aggregates: [
+        {
+          function: 'COUNT',
+          sort: 'DESC',
+        },
+        {
+          field: 'dur',
+          function: 'MIN',
+        },
+        {
+          field: 'dur',
+          function: 'MAX',
+        },
+        {
+          field: 'dur',
+          function: 'AVG',
+        },
+      ],
+      columns: [
+        {
+          title: 'Jank Type',
+          columnId: 'jank_type',
+        },
+        {
+          title: 'Duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'dur',
+        },
+      ],
+    };
   }
 }

@@ -752,6 +752,21 @@ class Module(object):
     else:
       self.shared_libs.add(lib)
 
+  def add_static_library_transitive_deps(self, dep_module):
+    # The motivation for this change is b/169779783: cc_library_static do not
+    # correctly propogate their static_library deps. So we need to do the
+    # propogation ourselves.
+    # TODO(169779783): remove this workaround when b/169779783 is fixed.
+    assert dep_module.type == 'cc_library_static'
+
+    self.static_libs.update(dep_module.static_libs)
+    self.android.static_libs.update(dep_module.android.static_libs)
+    self.host.static_libs.update(dep_module.host.static_libs)
+
+    self.shared_libs.update(dep_module.shared_libs)
+    self.android.shared_libs.update(dep_module.android.shared_libs)
+    self.host.shared_libs.update(dep_module.host.shared_libs)
+
   def _output_field(self, output, name, sort=True):
     value = getattr(self, name)
     return write_blueprint_key_value(output, name, value, sort)
@@ -1490,12 +1505,14 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
       module.shared_libs.add(dep_module.name)
     elif dep_module.type == 'cc_library_static':
       module.static_libs.add(dep_module.name)
+      module.add_static_library_transitive_deps(dep_module)
     elif dep_module.type == 'cc_library':
       dep_gn_target = gn.get_target(dep_name)
       if dep_gn_target.type == 'shared_library':
         module.shared_libs.add(dep_module.name)
       elif dep_gn_target.type == 'static_library':
         module.static_libs.add(dep_module.name)
+        module.add_static_library_transitive_deps(dep_module)
       else:
         raise Error('Unknown gn type %s for cc_library dep %s' %
                     (dep_gn_target.type, dep_module.name))

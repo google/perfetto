@@ -69,9 +69,10 @@ export function registerUiTools(server: McpServer, ctxt: Trace) {
         const endTime = BigInt(timeSpan.endTime);
         assertTrue(startTime >= ctxt.traceInfo.start);
         assertTrue(endTime <= ctxt.traceInfo.end);
-        ctxt.timeline.setViewportTime(
+        ctxt.timeline.panSpanIntoView(
           Time.fromRaw(startTime),
           Time.fromRaw(endTime),
+          {align: 'zoom'},
         );
       }
       if (focus) {

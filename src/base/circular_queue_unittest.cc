@@ -24,6 +24,8 @@ namespace perfetto {
 namespace base {
 namespace {
 
+using testing::ElementsAre;
+
 TEST(CircularQueueTest, Int) {
   CircularQueue<int> queue(/*initial_capacity=*/1);
   ASSERT_EQ(queue.size(), 0u);
@@ -171,6 +173,152 @@ TEST(CircularQueueTest, Iterators) {
     ASSERT_TRUE(std::is_sorted(begin, mid));
     ASSERT_TRUE(std::is_sorted(mid, end));
   }
+}
+
+TEST(CircularQueueTest, ReverseIterators) {
+  CircularQueue<int> queue;
+  ASSERT_EQ(queue.rbegin(), queue.rend());
+  queue.emplace_back(1);
+
+  ASSERT_EQ(*queue.rbegin(), 1);
+  ASSERT_EQ(++queue.rbegin(), queue.rend());
+
+  queue.emplace_back(2);
+  queue.emplace_back(3);
+
+  auto it = queue.rbegin();
+  ASSERT_EQ(*(it++), 3);
+  ASSERT_EQ(*(it++), 2);
+  ASSERT_EQ(*(it++), 1);
+  ASSERT_EQ(it, queue.rend());
+}
+
+TEST(CircularQueueTest, InsertBefore) {
+  CircularQueue<int> queue;
+  queue.InsertBefore(queue.end(), 20);
+  ASSERT_THAT(queue, ElementsAre(20));
+
+  queue.InsertBefore(queue.begin(), 10);
+  ASSERT_THAT(queue, ElementsAre(10, 20));
+
+  queue.InsertBefore(queue.end(), 40);
+  ASSERT_THAT(queue, ElementsAre(10, 20, 40));
+
+  queue.InsertBefore(queue.Find(40), 30);
+  ASSERT_THAT(queue, ElementsAre(10, 20, 30, 40));
+
+  queue.InsertBefore(queue.begin(), 0);
+  ASSERT_THAT(queue, ElementsAre(0, 10, 20, 30, 40));
+
+  // Now test InsertAfter(reverse_iterator). There is a catch here,
+  // Insert on a reverse iterator actually inserts *after* the iterator.
+  // As bad as it sound, this is consistent with what other STL containers do.
+  // It's tied to the fact that std::reverse_iterator creates maps r == i-1.
+  // From STL docs:
+  // > For a reverse iterator r constructed from an iterator i, the relationship
+  // > &*r == &*(i - 1) is always true (as long as r is dereferenceable); thus a
+  // > reverse iterator constructed from a one-past-the-end iterator
+  // > dereferences to the last element in a sequence.
+  // ```
+  queue.InsertAfter(queue.rbegin(), 60);
+  ASSERT_THAT(queue, ElementsAre(0, 10, 20, 30, 40, 60));
+
+  for (auto it = queue.rbegin(); it != queue.rend(); ++it) {
+    if (*it == 40) {
+      queue.InsertAfter(it, 50);
+      break;
+    }
+  }
+  ASSERT_THAT(queue, ElementsAre(0, 10, 20, 30, 40, 50, 60));
+
+  // I know you don't believe me, so here's the proof.
+  std::vector<int> v{10, 20};
+  v.emplace(v.rbegin().base(), 40);
+  ASSERT_THAT(v, ElementsAre(10, 20, 40));
+  for (auto it = v.rbegin(); it != v.rend(); ++it) {
+    if (*it == 20) {
+      v.insert(it.base(), 30);
+      break;
+    }
+  }
+  ASSERT_THAT(v, ElementsAre(10, 20, 30, 40));
+}
+
+TEST(CircularQueueTest, InsertBeforeReverse) {
+  CircularQueue<int> queue;
+
+  std::array<int, 5> new_entries{4, 1, 5, 2, 3};
+  for (int n : new_entries) {
+    auto it = queue.rbegin();
+    while (it != queue.rend() && n < *it) {
+      ++it;
+    }
+    queue.InsertAfter(it, n);
+  }
+  ASSERT_THAT(queue, ElementsAre(1, 2, 3, 4, 5));
+}
+
+// Test that InsertBefore works correctly when it triggers a capacity growth.
+// This verifies that the iterator's pos_ (which is an abstract index) remains
+// valid after the internal storage is reallocated during Grow().
+TEST(CircularQueueTest, InsertBeforeWithGrow) {
+  // Use a small initial capacity so we can easily trigger growth.
+  CircularQueue<int> queue(/*initial_capacity=*/4);
+
+  // Fill the queue to capacity.
+  queue.emplace_back(10);
+  queue.emplace_back(20);
+  queue.emplace_back(30);
+  queue.emplace_back(40);
+  ASSERT_EQ(queue.size(), 4u);
+  ASSERT_EQ(queue.capacity(), 4u);
+
+  // Get the position where we want to insert (at element 30).
+  // Note: We can't use the iterator directly after InsertBefore because
+  // increment_generation() invalidates it. We use pos_ which is accessed
+  // directly by InsertBefore.
+  auto it = queue.begin() + 2;
+  ASSERT_EQ(*it, 30);
+
+  // This InsertBefore should trigger Grow() since we're at capacity.
+  // After Grow(), the iterator's pos_ (an abstract index) should still be
+  // valid because CircularQueue uses monotonic indices, not pointers.
+  queue.InsertBefore(it, 25);
+
+  // Verify the queue grew.
+  ASSERT_GT(queue.capacity(), 4u);
+  ASSERT_EQ(queue.size(), 5u);
+
+  // Verify all elements are in the correct order.
+  ASSERT_THAT(queue, ElementsAre(10, 20, 25, 30, 40));
+}
+
+// Test InsertBefore with growth when the queue has wrapped around internally.
+TEST(CircularQueueTest, InsertBeforeWithGrowAfterWrap) {
+  CircularQueue<int> queue(/*initial_capacity=*/4);
+
+  // Fill and then pop to move the internal begin_ forward.
+  queue.emplace_back(1);
+  queue.emplace_back(2);
+  queue.pop_front();
+  queue.pop_front();
+
+  // Now internal begin_ is at position 2. Add elements to wrap around.
+  queue.emplace_back(10);
+  queue.emplace_back(20);
+  queue.emplace_back(30);
+  queue.emplace_back(40);
+  ASSERT_EQ(queue.size(), 4u);
+  ASSERT_EQ(queue.capacity(), 4u);
+
+  // Insert in the middle, triggering growth while wrapped.
+  auto it = queue.begin() + 2;
+  ASSERT_EQ(*it, 30);
+  queue.InsertBefore(it, 25);
+
+  ASSERT_GT(queue.capacity(), 4u);
+  ASSERT_EQ(queue.size(), 5u);
+  ASSERT_THAT(queue, ElementsAre(10, 20, 25, 30, 40));
 }
 
 TEST(CircularQueueTest, ObjectLifetime) {

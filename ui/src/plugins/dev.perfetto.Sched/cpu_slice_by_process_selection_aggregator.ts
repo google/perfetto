@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
+  AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
@@ -54,14 +54,12 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
           select
             process.name as process_name,
             process.pid,
-            sum(dur) AS total_dur,
-            sum(dur) / count() as avg_dur,
-            count() as occurrences,
-            cast(sum(dur) as real) / sum(sum(dur)) OVER () as percent_of_total
+            dur,
+            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
+            dur * 1.0 / ${area.end - area.start} as fraction_of_selection
           from (${iiTable.name})
           join thread USING (utid)
           join process USING (upid)
-          group by upid
         `);
 
         return {
@@ -75,41 +73,41 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
     return 'CPU by process';
   }
 
-  getDefaultSorting(): Sorting {
-    return {column: 'total_dur', direction: 'DESC'};
-  }
-
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Process',
-        columnId: 'process_name',
-      },
-      {
-        title: 'PID',
-        columnId: 'pid',
-      },
-      {
-        title: 'Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'total_dur',
-        sum: true,
-      },
-      {
-        title: 'Wall duration %',
-        formatHint: 'PERCENT',
-        columnId: 'percent_of_total',
-      },
-      {
-        title: 'Avg Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'avg_dur',
-      },
-      {
-        title: 'Occurrences',
-        columnId: 'occurrences',
-        sum: true,
-      },
-    ];
+  getColumnDefinitions(): AggregatePivotModel {
+    return {
+      groupBy: [{field: 'pid'}, {field: 'process_name'}],
+      aggregates: [
+        {function: 'COUNT'},
+        {field: 'dur', function: 'SUM', sort: 'DESC'},
+        {field: 'fraction_of_total', function: 'SUM'},
+        {field: 'dur', function: 'AVG'},
+      ],
+      columns: [
+        {
+          title: 'PID',
+          columnId: 'pid',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'Process Name',
+          columnId: 'process_name',
+        },
+        {
+          title: 'Wall Duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'dur',
+        },
+        {
+          title: 'Wall Duration as % of Total',
+          formatHint: 'PERCENT',
+          columnId: 'fraction_of_total',
+        },
+        {
+          title: 'Wall Duration as % of Selection',
+          columnId: 'fraction_of_selection',
+          formatHint: 'PERCENT',
+        },
+      ],
+    };
   }
 }

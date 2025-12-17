@@ -14,7 +14,7 @@ The perfetto repo contains several projects. These are the major ones
 
 3. TraceProcessor: a C++ project that lives in src/trace_processor/. This code is typically NOT shipped on device and is used by offline tools. It is internally based on sqlite and it extends its query engine via the vtable API. The UI uses this building in Wasm (Web Assembly).
 
-4. Perfetto UI: This is a Single Page Web Application, client-only (no server component) written in TypeScript that powers ui.perfetto.dev. It lives in ui/. It embeds TraceProcessor via Wasm.
+4. Perfetto UI: This is a Single Page Web Application, client-only (no server component) written in TypeScript that powers ui.perfetto.dev. It lives in ui/. It embeds TraceProcessor via Wasm. If you plan to make UI changes, look at the AGENTS-ui.md file (same folder) and stop looking at the rest of this file.
 
 5. A bunch of other tools and utilities used rarely, in tools/ and src/tools.
 

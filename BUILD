@@ -3121,6 +3121,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.cc",
@@ -3305,7 +3307,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/cujs/cujs_base.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/base.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/cuj_frame_counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
     ],
 )
@@ -3359,6 +3362,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/excluded_refs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph_class_aggregation.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/helpers.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/raw_dominator_tree.sql",
     ],
@@ -3378,6 +3382,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_memory",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf_spans.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/lmk.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/process.sql",
     ],
@@ -3667,6 +3672,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/stacks/cpu_profiling.sql",
+        "src/trace_processor/perfetto_sql/stdlib/stacks/symbolization_candidates.sql",
     ],
 )
 
@@ -4746,8 +4752,15 @@ perfetto_filegroup(
         "src/tracing/service/trace_buffer.h",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v1.h",
+        "src/tracing/service/trace_buffer_v2.cc",
+        "src/tracing/service/trace_buffer_v2.h",
+        "src/tracing/service/tracing_service_endpoints_impl.cc",
+        "src/tracing/service/tracing_service_endpoints_impl.h",
         "src/tracing/service/tracing_service_impl.cc",
         "src/tracing/service/tracing_service_impl.h",
+        "src/tracing/service/tracing_service_session.cc",
+        "src/tracing/service/tracing_service_session.h",
+        "src/tracing/service/tracing_service_structs.h",
     ],
 )
 

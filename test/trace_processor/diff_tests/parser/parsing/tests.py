@@ -979,6 +979,38 @@ class Parsing(TestSuite):
         5,"com.google.android.gms",10100,1,"com.google.android.gms",1234,0
         """))
 
+  # package metadata with user type
+  def test_package_metadata_user_type(self):
+    return DiffTestBlueprint(
+        trace=DataPath('user_package_metadata.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_metadata;
+        
+        SELECT
+          package_name, 
+          process_name, 
+          uid, 
+          user_id, 
+          user_type 
+        FROM 
+          android_process_metadata
+        WHERE package_name IS NOT NULL 
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "package_name","process_name","uid","user_id","user_type"
+        "com.google.android.bluetooth","/vendor/bin/hw/android.hardware.bluetooth@1.1-service.synabtlinux",1002,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.googlequicksearchbox","com.google.android.googlequicksearchbox:search",10180,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.apps.turbo","com.google.android.apps.turbo:aab",10164,11,"android.os.usertype.full.SECONDARY"
+        "com.google.android.apps.messaging","com.google.android.apps.messaging",10171,11,"android.os.usertype.full.SECONDARY"
+        "com.google.android.googlequicksearchbox","com.google.android.googlequicksearchbox:googleapp",10180,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.googlequicksearchbox","com.google.android.googlequicksearchbox:interactor",10180,11,"android.os.usertype.full.SECONDARY"
+        "com.android.systemui","com.android.systemui",10252,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.apps.nest.dockmanager.app","com.google.android.apps.nest.dockmanager.app",10187,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.flipendo","com.google.android.flipendo",10268,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.pixelsystemservice","com.google.android.pixelsystemservice",10269,0,"android.os.usertype.system.HEADLESS"
+        """))
+
   # Flow events importing from json
   def test_flow_events_json_v1(self):
     return DiffTestBlueprint(
