@@ -321,16 +321,13 @@ void FileIoTracker::ParseFileIoInfo(int64_t timestamp,
             // Replace "Extra Info" with a more specific descriptor when the
             // type of information is known, per
             // https://learn.microsoft.com/en-us/windows/win32/etw/fileio-info.
-            switch (static_cast<FileInfoClass>(decoder.info_class())) {
-              case FileInfoClass::kFileDispositionInformation:
-                extra_info_arg = disposition_arg_;
-                break;
-              case FileInfoClass::kFileEndOfFileInformation:
-              case FileInfoClass::kFileAllocationInformation:
-                extra_info_arg = file_size_arg_;
-                break;
-              default:
-                break;
+            const auto info_class =
+                static_cast<FileInfoClass>(decoder.info_class());
+            if (info_class == FileInfoClass::kFileDispositionInformation) {
+              extra_info_arg = disposition_arg_;
+            } else if (info_class == FileInfoClass::kFileEndOfFileInformation ||
+                       info_class == FileInfoClass::kFileAllocationInformation) {
+              extra_info_arg = file_size_arg_;
             }
           }
           inserter->AddArg(extra_info_arg,
