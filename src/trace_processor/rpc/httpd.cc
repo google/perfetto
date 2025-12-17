@@ -24,6 +24,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -207,6 +208,7 @@ class Httpd : public base::HttpRequestHandler {
   std::mutex websocket_rpc_mutex_;
   std::unordered_map<std::string, std::unique_ptr<RpcThread>> id_to_tp_map;
   std::unordered_map<base::HttpServerConnection*, std::string> conn_to_id_map;
+  std::unordered_set<std::string> closed_conn_ids_; // if you don't keep a list of the UUIDs of closed connections, the frontend will confuse it with closing the laptop lid and try to reopen them, causing a new thread to be reopened immediately. when you make a new websocket handshake, check this set to see if it was previously closed, and if so, refuse to reopen it.
   size_t tp_timeout_mins_;
 };
 
@@ -411,15 +413,6 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
             "Legacy /websocket endpoint: connecting to global trace "
             "processor instance");
         instance_uuid = kDefaultTpUuid;
-        // } else if (path == "/new") {
-        //   // Case 3: Explicit request for a new instance.
-        //   send_id_back = true;
-        //   base::Uuid new_uuid = base::Uuidv4();
-        //   instance_uuid = new_uuid.ToPrettyString();
-        //   auto new_thread = std::make_unique<RpcThread>(this);
-        //   id_to_tp_map.emplace(instance_uuid, std::move(new_thread));
-        //   PERFETTO_ILOG("New TP instance %s created via /websocket/new",
-        //                 instance_uuid.c_str());
       } else {
         // if an ID's provided, create a new TP in a separate thread and
         // register it in the map.
@@ -428,6 +421,12 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
           return conn.SendResponseAndClose("404 Not Found", {});
         }
         instance_uuid = parsed_uuid;
+        // check if this ID was previously closed
+        if (closed_conn_ids_.find(instance_uuid) != closed_conn_ids_.end()) {
+          PERFETTO_ILOG("Refusing to reopen previously closed TP instance %s",
+                        instance_uuid.c_str());
+          return conn.SendResponseAndClose("410 Gone", {});
+        }
         if (id_to_tp_map.find(instance_uuid) == id_to_tp_map.end()) {
           //   if no such thread exists, create one.
           instance_uuid = path;
@@ -494,6 +493,8 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
            conn_to_id_it != conn_to_id_map.end();) {
         if (conn_to_id_it->second == instance_uuid) {
           auto conn_to_close = conn_to_id_it->first;
+          auto closed_id = conn_to_id_it->second.substr(1); // remove leading '/'
+          closed_conn_ids_.insert(closed_id);
           conn_to_id_it = conn_to_id_map.erase(conn_to_id_it);
           conn_to_close->Close();
         } else {
