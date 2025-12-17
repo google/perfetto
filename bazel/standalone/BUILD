@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file is intentionally minimal. Standalone Perfetto builds use bzlmod
-# (see MODULE.bazel). This WORKSPACE file exists only for compatibility with
-# older Bazel versions that don't support bzlmod.
-#
-# Embedders who depend on Perfetto via WORKSPACE should use deps.bzl:
-#   load("@perfetto//bazel:deps.bzl", "perfetto_deps")
-#   perfetto_deps()
-
-workspace(name = "perfetto")
+exports_files(["perfetto_cfg.bzl"])
