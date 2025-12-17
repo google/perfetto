@@ -53,8 +53,13 @@ source_set("service") {
     "trace_buffer_v1.h",
     "trace_buffer_v2.cc",
     "trace_buffer_v2.h",
+    "tracing_service_endpoints_impl.cc",
+    "tracing_service_endpoints_impl.h",
     "tracing_service_impl.cc",
     "tracing_service_impl.h",
+    "tracing_service_session.cc",
+    "tracing_service_session.h",
+    "tracing_service_structs.h",
   ]
   if (is_android && perfetto_build_with_android) {
     deps += [

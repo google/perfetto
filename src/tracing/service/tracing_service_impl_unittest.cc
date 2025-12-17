@@ -113,7 +113,7 @@ using ::testing::StringMatchResultListener;
 using ::testing::StrNe;
 using ::testing::UnorderedElementsAre;
 
-namespace perfetto {
+namespace perfetto::tracing_service {
 
 namespace {
 constexpr size_t kDefaultShmSizeKb = TracingServiceImpl::kDefaultShmSize / 1024;
@@ -3375,8 +3375,7 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
   // Wait for at most half of the service timeout, so that this test fails if
   // the service falls back on calling the OnTracingDisabled() because some of
   // the expected acks weren't received.
-  consumer->WaitForTracingDisabled(
-      TracingServiceImpl::kDataSourceStopTimeoutMs / 2);
+  consumer->WaitForTracingDisabled(kDataSourceStopTimeoutMs / 2);
 }
 
 // Creates a tracing session where a second data source
@@ -7635,4 +7634,4 @@ TEST_F(TracingServiceImplTest, NamedBufferMixedWithUnnamed) {
 
 }  // namespace
 
-}  // namespace perfetto
+}  // namespace perfetto::tracing_service
