@@ -194,7 +194,9 @@ class FileIoTracker {
 
   // Records an "EndOperation" event with a duration of zero, and adds an
   // argument labeling it as missing a matching start event.
-  void RecordUnmatchedEnd(int64_t timestamp, uint32_t thread_id);
+  void RecordUnmatchedEnd(int64_t timestamp,
+                          uint32_t thread_id,
+                          SliceTracker::SetArgsCallback args);
 
   // Records an event without an IRP identifier with a duration of zero (as it's
   // unable to be matched with a corresponding start or end event).

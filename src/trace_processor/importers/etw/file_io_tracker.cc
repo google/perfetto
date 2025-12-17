@@ -499,7 +499,7 @@ void FileIoTracker::EndEvent(std::optional<Irp> irp,
   const auto started_event = started_events_.find(*irp);
   if (started_event == started_events_.end()) {
     // This end event has no corresponding start.
-    RecordUnmatchedEnd(timestamp, thread_id);
+    RecordUnmatchedEnd(timestamp, thread_id, std::move(args));
     return;
   }
   const auto name = started_event->second.name;
@@ -524,7 +524,9 @@ void FileIoTracker::EndUnmatchedStart(Irp irp,
            });
 }
 
-void FileIoTracker::RecordUnmatchedEnd(int64_t timestamp, uint32_t thread_id) {
+void FileIoTracker::RecordUnmatchedEnd(int64_t timestamp,
+                                       uint32_t thread_id,
+                                       SliceTracker::SetArgsCallback args) {
   // Add a single "EndOperation" event with a duration of zero.
   const int64_t duration = 0;
   const auto track_id = context_->track_compressor->InternScoped(
@@ -532,7 +534,10 @@ void FileIoTracker::RecordUnmatchedEnd(int64_t timestamp, uint32_t thread_id) {
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId,
       event_types_.at(GetEventTypeIndex(EventType::kEndOperation)), duration,
-      [this](ArgsTracker::BoundInserter* inserter) {
+      [this, args = std::move(args)](ArgsTracker::BoundInserter* inserter) {
+        if (args) {
+          args(inserter);
+        }
         inserter->AddArg(missing_event_arg_,
                          Variadic::String(missing_start_event_));
       });
