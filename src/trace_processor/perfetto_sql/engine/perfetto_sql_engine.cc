@@ -295,10 +295,10 @@ base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
     if (col_name.empty()) {
       return base::ErrStatus("%s: column %u: name must not be empty", tag, i);
     }
-    if (!std::isalpha(col_name.front())) {
+    if (!std::isalpha(col_name.front()) && col_name.front() != '_') {
       return base::ErrStatus(
-          "%s: Column %u: name '%s' has to start with a letter.", tag, i,
-          col_name.c_str());
+          "%s: Column %u: name '%s' has to start with a letter or underscore.",
+          tag, i, col_name.c_str());
     }
     if (!sql_argument::IsValidName(base::StringView(col_name))) {
       return base::ErrStatus(

@@ -79,7 +79,7 @@ WITH
         WHERE
           id = do_frame_id
       ) AS end_frame_ts_end
-    FROM _android_frames_in_cuj
+    FROM _android_distinct_frames_in_cuj
     WHERE
       frame_idx = 1 OR frame_idx = frame_cnt
   )

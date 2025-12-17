@@ -203,6 +203,8 @@ class GeneratorImpl {
   base::StatusOr<std::string> SimpleSlices(
       const StructuredQuery::SimpleSlices::Decoder&);
   base::StatusOr<std::string> SqlSource(const StructuredQuery::Sql::Decoder&);
+  base::StatusOr<std::string> TimeRange(
+      const StructuredQuery::ExperimentalTimeRange::Decoder&);
 
   // Nested sources
   std::string NestedSource(protozero::ConstBytes);
@@ -281,6 +283,7 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
   StructuredQuery::Decoder root_query(state_[0].bytes);
   bool root_only_has_inner_query_and_operations =
       root_query.has_inner_query() && !root_query.has_table() &&
+      !root_query.has_experimental_time_range() &&
       !root_query.has_simple_slices() && !root_query.has_interval_intersect() &&
       !root_query.has_experimental_join() &&
       !root_query.has_experimental_union() && !root_query.has_sql() &&
@@ -333,6 +336,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     if (q.has_table()) {
       StructuredQuery::Table::Decoder table(q.table());
       ASSIGN_OR_RETURN(source, Table(table));
+    } else if (q.has_experimental_time_range()) {
+      StructuredQuery::ExperimentalTimeRange::Decoder time_range(
+          q.experimental_time_range());
+      ASSIGN_OR_RETURN(source, TimeRange(time_range));
     } else if (q.has_simple_slices()) {
       StructuredQuery::SimpleSlices::Decoder slices(q.simple_slices());
       ASSIGN_OR_RETURN(source, SimpleSlices(slices));
@@ -431,6 +438,39 @@ base::StatusOr<std::string> GeneratorImpl::Table(
     referenced_modules_.Insert(table.module_name().ToStdString(), nullptr);
   }
   return table.table_name().ToStdString();
+}
+
+base::StatusOr<std::string> GeneratorImpl::TimeRange(
+    const StructuredQuery::ExperimentalTimeRange::Decoder& time_range) {
+  if (!time_range.has_mode()) {
+    return base::ErrStatus("ExperimentalTimeRange: mode field is required");
+  }
+
+  switch (time_range.mode()) {
+    case StructuredQuery::ExperimentalTimeRange::STATIC: {
+      if (!time_range.has_ts()) {
+        return base::ErrStatus(
+            "ExperimentalTimeRange: ts is required for STATIC mode");
+      }
+      if (!time_range.has_dur()) {
+        return base::ErrStatus(
+            "ExperimentalTimeRange: dur is required for STATIC mode");
+      }
+      std::string ts_expr = std::to_string(time_range.ts());
+      std::string dur_expr = std::to_string(time_range.dur());
+      return "(SELECT 0 AS id, " + ts_expr + " AS ts, " + dur_expr + " AS dur)";
+    }
+    case StructuredQuery::ExperimentalTimeRange::DYNAMIC: {
+      std::string ts_expr = time_range.has_ts()
+                                ? std::to_string(time_range.ts())
+                                : "trace_start()";
+      std::string dur_expr = time_range.has_dur()
+                                 ? std::to_string(time_range.dur())
+                                 : "trace_dur()";
+      return "(SELECT 0 AS id, " + ts_expr + " AS ts, " + dur_expr + " AS dur)";
+    }
+  }
+  return base::ErrStatus("ExperimentalTimeRange: unknown mode value");
 }
 
 base::StatusOr<std::string> GeneratorImpl::SqlSource(

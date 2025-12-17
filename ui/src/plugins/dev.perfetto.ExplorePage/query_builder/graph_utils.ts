@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode} from '../query_node';
+import {QueryNode, singleNodeOperation} from '../query_node';
 
 /**
  * Graph traversal utilities for the Explore Page query builder.
@@ -284,4 +284,90 @@ export function getAllInputNodes(node: QueryNode): QueryNode[] {
   }
 
   return inputs;
+}
+
+// ============================================================================
+// Docking/Undocking Utilities
+// ============================================================================
+
+/**
+ * Finds children of a node that are currently docked (rendered inline with parent).
+ *
+ * A child is considered docked if:
+ * 1. It's a single-node operation (modification node like filter, sort, etc.)
+ * 2. Its primaryInput is the parent node
+ * 3. It doesn't have a layout position (no entry in nodeLayouts)
+ *
+ * @param parentNode The parent node to check
+ * @param nodeLayouts Current layout positions
+ * @returns Array of children that are currently docked to the parent
+ */
+export function findDockedChildren(
+  parentNode: QueryNode,
+  nodeLayouts: ReadonlyMap<string, {x: number; y: number}>,
+): QueryNode[] {
+  return parentNode.nextNodes.filter(
+    (child) =>
+      singleNodeOperation(child.type) &&
+      'primaryInput' in child &&
+      child.primaryInput === parentNode &&
+      !nodeLayouts.has(child.nodeId),
+  );
+}
+
+/**
+ * Gets the effective layout position for a node by walking up the chain.
+ *
+ * If the node has its own layout, returns that. Otherwise, recursively
+ * walks up through primaryInput to find the first ancestor with a layout.
+ * This is useful for docked nodes that don't have their own layout position.
+ *
+ * @param node The node to get the effective layout for
+ * @param nodeLayouts Current layout positions
+ * @returns The effective layout position, or undefined if no ancestor has a layout
+ */
+export function getEffectiveLayout(
+  node: QueryNode,
+  nodeLayouts: ReadonlyMap<string, {x: number; y: number}>,
+): {x: number; y: number} | undefined {
+  // If this node has a layout, return it
+  const directLayout = nodeLayouts.get(node.nodeId);
+  if (directLayout !== undefined) {
+    return directLayout;
+  }
+
+  // Otherwise, walk up the chain via primaryInput
+  if ('primaryInput' in node && node.primaryInput !== undefined) {
+    return getEffectiveLayout(node.primaryInput, nodeLayouts);
+  }
+
+  return undefined;
+}
+
+// Layout offset constants for undocking
+const UNDOCK_X_OFFSET = 250;
+const UNDOCK_STAGGER = 30;
+
+/**
+ * Calculates layout positions for undocking children from a parent.
+ * Positions are staggered diagonally from the parent's position.
+ *
+ * @param children The children to calculate positions for
+ * @param parentLayout The parent's layout position (x, y coordinates)
+ * @returns Map of child nodeId to new layout position
+ */
+export function calculateUndockLayouts(
+  children: QueryNode[],
+  parentLayout: {x: number; y: number},
+): Map<string, {x: number; y: number}> {
+  const layouts = new Map<string, {x: number; y: number}>();
+
+  for (let i = 0; i < children.length; i++) {
+    layouts.set(children[i].nodeId, {
+      x: parentLayout.x + UNDOCK_X_OFFSET + i * UNDOCK_STAGGER,
+      y: parentLayout.y + i * UNDOCK_STAGGER,
+    });
+  }
+
+  return layouts;
 }

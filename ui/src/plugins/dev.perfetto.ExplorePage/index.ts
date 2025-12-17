@@ -19,6 +19,51 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExplorePageState} from './explore_page';
 import {nodeRegistry} from './query_builder/node_registry';
 import {QueryNodeState} from './query_node';
+import {serializeState, deserializeState} from './json_handler';
+
+const LOCAL_STORAGE_KEY = 'perfetto.explorePage.lastState';
+
+/**
+ * Saves the Explore Page state to local storage.
+ */
+function saveStateToLocalStorage(state: ExplorePageState): void {
+  try {
+    const json = serializeState(state);
+    localStorage.setItem(LOCAL_STORAGE_KEY, json);
+  } catch (error) {
+    console.warn('Failed to save Explore Page state to local storage:', error);
+  }
+}
+
+/**
+ * Loads the Explore Page state from local storage.
+ * Returns undefined if no state is found or if deserialization fails.
+ */
+function loadStateFromLocalStorage(trace: Trace): ExplorePageState | undefined {
+  try {
+    const json = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!json) {
+      return undefined;
+    }
+
+    const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      // SQL modules not yet initialized - return undefined to retry later
+      return undefined;
+    }
+
+    return deserializeState(json, trace, sqlModules);
+  } catch (error) {
+    console.debug(
+      'Failed to load Explore Page state from local storage:',
+      error,
+    );
+    // Clear invalid state
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    return undefined;
+  }
+}
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
@@ -32,6 +77,13 @@ export default class implements PerfettoPlugin {
     nodeLayouts: new Map(),
   };
 
+  // Track whether we've successfully loaded state from local storage
+  private hasAttemptedStateLoad = false;
+
+  // Track whether we've auto-initialized base JSON in this session
+  // This prevents reloading base JSON when clearing all nodes
+  private hasAutoInitialized = false;
+
   onStateUpdate = (
     update:
       | ExplorePageState
@@ -42,18 +94,47 @@ export default class implements PerfettoPlugin {
     } else {
       this.state = update;
     }
+
+    saveStateToLocalStorage(this.state);
+
     m.redraw();
   };
+
+  // Try to load state from local storage. Called lazily when the page renders.
+  private tryLoadState(trace: Trace): void {
+    if (this.hasAttemptedStateLoad) return;
+
+    const savedState = loadStateFromLocalStorage(trace);
+    if (savedState !== undefined) {
+      // Load saved state from localStorage (preserves work across page refreshes)
+      this.state = savedState;
+      this.hasAttemptedStateLoad = true;
+    } else if (
+      trace.plugins.getPlugin(SqlModulesPlugin).getSqlModules() !== undefined
+    ) {
+      // SQL modules are available but no state was loaded - mark as attempted
+      // to avoid retrying on every render
+      this.hasAttemptedStateLoad = true;
+    }
+    // If SQL modules aren't ready yet, we'll retry on next render
+  }
 
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
       route: '/explore',
       render: () => {
+        // Try to load saved state lazily (waits for SQL modules to be ready)
+        this.tryLoadState(trace);
+
         return m(ExplorePage, {
           trace,
           state: this.state,
           sqlModulesPlugin: trace.plugins.getPlugin(SqlModulesPlugin),
           onStateUpdate: this.onStateUpdate,
+          hasAutoInitialized: this.hasAutoInitialized,
+          setHasAutoInitialized: (value: boolean) => {
+            this.hasAutoInitialized = value;
+          },
         });
       },
     });

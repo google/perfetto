@@ -35,7 +35,7 @@ SELECT
   -- For the last frame, fall back to the default ts_end.
   coalesce(lead(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id ASC), ts_end) AS ts_end,
   frame_id
-FROM _android_frames_in_cuj
+FROM _android_distinct_frames_in_cuj
 ORDER BY
   frame_id;
 

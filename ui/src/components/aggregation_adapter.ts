@@ -28,15 +28,17 @@ import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
-import {DataGridDataSource, PivotModel} from './widgets/datagrid/common';
+import {Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
-import {BarChartData, ColumnDef, Sorting} from './aggregation';
+import {createSimpleSchema} from './widgets/datagrid/sql_schema';
+import {BarChartData, ColumnDef} from './aggregation';
 import {
   createPerfettoTable,
   DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
 import {DataGridApi} from './widgets/datagrid/datagrid';
 import {DataGridExportButton} from './widgets/datagrid/export_button';
+import {DataSource} from './widgets/datagrid/data_source';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -55,7 +57,7 @@ export interface Aggregation {
   prepareData(engine: Engine): Promise<AggregationData>;
 }
 
-export interface AggregatePivotModel extends PivotModel {
+export interface AggregatePivotModel extends Pivot {
   readonly columns: ReadonlyArray<ColumnDef>;
 }
 
@@ -84,7 +86,6 @@ export interface Aggregator {
    */
   probe(area: AreaSelection): Aggregation | undefined;
   getTabName(): string;
-  getDefaultSorting(): Sorting;
   getColumnDefinitions(): ColumnDef[] | AggregatePivotModel;
 
   /**
@@ -96,8 +97,7 @@ export interface Aggregator {
 }
 
 export interface AggregationPanelAttrs {
-  readonly dataSource: DataGridDataSource;
-  readonly sorting: Sorting;
+  readonly dataSource: DataSource;
   readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
   readonly barChartData?: ReadonlyArray<BarChartData>;
   readonly onReady?: (api: DataGridApi) => void;
@@ -238,7 +238,8 @@ export function createAggregationTab(
             data = await aggregation?.prepareData(trace.engine);
             dataSource = new SQLDataSource({
               engine: trace.engine,
-              baseQuery: data.tableName,
+              sqlSchema: createSimpleSchema(data.tableName),
+              rootSchemaName: 'query',
             });
           }
         });
@@ -272,13 +273,14 @@ export function createAggregationTab(
           key: aggregator.id,
           dataSource,
           columns: aggregator.getColumnDefinitions(),
-          sorting: aggregator.getDefaultSorting(),
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;
           },
         }),
-        buttons: dataGridApi && m(DataGridExportButton, {api: dataGridApi}),
+        buttons:
+          dataGridApi &&
+          m(DataGridExportButton, {onExportData: dataGridApi.exportData}),
       };
     },
   };

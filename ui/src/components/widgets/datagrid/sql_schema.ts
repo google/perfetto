@@ -421,3 +421,41 @@ export class SQLSchemaResolver {
     this.aliasCounter = 0;
   }
 }
+
+/**
+ * Creates a simple schema from a table name or subquery.
+ *
+ * This enables using SQLDataSource with arbitrary queries/tables without
+ * defining explicit column schemas. Columns are accessed directly by name.
+ *
+ * @param tableOrQuery A table name (e.g., 'slice') or subquery (e.g., 'SELECT * FROM slice')
+ * @param schemaName Optional name for the schema (defaults to 'query')
+ * @returns A SQLSchemaRegistry with a single schema entry
+ *
+ * Example usage:
+ * ```typescript
+ * const schema = createSimpleSchema('SELECT * FROM slice WHERE dur > 0');
+ * const dataSource = new SQLDataSource({
+ *   engine,
+ *   sqlSchema: schema,
+ *   rootSchemaName: 'query',
+ * });
+ * ```
+ */
+export function createSimpleSchema(
+  tableOrQuery: string,
+  schemaName: string = 'query',
+): SQLSchemaRegistry {
+  // If it looks like a query (contains SELECT, spaces, etc.), wrap in parens
+  const isQuery =
+    tableOrQuery.trim().toUpperCase().startsWith('SELECT') ||
+    tableOrQuery.includes(' ');
+  const table = isQuery ? `(${tableOrQuery})` : tableOrQuery;
+
+  return {
+    [schemaName]: {
+      table,
+      columns: {}, // Empty columns - all column access falls through to direct access
+    },
+  };
+}
