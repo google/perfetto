@@ -16,6 +16,7 @@
 
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
