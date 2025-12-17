@@ -180,8 +180,6 @@ WHERE
 -- Track all distinct frames that overlap with the CUJ slice. In this table two frames are considered
 -- distinct if they have different frame_id/vsync.
 CREATE PERFETTO VIEW _android_distinct_frames_in_cuj AS
--- Captures all frames in the CUJ boundary. In cases where there are multiple actual frames, there
--- can be multiple rows with the same frame_id.
 SELECT
   row_number() OVER (PARTITION BY cuj_id ORDER BY min(frame_ts)) AS frame_idx,
   count(*) OVER (PARTITION BY cuj_id) AS frame_cnt,
@@ -214,8 +212,6 @@ GROUP BY
 
 -- Track all distinct frames with layer_id consideration that overlap with the CUJ slice.
 CREATE PERFETTO VIEW _android_distinct_frames_layers_cuj AS
--- Captures all frames in the CUJ boundary. In cases where there are multiple actual frames, there
--- can be multiple rows with the same frame_id.
 SELECT
   -- With a 'GROUP BY' clause for this table, there is no aggregations function used for the
   -- selected columns. This is because these columns values are expected to remain identical. For eg.
@@ -232,9 +228,15 @@ SELECT
   expected_frame_timeline_id,
   cuj_id,
   ui_thread_utid,
-  frame_ts,
-  ts_end,
-  dur
+  -- Having multiple frames with the same frame_id and layer_id is not possible, but for the sake of testing
+  -- we consider this possibility and pick the min start timestamp.
+  min(frame_ts) AS frame_ts,
+  -- Having multiple frames with the same frame_id and layer_id is not possible, but for the sake of testing
+  -- we consider this possibility and pick the max end timestamp.
+  max(ts_end) AS ts_end,
+  (
+    max(ts_end) - min(frame_ts)
+  ) AS dur
 FROM _all_frames_in_cuj
 GROUP BY
   frame_id,
@@ -365,3 +367,18 @@ WHERE
   )
 ORDER BY
   ts ASC;
+
+-- Captures the layer information associated with a CUJ.
+CREATE PERFETTO VIEW _android_jank_cuj_layer AS
+SELECT
+  cuj_id,
+  layer_id,
+  layer_name
+FROM android_jank_cuj AS cujs
+JOIN actual_frame_timeline_slice AS timeline
+  USING (upid)
+WHERE
+  cujs.layer_id = CAST(str_split(timeline.layer_name, '#', 1) AS INTEGER)
+GROUP BY
+  cuj_id,
+  layer_id;

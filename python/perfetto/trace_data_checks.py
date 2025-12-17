@@ -27,7 +27,7 @@ MODULE_DATA_CHECK_SQL = {
     # HIGH IMPORTANCE TABLES
     'android.binder':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'binder *\' LIMIT 1) AS has_data',
-    'android.cujs.cujs_base':
+    'android.cujs.base':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'J<*>\' LIMIT 1) AS has_data',
     'android.frames.timeline':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'Choreographer#doFrame*\' OR name GLOB \'DrawFrame*\' LIMIT 1) AS has_data',

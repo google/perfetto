@@ -162,7 +162,7 @@ MODULE_TAGS = {
     'android.frame_blocking_calls.blocking_calls_aggregation': [
         'android', 'ui', 'ui:frames'
     ],
-    'android.cujs.cujs_base': ['android', 'ui', 'ui:jank'],
+    'android.cujs.base': ['android', 'ui', 'ui:jank'],
     'android.cujs.sysui_cujs': ['android', 'ui', 'ui:jank'],
     'android.input': ['android', 'ui', 'input'],
     'android.screenshots': ['android', 'ui'],
