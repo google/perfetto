@@ -78,6 +78,8 @@ interface ExplorePageAttrs {
       | ExplorePageState
       | ((currentState: ExplorePageState) => ExplorePageState),
   ) => void;
+  readonly hasAutoInitialized: boolean;
+  readonly setHasAutoInitialized: (value: boolean) => void;
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
@@ -85,7 +87,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
-  private hasAutoInitialized = false;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -307,7 +308,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   private async autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
-    this.hasAutoInitialized = true;
+    attrs.setHasAutoInitialized(true);
 
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
     if (!sqlModules) return;
@@ -437,6 +438,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       rootNodes: [],
       selectedNode: undefined,
+      nodeLayouts: new Map(),
+      labels: [],
     }));
   }
 
@@ -1022,8 +1025,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       this.cleanupManager = new CleanupManager(this.queryExecutionService);
     }
 
-    // Auto-initialize high-importance tables on first load
-    if (state.rootNodes.length === 0 && !this.hasAutoInitialized) {
+    // Auto-initialize high-importance tables on first render when state is empty
+    // Never load base JSON if we've already initialized in this session (even after clearing nodes)
+    if (state.rootNodes.length === 0 && !attrs.hasAutoInitialized) {
       void this.autoInitializeHighImportanceTables(wrappedAttrs);
     }
 

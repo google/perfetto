@@ -55,7 +55,7 @@ function loadStateFromLocalStorage(trace: Trace): ExplorePageState | undefined {
 
     return deserializeState(json, trace, sqlModules);
   } catch (error) {
-    console.warn(
+    console.debug(
       'Failed to load Explore Page state from local storage:',
       error,
     );
@@ -80,6 +80,10 @@ export default class implements PerfettoPlugin {
   // Track whether we've successfully loaded state from local storage
   private hasAttemptedStateLoad = false;
 
+  // Track whether we've auto-initialized base JSON in this session
+  // This prevents reloading base JSON when clearing all nodes
+  private hasAutoInitialized = false;
+
   onStateUpdate = (
     update:
       | ExplorePageState
@@ -102,6 +106,7 @@ export default class implements PerfettoPlugin {
 
     const savedState = loadStateFromLocalStorage(trace);
     if (savedState !== undefined) {
+      // Load saved state from localStorage (preserves work across page refreshes)
       this.state = savedState;
       this.hasAttemptedStateLoad = true;
     } else if (
@@ -126,6 +131,10 @@ export default class implements PerfettoPlugin {
           state: this.state,
           sqlModulesPlugin: trace.plugins.getPlugin(SqlModulesPlugin),
           onStateUpdate: this.onStateUpdate,
+          hasAutoInitialized: this.hasAutoInitialized,
+          setHasAutoInitialized: (value: boolean) => {
+            this.hasAutoInitialized = value;
+          },
         });
       },
     });
