@@ -23,7 +23,7 @@ const VISUALIZED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualizedArgs';
 
 export async function addVisualizedArgTracks(trace: Trace, argName: string) {
   const result = await trace.engine.query(`
-    select distinct track_id
+    select distinct track_id as trackId
     from slice
     where arg_set_id in (select arg_set_id from args where key = '${argName}')
   `);
