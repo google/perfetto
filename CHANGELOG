@@ -27,7 +27,10 @@ Unreleased:
     * Added inotify support for UNIX sockets: if traced is unavailable or
       crashes, on Linux and Android we reconnect immediately after the socke
       has been recreated rather than relying on periodic retries.
-
+  Misc:
+    * Upgraded standalone Bazel version to 8.5.0.
+    * Switched Bazel usage to be fully based on bzlmod as, on Bazel 8, WORKSPACE
+      builds are no longer supported.
 
 v53.0 - 2025-11-12:
   SDK:
