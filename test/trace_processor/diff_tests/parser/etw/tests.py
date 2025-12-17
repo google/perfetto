@@ -32,7 +32,7 @@ class Etw(TestSuite):
                 file_io_create {
                   irp_ptr: 99999
                   file_object: 67890
-                  ttid: 12345
+                  ttid: 3
                   create_options: 44444
                   file_attributes: 55555
                   share_access: 66666
@@ -158,7 +158,7 @@ class Etw(TestSuite):
                   file_object: 87654
                   file_key: 22222
                   extra_info: 33333
-                  ttid: 123
+                  ttid: 100
                   info_class: 13
                   opcode: 69
                 }
@@ -281,7 +281,7 @@ class Etw(TestSuite):
                   irp_ptr: 111111
                   file_object: 222222
                   file_key: 333333
-                  ttid: 77777
+                  ttid: 7
                   opcode: 73
                 }
               }

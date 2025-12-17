@@ -252,7 +252,7 @@ void FileIoTracker::ParseFileIoCreate(int64_t timestamp,
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
       event_types_.at(GetEventTypeIndex(EventType::kCreateFile)), timestamp,
-      decoder.has_ttid() ? decoder.ttid() : thread_id, std::move(args));
+      thread_id, std::move(args));
 }
 
 void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp,
@@ -294,8 +294,7 @@ void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp,
           : dir_enum_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, decoder.has_ttid() ? decoder.ttid() : thread_id,
-      std::move(args));
+      name, timestamp, thread_id, std::move(args));
 }
 
 void FileIoTracker::ParseFileIoInfo(int64_t timestamp,
@@ -326,7 +325,8 @@ void FileIoTracker::ParseFileIoInfo(int64_t timestamp,
             if (info_class == FileInfoClass::kFileDispositionInformation) {
               extra_info_arg = disposition_arg_;
             } else if (info_class == FileInfoClass::kFileEndOfFileInformation ||
-                       info_class == FileInfoClass::kFileAllocationInformation) {
+                       info_class ==
+                           FileInfoClass::kFileAllocationInformation) {
               extra_info_arg = file_size_arg_;
             }
           }
@@ -346,8 +346,7 @@ void FileIoTracker::ParseFileIoInfo(int64_t timestamp,
           : info_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, decoder.has_ttid() ? decoder.ttid() : thread_id,
-      std::move(args));
+      name, timestamp, thread_id, std::move(args));
 }
 
 void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp,
@@ -387,8 +386,7 @@ void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp,
           : read_write_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, decoder.has_ttid() ? decoder.ttid() : thread_id,
-      std::move(args));
+      name, timestamp, thread_id, std::move(args));
 }
 
 void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp,
@@ -416,8 +414,7 @@ void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp,
           : simple_op_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, decoder.has_ttid() ? decoder.ttid() : thread_id,
-      std::move(args));
+      name, timestamp, thread_id, std::move(args));
 }
 
 void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp,
