@@ -28,7 +28,7 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
     where arg_set_id in (select arg_set_id from args where key = '${argName}')
   `);
   const addedTracks: TrackNode[] = [];
-  const it = result.iter({trackId: NUM, maxDepth: NUM});
+  const it = result.iter({trackId: NUM});
   for (; it.valid(); it.next()) {
     const trackId = it.trackId;
 
