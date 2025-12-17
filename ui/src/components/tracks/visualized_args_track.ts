@@ -47,10 +47,11 @@ export async function createVisualizedArgsTrack({
         ts: LONG,
         dur: LONG,
         name: STR,
+        track_id: LONG,
         thread_dur: LONG_NULL,
       },
       src: `
-        select id, ts, dur, name, thread_dur
+        select id, ts, dur, name, track_id, thread_dur
         from slice
         where arg_set_id in (
           select arg_set_id from args where key = '${argName}'
