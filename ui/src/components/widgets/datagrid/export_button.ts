@@ -13,15 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {download} from '../../../base/download_utils';
-import {DataGridApi} from './datagrid';
 import {CopyButtonHelper} from '../../../widgets/copy_to_clipboard_button';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 
-export interface DataGridCopyButtonAttrs {
-  readonly api: DataGridApi;
+export type ExportFormat = 'tsv' | 'json' | 'markdown';
+
+export interface DataGridExportButtonAttrs {
+  readonly onExportData: (format: ExportFormat) => Promise<string>;
 }
 
 /**
@@ -30,12 +31,12 @@ export interface DataGridCopyButtonAttrs {
  * Maintains its own CopyButtonHelper state to show "Copied" feedback.
  */
 export class DataGridExportButton
-  implements m.ClassComponent<DataGridCopyButtonAttrs>
+  implements m.ClassComponent<DataGridExportButtonAttrs>
 {
   private helper = new CopyButtonHelper();
 
-  view({attrs}: m.CVnode<DataGridCopyButtonAttrs>) {
-    const {api} = attrs;
+  view({attrs}: m.CVnode<DataGridExportButtonAttrs>) {
+    const {onExportData} = attrs;
     const loading = this.helper.state === 'working';
     const icon = this.helper.state === 'copied' ? Icons.Check : Icons.Download;
 
@@ -56,7 +57,7 @@ export class DataGridExportButton
             icon: 'tsv',
             title: 'Tab-separated values - paste into spreadsheets',
             onclick: async () => {
-              const content = await api.exportData('tsv');
+              const content = await onExportData('tsv');
               await this.helper.copy(content);
             },
           }),
@@ -65,7 +66,7 @@ export class DataGridExportButton
             icon: 'table',
             title: 'Markdown table format',
             onclick: async () => {
-              const content = await api.exportData('markdown');
+              const content = await onExportData('markdown');
               await this.helper.copy(content);
             },
           }),
@@ -74,7 +75,7 @@ export class DataGridExportButton
             icon: 'data_object',
             title: 'JSON array of objects',
             onclick: async () => {
-              const content = await api.exportData('json');
+              const content = await onExportData('json');
               await this.helper.copy(content);
             },
           }),
@@ -86,7 +87,7 @@ export class DataGridExportButton
             icon: 'tsv',
             title: 'Tab-separated values - opens in Excel/Sheets',
             onclick: async () => {
-              const content = await api.exportData('tsv');
+              const content = await onExportData('tsv');
               download({
                 content,
                 mimeType: 'text/tab-separated-values',
@@ -99,7 +100,7 @@ export class DataGridExportButton
             icon: 'table',
             title: 'Markdown table format - paste into docs',
             onclick: async () => {
-              const content = await api.exportData('markdown');
+              const content = await onExportData('markdown');
               download({
                 content,
                 mimeType: 'text/markdown',
@@ -112,7 +113,7 @@ export class DataGridExportButton
             icon: 'data_object',
             title: 'JSON array - use in scripts/tools',
             onclick: async () => {
-              const content = await api.exportData('json');
+              const content = await onExportData('json');
               download({
                 content,
                 mimeType: 'application/json',

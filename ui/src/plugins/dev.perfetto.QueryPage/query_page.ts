@@ -22,7 +22,7 @@ import {
   CellRenderer,
   ColumnSchema,
   SchemaRegistry,
-} from '../../components/widgets/datagrid/column_schema';
+} from '../../components/widgets/datagrid/datagrid_schema';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import {Trace} from '../../public/trace';
@@ -256,7 +256,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           return m(DataGrid, {
             schema,
             rootSchema: 'data',
-            initialColumns: queryResult.columns,
+            initialColumns: queryResult.columns.map((col) => ({field: col})),
             className: 'pf-query-page__results',
             data: dataSource,
             showExportButton: true,
