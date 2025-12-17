@@ -651,7 +651,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       return {field, sort: undefined};
     });
 
-    const newPivot: Pivot = {...this.pivot, groupBy: newGroupBy};
+    // Clear sort on aggregate columns when sorting by groupBy
+    const newAggregates = this.pivot.aggregates?.map((agg) => ({
+      ...agg,
+      sort: undefined,
+    }));
+
+    const newPivot: Pivot = {
+      ...this.pivot,
+      groupBy: newGroupBy,
+      aggregates: newAggregates,
+    };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -985,7 +995,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     } = ctx;
 
     // Find the current sort direction (if any column is sorted)
-    const currentSort = this.columns.find((c) => c.sort)?.sort ?? 'ASC';
+    const currentSortDirection =
+      this.columns.find((c) => c.sort)?.sort ?? 'ASC';
 
     const columns: GridColumn[] = this.columns.map((col, colIndex) => {
       const {field, sort, aggregate} = col;
@@ -1108,7 +1119,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           GridHeaderCell,
           {
             sort,
-            hintSortDirection: currentSort,
+            hintSortDirection: currentSortDirection,
             onSort: (direction) => this.updateSort(field, direction, attrs),
             menuItems,
             subContent,
@@ -1383,6 +1394,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           GridHeaderCell,
           {
             sort,
+            hintSortDirection: currentSortDirection,
             onSort: (direction) =>
               this.updatePivotAggregateSort(i, direction, attrs),
             menuItems,
