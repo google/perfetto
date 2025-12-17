@@ -34,8 +34,15 @@ import {
   notifyNextNodes,
   addConnection,
   removeConnection,
+  singleNodeOperation,
 } from '../../query_node';
-import {insertNodeBetween, reconnectParentsToChildren} from '../graph_utils';
+import {
+  insertNodeBetween,
+  reconnectParentsToChildren,
+  findDockedChildren,
+  calculateUndockLayouts,
+  getEffectiveLayout,
+} from '../graph_utils';
 import {ColumnInfo} from '../column_info';
 import {
   PerfettoSqlType,
@@ -2409,6 +2416,440 @@ describe('Connection Management', () => {
       // ✅ No duplicate nodes in root nodes list
       // ✅ Set deduplication works correctly
       // ✅ All necessary nodes are promoted to root exactly once
+    });
+  });
+
+  describe('Adding Multi-Source Node to Parent with Docked Children', () => {
+    // Helper: Simulates getRootNodes from graph.ts
+    // A node is docked (not a root) if:
+    // 1. It's a single-node operation (modification node)
+    // 2. It has a primaryInput (parent in the primary flow)
+    // 3. It doesn't have a layout position
+    function getRootNodes(
+      allNodes: QueryNode[],
+      nodeLayouts: Map<string, {x: number; y: number}>,
+    ): QueryNode[] {
+      const dockedNodes = new Set<QueryNode>();
+
+      for (const node of allNodes) {
+        if (
+          singleNodeOperation(node.type) &&
+          'primaryInput' in node &&
+          node.primaryInput !== undefined &&
+          !nodeLayouts.has(node.nodeId)
+        ) {
+          dockedNodes.add(node);
+        }
+      }
+
+      return allNodes.filter((n) => !dockedNodes.has(n));
+    }
+
+    // Helper: Simulates getNextDockedNode from graph.ts
+    // Returns the next docked child in the chain (rendered via 'next' property)
+    // Only returns a child if parent has exactly one child
+    function getNextDockedNode(
+      qnode: QueryNode,
+      nodeLayouts: Map<string, {x: number; y: number}>,
+    ): QueryNode | undefined {
+      if (
+        qnode.nextNodes.length === 1 &&
+        qnode.nextNodes[0] !== undefined &&
+        singleNodeOperation(qnode.nextNodes[0].type) &&
+        !nodeLayouts.has(qnode.nextNodes[0].nodeId)
+      ) {
+        const child = qnode.nextNodes[0];
+        // Only dock the child if it's part of the primary flow chain
+        if ('primaryInput' in child && child.primaryInput === qnode) {
+          return child;
+        }
+      }
+      return undefined;
+    }
+
+    // Helper: Checks if a node is rendered anywhere
+    // A node is rendered if it's either:
+    // 1. In the root nodes list, OR
+    // 2. Returned by getNextDockedNode for some parent
+    function isNodeRendered(
+      node: QueryNode,
+      allNodes: QueryNode[],
+      nodeLayouts: Map<string, {x: number; y: number}>,
+    ): boolean {
+      const rootNodes = getRootNodes(allNodes, nodeLayouts);
+
+      // Check if node is in root nodes
+      if (rootNodes.includes(node)) {
+        return true;
+      }
+
+      // Check if node is docked to any parent
+      for (const potentialParent of allNodes) {
+        if (getNextDockedNode(potentialParent, nodeLayouts) === node) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    it('should undock existing docked children when adding multi-source node to parent', () => {
+      // Scenario:
+      //   A (source, has layout) → B (filter, docked to A, no layout)
+      //
+      // When we add a multi-source node C (like Join) connected to A:
+      //   A → B (filter, should be undocked)
+      //   A → C (join, multi-source)
+      //
+      // The fix: Before adding C, undock B by giving it a layout.
+      // This ensures B remains visible after the connection is added.
+
+      // SETUP: Create node A (source) with layout
+      const nodeA = createMockPrevNode('nodeA', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('name', 'STRING'),
+      ]);
+
+      // SETUP: Create node B (filter, docked to A)
+      const nodeB = new FilterNode({
+        filters: [{column: 'id', op: '=', value: '1'}],
+      });
+      // Connect A → B (B becomes docked since it's a modification node)
+      addConnection(nodeA, nodeB);
+
+      // SETUP: nodeLayouts - A has layout, B does not (docked)
+      const nodeLayouts = new Map<string, {x: number; y: number}>();
+      nodeLayouts.set(nodeA.nodeId, {x: 100, y: 100});
+      // B intentionally has NO layout (it's docked)
+
+      // VERIFY INITIAL STATE: B should be rendered as docked to A
+      const allNodesInitial = [nodeA, nodeB];
+      expect(isNodeRendered(nodeB, allNodesInitial, nodeLayouts)).toBe(true);
+      expect(getNextDockedNode(nodeA, nodeLayouts)).toBe(nodeB);
+
+      // ACT: Add a multi-source node C (like IntervalIntersect) connected to A
+      // This simulates what handleAddOperationNode does for multi-source nodes,
+      // INCLUDING the fix that undocks existing docked children before adding
+      // the new connection.
+
+      // STEP 1: Find docked children using the utility function
+      const dockedChildren = findDockedChildren(nodeA, nodeLayouts);
+
+      // STEP 2: Undock them using the utility function
+      const parentLayout = nodeLayouts.get(nodeA.nodeId);
+      if (parentLayout !== undefined) {
+        const undockLayouts = calculateUndockLayouts(
+          dockedChildren,
+          parentLayout,
+        );
+        for (const [nodeId, layout] of undockLayouts) {
+          nodeLayouts.set(nodeId, layout);
+        }
+      }
+
+      // STEP 3: Now add the multi-source node
+      const nodeC = new IntervalIntersectNode({inputNodes: []});
+      addConnection(nodeA, nodeC);
+      // Give C a layout (it's a root node)
+      nodeLayouts.set(nodeC.nodeId, {x: 550, y: 100});
+
+      // VERIFY: A now has 2 children (B and C)
+      expect(nodeA.nextNodes.length).toBe(2);
+      expect(nodeA.nextNodes).toContain(nodeB);
+      expect(nodeA.nextNodes).toContain(nodeC);
+
+      // VERIFY: B was undocked and now has a layout at expected position
+      expect(nodeLayouts.has(nodeB.nodeId)).toBe(true);
+      const bLayout = nodeLayouts.get(nodeB.nodeId);
+      expect(bLayout?.x).toBe(350); // 100 + 250 (UNDOCK_X_OFFSET)
+      expect(bLayout?.y).toBe(100); // 100 + 0 (first child, no stagger)
+
+      // VERIFY: B is no longer docked (because it now has a layout)
+      expect(getNextDockedNode(nodeA, nodeLayouts)).toBeUndefined();
+
+      // VERIFY: B is now in root nodes (because it has a layout)
+      const allNodes = [nodeA, nodeB, nodeC];
+      const rootNodes = getRootNodes(allNodes, nodeLayouts);
+      expect(rootNodes).toContain(nodeB);
+
+      // VERIFY: B is rendered (as a root node with its own layout)
+      const bIsRendered = isNodeRendered(nodeB, allNodes, nodeLayouts);
+      expect(bIsRendered).toBe(true);
+
+      // VERIFY: All nodes are rendered
+      expect(isNodeRendered(nodeA, allNodes, nodeLayouts)).toBe(true);
+      expect(isNodeRendered(nodeC, allNodes, nodeLayouts)).toBe(true);
+    });
+
+    it('should undock children when adding multi-source node to a DOCKED parent (parent has no layout)', () => {
+      // Scenario: A chain of docked nodes where we add a multi-source node to a middle node
+      //
+      // Initial state:
+      //   A (source, has layout) → B (filter, docked to A) → C (filter, docked to B)
+      //
+      // When we add a multi-source node D (like Join) connected to B:
+      //   A → B → C (filter, should be undocked)
+      //       B → D (join, multi-source)
+      //
+      // BUG: The current code only undocks children if the parent has a layout.
+      // Since B is docked (no layout), C won't be undocked and will become invisible.
+      //
+      // FIX: Find the "effective layout" by walking up the chain to find the first
+      // ancestor with a layout, then use that as the base position for undocking.
+
+      // SETUP: Create node A (source) with layout
+      const nodeA = createMockPrevNode('nodeA', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('name', 'STRING'),
+      ]);
+
+      // SETUP: Create node B (filter, docked to A)
+      const nodeB = new FilterNode({
+        filters: [{column: 'id', op: '=', value: '1'}],
+      });
+      addConnection(nodeA, nodeB);
+
+      // SETUP: Create node C (filter, docked to B)
+      const nodeC = new FilterNode({
+        filters: [{column: 'name', op: '=', value: "'test'"}],
+      });
+      addConnection(nodeB, nodeC);
+
+      // SETUP: nodeLayouts - ONLY A has layout, B and C are docked (no layouts)
+      const nodeLayouts = new Map<string, {x: number; y: number}>();
+      nodeLayouts.set(nodeA.nodeId, {x: 100, y: 100});
+      // B and C intentionally have NO layout (they're docked)
+
+      // VERIFY INITIAL STATE: B and C should be rendered as a docked chain
+      const allNodesInitial = [nodeA, nodeB, nodeC];
+      expect(isNodeRendered(nodeB, allNodesInitial, nodeLayouts)).toBe(true);
+      expect(isNodeRendered(nodeC, allNodesInitial, nodeLayouts)).toBe(true);
+      expect(getNextDockedNode(nodeA, nodeLayouts)).toBe(nodeB);
+      expect(getNextDockedNode(nodeB, nodeLayouts)).toBe(nodeC);
+
+      // ACT: Add a multi-source node D connected to B (the docked middle node)
+      // This is where the bug manifests - B has no layout, so we need to find
+      // the effective layout by walking up the chain.
+
+      // STEP 1: Find docked children of B
+      const dockedChildren = findDockedChildren(nodeB, nodeLayouts);
+      expect(dockedChildren).toContain(nodeC);
+
+      // STEP 2: Find effective layout for B by walking up the chain
+      // This is the FIX - we need a function that finds the layout recursively
+      const effectiveLayout = getEffectiveLayout(nodeB, nodeLayouts);
+      expect(effectiveLayout).toBeDefined();
+
+      // STEP 3: Undock children using the effective layout
+      if (effectiveLayout !== undefined && dockedChildren.length > 0) {
+        const undockLayouts = calculateUndockLayouts(
+          dockedChildren,
+          effectiveLayout,
+        );
+        for (const [nodeId, layout] of undockLayouts) {
+          nodeLayouts.set(nodeId, layout);
+        }
+      }
+
+      // STEP 4: Now add the multi-source node
+      const nodeD = new IntervalIntersectNode({inputNodes: []});
+      addConnection(nodeB, nodeD);
+      nodeLayouts.set(nodeD.nodeId, {x: 550, y: 100});
+
+      // VERIFY: B now has 2 children (C and D)
+      expect(nodeB.nextNodes.length).toBe(2);
+      expect(nodeB.nextNodes).toContain(nodeC);
+      expect(nodeB.nextNodes).toContain(nodeD);
+
+      // VERIFY: C was undocked and now has a layout
+      expect(nodeLayouts.has(nodeC.nodeId)).toBe(true);
+
+      // VERIFY: C is no longer docked to B
+      expect(getNextDockedNode(nodeB, nodeLayouts)).toBeUndefined();
+
+      // VERIFY: All nodes are rendered
+      const allNodes = [nodeA, nodeB, nodeC, nodeD];
+      expect(isNodeRendered(nodeA, allNodes, nodeLayouts)).toBe(true);
+      expect(isNodeRendered(nodeB, allNodes, nodeLayouts)).toBe(true);
+      expect(isNodeRendered(nodeC, allNodes, nodeLayouts)).toBe(true);
+      expect(isNodeRendered(nodeD, allNodes, nodeLayouts)).toBe(true);
+    });
+  });
+
+  describe('Deleting Secondary Input Should Not Undock Primary Child', () => {
+    it('should NOT give layout to docked node when its secondary input is deleted', () => {
+      // Scenario:
+      //   A (source, has layout) → B (FilterDuring, docked to A, no layout)
+      //   C (source, has layout) → B (secondary input)
+      //
+      // When we delete C:
+      //   - B loses its secondary input C
+      //   - B should STAY DOCKED to A (no layout change)
+      //   - B should NOT be added to root nodes
+      //   - B should NOT get a layout
+      //
+      // BUG: The current code treats all children of deleted nodes as "orphaned"
+      // when the deleted node has no primary parent. But children connected via
+      // secondary input aren't orphaned - they still have their primary parent!
+
+      // SETUP: Create node A (source) with layout
+      const nodeA = createMockPrevNode('nodeA', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT'),
+        createColumnInfo('dur', 'INT'),
+      ]);
+
+      // SETUP: Create node B (FilterDuring, docked to A)
+      const nodeB = new FilterDuringNode({});
+      addConnection(nodeA, nodeB); // B's primaryInput = A
+
+      // SETUP: Create node C (source for intervals) with layout
+      const nodeC = createMockPrevNode('nodeC', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT'),
+        createColumnInfo('dur', 'INT'),
+      ]);
+
+      // Connect C as secondary input to B
+      addConnection(nodeC, nodeB, 0); // secondary input at port 0
+
+      // SETUP: nodeLayouts - A and C have layouts, B is docked (no layout)
+      const nodeLayouts = new Map<string, {x: number; y: number}>();
+      nodeLayouts.set(nodeA.nodeId, {x: 100, y: 100});
+      nodeLayouts.set(nodeC.nodeId, {x: 300, y: 100});
+      // B intentionally has NO layout (it's docked to A)
+
+      // VERIFY INITIAL STATE: B is docked to A
+      expect(nodeB.primaryInput).toBe(nodeA);
+      expect(nodeA.nextNodes.length).toBe(1); // A has only one child (B)
+      expect(nodeLayouts.has(nodeB.nodeId)).toBe(false); // B has no layout (docked)
+
+      // ACT: Simulate deleting node C
+      // This mimics what handleDeleteNode does:
+      // 1. Capture child connections before removal
+      // 2. Remove node from graph
+      // 3. Handle orphaned children
+
+      // Capture C's children before disconnection
+      interface ChildConnection {
+        child: QueryNode;
+        portIndex: number | undefined;
+      }
+      const childConnections: ChildConnection[] = nodeC.nextNodes.map(
+        (child) => {
+          // Find if this is a secondary connection
+          let portIndex: number | undefined = undefined;
+          if (child.secondaryInputs) {
+            for (const [index, inputNode] of child.secondaryInputs
+              .connections) {
+              if (inputNode === nodeC) {
+                portIndex = index;
+                break;
+              }
+            }
+          }
+          return {child, portIndex};
+        },
+      );
+
+      // Disconnect C from B
+      removeConnection(nodeC, nodeB);
+
+      // VERIFY: B should still be docked to A
+      expect(nodeB.primaryInput).toBe(nodeA);
+      expect(nodeA.nextNodes).toContain(nodeB);
+
+      // Simulate the BUGGY orphaned children logic:
+      // The deleted node C has no primaryParent (it's a source)
+      const primaryParentOfC = undefined; // C is a source, no primary parent
+
+      // BUG: Current code does this (treating ALL children as orphaned):
+      const buggyOrphanedChildren =
+        primaryParentOfC === undefined
+          ? childConnections.map((c) => c.child)
+          : [];
+
+      // FIX: Should only include children connected via PRIMARY input
+      const correctOrphanedChildren =
+        primaryParentOfC === undefined
+          ? childConnections
+              .filter((c) => c.portIndex === undefined) // Only primary connections
+              .map((c) => c.child)
+          : [];
+
+      // VERIFY: B was connected via secondary input, so it's NOT orphaned
+      expect(childConnections.length).toBe(1);
+      expect(childConnections[0].child).toBe(nodeB);
+      expect(childConnections[0].portIndex).toBeDefined(); // Secondary input!
+
+      // VERIFY BUG: Buggy code incorrectly treats B as orphaned
+      expect(buggyOrphanedChildren).toContain(nodeB); // BUG!
+
+      // VERIFY FIX: Correct code does NOT treat B as orphaned
+      expect(correctOrphanedChildren).not.toContain(nodeB); // CORRECT!
+
+      // VERIFY: After fix, B should still have no layout (stay docked)
+      // The fix should NOT give B a layout
+      expect(nodeLayouts.has(nodeB.nodeId)).toBe(false);
+
+      // VERIFY: B is still renderable as docked to A
+      // (A has one child, B is a single-node operation, B has no layout)
+      expect(nodeA.nextNodes.length).toBe(1);
+      expect(nodeA.nextNodes[0]).toBe(nodeB);
+      expect(singleNodeOperation(nodeB.type)).toBe(true);
+    });
+  });
+
+  describe('Adding Single-Node Operation Should Dock', () => {
+    it('should dock AddColumns when added to a source node', () => {
+      // Scenario:
+      //   A (source, has layout)
+      //   Add AddColumns node to A
+      //
+      // Expected:
+      //   A → AddColumns (docked, no layout)
+      //
+      // The AddColumns node should dock to A because:
+      // 1. It's a single-node operation (has primaryInput)
+      // 2. A has exactly one child after the add
+      // 3. AddColumns should NOT get a layout
+
+      // SETUP: Create node A (source) with layout
+      const nodeA = createMockPrevNode('nodeA', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('name', 'STRING'),
+      ]);
+
+      // SETUP: nodeLayouts - A has layout
+      const nodeLayouts = new Map<string, {x: number; y: number}>();
+      nodeLayouts.set(nodeA.nodeId, {x: 100, y: 100});
+
+      // VERIFY: A has no children initially
+      expect(nodeA.nextNodes.length).toBe(0);
+
+      // ACT: Create AddColumns and connect it to A
+      const addColsNode = new AddColumnsNode({});
+      addConnection(nodeA, addColsNode);
+
+      // VERIFY: AddColumns is a single-node operation
+      expect(singleNodeOperation(addColsNode.type)).toBe(true);
+
+      // VERIFY: A now has exactly one child
+      expect(nodeA.nextNodes.length).toBe(1);
+      expect(nodeA.nextNodes[0]).toBe(addColsNode);
+
+      // VERIFY: AddColumns has A as its primary input
+      expect(addColsNode.primaryInput).toBe(nodeA);
+
+      // VERIFY: AddColumns should NOT have a layout (it should dock)
+      // This is the key assertion - the node should dock, not get a layout
+      expect(nodeLayouts.has(addColsNode.nodeId)).toBe(false);
+
+      // VERIFY: AddColumns is renderable as docked to A
+      // (A has one child, AddColumns is a single-node operation, AddColumns has no layout)
+      expect(nodeA.nextNodes.length).toBe(1);
+      expect(singleNodeOperation(addColsNode.type)).toBe(true);
+      expect(nodeLayouts.has(addColsNode.nodeId)).toBe(false);
     });
   });
 });

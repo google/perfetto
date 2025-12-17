@@ -42,6 +42,9 @@ import {
   insertNodeBetween,
   getInputNodeAtPort,
   getAllInputNodes,
+  findDockedChildren,
+  calculateUndockLayouts,
+  getEffectiveLayout,
 } from './query_builder/graph_utils';
 import {showExamplesModal} from './examples_modal';
 import {
@@ -209,13 +212,40 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       } else {
         // For multi-source nodes: just connect and add to root nodes
         // Don't insert in-between - the node combines multiple sources
+
+        // Undock docked children before adding (docking requires exactly one child)
+        const dockedChildren = findDockedChildren(node, state.nodeLayouts);
+
         addConnection(node, newNode);
 
-        onStateUpdate((currentState) => ({
-          ...currentState,
-          rootNodes: [...currentState.rootNodes, newNode],
-          selectedNode: newNode,
-        }));
+        onStateUpdate((currentState) => {
+          const updatedLayouts = new Map(currentState.nodeLayouts);
+
+          // Undock existing docked children by giving them layouts.
+          // Use getEffectiveLayout to handle the case where the parent node is
+          // itself docked (no direct layout) - we walk up the chain to find
+          // the first ancestor with a layout.
+          const effectiveLayout = getEffectiveLayout(
+            node,
+            currentState.nodeLayouts,
+          );
+          if (effectiveLayout !== undefined && dockedChildren.length > 0) {
+            const undockLayouts = calculateUndockLayouts(
+              dockedChildren,
+              effectiveLayout,
+            );
+            for (const [nodeId, layout] of undockLayouts) {
+              updatedLayouts.set(nodeId, layout);
+            }
+          }
+
+          return {
+            ...currentState,
+            rootNodes: [...currentState.rootNodes, newNode],
+            nodeLayouts: updatedLayouts,
+            selectedNode: newNode,
+          };
+        });
       }
 
       return newNode;
@@ -653,9 +683,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const newRootNodesSet = new Set(state.rootNodes.filter((n) => n !== node));
 
     // Add orphaned children to root nodes so they remain visible
-    // Children are orphaned if there was no primary parent to reconnect them to
+    // Children are orphaned ONLY if:
+    // 1. There was no primary parent to reconnect them to, AND
+    // 2. They were connected via PRIMARY input (not secondary)
+    // Children connected via secondary input still have their own primary parent!
     if (primaryParent === undefined && childConnections.length > 0) {
-      const orphanedChildren = childConnections.map((c) => c.child);
+      // Only children connected via primary input are truly orphaned
+      const orphanedChildren = childConnections
+        .filter((c) => c.portIndex === undefined) // Primary input only
+        .map((c) => c.child);
+
       for (const child of orphanedChildren) {
         newRootNodesSet.add(child);
       }
@@ -664,7 +701,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // For multiple children, offset their positions to avoid overlapping
       if (deletedNodeLayout !== undefined) {
         let layoutOffsetCount = 0;
-        for (const {child} of childConnections) {
+        for (const child of orphanedChildren) {
           const childHasNoLayout = !updatedNodeLayouts.has(child.nodeId);
           if (childHasNoLayout) {
             const offsetX = layoutOffsetCount * 30; // Offset each child by 30px
