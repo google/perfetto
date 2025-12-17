@@ -64,7 +64,9 @@ void SendRpcChunk(base::HttpServerConnection* conn,
 
 class Httpd : public base::HttpRequestHandler {
  public:
-  explicit Httpd(Rpc& rpc, size_t timeout_mins);
+  explicit Httpd(std::unique_ptr<TraceProcessor>,
+                 size_t timeout_mins,
+                 bool is_preloaded_eof);
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
@@ -102,6 +104,40 @@ class Httpd : public base::HttpRequestHandler {
         // Run the event loop
         task_runner.Run();
       });
+    }
+    explicit RpcThread(Httpd* httpd,
+                       std::unique_ptr<TraceProcessor> preloaded_instance,
+                       bool is_preloaded_eof)
+        : httpd_(httpd),
+          last_accessed_ns_(
+              static_cast<uint64_t>(base::GetWallTimeNs().count())) {
+      rpc_thread_ =
+          std::thread([this, preloaded_instance = std::move(preloaded_instance),
+                       is_preloaded_eof]() mutable {
+            // Create task runner and RPC instance in worker thread context
+            base::UnixTaskRunner task_runner;
+            std::unique_ptr<Rpc> rpc;
+
+            // Initialize RPC with preloaded instance if provided
+            if (preloaded_instance) {
+              rpc = std::make_unique<Rpc>(std::move(preloaded_instance),
+                                          is_preloaded_eof, Config{}, nullptr);
+            } else {
+              rpc = std::make_unique<Rpc>();
+            }
+
+            // Signal that initialization is complete
+            {
+              std::lock_guard<std::mutex> lock(init_mutex_);
+              task_runner_ = &task_runner;
+              rpc_ = std::move(rpc);
+              initialized_ = true;
+              init_cv_.notify_one();
+            }
+
+            // Run the event loop
+            task_runner.Run();
+          });
     }
 
     ~RpcThread() {
@@ -165,7 +201,7 @@ class Httpd : public base::HttpRequestHandler {
 
   // global rpc for older uis that don't have the rpc map and for opening files
   // via trace_processor_shell
-  Rpc& global_trace_processor_rpc_;
+  Rpc global_trace_processor_rpc_;
   base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
   std::mutex websocket_rpc_mutex_;
@@ -199,11 +235,23 @@ void SendRpcChunk(base::HttpServerConnection* conn,
   }
 }
 
-Httpd::Httpd(Rpc& rpc,
-             size_t timeout_mins)
-    : global_trace_processor_rpc_(rpc),  // Create empty global RPC
+Httpd::Httpd(std::unique_ptr<TraceProcessor> tp,
+             size_t timeout_mins,
+             bool is_preloaded_eof)
+    : global_trace_processor_rpc_(),
       http_srv_(&task_runner_, this),
-      tp_timeout_mins_(timeout_mins) {}
+      tp_timeout_mins_(timeout_mins) {
+  if (!tp->GetCurrentTraceName().empty()) {
+    auto new_thread =
+        std::make_unique<RpcThread>(this, std::move(tp), is_preloaded_eof);
+        base::Uuid uuid = base::Uuidv4();
+        std::string uuid_str = uuid.ToPrettyString();
+        id_to_tp_map.emplace(uuid_str, std::move(new_thread));
+        PERFETTO_ILOG("Preloaded trace processor assigned ID: %s",
+                     uuid_str.c_str());
+        
+  }
+}
 Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
@@ -648,12 +696,13 @@ void Httpd::CleanUpInactiveInstances() {
 
 }  // namespace
 
-void RunHttpRPCServer(Rpc& rpc,
+void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_tp,
+                      bool is_preloaded_eof,
                       const std::string& listen_ip,
                       const std::string& port_number,
                       const std::vector<std::string>& additional_cors_origins,
                       size_t timeout_mins) {
-  Httpd srv(rpc, timeout_mins);
+  Httpd srv(std::move(preloaded_tp), timeout_mins, is_preloaded_eof);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;

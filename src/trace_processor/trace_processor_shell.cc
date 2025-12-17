@@ -2157,7 +2157,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     }
 #endif
     RunHttpRPCServer(
-        /*rpc=*/rpc,
+        /*preloaded_tp=*/rpc.TakeTraceProcessor(),
+        /*is_preloaded_eof-*/ !options.trace_file_path.empty(),
         /*listen_ip=*/options.listen_ip,
         /*port_number=*/options.port_number,
         /*additional_cors_origins=*/options.additional_cors_origins,

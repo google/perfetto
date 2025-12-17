@@ -137,6 +137,9 @@ class Rpc {
   void SetAttachedState(bool);
 
   TraceProcessor* trace_processor() const { return trace_processor_.get(); }
+  std::unique_ptr<TraceProcessor> TakeTraceProcessor() {
+    return std::move(trace_processor_);
+  }
 
  private:
   void ParseRpcRequest(const uint8_t*, size_t);

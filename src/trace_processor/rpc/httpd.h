@@ -35,7 +35,8 @@ class TraceProcessor;
 // `port_number` is the port which http server will listen on.
 // `additional_cors_origins` is a list of origins to allow for CORS requests, in
 // addition to the default origins defined in httpd.cc.
-void RunHttpRPCServer(Rpc& rpc,
+void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_tp,
+                      bool is_preloaded_eof,
                       const std::string& listen_ip,
                       const std::string& port_number,
                       const std::vector<std::string>& additional_cors_origins,
