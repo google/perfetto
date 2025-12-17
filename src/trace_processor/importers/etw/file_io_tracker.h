@@ -146,24 +146,12 @@ class FileIoTracker {
  public:
   explicit FileIoTracker(TraceProcessorContext* context);
 
-  void ParseFileIoCreate(int64_t timestamp,
-                         uint32_t thread_id,
-                         protozero::ConstBytes);
-  void ParseFileIoDirEnum(int64_t timestamp,
-                          uint32_t thread_id,
-                          protozero::ConstBytes);
-  void ParseFileIoInfo(int64_t timestamp,
-                       uint32_t thread_id,
-                       protozero::ConstBytes);
-  void ParseFileIoReadWrite(int64_t timestamp,
-                            uint32_t thread_id,
-                            protozero::ConstBytes);
-  void ParseFileIoSimpleOp(int64_t timestamp,
-                           uint32_t thread_id,
-                           protozero::ConstBytes);
-  void ParseFileIoOpEnd(int64_t timestamp,
-                        uint32_t thread_id,
-                        protozero::ConstBytes);
+  void ParseFileIoCreate(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoDirEnum(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoInfo(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoReadWrite(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoSimpleOp(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoOpEnd(int64_t timestamp, protozero::ConstBytes);
 
   void NotifyEndOfFile();
 
@@ -171,7 +159,6 @@ class FileIoTracker {
   struct StartedEvent {
     StringId name;
     int64_t timestamp;
-    uint32_t thread_id;
   };
 
   // Starts tracking `event`, to be added to the trace when its matching end
@@ -179,30 +166,26 @@ class FileIoTracker {
   void StartEvent(std::optional<Irp> irp,
                   StringId name,
                   int64_t timestamp,
-                  uint32_t thread_id,
                   SliceTracker::SetArgsCallback args);
 
   // Adds the ending event to the trace as a slice.
   void EndEvent(std::optional<Irp> irp,
                 int64_t timestamp,
-                uint32_t thread_id,
                 SliceTracker::SetArgsCallback args);
 
   // Ends the given event with a duration of zero, and adds an argument labeling
   // it as missing a matching end event.
-  void EndUnmatchedStart(Irp irp, int64_t timestamp, uint32_t thread_id);
+  void EndUnmatchedStart(Irp irp, int64_t timestamp);
 
   // Records an "EndOperation" event with a duration of zero, and adds an
   // argument labeling it as missing a matching start event.
   void RecordUnmatchedEnd(int64_t timestamp,
-                          uint32_t thread_id,
                           SliceTracker::SetArgsCallback args);
 
   // Records an event without an IRP identifier with a duration of zero (as it's
   // unable to be matched with a corresponding start or end event).
   void RecordEventWithoutIrp(StringId name,
                              int64_t timestamp,
-                             uint32_t thread_id,
                              SliceTracker::SetArgsCallback args);
 
   // Helper function to get the value to display for `info_class`: either its
@@ -257,6 +240,7 @@ class FileIoTracker {
   const StringId offset_arg_;
   const StringId open_path_arg_;
   const StringId share_access_arg_;
+  const StringId thread_id_arg_;
   const StringId missing_event_arg_;
   const StringId missing_start_event_;
   const StringId missing_end_event_;
