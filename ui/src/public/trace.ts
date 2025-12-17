@@ -28,6 +28,7 @@ import {Evt} from '../base/events';
 import {StatusbarManager} from './statusbar';
 import {MinimapManager} from './minimap';
 import {SearchManager} from './search';
+import {SqlModules} from './sql_modules';
 
 // Lists all the possible event listeners using the key as the event name and
 // the type as the type of the callback.
@@ -78,20 +79,11 @@ export interface Trace extends App {
   // code. These are on top of traceInfo.importErrors, which is a summary of
   // what TraceProcessor reports on the stats table at import time.
   get loadingErrors(): ReadonlyArray<string>;
+
   // Trace scoped disposables. Will be destroyed when the trace is unloaded.
   readonly trash: DisposableStack;
-}
 
-/**
- * A convenience interface to inject the App in Mithril components.
- * Example usage:
- *
- * class MyComponent implements m.ClassComponent<TraceAttrs> {
- *   oncreate({attrs}: m.CVnodeDOM<AppAttrs>): void {
- *     attrs.trace.engine.runQuery(...);
- *   }
- * }
- */
-export interface TraceAttrs {
-  trace: Trace;
+  // Returns the SqlModules instance for accessing stdlib tables and modules.
+  // May return undefined if not yet initialized.
+  getSqlModules(): SqlModules | undefined;
 }

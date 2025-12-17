@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
-import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlColumn} from '../../../public/sql_modules';
 
 export interface ColumnInfo {
   name: string;

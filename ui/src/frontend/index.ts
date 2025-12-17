@@ -46,7 +46,6 @@ import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
-import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
 import {
   addDebugCounterTrack,
@@ -71,6 +70,7 @@ import {
 } from '../core/command_manager';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
+import {initSqlModulesLoader} from '../core/sql_modules_manager';
 
 // =============================================================================
 // UI INITIALIZATION STAGES
@@ -202,6 +202,9 @@ function main() {
   // Setup content security policy before anything else.
   setupContentSecurityPolicy();
   initAssets();
+
+  // Start loading SQL modules schema in the background (used by table explorer)
+  initSqlModulesLoader();
 
   // Create settings Manager
   const settingsManager = new SettingsManagerImpl(
@@ -551,7 +554,6 @@ configureExtensions({
   addDebugCounterTrack,
   addDebugSliceTrack,
   addVisualizedArgTracks,
-  addLegacySqlTableTab: addLegacyTableTab,
   addQueryResultsTab,
 });
 

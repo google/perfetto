@@ -25,18 +25,20 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
 import {fromSqlBool, renderSqlRef} from './utils';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {ColumnDefinition} from '../../components/widgets/sql/table/table_description';
 import {ScrollTimelineModel} from './scroll_timeline_model';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
+import {SqlRef} from '../../widgets/sql_ref';
+import {MenuItem} from '../../widgets/menu';
+import {SqlColumn} from '../../public/table';
+import {openTableExplorer} from '../../components/table_explorer';
 
-const SCROLL_TIMELINE_TABLE_COLUMNS: ColumnDefinition[] = [
-  {column: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
-  {column: 'scroll_update_id', type: PerfettoSqlTypes.INT},
-  {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
-  {column: 'dur', type: PerfettoSqlTypes.DURATION},
-  {column: 'name', type: PerfettoSqlTypes.STRING},
-  {column: 'classification', type: PerfettoSqlTypes.STRING},
+const SCROLL_TIMELINE_TABLE_COLUMNS: SqlColumn[] = [
+  {name: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
+  {name: 'scroll_update_id', type: PerfettoSqlTypes.INT},
+  {name: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+  {name: 'dur', type: PerfettoSqlTypes.DURATION},
+  {name: 'name', type: PerfettoSqlTypes.STRING},
+  {name: 'classification', type: PerfettoSqlTypes.STRING},
 ];
 
 export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
@@ -177,14 +179,38 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         }),
         m(TreeNode, {
           left: 'SQL ID',
-          right: renderSqlRef({
-            trace: this.trace,
-            tableName: this.model.tableName,
-            tableDefinition: {
-              name: this.model.tableName,
-              columns: SCROLL_TIMELINE_TABLE_COLUMNS,
-            },
+          right: m(SqlRef, {
+            table: this.model.tableName,
             id: this.id,
+            additionalMenuItems: [
+              m(MenuItem, {
+                label: 'Show query results',
+                icon: 'table',
+                onclick: () => {
+                  openTableExplorer(this.trace, {
+                    tableName: this.model.tableName,
+                    initialFilters: [
+                      {
+                        field: 'id',
+                        op: '=',
+                        value: this.id,
+                      },
+                    ],
+                    // Inject this custom table definition so that the table
+                    // shows up even if not part of the default SqlModules
+                    // tables.
+                    customTables: [
+                      {
+                        type: 'table',
+                        columns: SCROLL_TIMELINE_TABLE_COLUMNS,
+                        name: this.model.tableName,
+                        description: '',
+                      },
+                    ],
+                  });
+                },
+              }),
+            ],
           }),
         }),
       );
@@ -197,11 +223,6 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
     if (this.sliceData === undefined || this.scrollData === undefined) {
       child = 'Loading...';
     } else {
-      const scrollTableDefinition = this.trace.plugins
-        .getPlugin(SqlModulesPlugin)
-        .getSqlModules()
-        ?.getModuleForTable('chrome_scroll_update_info')
-        ?.getSqlTableDefinition('chrome_scroll_update_info');
       child = m(
         Tree,
         m(TreeNode, {
@@ -240,7 +261,6 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
             trace: this.trace,
             tableName: 'chrome_scroll_update_info',
             id: this.sliceData.scrollUpdateId,
-            tableDefinition: scrollTableDefinition,
           }),
         }),
       );

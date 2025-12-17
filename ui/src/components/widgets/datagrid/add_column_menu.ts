@@ -370,14 +370,19 @@ const TEXT_SAFE_AGGREGATE_FUNCTIONS: AggregateFunction[] = ['ANY'];
  * Returns the available aggregate functions for a column based on its type.
  * Numeric aggregates (SUM, AVG, MIN, MAX) are only available for quantitative
  * and identifier columns. ANY is available for all column types.
+ * When columnType is undefined, all aggregate functions are allowed.
  */
 export function getAggregateFunctionsForColumnType(
   columnType: 'text' | 'quantitative' | 'identifier' | undefined,
 ): AggregateFunction[] {
-  if (columnType === 'quantitative' || columnType === 'identifier') {
+  if (
+    columnType === 'quantitative' ||
+    columnType === 'identifier' ||
+    columnType === undefined
+  ) {
     return [...NUMERIC_AGGREGATE_FUNCTIONS, ...TEXT_SAFE_AGGREGATE_FUNCTIONS];
   }
-  // For 'text' columns or undefined, only text-safe aggregates
+  // For 'text' columns, only text-safe aggregates
   return TEXT_SAFE_AGGREGATE_FUNCTIONS;
 }
 
@@ -458,7 +463,7 @@ function buildAggregateColumnMenuFromSchema(
       const title = typeof entry.title === 'string' ? entry.title : columnName;
       // Get available aggregate functions based on filter type
       const availableFuncs = getAggregateFunctionsForColumnType(
-        entry.filterType,
+        entry.columnType,
       );
       const aggFuncItems = availableFuncs.map((func) => {
         const exists = isAggregateExists(existingAggregates, func, fullPath);

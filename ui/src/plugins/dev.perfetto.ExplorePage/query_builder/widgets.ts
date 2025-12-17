@@ -18,7 +18,7 @@ import {Card} from '../../../widgets/card';
 import {TextInput} from '../../../widgets/text_input';
 import {Icon} from '../../../widgets/icon';
 import {TextParagraph} from '../../../widgets/text_paragraph';
-import {SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlTable} from '../../../public/sql_modules';
 import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../widgets/callout';
 import {Intent} from '../../../widgets/common';

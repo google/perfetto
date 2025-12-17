@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {BigintMath} from '../../base/bigint_math';
-import {sqliteString} from '../../base/string_utils';
 import {exists} from '../../base/utils';
 import {SliceDetails} from '../sql_utils/slice';
 import {Anchor} from '../../widgets/anchor';
@@ -31,8 +30,7 @@ import {renderProcessRef} from '../widgets/process';
 import {renderThreadRef} from '../widgets/thread';
 import {Timestamp} from '../widgets/timestamp';
 import {Trace} from '../../public/trace';
-import {extensions} from '../extensions';
-import {SLICE_TABLE} from '../widgets/sql/table_definitions';
+import {openTableExplorer} from '../table_explorer';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
@@ -56,16 +54,12 @@ export function renderDetails(
           m(MenuItem, {
             label: 'Slices with the same name',
             onclick: () => {
-              extensions.addLegacySqlTableTab(trace, {
-                table: SLICE_TABLE,
-                filters: [
-                  {
-                    op: (cols) =>
-                      slice.name === undefined
-                        ? `${cols[0]} IS NULL`
-                        : `${cols[0]} = ${sqliteString(slice.name)}`,
-                    columns: ['name'],
-                  },
+              openTableExplorer(trace, {
+                tableName: 'slice',
+                initialFilters: [
+                  slice.name === undefined
+                    ? {field: 'name', op: 'is null'}
+                    : {field: 'name', op: '=', value: slice.name},
                 ],
               });
             },

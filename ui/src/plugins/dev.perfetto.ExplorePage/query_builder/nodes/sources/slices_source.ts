@@ -22,7 +22,7 @@ import {
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
-import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
+import {SqlColumn} from '../../../../../public/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {NodeDetailsAttrs} from '../../node_explorer_types';
 import {loadNodeDoc} from '../../node_doc_loader';

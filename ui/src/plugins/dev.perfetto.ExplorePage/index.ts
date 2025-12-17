@@ -15,14 +15,12 @@
 import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExplorePageState} from './explore_page';
 import {nodeRegistry} from './query_builder/node_registry';
 import {QueryNodeState} from './query_node';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
-  static readonly dependencies = [SqlModulesPlugin];
 
   // The following allows us to have persistent
   // state/charts for the lifecycle of a single
@@ -52,7 +50,6 @@ export default class implements PerfettoPlugin {
         return m(ExplorePage, {
           trace,
           state: this.state,
-          sqlModulesPlugin: trace.plugins.getPlugin(SqlModulesPlugin),
           onStateUpdate: this.onStateUpdate,
         });
       },

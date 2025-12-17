@@ -28,7 +28,7 @@ import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {findErrors} from './query_builder_utils';
-import {UIFilter, normalizeDataGridFilter} from './operations/filter';
+import {UIFilter, normalizeFilter} from './operations/filter';
 import {DataExplorerEmptyState} from './widgets';
 import {Trace} from '../../../public/trace';
 import {Timestamp} from '../../../components/widgets/timestamp';
@@ -354,7 +354,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           filters: [],
           onFilterAdd: (filter) => {
             // Normalize the filter (expands IN/NOT IN to multiple equality filters)
-            const normalizedFilters = normalizeDataGridFilter(filter);
+            const normalizedFilters = normalizeFilter(filter);
 
             if (attrs.onFilterAdd) {
               // Pass all normalized filters at once

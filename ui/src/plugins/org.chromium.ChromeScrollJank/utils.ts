@@ -17,10 +17,9 @@ import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
 import {QueryResult, Row} from '../../trace_processor/query_result';
+import {openTableExplorer} from '../../components/table_explorer';
 import {SqlRef} from '../../widgets/sql_ref';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {MenuItem} from '../../widgets/menu';
-import {extensions} from '../../components/extensions';
 
 export const SCROLLS_TRACK_URI = 'perfetto.ChromeScrollJank#toplevelScrolls';
 export const EVENT_LATENCY_TRACK_URI = 'perfetto.ChromeScrollJank#eventLatency';
@@ -49,27 +48,27 @@ export function renderSliceRef(args: {
 export function renderSqlRef(args: {
   trace: Trace;
   tableName: string;
-  tableDefinition: SqlTableDefinition | undefined;
   id: number | bigint;
 }) {
-  const tableDefinition = args.tableDefinition;
   return m(SqlRef, {
     table: args.tableName,
     id: args.id,
-    additionalMenuItems: tableDefinition && [
+    additionalMenuItems: [
       m(MenuItem, {
         label: 'Show query results',
         icon: 'table',
-        onclick: () =>
-          extensions.addLegacySqlTableTab(args.trace, {
-            table: tableDefinition,
-            filters: [
+        onclick: () => {
+          openTableExplorer(args.trace, {
+            tableName: args.tableName,
+            initialFilters: [
               {
-                op: ([columnName]) => `${columnName} = ${args.id}`,
-                columns: ['id'],
+                field: 'id',
+                op: '=',
+                value: args.id,
               },
             ],
-          }),
+          });
+        },
       }),
     ],
   });

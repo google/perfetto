@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {QueryNode, QueryNodeState} from '../query_node';
-import {SqlModules} from '../../../plugins/dev.perfetto.SqlModules/sql_modules';
+import {SqlModules} from '../../../public/sql_modules';
 
 // The context provided to the preCreate hook.
 export interface PreCreateContext {

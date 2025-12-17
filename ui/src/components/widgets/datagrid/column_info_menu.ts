@@ -52,14 +52,12 @@ export class ColumnInfoMenu implements m.ClassComponent<ColumnInfoMenuAttrs> {
 
     if (colInfo) {
       // Column type
-      if (colInfo.columnType) {
-        infoItems.push(
-          m(MenuItem, {
-            label: `Type: ${colInfo.columnType}`,
-            disabled: true,
-          }),
-        );
-      }
+      infoItems.push(
+        m(MenuItem, {
+          label: `Type: ${colInfo.columnType}`,
+          disabled: true,
+        }),
+      );
 
       // Parameterized column info
       if (isParameterizedColumnDef(colInfo.def)) {
@@ -80,24 +78,20 @@ export class ColumnInfoMenu implements m.ClassComponent<ColumnInfoMenuAttrs> {
       }
 
       // Custom renderer indicator
-      if (colInfo.cellRenderer) {
-        infoItems.push(
-          m(MenuItem, {
-            label: 'Custom renderer: yes',
-            disabled: true,
-          }),
-        );
-      }
+      infoItems.push(
+        m(MenuItem, {
+          label: `Custom renderer: ${colInfo.cellRenderer ? 'yes' : 'no'}`,
+          disabled: true,
+        }),
+      );
 
       // Custom formatter indicator
-      if (colInfo.cellFormatter) {
-        infoItems.push(
-          m(MenuItem, {
-            label: 'Custom formatter: yes',
-            disabled: true,
-          }),
-        );
-      }
+      infoItems.push(
+        m(MenuItem, {
+          label: `Custom formatter: ${colInfo.cellFormatter ? 'yes' : 'no'}`,
+          disabled: true,
+        }),
+      );
     } else {
       infoItems.push(
         m(MenuItem, {

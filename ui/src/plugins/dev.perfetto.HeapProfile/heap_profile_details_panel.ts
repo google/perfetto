@@ -16,9 +16,9 @@ import m from 'mithril';
 
 import {assertFalse} from '../../base/logging';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
-import {extensions} from '../../components/extensions';
 import {time} from '../../base/time';
 import {uuidv4Sql} from '../../base/uuid';
+import {SqlTable, SqlColumn} from '../../public/table';
 import {
   QueryFlamegraph,
   QueryFlamegraphMetric,
@@ -43,10 +43,22 @@ import {
   FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphOptionalAction,
 } from '../../widgets/flamegraph';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
-import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
+import {
+  PerfettoSqlTypes,
+  PerfettoSqlType,
+} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
+import {openTableExplorer} from '../../components/table_explorer';
+
+interface SqlTableDefinition {
+  readonly name: string;
+  readonly displayName?: string;
+  readonly columns: ReadonlyArray<{
+    readonly column: string;
+    readonly type?: PerfettoSqlType;
+  }>;
+}
 
 export enum ProfileType {
   HEAP_PROFILE = 'heap_profile',
@@ -529,6 +541,20 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
   convertTraceToPprofAndDownload(blob, pid.firstRow({pid: NUM}).pid, ts);
 }
 
+function sqlTableDefToSqlTable(def: SqlTableDefinition): SqlTable {
+  const columns: SqlColumn[] = def.columns.map((col) => ({
+    name: col.column,
+    type: col.type,
+  }));
+
+  return {
+    name: def.name,
+    description: def.displayName ?? def.name,
+    type: 'table',
+    columns,
+  };
+}
+
 function getHeapGraphObjectReferencesView(
   isDominator: boolean,
 ): SqlTableDefinition {
@@ -659,8 +685,10 @@ function getHeapGraphNodeOptionalActions(
 
           // Create view to be returned
           await trace.engine.query(statement);
-          extensions.addLegacySqlTableTab(trace, {
-            table: getHeapGraphObjectReferencesView(isDominator),
+          const tableDef = getHeapGraphObjectReferencesView(isDominator);
+          openTableExplorer(trace, {
+            tableName: tableDef.name,
+            customTables: [sqlTableDefToSqlTable(tableDef)],
           });
         }
       },
@@ -691,8 +719,10 @@ function getHeapGraphNodeOptionalActions(
 
               // Create view to be returned
               await trace.engine.query(statement);
-              extensions.addLegacySqlTableTab(trace, {
-                table: getHeapGraphIncomingReferencesView(isDominator),
+              const tableDef = getHeapGraphIncomingReferencesView(isDominator);
+              openTableExplorer(trace, {
+                tableName: tableDef.name,
+                customTables: [sqlTableDefToSqlTable(tableDef)],
               });
             }
           },
@@ -717,8 +747,10 @@ function getHeapGraphNodeOptionalActions(
 
               // Create view to be returned
               await trace.engine.query(statement);
-              extensions.addLegacySqlTableTab(trace, {
-                table: getHeapGraphOutgoingReferencesView(isDominator),
+              const tableDef = getHeapGraphOutgoingReferencesView(isDominator);
+              openTableExplorer(trace, {
+                tableName: tableDef.name,
+                customTables: [sqlTableDefToSqlTable(tableDef)],
               });
             }
           },
@@ -751,8 +783,11 @@ function getHeapGraphNodeOptionalActions(
 
               // Create view to be returned
               await trace.engine.query(statement);
-              extensions.addLegacySqlTableTab(trace, {
-                table: getHeapGraphRetainedObjectCountsView(isDominator),
+              const tableDef =
+                getHeapGraphRetainedObjectCountsView(isDominator);
+              openTableExplorer(trace, {
+                tableName: tableDef.name,
+                customTables: [sqlTableDefToSqlTable(tableDef)],
               });
             }
           },
@@ -777,8 +812,11 @@ function getHeapGraphNodeOptionalActions(
 
               // Create view to be returned
               await trace.engine.query(statement);
-              extensions.addLegacySqlTableTab(trace, {
-                table: getHeapGraphRetainingObjectCountsView(isDominator),
+              const tableDef =
+                getHeapGraphRetainingObjectCountsView(isDominator);
+              openTableExplorer(trace, {
+                tableName: tableDef.name,
+                customTables: [sqlTableDefToSqlTable(tableDef)],
               });
             }
           },
@@ -803,8 +841,10 @@ function getHeapGraphRootOptionalActions(
 
         // Create view to be returned
         await trace.engine.query(statement);
-        extensions.addLegacySqlTableTab(trace, {
-          table: getHeapGraphDuplicateObjectsView(isDominator),
+        const tableDef = getHeapGraphDuplicateObjectsView(isDominator);
+        openTableExplorer(trace, {
+          tableName: tableDef.name,
+          customTables: [sqlTableDefToSqlTable(tableDef)],
         });
       },
     },

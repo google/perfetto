@@ -96,14 +96,14 @@ export function formatFilterValue(
 }
 
 /**
- * Converts a DataGridFilter to an array of UIFilters.
+ * Converts a Filter to an array of UIFilters.
  * FilterIn types (IN/NOT IN) are expanded into multiple equality filters
  * since the query builder doesn't support native IN operations yet.
  *
  * @param filter The filter from the DataGrid to normalize
  * @returns Array of UIFilters (single filter unless IN/NOT IN)
  */
-export function normalizeDataGridFilter(filter: Filter): UIFilter[] {
+export function normalizeFilter(filter: Filter): UIFilter[] {
   // Handle IN/NOT IN filters by converting to multiple equality filters
   if (filter.op === 'in' || filter.op === 'not in') {
     const values = filter.value as ReadonlyArray<SqlValue>;

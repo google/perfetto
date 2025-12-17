@@ -14,7 +14,7 @@
 
 import protos from '../../protos';
 import m from 'mithril';
-import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+import {SqlModules, SqlTable} from '../../public/sql_modules';
 import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
 import {UIFilter} from './query_builder/operations/filter';
 import {Engine} from '../../trace_processor/engine';

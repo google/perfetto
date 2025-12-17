@@ -169,27 +169,31 @@ async function createTableForSliceTrack(
   // won't be addressable from the SQL. So we explicitly name them through a
   // list of columns passed to CTE.
   const dataColumns =
-    data.columns !== undefined ? `(${data.columns.join(', ')})` : '';
+    data.columns !== undefined
+      ? `(${data.columns.map((c) => `"${c}"`).join(', ')})`
+      : '';
 
   const cols = [
     `${ts} as ts`,
     `ifnull(cast(${dur} as int), -1) as dur`,
     `printf('%s', ${name}) as name`,
-    rawColumns.map((c) => `${c} as ${RAW_PREFIX}${c}`),
+    // rawColumns.map((c) => `"${c}" as "${RAW_PREFIX}${c}"`),
+    rawColumns.map((c) => `"${c}" as "${RAW_PREFIX}${c.replace(/\./g, '__')}"`),
     pivotCol && `${pivotCol} as pivot`,
     argSetIdColumn && `${argSetIdColumn} as arg_set_id`,
     colorCol && `${colorCol} as color`,
   ]
     .flat() // Convert to flattened list
     .filter(Boolean) // Remove falsy values
-    .join(',');
+    .join(',\n'); // Join with commas and newlines
 
   const query = `
     with data${dataColumns} as (
       ${data.sqlSource}
     ),
     prepared_data as (
-      select ${cols}
+      select
+        ${cols}
       from data
     )
     select

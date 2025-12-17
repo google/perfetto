@@ -12,28 +12,74 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {
-  THREAD_TABLE,
-  PROCESS_TABLE,
-  SLICE_TABLE,
-  ANDROID_LOGS_TABLE,
-  SCHED_TABLE,
-  THREAD_STATE_TABLE,
-} from '../../components/widgets/sql/table_definitions';
-import {extensions} from '../../components/extensions';
+import {Trace} from '../../public/trace';
+import {SqlTable} from '../../public/table';
+import {openTableExplorer} from '../../components/table_explorer';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
+
+// Custom table definition for slices using the viz module
+export const SLICE_TABLE: SqlTable = {
+  name: '_viz_slices_for_ui_table',
+  description: 'Slices',
+  type: 'table',
+  columns: [
+    {name: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
+    {name: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+    {name: 'dur', type: PerfettoSqlTypes.DURATION},
+    {name: 'category', type: PerfettoSqlTypes.STRING},
+    {name: 'name', type: PerfettoSqlTypes.STRING},
+    {
+      name: 'utid',
+      type: {kind: 'joinid', source: {table: 'thread', column: 'id'}},
+    },
+    {
+      name: 'upid',
+      type: {kind: 'joinid', source: {table: 'process', column: 'id'}},
+    },
+    {
+      name: 'track_id',
+      type: {kind: 'joinid', source: {table: 'track', column: 'id'}},
+    },
+    {name: 'arg_set_id', type: PerfettoSqlTypes.ARG_SET_ID},
+    {name: 'depth', type: PerfettoSqlTypes.INT},
+    {
+      name: 'parent_id',
+      type: {kind: 'joinid', source: {table: 'slice', column: 'id'}},
+    },
+  ],
+};
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'org.Chromium.OpenTableCommands';
+  static readonly id = 'org.chromium.OpenTableCommands';
+  static readonly description =
+    'Adds commands to open some common opinionated tables in table explorer';
 
   async onTraceLoad(ctx: Trace) {
     ctx.commands.registerCommand({
       id: 'org.chromium.ShowTable.slice',
       name: 'Open table: slice',
       callback: () => {
-        extensions.addLegacySqlTableTab(ctx, {
-          table: SLICE_TABLE,
+        openTableExplorer(ctx, {
+          tableName: SLICE_TABLE.name,
+          customTables: [SLICE_TABLE],
+          preamble: 'INCLUDE PERFETTO MODULE viz.slices;',
+          initialColumns: [
+            {field: 'id'},
+            {field: 'ts'},
+            {field: 'dur'},
+            {field: 'category'},
+            {field: 'name'},
+            {field: 'utid'},
+            {field: 'utid.tid'},
+            {field: 'utid.name'},
+            {field: 'upid'},
+            {field: 'upid.pid'},
+            {field: 'upid.name'},
+            {field: 'track_id'},
+            {field: 'track_id.name'},
+            {field: 'arg_set_id'},
+          ],
         });
       },
     });
@@ -42,8 +88,19 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.thread',
       name: 'Open table: thread',
       callback: () => {
-        extensions.addLegacySqlTableTab(ctx, {
-          table: THREAD_TABLE,
+        openTableExplorer(ctx, {
+          tableName: 'thread',
+          initialColumns: [
+            {field: 'utid'},
+            {field: 'tid'},
+            {field: 'name'},
+            {field: 'start_ts'},
+            {field: 'end_ts'},
+            {field: 'upid'},
+            {field: 'upid.pid'},
+            {field: 'upid.name'},
+            {field: 'is_main_thread'},
+          ],
         });
       },
     });
@@ -52,8 +109,20 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.process',
       name: 'Open table: process',
       callback: () => {
-        extensions.addLegacySqlTableTab(ctx, {
-          table: PROCESS_TABLE,
+        openTableExplorer(ctx, {
+          tableName: 'process',
+          initialColumns: [
+            {field: 'upid'},
+            {field: 'pid'},
+            {field: 'name'},
+            {field: 'start_ts'},
+            {field: 'end_ts'},
+            {field: 'parent_upid'},
+            {field: 'uid'},
+            {field: 'android_appid'},
+            {field: 'machine_id'},
+            {field: 'arg_set_id'},
+          ],
         });
       },
     });
@@ -62,8 +131,22 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.sched',
       name: 'Open table: sched',
       callback: () => {
-        extensions.addLegacySqlTableTab(ctx, {
-          table: SCHED_TABLE,
+        openTableExplorer(ctx, {
+          tableName: 'sched',
+          initialColumns: [
+            {field: 'id'},
+            {field: 'ts'},
+            {field: 'dur'},
+            {field: 'cpu'},
+            {field: 'priority'},
+            {field: 'utid'},
+            {field: 'utid.tid'},
+            {field: 'utid.name'},
+            {field: 'utid.upid.pid'},
+            {field: 'utid.upid.name'},
+            {field: 'end_state'},
+            {field: 'ucpu'},
+          ],
         });
       },
     });
@@ -72,8 +155,28 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {
-        extensions.addLegacySqlTableTab(ctx, {
-          table: THREAD_STATE_TABLE,
+        openTableExplorer(ctx, {
+          tableName: 'thread_state',
+          initialColumns: [
+            {field: 'id'},
+            {field: 'ts'},
+            {field: 'dur'},
+            {field: 'state'},
+            {field: 'cpu'},
+            {field: 'utid'},
+            {field: 'utid.tid'},
+            {field: 'utid.name'},
+            {field: 'utid.upid.pid'},
+            {field: 'utid.upid.name'},
+            {field: 'io_wait'},
+            {field: 'blocked_function'},
+            {field: 'waker_utid'},
+            {field: 'waker_utid.tid'},
+            {field: 'waker_utid.name'},
+            {field: 'waker_id'},
+            {field: 'irq_context'},
+            {field: 'ucpu'},
+          ],
         });
       },
     });
@@ -82,8 +185,16 @@ export default class implements PerfettoPlugin {
       id: 'org.chromium.ShowTable.android_logs',
       name: 'Open table: android_logs',
       callback: () => {
-        extensions.addLegacySqlTableTab(ctx, {
-          table: ANDROID_LOGS_TABLE,
+        openTableExplorer(ctx, {
+          tableName: 'android_logs',
+          initialColumns: [
+            {field: 'id'},
+            {field: 'ts'},
+            {field: 'tag'},
+            {field: 'prio'},
+            {field: 'utid'},
+            {field: 'msg'},
+          ],
         });
       },
     });

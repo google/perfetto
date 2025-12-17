@@ -862,48 +862,11 @@ export class Grid implements m.ClassComponent<GridAttrs> {
   oncreate(vnode: m.VnodeDOM<GridAttrs, this>) {
     const {virtualization, columns, rowData} = vnode.attrs;
 
-    // Extract rows from rowData
-    const rows = isPartialRowData(rowData) ? rowData.data : rowData;
-
     // Add copy event handler for spreadsheet-friendly formatting
     const gridDom = vnode.dom as HTMLElement;
     gridDom.addEventListener('copy', this.boundHandleCopy);
 
-    if (rows.length > 0) {
-      // Check if there are new columns that need sizing
-      const newColumns = columns.filter(
-        (column) =>
-          !this.sizedColumns.has(column.key) && (column.resizable ?? true),
-      );
-
-      if (newColumns.length > 0) {
-        this.measureAndApplyWidths(
-          vnode.dom as HTMLElement,
-          newColumns.map((col) => {
-            const {
-              key,
-              minWidth = COL_WIDTH_MIN_PX,
-              maxInitialWidthPx = COL_WIDTH_INITIAL_MAX_PX,
-            } = col;
-
-            return {
-              key,
-              minWidth,
-              maxWidth: maxInitialWidthPx,
-            };
-          }),
-        );
-      }
-    } else {
-      // No rows yet, just apply initial column widths
-      for (const column of columns) {
-        const columnId = this.getColumnId(column.key);
-        gridDom.style.setProperty(
-          `--pf-grid-col-${columnId}`,
-          `${column.initialWidthPx ?? INITIAL_COLUMN_WIDTH_PX}px`,
-        );
-      }
-    }
+    this.autosizeNewColumns(vnode.dom as HTMLElement, vnode.attrs);
 
     // Only set up virtual scrolling if virtualization is enabled
     if (virtualization === undefined) {
@@ -952,6 +915,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
           const gridDom = vnode.dom as HTMLElement;
           const column = columns.find((c) => c.key === columnKey);
           if (!column) return;
+          if (column.resizable === false) return;
 
           this.measureAndApplyWidths(gridDom, [
             {
@@ -966,13 +930,14 @@ export class Grid implements m.ClassComponent<GridAttrs> {
           const gridDom = vnode.dom as HTMLElement;
           this.measureAndApplyWidths(
             gridDom,
-            columns
-              .filter((c) => c.resizable ?? true)
-              .map((column) => ({
-                key: column.key,
-                minWidth: column.minWidth ?? COL_WIDTH_MIN_PX,
-                maxWidth: Infinity,
-              })),
+            columns.map((column) => ({
+              key: column.key,
+              minWidth: column.minWidth ?? COL_WIDTH_MIN_PX,
+              maxWidth: Infinity,
+              fixedWidthPx: !(column.resizable ?? true)
+                ? column.initialWidthPx ?? INITIAL_COLUMN_WIDTH_PX
+                : undefined,
+            })),
           );
           m.redraw();
         },
@@ -981,35 +946,42 @@ export class Grid implements m.ClassComponent<GridAttrs> {
   }
 
   onupdate(vnode: m.VnodeDOM<GridAttrs, this>) {
-    const {columns, rowData} = vnode.attrs;
+    this.autosizeNewColumns(vnode.dom as HTMLElement, vnode.attrs);
+  }
+
+  // If we have data available in the rows - measure the columns and apply
+  // widths
+  private autosizeNewColumns(dom: HTMLElement, attrs: GridAttrs) {
+    const {columns, rowData} = attrs;
 
     // Extract rows from rowData
     const rows = isPartialRowData(rowData) ? rowData.data : rowData;
 
     if (rows.length > 0) {
-      // Check if there are new columns that need sizing
+      // Check if there are new resizable that need sizing
       const newColumns = columns.filter(
         (column) => !this.sizedColumns.has(column.key),
       );
 
       if (newColumns.length > 0) {
         this.measureAndApplyWidths(
-          vnode.dom as HTMLElement,
-          newColumns
-            .filter((col) => col.resizable ?? true)
-            .map((col) => {
-              const {
-                key,
-                minWidth = COL_WIDTH_MIN_PX,
-                maxInitialWidthPx = COL_WIDTH_INITIAL_MAX_PX,
-              } = col;
+          dom,
+          newColumns.map((column) => {
+            const {
+              key,
+              minWidth = COL_WIDTH_MIN_PX,
+              maxInitialWidthPx = COL_WIDTH_INITIAL_MAX_PX,
+            } = column;
 
-              return {
-                key,
-                minWidth,
-                maxWidth: maxInitialWidthPx,
-              };
-            }),
+            return {
+              key,
+              minWidth,
+              maxWidth: maxInitialWidthPx,
+              fixedWidthPx: !(column.resizable ?? true)
+                ? column.initialWidthPx ?? INITIAL_COLUMN_WIDTH_PX
+                : undefined,
+            };
+          }),
         );
       }
     }
@@ -1026,6 +998,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       readonly key: string;
       readonly minWidth: number;
       readonly maxWidth: number;
+      readonly fixedWidthPx?: number;
     }>,
   ): void {
     const gridClone = gridDom.cloneNode(true) as HTMLElement;
@@ -1060,6 +1033,15 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     columns
       // Now, measure all the cells we have available
       .map((column) => {
+        if (column.fixedWidthPx !== undefined) {
+          // Use fixed width if provided
+          const columnId = this.getColumnId(column.key);
+          this.sizedColumns.add(column.key);
+          return {
+            columnId,
+            width: column.fixedWidthPx,
+          };
+        }
         const columnId = this.getColumnId(column.key);
 
         // Find all the cells in this column

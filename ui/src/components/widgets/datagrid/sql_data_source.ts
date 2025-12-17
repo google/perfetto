@@ -58,6 +58,12 @@ export interface SQLDataSourceConfig {
    * Required when sqlSchema is provided.
    */
   rootSchemaName?: string;
+
+  /**
+   * Optional SQL prelude to execute before each query.
+   * Useful for imports like "INCLUDE PERFETTO MODULE xyz;"
+   */
+  preamble?: string;
 }
 
 /**
@@ -108,6 +114,7 @@ export class SQLDataSource implements DataSource {
   private readonly baseQuery?: string;
   private readonly sqlSchema?: SQLSchemaRegistry;
   private readonly rootSchemaName?: string;
+  private readonly prelude?: string;
 
   private workingQuery = '';
   private pagination?: Pagination;
@@ -121,6 +128,7 @@ export class SQLDataSource implements DataSource {
     this.baseQuery = config.baseQuery;
     this.sqlSchema = config.sqlSchema;
     this.rootSchemaName = config.rootSchemaName;
+    this.prelude = config.preamble;
 
     // Validate configuration
     if (!this.baseQuery && !this.sqlSchema) {
@@ -149,6 +157,14 @@ export class SQLDataSource implements DataSource {
 
   get isLoading(): boolean {
     return this.isLoadingFlag;
+  }
+
+  /**
+   * Get the current working query for the datasource.
+   * Useful for debugging or creating debug tracks.
+   */
+  getCurrentQuery(): string {
+    return this.workingQuery;
   }
 
   /**
@@ -241,7 +257,10 @@ export class SQLDataSource implements DataSource {
             if (!this.cachedResult?.distinctValues?.has(columnPath)) {
               const query = this.buildDistinctValuesQuery(columnPath);
               if (query) {
-                const result = await runQueryForQueryTable(query, this.engine);
+                const result = await runQueryForQueryTable(
+                  this.wrapQueryWithPrelude(query),
+                  this.engine,
+                );
                 const values = result.rows.map((r) => r['value']);
                 this.cachedResult = {
                   ...this.cachedResult!,
@@ -274,7 +293,7 @@ export class SQLDataSource implements DataSource {
 
                   try {
                     const result = await runQueryForQueryTable(
-                      query,
+                      this.wrapQueryWithPrelude(query),
                       this.engine,
                     );
                     const keys = result.rows.map((r) => String(r['key']));
@@ -297,6 +316,13 @@ export class SQLDataSource implements DataSource {
     });
   }
 
+  private wrapQueryWithPrelude(query: string): string {
+    if (this.prelude) {
+      return `${this.prelude};\n${query}`;
+    }
+    return query;
+  }
+
   /**
    * Export all data with current filters/sorting applied.
    */
@@ -306,7 +332,10 @@ export class SQLDataSource implements DataSource {
     }
 
     const query = `SELECT * FROM (${this.workingQuery})`;
-    const result = await runQueryForQueryTable(query, this.engine);
+    const result = await runQueryForQueryTable(
+      this.wrapQueryWithPrelude(query),
+      this.engine,
+    );
     return result.rows;
   }
 
@@ -563,6 +592,15 @@ ${joinClauses}`;
       }
     }
 
+    // Include column aggregates in the query string so changes trigger a reload
+    const aggregateSuffix = columns
+      ?.filter((c) => c.aggregate)
+      .map((c) => `${c.field}:${c.aggregate}`)
+      .join(',');
+    if (aggregateSuffix) {
+      query += ` /* aggregates: ${aggregateSuffix} */`;
+    }
+
     return query;
   }
 
@@ -732,11 +770,13 @@ ${joinClauses}`;
   }
 
   private async getRowCount(workingQuery: string): Promise<number> {
-    const result = await this.engine.query(`
+    const result = await this.engine.query(
+      this.wrapQueryWithPrelude(`
       WITH data AS (${workingQuery})
       SELECT COUNT(*) AS total_count
       FROM data
-    `);
+    `),
+    );
     return result.firstRow({total_count: NUM}).total_count;
   }
 
@@ -788,7 +828,10 @@ ${joinClauses}`;
       FROM (${filteredBaseQuery})
     `;
 
-    const result = await runQueryForQueryTable(query, this.engine);
+    const result = await runQueryForQueryTable(
+      this.wrapQueryWithPrelude(query),
+      this.engine,
+    );
     return result.rows[0] ?? {};
   }
 
@@ -853,7 +896,10 @@ ${joinClauses}`;
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
 
-    const result = await runQueryForQueryTable(query, this.engine);
+    const result = await runQueryForQueryTable(
+      this.wrapQueryWithPrelude(query),
+      this.engine,
+    );
     return result.rows[0] ?? {};
   }
 
@@ -898,7 +944,10 @@ ${joinClauses}`;
       FROM (${filteredBaseQuery})
     `;
 
-    const result = await runQueryForQueryTable(query, this.engine);
+    const result = await runQueryForQueryTable(
+      this.wrapQueryWithPrelude(query),
+      this.engine,
+    );
     return result.rows[0] ?? {};
   }
 
@@ -955,7 +1004,10 @@ ${joinClauses}`;
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
 
-    const result = await runQueryForQueryTable(query, this.engine);
+    const result = await runQueryForQueryTable(
+      this.wrapQueryWithPrelude(query),
+      this.engine,
+    );
     return result.rows[0] ?? {};
   }
 
@@ -973,7 +1025,10 @@ ${joinClauses}`;
       query += `LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
     }
 
-    const result = await runQueryForQueryTable(query, this.engine);
+    const result = await runQueryForQueryTable(
+      this.wrapQueryWithPrelude(query),
+      this.engine,
+    );
 
     return {
       offset: pagination?.offset ?? 0,

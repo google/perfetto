@@ -17,7 +17,7 @@ import {QueryExecutionService} from './query_execution_service';
 import {QueryNode} from '../query_node';
 import {TableSourceNode} from './nodes/sources/table_source';
 import {Trace} from '../../../public/trace';
-import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlModules} from '../../../public/sql_modules';
 
 describe('CleanupManager', () => {
   let mockQueryExecutionService: jest.Mocked<QueryExecutionService>;

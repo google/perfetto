@@ -23,7 +23,6 @@ import {
 import {createScrollJankV3Track} from './scroll_jank_v3_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {createScrollTimelineModel} from './scroll_timeline_model';
 import {createFlatColoredDurationTrack} from './flat_colored_duration_track';
 import {createTopLevelScrollTrack} from './scroll_track';
@@ -36,7 +35,6 @@ import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_det
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
-  static readonly dependencies = [SqlModulesPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({

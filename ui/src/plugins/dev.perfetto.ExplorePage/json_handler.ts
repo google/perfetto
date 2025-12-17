@@ -44,7 +44,7 @@ import {
   IntervalIntersectSerializedState,
 } from './query_builder/nodes/interval_intersect_node';
 import {Trace} from '../../public/trace';
-import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
+import {SqlModules} from '../../public/sql_modules';
 import {
   AddColumnsNode,
   AddColumnsNodeState,

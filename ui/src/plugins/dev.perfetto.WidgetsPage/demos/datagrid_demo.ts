@@ -75,7 +75,7 @@ const SLICE_UI_SCHEMA: SchemaRegistry = {
   slice: {
     id: {
       title: 'ID',
-      columnType: 'identifier',
+      columnType: 'quantitative',
     },
     ts: {
       title: 'Timestamp',
@@ -84,10 +84,6 @@ const SLICE_UI_SCHEMA: SchemaRegistry = {
     dur: {
       title: 'Duration',
       columnType: 'quantitative',
-    },
-    name: {
-      title: 'Name',
-      columnType: 'text',
     },
     track_id: {
       title: 'Track ID',
@@ -103,7 +99,7 @@ const SLICE_UI_SCHEMA: SchemaRegistry = {
     },
     args: {
       parameterized: true,
-      title: 'Arg',
+      title: 'Args',
     },
     all_args: {
       title: 'All Args',
@@ -214,8 +210,8 @@ export function renderDataGrid(app: App): m.Children {
         'pre',
         `const schema: SchemaRegistry = {
   slice: {
-    id: { filterType: 'quantitative' },
-    name: { title: 'Slice Name', filterType: 'text' },
+    id: { columnType: 'quantitative' },
+    name: { title: 'Slice Name', columnType: 'text' },
     parent: { ref: 'slice' },  // Self-referential
     thread: { ref: 'thread' },
     args: { parameterized: true },  // Dynamic keys
@@ -226,7 +222,7 @@ export function renderDataGrid(app: App): m.Children {
   },
   process: {
     name: { title: 'Process Name' },
-    pid: { filterType: 'quantitative' },
+    pid: { columnType: 'quantitative' },
   },
 };`,
       ),
@@ -252,6 +248,7 @@ export function renderDataGrid(app: App): m.Children {
                   {field: 'id'},
                   {field: 'ts'},
                   {field: 'dur'},
+                  {field: 'name'},
                   {field: 'track.name'},
                 ],
               });

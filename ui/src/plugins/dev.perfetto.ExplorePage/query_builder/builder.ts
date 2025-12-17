@@ -73,7 +73,7 @@ import {Icon} from '../../../widgets/icon';
 import {Card} from '../../../widgets/card';
 import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Trace} from '../../../public/trace';
-import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlModules} from '../../../public/sql_modules';
 import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';

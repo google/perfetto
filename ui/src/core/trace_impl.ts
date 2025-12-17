@@ -52,6 +52,8 @@ import {SettingDescriptor} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {TraceStream} from '../public/stream';
+import {SqlModulesManager} from './sql_modules_manager';
+import {SqlModules} from '../public/sql_modules';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -79,6 +81,7 @@ export class TraceImpl implements Trace, Disposable {
   readonly loadingErrors: string[] = [];
   readonly app: AppImpl;
   readonly store = createStore<Record<string, unknown>>({});
+  private readonly sqlModulesManager: SqlModulesManager;
 
   // Do we need this?
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
@@ -169,6 +172,9 @@ export class TraceImpl implements Trace, Disposable {
         return disposable;
       },
     });
+
+    // Initialize SQL modules manager for table exploration
+    this.sqlModulesManager = new SqlModulesManager(this);
   }
 
   // This method wires up changes to selection to side effects on search and
@@ -318,6 +324,10 @@ export class TraceImpl implements Trace, Disposable {
 
   mountStore<T>(id: string, migrate: Migrate<T>): Store<T> {
     return this.store.createSubStore([id], migrate);
+  }
+
+  getSqlModules(): SqlModules | undefined {
+    return this.sqlModulesManager.getSqlModules();
   }
 }
 

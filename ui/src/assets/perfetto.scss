@@ -30,9 +30,9 @@
 @import "components/aggregation_adapter";
 @import "components/datagrid";
 @import "components/json_settings_editor";
-@import "components/pivot_table";
 @import "components/query_history";
 @import "components/query_table";
+@import "components/table_explorer";
 @import "widgets/anchor";
 @import "widgets/box";
 @import "widgets/button";
@@ -69,7 +69,6 @@
 @import "widgets/settings_shell";
 @import "widgets/spinner";
 @import "widgets/split_panel";
-@import "widgets/sql_table";
 @import "widgets/stack";
 @import "widgets/tabs";
 @import "widgets/tag_input";

@@ -44,6 +44,7 @@ import {JANKS_TRACK_URI, renderSliceRef} from './utils';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {renderSliceArguments} from '../../components/details/slice_args';
+import {openTableExplorer} from '../../components/table_explorer';
 
 // Given a node in the slice tree, return a path from root to it.
 function getPath(slice: SliceTreeNode): string[] {
@@ -513,7 +514,17 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
               m(
                 Section,
                 {title: 'Arguments'},
-                m(Tree, renderSliceArguments(this.trace, slice.args)),
+                m(
+                  Tree,
+                  renderSliceArguments(this.trace, slice.args, {
+                    openTableExplorer: (tableName, options) => {
+                      openTableExplorer(this.trace, {
+                        tableName,
+                        initialFilters: options?.filters,
+                      });
+                    },
+                  }),
+                ),
               ),
           ),
           m(GridLayoutColumn, rightSideWidgets),

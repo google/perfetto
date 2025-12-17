@@ -14,7 +14,6 @@
 
 import {type addDebugSliceTrack} from './tracks/debug_tracks';
 import {type addDebugCounterTrack} from './tracks/debug_tracks';
-import {type addLegacyTableTab} from './details/sql_table_tab';
 import {type addVisualizedArgTracks} from './tracks/visualized_args_tracks';
 import {type addQueryResultsTab} from './query_table/query_result_tab';
 
@@ -31,7 +30,6 @@ import {type addQueryResultsTab} from './query_table/query_result_tab';
 export interface ExtensionApi {
   addDebugSliceTrack: typeof addDebugSliceTrack;
   addDebugCounterTrack: typeof addDebugCounterTrack;
-  addLegacySqlTableTab: typeof addLegacyTableTab;
   addVisualizedArgTracks: typeof addVisualizedArgTracks;
   addQueryResultsTab: typeof addQueryResultsTab;
 }

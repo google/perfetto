@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TableColumn} from '../../components/widgets/sql/table/table_column';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
-import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import {SqlTable, SqlColumn} from './table';
+
+// Re-export for convenience
+export {SqlTable, SqlColumn};
 
 // Handles the access to all of the Perfetto SQL modules accessible to Trace
 //  Processor.
@@ -59,9 +60,6 @@ export interface SqlPackage {
 
   // Returns sqlModule containing table with provided name.
   getModuleForTable(tableName: string): SqlModule | undefined;
-
-  // Returns sqlTableDefinition of the table with provided name.
-  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined;
 }
 
 // Handles the access to a specific Perfetto SQL module.
@@ -75,22 +73,6 @@ export interface SqlModule {
 
   // Returns sqlTable with provided name.
   getTable(tableName: string): SqlTable | undefined;
-
-  // Returns sqlTableDefinition of the table with provided name.
-  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined;
-}
-
-// The definition of Perfetto SQL table/view.
-export interface SqlTable {
-  readonly name: string;
-  readonly includeKey?: string;
-  readonly description: string;
-  readonly type: string;
-  readonly importance?: 'high' | 'mid' | 'low';
-  readonly columns: SqlColumn[];
-
-  // Returns all columns as TableColumns.
-  getTableColumns(): TableColumn[];
 }
 
 // The definition of Perfetto SQL function.
@@ -116,13 +98,6 @@ export interface SqlMacro {
   readonly description: string;
   readonly args: SqlArgument[];
   readonly returnType: string;
-}
-
-// The definition of Perfetto SQL column.
-export interface SqlColumn {
-  readonly name: string;
-  readonly description?: string;
-  readonly type?: PerfettoSqlType;
 }
 
 // The definition of Perfetto SQL argument. Can be used for functions, table
