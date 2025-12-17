@@ -399,28 +399,6 @@ void ProducerIPCClientImpl::OnServiceRequest(
         cmd.flush().request_id(),
         reinterpret_cast<const DataSourceInstanceID*>(data_source_ids),
         static_cast<size_t>(cmd.flush().data_source_ids().size()), flags);
-
-    // NB: For producers using SMB emulation, the actual value of
-    // ProducerSMBScrapingMode::kDefault in the service-side is unknown on the
-    // producer-side. Therefore we only do producer-side SMB scraping if the
-    // scraping mode is explicitly enabled.
-    if (use_shmem_emulation_ &&
-        smb_scraping_mode_ ==
-            TracingService::ProducerSMBScrapingMode::kEnabled) {
-      // Producer-side SMB scraping should occur after the flush is complete.
-      // Most often the NotifyFlushComplete method is called at the end of a
-      // producer's Flush method which also very commonly posts a flush pending
-      // commit data request to the producer IPC client's task runner. Posting
-      // the SMB scraping task into the task runner should push the SMB scraping
-      // after the pending flush data request.
-      auto weak_this = weak_factory_.GetWeakPtr();
-      task_runner_->PostTask([weak_this]() {
-        if (weak_this) {
-          weak_this->shared_memory_arbiter_->ScrapeEmulatedSharedMemoryBuffer(
-              weak_this->writers_for_scraping_);
-        }
-      });
-    }
     return;
   }
 
@@ -625,7 +603,23 @@ bool ProducerIPCClientImpl::IsShmemProvidedByProducer() const {
 }
 
 void ProducerIPCClientImpl::NotifyFlushComplete(FlushRequestID req_id) {
-  return shared_memory_arbiter_->NotifyFlushComplete(req_id);
+  shared_memory_arbiter_->NotifyFlushComplete(req_id);
+
+  // NB: For producers using SMB emulation, the actual value of
+  // ProducerSMBScrapingMode::kDefault in the service-side is unknown on the
+  // producer-side. Therefore we only do producer-side SMB scraping if the
+  // scraping mode is explicitly enabled.
+  if (use_shmem_emulation_ &&
+      smb_scraping_mode_ == TracingService::ProducerSMBScrapingMode::kEnabled) {
+    // Producer-side SMB scraping should occur after the flush is complete.
+    // Most often the NotifyFlushComplete method is called at the end of a
+    // producer's Flush method which also very commonly posts a flush pending
+    // commit data request to the producer IPC client's task runner. Posting
+    // the SMB scraping task into the task runner should push the SMB scraping
+    // after the pending flush data request.
+    shared_memory_arbiter_->ScrapeEmulatedSharedMemoryBuffer(
+        writers_for_scraping_);
+  }
 }
 
 SharedMemory* ProducerIPCClientImpl::shared_memory() const {
