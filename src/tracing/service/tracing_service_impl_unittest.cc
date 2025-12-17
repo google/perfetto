@@ -7405,6 +7405,234 @@ TEST_F(TracingServiceImplTest, ExclusiveSessionHigherPriorityAbortsLower) {
   new_exclusive_consumer->WaitForTracingDisabled();
 }
 
+// Tests for named buffer addressing (target_buffer_name).
+TEST_F(TracingServiceImplTest, NamedBufferTargeting) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  auto* buf0 = trace_config.add_buffers();
+  buf0->set_size_kb(4);  // 4KB - too small to hold our data
+  buf0->set_name("small_buffer");
+  auto* buf1 = trace_config.add_buffers();
+  buf1->set_size_kb(128);  // 128KB - large enough
+  buf1->set_name("large_buffer");
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer_name("large_buffer");
+
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  // Verify the data source was assigned to the correct global buffer ID.
+  // Global buffer IDs are allocated sequentially: small_buffer=1,
+  // large_buffer=2.
+  auto* ds_instance = producer->GetDataSourceInstance("data_source");
+  ASSERT_NE(ds_instance, nullptr);
+  EXPECT_EQ(ds_instance->target_buffer, 2u);  // large_buffer's global ID
+
+  // Write ~10KB of data (10 packets x 1KB each), which exceeds the 4KB
+  // small_buffer. If we were incorrectly writing to small_buffer, we'd lose
+  // data.
+  auto writer = producer->CreateTraceWriter("data_source");
+  std::vector<std::string> expected_payloads;
+  for (int i = 0; i < 10; i++) {
+    std::string payload = "payload_" + std::to_string(i) + "_" +
+                          std::string(1000, 'x');  // ~1KB per packet
+    expected_payloads.push_back(payload);
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str(payload);
+  }
+  writer->Flush();
+  writer.reset();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(GetForTestingStrings(packets),
+              ::testing::UnorderedElementsAreArray(expected_payloads));
+}
+
+// Test that both target_buffer and target_buffer_name can be specified
+// if they resolve to the same buffer.
+TEST_F(TracingServiceImplTest, NamedBufferWithMatchingIndex) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  auto* buf0 = trace_config.add_buffers();
+  buf0->set_size_kb(128);
+  buf0->set_name("buffer_zero");
+  auto* buf1 = trace_config.add_buffers();
+  buf1->set_size_kb(256);
+  buf1->set_name("buffer_one");
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(1);
+  ds_config->set_target_buffer_name("buffer_one");
+
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  // Verify the data source was assigned to the correct global buffer ID.
+  // Global buffer IDs are allocated sequentially: buffer_zero=1, buffer_one=2.
+  auto* ds_instance = producer->GetDataSourceInstance("data_source");
+  ASSERT_NE(ds_instance, nullptr);
+  EXPECT_EQ(ds_instance->target_buffer, 2u);  // buffer_one's global ID
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+// Test that the service rejects configs with target_buffer_name that
+// doesn't match any buffer.
+TEST_F(TracingServiceImplTest, NamedBufferNotFound) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer_name("nonexistent_buffer");
+
+  consumer->EnableTracing(trace_config);
+
+  auto checkpoint = task_runner.CreateCheckpoint("tracing_disabled");
+  EXPECT_CALL(*consumer,
+              OnTracingDisabled(HasSubstr("does not match any buffer")))
+      .WillOnce(checkpoint);
+  task_runner.RunUntilCheckpoint("tracing_disabled");
+}
+
+// Test that the service rejects configs where target_buffer and
+// target_buffer_name resolve to different buffers.
+// Note: target_buffer=0 is treated as "unset" for backwards compatibility,
+// so we use non-zero indices to test the mismatch detection.
+TEST_F(TracingServiceImplTest, NamedBufferIndexMismatch) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  auto* buf0 = trace_config.add_buffers();
+  buf0->set_size_kb(128);
+  buf0->set_name("buffer_zero");
+  auto* buf1 = trace_config.add_buffers();
+  buf1->set_size_kb(128);
+  buf1->set_name("buffer_one");
+  auto* buf2 = trace_config.add_buffers();
+  buf2->set_size_kb(128);
+  buf2->set_name("buffer_two");
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(1);                  // Points to buffer_one
+  ds_config->set_target_buffer_name("buffer_two");  // Points to index 2
+
+  consumer->EnableTracing(trace_config);
+
+  auto checkpoint = task_runner.CreateCheckpoint("tracing_disabled");
+  EXPECT_CALL(*consumer, OnTracingDisabled(HasSubstr("don't match")))
+      .WillOnce(checkpoint);
+  task_runner.RunUntilCheckpoint("tracing_disabled");
+}
+
+// Test that the service rejects configs with duplicate buffer names.
+TEST_F(TracingServiceImplTest, DuplicateBufferNames) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  auto* buf0 = trace_config.add_buffers();
+  buf0->set_size_kb(128);
+  buf0->set_name("same_name");
+  auto* buf1 = trace_config.add_buffers();
+  buf1->set_size_kb(256);
+  buf1->set_name("same_name");  // Duplicate!
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+
+  consumer->EnableTracing(trace_config);
+
+  auto checkpoint = task_runner.CreateCheckpoint("tracing_disabled");
+  EXPECT_CALL(*consumer, OnTracingDisabled(HasSubstr("Duplicate buffer name")))
+      .WillOnce(checkpoint);
+  task_runner.RunUntilCheckpoint("tracing_disabled");
+}
+
+// Test that named and unnamed buffers can coexist in the same config.
+TEST_F(TracingServiceImplTest, NamedBufferMixedWithUnnamed) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+  producer->RegisterDataSource("ds_2");
+
+  TraceConfig trace_config;
+  auto* buf0 = trace_config.add_buffers();
+  buf0->set_size_kb(128);
+
+  auto* buf1 = trace_config.add_buffers();
+  buf1->set_size_kb(128);
+  buf1->set_name("named_buffer");
+
+  auto* buf2 = trace_config.add_buffers();
+  buf2->set_size_kb(128);
+
+  // ds_1 uses index-based addressing
+  auto* ds1_config = trace_config.add_data_sources()->mutable_config();
+  ds1_config->set_name("ds_1");
+  ds1_config->set_target_buffer(2);
+
+  // ds_2 uses name-based addressing
+  auto* ds2_config = trace_config.add_data_sources()->mutable_config();
+  ds2_config->set_name("ds_2");
+  ds2_config->set_target_buffer_name("named_buffer");
+
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceSetup("ds_2");
+  producer->WaitForDataSourceStart("ds_1");
+  producer->WaitForDataSourceStart("ds_2");
+
+  auto* ds_1 = producer->GetDataSourceInstance("ds_1");
+  EXPECT_EQ(ds_1->target_buffer, 3u);  // Global ID of the third buffer
+
+  auto* ds_2 = producer->GetDataSourceInstance("ds_2");
+  EXPECT_EQ(ds_2->target_buffer, 2u);  // Global ID of the 2nd buffer.
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  producer->WaitForDataSourceStop("ds_2");
+  consumer->WaitForTracingDisabled();
+}
+
 }  // namespace
 
 }  // namespace perfetto

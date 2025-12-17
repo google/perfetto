@@ -15,17 +15,19 @@
 import m from 'mithril';
 import {Duration} from '../../base/time';
 import {BarChartData, ColumnDef} from '../../components/aggregation';
-import {AggregationPanelAttrs} from '../../components/aggregation_panel';
-import {DataGridColumn, SortBy} from '../../components/widgets/datagrid/model';
+import {Column} from '../../components/widgets/datagrid/model';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {
   ColumnSchema,
   SchemaRegistry,
-} from '../../components/widgets/datagrid/column_schema';
+} from '../../components/widgets/datagrid/datagrid_schema';
 import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
-import {AggregatePivotModel} from '../../components/aggregation_adapter';
+import {
+  AggregatePivotModel,
+  AggregationPanelAttrs,
+} from '../../components/aggregation_adapter';
 import {DataSource} from '../../components/widgets/datagrid/data_source';
 
 export class WattsonAggregationPanel
@@ -34,38 +36,39 @@ export class WattsonAggregationPanel
   private scaleNumericData: boolean = false;
 
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    const {dataSource, sorting, columns, barChartData} = attrs;
+    const {dataSource, columns, barChartData} = attrs;
 
     return m(Stack, {fillHeight: true}, [
       barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
-      m(StackAuto, this.renderTable(dataSource, sorting, columns)),
+      m(StackAuto, this.renderTable(dataSource, columns)),
     ]);
   }
 
   private renderTable(
     dataSource: DataSource,
-    sorting: SortBy,
-    columns: ReadonlyArray<ColumnDef> | AggregatePivotModel,
+    model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
   ) {
     // TODO: Support pivot tables
-    if ('groupBy' in columns) {
+    if ('groupBy' in model) {
       return undefined;
     }
 
-    const initialColumns: readonly DataGridColumn[] = columns.map((c) => ({
-      column: c.columnId,
-      aggregation: c.sum ? 'SUM' : undefined,
+    const initialColumns: readonly Column[] = model.map((c) => ({
+      field: c.columnId,
+      aggregate: c.sum ? 'SUM' : undefined,
+      sort: c.sort,
     }));
 
     // Build schema directly
     const columnSchema: ColumnSchema = {};
-    for (const c of columns) {
+    for (const c of model) {
       const displayTitle = this.scaleNumericData
         ? c.title.replace('estimated mW', 'estimated µW')
         : c.title;
       columnSchema[c.columnId] = {
         title: displayTitle,
-        filterType: filterTypeForColumnDef(c.formatHint),
+        titleString: displayTitle,
+        columnType: filterTypeForColumnDef(c.formatHint),
         cellRenderer: (value) => {
           const formatHint = c.formatHint;
           if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
@@ -111,8 +114,6 @@ export class WattsonAggregationPanel
       schema,
       rootSchema: 'data',
       data: dataSource,
-      initialSorting: sorting,
-      enablePivotControls: true,
     });
   }
 
@@ -141,15 +142,15 @@ export class WattsonAggregationPanel
 
 function filterTypeForColumnDef(
   formatHint: string | undefined,
-): 'numeric' | 'string' | undefined {
+): 'quantitative' | 'text' | undefined {
   switch (formatHint) {
     case 'UNDEFINED':
       return undefined;
     case 'NUMERIC':
     case 'DURATION_NS':
-      return 'numeric';
+      return 'quantitative';
     case 'STRING':
     default:
-      return 'string';
+      return 'text';
   }
 }
