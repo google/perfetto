@@ -84,8 +84,6 @@ class PerfettoCmd : public Consumer {
 
   enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
 
-  bool OpenOutputFile();
-  uint64_t GetBytesWritten();
   void SetupCtrlCSignalHandler();
   void FinalizeTraceAndExit();
   void PrintUsage(const char* argv0);
@@ -177,7 +175,6 @@ class PerfettoCmd : public Consumer {
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
   std::optional<PacketWriter> packet_writer_;
-  base::ScopedFstream trace_out_stream_;
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
@@ -208,6 +205,18 @@ class PerfettoCmd : public Consumer {
   bool clone_for_bugreport_ = false;
   std::function<void()> on_session_cloned_;
   bool cloned_session_was_write_into_file_ = false;
+
+  struct TraceOutput {
+    // |out_stream_| is not set if output file is created by traced.
+    base::ScopedFstream out_stream_;
+    // |out_path_| is empty if the output is an unlinked file created by
+    // perfetto_cmd.
+    std::string out_path_;
+    uint64_t GetBytesWritten();
+  };
+  std::optional<TraceOutput> trace_output_;
+  static std::optional<TraceOutput> OpenOutputFile(
+      const std::string& output_file_path);
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;
