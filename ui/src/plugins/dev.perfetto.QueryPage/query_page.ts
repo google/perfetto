@@ -17,15 +17,13 @@ import {findRef, toHTMLElement} from '../../base/dom_utils';
 import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
+import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {
   CellRenderer,
-  DataGridDataSource,
-} from '../../components/widgets/data_grid/common';
-import {
-  DataGrid,
-  renderCell,
-} from '../../components/widgets/data_grid/data_grid';
-import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
+  ColumnSchema,
+  SchemaRegistry,
+} from '../../components/widgets/datagrid/datagrid_schema';
+import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import {Trace} from '../../public/trace';
 import {Box} from '../../widgets/box';
@@ -39,6 +37,7 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
 import {getSliceId, isSliceish} from '../../components/query_table/query_table';
+import {DataSource} from '../../components/widgets/datagrid/data_source';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -54,7 +53,7 @@ export interface QueryPageAttrs {
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
-  private dataSource?: DataGridDataSource;
+  private dataSource?: DataSource;
   private editorHeight: number = 0;
   private editorElement?: HTMLElement;
 
@@ -201,7 +200,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private renderQueryResult(
     trace: Trace,
     queryResult: QueryResponse,
-    dataSource: DataGridDataSource,
+    dataSource: DataSource,
   ) {
     const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
     if (queryResult.error) {
@@ -219,10 +218,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               'Only the results for the last statement are displayed.',
             ]),
           ]),
-        m(DataGrid, {
-          className: 'pf-query-page__results',
-          data: dataSource,
-          columns: queryResult.columns.map((column) => {
+        (() => {
+          // Build schema directly
+          const columnSchema: ColumnSchema = {};
+          for (const column of queryResult.columns) {
             const cellRenderer: CellRenderer | undefined =
               column === 'id'
                 ? (value, row) => {
@@ -250,22 +249,28 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
                     }
                   }
                 : undefined;
-            return {
-              name: column,
-              cellRenderer,
-            };
-          }),
-          showExportButton: true,
-          toolbarItemsLeft: m(
-            'span.pf-query-page__results-summary',
-            `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
-          ),
-          toolbarItemsRight: m(CopyToClipboardButton, {
-            textToCopy: queryResult.query,
-            title: 'Copy executed query to clipboard',
-            label: 'Copy Query',
-          }),
-        }),
+            columnSchema[column] = {cellRenderer};
+          }
+          const schema: SchemaRegistry = {data: columnSchema};
+
+          return m(DataGrid, {
+            schema,
+            rootSchema: 'data',
+            initialColumns: queryResult.columns.map((col) => ({field: col})),
+            className: 'pf-query-page__results',
+            data: dataSource,
+            showExportButton: true,
+            toolbarItemsLeft: m(
+              'span.pf-query-page__results-summary',
+              `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
+            ),
+            toolbarItemsRight: m(CopyToClipboardButton, {
+              textToCopy: queryResult.query,
+              title: 'Copy executed query to clipboard',
+              label: 'Copy Query',
+            }),
+          });
+        })(),
       ];
     }
   }

@@ -125,7 +125,10 @@ export class SortNode implements QueryNode {
       content: this.renderSortCriteriaList(),
     });
 
-    return {sections};
+    return {
+      info: 'Orders rows by selected columns. Add columns to sort by, then drag to reorder. Click column chips to toggle between ascending (ASC) and descending (DESC) order.',
+      sections,
+    };
   }
 
   private renderColumnSelector(): m.Child {

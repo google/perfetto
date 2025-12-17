@@ -1,0 +1,206 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-data-grid {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--pf-font-compact);
+
+  &--fill-height {
+    height: 100%;
+  }
+
+  &__toolbar {
+    border-bottom: solid 1px var(--pf-color-border);
+    background-color: var(--pf-color-background);
+  }
+
+  &__toolbar-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--pf-spacing-small);
+    width: 100%;
+  }
+
+  &__toolbar-left {
+    flex: 1;
+    min-width: 0; // Allow shrinking
+
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  &__toolbar-right {
+    flex: none; // Don't shrink
+
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  &__groupby-column {
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-background-secondary) 30%,
+      transparent
+    );
+  }
+
+  &__table {
+    flex: 1;
+    overflow: auto;
+  }
+
+  // Don't want the progress bar to shrink when the grid is in a flex column.
+  &__loading {
+    flex: none;
+  }
+}
+
+.pf-aggr-cell {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 0.1em;
+  margin-top: -0.2em;
+
+  &__symbol {
+    margin-right: 0.3em;
+    font-size: 0.9em;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__loading-spinner {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    opacity: 0.6;
+
+    &::before,
+    &::after {
+      content: "";
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--pf-color-text-muted);
+      animation: pf-aggr-cell__dot-pulse 1.2s ease-in-out infinite;
+    }
+
+    &::before {
+      animation-delay: 0s;
+    }
+
+    &::after {
+      animation-delay: 0.4s;
+    }
+  }
+}
+
+@keyframes pf-aggr-cell__dot-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pf-distinct-values-menu {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+
+  &__search {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    margin-top: -4px;
+    padding: 6px;
+    border-bottom: solid 1px var(--pf-color-border);
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 0;
+    max-height: 300px;
+  }
+
+  &__footer {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    border-top: solid 1px var(--pf-color-border);
+    padding-top: 4px;
+  }
+}
+
+.pf-fuzzy-match {
+  font-weight: 600;
+  color: var(--pf-color-primary);
+}
+
+.pf-data-grid__title-separator {
+  font-size: 14px;
+  color: var(--pf-color-text-muted);
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
+.pf-param-key {
+  color: var(--pf-color-text-muted);
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+.pf-filter-quote {
+  color: var(--pf-color-text-muted);
+}
+
+.pf-chip-null {
+  font-style: italic;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-datagrid__dd {
+  background-color: color-mix(
+    in srgb,
+    var(--pf-color-background-secondary) 80%,
+    transparent
+  );
+}
+
+.pf-datagrid__dd-cell {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  * {
+    flex-grow: 1;
+  }
+}

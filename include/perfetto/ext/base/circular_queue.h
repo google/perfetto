@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <iterator>
 
@@ -160,6 +161,8 @@ class CircularQueue {
     }
 
    private:
+    friend class CircularQueue<T>;
+
     inline void Add(difference_type offset) {
       pos_ = static_cast<uint64_t>(static_cast<difference_type>(pos_) + offset);
       PERFETTO_DCHECK(pos_ <= queue_->end_);
@@ -172,6 +175,11 @@ class CircularQueue {
     uint32_t generation_;
 #endif
   };
+
+  using ReverseIterator = std::reverse_iterator<Iterator>;
+  using value_type = T;
+  using const_iterator = Iterator;
+  using iterator = Iterator;
 
   explicit CircularQueue(size_t initial_capacity = 1024) {
     Grow(initial_capacity);
@@ -233,6 +241,38 @@ class CircularQueue {
 
   void pop_front() { erase_front(1); }
 
+  void InsertBefore(Iterator pos, T value) {
+    increment_generation();
+    PERFETTO_DCHECK(pos.queue_ == this);
+    PERFETTO_DCHECK(pos.pos_ >= begin_ && pos.pos_ <= end_);
+
+    // Convert to relative position before potential Grow(), which rebases
+    // begin_ to 0.
+    uint64_t relative_pos = pos.pos_ - begin_;
+
+    if (PERFETTO_UNLIKELY(size() >= capacity_))
+      Grow();
+
+    // Calculate the actual insertion position (relative_pos from current
+    // begin_).
+    uint64_t insert_pos = begin_ + relative_pos;
+
+    // Move all elements one step forward from end_ - 1 to insert_pos.
+    for (uint64_t i = end_++; i > insert_pos; --i) {
+      T* dst = Get(i);
+      T* src = Get(i - 1);
+      new (dst) T(std::move(*src));
+      src->~T();
+    }
+
+    // Place the new value at insert_pos.
+    new (Get(insert_pos)) T(std::move(value));
+  }
+
+  void InsertAfter(ReverseIterator pos, T value) {
+    InsertBefore(pos.base(), std::move(value));
+  }
+
   void clear() { erase_front(size()); }
 
   void shrink_to_fit() {
@@ -252,6 +292,21 @@ class CircularQueue {
 
   Iterator begin() { return Iterator(this, begin_, generation()); }
   Iterator end() { return Iterator(this, end_, generation()); }
+  Iterator begin() const {
+    return Iterator(const_cast<CircularQueue*>(this), begin_, generation());
+  }
+  Iterator end() const {
+    return Iterator(const_cast<CircularQueue*>(this), end_, generation());
+  }
+
+  ReverseIterator rbegin() { return ReverseIterator(end()); }
+  ReverseIterator rend() { return ReverseIterator(begin()); }
+
+  Iterator Find(const T& value) {
+    auto it = std::find(begin(), end(), value);
+    return it;
+  }
+
   T& front() { return *begin(); }
   T& back() { return *(end() - 1); }
 

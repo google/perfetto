@@ -38,7 +38,11 @@ import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
 } from './nodes/interval_intersect_node';
-import {MergeNode, MergeNodeState} from './nodes/merge_node';
+import {JoinNode, JoinNodeState} from './nodes/join_node';
+import {
+  CreateSlicesNode,
+  CreateSlicesNodeState,
+} from './nodes/create_slices_node';
 import {SortNode, SortNodeState} from './nodes/sort_node';
 import {FilterNode, FilterNodeState} from './nodes/filter_node';
 import {UnionNode, UnionNodeState} from './nodes/union_node';
@@ -219,23 +223,43 @@ export function registerCoreNodes() {
     },
   });
 
-  nodeRegistry.register('merge', {
-    name: 'Merge',
+  nodeRegistry.register('join', {
+    name: 'Join',
     description:
       'Join two tables using equality columns or custom SQL condition.',
     icon: 'merge',
     type: 'multisource',
     factory: (state) => {
-      const fullState: MergeNodeState = {
+      const fullState: JoinNodeState = {
         ...state,
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
+        joinType: 'INNER',
         leftColumn: '',
         rightColumn: '',
         sqlExpression: '',
+        leftColumns: undefined,
+        rightColumns: undefined,
       };
-      return new MergeNode(fullState);
+      return new JoinNode(fullState);
+    },
+  });
+
+  nodeRegistry.register('create_slices', {
+    name: 'Create Slices',
+    description:
+      'Create slices by pairing start and end timestamps from two sources.',
+    icon: 'add_circle',
+    type: 'multisource',
+    category: 'Time',
+    factory: (state) => {
+      const fullState: CreateSlicesNodeState = {
+        ...state,
+        startsTsColumn: 'ts',
+        endsTsColumn: 'ts',
+      };
+      return new CreateSlicesNode(fullState);
     },
   });
 

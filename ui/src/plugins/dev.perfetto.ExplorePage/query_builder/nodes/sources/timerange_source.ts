@@ -25,13 +25,11 @@ import {time, TimeSpan, Time} from '../../../../../base/time';
 import {PerfettoSqlTypes} from '../../../../../trace_processor/perfetto_sql_type';
 import {Trace} from '../../../../../public/trace';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
-import {TextInput} from '../../../../../widgets/text_input';
 import {Switch} from '../../../../../widgets/switch';
 import {Anchor} from '../../../../../widgets/anchor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import protos from '../../../../../protos';
-import {ListItem, InfoBox} from '../../widgets';
-import {showModal} from '../../../../../widgets/modal';
+import {InlineField} from '../../widgets';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
@@ -76,9 +74,11 @@ export class TimeRangeSourceNode implements QueryNode {
       columnInfoFromSqlColumn({name: 'dur', type: PerfettoSqlTypes.DURATION}),
     ]);
 
-    // If dynamic mode is enabled, subscribe to selection changes
+    // If dynamic mode is enabled, subscribe to selection changes and
+    // immediately populate from current selection
     if (this.state.isDynamic) {
       this.subscribeToSelectionChanges();
+      this.updateFromSelection();
     }
   }
 
@@ -132,10 +132,17 @@ export class TimeRangeSourceNode implements QueryNode {
   }
 
   serializeState(): TimeRangeSourceSerializedState {
+    // Don't serialize start/end for dynamic mode - they'll be populated
+    // from the current selection when deserialized
+    if (this.state.isDynamic) {
+      return {
+        isDynamic: true,
+      };
+    }
     return {
       start: this.state.start?.toString(),
       end: this.state.end?.toString(),
-      isDynamic: this.state.isDynamic,
+      isDynamic: false,
     };
   }
 
@@ -153,30 +160,41 @@ export class TimeRangeSourceNode implements QueryNode {
     };
   }
 
-  private static generateSql(start: time, dur: bigint): string {
-    return `SELECT 0 AS id, ${start} AS ts, ${dur} AS dur`;
-  }
-
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (!this.validate()) {
-      return undefined;
-    }
-
-    // Type narrowing - validate() already checked that start and end are defined
+    // For dynamic nodes without start/end set, we can still generate a query
+    // that uses trace_start() and trace_end() - the backend handles this.
+    // Only validate for static nodes or when we have explicit values.
     const start = this.state.start;
     const end = this.state.end;
-    if (start === undefined || end === undefined) {
+
+    // If both are set, calculate duration
+    if (start !== undefined && end !== undefined) {
+      if (end < start) {
+        // Invalid range - can't generate query
+        return undefined;
+      }
+      const dur = end - start;
+      return StructuredQueryBuilder.fromTimeRange(start, dur, this.nodeId);
+    }
+
+    // If only start is set, let backend calculate dur from trace_end()
+    if (start !== undefined) {
+      return StructuredQueryBuilder.fromTimeRange(
+        start,
+        undefined,
+        this.nodeId,
+      );
+    }
+
+    // If only end is set without start, we cannot generate a meaningful query
+    if (end !== undefined) {
       return undefined;
     }
 
-    const dur = end - start;
-
-    const sql = TimeRangeSourceNode.generateSql(start, dur);
-
-    return StructuredQueryBuilder.fromSql(
-      sql,
-      [], // no dependencies
-      ['id', 'ts', 'dur'], // column names
+    // If neither is set (dynamic node), let backend use trace bounds
+    return StructuredQueryBuilder.fromTimeRange(
+      undefined,
+      undefined,
       this.nodeId,
     );
   }
@@ -245,127 +263,6 @@ export class TimeRangeSourceNode implements QueryNode {
     m.redraw();
   }
 
-  private showEditStartModal(): void {
-    let tempValue = this.state.start?.toString() ?? '';
-
-    showModal({
-      title: 'Edit Start Time',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'Start timestamp (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              this.state.start = Time.fromRaw(parsed);
-              this.state.onchange?.();
-            } catch (e) {
-              console.warn('Invalid start timestamp:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
-  private showEditEndModal(): void {
-    let tempValue = this.state.end?.toString() ?? '';
-
-    showModal({
-      title: 'Edit End Time',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'End timestamp (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              this.state.end = Time.fromRaw(parsed);
-              this.state.onchange?.();
-            } catch (e) {
-              console.warn('Invalid end timestamp:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
-  private showEditDurationModal(): void {
-    const currentDur =
-      this.state.start && this.state.end
-        ? this.state.end - this.state.start
-        : 0n;
-    let tempValue = currentDur.toString();
-
-    showModal({
-      title: 'Edit Duration',
-      content: () =>
-        m(
-          'div',
-          m(TextInput, {
-            value: tempValue,
-            oninput: (e: Event) => {
-              tempValue = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'Duration (ns)',
-          }),
-        ),
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {},
-        },
-        {
-          text: 'Apply',
-          primary: true,
-          action: () => {
-            try {
-              const parsed = BigInt(tempValue.trim());
-              if (this.state.start !== undefined) {
-                // Keep start fixed, update end based on duration
-                this.state.end = Time.fromRaw(this.state.start + parsed);
-                this.state.onchange?.();
-              }
-            } catch (e) {
-              console.warn('Invalid duration:', tempValue, e);
-            }
-          },
-        },
-      ],
-    });
-  }
-
   nodeSpecificModify(): NodeModifyAttrs {
     const isDynamic = this.state.isDynamic ?? false;
     const isValid = this.validate();
@@ -377,30 +274,10 @@ export class TimeRangeSourceNode implements QueryNode {
 
     const sections: NodeModifyAttrs['sections'] = [];
 
-    // Explanation section - always shown
-    sections.push({
-      content: m(
-        InfoBox,
-        'Time range allows you to make a selection in the ',
-        m(Anchor, {href: '#!/viewer'}, 'timeline'),
-        ' and use it as a source node in the graph.',
-      ),
-    });
-
     // Error message section
     if (error) {
       sections.push({
         content: m(Callout, {icon: 'error'}, error.message),
-      });
-    }
-
-    // Dynamic mode helper text section
-    if (isDynamic) {
-      sections.push({
-        content: m(
-          InfoBox,
-          'Dynamic mode: Your timeline selection will automatically update this node. Go back to the timeline and select a time range to see it here.',
-        ),
       });
     }
 
@@ -426,50 +303,110 @@ export class TimeRangeSourceNode implements QueryNode {
     sections.push({
       content: m(
         '.pf-timerange-list',
-        m(ListItem, {
+        m(InlineField, {
+          label: 'Start (ns)',
           icon: 'start',
-          name: 'Start (ns)',
-          description: this.state.start?.toString() ?? 'Not set',
-          actions: !isDynamic
-            ? [
-                {
-                  icon: 'edit',
-                  onclick: () => this.showEditStartModal(),
-                },
-              ]
-            : undefined,
+          value: this.state.start?.toString() ?? 'Not set',
+          editable: !isDynamic,
+          placeholder: 'Start timestamp (ns)',
+          type: 'number',
+          validate: (value: string) => {
+            if (value === 'Not set') return true;
+            try {
+              BigInt(value.trim());
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          errorMessage: 'Must be a valid integer timestamp',
+          onchange: (value: string) => {
+            try {
+              const parsed = BigInt(value.trim());
+              this.state.start = Time.fromRaw(parsed);
+            } catch (e) {
+              // Keep current value if invalid
+            }
+            this.state.onchange?.();
+          },
         }),
-        m(ListItem, {
+        m(InlineField, {
+          label: 'End (ns)',
           icon: 'stop',
-          name: 'End (ns)',
-          description: this.state.end?.toString() ?? 'Not set',
-          actions: !isDynamic
-            ? [
-                {
-                  icon: 'edit',
-                  onclick: () => this.showEditEndModal(),
-                },
-              ]
-            : undefined,
+          value: this.state.end?.toString() ?? 'Not set',
+          editable: !isDynamic,
+          placeholder: 'End timestamp (ns)',
+          type: 'number',
+          validate: (value: string) => {
+            if (value === 'Not set') return true;
+            try {
+              BigInt(value.trim());
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          errorMessage: 'Must be a valid integer timestamp',
+          onchange: (value: string) => {
+            try {
+              const parsed = BigInt(value.trim());
+              this.state.end = Time.fromRaw(parsed);
+            } catch (e) {
+              // Keep current value if invalid
+            }
+            this.state.onchange?.();
+          },
         }),
         isValid &&
-          m(ListItem, {
+          m(InlineField, {
+            label: 'Duration (ns)',
             icon: 'timelapse',
-            name: 'Duration (ns)',
-            description: dur.toString(),
-            actions: !isDynamic
-              ? [
-                  {
-                    icon: 'edit',
-                    onclick: () => this.showEditDurationModal(),
-                  },
-                ]
-              : undefined,
+            value: dur.toString(),
+            editable: !isDynamic,
+            placeholder: 'Duration (ns)',
+            type: 'number',
+            validate: (value: string) => {
+              try {
+                BigInt(value.trim());
+                return true;
+              } catch {
+                return false;
+              }
+            },
+            errorMessage: 'Must be a valid integer duration',
+            onchange: (value: string) => {
+              try {
+                const parsed = BigInt(value.trim());
+                if (this.state.start !== undefined) {
+                  // Keep start fixed, update end based on duration
+                  this.state.end = Time.fromRaw(this.state.start + parsed);
+                }
+              } catch (e) {
+                // Keep current value if invalid
+              }
+              this.state.onchange?.();
+            },
           }),
       ),
     });
 
-    return {sections};
+    // Build info content based on dynamic mode
+    const info = isDynamic
+      ? [
+          'Time range allows you to make a selection in the ',
+          m(Anchor, {href: '#!/viewer'}, 'timeline'),
+          ' and use it as a source node in the graph. Dynamic mode: Your timeline selection will automatically update this node. Go back to the timeline and select a time range to see it here.',
+        ]
+      : [
+          'Time range allows you to make a selection in the ',
+          m(Anchor, {href: '#!/viewer'}, 'timeline'),
+          ' and use it as a source node in the graph.',
+        ];
+
+    return {
+      info,
+      sections,
+    };
   }
 
   nodeInfo(): m.Children {

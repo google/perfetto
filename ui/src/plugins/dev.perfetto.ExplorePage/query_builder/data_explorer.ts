@@ -14,20 +14,19 @@
 
 import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
+import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {
-  DataGridDataSource,
   CellRenderer,
-} from '../../../components/widgets/data_grid/common';
-import {DataGrid} from '../../../components/widgets/data_grid/data_grid';
+  ColumnSchema,
+  SchemaRegistry,
+} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
-import {Query, QueryNode, isAQuery} from '../query_node';
+import {Query, QueryNode} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {Icon} from '../../../widgets/icon';
-import {Tooltip} from '../../../widgets/tooltip';
 import {findErrors} from './query_builder_utils';
 import {UIFilter, normalizeDataGridFilter} from './operations/filter';
 import {DataExplorerEmptyState} from './widgets';
@@ -36,13 +35,15 @@ import {Timestamp} from '../../../components/widgets/timestamp';
 import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {DataSource} from '../../../components/widgets/datagrid/data_source';
 
 export interface DataExplorerAttrs {
   readonly trace: Trace;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
-  readonly dataSource?: DataGridDataSource;
+  readonly dataSource?: DataSource;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
@@ -99,16 +100,13 @@ function getColumnInfo(
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
     return m(
-      '.pf-exp-data-explorer',
-      m(
-        '.pf-exp-data-explorer__header',
-        m(
-          '.pf-exp-data-explorer__title-row',
-          m('h2', 'Query data'),
-          m('.pf-exp-data-explorer__buttons', this.renderMenu(attrs)),
-        ),
-      ),
-      m('.pf-exp-data-explorer__content', this.renderContent(attrs)),
+      DetailsShell,
+      {
+        title: 'Query data',
+        buttons: this.renderMenu(attrs),
+        fillHeight: true,
+      },
+      this.renderContent(attrs),
     );
   }
 
@@ -122,7 +120,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         icon: 'play_arrow',
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
-        disabled: !isAQuery(attrs.query) || !attrs.node.validate(),
+        disabled: !attrs.node.validate(),
         onclick: () => attrs.onExecute(),
       });
 
@@ -142,20 +140,13 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         const target = e.target as HTMLInputElement;
         attrs.node.state.autoExecute = target.checked;
         attrs.onchange?.();
+        // Execute the query when auto-execute is toggled on
+        // Analysis will happen automatically in node_explorer when autoExecute becomes true
+        if (target.checked && attrs.node.validate()) {
+          attrs.onExecute();
+        }
       },
     });
-
-    // Add materialization indicator icon with tooltip
-    const materializationIndicator =
-      attrs.node.state.materialized && attrs.node.state.materializationTableName
-        ? m(
-            Tooltip,
-            {
-              trigger: m(Icon, {icon: 'database'}),
-            },
-            `Materialized as ${attrs.node.state.materializationTableName}`,
-          )
-        : null;
 
     // Helper to create separator dot
     const separator = () =>
@@ -197,21 +188,45 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             attrs.node.state.materialized
           ),
         }),
+        m(MenuItem, {
+          label: 'Copy Materialized Table Name',
+          icon: 'content_copy',
+          onclick: () => {
+            const tableName = attrs.node.state.materializationTableName;
+            if (tableName) {
+              navigator.clipboard.writeText(tableName);
+            }
+          },
+          title: 'Copy the materialized table name to clipboard',
+          disabled: !(
+            attrs.node.state.materialized &&
+            attrs.node.state.materializationTableName
+          ),
+        }),
       ],
     );
 
-    return [
+    // Collect all items that should have separators between them
+    const itemsWithSeparators = [
       runButton,
       statusIndicator,
       queryStats,
-      queryStats !== null && materializationIndicator !== null
-        ? separator()
-        : null,
-      materializationIndicator,
-      materializationIndicator !== null ? separator() : null,
       autoExecuteSwitch,
-      positionMenu,
-    ];
+    ].filter((item) => item !== null && item !== false);
+
+    // Add separators between items
+    const menuItems: m.Children = [];
+    for (let i = 0; i < itemsWithSeparators.length; i++) {
+      menuItems.push(itemsWithSeparators[i]);
+      if (i < itemsWithSeparators.length - 1) {
+        menuItems.push(separator());
+      }
+    }
+
+    // Add menu at the end without a separator
+    menuItems.push(positionMenu);
+
+    return menuItems;
   }
 
   private renderContent(attrs: DataExplorerAttrs): m.Children {
@@ -286,13 +301,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       return m(DataExplorerEmptyState, {}, m(Spinner, {easing: true}));
     }
 
-    // Show "No data to display" when no query is available
-    if (attrs.query === undefined) {
-      return m(DataExplorerEmptyState, {
-        title: 'No data to display',
-      });
-    }
-
+    // Show data if we have response and dataSource (even without query)
+    // This handles the case where we load existing materialized data
     if (attrs.response && attrs.dataSource && attrs.node.validate()) {
       // Show warning for multiple statements with centered icon
       const warning =
@@ -307,48 +317,37 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             })
           : null;
 
-      const supportedOps = [
-        '=',
-        '!=',
-        '<',
-        '<=',
-        '>',
-        '>=',
-        'glob',
-        'in',
-        'not in',
-        'is null',
-        'is not null',
-      ] as const;
+      // Build schema directly
+      const columnSchema: ColumnSchema = {};
+      for (const c of attrs.response.columns) {
+        let cellRenderer: CellRenderer | undefined;
+
+        // Get column type information from the node
+        const columnInfo = getColumnInfo(attrs.node, c);
+        if (columnInfo) {
+          // Check if this is a timestamp column
+          if (columnInfo.type === 'TIMESTAMP') {
+            cellRenderer = createTimestampCellRenderer(attrs.trace);
+          }
+          // Check if this is a duration column
+          else if (columnInfo.type === 'DURATION') {
+            cellRenderer = createDurationCellRenderer(attrs.trace);
+          }
+        }
+
+        columnSchema[c] = {cellRenderer};
+      }
+      const schema: SchemaRegistry = {data: columnSchema};
 
       return [
         warning,
         m(DataGrid, {
+          schema,
+          rootSchema: 'data',
+          initialColumns: attrs.response.columns.map((col) => ({field: col})),
           fillHeight: true,
-          columns: attrs.response.columns.map((c) => {
-            let cellRenderer: CellRenderer | undefined;
-
-            // Get column type information from the node
-            const columnInfo = getColumnInfo(attrs.node, c);
-            if (columnInfo) {
-              // Check if this is a timestamp column
-              if (columnInfo.type === 'TIMESTAMP') {
-                cellRenderer = createTimestampCellRenderer(attrs.trace);
-              }
-              // Check if this is a duration column
-              else if (columnInfo.type === 'DURATION') {
-                cellRenderer = createDurationCellRenderer(attrs.trace);
-              }
-            }
-
-            return {
-              name: c,
-              cellRenderer,
-            };
-          }),
           data: attrs.dataSource,
-          showFiltersInToolbar: true,
-          supportedFilters: supportedOps,
+          structuredQueryCompatMode: true,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.
@@ -390,11 +389,10 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       ];
     }
 
-    // Show a prominent execute button when query is ready but not executed
+    // Show a prominent execute button when autoExecute is false and not yet executed
     const autoExecute = attrs.node.state.autoExecute ?? true;
     if (
       !autoExecute &&
-      isAQuery(attrs.query) &&
       !attrs.response &&
       !attrs.isQueryRunning &&
       !attrs.isAnalyzing
@@ -407,9 +405,18 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           icon: 'play_arrow',
           intent: Intent.Primary,
           variant: ButtonVariant.Filled,
+          disabled: !attrs.node.validate(),
           onclick: () => attrs.onExecute(),
         }),
       );
+    }
+
+    // Show "No data to display" when no response is available
+    // (for autoExecute=true nodes that haven't run yet)
+    if (!attrs.response) {
+      return m(DataExplorerEmptyState, {
+        title: 'No data to display',
+      });
     }
 
     return null;

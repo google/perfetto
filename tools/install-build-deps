@@ -183,11 +183,20 @@ BUILD_DEPS_HOST = [
         'https://android.googlesource.com/platform/external/googletest.git',
         '609281088cfefc76f9d0ce82e1ff6c30cc3591e5', 'all', 'all'),
 
-    # Keep in sync with Chromium's //third_party/protobuf.
+    # Keep in sync with gRPC's third_party/protobuf.
     Dependency(
         'buildtools/protobuf',
         'https://chromium.googlesource.com/external/github.com/protocolbuffers/protobuf.git',
-        'f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c',  # refs/tags/v21.12
+        '74211c0dfc2777318ab53c2cd2c317a2ef9012de',  # refs/tags/v31.1
+        'all',
+        'all'),
+
+    # Required by protobuf v22+ and gRPC. It's not allowed in our repo beyond
+    # the usage by those deps.
+    Dependency(
+        'buildtools/abseil-cpp',
+        'https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git',
+        '76bb24329e8bf5f39704eb10d21b9a80befa7c81',  # 20250512.1
         'all',
         'all'),
 
@@ -332,23 +341,23 @@ BUILD_DEPS_HOST = [
 BUILD_DEPS_BAZEL = [
     Dependency(
         'buildtools/mac/bazel',
-        'https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-darwin-x86_64',
-        '52dd34c17cc97b3aa5bdfe3d45c4e3938226f23dd0bfb47beedd625a953f1f05',
+        'https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-darwin-x86_64',
+        '84e1b822b6d076151a9a5b7a962e8230f565a17207196056bfe35303077b8147',
         'darwin', 'x64'),
     Dependency(
         'buildtools/mac/bazel',
-        'https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-darwin-arm64',
-        '02b117b97d0921ae4d4f4e11d27e2c0930381df416e373435d5d0419c6a26f24',
+        'https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-darwin-arm64',
+        'a89f446641ab1cce603691cb7030865d1fb014e260ee5710615516e3cacd2414',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/linux64/bazel',
-        'https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-linux-x86_64',
-        'c97f02133adce63f0c28678ac1f21d65fa8255c80429b588aeeba8a1fac6202b',
+        'https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-linux-x86_64',
+        '18255229d933b8da10151bdef223a302744296b09af8af1988c93faa1ea3c71f',
         'linux', 'x64'),
     Dependency(
         'buildtools/linux64/bazel',
-        'https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-linux-arm64',
-        'd7aedc8565ed47b6231badb80b09f034e389c5f2b1c2ac2c55406f7c661d8b88',
+        'https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-linux-arm64',
+        '0c455abf42814ac53539ddd8147249a11b9e05c7dc83dbd6c8dfac1aec243d85',
         'linux', 'arm64'),
 ]
 
@@ -489,7 +498,8 @@ BIGTRACE_DEPS = [
     Dependency(
         'buildtools/grpc/src',
         'https://chromium.googlesource.com/external/github.com/grpc/grpc.git',
-        '4795c5e69b25e8c767b498bea784da0ef8c96fd5', 'all', 'all', True),
+        'f5ffb68d8a2fd603dff16287e90a4ac571e1fec6', 'all', 'all',
+        True),  # v1.76.0
     Dependency('buildtools/cpp-httplib',
                'https://github.com/yhirose/cpp-httplib.git',
                '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)

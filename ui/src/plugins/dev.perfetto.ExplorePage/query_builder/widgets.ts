@@ -31,6 +31,12 @@ import {
   MultiSelectDiff,
 } from '../../../widgets/multiselect';
 import {classNames} from '../../../base/classnames';
+import {Tooltip} from '../../../widgets/tooltip';
+import {showModal} from '../../../widgets/modal';
+import {Editor} from '../../../widgets/editor';
+import {ResizeHandle} from '../../../widgets/resize_handle';
+import {findRef, toHTMLElement} from '../../../base/dom_utils';
+import {assertExists} from '../../../base/logging';
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -667,6 +673,29 @@ export class OutlinedField implements m.ClassComponent<OutlinedFieldAttrs> {
   }
 }
 
+// Read-only version of OutlinedField for displaying static information
+// Uses the same visual style but shows text instead of an input
+export interface OutlinedFieldReadOnlyAttrs {
+  label: string;
+  value: string;
+  className?: string;
+}
+
+export class OutlinedFieldReadOnly
+  implements m.ClassComponent<OutlinedFieldReadOnlyAttrs>
+{
+  view({attrs}: m.Vnode<OutlinedFieldReadOnlyAttrs>) {
+    const {label, value, className} = attrs;
+
+    return m(
+      'fieldset.pf-outlined-field',
+      {className},
+      m('legend.pf-outlined-field-legend', label),
+      m('.pf-outlined-field-input.pf-read-only', value),
+    );
+  }
+}
+
 // Wrapper around PopupMultiSelect with more obvious clickable styling
 export interface OutlinedMultiSelectAttrs {
   label: string;
@@ -803,5 +832,235 @@ export class InlineEditList<T>
     );
 
     return m('.pf-inline-edit-list', itemViews);
+  }
+}
+
+// Widget for inline field with label on left and editable/read-only value on right
+// Simpler alternative to InlineEditList for single-value fields
+export interface InlineFieldAttrs {
+  label: string;
+  value: string;
+  icon?: string;
+  editable?: boolean; // If false, field is read-only (default: true)
+  placeholder?: string;
+  type?: string; // Input type (e.g., 'text', 'number')
+  onchange?: (value: string) => void;
+  validate?: (value: string) => boolean; // Returns true if valid
+  errorMessage?: string; // Tooltip message shown when validation fails
+}
+
+export class InlineField implements m.ClassComponent<InlineFieldAttrs> {
+  private inputValue: string = '';
+  private lastPropValue: string = '';
+
+  view({attrs}: m.Vnode<InlineFieldAttrs>) {
+    const {
+      label,
+      value,
+      icon,
+      editable = true,
+      placeholder,
+      type,
+      onchange,
+      validate,
+      errorMessage,
+    } = attrs;
+
+    // Only sync input value when the prop value actually changes (external update)
+    if (this.lastPropValue !== value) {
+      this.inputValue = value;
+      this.lastPropValue = value;
+    }
+
+    const isValid = validate ? validate(this.inputValue) : true;
+
+    return m(
+      '.pf-inline-field',
+      {
+        className: classNames(!isValid && 'pf-invalid'),
+      },
+      icon && m(Icon, {icon}),
+      m('span.pf-inline-field__label', label),
+      editable
+        ? m(TextInput, {
+            value: this.inputValue,
+            placeholder,
+            type,
+            oninput: (e: Event) => {
+              const newValue = (e.target as HTMLInputElement).value;
+              this.inputValue = newValue;
+              // Always call onchange - validation is just for visual feedback
+              onchange?.(newValue);
+            },
+          })
+        : m('span.pf-inline-field__value', value),
+      !isValid &&
+        m(
+          Tooltip,
+          {
+            trigger: m(Icon, {icon: 'warning'}),
+          },
+          errorMessage ?? 'Invalid value',
+        ),
+    );
+  }
+}
+
+// Select/Deselect All buttons widget
+export interface SelectDeselectAllButtonsAttrs {
+  readonly onSelectAll: () => void;
+  readonly onDeselectAll: () => void;
+}
+
+export class SelectDeselectAllButtons
+  implements m.ClassComponent<SelectDeselectAllButtonsAttrs>
+{
+  view({attrs}: m.CVnode<SelectDeselectAllButtonsAttrs>): m.Children {
+    const {onSelectAll, onDeselectAll} = attrs;
+
+    return m(
+      '.pf-select-deselect-all-buttons',
+      m(Button, {
+        label: 'Select All',
+        onclick: onSelectAll,
+        variant: ButtonVariant.Outlined,
+        compact: true,
+      }),
+      m(Button, {
+        label: 'Deselect All',
+        onclick: onDeselectAll,
+        variant: ButtonVariant.Outlined,
+        compact: true,
+      }),
+    );
+  }
+}
+
+/**
+ * Configuration for a warning modal.
+ */
+export interface WarningModalConfig {
+  readonly key: string;
+  readonly title: string;
+  readonly paragraphs: m.Children[];
+  readonly confirmText: string;
+}
+
+/**
+ * Shows a warning modal with customizable content.
+ * Returns a promise that resolves to true if user confirms, false if cancelled.
+ */
+export function showWarningModal(config: WarningModalConfig): Promise<boolean> {
+  return new Promise((resolve) => {
+    showModal({
+      key: config.key,
+      title: config.title,
+      icon: 'warning',
+      content: m(
+        '.pf-warning-modal',
+        config.paragraphs.map((p) => m('p', p)),
+      ),
+      buttons: [
+        {
+          text: 'Cancel',
+          action: () => {
+            resolve(false);
+          },
+        },
+        {
+          text: config.confirmText,
+          primary: true,
+          action: () => {
+            resolve(true);
+          },
+        },
+      ],
+      onClose: () => {
+        resolve(false);
+      },
+    });
+  });
+}
+
+/**
+ * Shows a confirmation modal warning the user that their current state will be lost.
+ * This modal is used when importing JSON or loading an example graph.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showStateOverwriteWarning(): Promise<boolean> {
+  return showWarningModal({
+    key: 'state-overwrite-warning',
+    title: 'Warning: Current State Will Be Lost',
+    paragraphs: [
+      'This action will replace your current graph with a new one. All current nodes and connections will be lost.',
+      'Do you want to continue?',
+    ],
+    confirmText: 'Continue',
+  });
+}
+
+/**
+ * Shows a warning modal before exporting to JSON.
+ * Warns users that the Explore Page is in active development and
+ * future imports of the exported JSON are not guaranteed.
+ *
+ * @returns Promise that resolves to true if user confirms, false if cancelled
+ */
+export function showExportWarning(): Promise<boolean> {
+  return showWarningModal({
+    key: 'export-warning',
+    title: 'Experimental Feature Warning',
+    paragraphs: [
+      'The Explore Page is still in active development. The JSON export format may change in future versions.',
+      m(
+        'strong',
+        'We do not guarantee that you will be able to import this JSON file in future versions of the Explore Page.',
+      ),
+      'Do you want to continue with the export?',
+    ],
+    confirmText: 'Export Anyway',
+  });
+}
+
+// Resizable SQL editor with resize handle
+// Provides consistent SQL editing experience across SQL source and join nodes
+export interface ResizableSqlEditorAttrs {
+  sql: string;
+  onUpdate: (text: string) => void;
+  onExecute?: (text: string) => void;
+  autofocus?: boolean;
+}
+
+export class ResizableSqlEditor
+  implements m.ClassComponent<ResizableSqlEditorAttrs>
+{
+  private editorHeight: number = 0;
+  private editorElement?: HTMLElement;
+
+  oncreate({dom}: m.VnodeDOM<ResizableSqlEditorAttrs>) {
+    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
+    this.editorElement.style.height = '400px';
+  }
+
+  view({attrs}: m.CVnode<ResizableSqlEditorAttrs>) {
+    return [
+      m(Editor, {
+        ref: 'editor',
+        text: attrs.sql,
+        onUpdate: attrs.onUpdate,
+        onExecute: attrs.onExecute,
+        autofocus: attrs.autofocus,
+      }),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          this.editorHeight += deltaPx;
+          this.editorElement!.style.height = `${this.editorHeight}px`;
+        },
+        onResizeStart: () => {
+          this.editorHeight = this.editorElement!.clientHeight;
+        },
+      }),
+    ];
   }
 }

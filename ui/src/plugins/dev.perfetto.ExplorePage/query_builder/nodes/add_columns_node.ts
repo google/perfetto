@@ -14,12 +14,12 @@
 
 import {
   QueryNode,
-  QueryNodeState,
   nextNodeId,
   NodeType,
   getSecondaryInput,
   analyzeNode,
   isAQuery,
+  SecondaryInputSpec,
 } from '../../query_node';
 import {
   ColumnInfo,
@@ -36,427 +36,35 @@ import {Select} from '../../../../widgets/select';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {TextInput} from '../../../../widgets/text_input';
 import {showModal, redrawModal, closeModal} from '../../../../widgets/modal';
-import {Switch} from '../../../../widgets/switch';
-import {Icon} from '../../../../widgets/icon';
 import {
   StructuredQueryBuilder,
   ColumnSpec,
   JoinCondition,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {
-  ListItem,
-  LabeledControl,
-  TableDescription,
-  IssueList,
-  OutlinedMultiSelect,
-  MultiSelectDiff,
-} from '../widgets';
+import {ListItem} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
-import {Form, FormLabel, FormSection} from '../../../../widgets/form';
+import {Form, FormSection} from '../../../../widgets/form';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {Spinner} from '../../../../widgets/spinner';
 import {STR} from '../../../../trace_processor/query_result';
 import {sqliteString} from '../../../../base/string_utils';
 import {loadNodeDoc} from '../node_doc_loader';
+import {NewColumn, AddColumnsNodeState} from './add_columns_types';
+import {SwitchComponent, IfComponent} from './computed_column_components';
+import {AddColumnsSuggestionModal} from './add_columns_suggestion_modal';
+import {AddColumnsConfigurationModal} from './add_columns_configuration_modal';
 
-// Helper components for computed columns (SWITCH and IF)
-class SwitchComponent
-  implements
-    m.ClassComponent<{
-      column: NewColumn;
-      columns: ColumnInfo[];
-      onchange: () => void;
-    }>
-{
-  view({
-    attrs,
-  }: m.Vnode<{
-    column: NewColumn;
-    columns: ColumnInfo[];
-    onchange: () => void;
-  }>) {
-    const {column, columns, onchange} = attrs;
-
-    if (column.type !== 'switch') {
-      return m('');
-    }
-
-    const setSwitchOn = (newSwitchOn: string) => {
-      column.switchOn = newSwitchOn;
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const setDefaultValue = (newDefaultValue: string) => {
-      column.defaultValue = newDefaultValue;
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const setCaseWhen = (index: number, newWhen: string) => {
-      if (!column.cases) return;
-      column.cases[index].when = newWhen;
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const setCaseThen = (index: number, newThen: string) => {
-      if (!column.cases) return;
-      column.cases[index].then = newThen;
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const addCase = () => {
-      if (!column.cases) {
-        column.cases = [];
-      }
-      column.cases.push({when: '', then: ''});
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const removeCase = (index: number) => {
-      if (!column.cases) return;
-      column.cases.splice(index, 1);
-      this.updateExpression(column);
-      onchange();
-    };
-
-    if (column.switchOn === undefined || column.switchOn === '') {
-      const columnNames = columns.map((c) => c.column.name);
-      return m(
-        '.pf-exp-switch-component',
-        m(
-          '.pf-exp-switch-header',
-          'SWITCH ON ',
-          m(
-            Select,
-            {
-              onchange: (e: Event) => {
-                setSwitchOn((e.target as HTMLSelectElement).value);
-              },
-            },
-            m('option', {value: ''}, 'Select column'),
-            ...columnNames.map((name) => m('option', {value: name}, name)),
-          ),
-        ),
-      );
-    }
-
-    const columnNames = columns.map((c) => c.column.name);
-
-    const selectedColumn = columns.find(
-      (c) => c.column.name === column.switchOn,
-    );
-    const isStringColumn = selectedColumn?.type === 'STRING';
-
-    return m(
-      '.pf-exp-switch-component',
-      m(
-        '.pf-exp-switch-header',
-        'SWITCH ON ',
-        m(
-          Select,
-          {
-            value: column.switchOn,
-            onchange: (e: Event) => {
-              setSwitchOn((e.target as HTMLSelectElement).value);
-            },
-          },
-          ...columnNames.map((name) => m('option', {value: name}, name)),
-        ),
-      ),
-      isStringColumn &&
-        m(
-          '.pf-exp-switch-glob-toggle',
-          m(Switch, {
-            label: 'Use glob matching',
-            checked: column.useGlob ?? false,
-            onchange: (e: Event) => {
-              column.useGlob = (e.target as HTMLInputElement).checked;
-              this.updateExpression(column);
-              onchange();
-            },
-          }),
-        ),
-      m(
-        '.pf-exp-switch-default-row',
-        'Default ',
-        m(TextInput, {
-          placeholder: 'default value',
-          value: column.defaultValue || '',
-          oninput: (e: Event) => {
-            setDefaultValue((e.target as HTMLInputElement).value);
-          },
-        }),
-      ),
-      ...(column.cases || []).map((c, i) =>
-        m(
-          '.pf-exp-switch-case',
-          'WHEN ',
-          m(TextInput, {
-            placeholder: 'is equal to',
-            value: c.when,
-            oninput: (e: Event) => {
-              setCaseWhen(i, (e.target as HTMLInputElement).value);
-            },
-          }),
-          ' THEN ',
-          m(TextInput, {
-            placeholder: 'then value',
-            value: c.then,
-            oninput: (e: Event) => {
-              setCaseThen(i, (e.target as HTMLInputElement).value);
-            },
-          }),
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: () => removeCase(i),
-          }),
-        ),
-      ),
-      m(Button, {
-        label: 'Add case',
-        onclick: addCase,
-      }),
-    );
-  }
-
-  private updateExpression(col: NewColumn) {
-    if (col.type !== 'switch' || !col.switchOn) {
-      col.expression = '';
-      return;
-    }
-
-    const operator = col.useGlob ? 'GLOB' : '=';
-    const casesStr = (col.cases || [])
-      .filter((c) => c.when.trim() !== '' && c.then.trim() !== '')
-      .map((c) => `WHEN ${col.switchOn} ${operator} ${c.when} THEN ${c.then}`)
-      .join(' ');
-
-    const defaultStr = col.defaultValue ? `ELSE ${col.defaultValue}` : '';
-
-    if (casesStr === '' && defaultStr === '') {
-      col.expression = '';
-      return;
-    }
-
-    col.expression = `CASE ${casesStr} ${defaultStr} END`;
-  }
-}
-
-class IfComponent
-  implements
-    m.ClassComponent<{
-      column: NewColumn;
-      onchange: () => void;
-    }>
-{
-  view({
-    attrs,
-  }: m.Vnode<{
-    column: NewColumn;
-    onchange: () => void;
-  }>) {
-    const {column, onchange} = attrs;
-
-    if (column.type !== 'if') {
-      return m('');
-    }
-
-    const setIfCondition = (index: number, newIf: string) => {
-      if (!column.clauses) return;
-      column.clauses[index].if = newIf;
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const setThenValue = (index: number, newThen: string) => {
-      if (!column.clauses) return;
-      column.clauses[index].then = newThen;
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const setElseValue = (newElse: string) => {
-      column.elseValue = newElse;
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const addElseIf = () => {
-      if (!column.clauses) {
-        column.clauses = [];
-      }
-      column.clauses.push({if: '', then: ''});
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const removeClause = (index: number) => {
-      if (!column.clauses) return;
-      column.clauses.splice(index, 1);
-      this.updateExpression(column);
-      onchange();
-    };
-
-    const hasElse = column.elseValue !== undefined;
-
-    return m(
-      '.pf-exp-if-component',
-      (column.clauses || []).map((c, i) =>
-        m(
-          '.pf-exp-if-clause',
-          i === 0 ? 'IF ' : 'ELSE IF',
-          m(TextInput, {
-            placeholder: 'condition',
-            value: c.if,
-            oninput: (e: Event) => {
-              setIfCondition(i, (e.target as HTMLInputElement).value);
-            },
-          }),
-          ' THEN ',
-          m(TextInput, {
-            placeholder: 'value',
-            value: c.then,
-            oninput: (e: Event) => {
-              setThenValue(i, (e.target as HTMLInputElement).value);
-            },
-          }),
-          m(Button, {
-            icon: 'close',
-            compact: true,
-            onclick: () => removeClause(i),
-          }),
-        ),
-      ),
-
-      hasElse &&
-        m(
-          '.pf-exp-else-clause',
-          'ELSE ',
-          m(TextInput, {
-            placeholder: 'value',
-            value: column.elseValue || '',
-            oninput: (e: Event) => {
-              setElseValue((e.target as HTMLInputElement).value);
-            },
-          }),
-        ),
-
-      m(
-        '.pf-exp-if-buttons',
-        !hasElse &&
-          m(Button, {
-            label: 'Add ELSE IF',
-            onclick: addElseIf,
-          }),
-        !hasElse &&
-          m(Button, {
-            label: 'Add ELSE',
-            onclick: () => {
-              column.elseValue = '';
-              this.updateExpression(column);
-              onchange();
-            },
-          }),
-      ),
-    );
-  }
-
-  private updateExpression(col: NewColumn) {
-    if (col.type !== 'if') {
-      col.expression = '';
-      return;
-    }
-
-    const clausesStr = (col.clauses || [])
-      .filter((c) => c.if.trim() !== '' && c.then.trim() !== '')
-      .map((c) => `WHEN ${c.if} THEN ${c.then}`)
-      .join(' ');
-
-    const elseStr =
-      col.elseValue !== undefined ? `ELSE ${col.elseValue.trim()}` : '';
-
-    if (clausesStr === '' && elseStr === '') {
-      col.expression = '';
-      return;
-    }
-
-    col.expression = `CASE ${clausesStr} ${elseStr} END`;
-  }
-}
-
-interface IfClause {
-  if: string;
-  then: string;
-}
-
-interface NewColumn {
-  expression: string;
-  name: string;
-  module?: string;
-
-  // For switch columns
-  type?: 'switch' | 'if';
-  switchOn?: string;
-  cases?: {when: string; then: string}[];
-  defaultValue?: string;
-  useGlob?: boolean;
-
-  // For if columns
-  clauses?: IfClause[];
-  elseValue?: string;
-
-  // SQL type for preserving type information across serialization
-  sqlType?: string;
-}
-
-export interface AddColumnsNodeState extends QueryNodeState {
-  selectedColumns?: string[];
-  leftColumn?: string;
-  rightColumn?: string;
-  // Note: sqlTable is no longer used - we get columns from the connected node
-
-  // Note: onAddAndConnectTable callback is now provided through
-  // QueryNodeState.actions.onAddAndConnectTable
-
-  // Pre-selected columns for each suggested table (before connecting)
-  suggestionSelections?: Map<string, string[]>;
-
-  // Track which suggestions are expanded to show column selection
-  expandedSuggestions?: Set<string>;
-
-  // Currently selected suggestion table (for single-selection UI)
-  selectedSuggestionTable?: string;
-
-  // Map from column name to its alias (for renaming added columns)
-  columnAliases?: Map<string, string>;
-
-  // Map from column name to its alias for suggestion mode (before applying)
-  suggestionAliases?: Map<string, string>;
-
-  // Track if connection was made through guided suggestion
-  isGuidedConnection?: boolean;
-
-  // Computed columns (expressions, SWITCH, IF)
-  computedColumns?: NewColumn[];
-}
+// Re-export types for backwards compatibility
+export {NewColumn, AddColumnsNodeState} from './add_columns_types';
 
 export class AddColumnsNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kAddColumns;
   primaryInput?: QueryNode;
-  secondaryInputs: {
-    connections: Map<number, QueryNode>;
-    min: 1;
-    max: 1;
-  };
+  secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
   readonly state: AddColumnsNodeState;
 
@@ -467,6 +75,7 @@ export class AddColumnsNode implements QueryNode {
       connections: new Map(),
       min: 1,
       max: 1,
+      portNames: ['Table'],
     };
     this.nextNodes = [];
     this.state.selectedColumns = this.state.selectedColumns ?? [];
@@ -793,20 +402,6 @@ export class AddColumnsNode implements QueryNode {
     return errors;
   }
 
-  // Get error for a specific column (for UI display)
-  private getJoinColumnError(
-    colName: string,
-    selectedColumns: string[],
-    useSuggestionAliases: boolean,
-  ): string | undefined {
-    const errors = this.getJoinColumnErrors(
-      selectedColumns,
-      useSuggestionAliases,
-    );
-    const error = errors.find((e) => e.column === colName);
-    return error?.error;
-  }
-
   nodeDetails(): NodeDetailsAttrs {
     const hasConnectedNode = this.rightNode !== undefined;
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
@@ -884,7 +479,7 @@ export class AddColumnsNode implements QueryNode {
           }),
           m(Button, {
             label: 'If',
-            icon: 'help_outline',
+            icon: 'rule',
             onclick: () => this.showIfModal(),
             variant: ButtonVariant.Outlined,
           }),
@@ -906,6 +501,7 @@ export class AddColumnsNode implements QueryNode {
     ];
 
     return {
+      info: 'Add new columns to your query using expressions, joins, conditional logic, or by extracting values from args. Use the buttons above to select how you want to add columns.',
       sections,
     };
   }
@@ -914,7 +510,9 @@ export class AddColumnsNode implements QueryNode {
     const modalKey = 'add-join-modal';
 
     showModal({
-      title: 'Add Columns from Another Source',
+      title: this.rightNode
+        ? 'Configure Joined Columns'
+        : 'Add Columns from Another Source',
       key: modalKey,
       className: 'pf-join-modal-wide',
       content: () => {
@@ -975,21 +573,59 @@ export class AddColumnsNode implements QueryNode {
     });
   }
 
-  private showExpressionModal(columnIndex?: number) {
-    const modalKey = 'add-expression-modal';
+  private showComputedColumnModal(
+    type: 'expression' | 'switch' | 'if',
+    columnIndex?: number,
+  ) {
     const isEditing = columnIndex !== undefined;
+    const typeConfig = {
+      expression: {
+        key: 'add-expression-modal',
+        title: isEditing ? 'Edit Expression Column' : 'Add Expression Column',
+        defaultColumn: {expression: '', name: ''},
+      },
+      switch: {
+        key: 'add-switch-modal',
+        title: isEditing ? 'Edit Switch Column' : 'Add Switch Column',
+        defaultColumn: {
+          type: 'switch' as const,
+          expression: '',
+          name: '',
+          cases: [],
+        },
+      },
+      if: {
+        key: 'add-if-modal',
+        title: isEditing ? 'Edit If Column' : 'Add If Column',
+        defaultColumn: {
+          type: 'if' as const,
+          expression: '',
+          name: '',
+          clauses: [{if: '', then: ''}],
+        },
+      },
+    }[type];
 
     // Create a temporary copy to work with in the modal
     let tempColumn: NewColumn;
     if (isEditing && this.state.computedColumns?.[columnIndex]) {
-      tempColumn = {...this.state.computedColumns[columnIndex]};
+      const source = this.state.computedColumns[columnIndex];
+      tempColumn = {
+        ...source,
+        cases: source.cases?.map((c) => ({...c})),
+        clauses: source.clauses?.map((c) => ({...c})),
+      };
     } else {
-      tempColumn = {expression: '', name: ''};
+      tempColumn = typeConfig.defaultColumn;
     }
 
     showModal({
-      title: isEditing ? 'Edit Expression Column' : 'Add Expression Column',
-      key: modalKey,
+      title: typeConfig.title,
+      key: typeConfig.key,
+      className:
+        type === 'switch' || type === 'if'
+          ? 'pf-computed-column-modal-wide'
+          : undefined,
       content: () => {
         const nameError = this.getColumnNameError(tempColumn.name, columnIndex);
         return this.renderComputedColumn(tempColumn, nameError);
@@ -997,9 +633,7 @@ export class AddColumnsNode implements QueryNode {
       buttons: [
         {
           text: 'Cancel',
-          action: () => {
-            // Do nothing - changes are not applied
-          },
+          action: () => {},
         },
         {
           text: isEditing ? 'Save' : 'Add',
@@ -1008,7 +642,6 @@ export class AddColumnsNode implements QueryNode {
             !this.isComputedColumnValid(tempColumn) ||
             this.getColumnNameError(tempColumn.name, columnIndex) !== undefined,
           action: () => {
-            // Apply the temporary changes to the actual state
             if (isEditing && columnIndex !== undefined) {
               const newComputedColumns = [
                 ...(this.state.computedColumns ?? []),
@@ -1026,132 +659,18 @@ export class AddColumnsNode implements QueryNode {
         },
       ],
     });
+  }
+
+  private showExpressionModal(columnIndex?: number) {
+    this.showComputedColumnModal('expression', columnIndex);
   }
 
   private showSwitchModal(columnIndex?: number) {
-    const modalKey = 'add-switch-modal';
-    const isEditing = columnIndex !== undefined;
-
-    // Create a temporary copy to work with in the modal
-    let tempColumn: NewColumn;
-    if (isEditing && this.state.computedColumns?.[columnIndex]) {
-      tempColumn = {
-        ...this.state.computedColumns[columnIndex],
-        cases: this.state.computedColumns[columnIndex].cases?.map((c) => ({
-          ...c,
-        })),
-      };
-    } else {
-      tempColumn = {
-        type: 'switch' as const,
-        expression: '',
-        name: '',
-        cases: [],
-      };
-    }
-
-    showModal({
-      title: isEditing ? 'Edit Switch Column' : 'Add Switch Column',
-      key: modalKey,
-      content: () => {
-        const nameError = this.getColumnNameError(tempColumn.name, columnIndex);
-        return this.renderComputedColumn(tempColumn, nameError);
-      },
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {
-            // Do nothing - changes are not applied
-          },
-        },
-        {
-          text: isEditing ? 'Save' : 'Add',
-          primary: true,
-          disabled: () =>
-            !this.isComputedColumnValid(tempColumn) ||
-            this.getColumnNameError(tempColumn.name, columnIndex) !== undefined,
-          action: () => {
-            // Apply the temporary changes to the actual state
-            if (isEditing && columnIndex !== undefined) {
-              const newComputedColumns = [
-                ...(this.state.computedColumns ?? []),
-              ];
-              newComputedColumns[columnIndex] = tempColumn;
-              this.state.computedColumns = newComputedColumns;
-            } else {
-              this.state.computedColumns = [
-                ...(this.state.computedColumns ?? []),
-                tempColumn,
-              ];
-            }
-            this.state.onchange?.();
-          },
-        },
-      ],
-    });
+    this.showComputedColumnModal('switch', columnIndex);
   }
 
   private showIfModal(columnIndex?: number) {
-    const modalKey = 'add-if-modal';
-    const isEditing = columnIndex !== undefined;
-
-    // Create a temporary copy to work with in the modal
-    let tempColumn: NewColumn;
-    if (isEditing && this.state.computedColumns?.[columnIndex]) {
-      tempColumn = {
-        ...this.state.computedColumns[columnIndex],
-        clauses: this.state.computedColumns[columnIndex].clauses?.map((c) => ({
-          ...c,
-        })),
-      };
-    } else {
-      tempColumn = {
-        type: 'if' as const,
-        expression: '',
-        name: '',
-        clauses: [{if: '', then: ''}],
-      };
-    }
-
-    showModal({
-      title: isEditing ? 'Edit If Column' : 'Add If Column',
-      key: modalKey,
-      content: () => {
-        const nameError = this.getColumnNameError(tempColumn.name, columnIndex);
-        return this.renderComputedColumn(tempColumn, nameError);
-      },
-      buttons: [
-        {
-          text: 'Cancel',
-          action: () => {
-            // Do nothing - changes are not applied
-          },
-        },
-        {
-          text: isEditing ? 'Save' : 'Add',
-          primary: true,
-          disabled: () =>
-            !this.isComputedColumnValid(tempColumn) ||
-            this.getColumnNameError(tempColumn.name, columnIndex) !== undefined,
-          action: () => {
-            // Apply the temporary changes to the actual state
-            if (isEditing && columnIndex !== undefined) {
-              const newComputedColumns = [
-                ...(this.state.computedColumns ?? []),
-              ];
-              newComputedColumns[columnIndex] = tempColumn;
-              this.state.computedColumns = newComputedColumns;
-            } else {
-              this.state.computedColumns = [
-                ...(this.state.computedColumns ?? []),
-                tempColumn,
-              ];
-            }
-            this.state.onchange?.();
-          },
-        },
-      ],
-    });
+    this.showComputedColumnModal('if', columnIndex);
   }
 
   private showArgsModal() {
@@ -1280,53 +799,71 @@ export class AddColumnsNode implements QueryNode {
           );
         }
 
-        // No args found
-        if (availableKeys.length === 0) {
-          return m(
-            Form,
-            columnSelector,
-            m(
-              Callout,
-              {icon: 'info'},
-              'No args found for the current data. The source may not have any args associated with it.',
-            ),
-          );
-        }
+        // No args found - but still allow manual entry
+        const noArgsFound = availableKeys.length === 0;
 
         return m(
           Form,
           nameError && m(Callout, {icon: 'error'}, nameError),
-          m(
-            'p',
-            'Select an arg key to add as a column. The column will contain the value of that arg for each row.',
-          ),
+          noArgsFound &&
+            m(
+              Callout,
+              {icon: 'info'},
+              'No args found for the current data. You can still manually enter an arg key to fetch.',
+            ),
+          !noArgsFound &&
+            m(
+              'p',
+              'Select an arg key to add as a column. The column will contain the value of that arg for each row.',
+            ),
           columnSelector,
           m(FormSection, {label: 'Arg Key'}, [
-            m(
-              Select,
-              {
-                onchange: (e: Event) => {
-                  const value = (e.target as HTMLSelectElement).value;
-                  selectedKey = value || undefined;
-                  // Auto-generate column name from key (replace special chars)
-                  if (selectedKey && !columnName) {
-                    columnName = selectedKey
-                      .replace(/[.\[\]]/g, '_')
-                      .replace(/_+/g, '_')
-                      .replace(/^_|_$/g, '');
-                  }
-                  redrawModal();
-                },
-              },
-              m(
-                'option',
-                {value: '', selected: !selectedKey},
-                'Select an arg key',
-              ),
-              availableKeys.map((key) =>
-                m('option', {value: key, selected: key === selectedKey}, key),
-              ),
-            ),
+            noArgsFound
+              ? m(TextInput, {
+                  placeholder: 'Enter arg key (e.g., display_frame_token)',
+                  value: selectedKey || '',
+                  oninput: (e: Event) => {
+                    const value = (e.target as HTMLInputElement).value;
+                    selectedKey = value || undefined;
+                    // Auto-generate column name from key (replace special chars)
+                    if (selectedKey && !columnName) {
+                      columnName = selectedKey
+                        .replace(/[.\[\]]/g, '_')
+                        .replace(/_+/g, '_')
+                        .replace(/^_|_$/g, '');
+                    }
+                    redrawModal();
+                  },
+                })
+              : m(
+                  Select,
+                  {
+                    onchange: (e: Event) => {
+                      const value = (e.target as HTMLSelectElement).value;
+                      selectedKey = value || undefined;
+                      // Auto-generate column name from key (replace special chars)
+                      if (selectedKey && !columnName) {
+                        columnName = selectedKey
+                          .replace(/[.\[\]]/g, '_')
+                          .replace(/_+/g, '_')
+                          .replace(/^_|_$/g, '');
+                      }
+                      redrawModal();
+                    },
+                  },
+                  m(
+                    'option',
+                    {value: '', selected: !selectedKey},
+                    'Select an arg key',
+                  ),
+                  availableKeys.map((key) =>
+                    m(
+                      'option',
+                      {value: key, selected: key === selectedKey},
+                      key,
+                    ),
+                  ),
+                ),
           ]),
           m(FormSection, {label: 'Column Name'}, [
             m(TextInput, {
@@ -1459,344 +996,112 @@ export class AddColumnsNode implements QueryNode {
   }
 
   private renderGuidedMode(): m.Child {
-    if (!this.rightNode) {
-      const suggestions = this.getJoinSuggestions();
+    return !this.rightNode
+      ? this.renderSuggestionMode()
+      : this.renderJoinConfiguration();
+  }
 
-      if (suggestions.length === 0) {
-        return m(
-          Form,
-          m(
-            'p',
-            'No JOINID columns found in your data. You can still connect any node to the left port.',
-          ),
-        );
-      }
+  private renderSuggestionMode(): m.Child {
+    const suggestions = this.getJoinSuggestions();
+    const selectedTable = this.state.selectedSuggestionTable;
+    const selectedColumns = selectedTable
+      ? this.state.suggestionSelections?.get(selectedTable) ?? []
+      : [];
 
-      // Find the currently selected suggestion (if any)
-      const selectedTable = this.state.selectedSuggestionTable;
-      const selectedSuggestion = suggestions.find(
-        (s) => s.suggestedTable === selectedTable,
-      );
-      const tableInfo = selectedTable
-        ? this.getTable(selectedTable)
-        : undefined;
-      const availableColumns = selectedTable
-        ? this.getTableColumns(selectedTable)
-        : [];
-      const selectedColumns = selectedTable
-        ? this.state.suggestionSelections?.get(selectedTable) ?? []
-        : [];
+    return m(AddColumnsSuggestionModal, {
+      suggestions,
+      sourceCols: this.sourceCols,
+      selectedTable,
+      selectedColumns,
+      suggestionAliases: this.state.suggestionAliases,
+      getTable: (tableName: string) => this.getTable(tableName),
+      getJoinColumnErrors: (cols: string[]) =>
+        this.getJoinColumnErrors(cols, true),
+      onTableSelect: (tableName: string | undefined) => {
+        this.state.selectedSuggestionTable = tableName;
+        m.redraw();
+      },
+      onColumnToggle: (colName: string, checked: boolean) => {
+        if (!selectedTable) return;
+        if (!this.state.suggestionSelections) {
+          this.state.suggestionSelections = new Map();
+        }
+        const current =
+          this.state.suggestionSelections.get(selectedTable) ?? [];
+        let updated = [...current];
+        if (checked) {
+          if (!updated.includes(colName)) {
+            updated.push(colName);
+          }
+        } else {
+          updated = updated.filter((c) => c !== colName);
+          this.state.suggestionAliases?.delete(colName);
+        }
+        this.state.suggestionSelections.set(selectedTable, updated);
+        m.redraw();
+      },
+      onColumnAlias: (colName: string, alias: string) => {
+        if (!this.state.suggestionAliases) {
+          this.state.suggestionAliases = new Map();
+        }
+        if (alias.trim() === '') {
+          this.state.suggestionAliases.delete(colName);
+        } else {
+          this.state.suggestionAliases.set(colName, alias);
+        }
+        m.redraw();
+      },
+    });
+  }
 
-      return m(
-        '.pf-join-modal-layout',
-        // Left column: Form controls
-        m(
-          '.pf-join-modal-controls',
-          m(
-            Form,
-            // Step 1: Select which table to join
-            m(FormSection, {label: 'Select Table to Join'}, [
-              m(
-                Select,
-                {
-                  onchange: (e: Event) => {
-                    const value = (e.target as HTMLSelectElement).value;
-                    this.state.selectedSuggestionTable = value || undefined;
-                    m.redraw();
-                  },
-                },
-                m(
-                  'option',
-                  {value: '', selected: !selectedTable},
-                  'Choose a table',
-                ),
-                suggestions.map((s) =>
-                  m(
-                    'option',
-                    {
-                      value: s.suggestedTable,
-                      selected: s.suggestedTable === selectedTable,
-                    },
-                    `${s.suggestedTable} (on ${s.colName})`,
-                  ),
-                ),
-              ),
-            ]),
-
-            // Step 2: Show join condition (only when table is selected)
-            selectedSuggestion &&
-              m(
-                LabeledControl,
-                {label: 'Join on:'},
-                m(
-                  'span',
-                  m('code', selectedSuggestion.colName),
-                  ' = ',
-                  m('code', selectedSuggestion.targetColumn),
-                ),
-              ),
-
-            // Step 3: Select columns (only when table is selected)
-            selectedSuggestion &&
-              m(
-                LabeledControl,
-                {label: 'Columns:'},
-                m(OutlinedMultiSelect, {
-                  label:
-                    selectedColumns.length > 0
-                      ? selectedColumns.join(', ')
-                      : 'Select columns to add',
-                  showNumSelected: false,
-                  compact: true,
-                  options: availableColumns.map((col) => ({
-                    id: col,
-                    name: col,
-                    checked: selectedColumns.includes(col),
-                  })),
-                  onChange: (diffs: MultiSelectDiff[]) => {
-                    if (!this.state.suggestionSelections) {
-                      this.state.suggestionSelections = new Map();
-                    }
-                    const current =
-                      this.state.suggestionSelections.get(selectedTable!) ?? [];
-                    let updated = [...current];
-                    for (const diff of diffs) {
-                      if (diff.checked) {
-                        if (!updated.includes(diff.id)) {
-                          updated.push(diff.id);
-                        }
-                      } else {
-                        updated = updated.filter((c) => c !== diff.id);
-                      }
-                    }
-                    this.state.suggestionSelections.set(
-                      selectedTable!,
-                      updated,
-                    );
-                    m.redraw();
-                  },
-                }),
-              ),
-
-            // Show hint when table is selected but no columns are selected
-            selectedSuggestion &&
-              selectedColumns.length === 0 &&
-              m(
-                Callout,
-                {icon: 'info'},
-                'Select at least one column to add from the joined table.',
-              ),
-
-            // Show alias inputs for selected columns (suggestion mode)
-            selectedSuggestion &&
-              selectedColumns.length > 0 &&
-              m(FormSection, {label: 'Column Aliases (optional)'}, [
-                m(FormLabel, 'Rename columns to avoid conflicts:'),
-                selectedColumns.map((colName) => {
-                  const error = this.getJoinColumnError(
-                    colName,
-                    selectedColumns,
-                    true,
-                  );
-                  return m(
-                    LabeledControl,
-                    {label: `${colName} →`},
-                    m(TextInput, {
-                      placeholder: error
-                        ? 'alias required'
-                        : 'alias (optional)',
-                      value: this.state.suggestionAliases?.get(colName) ?? '',
-                      oninput: (e: InputEvent) => {
-                        const target = e.target as HTMLInputElement;
-                        const alias = target.value.trim();
-                        if (!this.state.suggestionAliases) {
-                          this.state.suggestionAliases = new Map();
-                        }
-                        if (alias) {
-                          this.state.suggestionAliases.set(colName, alias);
-                        } else {
-                          this.state.suggestionAliases.delete(colName);
-                        }
-                        m.redraw();
-                      },
-                    }),
-                    error && m(Icon, {icon: 'error'}),
-                  );
-                }),
-              ]),
-
-            // Show error summary if there are conflicts
-            selectedSuggestion &&
-              selectedColumns.length > 0 &&
-              m(IssueList, {
-                icon: 'error',
-                title: 'Column name conflicts:',
-                items: this.getJoinColumnErrors(selectedColumns, true).map(
-                  (err) => err.error,
-                ),
-              }),
-          ),
-        ),
-
-        // Right column: Table info panel (only when table is selected)
-        tableInfo &&
-          m('.pf-join-modal-info', m(TableDescription, {table: tableInfo})),
-      );
-    }
-
-    const leftCols = this.sourceCols;
-    const rightCols = this.rightCols;
-
+  private renderJoinConfiguration(): m.Child {
     const selectedColumns = this.state.selectedColumns ?? [];
-    const noColumnsSelected = selectedColumns.length === 0;
-    const selectedColumnsLabel = noColumnsSelected
-      ? 'Select columns to add'
-      : selectedColumns.join(', ');
 
-    return m(
-      Form,
-      m(
-        LabeledControl,
-        {label: 'Columns:'},
-        m(OutlinedMultiSelect, {
-          label: selectedColumnsLabel,
-          showNumSelected: false,
-          compact: true,
-          options: rightCols.map((c) => ({
-            id: c.column.name,
-            name: c.column.name,
-            checked:
-              this.state.selectedColumns?.includes(c.column.name) ?? false,
-          })),
-          onChange: (diffs: MultiSelectDiff[]) => {
-            if (!this.state.selectedColumns) {
-              this.state.selectedColumns = [];
-            }
-            for (const diff of diffs) {
-              if (diff.checked) {
-                if (!this.state.selectedColumns.includes(diff.id)) {
-                  this.state.selectedColumns.push(diff.id);
-                }
-              } else {
-                this.state.selectedColumns = this.state.selectedColumns.filter(
-                  (c) => c !== diff.id,
-                );
-                // Also remove the alias for this column
-                this.state.columnAliases?.delete(diff.id);
-              }
-            }
-            this.state.onchange?.();
-          },
-        }),
-      ),
-      // Show hint when no columns are selected
-      noColumnsSelected &&
-        m(
-          Callout,
-          {icon: 'info'},
-          'Select at least one column to add from the joined source.',
-        ),
-      // Show alias inputs for selected columns
-      this.state.selectedColumns && this.state.selectedColumns.length > 0
-        ? m(FormSection, {label: 'Column Aliases (optional)'}, [
-            m(FormLabel, 'Rename columns to avoid conflicts:'),
-            this.state.selectedColumns.map((colName) => {
-              const error = this.getJoinColumnError(
-                colName,
-                this.state.selectedColumns!,
-                false,
-              );
-              return m(
-                LabeledControl,
-                {label: `${colName} →`},
-                m(TextInput, {
-                  placeholder: error ? 'alias required' : 'alias (optional)',
-                  value: this.state.columnAliases?.get(colName) ?? '',
-                  oninput: (e: InputEvent) => {
-                    const target = e.target as HTMLInputElement;
-                    const alias = target.value.trim();
-                    if (!this.state.columnAliases) {
-                      this.state.columnAliases = new Map();
-                    }
-                    if (alias) {
-                      this.state.columnAliases.set(colName, alias);
-                    } else {
-                      this.state.columnAliases.delete(colName);
-                    }
-                    this.state.onchange?.();
-                  },
-                }),
-                error && m(Icon, {icon: 'error'}),
-              );
-            }),
-          ])
-        : null,
-      // Show error summary if there are conflicts
-      this.state.selectedColumns &&
-        this.state.selectedColumns.length > 0 &&
-        m(IssueList, {
-          icon: 'error',
-          title: 'Column name conflicts:',
-          items: this.getJoinColumnErrors(
-            this.state.selectedColumns,
-            false,
-          ).map((err) => err.error),
-        }),
-      m(FormSection, {label: 'Join Condition'}, [
-        m(FormLabel, 'Base Column'),
-        m(
-          Select,
-          {
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              this.state.leftColumn = target.value;
-              this.state.onchange?.();
-            },
-          },
-          m(
-            'option',
-            {disabled: true, selected: !this.state.leftColumn},
-            'Select column',
-          ),
-          leftCols.map((col) =>
-            m(
-              'option',
-              {
-                value: col.column.name,
-                selected: col.column.name === this.state.leftColumn,
-              },
-              col.column.name,
-            ),
-          ),
-        ),
-        m(FormLabel, 'Connected Node Column'),
-        m(
-          Select,
-          {
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              this.state.rightColumn = target.value;
-              this.state.onchange?.();
-            },
-          },
-          m(
-            'option',
-            {disabled: true, selected: !this.state.rightColumn},
-            'Select column',
-          ),
-          rightCols.map((col) =>
-            m(
-              'option',
-              {
-                value: col.column.name,
-                selected: col.column.name === this.state.rightColumn,
-              },
-              col.column.name,
-            ),
-          ),
-        ),
-      ]),
-    );
+    return m(AddColumnsConfigurationModal, {
+      sourceCols: this.sourceCols,
+      rightCols: this.rightCols,
+      leftColumn: this.state.leftColumn,
+      rightColumn: this.state.rightColumn,
+      selectedColumns,
+      columnAliases: this.state.columnAliases,
+      getJoinColumnErrors: (cols: string[]) =>
+        this.getJoinColumnErrors(cols, false),
+      onLeftColumnChange: (columnName: string) => {
+        this.state.leftColumn = columnName;
+        this.state.onchange?.();
+      },
+      onRightColumnChange: (columnName: string) => {
+        this.state.rightColumn = columnName;
+        this.state.onchange?.();
+      },
+      onColumnToggle: (colName: string, checked: boolean) => {
+        if (!this.state.selectedColumns) {
+          this.state.selectedColumns = [];
+        }
+        if (checked) {
+          if (!this.state.selectedColumns.includes(colName)) {
+            this.state.selectedColumns.push(colName);
+          }
+        } else {
+          this.state.selectedColumns = this.state.selectedColumns.filter(
+            (c) => c !== colName,
+          );
+          this.state.columnAliases?.delete(colName);
+        }
+        this.state.onchange?.();
+      },
+      onColumnAlias: (colName: string, alias: string) => {
+        if (!this.state.columnAliases) {
+          this.state.columnAliases = new Map();
+        }
+        if (alias.trim() === '') {
+          this.state.columnAliases.delete(colName);
+        } else {
+          this.state.columnAliases.set(colName, alias);
+        }
+        this.state.onchange?.();
+      },
+    });
   }
 
   private renderComputedColumn(col: NewColumn, nameError?: string): m.Child {
@@ -1814,15 +1119,13 @@ export class AddColumnsNode implements QueryNode {
             },
           }),
         ]),
-        m(FormSection, {label: 'Switch Configuration'}, [
-          m(SwitchComponent, {
-            column: col,
-            columns: this.sourceCols,
-            onchange: () => {
-              // No-op in modal mode - changes are already in col
-            },
-          }),
-        ]),
+        m(SwitchComponent, {
+          column: col,
+          columns: this.sourceCols,
+          onchange: () => {
+            // No-op in modal mode - changes are already in col
+          },
+        }),
       );
     }
 
@@ -1840,18 +1143,14 @@ export class AddColumnsNode implements QueryNode {
             },
           }),
         ]),
-        m(FormSection, {label: 'If Configuration'}, [
-          m(IfComponent, {
-            column: col,
-            onchange: () => {
-              // No-op in modal mode - changes are already in col
-            },
-          }),
-        ]),
+        m(IfComponent, {
+          column: col,
+          onchange: () => {
+            // No-op in modal mode - changes are already in col
+          },
+        }),
       );
     }
-
-    const isValid = this.isComputedColumnValid(col) && !nameError;
 
     return m(
       Form,
@@ -1882,7 +1181,6 @@ export class AddColumnsNode implements QueryNode {
           value: col.name,
         }),
       ]),
-      !isValid && m(Icon, {icon: 'warning'}),
     );
   }
 
@@ -1906,8 +1204,17 @@ export class AddColumnsNode implements QueryNode {
       return false;
     }
 
-    // If there's a rightNode, validate the join configuration
+    // If there's a rightNode, validate it and the join configuration
     if (this.rightNode) {
+      if (!this.rightNode.validate()) {
+        setValidationError(
+          this.state,
+          this.rightNode.state.issues?.queryError?.message ??
+            `Lookup table node '${this.rightNode.getTitle()}' is invalid`,
+        );
+        return false;
+      }
+
       // We need valid join columns
       if (!this.state.leftColumn || !this.state.rightColumn) {
         setValidationError(
