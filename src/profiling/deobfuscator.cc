@@ -110,13 +110,14 @@ std::optional<std::pair<uint32_t, uint32_t>> ParseLineRange(
     return std::make_pair(val, val);
   }
   char* end;
+  std::string start_str = s.substr(0, colon);
   uint32_t start =
-      static_cast<uint32_t>(strtoul(s.substr(0, colon).c_str(), &end, 10));
+      static_cast<uint32_t>(strtoul(start_str.c_str(), &end, 10));
   if (*end != '\0') {
     return std::nullopt;
   }
-  uint32_t stop =
-      static_cast<uint32_t>(strtoul(s.substr(colon + 1).c_str(), &end, 10));
+  std::string stop_str = s.substr(colon + 1);
+  uint32_t stop = static_cast<uint32_t>(strtoul(stop_str.c_str(), &end, 10));
   if (*end != '\0') {
     return std::nullopt;
   }
