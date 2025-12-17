@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {BarChartData, Sorting} from '../../components/aggregation';
+import {BarChartData} from '../../components/aggregation';
 import {
   AggregatePivotModel,
   Aggregation,
@@ -116,16 +116,17 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: ['utid', 'state'],
-      values: {
-        occurrences: {func: 'COUNT'},
-        process_name: {col: 'process_name', func: 'ANY'},
-        thread_name: {col: 'thread_name', func: 'ANY'},
-        tid: {col: 'tid', func: 'ANY'},
-        total_dur: {col: 'dur', func: 'SUM'},
-        fraction_of_total: {col: 'fraction_of_total', func: 'SUM'},
-        avg_dur: {col: 'dur', func: 'AVG'},
-      },
+      groupBy: [{field: 'utid'}, {field: 'state'}],
+      aggregates: [
+        {function: 'COUNT'},
+        {field: 'process_name', function: 'ANY'},
+        {field: 'pid', function: 'ANY'},
+        {field: 'thread_name', function: 'ANY'},
+        {field: 'tid', function: 'ANY'},
+        {field: 'dur', function: 'SUM', sort: 'DESC'},
+        {field: 'fraction_of_total', function: 'SUM'},
+        {field: 'dur', function: 'AVG'},
+      ],
       columns: [
         {
           title: 'Process',
@@ -175,9 +176,5 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Thread States';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'total_dur', direction: 'DESC'};
   }
 }
