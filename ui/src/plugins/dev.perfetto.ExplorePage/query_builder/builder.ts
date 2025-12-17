@@ -83,6 +83,7 @@ import {
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
+import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -637,7 +638,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
     this.dataSource = new SQLDataSource({
       engine,
-      baseQuery: `SELECT * FROM ${result.tableName}`,
+      sqlSchema: createSimpleSchema(result.tableName),
+      rootSchemaName: 'query',
     });
     this.queryExecuted = true;
     this.isQueryRunning = false;
