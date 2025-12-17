@@ -4309,6 +4309,11 @@ message TraceConfig {
     // session. This provides a more human-readable and less error-prone way to
     // configure which buffer a data source writes to.
     optional string name = 7;
+
+    // When true, uses the experimental TraceBufferV2 implementation for this
+    // buffer. This is for testing purposes only and may be removed in future
+    // versions.
+    optional bool experimental_trace_buffer_v2 = 8;
   }
   repeated BufferConfig buffers = 1;
 

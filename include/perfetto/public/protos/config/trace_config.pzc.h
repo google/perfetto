@@ -610,5 +610,15 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,
                   bool,
                   clear_before_clone,
                   6);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,
+                  STRING,
+                  const char*,
+                  name,
+                  7);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,
+                  VARINT,
+                  bool,
+                  experimental_trace_buffer_v2,
+                  8);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_TRACE_CONFIG_PZC_H_

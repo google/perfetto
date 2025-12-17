@@ -86,6 +86,7 @@
 #include "src/tracing/service/packet_stream_validator.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_v1.h"
+#include "src/tracing/service/trace_buffer_v2.h"
 
 #include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -1136,8 +1137,13 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         buffer_cfg.fill_policy() == TraceConfig::BufferConfig::DISCARD
             ? TraceBuffer::kDiscard
             : TraceBuffer::kOverwrite;
-    auto it_and_inserted =
-        buffers_.emplace(global_id, TraceBufferV1::Create(buf_size, policy));
+    std::unique_ptr<TraceBuffer> new_buffer;
+    if (buffer_cfg.experimental_trace_buffer_v2()) {
+      new_buffer = TraceBufferV2::Create(buf_size, policy);
+    } else {
+      new_buffer = TraceBufferV1::Create(buf_size, policy);
+    }
+    auto it_and_inserted = buffers_.emplace(global_id, std::move(new_buffer));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
     std::unique_ptr<TraceBuffer>& trace_buffer = it_and_inserted.first->second;
     if (!trace_buffer) {
@@ -4305,7 +4311,11 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     const auto buf_policy = buf->overwrite_policy();
     const auto buf_size = buf->size();
     std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
-    buf = TraceBufferV1::Create(buf_size, buf_policy);
+    if (old_buf->is_trace_buffer_v2()) {
+      buf = TraceBufferV2::Create(buf_size, buf_policy);
+    } else {
+      buf = TraceBufferV1::Create(buf_size, buf_policy);
+    }
     if (!buf) {
       // This is extremely rare but could happen on 32-bit. If the new buffer
       // allocation failed, put back the buffer where it was and fail the clone.
@@ -4476,8 +4486,13 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
     if (src.config.buffers()[buf_idx].transfer_on_clone()) {
       const auto buf_policy = src_buf->overwrite_policy();
       const auto buf_size = src_buf->size();
+      const bool is_tbv2 = src_buf->is_trace_buffer_v2();
       new_buf = std::move(src_buf);
-      src_buf = TraceBufferV1::Create(buf_size, buf_policy);
+      if (is_tbv2) {
+        src_buf = TraceBufferV2::Create(buf_size, buf_policy);
+      } else {
+        src_buf = TraceBufferV1::Create(buf_size, buf_policy);
+      }
       if (!src_buf) {
         // If the allocation fails put the buffer back and let the code below
         // handle the failure gracefully.
