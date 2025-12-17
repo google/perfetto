@@ -252,7 +252,7 @@ export default class SchedPlugin implements PerfettoPlugin {
     const {engine} = ctx;
 
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ThreadStateSelectionAggregator()),
+      createAggregationTab(ctx, new ThreadStateSelectionAggregator(ctx)),
     );
 
     if (SchedPlugin.threadStateByCpuFlag.get()) {
