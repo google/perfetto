@@ -149,9 +149,9 @@ base::Status PerfettoCmd::ReportTraceToAndroidFramework(
 }
 
 void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
-  PERFETTO_CHECK(trace_out_stream_);
+  PERFETTO_CHECK(trace_output_.has_value());
   uint64_t bytes_written = GetBytesWritten();
-  int trace_fd = fileno(*trace_out_stream_);
+  int trace_fd = fileno(*trace_output_->out_stream_);
   base::Uuid uuid(uuid_);
   base::Status status = ReportTraceToAndroidFramework(
       trace_fd, bytes_written, uuid, trace_config_->unique_session_name(),
@@ -179,8 +179,8 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
   // TODO(b/155024256) These should not be necessary (we flush when destroying
   // packet writer and sendfile should ignore file offset) however they should
   // not harm anything and it will help debug the linked issue.
-  PERFETTO_CHECK(fflush(*trace_out_stream_) == 0);
-  PERFETTO_CHECK(fseek(*trace_out_stream_, 0, SEEK_SET) == 0);
+  PERFETTO_CHECK(fflush(*trace_output_->out_stream_) == 0);
+  PERFETTO_CHECK(fseek(*trace_output_->out_stream_, 0, SEEK_SET) == 0);
 
   // SELinux constrains the set of readers.
   base::ScopedFile staging_fd = base::OpenFile(kTempIncidentTracePath.c_str(),
@@ -188,7 +188,7 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
   PERFETTO_CHECK(staging_fd);
 
   uint64_t bytes_written = GetBytesWritten();
-  int fd = fileno(*trace_out_stream_);
+  int fd = fileno(*trace_output_->out_stream_);
   off_t offset = 0;
   size_t remaining = static_cast<size_t>(bytes_written);
 
