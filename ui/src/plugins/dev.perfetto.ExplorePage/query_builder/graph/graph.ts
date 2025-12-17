@@ -117,6 +117,7 @@ export interface GraphAttrs {
   ) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
+  readonly onRecenterReady?: (recenter: () => void) => void;
 }
 
 // ========================================
@@ -601,6 +602,7 @@ export interface TextLabelData {
 export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
+  private hasPerformedInitialRecenter: boolean = false;
   private labels: Label[] = [];
   private labelTexts: Map<string, string> = new Map();
   private editingLabels: Set<string> = new Set();
@@ -741,6 +743,16 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         addNodeMenuItems,
       ),
       m(Button, {
+        icon: 'center_focus_strong',
+        variant: ButtonVariant.Minimal,
+        title: 'Center Graph',
+        onclick: () => {
+          if (this.nodeGraphApi) {
+            this.nodeGraphApi.recenter();
+          }
+        },
+      }),
+      m(Button, {
         icon: Icons.Edit,
         variant: ButtonVariant.Minimal,
         title: 'Add Label',
@@ -774,14 +786,29 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       nodes.length > 0
     ) {
       this.hasPerformedInitialLayout = true;
-      // Defer autoLayout to next tick to ensure DOM nodes are fully rendered
-      setTimeout(() => {
+      this.hasPerformedInitialRecenter = true;
+      // Call autoLayout to arrange nodes hierarchically
+      // autoLayout will call onNodeMove for each node it repositions
+      this.nodeGraphApi.autoLayout();
+      // Recenter after DOM updates with new positions
+      requestAnimationFrame(() => {
         if (this.nodeGraphApi) {
-          // Call autoLayout to arrange nodes hierarchically
-          // autoLayout will call onNodeMove for each node it repositions
-          this.nodeGraphApi.autoLayout();
+          this.nodeGraphApi.recenter();
         }
-      }, 0);
+      });
+    } else if (
+      !this.hasPerformedInitialRecenter &&
+      this.nodeGraphApi &&
+      nodes.length > 0
+    ) {
+      // Recenter on first render even if auto-layout didn't run
+      // (e.g., when loading from localStorage with existing positions)
+      this.hasPerformedInitialRecenter = true;
+      requestAnimationFrame(() => {
+        if (this.nodeGraphApi) {
+          this.nodeGraphApi.recenter();
+        }
+      });
     }
 
     return m(
@@ -800,6 +827,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           fillHeight: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
+            // Expose recenter function to parent component
+            attrs.onRecenterReady?.(() => {
+              if (this.nodeGraphApi) {
+                this.nodeGraphApi.recenter();
+              }
+            });
           },
           multiselect: false,
           onNodeSelect: (nodeId: string) => {

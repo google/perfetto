@@ -1345,10 +1345,28 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     m.redraw();
   }
 
-  function autofit(nodes: ReadonlyArray<Node>, canvas: HTMLElement) {
-    if (nodes.length === 0) return;
+  function autofit(
+    nodes: ReadonlyArray<Node>,
+    labels: ReadonlyArray<Label>,
+    canvas: HTMLElement,
+  ) {
+    if (nodes.length === 0 && labels.length === 0) return;
 
-    const {minX, minY, maxX, maxY} = getNodesBoundingBox(nodes, true);
+    const nodesBBox = getNodesBoundingBox(nodes, true);
+
+    let minX = nodesBBox.minX;
+    let minY = nodesBBox.minY;
+    let maxX = nodesBBox.maxX;
+    let maxY = nodesBBox.maxY;
+
+    // Include labels in bounding box calculation
+    labels.forEach((label) => {
+      minX = Math.min(minX, label.x);
+      minY = Math.min(minY, label.y);
+      maxX = Math.max(maxX, label.x + label.width);
+      // Labels have a fixed height (approximately 100px based on typical usage)
+      maxY = Math.max(maxY, label.y + 100);
+    });
 
     // Calculate bounding box dimensions
     const boundingWidth = maxX - minX;
@@ -1929,9 +1947,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
       // Create recenter function that brings all nodes into view
       const recenter = () => {
-        const {nodes = []} = vnode.attrs;
-        const canvas = vnode.dom as HTMLElement;
-        autofit(nodes, canvas);
+        if (latestVnode === null || canvasElement === null) {
+          return;
+        }
+        const {nodes = [], labels = []} = latestVnode.attrs;
+        const canvas = canvasElement;
+        autofit(nodes, labels, canvas);
       };
 
       // Find a non-overlapping position for a new node
@@ -2208,12 +2229,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                 icon: 'center_focus_strong',
                 variant: ButtonVariant.Filled,
                 onclick: (e: PointerEvent) => {
-                  const {nodes = []} = vnode.attrs;
+                  const {nodes = [], labels = []} = vnode.attrs;
                   const canvas = (e.currentTarget as HTMLElement).closest(
                     '.pf-canvas',
                   );
                   if (canvas) {
-                    autofit(nodes, canvas as HTMLElement);
+                    autofit(nodes, labels, canvas as HTMLElement);
                   }
                 },
               }),
