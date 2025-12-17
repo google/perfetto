@@ -68,6 +68,13 @@ message TraceConfig {
     // clone-related flush, we don't end up with a mixture of leftovers from
     // the previous write and new data.
     optional bool clear_before_clone = 6;
+
+    // Optional name for this buffer. If set, data sources can reference this
+    // buffer by name using |target_buffer_name| in DataSourceConfig instead of
+    // using the buffer index. Buffer names must be unique within a tracing
+    // session. This provides a more human-readable and less error-prone way to
+    // configure which buffer a data source writes to.
+    optional string name = 7;
   }
   repeated BufferConfig buffers = 1;
 

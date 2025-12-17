@@ -18,15 +18,13 @@ import {maybeUndefined} from '../../../base/utils';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../query_table/queries';
-import {DataSource, DataSourceModel, DataSourceResult} from './data_source';
 import {
-  DataGridColumn,
-  Filter,
-  SortBy,
-  SortByColumn,
+  DataSource,
+  DataSourceModel,
+  DataSourceResult,
   Pagination,
-  PivotModel,
-} from './model';
+} from './data_source';
+import {Column, Filter, Pivot} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
@@ -113,7 +111,7 @@ export class SQLDataSource implements DataSource {
 
   private workingQuery = '';
   private pagination?: Pagination;
-  private pivot?: PivotModel;
+  private pivot?: Pivot;
   private cachedResult?: DataSourceResult;
   private isLoadingFlag = false;
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
@@ -158,7 +156,6 @@ export class SQLDataSource implements DataSource {
    */
   notify({
     columns,
-    sorting = {direction: 'UNSORTED'},
     filters = [],
     pagination,
     pivot,
@@ -169,12 +166,7 @@ export class SQLDataSource implements DataSource {
       this.isLoadingFlag = true;
 
       try {
-        const workingQuery = this.buildWorkingQuery(
-          columns,
-          filters,
-          sorting,
-          pivot,
-        );
+        const workingQuery = this.buildWorkingQuery(columns, filters, pivot);
 
         if (
           workingQuery !== this.workingQuery ||
@@ -192,11 +184,8 @@ export class SQLDataSource implements DataSource {
 
           // Compute aggregate totals for pivot mode (but not drill-down mode)
           let aggregateTotals: Map<string, SqlValue> | undefined;
-          if (
-            pivot &&
-            !pivot.drillDown &&
-            Object.keys(pivot.values).length > 0
-          ) {
+          const pivotAggregates = pivot?.aggregates ?? [];
+          if (pivot && !pivot.drillDown && pivotAggregates.length > 0) {
             const aggregates = await this.getPivotAggregates(
               columns,
               filters,
@@ -209,7 +198,7 @@ export class SQLDataSource implements DataSource {
           }
 
           // Compute column-level aggregations (non-pivot mode)
-          const columnsWithAggregation = columns?.filter((c) => c.aggregation);
+          const columnsWithAggregation = columns?.filter((c) => c.aggregate);
           if (
             columnsWithAggregation &&
             columnsWithAggregation.length > 0 &&
@@ -325,15 +314,14 @@ export class SQLDataSource implements DataSource {
    * Builds a complete SQL query based on the current mode.
    */
   private buildWorkingQuery(
-    columns: ReadonlyArray<DataGridColumn> | undefined,
+    columns: ReadonlyArray<Column> | undefined,
     filters: ReadonlyArray<Filter>,
-    sorting: SortBy,
-    pivot?: PivotModel,
+    pivot?: Pivot,
   ): string {
     if (this.useSchema) {
-      return this.buildSchemaWorkingQuery(columns, filters, sorting, pivot);
+      return this.buildSchemaWorkingQuery(columns, filters, pivot);
     } else {
-      return this.buildSimpleWorkingQuery(columns, filters, sorting, pivot);
+      return this.buildSimpleWorkingQuery(columns, filters, pivot);
     }
   }
 
@@ -341,33 +329,42 @@ export class SQLDataSource implements DataSource {
    * Builds a query for simple mode (no schema, direct column access).
    */
   private buildSimpleWorkingQuery(
-    columns: ReadonlyArray<DataGridColumn> | undefined,
+    columns: ReadonlyArray<Column> | undefined,
     filters: ReadonlyArray<Filter>,
-    sorting: SortBy,
-    pivot?: PivotModel,
+    pivot?: Pivot,
   ): string {
-    const colNames = columns?.map((c) => c.column) ?? ['*'];
+    const colNames = columns?.map((c) => c.field) ?? ['*'];
+
+    // Include column aggregates in the query string so changes trigger a reload
+    const aggregateSuffix = columns
+      ?.filter((c) => c.aggregate)
+      .map((c) => `${c.field}:${c.aggregate}`)
+      .join(',');
 
     let query: string;
 
     if (pivot && !pivot.drillDown) {
-      // Pivot mode: Build aggregate columns
-      const valCols = Object.entries(pivot.values)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, value]) => {
-          const alias = this.pathToAlias(key);
-          if (value.func === 'COUNT') {
-            return `COUNT(*) AS ${alias}`;
+      // Pivot mode: Build aggregate columns from pivot.aggregates
+      const aggregates = pivot.aggregates ?? [];
+      const valCols = aggregates
+        .map((agg) => {
+          if (agg.function === 'COUNT') {
+            return `COUNT(*) AS __count__`;
           }
-          if (value.func === 'ANY') {
-            return `MIN(${value.col}) AS ${alias}`;
+          const field = 'field' in agg ? agg.field : null;
+          if (!field) return null;
+          const alias = this.pathToAlias(field);
+          if (agg.function === 'ANY') {
+            return `MIN(${field}) AS ${alias}`;
           }
-          return `${value.func}(${value.col}) AS ${alias}`;
+          return `${agg.function}(${field}) AS ${alias}`;
         })
+        .filter(Boolean)
         .join(', ');
 
-      if (pivot.groupBy.length > 0) {
-        const groupCols = pivot.groupBy.join(', ');
+      const groupByFields = pivot.groupBy.map(({field}) => field);
+      if (groupByFields.length > 0) {
+        const groupCols = groupByFields.join(', ');
         const selectCols = valCols ? `${groupCols}, ${valCols}` : groupCols;
         query = `
           SELECT ${selectCols}
@@ -386,11 +383,12 @@ export class SQLDataSource implements DataSource {
 
       const drillDownConditions = pivot.groupBy
         .map((col) => {
-          const value = pivot.drillDown![col];
+          const field = col.field;
+          const value = pivot.drillDown![field];
           if (value === null) {
-            return `${col} IS NULL`;
+            return `${field} IS NULL`;
           }
-          return `${col} = ${sqlValue(value)}`;
+          return `${field} = ${sqlValue(value)}`;
         })
         .join(' AND ');
 
@@ -407,32 +405,76 @@ export class SQLDataSource implements DataSource {
       query = `SELECT * FROM (${query}) WHERE ${whereConditions}`;
     }
 
-    // Add ORDER BY clause
-    if (sorting.direction !== 'UNSORTED') {
-      const {column, direction} = sorting as SortByColumn;
+    // Add ORDER BY clause - find sorted column from columns or pivot
+    const sortedColumn = this.findSortedColumn(columns, pivot);
+    if (sortedColumn) {
+      const {field, direction} = sortedColumn;
       let columnExists: boolean;
       if (pivot && !pivot.drillDown) {
-        const pivotColumns = [...pivot.groupBy, ...Object.keys(pivot.values)];
-        columnExists = pivotColumns.includes(column);
+        const groupByFields = pivot.groupBy.map(({field}) => field);
+        const aggregateFields = (pivot.aggregates ?? []).map((a) =>
+          'field' in a ? a.field : '__count__',
+        );
+        const pivotColumns = [...groupByFields, ...aggregateFields];
+        columnExists = pivotColumns.includes(field);
       } else {
-        columnExists = columns === undefined || colNames.includes(column);
+        columnExists = columns === undefined || colNames.includes(field);
       }
       if (columnExists) {
-        query += `\nORDER BY ${column} ${direction.toUpperCase()}`;
+        query += `\nORDER BY ${field} ${direction.toUpperCase()}`;
       }
+    }
+
+    // Append aggregate suffix as a comment so changes trigger reload
+    if (aggregateSuffix) {
+      query += ` /* aggregates: ${aggregateSuffix} */`;
     }
 
     return query;
   }
 
   /**
+   * Find the column that has sorting applied.
+   */
+  private findSortedColumn(
+    columns: ReadonlyArray<Column> | undefined,
+    pivot?: Pivot,
+  ): {field: string; direction: 'ASC' | 'DESC'} | undefined {
+    // Check pivot groupBy columns for sort
+    if (pivot) {
+      for (const col of pivot.groupBy) {
+        if (typeof col !== 'string' && col.sort) {
+          return {field: col.field, direction: col.sort};
+        }
+      }
+      // Check pivot aggregates for sort
+      for (const agg of pivot.aggregates ?? []) {
+        if (agg.sort) {
+          const field = 'field' in agg ? agg.field : '__count__';
+          return {field, direction: agg.sort};
+        }
+      }
+    }
+
+    // Check regular columns for sort
+    if (columns) {
+      for (const col of columns) {
+        if (col.sort) {
+          return {field: col.field, direction: col.sort};
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
    * Builds a query for schema mode (with JOINs based on column paths).
    */
   private buildSchemaWorkingQuery(
-    columns: ReadonlyArray<DataGridColumn> | undefined,
+    columns: ReadonlyArray<Column> | undefined,
     filters: ReadonlyArray<Filter>,
-    sorting: SortBy,
-    pivot?: PivotModel,
+    pivot?: Pivot,
   ): string {
     const resolver = new SQLSchemaResolver(
       this.sqlSchema!,
@@ -444,11 +486,11 @@ export class SQLDataSource implements DataSource {
 
     // For pivot mode without drill-down, we build aggregates differently
     if (pivot && !pivot.drillDown) {
-      return this.buildSchemaPivotQuery(resolver, filters, sorting, pivot);
+      return this.buildSchemaPivotQuery(resolver, filters, pivot);
     }
 
     // Normal mode or drill-down: select individual columns
-    const colPaths = columns?.map((c) => c.column) ?? [];
+    const colPaths = columns?.map((c) => c.field) ?? [];
     const selectExprs: string[] = [];
 
     for (const path of colPaths) {
@@ -457,6 +499,11 @@ export class SQLDataSource implements DataSource {
         const alias = this.pathToAlias(path);
         selectExprs.push(`${sqlExpr} AS ${alias}`);
       }
+    }
+
+    // Resolve filter column paths first to ensure JOINs are added
+    for (const filter of filters) {
+      resolver.resolveColumnPath(filter.field);
     }
 
     // If no columns specified, select all from base table
@@ -474,9 +521,9 @@ ${joinClauses}`;
     // Add WHERE clause for filters
     if (filters.length > 0) {
       const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.column);
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
         if (!sqlExpr) {
-          return this.filterToSql(filter, filter.column);
+          return this.filterToSql(filter, filter.field);
         }
         return this.filterToSql(filter, sqlExpr);
       });
@@ -487,8 +534,9 @@ ${joinClauses}`;
     if (pivot?.drillDown) {
       const drillDownConditions = pivot.groupBy
         .map((col) => {
-          const value = pivot.drillDown![col];
-          const sqlExpr = resolver.resolveColumnPath(col) ?? col;
+          const field = col.field;
+          const value = pivot.drillDown![field];
+          const sqlExpr = resolver.resolveColumnPath(field) ?? field;
           if (value === null) {
             return `${sqlExpr} IS NULL`;
           }
@@ -505,10 +553,11 @@ ${joinClauses}`;
       }
     }
 
-    // Add ORDER BY clause
-    if (sorting.direction !== 'UNSORTED') {
-      const {column, direction} = sorting as SortByColumn;
-      const sqlExpr = resolver.resolveColumnPath(column);
+    // Add ORDER BY clause - find sorted column
+    const sortedColumn = this.findSortedColumn(columns, pivot);
+    if (sortedColumn) {
+      const {field, direction} = sortedColumn;
+      const sqlExpr = resolver.resolveColumnPath(field);
       if (sqlExpr) {
         query += `\nORDER BY ${sqlExpr} ${direction.toUpperCase()}`;
       }
@@ -523,8 +572,7 @@ ${joinClauses}`;
   private buildSchemaPivotQuery(
     resolver: SQLSchemaResolver,
     filters: ReadonlyArray<Filter>,
-    sorting: SortBy,
-    pivot: PivotModel,
+    pivot: Pivot,
   ): string {
     const baseTable = resolver.getBaseTable();
     const baseAlias = resolver.getBaseAlias();
@@ -532,34 +580,39 @@ ${joinClauses}`;
     // Resolve groupBy columns
     const groupByExprs: string[] = [];
     const groupByAliases: string[] = [];
+    const groupByFields: string[] = [];
 
     for (const col of pivot.groupBy) {
-      const sqlExpr = resolver.resolveColumnPath(col);
+      const field = col.field;
+      groupByFields.push(field);
+      const sqlExpr = resolver.resolveColumnPath(field);
       if (sqlExpr) {
-        const alias = this.pathToAlias(col);
+        const alias = this.pathToAlias(field);
         groupByExprs.push(`${sqlExpr} AS ${alias}`);
         groupByAliases.push(alias);
       }
     }
 
-    // Build aggregate expressions
-    const aggregateExprs = Object.entries(pivot.values)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => {
-        const alias = this.pathToAlias(key);
-        if (value.func === 'COUNT') {
-          return `COUNT(*) AS ${alias}`;
-        }
-        const colExpr =
-          'col' in value ? resolver.resolveColumnPath(value.col) : null;
-        if (!colExpr) {
-          return `NULL AS ${alias}`;
-        }
-        if (value.func === 'ANY') {
-          return `MIN(${colExpr}) AS ${alias}`;
-        }
-        return `${value.func}(${colExpr}) AS ${alias}`;
-      });
+    // Build aggregate expressions from pivot.aggregates
+    const aggregates = pivot.aggregates ?? [];
+    const aggregateExprs = aggregates.map((agg) => {
+      if (agg.function === 'COUNT') {
+        return `COUNT(*) AS __count__`;
+      }
+      const field = 'field' in agg ? agg.field : null;
+      if (!field) {
+        return `NULL AS __unknown__`;
+      }
+      const alias = this.pathToAlias(field);
+      const colExpr = resolver.resolveColumnPath(field);
+      if (!colExpr) {
+        return `NULL AS ${alias}`;
+      }
+      if (agg.function === 'ANY') {
+        return `MIN(${colExpr}) AS ${alias}`;
+      }
+      return `${agg.function}(${colExpr}) AS ${alias}`;
+    });
 
     const selectClauses = [...groupByExprs, ...aggregateExprs];
     const joinClauses = resolver.buildJoinClauses();
@@ -572,9 +625,9 @@ ${joinClauses}`;
     // Add WHERE clause for filters
     if (filters.length > 0) {
       const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.column);
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
         if (!sqlExpr) {
-          return this.filterToSql(filter, filter.column);
+          return this.filterToSql(filter, filter.field);
         }
         return this.filterToSql(filter, sqlExpr);
       });
@@ -583,20 +636,24 @@ ${joinClauses}`;
 
     // Add GROUP BY
     if (groupByAliases.length > 0) {
-      const groupByOrigExprs = pivot.groupBy.map(
-        (col) => resolver.resolveColumnPath(col) ?? col,
+      const groupByOrigExprs = groupByFields.map(
+        (field) => resolver.resolveColumnPath(field) ?? field,
       );
       query += `\nGROUP BY ${groupByOrigExprs.join(', ')}`;
     }
 
-    // Add ORDER BY
-    if (sorting.direction !== 'UNSORTED') {
-      const {column, direction} = sorting as SortByColumn;
-      const pivotColumns = [...pivot.groupBy, ...Object.keys(pivot.values)];
-      if (pivotColumns.includes(column)) {
-        const alias = pivot.groupBy.includes(column)
-          ? this.pathToAlias(column)
-          : column;
+    // Add ORDER BY - find sorted column from pivot
+    const sortedColumn = this.findSortedColumn(undefined, pivot);
+    if (sortedColumn) {
+      const {field, direction} = sortedColumn;
+      const aggregateFields = aggregates.map((a) =>
+        'field' in a ? a.field : '__count__',
+      );
+      const pivotColumns = [...groupByFields, ...aggregateFields];
+      if (pivotColumns.includes(field)) {
+        const alias = groupByFields.includes(field)
+          ? this.pathToAlias(field)
+          : field;
         query += `\nORDER BY ${alias} ${direction.toUpperCase()}`;
       }
     }
@@ -684,9 +741,9 @@ ${joinClauses}`;
   }
 
   private async getPivotAggregates(
-    _columns: ReadonlyArray<DataGridColumn> | undefined,
+    _columns: ReadonlyArray<Column> | undefined,
     filters: ReadonlyArray<Filter>,
-    pivot: PivotModel,
+    pivot: Pivot,
   ): Promise<Row> {
     if (this.useSchema) {
       return this.getSchemaPivotAggregates(filters, pivot);
@@ -697,7 +754,7 @@ ${joinClauses}`;
 
   private async getSimplePivotAggregates(
     filters: ReadonlyArray<Filter>,
-    pivot: PivotModel,
+    pivot: Pivot,
   ): Promise<Row> {
     let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
     if (filters.length > 0) {
@@ -705,18 +762,21 @@ ${joinClauses}`;
       filteredBaseQuery = `SELECT * FROM (${filteredBaseQuery}) WHERE ${whereConditions}`;
     }
 
-    const selectClauses = Object.entries(pivot.values)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => {
-        const alias = this.pathToAlias(key);
-        if (value.func === 'COUNT') {
-          return `COUNT(*) AS ${alias}`;
+    const aggregates = pivot.aggregates ?? [];
+    const selectClauses = aggregates
+      .map((agg) => {
+        if (agg.function === 'COUNT') {
+          return `COUNT(*) AS __count__`;
         }
-        if (value.func === 'ANY') {
+        const field = 'field' in agg ? agg.field : null;
+        if (!field) return null;
+        const alias = this.pathToAlias(field);
+        if (agg.function === 'ANY') {
           return `NULL AS ${alias}`;
         }
-        return `${value.func}(${value.col}) AS ${alias}`;
+        return `${agg.function}(${field}) AS ${alias}`;
       })
+      .filter(Boolean)
       .join(', ');
 
     if (!selectClauses) {
@@ -734,7 +794,7 @@ ${joinClauses}`;
 
   private async getSchemaPivotAggregates(
     filters: ReadonlyArray<Filter>,
-    pivot: PivotModel,
+    pivot: Pivot,
   ): Promise<Row> {
     const resolver = new SQLSchemaResolver(
       this.sqlSchema!,
@@ -746,26 +806,28 @@ ${joinClauses}`;
 
     // Resolve filter columns first to ensure JOINs are added
     for (const filter of filters) {
-      resolver.resolveColumnPath(filter.column);
+      resolver.resolveColumnPath(filter.field);
     }
 
-    const selectClauses = Object.entries(pivot.values)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => {
-        const alias = this.pathToAlias(key);
-        if (value.func === 'COUNT') {
-          return `COUNT(*) AS ${alias}`;
+    const aggregates = pivot.aggregates ?? [];
+    const selectClauses = aggregates
+      .map((agg) => {
+        if (agg.function === 'COUNT') {
+          return `COUNT(*) AS __count__`;
         }
-        if (value.func === 'ANY') {
+        const field = 'field' in agg ? agg.field : null;
+        if (!field) return null;
+        const alias = this.pathToAlias(field);
+        if (agg.function === 'ANY') {
           return `NULL AS ${alias}`;
         }
-        const colExpr =
-          'col' in value ? resolver.resolveColumnPath(value.col) : null;
+        const colExpr = resolver.resolveColumnPath(field);
         if (!colExpr) {
           return `NULL AS ${alias}`;
         }
-        return `${value.func}(${colExpr}) AS ${alias}`;
+        return `${agg.function}(${colExpr}) AS ${alias}`;
       })
+      .filter(Boolean)
       .join(', ');
 
     if (!selectClauses) {
@@ -785,8 +847,8 @@ ${joinClauses}`;
         this.rootSchemaName!,
       );
       const whereConditions = filters.map((filter) => {
-        const sqlExpr = filterResolver.resolveColumnPath(filter.column);
-        return this.filterToSql(filter, sqlExpr ?? filter.column);
+        const sqlExpr = filterResolver.resolveColumnPath(filter.field);
+        return this.filterToSql(filter, sqlExpr ?? filter.field);
       });
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
@@ -797,7 +859,7 @@ ${joinClauses}`;
 
   private async getColumnAggregates(
     filters: ReadonlyArray<Filter>,
-    columns: ReadonlyArray<DataGridColumn>,
+    columns: ReadonlyArray<Column>,
   ): Promise<Row> {
     if (this.useSchema) {
       return this.getSchemaColumnAggregates(filters, columns);
@@ -808,7 +870,7 @@ ${joinClauses}`;
 
   private async getSimpleColumnAggregates(
     filters: ReadonlyArray<Filter>,
-    columns: ReadonlyArray<DataGridColumn>,
+    columns: ReadonlyArray<Column>,
   ): Promise<Row> {
     let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
     if (filters.length > 0) {
@@ -817,16 +879,13 @@ ${joinClauses}`;
     }
 
     const selectClauses = columns
-      .filter((col) => col.aggregation)
+      .filter((col) => col.aggregate)
       .map((col) => {
-        const func = col.aggregation!;
-        if (func === 'COUNT') {
-          return `COUNT(*) AS ${col.column}`;
-        }
+        const func = col.aggregate!;
         if (func === 'ANY') {
-          return `MIN(${col.column}) AS ${col.column}`;
+          return `MIN(${col.field}) AS ${col.field}`;
         }
-        return `${func}(${col.column}) AS ${col.column}`;
+        return `${func}(${col.field}) AS ${col.field}`;
       })
       .join(', ');
 
@@ -845,7 +904,7 @@ ${joinClauses}`;
 
   private async getSchemaColumnAggregates(
     filters: ReadonlyArray<Filter>,
-    columns: ReadonlyArray<DataGridColumn>,
+    columns: ReadonlyArray<Column>,
   ): Promise<Row> {
     const resolver = new SQLSchemaResolver(
       this.sqlSchema!,
@@ -856,15 +915,12 @@ ${joinClauses}`;
     const baseAlias = resolver.getBaseAlias();
 
     const selectClauses = columns
-      .filter((col) => col.aggregation)
+      .filter((col) => col.aggregate)
       .map((col) => {
-        const func = col.aggregation!;
-        const colExpr = resolver.resolveColumnPath(col.column);
-        const alias = this.pathToAlias(col.column);
+        const func = col.aggregate!;
+        const colExpr = resolver.resolveColumnPath(col.field);
+        const alias = this.pathToAlias(col.field);
 
-        if (func === 'COUNT') {
-          return `COUNT(*) AS ${alias}`;
-        }
         if (!colExpr) {
           return `NULL AS ${alias}`;
         }
@@ -879,6 +935,11 @@ ${joinClauses}`;
       return {};
     }
 
+    // Resolve filter column paths first to ensure JOINs are added
+    for (const filter of filters) {
+      resolver.resolveColumnPath(filter.field);
+    }
+
     const joinClauses = resolver.buildJoinClauses();
 
     let query = `
@@ -888,8 +949,8 @@ ${joinClauses}`;
 
     if (filters.length > 0) {
       const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.column);
-        return this.filterToSql(filter, sqlExpr ?? filter.column);
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return this.filterToSql(filter, sqlExpr ?? filter.field);
       });
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
@@ -929,19 +990,19 @@ function simpleFilter2Sql(filter: Filter): string {
     case '<=':
     case '>':
     case '>=':
-      return `${filter.column} ${filter.op} ${sqlValue(filter.value)}`;
+      return `${filter.field} ${filter.op} ${sqlValue(filter.value)}`;
     case 'glob':
-      return `${filter.column} GLOB ${sqlValue(filter.value)}`;
+      return `${filter.field} GLOB ${sqlValue(filter.value)}`;
     case 'not glob':
-      return `${filter.column} NOT GLOB ${sqlValue(filter.value)}`;
+      return `${filter.field} NOT GLOB ${sqlValue(filter.value)}`;
     case 'is null':
-      return `${filter.column} IS NULL`;
+      return `${filter.field} IS NULL`;
     case 'is not null':
-      return `${filter.column} IS NOT NULL`;
+      return `${filter.field} IS NOT NULL`;
     case 'in':
-      return `${filter.column} IN (${filter.value.map(sqlValue).join(', ')})`;
+      return `${filter.field} IN (${filter.value.map(sqlValue).join(', ')})`;
     case 'not in':
-      return `${filter.column} NOT IN (${filter.value.map(sqlValue).join(', ')})`;
+      return `${filter.field} NOT IN (${filter.value.map(sqlValue).join(', ')})`;
     default:
       assertUnreachable(filter);
   }
@@ -965,30 +1026,20 @@ function comparePagination(a?: Pagination, b?: Pagination): boolean {
   return a.limit === b.limit && a.offset === b.offset;
 }
 
-function arePivotsEqual(a?: PivotModel, b?: PivotModel): boolean {
+function arePivotsEqual(a?: Pivot, b?: Pivot): boolean {
   if (a === b) return true;
   if (a === undefined || b === undefined) return false;
 
-  if (a.groupBy.join(',') !== b.groupBy.join(',')) return false;
-  if (!arePivotValuesEqual(a.values, b.values)) return false;
-  if (JSON.stringify(a.drillDown) !== JSON.stringify(b.drillDown)) return false;
+  // Compare groupBy fields
+  const aGroupBy = a.groupBy.map(({field}) => field).join(',');
+  const bGroupBy = b.groupBy.map(({field}) => field).join(',');
+  if (aGroupBy !== bGroupBy) return false;
 
-  return true;
-}
-
-function arePivotValuesEqual(
-  a: PivotModel['values'],
-  b: PivotModel['values'],
-): boolean {
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-
-  if (keysA.length !== keysB.length) return false;
-
-  for (const key of keysA) {
-    if (!(key in b)) return false;
-    if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) return false;
+  // Compare aggregates
+  if (JSON.stringify(a.aggregates) !== JSON.stringify(b.aggregates)) {
+    return false;
   }
+  if (JSON.stringify(a.drillDown) !== JSON.stringify(b.drillDown)) return false;
 
   return true;
 }

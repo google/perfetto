@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {Sorting} from '../../components/aggregation';
 import {
   AggregatePivotModel,
   Aggregation,
@@ -179,19 +178,15 @@ export class SliceSelectionAggregator implements Aggregator {
     return 'Slices';
   }
 
-  getDefaultSorting(): Sorting {
-    return {column: 'sum_dur', direction: 'DESC'};
-  }
-
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: ['name'],
-      values: {
-        count: {func: 'COUNT'},
-        sum_dur: {col: 'dur', func: 'SUM'},
-        sum_self_dur: {col: 'self_dur', func: 'SUM'},
-        avg_dur: {col: 'dur', func: 'AVG'},
-      },
+      groupBy: [{field: 'name'}],
+      aggregates: [
+        {function: 'COUNT'},
+        {field: 'dur', function: 'SUM', sort: 'DESC'},
+        {field: 'self_dur', function: 'SUM'},
+        {field: 'dur', function: 'AVG'},
+      ],
       columns: [
         {
           title: 'ID',
@@ -201,6 +196,7 @@ export class SliceSelectionAggregator implements Aggregator {
         {
           title: 'Name',
           columnId: 'name',
+          formatHint: 'STRING',
         },
         {
           title: 'Wall Duration',
