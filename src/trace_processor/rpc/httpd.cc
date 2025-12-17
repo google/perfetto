@@ -22,9 +22,9 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <utility>
 #include <vector>
-#include <unordered_set>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -208,7 +208,14 @@ class Httpd : public base::HttpRequestHandler {
   std::mutex websocket_rpc_mutex_;
   std::unordered_map<std::string, std::unique_ptr<RpcThread>> id_to_tp_map;
   std::unordered_map<base::HttpServerConnection*, std::string> conn_to_id_map;
-  std::unordered_set<std::string> closed_conn_ids_; // if you don't keep a list of the UUIDs of closed connections, the frontend will confuse it with closing the laptop lid and try to reopen them, causing a new thread to be reopened immediately. when you make a new websocket handshake, check this set to see if it was previously closed, and if so, refuse to reopen it.
+  std::unordered_set<std::string>
+      closed_conn_ids_;  // if you don't keep a list of the UUIDs of closed
+                         // connections, the frontend will confuse it with
+                         // closing the laptop lid and try to reopen them,
+                         // causing a new thread to be reopened immediately.
+                         // when you make a new websocket handshake, check this
+                         // set to see if it was previously closed, and if so,
+                         // refuse to reopen it.
   size_t tp_timeout_mins_;
 };
 
@@ -246,12 +253,11 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> tp,
   if (!tp->GetCurrentTraceName().empty()) {
     auto new_thread =
         std::make_unique<RpcThread>(this, std::move(tp), is_preloaded_eof);
-        base::Uuid uuid = base::Uuidv4();
-        std::string uuid_str = uuid.ToPrettyString();
-        id_to_tp_map.emplace(uuid_str, std::move(new_thread));
-        PERFETTO_ILOG("Preloaded trace processor assigned ID: %s",
-                     uuid_str.c_str());
-        
+    base::Uuid uuid = base::Uuidv4();
+    std::string uuid_str = uuid.ToPrettyString();
+    id_to_tp_map.emplace(uuid_str, std::move(new_thread));
+    PERFETTO_ILOG("Preloaded trace processor assigned ID: %s",
+                  uuid_str.c_str());
   }
 }
 Httpd::~Httpd() = default;
@@ -406,13 +412,27 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
 
       if (path.empty() ||
-          path == "/") {  // If the WS handshake does not come with an UUID,
-                          // register it with the global tp with the Legacy
-                          // /websocket endpoint
-        PERFETTO_ILOG(
-            "Legacy /websocket endpoint: connecting to global trace "
-            "processor instance");
-        instance_uuid = kDefaultTpUuid;
+          path ==
+              "/") {  // CHANGED: resolved back comp issues. if no ID's provided
+                      // you can't just connect to the global TP because the
+                      // preloaded instance is in another thread. thus, connect
+                      // to the first tp instance in the map.
+        if (id_to_tp_map.empty()) {
+          // Case 1: No instances exist, create a new one
+          base::Uuid new_id = base::Uuidv4();
+          instance_uuid = new_id.ToPrettyString();
+          auto new_thread = std::make_unique<RpcThread>(this);
+          id_to_tp_map.emplace(instance_uuid, std::move(new_thread));
+          PERFETTO_ILOG("Legacy /websocket: creating new TP instance %s",
+                        instance_uuid.c_str());
+        } else {
+          // Case 2: Instances exist, attach to the "first" one for back-compat.
+          instance_uuid = id_to_tp_map.begin()->first;
+          PERFETTO_ILOG(
+              "Legacy /websocket: attaching to existing TP instance %s",
+              instance_uuid.c_str());
+        }
+
       } else {
         // if an ID's provided, create a new TP in a separate thread and
         // register it in the map.
@@ -446,32 +466,6 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     }
 
     conn.UpgradeToWebsocket(req);
-
-    // if (send_id_back) {
-    //   // Immediately send a status message to the client upon connection.
-    //   // This follows the pattern of TPM_GET_STATUS responses.
-    //   // We need to wrap the TraceProcessorRpc message into a
-    //   // TraceProcessorRpcStream to be compliant with the RPC protocol on the
-    //   // wire.
-    //   protozero::HeapBuffered<protos::pbzero::TraceProcessorRpcStream>
-    //   stream; auto* rpc = stream->add_msg(); rpc->set_seq(0);  // This is the
-    //   first message, seq can be 0.
-    //   rpc->set_response(protos::pbzero::TraceProcessorRpc::TPM_GET_STATUS);
-
-    //   auto* status = rpc->set_status();
-    //   // For a new instance, the trace name is empty.
-    //   status->set_loaded_trace_name("");
-    //   status->set_human_readable_version(base::GetVersionString());
-    //   if (const char* version_code = base::GetVersionCode(); version_code) {
-    //     status->set_version_code(version_code);
-    //   }
-    //   status->set_api_version(
-    //       protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
-    //   status->set_instance_uuid(instance_uuid);
-    //   req.conn->SendWebsocketMessage(
-    //       Vec2Sv(stream.SerializeAsArray()).data(),
-    //       static_cast<uint32_t>(stream.SerializeAsArray().size()));
-    // }
     return;
   }
 
@@ -493,7 +487,8 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
            conn_to_id_it != conn_to_id_map.end();) {
         if (conn_to_id_it->second == instance_uuid) {
           auto conn_to_close = conn_to_id_it->first;
-          auto closed_id = conn_to_id_it->second.substr(1); // remove leading '/'
+          auto closed_id =
+              conn_to_id_it->second.substr(1);  // remove leading '/'
           closed_conn_ids_.insert(closed_id);
           conn_to_id_it = conn_to_id_map.erase(conn_to_id_it);
           conn_to_close->Close();
@@ -610,18 +605,8 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
   auto conn_to_id_it = conn_to_id_map.find(msg.conn);
-  if (conn_to_id_it == conn_to_id_map.end() ||
-      conn_to_id_it->second == kDefaultTpUuid) {
-    // Connection not registered, which can happen if we are using an older
-    // version of the UI. In this case we use the global RPC because there is no
-    // UUID associated with it.
-    global_trace_processor_rpc_.SetRpcResponseFunction(
-        [&](const void* data, uint32_t len) {
-          SendRpcChunk(msg.conn, data, len);
-        });
-    // OnRpcRequest() will call SendRpcChunk() one or more times.
-    global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
-    global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+  if (conn_to_id_it == conn_to_id_map.end()) {
+    PERFETTO_ELOG("Websocket message from an un-associated connection.");
     return;
   }
 

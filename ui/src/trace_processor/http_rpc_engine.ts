@@ -37,7 +37,6 @@ export class HttpRpcEngine extends EngineBase {
   private queue: Blob[] = [];
   private isProcessingQueue = false;
   private traceProcessorUuid?: string | undefined = undefined;
-  // private isWaitingForUuid = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
@@ -57,7 +56,6 @@ export class HttpRpcEngine extends EngineBase {
     }
     // We have an existing instance Uuid, connect to that specific instance.
     const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/${this.traceProcessorUuid}`;
-    // this.isWaitingForUuid = false;
 
     this.websocket = new WebSocket(wsUrl);
     this.websocket.onopen = () => this.onWebsocketConnected();
@@ -80,12 +78,6 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   onWebsocketConnected() {
-    // If we are waiting for the instance ID, the connection is not truly "ready"
-    // until that instance ID has been received. onWebsocketMessage will call this
-    // again once the instance ID arrives.
-
-    // if (this.isWaitingForUuid) return;
-
     this.connected = true;
     for (;;) {
       const queuedMsg = this.requestQueue.shift();
@@ -113,30 +105,6 @@ export class HttpRpcEngine extends EngineBase {
 
   private onWebsocketMessage(e: MessageEvent) {
     const blob = assertExists(e.data as Blob);
-    // if (this.isWaitingForUuid) {
-    //   blob.arrayBuffer().then((buffer) => {
-    //     const rpcMsgEncoded = new Uint8Array(buffer);
-    //     const rpc = protos.TraceProcessorRpc.decode(rpcMsgEncoded);
-
-    //     if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
-    //       this.fail(`${rpc.fatalError}`);
-    //     }
-    //     if (rpc.response !== TPM.TPM_GET_STATUS) {
-    //       this.fail(`Initial message missing instance UUID: ${rpc}`);
-    //     } else if (
-    //       rpc.status === undefined ||
-    //       rpc.status === null ||
-    //       rpc.status.instanceUuid === undefined
-    //     ) {
-    //       this.fail(`Initial message missing instance UUID: ${rpc}`);
-    //     } else {
-    //       this.traceProcessorUuid = rpc.status?.instanceUuid ?? '';
-    //       this.isWaitingForUuid = false;
-    //       this.onWebsocketConnected();
-    //     }
-    //   });
-    //   return;
-    // }
 
     // Standard RPC message processing.
     this.queue.push(blob);
