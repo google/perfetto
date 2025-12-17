@@ -12,40 +12,80 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {Icons} from '../../base/semantic_icons';
 import {
   AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
-  selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
+import {Trace} from '../../public/trace';
+import {Track} from '../../public/track';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {
+  buildQueryWithLineage,
+  LineageResolver,
+} from '../../trace_processor/dataset_query_utils';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM} from '../../trace_processor/query_result';
+import {LONG, NUM, Row} from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
+
+const CPU_SLICE_SPEC = {
+  id: NUM,
+  dur: LONG,
+  ts: LONG,
+  utid: NUM,
+};
 
 export class CpuSliceSelectionAggregator implements Aggregator {
   readonly id = 'cpu_aggregation';
 
-  probe(area: AreaSelection): Aggregation | undefined {
-    const dataset = selectTracksAndGetDataset(
-      area.tracks,
-      {
-        id: NUM,
-        dur: LONG,
-        ts: LONG,
-        utid: NUM,
-      },
-      CPU_SLICE_TRACK_KIND,
-    );
+  private readonly trace: Trace;
+  private lineageResolver?: LineageResolver<Track>;
 
-    if (!dataset) return undefined;
+  constructor(trace: Trace) {
+    this.trace = trace;
+  }
+
+  probe(area: AreaSelection): Aggregation | undefined {
+    // Collect CPU slice tracks
+    const cpuTracks: Track[] = [];
+
+    for (const track of area.tracks) {
+      if (!track.tags?.kinds?.includes(CPU_SLICE_TRACK_KIND)) continue;
+      const dataset = track.renderer.getDataset?.();
+      if (!dataset || !(dataset instanceof SourceDataset)) continue;
+      if (!dataset.implements(CPU_SLICE_SPEC)) continue;
+      cpuTracks.push(track);
+    }
+
+    if (cpuTracks.length === 0) return undefined;
 
     return {
       prepareData: async (engine: Engine) => {
+        // Build query with lineage tracking
+        const {sql, lineageResolver} = buildQueryWithLineage({
+          inputs: cpuTracks,
+          datasetFetcher: (t) => t.renderer.getDataset?.() as SourceDataset,
+          columns: CPU_SLICE_SPEC,
+        });
+
+        this.lineageResolver = lineageResolver;
+
+        // Schema including lineage columns
+        const schemaWithLineage = {
+          ...CPU_SLICE_SPEC,
+          z__groupid: NUM,
+          z__partition: NUM,
+        };
+
+        // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
           engine,
-          dataset,
+          new SourceDataset({src: `(${sql})`, schema: schemaWithLineage}),
           area.start,
           area.end,
         );
@@ -53,15 +93,18 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
+            sched.id,
             utid,
             process.name as process_name,
             pid,
             thread.name as thread_name,
             tid,
-            dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            dur * 1.0 / ${area.end - area.start} as fraction_of_selection
-          from (${iiTable.name}) as sched
+            sched.dur,
+            sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
+            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
+            z__groupid,
+            z__partition
+          from ${iiTable.name} as sched
           join thread using (utid)
           left join process using (upid)
         `);
@@ -92,6 +135,52 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         {field: 'dur', function: 'AVG'},
       ],
       columns: [
+        {
+          title: 'ID',
+          columnId: 'id',
+          formatHint: 'ID',
+          cellRenderer: (value: unknown, row: Row) => {
+            if (typeof value !== 'bigint') {
+              return String(value);
+            }
+
+            const groupId = row['z__groupid'];
+            const partition = row['z__partition'];
+
+            if (
+              typeof groupId !== 'bigint' ||
+              (typeof partition !== 'bigint' && partition !== null)
+            ) {
+              return String(value);
+            }
+
+            const track = this.lineageResolver?.resolve(
+              Number(groupId),
+              Number(partition),
+            );
+            if (!track) {
+              return String(value);
+            }
+
+            return m(
+              Anchor,
+              {
+                title: 'Go to sched slice',
+                icon: Icons.UpdateSelection,
+                onclick: () => {
+                  this.trace.selection.selectTrackEvent(
+                    track.uri,
+                    Number(value),
+                    {
+                      scrollToSelection: true,
+                    },
+                  );
+                },
+              },
+              String(value),
+            );
+          },
+        },
         {
           title: 'PID',
           columnId: 'pid',
@@ -126,6 +215,16 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           title: 'Wall Duration % of Selection',
           columnId: 'fraction_of_selection',
           formatHint: 'PERCENT',
+        },
+        {
+          title: 'Partition',
+          columnId: 'z__partition',
+          formatHint: 'ID',
+        },
+        {
+          title: 'GroupID',
+          columnId: 'z__groupid',
+          formatHint: 'ID',
         },
       ],
     };
