@@ -154,7 +154,8 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
     // field_word >> 3.
     //
     // The argument is only present for opcodes that need it.
-    for (size_t i = 0; i < overlay_words.size();) {
+    size_t i = 0;
+    while (i < overlay_words.size()) {
       overlay.emplace_back();
 
       uint32_t opcode = overlay_words[i + 1] & kOpcodeMask;
@@ -164,7 +165,7 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
                       i);
         return false;
       }
-      if (i + word_count >= overlay_words.size()) {
+      if (i + word_count > overlay_words.size()) {
         PERFETTO_DLOG(
             "overlay error: insufficient words for opcode %u at index %zu",
             opcode, i);
@@ -195,6 +196,10 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
             prev_entry.field_id);
         return false;
       }
+    }
+    if (i != overlay_words.size()) {
+      PERFETTO_DLOG("overlay error: trailing words after index %zu", i);
+      return false;
     }
   }
 
