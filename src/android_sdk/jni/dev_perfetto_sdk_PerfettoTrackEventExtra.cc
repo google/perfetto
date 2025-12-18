@@ -166,166 +166,84 @@ class StringBuffer {
   }
 };
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_init(
-    JNIEnv* env,
-    jclass,
-    jstring name) {
-  return toJLong(new sdk_for_jni::DebugArg<int64_t>(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArg_init(JNIEnv* env,
+                                                              jclass,
+                                                              jstring name) {
+  return toJLong(new sdk_for_jni::DebugArg(
       StringBuffer::utf16_to_ascii(env, name).data()));
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_init(
-    JNIEnv* env,
-    jclass,
-    jstring name) {
-  return toJLong(new sdk_for_jni::DebugArg<bool>(
-      StringBuffer::utf16_to_ascii(env, name).data()));
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArg_delete() {
+  return toJLong(&sdk_for_jni::DebugArg::delete_arg);
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_init(
-    JNIEnv* env,
-    jclass,
-    jstring name) {
-  return toJLong(new sdk_for_jni::DebugArg<double>(
-      StringBuffer::utf16_to_ascii(env, name).data()));
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgString_init(
-    JNIEnv* env,
-    jclass,
-    jstring name) {
-  return toJLong(new sdk_for_jni::DebugArg<const char*>(
-      StringBuffer::utf16_to_ascii(env, name).data()));
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_delete() {
-  return toJLong(&sdk_for_jni::DebugArg<int64_t>::delete_arg);
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_delete() {
-  return toJLong(&sdk_for_jni::DebugArg<bool>::delete_arg);
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_delete() {
-  return toJLong(&sdk_for_jni::DebugArg<double>::delete_arg);
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgString_delete() {
-  return toJLong(&sdk_for_jni::DebugArg<const char*>::delete_arg);
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArg_get_extra_ptr(
     jlong ptr) {
-  sdk_for_jni::DebugArg<int64_t>* arg =
-      toPointer<sdk_for_jni::DebugArg<int64_t>>(ptr);
+  sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
   return toJLong(arg->get());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_get_extra_ptr(
-    jlong ptr) {
-  sdk_for_jni::DebugArg<bool>* arg =
-      toPointer<sdk_for_jni::DebugArg<bool>>(ptr);
-  return toJLong(arg->get());
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_get_extra_ptr(
-    jlong ptr) {
-  sdk_for_jni::DebugArg<double>* arg =
-      toPointer<sdk_for_jni::DebugArg<double>>(ptr);
-  return toJLong(arg->get());
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgString_get_extra_ptr(
-    jlong ptr) {
-  sdk_for_jni::DebugArg<const char*>* arg =
-      toPointer<sdk_for_jni::DebugArg<const char*>>(ptr);
-  return toJLong(arg->get());
-}
-
-static void dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_int64(
     jlong ptr,
     jlong val) {
-  sdk_for_jni::DebugArg<int64_t>* arg =
-      toPointer<sdk_for_jni::DebugArg<int64_t>>(ptr);
-  arg->set_value(val);
+  sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
+  auto& arg_int64 = arg->get()->arg_int64;
+  arg_int64.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64;
+  arg_int64.name = arg->name();
+  arg_int64.value = val;
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_bool(
     jlong ptr,
     jboolean val) {
-  sdk_for_jni::DebugArg<bool>* arg =
-      toPointer<sdk_for_jni::DebugArg<bool>>(ptr);
-  arg->set_value(val);
+  sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
+  auto& arg_bool = arg->get()->arg_bool;
+  arg_bool.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL;
+  arg_bool.name = arg->name();
+  arg_bool.value = val;
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_double(
     jlong ptr,
     jdouble val) {
-  sdk_for_jni::DebugArg<double>* arg =
-      toPointer<sdk_for_jni::DebugArg<double>>(ptr);
-  arg->set_value(val);
+  sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
+  auto& arg_double = arg->get()->arg_double;
+  arg_double.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE;
+  arg_double.name = arg->name();
+  arg_double.value = val;
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtraArgString_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_string(
     JNIEnv* env,
     jclass,
     jlong ptr,
     jstring val) {
-  sdk_for_jni::DebugArg<const char*>* arg =
-      toPointer<sdk_for_jni::DebugArg<const char*>>(ptr);
-  arg->set_value(StringBuffer::utf16_to_ascii(env, val).data());
+  sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
+  auto& arg_string = arg->get()->arg_string;
+  arg_string.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING;
+  arg_string.name = arg->name();
+  arg_string.value = StringBuffer::utf16_to_ascii(env, val).data();
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_init() {
-  return toJLong(new sdk_for_jni::ProtoField<int64_t>());
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_init() {
-  return toJLong(new sdk_for_jni::ProtoField<double>());
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_init() {
-  return toJLong(new sdk_for_jni::ProtoField<const char*>());
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_init() {
+  return toJLong(new sdk_for_jni::ProtoField());
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_init() {
   return toJLong(new sdk_for_jni::ProtoFieldNested());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_delete() {
-  return toJLong(&sdk_for_jni::ProtoField<int64_t>::delete_field);
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_delete() {
-  return toJLong(&sdk_for_jni::ProtoField<double>::delete_field);
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_delete() {
-  return toJLong(&sdk_for_jni::ProtoField<const char*>::delete_field);
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_delete() {
+  return toJLong(&sdk_for_jni::ProtoField::delete_field);
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_delete() {
   return toJLong(&sdk_for_jni::ProtoFieldNested::delete_field);
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_get_extra_ptr(
     jlong ptr) {
-  sdk_for_jni::ProtoField<int64_t>* field =
-      toPointer<sdk_for_jni::ProtoField<int64_t>>(ptr);
-  return toJLong(field->get());
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_get_extra_ptr(
-    jlong ptr) {
-  sdk_for_jni::ProtoField<double>* field =
-      toPointer<sdk_for_jni::ProtoField<double>>(ptr);
-  return toJLong(field->get());
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_get_extra_ptr(
-    jlong ptr) {
-  sdk_for_jni::ProtoField<const char*>* field =
-      toPointer<sdk_for_jni::ProtoField<const char*>>(ptr);
+  sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
   return toJLong(field->get());
 }
 
@@ -336,33 +254,39 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_get_extra_ptr(
   return toJLong(field->get());
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_int64(
     jlong ptr,
     jlong id,
     jlong val) {
-  sdk_for_jni::ProtoField<int64_t>* field =
-      toPointer<sdk_for_jni::ProtoField<int64_t>>(ptr);
-  field->set_value(id, val);
+  sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
+  auto& field_varint = field->get()->field_varint;
+  field_varint.header.type = PERFETTO_TE_HL_PROTO_TYPE_VARINT;
+  field_varint.header.id = static_cast<uint32_t>(id);
+  field_varint.value = val;
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_double(
     jlong ptr,
     jlong id,
     jdouble val) {
-  sdk_for_jni::ProtoField<double>* field =
-      toPointer<sdk_for_jni::ProtoField<double>>(ptr);
-  field->set_value(id, val);
+  sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
+  auto& field_double = field->get()->field_double;
+  field_double.header.type = PERFETTO_TE_HL_PROTO_TYPE_DOUBLE;
+  field_double.header.id = static_cast<uint32_t>(id);
+  field_double.value = val;
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_string(
     JNIEnv* env,
     jclass,
     jlong ptr,
     jlong id,
     jstring val) {
-  sdk_for_jni::ProtoField<const char*>* field =
-      toPointer<sdk_for_jni::ProtoField<const char*>>(ptr);
-  field->set_value(id, StringBuffer::utf16_to_ascii(env, val).data());
+  sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
+  auto& field_cstr = field->get()->field_cstr;
+  field_cstr.header.type = PERFETTO_TE_HL_PROTO_TYPE_CSTR;
+  field_cstr.header.id = static_cast<uint32_t>(id);
+  field_cstr.str = StringBuffer::utf16_to_ascii(env, val).data();
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_add_field(
@@ -450,50 +374,36 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr(
   return toJLong(track->get());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_init() {
-  return toJLong(new sdk_for_jni::Counter<int64_t>());
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_init() {
+  return toJLong(new sdk_for_jni::Counter());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_delete() {
-  return toJLong(&sdk_for_jni::Counter<int64_t>::delete_counter);
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_delete() {
+  return toJLong(&sdk_for_jni::Counter::delete_counter);
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_set_value(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_get_extra_ptr(
+    jlong ptr) {
+  sdk_for_jni::Counter* counter = toPointer<sdk_for_jni::Counter>(ptr);
+  return toJLong(counter->get());
+}
+
+static void dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_int64(
     jlong ptr,
     jlong val) {
-  sdk_for_jni::Counter<int64_t>* counter =
-      toPointer<sdk_for_jni::Counter<int64_t>>(ptr);
-  counter->set_value(val);
+  sdk_for_jni::Counter* counter = toPointer<sdk_for_jni::Counter>(ptr);
+  auto& counter_int64 = counter->get()->counter_int64;
+  counter_int64.header.type = PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64;
+  counter_int64.value = val;
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_get_extra_ptr(
-    jlong ptr) {
-  sdk_for_jni::Counter<int64_t>* counter =
-      toPointer<sdk_for_jni::Counter<int64_t>>(ptr);
-  return toJLong(counter->get());
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_init() {
-  return toJLong(new sdk_for_jni::Counter<double>());
-}
-
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_delete() {
-  return toJLong(&sdk_for_jni::Counter<double>::delete_counter);
-}
-
-static void dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_double(
     jlong ptr,
     jdouble val) {
-  sdk_for_jni::Counter<double>* counter =
-      toPointer<sdk_for_jni::Counter<double>>(ptr);
-  counter->set_value(val);
-}
-
-static jlong
-dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_get_extra_ptr(jlong ptr) {
-  sdk_for_jni::Counter<double>* counter =
-      toPointer<sdk_for_jni::Counter<double>>(ptr);
-  return toJLong(counter->get());
+  sdk_for_jni::Counter* counter = toPointer<sdk_for_jni::Counter>(ptr);
+  auto& counter_double = counter->get()->counter_double;
+  counter_double.header.type = PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE;
+  counter_double.value = val;
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtra_init() {
@@ -579,81 +489,36 @@ static const JNINativeMethod gProtoMethods[] = {
     {"native_clear_fields", "(J)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraProto_clear_fields}};
 
-static const JNINativeMethod gArgInt64Methods[] = {
+static const JNINativeMethod gArgMethods[] = {
     {"native_init", "(Ljava/lang/String;)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArg_init},
     {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArg_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_get_extra_ptr},
-    {"native_set_value", "(JJ)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArg_get_extra_ptr},
+    {"native_set_value_int64", "(JJ)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_int64},
+    {"native_set_value_bool", "(JZ)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_bool},
+    {"native_set_value_double", "(JD)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_double},
+    {"native_set_value_string", "(JLjava/lang/String;)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_string},
 };
 
-static const JNINativeMethod gArgBoolMethods[] = {
-    {"native_init", "(Ljava/lang/String;)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_init},
-    {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_delete},
-    {"native_get_extra_ptr", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_get_extra_ptr},
-    {"native_set_value", "(JZ)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_set_value},
-};
-
-static const JNINativeMethod gArgDoubleMethods[] = {
-    {"native_init", "(Ljava/lang/String;)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_init},
-    {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_delete},
-    {"native_get_extra_ptr", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_get_extra_ptr},
-    {"native_set_value", "(JD)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_set_value},
-};
-
-static const JNINativeMethod gArgStringMethods[] = {
-    {"native_init", "(Ljava/lang/String;)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgString_init},
-    {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgString_delete},
-    {"native_get_extra_ptr", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgString_get_extra_ptr},
-    {"native_set_value", "(JLjava/lang/String;)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgString_set_value},
-};
-
-static const JNINativeMethod gFieldInt64Methods[] = {
+static const JNINativeMethod gFieldMethods[] = {
     {"native_init", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_init},
     {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_get_extra_ptr},
-    {"native_set_value", "(JJJ)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_set_value},
-};
-
-static const JNINativeMethod gFieldDoubleMethods[] = {
-    {"native_init", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_init},
-    {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_delete},
-    {"native_get_extra_ptr", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_get_extra_ptr},
-    {"native_set_value", "(JJD)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_set_value},
-};
-
-static const JNINativeMethod gFieldStringMethods[] = {
-    {"native_init", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_init},
-    {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_delete},
-    {"native_get_extra_ptr", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_get_extra_ptr},
-    {"native_set_value", "(JJLjava/lang/String;)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_get_extra_ptr},
+    {"native_set_value_int64", "(JJJ)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_int64},
+    {"native_set_value_double", "(JJD)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_double},
+    {"native_set_value_string", "(JJLjava/lang/String;)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_string},
 };
 
 static const JNINativeMethod gFieldNestedMethods[] = {
@@ -700,80 +565,32 @@ static const JNINativeMethod gCounterTrackMethods[] = {
      (void*)
          dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr}};
 
-static const JNINativeMethod gCounterInt64Methods[] = {
+static const JNINativeMethod gCounterMethods[] = {
     {"native_init", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounter_init},
     {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_delete},
-    {"native_set_value", "(JJ)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounter_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)
-         dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_get_extra_ptr}};
-
-static const JNINativeMethod gCounterDoubleMethods[] = {
-    {"native_init", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_init},
-    {"native_delete", "()J",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_delete},
-    {"native_set_value", "(JD)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_set_value},
-    {"native_get_extra_ptr", "(J)J",
-     (void*)
-         dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_get_extra_ptr}};
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounter_get_extra_ptr},
+    {"native_set_value_int64", "(JJ)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_int64},
+    {"native_set_value_double", "(JD)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_double}};
 
 int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
   int res = jniRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgInt64"),
-      gArgInt64Methods, NELEM(gArgInt64Methods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg int64 native methods.");
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$Arg"),
+      gArgMethods, NELEM(gArgMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg native methods.");
 
   res = jniRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgBool"),
-      gArgBoolMethods, NELEM(gArgBoolMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg bool native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgDouble"),
-      gArgDoubleMethods, NELEM(gArgDoubleMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg double native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgString"),
-      gArgStringMethods, NELEM(gArgStringMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg string native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldInt64"),
-      gFieldInt64Methods, NELEM(gFieldInt64Methods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register field int64 native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldDouble"),
-      gFieldDoubleMethods, NELEM(gFieldDoubleMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register field double native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldString"),
-      gFieldStringMethods, NELEM(gFieldStringMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register field string native methods.");
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$Field"),
+      gFieldMethods, NELEM(gFieldMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register field native methods.");
 
   res = jniRegisterNativeMethods(
       env,
@@ -822,18 +639,10 @@ int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
   res = jniRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterInt64"),
-      gCounterInt64Methods, NELEM(gCounterInt64Methods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register counter int64 native methods.");
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$Counter"),
+      gCounterMethods, NELEM(gCounterMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register counter native methods.");
 
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterDouble"),
-      gCounterDoubleMethods, NELEM(gCounterDoubleMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register counter double native methods.");
   return 0;
 }
 
