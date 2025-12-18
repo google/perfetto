@@ -358,6 +358,11 @@ using StringFilterRule =
     protos::gen::TraceConfig::TraceFilter::StringFilterRule;
 std::optional<protozero::StringFilter::SemanticTypeMask>
 ConvertSemanticTypeMask(const StringFilterRule& rule) {
+  // If no semantic types are specified, match all semantic types.
+  if (rule.semantic_type().empty()) {
+    return protozero::StringFilter::AllSemanticTypes();
+  }
+
   protozero::StringFilter::SemanticTypeMask mask = {};
   for (const auto& type : rule.semantic_type()) {
     auto semantic_type = static_cast<uint32_t>(type);

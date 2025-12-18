@@ -40,6 +40,12 @@ class StringFilter {
   static constexpr size_t kSemanticTypeLimit =
       std::size(SemanticTypeMask()) * 64;
 
+  // Returns a SemanticTypeMask with all bits set (applies to all types).
+  static constexpr SemanticTypeMask AllSemanticTypes() {
+    return {std::numeric_limits<uint64_t>::max(),
+            std::numeric_limits<uint64_t>::max()};
+  }
+
   enum class Policy : uint8_t {
     kMatchRedactGroups = 1,
     kAtraceMatchRedactGroups = 2,
@@ -86,12 +92,6 @@ class StringFilter {
     // Bitmask of semantic types this rule applies to.
     SemanticTypeMask semantic_type_mask;
   };
-
-  // Returns a SemanticTypeMask with all bits set (applies to all types).
-  static constexpr SemanticTypeMask AllSemanticTypes() {
-    return {std::numeric_limits<uint64_t>::max(),
-            std::numeric_limits<uint64_t>::max()};
-  }
 
   bool MaybeFilterInternal(char* ptr, size_t len, uint32_t semantic_type) const;
 
