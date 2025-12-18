@@ -377,6 +377,12 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
     return false;
   }
 
+  if (overlay_idx != overlay.size()) {
+    PERFETTO_DLOG("bytecode error: overlay contains %zu unconsumed entries",
+                  overlay.size() - overlay_idx);
+    return false;
+  }
+
   if (max_msg_index > 0 && max_msg_index >= message_offset_.size()) {
     PERFETTO_DLOG(
         "bytecode error: a message index (%u) is out of range "
