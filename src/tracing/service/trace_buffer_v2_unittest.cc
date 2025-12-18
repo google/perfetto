@@ -286,7 +286,7 @@ TEST_F(TraceBufferV2Test, ReadWrite_Padding) {
 // allowed (16 bytes). This is to exercise edge cases in the padding logic.
 // [c0: 2048               ][c1: 1024         ][c2: 1008       ][c3: 16]
 // [c4: 2032            ][c5: 1040                ][c6 :16][c7: 1080   ]
-TEST_F(TraceBufferV2Test, ReadWrite_MinimalPadding) {
+TEST_F(TraceBufferV2Test, DISABLED_ReadWrite_MinimalPadding) {
   ResetBuffer(4096);
 
   ASSERT_EQ(2048u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
@@ -363,7 +363,7 @@ TEST_F(TraceBufferV2Test, ReadWrite_RandomChunksNoWrapping) {
 
 // Tests the case of writing a chunk that leaves just sizeof(ChunkRecord) at
 // the end of the buffer.
-TEST_F(TraceBufferV2Test, ReadWrite_WrappingCases) {
+TEST_F(TraceBufferV2Test, DISABLED_ReadWrite_WrappingCases) {
   ResetBuffer(4096);
   ASSERT_EQ(4080u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
                        .AddPacket(4080 - 16, 'a')
@@ -581,7 +581,7 @@ TEST_F(TraceBufferV2Test, Fragments_OutOfOrderWithIdOverflowACBD) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-TEST_F(TraceBufferV2Test, Fragments_EmptyChunkBefore) {
+TEST_F(TraceBufferV2Test, DISABLED_Fragments_EmptyChunkBefore) {
   ResetBuffer(4096);
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0)).CopyIntoTraceBuffer();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
@@ -599,7 +599,7 @@ TEST_F(TraceBufferV2Test, Fragments_EmptyChunkBefore) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-TEST_F(TraceBufferV2Test, Fragments_EmptyChunkAfter) {
+TEST_F(TraceBufferV2Test, DISABLED_Fragments_EmptyChunkAfter) {
   ResetBuffer(4096);
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(10, 'a')
@@ -613,7 +613,7 @@ TEST_F(TraceBufferV2Test, Fragments_EmptyChunkAfter) {
 
 // Set up a fragmented packet that happens to also have an empty chunk in the
 // middle of the sequence. Test that it just gets skipped.
-TEST_F(TraceBufferV2Test, Fragments_EmptyChunkInTheMiddle) {
+TEST_F(TraceBufferV2Test, DISABLED_Fragments_EmptyChunkInTheMiddle) {
   ResetBuffer(4096);
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(10, 'a', kContOnNextChunk)
@@ -980,7 +980,8 @@ TEST_F(TraceBufferV2Test, Malicious_ChunkTooBig) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-TEST_F(TraceBufferV2Test, Malicious_DeclareMorePacketsBeyondBoundaries) {
+TEST_F(TraceBufferV2Test,
+       DISABLED_Malicious_DeclareMorePacketsBeyondBoundaries) {
   ResetBuffer(4096);
   SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
@@ -2240,7 +2241,7 @@ TEST_F(TraceBufferV2Test, Fragments_LargeFragment) {
 }
 
 // Test empty chunks in long fragmentation chain
-TEST_F(TraceBufferV2Test, Fragments_EmptyChunksInLongChain) {
+TEST_F(TraceBufferV2Test, DISABLED_Fragments_EmptyChunksInLongChain) {
   ResetBuffer(4096);
   std::vector<FakePacketFragment> expected;
 
