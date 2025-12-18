@@ -60,7 +60,7 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
         auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstrInterned*>(*p);
         PERFETTO_DCHECK(field->interned_type_id != 0);
         if (field->interned_type_id) {
-          const void* str = field->str;
+          const char* str = field->str;
           size_t len = strlen(field->str);
           auto res = incr->iids.FindOrAssign(
               static_cast<int32_t>(field->interned_type_id), str, len);
