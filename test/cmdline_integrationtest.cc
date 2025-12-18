@@ -418,11 +418,9 @@ TEST_F(PerfettoCmdlineTest, DetachAndAttach) {
 
   EXPECT_NE(0, attach_to_not_existing.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Session re-attach failed"));
-  PERFETTO_LOG("DetachAndAttach, stderr: %s", stderr_.c_str());
 
   EXPECT_EQ(0, detach_valid_stop.Run(&stderr_)) << stderr_;
   EXPECT_EQ(0, stop_valid_stop.Run(&stderr_));
-  PERFETTO_LOG("DetachAndAttach, stderr: %s", stderr_.c_str());
 }
 
 TEST_F(PerfettoCmdlineTest, StartTracingTrigger) {

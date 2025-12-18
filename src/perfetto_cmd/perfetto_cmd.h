@@ -207,9 +207,9 @@ class PerfettoCmd : public Consumer {
   bool cloned_session_was_write_into_file_ = false;
 
   struct TraceOutput {
-    // |out_stream_| is not set if output file is created by traced.
+    // |out_stream_| is not set when the output file is created by traced.
     base::ScopedFstream out_stream_;
-    // |out_path_| is empty if the output is an unlinked file created by
+    // |out_path_| is empty when the output is an unlinked file created by
     // perfetto_cmd.
     std::string out_path_;
     uint64_t GetBytesWritten();
