@@ -23,10 +23,7 @@ import {
   QueryNodeState,
   NodeType,
   NodeActions,
-  addConnection,
-  removeConnection,
   singleNodeOperation,
-  notifyNextNodes,
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {FilterNode} from './query_builder/nodes/filter_node';
@@ -47,6 +44,9 @@ import {
   findDockedChildren,
   calculateUndockLayouts,
   getEffectiveLayout,
+  addConnection,
+  removeConnection,
+  notifyNextNodes,
 } from './query_builder/graph_utils';
 import {showExamplesModal} from './examples_modal';
 import {

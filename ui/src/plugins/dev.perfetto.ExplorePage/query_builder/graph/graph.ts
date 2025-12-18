@@ -54,16 +54,15 @@ import {
   NodePort,
 } from '../../../../widgets/nodegraph';
 import {createEditableTextLabels} from './text_label';
-import {
-  QueryNode,
-  singleNodeOperation,
-  NodeType,
-  addConnection,
-  removeConnection,
-} from '../../query_node';
+import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {NodeBox} from './node_box';
 import {buildMenuItems} from './menu_utils';
-import {getAllNodes, findNodeById} from '../graph_utils';
+import {
+  getAllNodes,
+  findNodeById,
+  addConnection,
+  removeConnection,
+} from '../graph_utils';
 
 // ========================================
 // TYPE DEFINITIONS

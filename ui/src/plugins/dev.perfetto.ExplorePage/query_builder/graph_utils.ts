@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode, singleNodeOperation} from '../query_node';
+import {
+  QueryNode,
+  SecondaryInputSpec,
+  singleNodeOperation,
+} from '../query_node';
 
 /**
- * Graph traversal utilities for the Explore Page query builder.
+ * Graph traversal and connection utilities for the Explore Page query builder.
  * Consolidates graph traversal logic to eliminate code duplication.
  */
 
@@ -353,7 +357,9 @@ const UNDOCK_STAGGER = 30;
  * Positions are staggered diagonally from the parent's position.
  *
  * @param children The children to calculate positions for
- * @param parentLayout The parent's layout position (x, y coordinates)
+ * @param parentLayout The parent's layout position
+ * @param parentLayout.x The parent's x coordinate
+ * @param parentLayout.y The parent's y coordinate
  * @returns Map of child nodeId to new layout position
  */
 export function calculateUndockLayouts(
@@ -370,4 +376,150 @@ export function calculateUndockLayouts(
   }
 
   return layouts;
+}
+
+// ============================================================================
+// Graph Connection Operations
+// ============================================================================
+// These functions encapsulate the bidirectional relationship management
+// between nodes, ensuring consistency when adding/removing connections.
+
+/**
+ * Notifies all downstream nodes that their inputs have changed.
+ */
+export function notifyNextNodes(node: QueryNode): void {
+  for (const nextNode of node.nextNodes) {
+    nextNode.onPrevNodesUpdated?.();
+  }
+}
+
+/**
+ * Helper: Get secondary input at specific port
+ */
+export function getSecondaryInput(
+  node: QueryNode,
+  portIndex: number,
+): QueryNode | undefined {
+  return node.secondaryInputs?.connections.get(portIndex);
+}
+
+/**
+ * Helper: Set secondary input at specific port
+ */
+export function setSecondaryInput(
+  node: QueryNode,
+  portIndex: number,
+  inputNode: QueryNode,
+): void {
+  if (!node.secondaryInputs) {
+    throw new Error('Node does not support secondary inputs');
+  }
+  node.secondaryInputs.connections.set(portIndex, inputNode);
+}
+
+/**
+ * Helper: Remove secondary input at specific port
+ */
+export function removeSecondaryInput(node: QueryNode, portIndex: number): void {
+  if (!node.secondaryInputs) return;
+  node.secondaryInputs.connections.delete(portIndex);
+}
+
+/**
+ * Validates that secondary inputs meet cardinality requirements.
+ * Returns an error message if validation fails, undefined if valid.
+ */
+export function validateSecondaryInputs(node: QueryNode): string | undefined {
+  if (!node.secondaryInputs) {
+    return undefined;
+  }
+
+  const {connections, min, max}: SecondaryInputSpec = node.secondaryInputs;
+  const count = connections.size;
+
+  if (count < min) {
+    return `Requires at least ${min} input${min === 1 ? '' : 's'}, but only ${count} connected`;
+  }
+
+  if (max !== 'unbounded' && count > max) {
+    return `Allows at most ${max} input${max === 1 ? '' : 's'}, but ${count} connected`;
+  }
+
+  return undefined;
+}
+
+/**
+ * Adds a connection from one node to another, updating both forward and
+ * backward links. For multi-source nodes, adds to the specified port index.
+ */
+export function addConnection(
+  fromNode: QueryNode,
+  toNode: QueryNode,
+  portIndex?: number,
+): void {
+  // Update forward link (fromNode -> toNode)
+  if (!fromNode.nextNodes.includes(toNode)) {
+    fromNode.nextNodes.push(toNode);
+  }
+
+  // Determine connection type based on node characteristics
+  if (singleNodeOperation(toNode.type)) {
+    // Single-input operation node (Filter, Sort, etc.)
+    // If portIndex is specified, connect to secondary input
+    if (portIndex !== undefined) {
+      if (!toNode.secondaryInputs) {
+        throw new Error(
+          `Node ${toNode.nodeId} does not support secondary inputs`,
+        );
+      }
+      setSecondaryInput(toNode, portIndex, fromNode);
+    } else {
+      // Otherwise connect to primary input (default from above)
+      toNode.primaryInput = fromNode;
+    }
+    toNode.onPrevNodesUpdated?.();
+  } else if (toNode.secondaryInputs) {
+    // Multi-source node (Union, Join, IntervalIntersect)
+    if (portIndex !== undefined) {
+      // Set at specific port
+      setSecondaryInput(toNode, portIndex, fromNode);
+    } else {
+      // Find first available port
+      let nextPort = 0;
+      while (toNode.secondaryInputs.connections.has(nextPort)) {
+        nextPort++;
+      }
+      setSecondaryInput(toNode, nextPort, fromNode);
+    }
+    toNode.onPrevNodesUpdated?.();
+  }
+}
+
+/**
+ * Removes a connection from one node to another, cleaning up both forward
+ * and backward links.
+ */
+export function removeConnection(fromNode: QueryNode, toNode: QueryNode): void {
+  // Remove forward link (fromNode -> toNode)
+  const nextIndex = fromNode.nextNodes.indexOf(toNode);
+  if (nextIndex !== -1) {
+    fromNode.nextNodes.splice(nextIndex, 1);
+  }
+
+  // Check if it's in primary input
+  if (toNode.primaryInput === fromNode) {
+    toNode.primaryInput = undefined;
+    toNode.onPrevNodesUpdated?.();
+  }
+
+  // Also check if it's in secondary inputs
+  if (toNode.secondaryInputs) {
+    for (const [portIndex, inputNode] of toNode.secondaryInputs.connections) {
+      if (inputNode === fromNode) {
+        removeSecondaryInput(toNode, portIndex);
+        toNode.onPrevNodesUpdated?.();
+        break;
+      }
+    }
+  }
 }
