@@ -78,7 +78,6 @@ enum class PerfettoStatsdAtom {
   kTracedEnablePriorityBoostOtherError = 62,
   kTracedEnableTracingExclusiveSessionRejected = 63,
   kTracedEnableTracingExclusiveSessionNotAllowed = 64,
-  kTracedEnableTracingDuplicateBufferName = 65,
 
   // Checkpoints inside perfetto_cmd after tracing has finished.
   kOnTracingDisabled = 4,

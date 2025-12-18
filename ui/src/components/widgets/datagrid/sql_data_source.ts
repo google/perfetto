@@ -19,12 +19,16 @@ import {Engine} from '../../../trace_processor/engine';
 import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../query_table/queries';
 import {
-  DataSource,
-  DataSourceModel,
-  DataSourceRows,
+  DataGridColumn,
+  DataGridDataSource,
+  DataSourceResult,
+  DataGridFilter,
+  Sorting,
+  SortByColumn,
+  DataGridModel,
   Pagination,
-} from './data_source';
-import {Column, Filter, Pivot} from './model';
+  PivotModel,
+} from './common';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
@@ -33,79 +37,52 @@ import {
 
 /**
  * Configuration for SQLDataSource.
+ * Either provide a base query string, or a schema with root schema name.
  */
 export interface SQLDataSourceConfig {
   /**
    * The trace processor engine to run queries against.
    */
-  readonly engine: Engine;
+  engine: Engine;
+
+  /**
+   * Base SQL query. Required when not using a schema.
+   * When using a schema, this is ignored (the base table comes from the schema).
+   */
+  baseQuery?: string;
 
   /**
    * SQL schema registry defining tables and their relationships.
-   * Enables automatic JOIN generation for nested column paths.
-   *
-   * For simple queries without explicit column definitions, use
-   * createSimpleSchema() to generate a passthrough schema.
+   * When provided, enables automatic JOIN generation for nested column paths.
    */
-  readonly sqlSchema: SQLSchemaRegistry;
+  sqlSchema?: SQLSchemaRegistry;
 
   /**
-   * The root schema name to query from (e.g., 'slice', 'query').
+   * The root schema name to query from (e.g., 'slice').
+   * Required when sqlSchema is provided.
    */
-  readonly rootSchemaName: string;
-
-  /**
-   * Optional SQL prelude to execute before each query.
-   * Useful for imports like "INCLUDE PERFETTO MODULE xyz;"
-   */
-  readonly preamble?: string;
-}
-
-// Cache entry for row count resolution
-interface RowCountCache {
-  query: string;
-  count: number;
-}
-
-// Cache entry for rows resolution
-interface RowsCache {
-  query: string;
-  pagination: Pagination | undefined;
-  offset: number;
-  rows: Row[];
-}
-
-// Cache entry for aggregate resolution
-interface AggregatesCache {
-  query: string;
-  totals: Map<string, SqlValue>;
-}
-
-// Cache entry for distinct values resolution
-interface DistinctValuesCache {
-  query: string;
-  values: ReadonlyArray<SqlValue>;
+  rootSchemaName?: string;
 }
 
 /**
- * SQL data source for DataGrid.
+ * SQL data source for DataGrid that can operate in two modes:
  *
- * Generates optimized SQL queries with JOINs based on column paths like
- * 'parent.name' or 'thread.process.pid'. Supports parameterized columns
- * like 'args.foo'.
+ * 1. **Simple mode** (baseQuery only): Columns are queried directly from the
+ *    base query. Column names must match exactly what's in the query.
  *
- * For arbitrary queries without explicit schema, use createSimpleSchema():
+ * 2. **Schema mode** (sqlSchema + rootSchemaName): Generates optimized SQL
+ *    queries with JOINs based on column paths like 'parent.name' or
+ *    'thread.process.pid'. Supports parameterized columns like 'args.foo'.
+ *
+ * Example usage (simple mode):
  * ```typescript
- * import {createSimpleSchema} from './sql_schema';
- *
  * const dataSource = new SQLDataSource({
  *   engine,
- *   sqlSchema: createSimpleSchema('SELECT * FROM slice WHERE dur > 0'),
- *   rootSchemaName: 'query',
+ *   baseQuery: 'SELECT * FROM slice WHERE dur > 0',
  * });
  * ```
  *
- * For tables with relationships:
+ * Example usage (schema mode):
  * ```typescript
  * const schema: SQLSchemaRegistry = {
  *   slice: {
@@ -114,6 +91,10 @@ interface DistinctValuesCache {
  *       id: {},
  *       name: {},
  *       parent: { ref: 'slice', foreignKey: 'parent_id' },
+ *       args: {
+ *         expression: (alias, key) => `extract_arg(${alias}.arg_set_id, '${key}')`,
+ *         parameterized: true,
+ *       },
  *     },
  *   },
  * };
@@ -125,37 +106,48 @@ interface DistinctValuesCache {
  * });
  * ```
  */
-export class SQLDataSource implements DataSource {
+export class SQLDataSource implements DataGridDataSource {
   private readonly engine: Engine;
   private readonly limiter = new AsyncLimiter();
-  private readonly sqlSchema: SQLSchemaRegistry;
-  private readonly rootSchemaName: string;
-  private readonly prelude?: string;
+  private readonly baseQuery?: string;
+  private readonly sqlSchema?: SQLSchemaRegistry;
+  private readonly rootSchemaName?: string;
 
-  // Cache for each resolution type
-  private rowCountCache?: RowCountCache;
-  private rowsCache?: RowsCache;
-  private aggregatesCache?: AggregatesCache;
-  private distinctValuesCache = new Map<string, DistinctValuesCache>();
-  private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
-
-  // Current results
-  private cachedResult?: DataSourceRows;
-  private cachedDistinctValues?: ReadonlyMap<string, ReadonlyArray<SqlValue>>;
-  private cachedAggregateTotals?: ReadonlyMap<string, SqlValue>;
+  private workingQuery = '';
+  private pagination?: Pagination;
+  private pivot?: PivotModel;
+  private cachedResult?: DataSourceResult;
   private isLoadingFlag = false;
+  private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
 
   constructor(config: SQLDataSourceConfig) {
     this.engine = config.engine;
+    this.baseQuery = config.baseQuery;
     this.sqlSchema = config.sqlSchema;
     this.rootSchemaName = config.rootSchemaName;
-    this.prelude = config.preamble;
+
+    // Validate configuration
+    if (!this.baseQuery && !this.sqlSchema) {
+      throw new Error('SQLDataSource requires either baseQuery or sqlSchema');
+    }
+    if (this.sqlSchema && !this.rootSchemaName) {
+      throw new Error(
+        'SQLDataSource requires rootSchemaName when sqlSchema is provided',
+      );
+    }
+  }
+
+  /**
+   * Returns true if this data source is using schema mode.
+   */
+  private get useSchema(): boolean {
+    return this.sqlSchema !== undefined && this.rootSchemaName !== undefined;
   }
 
   /**
    * Getter for the current rows result
    */
-  get rows(): DataSourceRows | undefined {
+  get rows(): DataSourceResult | undefined {
     return this.cachedResult;
   }
 
@@ -163,63 +155,155 @@ export class SQLDataSource implements DataSource {
     return this.isLoadingFlag;
   }
 
-  get distinctValues(): ReadonlyMap<string, readonly SqlValue[]> | undefined {
-    return this.cachedDistinctValues;
-  }
-
-  get parameterKeys(): ReadonlyMap<string, readonly string[]> | undefined {
-    return this.parameterKeysCache.size > 0
-      ? this.parameterKeysCache
-      : undefined;
-  }
-
-  get aggregateTotals(): ReadonlyMap<string, SqlValue> | undefined {
-    return this.cachedAggregateTotals;
-  }
-
-  /**
-   * Get the current working query for the datasource.
-   * Useful for debugging or creating debug tracks.
-   */
-  getCurrentQuery(): string {
-    return this.rowsCache?.query ?? '';
-  }
-
   /**
    * Notify of parameter changes and trigger data update
    */
-  notify(model: DataSourceModel): void {
+  notifyUpdate({
+    columns,
+    sorting = {direction: 'UNSORTED'},
+    filters = [],
+    pagination,
+    pivot,
+    distinctValuesColumns,
+    parameterKeyColumns,
+  }: DataGridModel): void {
     this.limiter.schedule(async () => {
-      // Defer setting loading flag to avoid setting it synchronously during the
-      // view() call that triggered notify(). This avoids the bug that the
-      // current frame always has isLoading = true.
-      await Promise.resolve();
       this.isLoadingFlag = true;
 
       try {
-        // Resolve row count
-        const rowCount = await this.resolveRowCount(model);
+        const workingQuery = this.buildWorkingQuery(
+          columns,
+          filters,
+          sorting,
+          pivot,
+        );
 
-        // Resolve aggregates
-        const aggregateTotals = await this.resolveAggregates(model);
+        if (
+          workingQuery !== this.workingQuery ||
+          !arePivotsEqual(this.pivot, pivot)
+        ) {
+          this.workingQuery = workingQuery;
+          this.pivot = pivot;
 
-        // Resolve rows
-        const {offset, rows} = await this.resolveRows(model);
+          // Clear the cache
+          this.cachedResult = undefined;
+          this.pagination = undefined;
 
-        // Resolve distinct values
-        const distinctValues = await this.resolveDistinctValues(model);
+          // Update the cache with the total row count
+          const rowCount = await this.getRowCount(workingQuery);
 
-        // Resolve parameter keys
-        await this.resolveParameterKeys(model);
+          // Compute aggregate totals for pivot mode (but not drill-down mode)
+          let aggregateTotals: Map<string, SqlValue> | undefined;
+          if (
+            pivot &&
+            !pivot.drillDown &&
+            Object.keys(pivot.values).length > 0
+          ) {
+            const aggregates = await this.getPivotAggregates(
+              columns,
+              filters,
+              pivot,
+            );
+            aggregateTotals = new Map<string, SqlValue>();
+            for (const [key, value] of Object.entries(aggregates)) {
+              aggregateTotals.set(key, value);
+            }
+          }
 
-        // Build final result
-        this.cachedResult = {
-          rowOffset: offset,
-          totalRows: rowCount,
-          rows,
-        };
-        this.cachedDistinctValues = distinctValues;
-        this.cachedAggregateTotals = aggregateTotals;
+          // Compute column-level aggregations (non-pivot mode)
+          const columnsWithAggregation = columns?.filter((c) => c.aggregation);
+          if (
+            columnsWithAggregation &&
+            columnsWithAggregation.length > 0 &&
+            !pivot
+          ) {
+            const columnAggregates = await this.getColumnAggregates(
+              filters,
+              columnsWithAggregation,
+            );
+            aggregateTotals = aggregateTotals ?? new Map<string, SqlValue>();
+            for (const [key, value] of Object.entries(columnAggregates)) {
+              aggregateTotals.set(key, value as SqlValue);
+            }
+          }
+
+          this.cachedResult = {
+            rowOffset: 0,
+            totalRows: rowCount,
+            rows: [],
+            distinctValues: new Map<string, ReadonlyArray<SqlValue>>(),
+            parameterKeys: this.parameterKeysCache,
+            aggregateTotals,
+          };
+        }
+
+        // Fetch data if pagination has changed
+        if (!comparePagination(this.pagination, pagination)) {
+          this.pagination = pagination;
+          const {offset, rows} = await this.getRows(workingQuery, pagination);
+          this.cachedResult = {
+            ...this.cachedResult!,
+            rowOffset: offset,
+            rows,
+          };
+        }
+
+        // Handle distinct values requests
+        if (distinctValuesColumns) {
+          for (const columnPath of distinctValuesColumns) {
+            if (!this.cachedResult?.distinctValues?.has(columnPath)) {
+              const query = this.buildDistinctValuesQuery(columnPath);
+              if (query) {
+                const result = await runQueryForQueryTable(query, this.engine);
+                const values = result.rows.map((r) => r['value']);
+                this.cachedResult = {
+                  ...this.cachedResult!,
+                  distinctValues: new Map<string, ReadonlyArray<SqlValue>>([
+                    ...this.cachedResult!.distinctValues!,
+                    [columnPath, values],
+                  ]),
+                };
+              }
+            }
+          }
+        }
+
+        // Handle parameter keys requests (schema mode only)
+        if (parameterKeyColumns && this.useSchema) {
+          for (const prefix of parameterKeyColumns) {
+            if (!this.parameterKeysCache.has(prefix)) {
+              const schema = this.sqlSchema![this.rootSchemaName!];
+              const colDef = maybeUndefined(schema?.columns[prefix]);
+
+              if (
+                colDef &&
+                isSQLExpressionDef(colDef) &&
+                colDef.parameterized
+              ) {
+                if (colDef.parameterKeysQuery) {
+                  const baseTable = schema.table;
+                  const baseAlias = `${baseTable}_0`;
+                  const query = colDef.parameterKeysQuery(baseTable, baseAlias);
+
+                  try {
+                    const result = await runQueryForQueryTable(
+                      query,
+                      this.engine,
+                    );
+                    const keys = result.rows.map((r) => String(r['key']));
+                    this.parameterKeysCache.set(prefix, keys);
+                    this.cachedResult = {
+                      ...this.cachedResult!,
+                      parameterKeys: this.parameterKeysCache,
+                    };
+                  } catch {
+                    this.parameterKeysCache.set(prefix, []);
+                  }
+                }
+              }
+            }
+          }
+        }
       } finally {
         this.isLoadingFlag = false;
       }
@@ -227,290 +311,146 @@ export class SQLDataSource implements DataSource {
   }
 
   /**
-   * Resolves the row count. Compares query against cache and reuses if unchanged.
-   */
-  private async resolveRowCount(model: DataSourceModel): Promise<number> {
-    // Build query without ORDER BY - ordering is irrelevant for counting
-    const countQuery = this.buildQuery(model, {includeOrderBy: false});
-
-    // Check cache
-    if (this.rowCountCache?.query === countQuery) {
-      return this.rowCountCache.count;
-    }
-
-    // Fetch new count
-    const result = await this.engine.query(
-      this.wrapQueryWithPrelude(`
-      WITH data AS (${countQuery})
-      SELECT COUNT(*) AS total_count
-      FROM data
-    `),
-    );
-    const count = result.firstRow({total_count: NUM}).total_count;
-
-    // Update cache
-    this.rowCountCache = {query: countQuery, count};
-
-    return count;
-  }
-
-  /**
-   * Resolves the rows for the current page. Compares query and pagination against cache.
-   */
-  private async resolveRows(
-    model: DataSourceModel,
-  ): Promise<{offset: number; rows: Row[]}> {
-    const {pagination} = model;
-
-    // Build query with ORDER BY for proper pagination ordering
-    const rowsQuery = this.buildQuery(model, {includeOrderBy: true});
-
-    // Check cache - both query and pagination must match
-    if (
-      this.rowsCache?.query === rowsQuery &&
-      comparePagination(this.rowsCache.pagination, pagination)
-    ) {
-      return {offset: this.rowsCache.offset, rows: this.rowsCache.rows};
-    }
-
-    // Fetch new rows
-    let query = `
-      WITH data AS (${rowsQuery})
-      SELECT *
-      FROM data
-    `;
-
-    if (pagination) {
-      query += `LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
-    }
-
-    const result = await runQueryForQueryTable(
-      this.wrapQueryWithPrelude(query),
-      this.engine,
-    );
-
-    const offset = pagination?.offset ?? 0;
-    const rows = result.rows;
-
-    // Update cache
-    this.rowsCache = {query: rowsQuery, pagination, offset, rows};
-
-    return {offset, rows};
-  }
-
-  /**
-   * Resolves aggregate totals. Handles both pivot aggregates and column aggregates.
-   */
-  private async resolveAggregates(
-    model: DataSourceModel,
-  ): Promise<Map<string, SqlValue> | undefined> {
-    const {columns, filters = [], pivot} = model;
-
-    // Build a unique query string for the aggregates
-    const aggregateQuery = this.buildAggregateQuery(model);
-
-    // If no aggregates needed, return undefined
-    if (!aggregateQuery) {
-      this.aggregatesCache = undefined;
-      return undefined;
-    }
-
-    // Check cache
-    if (this.aggregatesCache?.query === aggregateQuery) {
-      return this.aggregatesCache.totals;
-    }
-
-    // Compute aggregates
-    const totals = new Map<string, SqlValue>();
-
-    // Pivot aggregates (but not drill-down mode)
-    const pivotAggregates = pivot?.aggregates ?? [];
-    if (pivot && !pivot.drillDown && pivotAggregates.length > 0) {
-      const aggregates = await this.fetchPivotAggregates(filters, pivot);
-      for (const [key, value] of Object.entries(aggregates)) {
-        totals.set(key, value);
-      }
-    }
-
-    // Column-level aggregations (non-pivot mode)
-    const columnsWithAggregation = columns?.filter((c) => c.aggregate);
-    if (columnsWithAggregation && columnsWithAggregation.length > 0 && !pivot) {
-      const columnAggregates = await this.fetchColumnAggregates(
-        filters,
-        columnsWithAggregation,
-      );
-      for (const [key, value] of Object.entries(columnAggregates)) {
-        totals.set(key, value as SqlValue);
-      }
-    }
-
-    // Update cache
-    this.aggregatesCache = {query: aggregateQuery, totals};
-
-    return totals;
-  }
-
-  /**
-   * Builds a unique string representing the aggregate query for cache comparison.
-   */
-  private buildAggregateQuery(model: DataSourceModel): string | undefined {
-    const {columns, filters = [], pivot} = model;
-
-    const parts: string[] = [];
-
-    // Include pivot aggregates
-    if (pivot && !pivot.drillDown && Boolean(pivot.aggregates?.length)) {
-      parts.push(`pivot:${JSON.stringify(pivot.aggregates)}`);
-    }
-
-    // Include column aggregates
-    const columnsWithAggregation = columns?.filter((c) => c.aggregate);
-    if (columnsWithAggregation && columnsWithAggregation.length > 0 && !pivot) {
-      const colAggs = columnsWithAggregation.map(
-        (c) => `${c.field}:${c.aggregate}`,
-      );
-      parts.push(`columns:${colAggs.join(',')}`);
-    }
-
-    if (parts.length === 0) {
-      return undefined;
-    }
-
-    // Include filters in the cache key
-    const filterKey = filters.map((f) => {
-      const value = 'value' in f ? f.value : '';
-      return `${f.field}:${f.op}:${value}`;
-    });
-    parts.push(`filters:${filterKey.join(',')}`);
-
-    return parts.join('|');
-  }
-
-  /**
-   * Resolves distinct values for requested columns.
-   */
-  private async resolveDistinctValues(
-    model: DataSourceModel,
-  ): Promise<Map<string, ReadonlyArray<SqlValue>>> {
-    const {distinctValuesColumns} = model;
-
-    const result = new Map<string, ReadonlyArray<SqlValue>>();
-
-    if (!distinctValuesColumns) {
-      return result;
-    }
-
-    for (const columnPath of distinctValuesColumns) {
-      const query = this.buildDistinctValuesQuery(columnPath);
-      if (!query) continue;
-
-      // Check cache
-      const cached = this.distinctValuesCache.get(columnPath);
-      if (cached?.query === query) {
-        result.set(columnPath, cached.values);
-        continue;
-      }
-
-      // Fetch new values
-      const queryResult = await runQueryForQueryTable(
-        this.wrapQueryWithPrelude(query),
-        this.engine,
-      );
-      const values = queryResult.rows.map((r) => r['value']);
-
-      // Update cache
-      this.distinctValuesCache.set(columnPath, {query, values});
-      result.set(columnPath, values);
-    }
-
-    return result;
-  }
-
-  /**
-   * Resolves parameter keys for parameterized columns.
-   */
-  private async resolveParameterKeys(model: DataSourceModel): Promise<void> {
-    const {parameterKeyColumns} = model;
-
-    if (!parameterKeyColumns) {
-      return;
-    }
-
-    for (const prefix of parameterKeyColumns) {
-      // Already cached
-      if (this.parameterKeysCache.has(prefix)) {
-        continue;
-      }
-
-      const schema = this.sqlSchema[this.rootSchemaName];
-      const colDef = maybeUndefined(schema?.columns[prefix]);
-
-      if (colDef && isSQLExpressionDef(colDef) && colDef.parameterized) {
-        if (colDef.parameterKeysQuery) {
-          const baseTable = schema.table;
-          const baseAlias = `${baseTable}_0`;
-          const query = colDef.parameterKeysQuery(baseTable, baseAlias);
-
-          try {
-            const result = await runQueryForQueryTable(
-              this.wrapQueryWithPrelude(query),
-              this.engine,
-            );
-            const keys = result.rows.map((r) => String(r['key']));
-            this.parameterKeysCache.set(prefix, keys);
-          } catch {
-            this.parameterKeysCache.set(prefix, []);
-          }
-        }
-      }
-    }
-  }
-
-  private wrapQueryWithPrelude(query: string): string {
-    if (this.prelude) {
-      return `${this.prelude};\n${query}`;
-    }
-    return query;
-  }
-
-  /**
    * Export all data with current filters/sorting applied.
    */
   async exportData(): Promise<Row[]> {
-    const workingQuery = this.rowsCache?.query;
-    if (!workingQuery) {
+    if (!this.workingQuery) {
       return [];
     }
 
-    const query = `SELECT * FROM (${workingQuery})`;
-    const result = await runQueryForQueryTable(
-      this.wrapQueryWithPrelude(query),
-      this.engine,
-    );
+    const query = `SELECT * FROM (${this.workingQuery})`;
+    const result = await runQueryForQueryTable(query, this.engine);
     return result.rows;
   }
 
   /**
-   * Builds a complete SQL query from the model.
+   * Builds a complete SQL query based on the current mode.
    */
-  private buildQuery(
-    model: DataSourceModel,
-    options: {includeOrderBy: boolean},
+  private buildWorkingQuery(
+    columns: ReadonlyArray<DataGridColumn> | undefined,
+    filters: ReadonlyArray<DataGridFilter>,
+    sorting: Sorting,
+    pivot?: PivotModel,
   ): string {
-    const {columns, filters = [], pivot} = model;
+    if (this.useSchema) {
+      return this.buildSchemaWorkingQuery(columns, filters, sorting, pivot);
+    } else {
+      return this.buildSimpleWorkingQuery(columns, filters, sorting, pivot);
+    }
+  }
 
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
+  /**
+   * Builds a query for simple mode (no schema, direct column access).
+   */
+  private buildSimpleWorkingQuery(
+    columns: ReadonlyArray<DataGridColumn> | undefined,
+    filters: ReadonlyArray<DataGridFilter>,
+    sorting: Sorting,
+    pivot?: PivotModel,
+  ): string {
+    const colNames = columns?.map((c) => c.column) ?? ['*'];
+
+    let query: string;
+
+    if (pivot && !pivot.drillDown) {
+      // Pivot mode: Build aggregate columns
+      const valCols = Object.entries(pivot.values)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => {
+          const alias = this.pathToAlias(key);
+          if (value.func === 'COUNT') {
+            return `COUNT(*) AS ${alias}`;
+          }
+          if (value.func === 'ANY') {
+            return `MIN(${value.col}) AS ${alias}`;
+          }
+          return `${value.func}(${value.col}) AS ${alias}`;
+        })
+        .join(', ');
+
+      if (pivot.groupBy.length > 0) {
+        const groupCols = pivot.groupBy.join(', ');
+        const selectCols = valCols ? `${groupCols}, ${valCols}` : groupCols;
+        query = `
+          SELECT ${selectCols}
+          FROM (${this.baseQuery})
+          GROUP BY ${groupCols}
+        `;
+      } else {
+        query = `
+          SELECT ${valCols}
+          FROM (${this.baseQuery})
+        `;
+      }
+    } else if (pivot?.drillDown) {
+      // Drill-down mode
+      query = `\nSELECT ${colNames.join(', ')} FROM (${this.baseQuery})`;
+
+      const drillDownConditions = pivot.groupBy
+        .map((col) => {
+          const value = pivot.drillDown![col];
+          if (value === null) {
+            return `${col} IS NULL`;
+          }
+          return `${col} = ${sqlValue(value)}`;
+        })
+        .join(' AND ');
+
+      if (drillDownConditions) {
+        query = `SELECT * FROM (${query}) WHERE ${drillDownConditions}`;
+      }
+    } else {
+      query = `\nSELECT ${colNames.join(', ')} FROM (${this.baseQuery})`;
+    }
+
+    // Add WHERE clause for filters
+    if (filters.length > 0) {
+      const whereConditions = filters.map(simpleFilter2Sql).join(' AND ');
+      query = `SELECT * FROM (${query}) WHERE ${whereConditions}`;
+    }
+
+    // Add ORDER BY clause
+    if (sorting.direction !== 'UNSORTED') {
+      const {column, direction} = sorting as SortByColumn;
+      let columnExists: boolean;
+      if (pivot && !pivot.drillDown) {
+        const pivotColumns = [...pivot.groupBy, ...Object.keys(pivot.values)];
+        columnExists = pivotColumns.includes(column);
+      } else {
+        columnExists = columns === undefined || colNames.includes(column);
+      }
+      if (columnExists) {
+        query += `\nORDER BY ${column} ${direction.toUpperCase()}`;
+      }
+    }
+
+    return query;
+  }
+
+  /**
+   * Builds a query for schema mode (with JOINs based on column paths).
+   */
+  private buildSchemaWorkingQuery(
+    columns: ReadonlyArray<DataGridColumn> | undefined,
+    filters: ReadonlyArray<DataGridFilter>,
+    sorting: Sorting,
+    pivot?: PivotModel,
+  ): string {
+    const resolver = new SQLSchemaResolver(
+      this.sqlSchema!,
+      this.rootSchemaName!,
+    );
 
     const baseTable = resolver.getBaseTable();
     const baseAlias = resolver.getBaseAlias();
 
     // For pivot mode without drill-down, we build aggregates differently
     if (pivot && !pivot.drillDown) {
-      return this.buildPivotQuery(resolver, filters, pivot, options);
+      return this.buildSchemaPivotQuery(resolver, filters, sorting, pivot);
     }
 
     // Normal mode or drill-down: select individual columns
-    const colPaths = columns?.map((c) => c.field) ?? [];
+    const colPaths = columns?.map((c) => c.column) ?? [];
     const selectExprs: string[] = [];
 
     for (const path of colPaths) {
@@ -518,18 +458,6 @@ export class SQLDataSource implements DataSource {
       if (sqlExpr) {
         const alias = this.pathToAlias(path);
         selectExprs.push(`${sqlExpr} AS ${alias}`);
-      }
-    }
-
-    // Resolve filter column paths first to ensure JOINs are added
-    for (const filter of filters) {
-      resolver.resolveColumnPath(filter.field);
-    }
-
-    // Resolve drill-down groupBy fields to ensure their JOINs are added
-    if (pivot?.drillDown) {
-      for (const col of pivot.groupBy) {
-        resolver.resolveColumnPath(col.field);
       }
     }
 
@@ -548,9 +476,9 @@ ${joinClauses}`;
     // Add WHERE clause for filters
     if (filters.length > 0) {
       const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        const sqlExpr = resolver.resolveColumnPath(filter.column);
         if (!sqlExpr) {
-          return this.filterToSql(filter, filter.field);
+          return this.filterToSql(filter, filter.column);
         }
         return this.filterToSql(filter, sqlExpr);
       });
@@ -561,9 +489,8 @@ ${joinClauses}`;
     if (pivot?.drillDown) {
       const drillDownConditions = pivot.groupBy
         .map((col) => {
-          const field = col.field;
-          const value = pivot.drillDown![field];
-          const sqlExpr = resolver.resolveColumnPath(field) ?? field;
+          const value = pivot.drillDown![col];
+          const sqlExpr = resolver.resolveColumnPath(col) ?? col;
           if (value === null) {
             return `${sqlExpr} IS NULL`;
           }
@@ -580,38 +507,26 @@ ${joinClauses}`;
       }
     }
 
-    // Add ORDER BY clause if requested
-    if (options.includeOrderBy) {
-      const sortedColumn = this.findSortedColumn(columns, pivot);
-      if (sortedColumn) {
-        const {field, direction} = sortedColumn;
-        const sqlExpr = resolver.resolveColumnPath(field);
-        if (sqlExpr) {
-          query += `\nORDER BY ${sqlExpr} ${direction.toUpperCase()}`;
-        }
+    // Add ORDER BY clause
+    if (sorting.direction !== 'UNSORTED') {
+      const {column, direction} = sorting as SortByColumn;
+      const sqlExpr = resolver.resolveColumnPath(column);
+      if (sqlExpr) {
+        query += `\nORDER BY ${sqlExpr} ${direction.toUpperCase()}`;
       }
-    }
-
-    // Include column aggregates in the query string so changes trigger a reload
-    const aggregateSuffix = columns
-      ?.filter((c) => c.aggregate)
-      .map((c) => `${c.field}:${c.aggregate}`)
-      .join(',');
-    if (aggregateSuffix) {
-      query += ` /* aggregates: ${aggregateSuffix} */`;
     }
 
     return query;
   }
 
   /**
-   * Builds a pivot query with GROUP BY and aggregations.
+   * Builds a pivot query with GROUP BY and aggregations (schema mode).
    */
-  private buildPivotQuery(
+  private buildSchemaPivotQuery(
     resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
-    pivot: Pivot,
-    options: {includeOrderBy: boolean},
+    filters: ReadonlyArray<DataGridFilter>,
+    sorting: Sorting,
+    pivot: PivotModel,
   ): string {
     const baseTable = resolver.getBaseTable();
     const baseAlias = resolver.getBaseAlias();
@@ -619,39 +534,34 @@ ${joinClauses}`;
     // Resolve groupBy columns
     const groupByExprs: string[] = [];
     const groupByAliases: string[] = [];
-    const groupByFields: string[] = [];
 
     for (const col of pivot.groupBy) {
-      const field = col.field;
-      groupByFields.push(field);
-      const sqlExpr = resolver.resolveColumnPath(field);
+      const sqlExpr = resolver.resolveColumnPath(col);
       if (sqlExpr) {
-        const alias = this.pathToAlias(field);
+        const alias = this.pathToAlias(col);
         groupByExprs.push(`${sqlExpr} AS ${alias}`);
         groupByAliases.push(alias);
       }
     }
 
-    // Build aggregate expressions from pivot.aggregates
-    const aggregates = pivot.aggregates ?? [];
-    const aggregateExprs = aggregates.map((agg) => {
-      if (agg.function === 'COUNT') {
-        return `COUNT(*) AS __count__`;
-      }
-      const field = 'field' in agg ? agg.field : null;
-      if (!field) {
-        return `NULL AS __unknown__`;
-      }
-      const alias = this.pathToAlias(field);
-      const colExpr = resolver.resolveColumnPath(field);
-      if (!colExpr) {
-        return `NULL AS ${alias}`;
-      }
-      if (agg.function === 'ANY') {
-        return `MIN(${colExpr}) AS ${alias}`;
-      }
-      return `${agg.function}(${colExpr}) AS ${alias}`;
-    });
+    // Build aggregate expressions
+    const aggregateExprs = Object.entries(pivot.values)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => {
+        const alias = this.pathToAlias(key);
+        if (value.func === 'COUNT') {
+          return `COUNT(*) AS ${alias}`;
+        }
+        const colExpr =
+          'col' in value ? resolver.resolveColumnPath(value.col) : null;
+        if (!colExpr) {
+          return `NULL AS ${alias}`;
+        }
+        if (value.func === 'ANY') {
+          return `MIN(${colExpr}) AS ${alias}`;
+        }
+        return `${value.func}(${colExpr}) AS ${alias}`;
+      });
 
     const selectClauses = [...groupByExprs, ...aggregateExprs];
     const joinClauses = resolver.buildJoinClauses();
@@ -664,9 +574,9 @@ ${joinClauses}`;
     // Add WHERE clause for filters
     if (filters.length > 0) {
       const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        const sqlExpr = resolver.resolveColumnPath(filter.column);
         if (!sqlExpr) {
-          return this.filterToSql(filter, filter.field);
+          return this.filterToSql(filter, filter.column);
         }
         return this.filterToSql(filter, sqlExpr);
       });
@@ -675,27 +585,21 @@ ${joinClauses}`;
 
     // Add GROUP BY
     if (groupByAliases.length > 0) {
-      const groupByOrigExprs = groupByFields.map(
-        (field) => resolver.resolveColumnPath(field) ?? field,
+      const groupByOrigExprs = pivot.groupBy.map(
+        (col) => resolver.resolveColumnPath(col) ?? col,
       );
       query += `\nGROUP BY ${groupByOrigExprs.join(', ')}`;
     }
 
-    // Add ORDER BY if requested
-    if (options.includeOrderBy) {
-      const sortedColumn = this.findSortedColumn(undefined, pivot);
-      if (sortedColumn) {
-        const {field, direction} = sortedColumn;
-        const aggregateFields = aggregates.map((a) =>
-          'field' in a ? a.field : '__count__',
-        );
-        const pivotColumns = [...groupByFields, ...aggregateFields];
-        if (pivotColumns.includes(field)) {
-          const alias = groupByFields.includes(field)
-            ? this.pathToAlias(field)
-            : field;
-          query += `\nORDER BY ${alias} ${direction.toUpperCase()}`;
-        }
+    // Add ORDER BY
+    if (sorting.direction !== 'UNSORTED') {
+      const {column, direction} = sorting as SortByColumn;
+      const pivotColumns = [...pivot.groupBy, ...Object.keys(pivot.values)];
+      if (pivotColumns.includes(column)) {
+        const alias = pivot.groupBy.includes(column)
+          ? this.pathToAlias(column)
+          : column;
+        query += `\nORDER BY ${alias} ${direction.toUpperCase()}`;
       }
     }
 
@@ -703,70 +607,34 @@ ${joinClauses}`;
   }
 
   /**
-   * Find the column that has sorting applied.
-   */
-  private findSortedColumn(
-    columns: ReadonlyArray<Column> | undefined,
-    pivot?: Pivot,
-  ): {field: string; direction: 'ASC' | 'DESC'} | undefined {
-    // In drill-down mode, we display flat columns, so only check those for sort
-    if (pivot?.drillDown) {
-      if (columns) {
-        for (const col of columns) {
-          if (col.sort) {
-            return {field: col.field, direction: col.sort};
-          }
-        }
-      }
-      return undefined;
-    }
-
-    // Check pivot groupBy columns for sort
-    if (pivot) {
-      for (const col of pivot.groupBy) {
-        if (typeof col !== 'string' && col.sort) {
-          return {field: col.field, direction: col.sort};
-        }
-      }
-      // Check pivot aggregates for sort
-      for (const agg of pivot.aggregates ?? []) {
-        if (agg.sort) {
-          const field = 'field' in agg ? agg.field : '__count__';
-          return {field, direction: agg.sort};
-        }
-      }
-    }
-
-    // Check regular columns for sort
-    if (columns) {
-      for (const col of columns) {
-        if (col.sort) {
-          return {field: col.field, direction: col.sort};
-        }
-      }
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Builds a distinct values query.
+   * Builds a distinct values query based on the current mode.
    */
   private buildDistinctValuesQuery(columnPath: string): string | undefined {
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
-    const sqlExpr = resolver.resolveColumnPath(columnPath);
-    if (!sqlExpr) return undefined;
+    if (this.useSchema) {
+      const resolver = new SQLSchemaResolver(
+        this.sqlSchema!,
+        this.rootSchemaName!,
+      );
+      const sqlExpr = resolver.resolveColumnPath(columnPath);
+      if (!sqlExpr) return undefined;
 
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-    const joinClauses = resolver.buildJoinClauses();
+      const baseTable = resolver.getBaseTable();
+      const baseAlias = resolver.getBaseAlias();
+      const joinClauses = resolver.buildJoinClauses();
 
-    return `
-      SELECT DISTINCT ${sqlExpr} AS value
-      FROM ${baseTable} AS ${baseAlias}
-      ${joinClauses}
-      ORDER BY ${sqlExpr} IS NULL, ${sqlExpr}
-    `;
+      return `
+        SELECT DISTINCT ${sqlExpr} AS value
+        FROM ${baseTable} AS ${baseAlias}
+        ${joinClauses}
+        ORDER BY ${sqlExpr} IS NULL, ${sqlExpr}
+      `;
+    } else {
+      return `
+        SELECT DISTINCT ${columnPath} AS value
+        FROM (${this.baseQuery})
+        ORDER BY ${columnPath} IS NULL, ${columnPath}
+      `;
+    }
   }
 
   /**
@@ -782,7 +650,7 @@ ${joinClauses}`;
   /**
    * Converts a filter to SQL using the resolved column expression.
    */
-  private filterToSql(filter: Filter, sqlExpr: string): string {
+  private filterToSql(filter: DataGridFilter, sqlExpr: string): string {
     switch (filter.op) {
       case '=':
       case '!=':
@@ -808,39 +676,98 @@ ${joinClauses}`;
     }
   }
 
-  private async fetchPivotAggregates(
-    filters: ReadonlyArray<Filter>,
-    pivot: Pivot,
+  private async getRowCount(workingQuery: string): Promise<number> {
+    const result = await this.engine.query(`
+      WITH data AS (${workingQuery})
+      SELECT COUNT(*) AS total_count
+      FROM data
+    `);
+    return result.firstRow({total_count: NUM}).total_count;
+  }
+
+  private async getPivotAggregates(
+    _columns: ReadonlyArray<DataGridColumn> | undefined,
+    filters: ReadonlyArray<DataGridFilter>,
+    pivot: PivotModel,
   ): Promise<Row> {
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
+    if (this.useSchema) {
+      return this.getSchemaPivotAggregates(filters, pivot);
+    } else {
+      return this.getSimplePivotAggregates(filters, pivot);
+    }
+  }
+
+  private async getSimplePivotAggregates(
+    filters: ReadonlyArray<DataGridFilter>,
+    pivot: PivotModel,
+  ): Promise<Row> {
+    let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
+    if (filters.length > 0) {
+      const whereConditions = filters.map(simpleFilter2Sql).join(' AND ');
+      filteredBaseQuery = `SELECT * FROM (${filteredBaseQuery}) WHERE ${whereConditions}`;
+    }
+
+    const selectClauses = Object.entries(pivot.values)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => {
+        const alias = this.pathToAlias(key);
+        if (value.func === 'COUNT') {
+          return `COUNT(*) AS ${alias}`;
+        }
+        if (value.func === 'ANY') {
+          return `NULL AS ${alias}`;
+        }
+        return `${value.func}(${value.col}) AS ${alias}`;
+      })
+      .join(', ');
+
+    if (!selectClauses) {
+      return {};
+    }
+
+    const query = `
+      SELECT ${selectClauses}
+      FROM (${filteredBaseQuery})
+    `;
+
+    const result = await runQueryForQueryTable(query, this.engine);
+    return result.rows[0] ?? {};
+  }
+
+  private async getSchemaPivotAggregates(
+    filters: ReadonlyArray<DataGridFilter>,
+    pivot: PivotModel,
+  ): Promise<Row> {
+    const resolver = new SQLSchemaResolver(
+      this.sqlSchema!,
+      this.rootSchemaName!,
+    );
 
     const baseTable = resolver.getBaseTable();
     const baseAlias = resolver.getBaseAlias();
 
     // Resolve filter columns first to ensure JOINs are added
     for (const filter of filters) {
-      resolver.resolveColumnPath(filter.field);
+      resolver.resolveColumnPath(filter.column);
     }
 
-    const aggregates = pivot.aggregates ?? [];
-    const selectClauses = aggregates
-      .map((agg) => {
-        if (agg.function === 'COUNT') {
-          return `COUNT(*) AS __count__`;
+    const selectClauses = Object.entries(pivot.values)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => {
+        const alias = this.pathToAlias(key);
+        if (value.func === 'COUNT') {
+          return `COUNT(*) AS ${alias}`;
         }
-        const field = 'field' in agg ? agg.field : null;
-        if (!field) return null;
-        const alias = this.pathToAlias(field);
-        if (agg.function === 'ANY') {
+        if (value.func === 'ANY') {
           return `NULL AS ${alias}`;
         }
-        const colExpr = resolver.resolveColumnPath(field);
+        const colExpr =
+          'col' in value ? resolver.resolveColumnPath(value.col) : null;
         if (!colExpr) {
           return `NULL AS ${alias}`;
         }
-        return `${agg.function}(${colExpr}) AS ${alias}`;
+        return `${value.func}(${colExpr}) AS ${alias}`;
       })
-      .filter(Boolean)
       .join(', ');
 
     if (!selectClauses) {
@@ -856,39 +783,90 @@ ${joinClauses}`;
 
     if (filters.length > 0) {
       const filterResolver = new SQLSchemaResolver(
-        this.sqlSchema,
-        this.rootSchemaName,
+        this.sqlSchema!,
+        this.rootSchemaName!,
       );
       const whereConditions = filters.map((filter) => {
-        const sqlExpr = filterResolver.resolveColumnPath(filter.field);
-        return this.filterToSql(filter, sqlExpr ?? filter.field);
+        const sqlExpr = filterResolver.resolveColumnPath(filter.column);
+        return this.filterToSql(filter, sqlExpr ?? filter.column);
       });
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
 
-    const result = await runQueryForQueryTable(
-      this.wrapQueryWithPrelude(query),
-      this.engine,
-    );
+    const result = await runQueryForQueryTable(query, this.engine);
     return result.rows[0] ?? {};
   }
 
-  private async fetchColumnAggregates(
-    filters: ReadonlyArray<Filter>,
-    columns: ReadonlyArray<Column>,
+  private async getColumnAggregates(
+    filters: ReadonlyArray<DataGridFilter>,
+    columns: ReadonlyArray<DataGridColumn>,
   ): Promise<Row> {
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
+    if (this.useSchema) {
+      return this.getSchemaColumnAggregates(filters, columns);
+    } else {
+      return this.getSimpleColumnAggregates(filters, columns);
+    }
+  }
+
+  private async getSimpleColumnAggregates(
+    filters: ReadonlyArray<DataGridFilter>,
+    columns: ReadonlyArray<DataGridColumn>,
+  ): Promise<Row> {
+    let filteredBaseQuery = `SELECT * FROM (${this.baseQuery})`;
+    if (filters.length > 0) {
+      const whereConditions = filters.map(simpleFilter2Sql).join(' AND ');
+      filteredBaseQuery = `SELECT * FROM (${filteredBaseQuery}) WHERE ${whereConditions}`;
+    }
+
+    const selectClauses = columns
+      .filter((col) => col.aggregation)
+      .map((col) => {
+        const func = col.aggregation!;
+        if (func === 'COUNT') {
+          return `COUNT(*) AS ${col.column}`;
+        }
+        if (func === 'ANY') {
+          return `MIN(${col.column}) AS ${col.column}`;
+        }
+        return `${func}(${col.column}) AS ${col.column}`;
+      })
+      .join(', ');
+
+    if (!selectClauses) {
+      return {};
+    }
+
+    const query = `
+      SELECT ${selectClauses}
+      FROM (${filteredBaseQuery})
+    `;
+
+    const result = await runQueryForQueryTable(query, this.engine);
+    return result.rows[0] ?? {};
+  }
+
+  private async getSchemaColumnAggregates(
+    filters: ReadonlyArray<DataGridFilter>,
+    columns: ReadonlyArray<DataGridColumn>,
+  ): Promise<Row> {
+    const resolver = new SQLSchemaResolver(
+      this.sqlSchema!,
+      this.rootSchemaName!,
+    );
 
     const baseTable = resolver.getBaseTable();
     const baseAlias = resolver.getBaseAlias();
 
     const selectClauses = columns
-      .filter((col) => col.aggregate)
+      .filter((col) => col.aggregation)
       .map((col) => {
-        const func = col.aggregate!;
-        const colExpr = resolver.resolveColumnPath(col.field);
-        const alias = this.pathToAlias(col.field);
+        const func = col.aggregation!;
+        const colExpr = resolver.resolveColumnPath(col.column);
+        const alias = this.pathToAlias(col.column);
 
+        if (func === 'COUNT') {
+          return `COUNT(*) AS ${alias}`;
+        }
         if (!colExpr) {
           return `NULL AS ${alias}`;
         }
@@ -903,11 +881,6 @@ ${joinClauses}`;
       return {};
     }
 
-    // Resolve filter column paths first to ensure JOINs are added
-    for (const filter of filters) {
-      resolver.resolveColumnPath(filter.field);
-    }
-
     const joinClauses = resolver.buildJoinClauses();
 
     let query = `
@@ -917,17 +890,62 @@ ${joinClauses}`;
 
     if (filters.length > 0) {
       const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return this.filterToSql(filter, sqlExpr ?? filter.field);
+        const sqlExpr = resolver.resolveColumnPath(filter.column);
+        return this.filterToSql(filter, sqlExpr ?? filter.column);
       });
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
 
-    const result = await runQueryForQueryTable(
-      this.wrapQueryWithPrelude(query),
-      this.engine,
-    );
+    const result = await runQueryForQueryTable(query, this.engine);
     return result.rows[0] ?? {};
+  }
+
+  private async getRows(
+    workingQuery: string,
+    pagination?: Pagination,
+  ): Promise<{offset: number; rows: Row[]}> {
+    let query = `
+      WITH data AS (${workingQuery})
+      SELECT *
+      FROM data
+    `;
+
+    if (pagination) {
+      query += `LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
+    }
+
+    const result = await runQueryForQueryTable(query, this.engine);
+
+    return {
+      offset: pagination?.offset ?? 0,
+      rows: result.rows,
+    };
+  }
+}
+
+function simpleFilter2Sql(filter: DataGridFilter): string {
+  switch (filter.op) {
+    case '=':
+    case '!=':
+    case '<':
+    case '<=':
+    case '>':
+    case '>=':
+      return `${filter.column} ${filter.op} ${sqlValue(filter.value)}`;
+    case 'glob':
+      return `${filter.column} GLOB ${sqlValue(filter.value)}`;
+    case 'not glob':
+      return `${filter.column} NOT GLOB ${sqlValue(filter.value)}`;
+    case 'is null':
+      return `${filter.column} IS NULL`;
+    case 'is not null':
+      return `${filter.column} IS NOT NULL`;
+    case 'in':
+      return `${filter.column} IN (${filter.value.map(sqlValue).join(', ')})`;
+    case 'not in':
+      return `${filter.column} NOT IN (${filter.value.map(sqlValue).join(', ')})`;
+    default:
+      assertUnreachable(filter);
   }
 }
 
@@ -947,4 +965,32 @@ function comparePagination(a?: Pagination, b?: Pagination): boolean {
   if (!a && !b) return true;
   if (!a || !b) return false;
   return a.limit === b.limit && a.offset === b.offset;
+}
+
+function arePivotsEqual(a?: PivotModel, b?: PivotModel): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+
+  if (a.groupBy.join(',') !== b.groupBy.join(',')) return false;
+  if (!arePivotValuesEqual(a.values, b.values)) return false;
+  if (JSON.stringify(a.drillDown) !== JSON.stringify(b.drillDown)) return false;
+
+  return true;
+}
+
+function arePivotValuesEqual(
+  a: PivotModel['values'],
+  b: PivotModel['values'],
+): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+
+  if (keysA.length !== keysB.length) return false;
+
+  for (const key of keysA) {
+    if (!(key in b)) return false;
+    if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) return false;
+  }
+
+  return true;
 }

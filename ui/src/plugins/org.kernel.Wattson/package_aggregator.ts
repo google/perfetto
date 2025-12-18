@@ -18,7 +18,7 @@ import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
 import {Aggregator} from '../../components/aggregation_adapter';
 import {WattsonAggregationPanel} from './aggregation_panel';
-import {ColumnDef} from '../../components/aggregation';
+import {ColumnDef, Sorting} from '../../components/aggregation';
 
 export class WattsonPackageSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_package_aggregation';
@@ -109,7 +109,6 @@ export class WattsonPackageSelectionAggregator implements Aggregator {
         columnId: 'active_mws',
         sum: true,
         formatHint: 'NUMERIC',
-        sort: 'DESC',
       },
       {
         title: 'Idle transitions overhead (estimated mWs)',
@@ -134,5 +133,9 @@ export class WattsonPackageSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Wattson by package';
+  }
+
+  getDefaultSorting(): Sorting {
+    return {column: 'active_mws', direction: 'DESC'};
   }
 }

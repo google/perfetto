@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/producer.h"
@@ -135,7 +134,6 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>
       system_inodes_;
 
-  std::unique_ptr<base::LinuxFileWatch> sock_inotify_;
   base::WeakPtrFactory<ProbesProducer> weak_factory_;  // Keep last.
 };
 

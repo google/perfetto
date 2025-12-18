@@ -108,8 +108,6 @@ export interface SerializedGraph {
     width: number;
     text: string;
   }>;
-  isExplorerCollapsed?: boolean;
-  sidebarWidth?: number;
 }
 
 function serializeNode(node: QueryNode): SerializedNode {
@@ -148,8 +146,6 @@ export function serializeState(state: ExplorePageState): string {
     selectedNodeId: state.selectedNode?.nodeId,
     nodeLayouts: Object.fromEntries(state.nodeLayouts),
     labels: state.labels,
-    isExplorerCollapsed: state.isExplorerCollapsed,
-    sidebarWidth: state.sidebarWidth,
   };
 
   const replacer = (key: string, value: unknown) => {
@@ -476,8 +472,6 @@ export function deserializeState(
     selectedNode,
     nodeLayouts,
     labels: serializedGraph.labels,
-    isExplorerCollapsed: serializedGraph.isExplorerCollapsed,
-    sidebarWidth: serializedGraph.sidebarWidth,
   };
 }
 

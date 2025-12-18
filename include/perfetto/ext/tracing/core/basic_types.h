@@ -43,8 +43,6 @@ using FlushRequestID = uint64_t;
 // hashtables and other data structures.
 using ProducerAndWriterID = uint32_t;
 
-using PendingCloneID = uint64_t;
-
 inline ProducerAndWriterID MkProducerAndWriterID(ProducerID p, WriterID w) {
   static_assert(
       sizeof(ProducerID) + sizeof(WriterID) == sizeof(ProducerAndWriterID),
@@ -104,8 +102,6 @@ constexpr TracingSessionID kBugreportSessionId =
 // The ID of a machine in a multi-machine tracing session.
 using MachineID = base::MachineID;
 constexpr MachineID kDefaultMachineID = base::kDefaultMachineID;
-
-constexpr uint32_t kDataSourceStopTimeoutMs = 5000;
 
 }  // namespace perfetto
 

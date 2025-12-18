@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Sorting} from '../../components/aggregation';
 import {
   AggregatePivotModel,
   Aggregation,
@@ -69,27 +70,19 @@ export class FrameSelectionAggregator implements Aggregator {
     return 'Frames';
   }
 
+  getDefaultSorting(): Sorting {
+    return {column: 'occurrences', direction: 'DESC'};
+  }
+
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [{field: 'jank_type'}],
-      aggregates: [
-        {
-          function: 'COUNT',
-          sort: 'DESC',
-        },
-        {
-          field: 'dur',
-          function: 'MIN',
-        },
-        {
-          field: 'dur',
-          function: 'MAX',
-        },
-        {
-          field: 'dur',
-          function: 'AVG',
-        },
-      ],
+      groupBy: ['jank_type'],
+      values: {
+        occurrences: {func: 'COUNT'},
+        minDur: {col: 'dur', func: 'MIN'},
+        maxDur: {col: 'dur', func: 'MAX'},
+        meanDur: {col: 'dur', func: 'AVG'},
+      },
       columns: [
         {
           title: 'Jank Type',

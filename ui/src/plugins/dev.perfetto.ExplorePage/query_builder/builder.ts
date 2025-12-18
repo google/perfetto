@@ -82,8 +82,8 @@ import {
   SplitPanel,
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
+import {DataGridDataSource} from '../../../components/widgets/datagrid/common';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -96,7 +96,6 @@ import {ResizeHandle} from '../../../widgets/resize_handle';
 import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
-import {DataSource} from '../../../components/widgets/datagrid/data_source';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
@@ -116,8 +115,6 @@ export interface BuilderAttrs {
     width: number;
     text: string;
   }>;
-  readonly isExplorerCollapsed?: boolean;
-  readonly sidebarWidth?: number;
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
@@ -139,8 +136,6 @@ export interface BuilderAttrs {
       text: string;
     }>,
   ) => void;
-  readonly onExplorerCollapsedChange?: (collapsed: boolean) => void;
-  readonly onSidebarWidthChange?: (width: number) => void;
 
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
@@ -186,13 +181,14 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private isQueryRunning: boolean = false;
   private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
+  private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
-  private dataSource?: DataSource;
+  private dataSource?: DataGridDataSource;
   private drawerVisibility = SplitPanelDrawerVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
+  private sidebarWidth: number = 500; // Default width in pixels
   private readonly MIN_SIDEBAR_WIDTH = 250;
   private readonly MAX_SIDEBAR_WIDTH = 800;
-  private readonly DEFAULT_SIDEBAR_WIDTH = 500;
   private hasEverSelectedNode = false;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
@@ -201,16 +197,15 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.queryExecutionService = attrs.queryExecutionService;
   }
 
-  private handleSidebarResize(attrs: BuilderAttrs, deltaPx: number) {
-    const currentWidth = attrs.sidebarWidth ?? this.DEFAULT_SIDEBAR_WIDTH;
+  private handleSidebarResize(deltaPx: number) {
     // Subtract delta because the handle is on the left edge of the sidebar
     // Dragging left (negative delta) = narrower sidebar (positive change)
     // Dragging right (positive delta) = wider sidebar (negative change)
-    const newWidth = Math.max(
+    this.sidebarWidth = Math.max(
       this.MIN_SIDEBAR_WIDTH,
-      Math.min(this.MAX_SIDEBAR_WIDTH, currentWidth - deltaPx),
+      Math.min(this.MAX_SIDEBAR_WIDTH, this.sidebarWidth - deltaPx),
     );
-    attrs.onSidebarWidthChange?.(newWidth);
+    m.redraw();
   }
 
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
@@ -306,13 +301,14 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       }
     }
 
-    const isExplorerCollapsed = attrs.isExplorerCollapsed ?? false;
-    const sidebarWidth = attrs.sidebarWidth ?? this.DEFAULT_SIDEBAR_WIDTH;
-
     // When transitioning to unselected state with collapsed explorer, reappear at minimum size
-    if (!selectedNode && this.previousSelectedNode && isExplorerCollapsed) {
-      attrs.onExplorerCollapsedChange?.(false);
-      attrs.onSidebarWidthChange?.(this.MIN_SIDEBAR_WIDTH);
+    if (
+      !selectedNode &&
+      this.previousSelectedNode &&
+      this.isExplorerCollapsed
+    ) {
+      this.isExplorerCollapsed = false;
+      this.sidebarWidth = this.MIN_SIDEBAR_WIDTH;
     }
 
     this.previousSelectedNode = selectedNode;
@@ -320,7 +316,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const layoutClasses =
       classNames(
         'pf-query-builder-layout',
-        isExplorerCollapsed && 'explorer-collapsed',
+        this.isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
 
     const explorer = selectedNode
@@ -365,7 +361,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
             attrs.onNodeStateChange?.();
           },
-          isCollapsed: isExplorerCollapsed,
+          isCollapsed: this.isExplorerCollapsed,
           selectedView: this.selectedView,
           onViewChange: (view: number) => {
             this.selectedView = view;
@@ -508,15 +504,15 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       ),
       m(ResizeHandle, {
         direction: 'horizontal',
-        onResize: (deltaPx) => this.handleSidebarResize(attrs, deltaPx),
+        onResize: (deltaPx) => this.handleSidebarResize(deltaPx),
       }),
       m(
         '.pf-qb-explorer',
         {
           style: {
-            width: isExplorerCollapsed
+            width: this.isExplorerCollapsed
               ? '0'
-              : `${sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
+              : `${this.sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
           },
         },
         explorer,
@@ -528,18 +524,19 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: Icons.Info,
             title: 'Info',
             className:
-              this.selectedView === SelectedView.kInfo && !isExplorerCollapsed
+              this.selectedView === SelectedView.kInfo &&
+              !this.isExplorerCollapsed
                 ? 'pf-active'
                 : '',
             onclick: () => {
               if (
                 this.selectedView === SelectedView.kInfo &&
-                !isExplorerCollapsed
+                !this.isExplorerCollapsed
               ) {
-                attrs.onExplorerCollapsedChange?.(true);
+                this.isExplorerCollapsed = true;
               } else {
                 this.selectedView = SelectedView.kInfo;
-                attrs.onExplorerCollapsedChange?.(false);
+                this.isExplorerCollapsed = false;
               }
             },
           }),
@@ -549,18 +546,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               title: 'Edit',
               className:
                 this.selectedView === SelectedView.kModify &&
-                !isExplorerCollapsed
+                !this.isExplorerCollapsed
                   ? 'pf-active'
                   : '',
               onclick: () => {
                 if (
                   this.selectedView === SelectedView.kModify &&
-                  !isExplorerCollapsed
+                  !this.isExplorerCollapsed
                 ) {
-                  attrs.onExplorerCollapsedChange?.(true);
+                  this.isExplorerCollapsed = true;
                 } else {
                   this.selectedView = SelectedView.kModify;
-                  attrs.onExplorerCollapsedChange?.(false);
+                  this.isExplorerCollapsed = false;
                 }
               },
             }),
@@ -568,18 +565,19 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'code',
             title: 'Result',
             className:
-              this.selectedView === SelectedView.kResult && !isExplorerCollapsed
+              this.selectedView === SelectedView.kResult &&
+              !this.isExplorerCollapsed
                 ? 'pf-active'
                 : '',
             onclick: () => {
               if (
                 this.selectedView === SelectedView.kResult &&
-                !isExplorerCollapsed
+                !this.isExplorerCollapsed
               ) {
-                attrs.onExplorerCollapsedChange?.(true);
+                this.isExplorerCollapsed = true;
               } else {
                 this.selectedView = SelectedView.kResult;
-                attrs.onExplorerCollapsedChange?.(false);
+                this.isExplorerCollapsed = false;
               }
             },
           }),
@@ -639,8 +637,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
     this.dataSource = new SQLDataSource({
       engine,
-      sqlSchema: createSimpleSchema(result.tableName),
-      rootSchemaName: 'query',
+      baseQuery: `SELECT * FROM ${result.tableName}`,
     });
     this.queryExecuted = true;
     this.isQueryRunning = false;

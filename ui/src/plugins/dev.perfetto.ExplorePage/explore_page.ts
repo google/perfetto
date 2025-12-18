@@ -42,9 +42,6 @@ import {
   insertNodeBetween,
   getInputNodeAtPort,
   getAllInputNodes,
-  findDockedChildren,
-  calculateUndockLayouts,
-  getEffectiveLayout,
 } from './query_builder/graph_utils';
 import {showExamplesModal} from './examples_modal';
 import {
@@ -65,8 +62,6 @@ export interface ExplorePageState {
     width: number;
     text: string;
   }>;
-  isExplorerCollapsed?: boolean;
-  sidebarWidth?: number;
 }
 
 interface ExplorePageAttrs {
@@ -78,8 +73,6 @@ interface ExplorePageAttrs {
       | ExplorePageState
       | ((currentState: ExplorePageState) => ExplorePageState),
   ) => void;
-  readonly hasAutoInitialized: boolean;
-  readonly setHasAutoInitialized: (value: boolean) => void;
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
@@ -87,6 +80,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
+  private hasAutoInitialized = false;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -215,40 +209,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       } else {
         // For multi-source nodes: just connect and add to root nodes
         // Don't insert in-between - the node combines multiple sources
-
-        // Undock docked children before adding (docking requires exactly one child)
-        const dockedChildren = findDockedChildren(node, state.nodeLayouts);
-
         addConnection(node, newNode);
 
-        onStateUpdate((currentState) => {
-          const updatedLayouts = new Map(currentState.nodeLayouts);
-
-          // Undock existing docked children by giving them layouts.
-          // Use getEffectiveLayout to handle the case where the parent node is
-          // itself docked (no direct layout) - we walk up the chain to find
-          // the first ancestor with a layout.
-          const effectiveLayout = getEffectiveLayout(
-            node,
-            currentState.nodeLayouts,
-          );
-          if (effectiveLayout !== undefined && dockedChildren.length > 0) {
-            const undockLayouts = calculateUndockLayouts(
-              dockedChildren,
-              effectiveLayout,
-            );
-            for (const [nodeId, layout] of undockLayouts) {
-              updatedLayouts.set(nodeId, layout);
-            }
-          }
-
-          return {
-            ...currentState,
-            rootNodes: [...currentState.rootNodes, newNode],
-            nodeLayouts: updatedLayouts,
-            selectedNode: newNode,
-          };
-        });
+        onStateUpdate((currentState) => ({
+          ...currentState,
+          rootNodes: [...currentState.rootNodes, newNode],
+          selectedNode: newNode,
+        }));
       }
 
       return newNode;
@@ -308,7 +275,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   private async autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
-    attrs.setHasAutoInitialized(true);
+    this.hasAutoInitialized = true;
 
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
     if (!sqlModules) return;
@@ -438,8 +405,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       rootNodes: [],
       selectedNode: undefined,
-      nodeLayouts: new Map(),
-      labels: [],
     }));
   }
 
@@ -688,16 +653,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const newRootNodesSet = new Set(state.rootNodes.filter((n) => n !== node));
 
     // Add orphaned children to root nodes so they remain visible
-    // Children are orphaned ONLY if:
-    // 1. There was no primary parent to reconnect them to, AND
-    // 2. They were connected via PRIMARY input (not secondary)
-    // Children connected via secondary input still have their own primary parent!
+    // Children are orphaned if there was no primary parent to reconnect them to
     if (primaryParent === undefined && childConnections.length > 0) {
-      // Only children connected via primary input are truly orphaned
-      const orphanedChildren = childConnections
-        .filter((c) => c.portIndex === undefined) // Primary input only
-        .map((c) => c.child);
-
+      const orphanedChildren = childConnections.map((c) => c.child);
       for (const child of orphanedChildren) {
         newRootNodesSet.add(child);
       }
@@ -706,7 +664,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // For multiple children, offset their positions to avoid overlapping
       if (deletedNodeLayout !== undefined) {
         let layoutOffsetCount = 0;
-        for (const child of orphanedChildren) {
+        for (const {child} of childConnections) {
           const childHasNoLayout = !updatedNodeLayouts.has(child.nodeId);
           if (childHasNoLayout) {
             const offsetX = layoutOffsetCount * 30; // Offset each child by 30px
@@ -1025,9 +983,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       this.cleanupManager = new CleanupManager(this.queryExecutionService);
     }
 
-    // Auto-initialize high-importance tables on first render when state is empty
-    // Never load base JSON if we've already initialized in this session (even after clearing nodes)
-    if (state.rootNodes.length === 0 && !attrs.hasAutoInitialized) {
+    // Auto-initialize high-importance tables on first load
+    if (state.rootNodes.length === 0 && !this.hasAutoInitialized) {
       void this.autoInitializeHighImportanceTables(wrappedAttrs);
     }
 
@@ -1055,25 +1012,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
         labels: state.labels,
-        isExplorerCollapsed: state.isExplorerCollapsed,
-        sidebarWidth: state.sidebarWidth,
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
             rootNodes: [...currentState.rootNodes, node],
             selectedNode: node,
-          }));
-        },
-        onExplorerCollapsedChange: (collapsed) => {
-          wrappedAttrs.onStateUpdate((currentState) => ({
-            ...currentState,
-            isExplorerCollapsed: collapsed,
-          }));
-        },
-        onSidebarWidthChange: (width) => {
-          wrappedAttrs.onStateUpdate((currentState) => ({
-            ...currentState,
-            sidebarWidth: width,
           }));
         },
         onNodeSelected: (node) => {

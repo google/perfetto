@@ -19,7 +19,6 @@ export interface ColumnDef {
   readonly title: string;
   readonly formatHint?: string;
   readonly sum?: boolean;
-  readonly sort?: 'ASC' | 'DESC';
 }
 
 export interface BarChartData {

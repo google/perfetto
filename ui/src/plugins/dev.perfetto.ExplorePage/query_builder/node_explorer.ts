@@ -181,12 +181,17 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     return result;
   }
 
-  private renderTopButtons(buttons: NodeModifyAttrs): m.Child {
-    if (!buttons.topLeftButtons && !buttons.topRightButtons) {
+  private renderCornerButtons(buttons: NodeModifyAttrs): m.Child {
+    if (
+      !buttons.topLeftButtons &&
+      !buttons.topRightButtons &&
+      !buttons.bottomLeftButtons &&
+      !buttons.bottomRightButtons
+    ) {
       return null;
     }
 
-    return m('.pf-exp-node-explorer__buttons-top-container', [
+    return m('.pf-exp-node-explorer__buttons', [
       m('.pf-exp-node-explorer__buttons-top', [
         m(
           '.pf-exp-node-explorer__buttons-top-left',
@@ -197,23 +202,16 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.renderButtons(buttons.topRightButtons),
         ),
       ]),
-    ]);
-  }
-
-  private renderBottomButtons(buttons: NodeModifyAttrs): m.Child {
-    if (!buttons.bottomLeftButtons && !buttons.bottomRightButtons) {
-      return null;
-    }
-
-    return m('.pf-exp-node-explorer__buttons-bottom', [
-      m(
-        '.pf-exp-node-explorer__buttons-bottom-left',
-        this.renderButtons(buttons.bottomLeftButtons),
-      ),
-      m(
-        '.pf-exp-node-explorer__buttons-bottom-right',
-        this.renderButtons(buttons.bottomRightButtons),
-      ),
+      m('.pf-exp-node-explorer__buttons-bottom', [
+        m(
+          '.pf-exp-node-explorer__buttons-bottom-left',
+          this.renderButtons(buttons.bottomLeftButtons),
+        ),
+        m(
+          '.pf-exp-node-explorer__buttons-bottom-right',
+          this.renderButtons(buttons.bottomRightButtons),
+        ),
+      ]),
     ]);
   }
 
@@ -243,9 +241,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       const attrs = modifyResult as NodeModifyAttrs;
       return m('.pf-exp-node-explorer__modify', [
         m(InfoBox, attrs.info),
-        this.renderTopButtons(attrs),
+        this.renderCornerButtons(attrs),
         this.renderSections(attrs.sections),
-        this.renderBottomButtons(attrs),
       ]);
     }
 

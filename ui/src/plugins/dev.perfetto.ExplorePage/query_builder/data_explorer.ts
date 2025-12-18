@@ -14,12 +14,15 @@
 
 import m from 'mithril';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {
+  DataGridDataSource,
   CellRenderer,
-  ColumnSchema,
-  SchemaRegistry,
-} from '../../../components/widgets/datagrid/datagrid_schema';
+  ColumnDefinition,
+} from '../../../components/widgets/datagrid/common';
+import {
+  DataGrid,
+  columnsToSchema,
+} from '../../../components/widgets/datagrid/datagrid';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -36,14 +39,13 @@ import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {DataSource} from '../../../components/widgets/datagrid/data_source';
 
 export interface DataExplorerAttrs {
   readonly trace: Trace;
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
-  readonly dataSource?: DataSource;
+  readonly dataSource?: DataGridDataSource;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
@@ -317,9 +319,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             })
           : null;
 
-      // Build schema directly
-      const columnSchema: ColumnSchema = {};
-      for (const c of attrs.response.columns) {
+      const columnDefs: ColumnDefinition[] = attrs.response.columns.map((c) => {
         let cellRenderer: CellRenderer | undefined;
 
         // Get column type information from the node
@@ -335,16 +335,16 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           }
         }
 
-        columnSchema[c] = {cellRenderer};
-      }
-      const schema: SchemaRegistry = {data: columnSchema};
+        return {
+          name: c,
+          cellRenderer,
+        };
+      });
 
       return [
         warning,
         m(DataGrid, {
-          schema,
-          rootSchema: 'data',
-          initialColumns: attrs.response.columns.map((col) => ({field: col})),
+          ...columnsToSchema(columnDefs),
           fillHeight: true,
           data: attrs.dataSource,
           structuredQueryCompatMode: true,

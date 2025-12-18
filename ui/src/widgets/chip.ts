@@ -20,7 +20,7 @@ import {Button} from './button';
 
 export interface ChipAttrs extends HTMLAttrs {
   // Chips require a label.
-  readonly label: m.Children;
+  readonly label: string;
   // Chips can have an optional icon.
   readonly icon?: string;
   // Use minimal padding, reducing the overall size of the chip by a few px.

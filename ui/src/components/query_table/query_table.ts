@@ -19,18 +19,22 @@ import {Callout} from '../../widgets/callout';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
-import {DataGrid, renderCell, DataGridApi} from '../widgets/datagrid/datagrid';
 import {
+  DataGrid,
+  renderCell,
+  DataGridApi,
+  columnsToSchema,
+} from '../widgets/datagrid/datagrid';
+import {
+  DataGridDataSource,
   CellRenderer,
-  ColumnSchema,
-  SchemaRegistry,
-} from '../widgets/datagrid/datagrid_schema';
+  ColumnDefinition,
+} from '../widgets/datagrid/common';
 import {InMemoryDataSource} from '../widgets/datagrid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
 import {DataGridExportButton} from '../widgets/datagrid/export_button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
-import {DataSource} from '../widgets/datagrid/data_source';
 
 type Numeric = bigint | number;
 
@@ -87,7 +91,7 @@ interface QueryTableAttrs {
 
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   private readonly trace: Trace;
-  private dataSource?: DataSource;
+  private dataSource?: DataGridDataSource;
   private dataGridApi?: DataGridApi;
 
   constructor({attrs}: m.CVnode<QueryTableAttrs>) {
@@ -142,12 +146,14 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         title: 'Copy executed query to clipboard',
         label: 'Copy Query',
       }),
-      this.dataGridApi &&
-        m(DataGridExportButton, {onExportData: this.dataGridApi.exportData}),
+      this.dataGridApi && m(DataGridExportButton, {api: this.dataGridApi}),
     ];
   }
 
-  private renderTableContent(resp: QueryResponse, dataSource: DataSource) {
+  private renderTableContent(
+    resp: QueryResponse,
+    dataSource: DataGridDataSource,
+  ) {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
@@ -162,14 +168,12 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     );
   }
 
-  private renderContent(resp: QueryResponse, dataSource: DataSource) {
+  private renderContent(resp: QueryResponse, dataSource: DataGridDataSource) {
     if (resp.error) {
       return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }
 
-    // Build schema directly
-    const columnSchema: ColumnSchema = {};
-    for (const column of resp.columns) {
+    const columnDefs: ColumnDefinition[] = resp.columns.map((column) => {
       const cellRenderer: CellRenderer | undefined =
         column === 'id'
           ? (value, row) => {
@@ -192,15 +196,14 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
             }
           : undefined;
 
-      columnSchema[column] = {cellRenderer};
-    }
-
-    const schema: SchemaRegistry = {data: columnSchema};
+      return {
+        name: column,
+        cellRenderer,
+      };
+    });
 
     return m(DataGrid, {
-      schema,
-      rootSchema: 'data',
-      initialColumns: resp.columns.map((col) => ({field: col})),
+      ...columnsToSchema(columnDefs),
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
       fillHeight: true,

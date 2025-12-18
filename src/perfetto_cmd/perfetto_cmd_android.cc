@@ -61,8 +61,7 @@ void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
   PERFETTO_CHECK(!cfg.destination_package().empty());
   PERFETTO_CHECK(!cfg.skip_incidentd());
 
-  uint64_t bytes_written = GetBytesWritten();
-  if (bytes_written == 0) {
+  if (bytes_written_ == 0) {
     LogUploadEvent(PerfettoStatsdAtom::kNotUploadingEmptyTrace);
     PERFETTO_LOG("Skipping write to incident. Empty trace.");
     return;
@@ -74,11 +73,11 @@ void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
   // Skip the trace-uuid link for traces that are too small. Realistically those
   // traces contain only a marker (e.g. seized_for_bugreport, or the trace
   // expired without triggers). Those are useless and introduce only noise.
-  if (bytes_written > 4096) {
+  if (bytes_written_ > 4096) {
     base::Uuid uuid(uuid_);
     PERFETTO_LOG("go/trace-uuid/%s name=\"%s\" size=%" PRIu64,
                  uuid.ToPrettyString().c_str(),
-                 trace_config_->unique_session_name().c_str(), bytes_written);
+                 trace_config_->unique_session_name().c_str(), bytes_written_);
   }
 
   // Ask incidentd to create a report, which will read the file we just
@@ -150,11 +149,10 @@ base::Status PerfettoCmd::ReportTraceToAndroidFramework(
 
 void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
   PERFETTO_CHECK(trace_out_stream_);
-  uint64_t bytes_written = GetBytesWritten();
   int trace_fd = fileno(*trace_out_stream_);
   base::Uuid uuid(uuid_);
   base::Status status = ReportTraceToAndroidFramework(
-      trace_fd, bytes_written, uuid, trace_config_->unique_session_name(),
+      trace_fd, bytes_written_, uuid, trace_config_->unique_session_name(),
       trace_config_->android_report_config(), statsd_logging_);
   if (!status.ok()) {
     PERFETTO_FATAL("ReportTraceToAndroidFramework: %s", status.c_message());
@@ -187,21 +185,20 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
                                                O_CREAT | O_EXCL | O_RDWR, 0666);
   PERFETTO_CHECK(staging_fd);
 
-  uint64_t bytes_written = GetBytesWritten();
   int fd = fileno(*trace_out_stream_);
   off_t offset = 0;
-  size_t remaining = static_cast<size_t>(bytes_written);
+  size_t remaining = static_cast<size_t>(bytes_written_);
 
   // Count time in terms of CPU to avoid timeouts due to suspend:
   base::TimeNanos start = base::GetThreadCPUTimeNs();
   for (;;) {
     errno = 0;
-    PERFETTO_DCHECK(static_cast<size_t>(offset) + remaining == bytes_written);
+    PERFETTO_DCHECK(static_cast<size_t>(offset) + remaining == bytes_written_);
     auto wsize = PERFETTO_EINTR(sendfile(*staging_fd, fd, &offset, remaining));
     if (wsize < 0) {
       PERFETTO_FATAL("sendfile() failed wsize=%zd, off=%" PRId64
                      ", initial=%" PRIu64 ", remaining=%zu",
-                     wsize, static_cast<int64_t>(offset), bytes_written,
+                     wsize, static_cast<int64_t>(offset), bytes_written_,
                      remaining);
     }
     remaining -= static_cast<size_t>(wsize);
@@ -213,7 +210,7 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
       PERFETTO_FATAL("sendfile() timed out wsize=%zd, off=%" PRId64
                      ", initial=%" PRIu64
                      ", remaining=%zu, start=%lld, now=%lld",
-                     wsize, static_cast<int64_t>(offset), bytes_written,
+                     wsize, static_cast<int64_t>(offset), bytes_written_,
                      remaining, static_cast<long long int>(start.count()),
                      static_cast<long long int>(now.count()));
     }

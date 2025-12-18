@@ -17,81 +17,64 @@ import {Duration} from '../base/time';
 import {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
-import {BarChartData, ColumnDef} from './aggregation';
-import {Column} from './widgets/datagrid/model';
-import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
-import {defaultValueFormatter} from './widgets/datagrid/export_utils';
-import {
-  AggregatePivotModel,
-  AggregationPanelAttrs,
-} from './aggregation_adapter';
+import {BarChartData, ColumnDef, Sorting} from './aggregation';
 import {
   CellRenderer,
-  ColumnSchema,
-  ColumnType,
-  SchemaRegistry,
-} from './widgets/datagrid/datagrid_schema';
-import {DataSource} from './widgets/datagrid/data_source';
+  DataGridColumn,
+  DataGridDataSource,
+} from './widgets/datagrid/common';
+import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
+import {defaultValueFormatter} from './widgets/datagrid/export_utils';
+import {AggregatePivotModel} from './aggregation_adapter';
+import {ColumnSchema, SchemaRegistry} from './widgets/datagrid/column_schema';
+
+export interface AggregationPanelAttrs {
+  readonly dataSource: DataGridDataSource;
+  readonly sorting: Sorting;
+  readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
+  readonly onReady?: (api: DataGridApi) => void;
+}
+
+function isColumnDefArray(
+  columns: ReadonlyArray<ColumnDef> | AggregatePivotModel,
+): columns is ReadonlyArray<ColumnDef> {
+  return Array.isArray(columns);
+}
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    const {dataSource, columns, barChartData, onReady} = attrs;
+    const {dataSource, sorting, columns, barChartData, onReady} = attrs;
 
     return m(Stack, {fillHeight: true, spacing: 'none'}, [
       barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
-      m(StackAuto, this.renderTable(dataSource, columns, onReady)),
+      m(StackAuto, this.renderTable(dataSource, sorting, columns, onReady)),
     ]);
   }
 
   private renderTable(
-    dataSource: DataSource,
+    dataSource: DataGridDataSource,
+    sorting: Sorting,
     model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
     onReady?: (api: DataGridApi) => void,
   ) {
-    if ('groupBy' in model) {
-      // Build schema from pivot model columns
-      const columnSchema: ColumnSchema = {};
-      for (const c of model.columns) {
-        columnSchema[c.columnId] = {
-          title: c.title,
-          titleString: c.title,
-          columnType: filterTypeForColumnDef(c.formatHint),
-          cellRenderer: getCellRenderer(c.formatHint, c.columnId),
-          cellFormatter: getValueFormatter(c.formatHint),
-        };
-      }
-      const schema: SchemaRegistry = {data: columnSchema};
-
-      return m(DataGrid, {
-        fillHeight: true,
-        schema,
-        rootSchema: 'data',
-        initialPivot: {
-          groupBy: model.groupBy,
-          aggregates: model.aggregates,
-        },
-        data: dataSource,
-        onReady,
-      });
-    } else {
+    if (isColumnDefArray(model)) {
       // Build schema from column definitions
       const columnSchema: ColumnSchema = {};
       for (const c of model) {
         columnSchema[c.columnId] = {
           title: c.title,
-          titleString: c.title,
-          columnType: filterTypeForColumnDef(c.formatHint),
+          filterType: filterTypeForColumnDef(c.formatHint),
           cellRenderer: getCellRenderer(c.formatHint, c.columnId),
           cellFormatter: getValueFormatter(c.formatHint),
         };
       }
       const schema: SchemaRegistry = {data: columnSchema};
-      const initialColumns: readonly Column[] = model.map((c) => ({
-        field: c.columnId,
-        aggregate: c.sum ? 'SUM' : undefined,
-        sort: c.sort,
+      const initialColumns: readonly DataGridColumn[] = model.map((c) => ({
+        column: c.columnId,
+        aggregation: c.sum ? 'SUM' : undefined,
       }));
 
       return m(DataGrid, {
@@ -100,7 +83,35 @@ export class AggregationPanel
         rootSchema: 'data',
         initialColumns,
         data: dataSource,
+        initialSorting: sorting,
         onReady,
+      });
+    } else {
+      // Build schema from pivot model columns
+      const columnSchema: ColumnSchema = {};
+      for (const c of model.columns) {
+        columnSchema[c.columnId] = {
+          title: c.title,
+          filterType: filterTypeForColumnDef(c.formatHint),
+          cellRenderer: getCellRenderer(c.formatHint, c.columnId),
+          cellFormatter: getValueFormatter(c.formatHint),
+        };
+      }
+      const schema: SchemaRegistry = {data: columnSchema};
+
+      return m(DataGrid, {
+        fillHeight: true,
+        schema,
+        rootSchema: 'data',
+        initialColumns: model.columns.map((c) => c.columnId),
+        initialPivot: {
+          groupBy: model.groupBy,
+          values: model.values,
+        },
+        data: dataSource,
+        initialSorting: sorting,
+        onReady,
+        enablePivotControls: true,
       });
     }
   }
@@ -130,19 +141,17 @@ export class AggregationPanel
 
 function filterTypeForColumnDef(
   formatHint: string | undefined,
-): ColumnType | undefined {
+): 'numeric' | 'string' | undefined {
   switch (formatHint) {
     case undefined:
       return undefined;
-    case 'ID':
-      return 'identifier';
     case 'NUMERIC':
     case 'DURATION_NS':
     case 'PERCENT':
-      return 'quantitative';
+      return 'numeric';
     case 'STRING':
     default:
-      return 'text';
+      return 'string';
   }
 }
 

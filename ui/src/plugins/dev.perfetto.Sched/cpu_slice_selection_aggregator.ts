@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Sorting} from '../../components/aggregation';
 import {
   AggregatePivotModel,
   Aggregation,
@@ -77,20 +78,19 @@ export class CpuSliceSelectionAggregator implements Aggregator {
     return 'CPU by thread';
   }
 
+  getDefaultSorting(): Sorting {
+    return {column: 'total_dur', direction: 'DESC'};
+  }
+
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [
-        {field: 'pid'},
-        {field: 'process_name'},
-        {field: 'tid'},
-        {field: 'thread_name'},
-      ],
-      aggregates: [
-        {function: 'COUNT'},
-        {field: 'dur', function: 'SUM', sort: 'DESC'},
-        {field: 'fraction_of_total', function: 'SUM'},
-        {field: 'dur', function: 'AVG'},
-      ],
+      groupBy: ['pid', 'process_name', 'tid', 'thread_name'],
+      values: {
+        count: {func: 'COUNT'},
+        total_dur: {col: 'dur', func: 'SUM'},
+        fraction_of_total: {col: 'fraction_of_total', func: 'SUM'},
+        avg_dur: {col: 'dur', func: 'AVG'},
+      },
       columns: [
         {
           title: 'PID',

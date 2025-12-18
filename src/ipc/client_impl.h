@@ -22,7 +22,6 @@
 #include <memory>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/ipc/client.h"
@@ -95,7 +94,6 @@ class ClientImpl : public Client, public base::UnixSocket::EventListener {
   bool invoking_method_reply_ = false;
   const char* socket_name_ = nullptr;
   bool socket_retry_ = false;
-  bool delayed_reconnect_pending_ = false;
   uint32_t socket_backoff_ms_ = 0;
   std::unique_ptr<base::UnixSocket> sock_;
   base::TaskRunner* const task_runner_;
@@ -107,9 +105,6 @@ class ClientImpl : public Client, public base::UnixSocket::EventListener {
 
   // Queue of calls to BindService() that happened before the socket connected.
   std::list<base::WeakPtr<ServiceProxy>> queued_bindings_;
-
-  // To inotify-watch the file creation in case of connection failure.
-  std::unique_ptr<base::LinuxFileWatch> sock_inotify_;
 
   base::WeakPtrFactory<Client> weak_ptr_factory_;  // Keep last.
 };

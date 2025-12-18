@@ -194,13 +194,11 @@ describe('TimeRangeSourceNode', () => {
       const query = node.getStructuredQuery();
 
       expect(query).toBeDefined();
-      // Query should use experimentalTimeRange with STATIC mode (0)
-      expect(query?.experimentalTimeRange?.mode).toBe(0); // STATIC
-      expect(query?.experimentalTimeRange?.ts).toBe(100);
-      expect(query?.experimentalTimeRange?.dur).toBe(400);
+      // Query should contain the start, duration calculation
+      expect(query?.sql?.sql).toBe('SELECT 0 AS id, 100 AS ts, 400 AS dur');
     });
 
-    it('should return query with unset ts/dur for node without start/end', () => {
+    it('should return undefined for invalid node', () => {
       const node = new TimeRangeSourceNode({
         trace: createMockTrace(),
         isDynamic: false,
@@ -208,10 +206,7 @@ describe('TimeRangeSourceNode', () => {
 
       const query = node.getStructuredQuery();
 
-      // Should return a valid query with DYNAMIC mode - backend will use trace_start()/trace_dur()
-      expect(query).toBeDefined();
-      expect(query?.experimentalTimeRange).toBeDefined();
-      expect(query?.experimentalTimeRange?.mode).toBe(1); // DYNAMIC
+      expect(query).toBeUndefined();
     });
 
     it('should handle zero duration', () => {
@@ -225,22 +220,7 @@ describe('TimeRangeSourceNode', () => {
       const query = node.getStructuredQuery();
 
       expect(query).toBeDefined();
-      expect(query?.experimentalTimeRange?.mode).toBe(0); // STATIC
-      expect(query?.experimentalTimeRange?.ts).toBe(100);
-      expect(query?.experimentalTimeRange?.dur).toBe(0);
-    });
-
-    it('should return undefined when only end is set without start', () => {
-      const node = new TimeRangeSourceNode({
-        trace: createMockTrace(),
-        end: Time.fromRaw(500n),
-        isDynamic: false,
-      });
-
-      const query = node.getStructuredQuery();
-
-      // Cannot generate a query without a start point
-      expect(query).toBeUndefined();
+      expect(query?.sql?.sql).toBe('SELECT 0 AS id, 100 AS ts, 0 AS dur');
     });
   });
 
@@ -510,8 +490,7 @@ describe('TimeRangeSourceNode', () => {
 
       expect(node.validate()).toBe(true);
       const query = node.getStructuredQuery();
-      expect(query?.experimentalTimeRange?.ts).toBe(0);
-      expect(query?.experimentalTimeRange?.dur).toBe(1000);
+      expect(query?.sql?.sql).toBe('SELECT 0 AS id, 0 AS ts, 1000 AS dur');
     });
 
     it('should serialize and deserialize round-trip correctly for static node', () => {

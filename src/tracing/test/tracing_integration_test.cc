@@ -48,7 +48,6 @@ namespace {
 
 using testing::_;
 using testing::InvokeWithoutArgs;
-using tracing_service::TracingServiceImpl;
 
 ipc::TestSocket kProducerSock{"tracing_test-producer"};
 ipc::TestSocket kConsumerSock{"tracing_test-consumer"};
