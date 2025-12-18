@@ -85,6 +85,11 @@ message TraceConfig {
 
       // Use TraceBufferV2.
       TRACE_BUFFER_V2 = 1;
+
+      // Use both V1 and V2 in shadow mode. Data is written to both buffers,
+      // but only V1 data is returned. Comparison stats are reported to
+      // validate V2 returns equivalent data.
+      TRACE_BUFFER_V2_SHADOW_MODE = 2;
     }
     optional ExperimentalMode experimental_mode = 8;
   }

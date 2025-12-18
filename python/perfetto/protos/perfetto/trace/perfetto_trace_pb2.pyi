@@ -4500,8 +4500,10 @@ class TraceConfig(_message.Message):
             __slots__ = ()
             MODE_UNSPECIFIED: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
             TRACE_BUFFER_V2: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
+            TRACE_BUFFER_V2_SHADOW_MODE: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
         MODE_UNSPECIFIED: TraceConfig.BufferConfig.ExperimentalMode
         TRACE_BUFFER_V2: TraceConfig.BufferConfig.ExperimentalMode
+        TRACE_BUFFER_V2_SHADOW_MODE: TraceConfig.BufferConfig.ExperimentalMode
         SIZE_KB_FIELD_NUMBER: _ClassVar[int]
         FILL_POLICY_FIELD_NUMBER: _ClassVar[int]
         TRANSFER_ON_CLONE_FIELD_NUMBER: _ClassVar[int]
@@ -4841,7 +4843,24 @@ class TraceStats(_message.Message):
     FINAL_FLUSH_SUCCEEDED: TraceStats.FinalFlushOutcome
     FINAL_FLUSH_FAILED: TraceStats.FinalFlushOutcome
     class BufferStats(_message.Message):
-        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss")
+        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss", "shadow_buffer_stats")
+        class ShadowBufferStats(_message.Message):
+            __slots__ = ("packets_seen", "packets_in_both", "packets_only_v1", "packets_only_v2", "patches_attempted", "v1_patches_succeeded", "v2_patches_succeeded")
+            PACKETS_SEEN_FIELD_NUMBER: _ClassVar[int]
+            PACKETS_IN_BOTH_FIELD_NUMBER: _ClassVar[int]
+            PACKETS_ONLY_V1_FIELD_NUMBER: _ClassVar[int]
+            PACKETS_ONLY_V2_FIELD_NUMBER: _ClassVar[int]
+            PATCHES_ATTEMPTED_FIELD_NUMBER: _ClassVar[int]
+            V1_PATCHES_SUCCEEDED_FIELD_NUMBER: _ClassVar[int]
+            V2_PATCHES_SUCCEEDED_FIELD_NUMBER: _ClassVar[int]
+            packets_seen: int
+            packets_in_both: int
+            packets_only_v1: int
+            packets_only_v2: int
+            patches_attempted: int
+            v1_patches_succeeded: int
+            v2_patches_succeeded: int
+            def __init__(self, packets_seen: _Optional[int] = ..., packets_in_both: _Optional[int] = ..., packets_only_v1: _Optional[int] = ..., packets_only_v2: _Optional[int] = ..., patches_attempted: _Optional[int] = ..., v1_patches_succeeded: _Optional[int] = ..., v2_patches_succeeded: _Optional[int] = ...) -> None: ...
         BUFFER_SIZE_FIELD_NUMBER: _ClassVar[int]
         BYTES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
         BYTES_OVERWRITTEN_FIELD_NUMBER: _ClassVar[int]
@@ -4861,6 +4880,7 @@ class TraceStats(_message.Message):
         READAHEADS_FAILED_FIELD_NUMBER: _ClassVar[int]
         ABI_VIOLATIONS_FIELD_NUMBER: _ClassVar[int]
         TRACE_WRITER_PACKET_LOSS_FIELD_NUMBER: _ClassVar[int]
+        SHADOW_BUFFER_STATS_FIELD_NUMBER: _ClassVar[int]
         buffer_size: int
         bytes_written: int
         bytes_overwritten: int
@@ -4880,7 +4900,8 @@ class TraceStats(_message.Message):
         readaheads_failed: int
         abi_violations: int
         trace_writer_packet_loss: int
-        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ...) -> None: ...
+        shadow_buffer_stats: TraceStats.BufferStats.ShadowBufferStats
+        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ..., shadow_buffer_stats: _Optional[_Union[TraceStats.BufferStats.ShadowBufferStats, _Mapping]] = ...) -> None: ...
     class WriterStats(_message.Message):
         __slots__ = ("sequence_id", "buffer", "chunk_payload_histogram_counts", "chunk_payload_histogram_sum")
         SEQUENCE_ID_FIELD_NUMBER: _ClassVar[int]

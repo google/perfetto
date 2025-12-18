@@ -134,6 +134,8 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_BufferConfig,
                                   MODE_UNSPECIFIED) = 0,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
                                   TRACE_BUFFER_V2) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
+                                  TRACE_BUFFER_V2_SHADOW_MODE) = 2,
 };
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig);
