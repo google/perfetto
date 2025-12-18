@@ -101,6 +101,46 @@ import {DataSource} from '../../../components/widgets/datagrid/data_source';
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
 
+// Helper function for keyboard-accessible card interactions
+function createKeyboardHandler(callback: () => void) {
+  return (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      callback();
+    }
+  };
+}
+
+// Helper function to render template cards with consistent structure
+interface TemplateCardAttrs {
+  readonly icon: string;
+  readonly title: string;
+  readonly description: string;
+  readonly ariaLabel: string;
+  readonly onClick: () => void;
+}
+
+function renderTemplateCard(attrs: TemplateCardAttrs): m.Children {
+  return m(
+    Card,
+    {
+      'interactive': true,
+      'onclick': attrs.onClick,
+      'tabindex': 0,
+      'role': 'button',
+      'aria-label': attrs.ariaLabel,
+      'className': 'pf-template-card',
+      'onkeydown': createKeyboardHandler(attrs.onClick),
+    },
+    m(
+      '.pf-source-card-clickable',
+      m(Icon, {icon: attrs.icon}),
+      m('h3', attrs.title),
+    ),
+    m('p', attrs.description),
+  );
+}
+
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
@@ -162,6 +202,11 @@ export interface BuilderAttrs {
 
   readonly onLoadExample: () => void;
 
+  // Starting templates (when page is empty)
+  readonly onLoadEmptyTemplate?: () => void;
+  readonly onLoadLearningTemplate?: () => void;
+  readonly onLoadExploreTemplate?: () => void;
+
   // Node state change callback
   readonly onNodeStateChange?: () => void;
 
@@ -214,6 +259,47 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   }
 
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
+    const results: m.Children[] = [];
+
+    // Show template buttons when nothing is selected
+    if (!attrs.selectedNode) {
+      results.push(
+        m('h4.pf-starting-section-title', 'Templates:'),
+        m(
+          '.pf-template-grid',
+          renderTemplateCard({
+            icon: 'school',
+            title: 'Learning',
+            description: 'Educational example',
+            ariaLabel: 'Start with learning template',
+            onClick: () => attrs.onLoadLearningTemplate?.(),
+          }),
+          renderTemplateCard({
+            icon: 'explore',
+            title: 'Explore Trace Data',
+            description: 'Slices and high-frequency tables',
+            ariaLabel: 'Explore trace data',
+            onClick: () => attrs.onLoadExploreTemplate?.(),
+          }),
+          renderTemplateCard({
+            icon: 'auto_stories',
+            title: 'Examples',
+            description: 'Load an example graph',
+            ariaLabel: 'Load example graph',
+            onClick: () => attrs.onLoadExample(),
+          }),
+          renderTemplateCard({
+            icon: 'delete_sweep',
+            title: 'Clear Graph',
+            description: 'Start with empty canvas',
+            ariaLabel: 'Clear graph',
+            onClick: () => attrs.onLoadEmptyTemplate?.(),
+          }),
+        ),
+        m('h4.pf-starting-section-title', 'Add sources:'),
+      );
+    }
+
     const sourceNodes = nodeRegistry
       .list()
       .filter(([_id, node]) => node.showOnLandingPage === true)
@@ -235,12 +321,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             'role': 'button',
             'aria-label': `Add ${name} source`,
             'className': 'pf-source-card',
-            'onkeydown': (e: KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                attrs.onAddSourceNode(id);
-              }
-            },
+            'onkeydown': createKeyboardHandler(() => attrs.onAddSourceNode(id)),
           },
           m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', name)),
           m('p', description),
@@ -248,36 +329,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         );
       });
 
-    // Add Examples card at the end
-    const examplesCard = m(
-      Card,
-      {
-        'interactive': true,
-        'onclick': () => attrs.onLoadExample(),
-        'tabindex': 0,
-        'role': 'button',
-        'aria-label': 'Load example graph',
-        'className': 'pf-source-card',
-        'onkeydown': (e: KeyboardEvent) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            attrs.onLoadExample();
-          }
-        },
-      },
-      m(
-        '.pf-source-card-clickable',
-        m(Icon, {icon: 'auto_stories'}),
-        m('h3', 'Examples'),
-      ),
-      m('p', 'Load an example graph'),
+    // Wrap source cards in horizontal container
+    const sourceCardsContainer = m(
+      '.pf-source-cards-horizontal',
+      ...sourceNodes,
     );
 
-    if (sourceNodes.length === 0) {
-      return [examplesCard];
-    }
-
-    return [examplesCard, ...sourceNodes];
+    return [...results, sourceCardsContainer];
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {

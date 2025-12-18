@@ -15,6 +15,7 @@
 import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {assetSrc} from '../../base/assets';
+import {showModal} from '../../widgets/modal';
 
 import {Builder} from './query_builder/builder';
 import {
@@ -29,6 +30,7 @@ import {
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {FilterNode} from './query_builder/nodes/filter_node';
+import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, deserializeState} from './json_handler';
@@ -305,6 +307,83 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       rootNodes: [...currentState.rootNodes, ...newNodes],
       selectedNode: newNodes[newNodes.length - 1], // Select the last node
     }));
+  }
+
+  private async createExploreGraph(attrs: ExplorePageAttrs) {
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    const newNodes: QueryNode[] = [];
+
+    // Create slices source node
+    const slicesNode = new SlicesSourceNode({});
+    newNodes.push(slicesNode);
+
+    // Get high-frequency tables with data
+    const tableDescriptor = nodeRegistry.get('table');
+    if (tableDescriptor) {
+      const highFreqTables = sqlModules
+        .listTables()
+        .filter((table) => table.importance === 'high');
+
+      for (const sqlTable of highFreqTables) {
+        try {
+          // Check if the module is disabled (no data available)
+          const module = sqlModules.getModuleForTable(sqlTable.name);
+          if (module && sqlModules.isModuleDisabled(module.includeKey)) {
+            continue; // Skip tables from disabled modules
+          }
+
+          const tableNode = tableDescriptor.factory(
+            {
+              sqlTable,
+              sqlModules,
+              trace: attrs.trace,
+            },
+            {allNodes: attrs.state.rootNodes},
+          );
+          newNodes.push(tableNode);
+        } catch (error) {
+          console.error(
+            `Failed to create table node for ${sqlTable.name}:`,
+            error,
+          );
+        }
+      }
+    }
+
+    // Add all nodes to root nodes with grid layout
+    if (newNodes.length > 0) {
+      // Calculate grid dimensions (as square as possible)
+      const totalNodes = newNodes.length;
+      const cols = Math.ceil(Math.sqrt(totalNodes));
+
+      // Create layout map with grid positions
+      const newNodeLayouts = new Map();
+      const NODE_WIDTH = 300;
+      const NODE_HEIGHT = 200;
+      const GRID_PADDING_X = 10;
+      const GRID_PADDING_Y = 10;
+      const START_X = 50;
+      const START_Y = 50;
+
+      newNodes.forEach((node, index) => {
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        newNodeLayouts.set(node.nodeId, {
+          x: START_X + col * (NODE_WIDTH + GRID_PADDING_X),
+          y: START_Y + row * (NODE_HEIGHT + GRID_PADDING_Y),
+        });
+      });
+
+      attrs.onStateUpdate((currentState) => ({
+        ...currentState,
+        rootNodes: newNodes, // Replace all nodes
+        nodeLayouts: newNodeLayouts,
+        selectedNode: newNodes[0], // Select the first node (slices)
+        labels: [], // Clear labels
+      }));
+    }
   }
 
   private async autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
@@ -1124,6 +1203,65 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onImport: () => this.handleImport(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
         onLoadExample: () => this.handleLoadExample(wrappedAttrs),
+        onLoadEmptyTemplate: async () => {
+          // Show warning modal before clearing
+          const confirmed = await showStateOverwriteWarning();
+          if (!confirmed) return;
+
+          // Clear all nodes for empty graph
+          wrappedAttrs.onStateUpdate((currentState) => {
+            return {
+              ...currentState,
+              rootNodes: [],
+              selectedNode: undefined,
+              nodeLayouts: new Map(),
+              labels: [],
+            };
+          });
+        },
+        onLoadLearningTemplate: async () => {
+          // Show warning modal before loading
+          const confirmed = await showStateOverwriteWarning();
+          if (!confirmed) return;
+
+          try {
+            const response = await fetch(
+              assetSrc('assets/explore_page/examples/learning.json'),
+            );
+            if (response.ok) {
+              const json = await response.text();
+              await this.loadStateFromJson(wrappedAttrs, json);
+            } else {
+              showModal({
+                title: 'Failed to Load Template',
+                content: () =>
+                  m(
+                    'div',
+                    `Failed to load the learning template. Server returned status: ${response.status}`,
+                  ),
+                buttons: [],
+              });
+            }
+          } catch (error) {
+            console.error('Failed to load learning example:', error);
+            showModal({
+              title: 'Failed to Load Template',
+              content: () =>
+                m(
+                  'div',
+                  `An error occurred while loading the learning template: ${error instanceof Error ? error.message : String(error)}`,
+                ),
+              buttons: [],
+            });
+          }
+        },
+        onLoadExploreTemplate: async () => {
+          // Show warning modal before loading
+          const confirmed = await showStateOverwriteWarning();
+          if (!confirmed) return;
+
+          await this.createExploreGraph(wrappedAttrs);
+        },
         onFilterAdd: (node, filter, filterOperator) => {
           this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);
         },
