@@ -874,7 +874,12 @@ export class QueryExecutionService {
   }
 
   private hashQuery(node: QueryNode): string | undefined {
-    return hashNodeQuery(node);
+    const result = hashNodeQuery(node);
+    if (result instanceof Error) {
+      console.warn(result.message);
+      return undefined;
+    }
+    return result;
   }
 
   private canReuseTable(
@@ -938,7 +943,7 @@ export class QueryExecutionService {
       hasExistingResult?: boolean;
       /** Called when analysis starts */
       onAnalysisStart?: () => void;
-      /** Called when analysis completes (with query or error or undefined if skipped) */
+      /** Called when analysis completes (with query, error, or undefined if skipped) */
       onAnalysisComplete?: (query: Query | Error | undefined) => void;
       /** Called when execution starts */
       onExecutionStart?: () => void;
@@ -982,6 +987,7 @@ export class QueryExecutionService {
           durationMs: performance.now() - startTime,
         });
 
+        console.debug('Analysis skipped - reusing existing materialization');
         return {query: undefined, executed: false};
       } catch {
         // If loading fails (e.g., table was dropped), clear materialization state
@@ -1001,7 +1007,7 @@ export class QueryExecutionService {
 
     // Analyze the node
     options.onAnalysisStart?.();
-    let query: Query | Error | undefined;
+    let query: Query | Error;
     try {
       query = await analyzeNode(node, engine);
     } catch (e) {

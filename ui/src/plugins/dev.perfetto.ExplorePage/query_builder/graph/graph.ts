@@ -526,6 +526,9 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
   const toNode = findQueryNode(conn.toNode, rootNodes);
 
   if (!fromNode || !toNode) {
+    console.warn(
+      `Cannot create connection: node not found (from: ${conn.fromNode}, to: ${conn.toNode})`,
+    );
     return;
   }
 
@@ -549,6 +552,9 @@ function handleConnectionRemove(
   const toNode = findQueryNode(conn.toNode, rootNodes);
 
   if (!fromNode || !toNode) {
+    console.warn(
+      `Cannot remove connection: node not found (from: ${conn.fromNode}, to: ${conn.toNode})`,
+    );
     return;
   }
 

@@ -25,6 +25,8 @@
 #include <set>
 #include <string>
 
+#include "src/protozero/filtering/filter_bytecode_generator.h"
+
 // We include this intentionally instead of forward declaring to allow
 // for an easy find/replace transformation when moving to Google3.
 #include <google/protobuf/descriptor.h>
@@ -67,9 +69,9 @@ class FilterUtil {
 
   // Generates the filter bytecode for the root message previously loaded by
   // LoadMessageDefinition() using FilterBytecodeGenerator.
-  // The returned string is a binary-encoded proto message of type
-  // perfetto.protos.ProtoFilter (see proto_filter.proto).
-  std::string GenerateFilterBytecode();
+  // Returns the bytecode and optional v54 overlay (see FilterBytecodeGenerator
+  // for details).
+  FilterBytecodeGenerator::SerializeResult GenerateFilterBytecode();
 
   // Prints the list of messages and fields onto stdout in a diff-friendly text
   // format. Example:

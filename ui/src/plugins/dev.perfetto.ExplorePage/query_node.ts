@@ -198,16 +198,20 @@ export function createFinalColumns(sourceCols: ColumnInfo[]) {
 
 function getStructuredQueries(
   finalNode: QueryNode,
-): protos.PerfettoSqlStructuredQuery[] | undefined {
+): protos.PerfettoSqlStructuredQuery[] | Error {
   if (finalNode.finalCols === undefined) {
-    return;
+    return new Error(
+      `Cannot get structured queries: node ${finalNode.nodeId} has no finalCols`,
+    );
   }
   const revStructuredQueries: protos.PerfettoSqlStructuredQuery[] = [];
   let curNode: QueryNode | undefined = finalNode;
   while (curNode) {
     const curSq = curNode.getStructuredQuery();
     if (curSq === undefined) {
-      return;
+      return new Error(
+        `Cannot get structured queries: node ${curNode.nodeId} returned undefined from getStructuredQuery()`,
+      );
     }
     revStructuredQueries.push(curSq);
 
@@ -224,7 +228,9 @@ function getStructuredQueries(
 
     if (inputNode) {
       if (!inputNode.validate()) {
-        return;
+        return new Error(
+          `Cannot get structured queries: input node ${inputNode.nodeId} failed validation`,
+        );
       }
       curNode = inputNode;
     } else {
@@ -270,10 +276,12 @@ export function queryToRun(query?: Query): string {
  * This function is relatively expensive (stringifyJsonWithBigints on entire query tree).
  * QueryExecutionService caches results to avoid recomputation.
  */
-export function hashNodeQuery(node: QueryNode): string | undefined {
+export function hashNodeQuery(node: QueryNode): string | Error {
   const sq = node.getStructuredQuery();
   if (sq === undefined) {
-    return undefined;
+    return new Error(
+      `Cannot hash node query: node ${node.nodeId} returned undefined from getStructuredQuery()`,
+    );
   }
 
   // stringifyJsonWithBigints on the protobuf object gives us a stable representation
@@ -286,17 +294,21 @@ export function hashNodeQuery(node: QueryNode): string | undefined {
 export async function analyzeNode(
   node: QueryNode,
   engine: Engine,
-): Promise<Query | undefined | Error> {
+): Promise<Query | Error> {
   const structuredQueries = getStructuredQueries(node);
-  if (structuredQueries === undefined) return;
+  if (structuredQueries instanceof Error) {
+    return structuredQueries;
+  }
 
   const res = await engine.analyzeStructuredQuery(structuredQueries);
   if (res.error !== undefined && res.error !== null && res.error !== '') {
-    return Error(res.error);
+    return new Error(res.error);
   }
-  if (res.results.length === 0) return Error('No structured query results');
+  if (res.results.length === 0) {
+    return new Error('No structured query results');
+  }
   if (res.results.length !== structuredQueries.length) {
-    return Error(
+    return new Error(
       `Wrong structured query results. Asked for ${
         structuredQueries.length
       }, received ${res.results.length}`,
@@ -305,14 +317,16 @@ export async function analyzeNode(
 
   const lastRes = res.results[res.results.length - 1];
   if (lastRes.sql === null || lastRes.sql === undefined) {
-    return;
+    return new Error(
+      `analyzeNode: engine returned no SQL for node ${node.nodeId}`,
+    );
   }
   if (
     lastRes.textproto === undefined ||
     lastRes.textproto === null ||
     lastRes.textproto === ''
   ) {
-    return Error('No textproto in structured query results');
+    return new Error('No textproto in structured query results');
   }
 
   const sql: Query = {

@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <optional>
 #include <vector>
 
 namespace protozero {
@@ -74,7 +73,21 @@ class FilterBytecodeParser {
 
   // Loads a filter. The filter data consists of a sequence of varints which
   // contains the filter opcodes and a final checksum.
-  bool Load(const void* filter_data, size_t len);
+  // If a filter is already loaded, it is replaced.
+  //
+  // Optionally accepts an overlay (pass nullptr/0 if not needed). The overlay
+  // can add new fields or upgrade existing fields (e.g., to FilterString).
+  // The overlay uses the same opcode format as the base bytecode, but with an
+  // explicit message index prefix:
+  //   [msg_index, (field_id << 3) | opcode, argument] ... [checksum]
+  // Entry sizes depend on the opcode (same as base bytecode).
+  // Entries must be sorted by (msg_index, field_id). The base bytecode and
+  // overlay are merged during loading, maintaining sorted field order.
+  // See /rfcs/0011-subset-string-filter-rules.md for design details.
+  bool Load(const void* filter_data,
+            size_t len,
+            const void* overlay_data = nullptr,
+            size_t overlay_len = 0);
 
   // Checks wheter a given field is allowed or not.
   // msg_index = 0 is the index of the root message, where all queries should
@@ -84,13 +97,17 @@ class FilterBytecodeParser {
   void Reset();
   void set_suppress_logs_for_fuzzer(bool x) { suppress_logs_for_fuzzer_ = x; }
 
- private:
-  static constexpr uint32_t kDirectlyIndexLimit = 128;
-  static constexpr uint32_t kAllowed = 1u << 31u;
   static constexpr uint32_t kSimpleField = 0x7fffffff;
   static constexpr uint32_t kFilterStringField = 0x7ffffffe;
 
-  bool LoadInternal(const uint8_t* filter_data, size_t len);
+ private:
+  static constexpr uint32_t kDirectlyIndexLimit = 128;
+  static constexpr uint32_t kAllowed = 1u << 31u;
+
+  bool LoadInternal(const uint8_t* filter_data,
+                    size_t len,
+                    const uint8_t* overlay_data,
+                    size_t overlay_len);
 
   // The state of all fields for all messages is stored in one contiguous array.
   // This is to avoid memory fragmentation and allocator overhead.
