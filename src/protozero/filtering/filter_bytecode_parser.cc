@@ -39,48 +39,56 @@ bool ParseAndVerifyChecksum(const uint8_t* data,
                             size_t len,
                             std::vector<uint32_t>* words,
                             bool suppress_logs) {
-  bool packed_parse_err = false;
+  if (len == 0) {
+    return false;
+  }
   words->reserve(len);  // An overestimation, but avoids reallocations.
+
+  // Parse varints while computing checksum in a single pass.
+  // The last word is the checksum itself and should not be hashed.
+  perfetto::base::FnvHasher hasher;
+  uint32_t actual_csum = 0;
+
   using BytecodeDecoder =
       PackedRepeatedFieldIterator<proto_utils::ProtoWireType::kVarInt,
                                   uint32_t>;
-  for (BytecodeDecoder it(data, len, &packed_parse_err); it; ++it)
-    words->emplace_back(*it);
-
-  if (packed_parse_err || words->empty())
-    return false;
-
-  perfetto::base::FnvHasher hasher;
-  for (size_t i = 0; i < words->size() - 1; ++i)
-    hasher.Update((*words)[i]);
-
-  uint32_t expected_csum = static_cast<uint32_t>(hasher.digest());
-  if (expected_csum != words->back()) {
-    if (!suppress_logs) {
-      PERFETTO_ELOG("Filter bytecode checksum failed. Expected: %x, actual: %x",
-                    expected_csum, words->back());
+  bool has_checksum = false;
+  bool packed_parse_err = false;
+  for (BytecodeDecoder it(data, len, &packed_parse_err); it;) {
+    uint32_t word = *it++;
+    if (bool is_last_word = !it; is_last_word) {
+      actual_csum = word;
+      has_checksum = true;
+      break;
     }
+    words->emplace_back(word);
+    hasher.Update(word);
+  }
+  if (packed_parse_err || !has_checksum) {
+    words->clear();
     return false;
   }
-
-  words->pop_back();  // Pop the checksum.
+  auto expected_csum = static_cast<uint32_t>(hasher.digest());
+  if (expected_csum != actual_csum) {
+    if (!suppress_logs) {
+      PERFETTO_ELOG("Filter bytecode checksum failed. Expected: %x, actual: %x",
+                    expected_csum, actual_csum);
+    }
+    words->clear();
+    return false;
+  }
   return true;
 }
 
-// Returns the size (in words) of an overlay entry based on its opcode.
-// Returns 0 if the opcode is invalid for overlays.
-size_t GetOverlayEntrySize(uint32_t opcode) {
-  switch (opcode) {
-    case kFilterOpcode_SimpleField:
-    case kFilterOpcode_FilterString:
-      return 2;  // msg_index + field_word
-    default:
-      return 0;  // Invalid opcode for overlay
-  }
-}
+struct OverlayEntry {
+  uint32_t msg_index;
+  uint32_t field_id;
+  uint32_t message_id;
+  uint32_t field_word;
+};
 
 // Returns the msg_id to store for an overlay entry's opcode.
-uint32_t GetOverlayMsgId(uint32_t opcode) {
+uint32_t GetMessageId(uint32_t opcode) const {
   switch (opcode) {
     case kFilterOpcode_SimpleField:
       return FilterBytecodeParser::kSimpleField;
@@ -125,11 +133,50 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
     return false;
 
   // Parse the overlay (if provided).
-  std::vector<uint32_t> overlay;
+  std::vector<OverlayEntry> overlay;
   if (overlay_data && overlay_len > 0) {
-    if (!ParseAndVerifyChecksum(overlay_data, overlay_len, &overlay,
+    std::vector<uint32_t> overlay_words;
+    if (!ParseAndVerifyChecksum(overlay_data, overlay_len, &overlay_words,
                                 suppress_logs_for_fuzzer_)) {
       return false;
+    }
+    if (overlay_words.size() % 3 != 0) {
+      PERFETTO_DLOG("overlay error: size not multiple of 3 words");
+      return false;
+    }
+
+    // Each entry is [msg_index, field_word] where field_id = field_word >> 3.
+    for (size_t i = 0; i < overlay_words.size(); i += 3) {
+      overlay.emplace_back();
+
+      uint32_t opcode = overlay_words[i + 1] & kOpcodeMask;
+
+      OverlayEntry& entry = overlay.back();
+      entry.msg_index = overlay_words[i];
+      entry.field_id = overlay_words[i + 1] >> kOpcodeShift;
+      entry.message_id = GetMessageId(opcode);
+      entry.field_word = overlay_words[i + 2];
+
+      if (entry.message_id == 0) {
+        PERFETTO_DLOG("overlay error: invalid opcode %u at index %zu", opcode,
+                      i + 1);
+        return false;
+      }
+      if (overlay.size() == 1) {
+        continue;
+      }
+      // Validate that overlay entries are sorted by (msg_index, field_id).
+      const OverlayEntry& prev_entry = overlay[overlay.size() - 2];
+      if (entry.msg_index < prev_entry.msg_index ||
+          (entry.msg_index == prev_entry.msg_index &&
+           entry.field_id <= prev_entry.field_id)) {
+        PERFETTO_DLOG(
+            "overlay error: entries not sorted at index %zu (msg %u, "
+            "field %u) after (msg %u, field %u)",
+            i, entry.msg_index, entry.field_id, prev_entry.msg_index,
+            prev_entry.field_id);
+        return false;
+      }
     }
   }
 
@@ -173,80 +220,43 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
   // - std::numeric_limits<uint32_t>::max() on error
   constexpr uint32_t kOverlayError = std::numeric_limits<uint32_t>::max();
   auto process_overlay = [&](uint32_t field_id) -> uint32_t {
-    uint32_t matched_msg_id = 0;
     while (overlay_idx < overlay.size()) {
-      // Each overlay entry starts with [msg_index, field_word, ...].
-      // We need at least 2 words to read the header.
-      if (PERFETTO_UNLIKELY(overlay_idx + 1 >= overlay.size())) {
-        PERFETTO_DLOG("overlay error: truncated entry at index %zu",
-                      overlay_idx);
-        return kOverlayError;
-      }
-
-      // Parse the entry header.
-      uint32_t entry_msg = overlay[overlay_idx];
-      uint32_t entry_word = overlay[overlay_idx + 1];
-      uint32_t entry_opcode = entry_word & 0x7u;
-      uint32_t entry_field = entry_word >> 3;
-
-      // Validate the opcode and ensure we have enough words for this entry.
-      size_t entry_size = GetOverlayEntrySize(entry_opcode);
-      if (PERFETTO_UNLIKELY(entry_size == 0)) {
-        PERFETTO_DLOG("overlay error: invalid opcode %u at index %zu",
-                      entry_opcode, overlay_idx);
-        return kOverlayError;
-      }
-      if (PERFETTO_UNLIKELY(overlay_idx + entry_size > overlay.size())) {
-        PERFETTO_DLOG("overlay error: entry at index %zu exceeds size",
-                      overlay_idx);
-        return kOverlayError;
-      }
+      const OverlayEntry& entry = overlay[overlay_idx];
 
       // Stop if this entry is for a later message or a later field.
-      if (entry_msg > current_msg_index ||
-          (entry_msg == current_msg_index && entry_field > field_id)) {
+      if (entry.msg_index > current_msg_index ||
+          (entry.msg_index == current_msg_index && entry.field_id > field_id)) {
         break;
       }
 
-      // Entries for earlier messages indicate the overlay is not sorted.
-      if (PERFETTO_UNLIKELY(entry_msg < current_msg_index)) {
-        PERFETTO_DLOG(
-            "overlay error: entry for msg %u at index %zu, "
-            "but current msg is %u (overlay not sorted?)",
-            entry_msg, overlay_idx, current_msg_index);
-        return kOverlayError;
-      }
+      // Message indexes are dense and we verified above that we are sorted
+      // so this must be for the current message.
+      PERFETTO_DCHECK(entry.msg_index == current_msg_index);
 
-      // At this point: entry_msg == current_msg_index && entry_field <=
-      // field_id
-      uint32_t msg_id = GetOverlayMsgId(entry_opcode);
-
-      if (entry_field == field_id) {
-        // Exact match - this is an upgrade. Return the msg_id for the caller.
-        matched_msg_id = msg_id;
-        overlay_idx += entry_size;
-        break;
+      // Exact match - this is an upgrade. Return the msg_id for the caller.
+      if (entry.field_id == field_id) {
+        ++overlay_idx;
+        return entry.message_id;
       }
 
       // entry_field < field_id: This is a new field to ADD.
-      if (entry_field > 0) {
-        if (entry_field < kDirectlyIndexLimit) {
-          add_directly_indexed_field(entry_field, msg_id);
-        } else {
-          add_range(entry_field, entry_field + 1, msg_id);
-        }
+      if (entry.field_id < kDirectlyIndexLimit) {
+        add_directly_indexed_field(entry.field_id, entry.message_id);
+      } else {
+        add_range(entry.field_id, entry.field_id + 1, entry.message_id);
       }
-      overlay_idx += entry_size;
+      ++overlay_idx;
     }
-    return matched_msg_id;
+    // No match found.
+    return 0;
   };
 
   bool is_eom = true;
   for (size_t i = 0; i < words.size(); ++i) {
     const uint32_t word = words[i];
     const bool has_next_word = i < words.size() - 1;
-    const uint32_t opcode = word & 0x7u;
-    const uint32_t field_id = word >> 3;
+    const uint32_t opcode = word & kOpcodeMask;
+    const uint32_t field_id = word >> kOpcodeShift;
 
     is_eom = opcode == kFilterOpcode_EndOfMessage;
     if (field_id == 0 && opcode != kFilterOpcode_EndOfMessage) {
@@ -321,6 +331,19 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
       if (process_overlay(std::numeric_limits<uint32_t>::max()) ==
           kOverlayError) {
         return false;
+      }
+
+      // Verify that the ranges are non-overlapping.
+      for (size_t r = 0; r + 3 < ranges.size(); r += 3) {
+        const uint32_t prev_range_end = ranges[r + 1];
+        const uint32_t curr_range_start = ranges[r + 3];
+        if (curr_range_start < prev_range_end) {
+          PERFETTO_DLOG(
+              "bytecode error @ message %u: overlapping ranges [%u, %u) "
+              "and [%u, ...)",
+              current_msg_index, ranges[r], prev_range_end, curr_range_start);
+          return false;
+        }
       }
 
       // For each message append:

@@ -84,8 +84,10 @@ class FilterBytecodeGenerator {
 
   std::vector<uint32_t> bytecode_;
 
-  // Overlay entries for v54. Each entry is [msg_index, field_word, ...].
-  // Currently empty as there are no backwards-incompatible opcodes yet.
+  // Overlay entries for v54. Each entry is [msg_index, field_word] where
+  // field_word = (field_id << 3) | opcode. The overlay contains entries for
+  // opcodes that were rewritten to be backwards-compatible in the main
+  // bytecode. Sorted by (msg_index, field_id).
   std::vector<uint32_t> v54_overlay_;
 };
 
