@@ -259,9 +259,10 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_int64(
     jlong id,
     jlong val) {
   sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
-  field->get()->field_varint.header.type = PERFETTO_TE_HL_PROTO_TYPE_VARINT;
-  field->get()->field_varint.header.id = static_cast<uint32_t>(id);
-  field->get()->field_varint.value = val;
+  auto& field_varint = field->get()->field_varint;
+  field_varint.header.type = PERFETTO_TE_HL_PROTO_TYPE_VARINT;
+  field_varint.header.id = static_cast<uint32_t>(id);
+  field_varint.value = val;
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_double(
@@ -269,9 +270,10 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_double(
     jlong id,
     jdouble val) {
   sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
-  field->get()->field_double.header.type = PERFETTO_TE_HL_PROTO_TYPE_DOUBLE;
-  field->get()->field_double.header.id = static_cast<uint32_t>(id);
-  field->get()->field_double.value = val;
+  auto& field_double = field->get()->field_double;
+  field_double.header.type = PERFETTO_TE_HL_PROTO_TYPE_DOUBLE;
+  field_double.header.id = static_cast<uint32_t>(id);
+  field_double.value = val;
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_string(
@@ -281,9 +283,10 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_string(
     jlong id,
     jstring val) {
   sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
-  field->get()->field_cstr.header.type = PERFETTO_TE_HL_PROTO_TYPE_CSTR;
-  field->get()->field_cstr.header.id = static_cast<uint32_t>(id);
-  field->get()->field_cstr.str = StringBuffer::utf16_to_ascii(env, val).data();
+  auto& field_cstr = field->get()->field_cstr;
+  field_cstr.header.type = PERFETTO_TE_HL_PROTO_TYPE_CSTR;
+  field_cstr.header.id = static_cast<uint32_t>(id);
+  field_cstr.str = StringBuffer::utf16_to_ascii(env, val).data();
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_add_field(
@@ -389,18 +392,18 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_int64(
     jlong ptr,
     jlong val) {
   sdk_for_jni::Counter* counter = toPointer<sdk_for_jni::Counter>(ptr);
-  counter->get()->counter_int64.header.type =
-      PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64;
-  counter->get()->counter_int64.value = val;
+  auto& counter_int64 = counter->get()->counter_int64;
+  counter_int64.header.type = PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64;
+  counter_int64.value = val;
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_double(
     jlong ptr,
     jdouble val) {
   sdk_for_jni::Counter* counter = toPointer<sdk_for_jni::Counter>(ptr);
-  counter->get()->counter_double.header.type =
-      PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE;
-  counter->get()->counter_double.value = val;
+  auto& counter_double = counter->get()->counter_double;
+  counter_double.header.type = PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE;
+  counter_double.value = val;
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtra_init() {
