@@ -84,18 +84,8 @@ struct OverlayEntry {
   uint32_t msg_index;
   uint32_t field_id;
   uint32_t message_id;
-  uint32_t optional_argument;
+  uint32_t argument;
 };
-
-uint32_t GetOverlayWordCountForOpcode(uint32_t opcode) {
-  switch (opcode) {
-    case kFilterOpcode_SimpleField:
-    case kFilterOpcode_FilterString:
-      return 2;  // [msg_index, field_word]
-    default:
-      return 0;  // Invalid opcode
-  }
-}
 
 uint32_t GetOverlayMessageIdForOpcode(uint32_t opcode) {
   switch (opcode) {
@@ -104,7 +94,7 @@ uint32_t GetOverlayMessageIdForOpcode(uint32_t opcode) {
     case kFilterOpcode_FilterString:
       return FilterBytecodeParser::kFilterStringField;
     default:
-      return 0;
+      return 0;  // Invalid opcode
   }
 }
 
@@ -150,36 +140,30 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
       return false;
     }
 
-    // Each entry is [msg_index, field_word[, argument]] where field_id =
-    // field_word >> 3.
-    //
-    // The argument is only present for opcodes that need it.
-    size_t i = 0;
-    while (i < overlay_words.size()) {
+    // Each entry is exactly 3 words: [msg_index, field_word, argument]
+    // where field_id = field_word >> 3. The argument is 0 when not needed.
+    if (overlay_words.size() % 3 != 0) {
+      PERFETTO_DLOG("overlay error: size %zu not multiple of 3",
+                    overlay_words.size());
+      return false;
+    }
+
+    for (size_t i = 0; i < overlay_words.size(); i += 3) {
       overlay.emplace_back();
 
       uint32_t opcode = overlay_words[i + 1] & kOpcodeMask;
-      uint32_t word_count = GetOverlayWordCountForOpcode(opcode);
-      if (word_count == 0) {
+      uint32_t message_id = GetOverlayMessageIdForOpcode(opcode);
+      if (message_id == 0) {
         PERFETTO_DLOG("overlay error: invalid opcode %u at index %zu", opcode,
-                      i);
-        return false;
-      }
-      if (i + word_count > overlay_words.size()) {
-        PERFETTO_DLOG(
-            "overlay error: insufficient words for opcode %u at index %zu",
-            opcode, i);
+                      i + 1);
         return false;
       }
 
       OverlayEntry& entry = overlay.back();
       entry.msg_index = overlay_words[i];
       entry.field_id = overlay_words[i + 1] >> kOpcodeShift;
-      entry.message_id = GetOverlayMessageIdForOpcode(opcode);
-      if (word_count == 3) {
-        entry.optional_argument = overlay_words[i + 2];
-      }
-      i += word_count;
+      entry.message_id = message_id;
+      entry.argument = overlay_words[i + 2];
 
       if (overlay.size() == 1) {
         continue;
@@ -196,10 +180,6 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
             prev_entry.field_id);
         return false;
       }
-    }
-    if (i != overlay_words.size()) {
-      PERFETTO_DLOG("overlay error: trailing words after index %zu", i);
-      return false;
     }
   }
 

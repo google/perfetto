@@ -300,7 +300,8 @@ TEST(FilterBytecodeParserTest, OverlayUpgradeToFilterString) {
        kFilterOpcode_SimpleField | (2u << 3),
        kFilterOpcode_SimpleField | (3u << 3), kFilterOpcode_EndOfMessage},
       {0u,  // msg_index
-       kFilterOpcode_FilterString | (2u << 3)}));
+       kFilterOpcode_FilterString | (2u << 3),
+       0u}));  // argument (unused)
 
   EXPECT_TRUE(parser.Query(0, 1).allowed);
   EXPECT_TRUE(parser.Query(0, 1).simple_field());
@@ -322,7 +323,8 @@ TEST(FilterBytecodeParserTest, OverlayAddNewField) {
       {kFilterOpcode_SimpleField | (1u << 3),
        kFilterOpcode_SimpleField | (3u << 3), kFilterOpcode_EndOfMessage},
       {0u,  // msg_index
-       kFilterOpcode_FilterString | (2u << 3)}));
+       kFilterOpcode_FilterString | (2u << 3),
+       0u}));  // argument (unused)
 
   EXPECT_TRUE(parser.Query(0, 1).allowed);
   EXPECT_TRUE(parser.Query(0, 1).simple_field());
@@ -344,7 +346,8 @@ TEST(FilterBytecodeParserTest, OverlayAddFieldAtEnd) {
       {kFilterOpcode_SimpleField | (1u << 3),
        kFilterOpcode_SimpleField | (2u << 3), kFilterOpcode_EndOfMessage},
       {0u,  // msg_index
-       kFilterOpcode_SimpleField | (5u << 3)}));
+       kFilterOpcode_SimpleField | (5u << 3),
+       0u}));  // argument (unused)
 
   EXPECT_TRUE(parser.Query(0, 1).allowed);
   EXPECT_TRUE(parser.Query(0, 2).allowed);
@@ -364,9 +367,9 @@ TEST(FilterBytecodeParserTest, OverlayMultipleEntries) {
       {kFilterOpcode_SimpleField | (1u << 3),
        kFilterOpcode_SimpleField | (5u << 3),
        kFilterOpcode_SimpleField | (10u << 3), kFilterOpcode_EndOfMessage},
-      {0u, kFilterOpcode_FilterString | (3u << 3),    // add field 3
-       0u, kFilterOpcode_FilterString | (5u << 3),    // upgrade field 5
-       0u, kFilterOpcode_SimpleField | (7u << 3)}));  // add field 7
+      {0u, kFilterOpcode_FilterString | (3u << 3), 0u,   // add field 3
+       0u, kFilterOpcode_FilterString | (5u << 3), 0u,   // upgrade field 5
+       0u, kFilterOpcode_SimpleField | (7u << 3), 0u}));  // add field 7
 
   EXPECT_TRUE(parser.Query(0, 1).allowed);
   EXPECT_TRUE(parser.Query(0, 1).simple_field());
