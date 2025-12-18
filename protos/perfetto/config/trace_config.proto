@@ -79,7 +79,14 @@ message TraceConfig {
     // When true, uses the experimental TraceBufferV2 implementation for this
     // buffer. This is for testing purposes only and may be removed in future
     // versions.
-    optional bool experimental_trace_buffer_v2 = 8;
+    enum ExperimentalMode {
+      // Use the default V1 implementation.
+      MODE_UNSPECIFIED = 0;
+
+      // Use TraceBufferV2.
+      TRACE_BUFFER_V2 = 1;
+    }
+    optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
 

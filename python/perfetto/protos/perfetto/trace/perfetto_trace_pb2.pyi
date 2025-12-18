@@ -4465,7 +4465,7 @@ class TraceConfig(_message.Message):
     STATSD_LOGGING_ENABLED: TraceConfig.StatsdLogging
     STATSD_LOGGING_DISABLED: TraceConfig.StatsdLogging
     class BufferConfig(_message.Message):
-        __slots__ = ("size_kb", "fill_policy", "transfer_on_clone", "clear_before_clone", "name", "experimental_trace_buffer_v2")
+        __slots__ = ("size_kb", "fill_policy", "transfer_on_clone", "clear_before_clone", "name", "experimental_mode")
         class FillPolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
             __slots__ = ()
             UNSPECIFIED: _ClassVar[TraceConfig.BufferConfig.FillPolicy]
@@ -4474,19 +4474,25 @@ class TraceConfig(_message.Message):
         UNSPECIFIED: TraceConfig.BufferConfig.FillPolicy
         RING_BUFFER: TraceConfig.BufferConfig.FillPolicy
         DISCARD: TraceConfig.BufferConfig.FillPolicy
+        class ExperimentalMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+            __slots__ = ()
+            MODE_UNSPECIFIED: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
+            TRACE_BUFFER_V2: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
+        MODE_UNSPECIFIED: TraceConfig.BufferConfig.ExperimentalMode
+        TRACE_BUFFER_V2: TraceConfig.BufferConfig.ExperimentalMode
         SIZE_KB_FIELD_NUMBER: _ClassVar[int]
         FILL_POLICY_FIELD_NUMBER: _ClassVar[int]
         TRANSFER_ON_CLONE_FIELD_NUMBER: _ClassVar[int]
         CLEAR_BEFORE_CLONE_FIELD_NUMBER: _ClassVar[int]
         NAME_FIELD_NUMBER: _ClassVar[int]
-        EXPERIMENTAL_TRACE_BUFFER_V2_FIELD_NUMBER: _ClassVar[int]
+        EXPERIMENTAL_MODE_FIELD_NUMBER: _ClassVar[int]
         size_kb: int
         fill_policy: TraceConfig.BufferConfig.FillPolicy
         transfer_on_clone: bool
         clear_before_clone: bool
         name: str
-        experimental_trace_buffer_v2: bool
-        def __init__(self, size_kb: _Optional[int] = ..., fill_policy: _Optional[_Union[TraceConfig.BufferConfig.FillPolicy, str]] = ..., transfer_on_clone: bool = ..., clear_before_clone: bool = ..., name: _Optional[str] = ..., experimental_trace_buffer_v2: bool = ...) -> None: ...
+        experimental_mode: TraceConfig.BufferConfig.ExperimentalMode
+        def __init__(self, size_kb: _Optional[int] = ..., fill_policy: _Optional[_Union[TraceConfig.BufferConfig.FillPolicy, str]] = ..., transfer_on_clone: bool = ..., clear_before_clone: bool = ..., name: _Optional[str] = ..., experimental_mode: _Optional[_Union[TraceConfig.BufferConfig.ExperimentalMode, str]] = ...) -> None: ...
     class DataSource(_message.Message):
         __slots__ = ("config", "producer_name_filter", "producer_name_regex_filter", "machine_name_filter")
         CONFIG_FIELD_NUMBER: _ClassVar[int]
