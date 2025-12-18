@@ -2863,7 +2863,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileFilterMultipleChunks) {
   // Message 1: TracePacket proto. Allow all fields.
   filt.AddSimpleFieldRange(1, 1000);
   filt.EndMessage();
-  trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize());
+  trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize().bytecode);
 
   base::TempFile tmp_file = base::TempFile::Create();
   consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
@@ -5531,7 +5531,7 @@ TEST_F(TracingServiceImplTest, CloneSession) {
   filt.AddSimpleField(protos::pbzero::TracePacket::kTraceUuidFieldNumber);
   filt.AddSimpleField(protos::pbzero::TracePacket::kForTestingFieldNumber);
   filt.EndMessage();
-  trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize());
+  trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize().bytecode);
 
   consumer->EnableTracing(trace_config);
   producer->WaitForTracingSetup();
@@ -5684,7 +5684,8 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
   // filters out the for_testing packet that we are using below.
   filt.AddSimpleField(protos::pbzero::TracePacket::kTraceUuidFieldNumber);
   filt.EndMessage();
-  trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+  trace_config.mutable_trace_filter()->set_bytecode_v2(
+      filt.Serialize().bytecode);
 
   consumer->EnableTracing(trace_config);
   producer->WaitForTracingSetup();
@@ -6571,7 +6572,8 @@ TEST_F(TracingServiceImplTest, StringFiltering) {
   // Message 2: TestEvent proto. Allow only the `str` sub-field as a striong.
   filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
   filt.EndMessage();
-  trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+  trace_config.mutable_trace_filter()->set_bytecode_v2(
+      filt.Serialize().bytecode);
 
   auto* chain =
       trace_config.mutable_trace_filter()->mutable_string_filter_chain();
@@ -6639,7 +6641,8 @@ TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
   // Message 2: TestEvent proto. Allow only the `str` sub-field as a string.
   filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
   filt.EndMessage();
-  trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+  trace_config.mutable_trace_filter()->set_bytecode_v2(
+      filt.Serialize().bytecode);
 
   auto* chain =
       trace_config.mutable_trace_filter()->mutable_string_filter_chain();

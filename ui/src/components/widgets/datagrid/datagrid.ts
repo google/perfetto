@@ -287,7 +287,7 @@ interface FlatGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly result: DataSource['result'];
+  readonly result: DataSource['rows'];
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
 }
@@ -300,7 +300,7 @@ interface PivotGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly result: DataSource['result'];
+  readonly result: DataSource['rows'];
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
 }
@@ -390,12 +390,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         );
       },
       getRowCount: () => {
-        return datasource?.result?.totalRows;
+        return datasource?.rows?.totalRows;
       },
     });
 
     // Extract the result from the datasource
-    const result = datasource.result;
+    const result = datasource.rows;
 
     // Determine if we're in pivot mode (has groupBy columns and not drilling down)
     const isPivotMode =
@@ -651,7 +651,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       return {field, sort: undefined};
     });
 
-    const newPivot: Pivot = {...this.pivot, groupBy: newGroupBy};
+    // Clear sort on aggregate columns when sorting by groupBy
+    const newAggregates = this.pivot.aggregates?.map((agg) => ({
+      ...agg,
+      sort: undefined,
+    }));
+
+    const newPivot: Pivot = {
+      ...this.pivot,
+      groupBy: newGroupBy,
+      aggregates: newAggregates,
+    };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -979,13 +989,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
-      result,
       columnInfoCache,
       structuredQueryCompatMode,
     } = ctx;
 
     // Find the current sort direction (if any column is sorted)
-    const currentSort = this.columns.find((c) => c.sort)?.sort ?? 'ASC';
+    const currentSortDirection =
+      this.columns.find((c) => c.sort)?.sort ?? 'ASC';
 
     const columns: GridColumn[] = this.columns.map((col, colIndex) => {
       const {field, sort, aggregate} = col;
@@ -1007,7 +1017,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         m(FilterMenu, {
           columnType,
           structuredQueryCompatMode,
-          distinctValues: result?.distinctValues?.get(field),
+          distinctValues: datasource.distinctValues?.get(field),
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
           onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
@@ -1086,7 +1096,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build subContent showing grand total if column has an aggregate
       let subContent: m.Children;
       if (aggregate) {
-        const totalValue = result?.aggregateTotals?.get(field);
+        const totalValue = datasource.aggregateTotals?.get(field);
         const isLoading = totalValue === undefined;
         // Don't show grand total for ANY aggregation (it's just an arbitrary value)
         subContent =
@@ -1108,7 +1118,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           GridHeaderCell,
           {
             sort,
-            hintSortDirection: currentSort,
+            hintSortDirection: currentSortDirection,
             onSort: (direction) => this.updateSort(field, direction, attrs),
             menuItems,
             subContent,
@@ -1184,7 +1194,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       rootSchema,
       datasource,
       pivot,
-      result,
       structuredQueryCompatMode,
     } = ctx;
 
@@ -1221,7 +1230,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         m(FilterMenu, {
           columnType,
           structuredQueryCompatMode,
-          distinctValues: result?.distinctValues?.get(field),
+          distinctValues: datasource.distinctValues?.get(field),
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
           onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
@@ -1362,7 +1371,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build subContent showing grand total with aggregate symbol
       // Don't show grand total for ANY aggregation (it's just an arbitrary value)
-      const aggregateTotalValue = result?.aggregateTotals?.get(alias);
+      const aggregateTotalValue = datasource.aggregateTotals?.get(alias);
       const symbol = agg.function;
       const isLoading = aggregateTotalValue === undefined;
       const subContent =
@@ -1383,6 +1392,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           GridHeaderCell,
           {
             sort,
+            hintSortDirection: currentSortDirection,
             onSort: (direction) =>
               this.updatePivotAggregateSort(i, direction, attrs),
             menuItems,

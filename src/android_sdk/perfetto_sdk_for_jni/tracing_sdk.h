@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/public/abi/track_event_hl_abi.h"
 #include "perfetto/public/tracing_session.h"
 #include "perfetto/public/track_event.h"
 
@@ -100,7 +101,7 @@ class Extra {
   void clear_extras();
   static void delete_extra(Extra* extra);
 
-  PerfettoTeHlExtra* const* get() const;
+  PerfettoTeHlExtra* const* get() const { return extras_.data(); }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Extra);
@@ -130,7 +131,7 @@ class Category {
 
   static void delete_category(Category* category);
 
-  const PerfettoTeCategory* get() const;
+  const PerfettoTeCategory* get() const { return &category_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Category);
@@ -151,7 +152,7 @@ class Flow {
   void set_process_terminating_flow(uint64_t id);
   static void delete_flow(Flow* flow);
 
-  const PerfettoTeHlExtraFlow* get() const;
+  const PerfettoTeHlExtraFlow* get() const { return &flow_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Flow);
@@ -167,7 +168,7 @@ class NamedTrack {
 
   static void delete_track(NamedTrack* track);
 
-  const PerfettoTeHlExtraNamedTrack* get() const;
+  const PerfettoTeHlExtraNamedTrack* get() const { return &track_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(NamedTrack);
@@ -190,7 +191,7 @@ class RegisteredTrack {
   void unregister_track();
   static void delete_track(RegisteredTrack* track);
 
-  const PerfettoTeHlExtraRegisteredTrack* get() const;
+  const PerfettoTeHlExtraRegisteredTrack* get() const { return &track_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(RegisteredTrack);
@@ -204,219 +205,48 @@ class RegisteredTrack {
 
 /**
  * @brief Represents a counter track event.
- * @tparam T The data type of the counter (int64_t or double).
  */
-template <typename T>
 class Counter {
  public:
-  template <typename>
-  struct always_false : std::false_type {};
-
-  template <class I>
-  struct type_identity {
-    using type = I;
-  };
-
-  struct TypeMap {
-    template <typename CounterT>
-    static constexpr auto get_counter_type() {
-      if constexpr (std::is_same_v<CounterT, int64_t>) {
-        return type_identity<PerfettoTeHlExtraCounterInt64>{};
-      } else if constexpr (std::is_same_v<CounterT, double>) {
-        return type_identity<PerfettoTeHlExtraCounterDouble>{};
-      } else {
-        return type_identity<void>{};
-      }
-    }
-    using type = typename decltype(get_counter_type<T>())::type;
-
-    static constexpr int enum_value = []() {
-      if constexpr (std::is_same_v<T, int64_t>) {
-        return PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64;
-      } else if constexpr (std::is_same_v<T, double>) {
-        return PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE;
-      } else {
-        static_assert(always_false<T>::value, "Unsupported type");
-        return 0;  // Never reached, just to satisfy return type
-      }
-    }();
-  };
-
-  Counter() {
-    static_assert(!std::is_same_v<typename TypeMap::type, void>,
-                  "Unsupported type for Counter");
-
-    typename TypeMap::type counter;
-    counter.header = {TypeMap::enum_value};
-    counter_ = std::move(counter);
-  }
-
-  void set_value(T value) {
-    if constexpr (std::is_same_v<T, int64_t>) {
-      counter_.value = value;
-    } else if constexpr (std::is_same_v<T, double>) {
-      counter_.value = value;
-    }
-  }
+  Counter() {}
 
   static void delete_counter(Counter* counter) { delete counter; }
 
-  const typename TypeMap::type* get() const { return &counter_; }
+  PerfettoTeHlExtraCounterUnion* get() { return &counter_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Counter);
-  typename TypeMap::type counter_;
+  PerfettoTeHlExtraCounterUnion counter_;
 };
 
 /**
  * @brief Represents a debug argument for a trace event.
- * @tparam T The data type of the argument (bool, int64_t, double, const char*).
  */
-template <typename T>
 class DebugArg {
  public:
-  template <typename>
-  struct always_false : std::false_type {};
-
-  template <class I>
-  struct type_identity {
-    using type = I;
-  };
-
-  struct TypeMap {
-    template <typename DebugArgT>
-    static constexpr auto get_debug_arg_type() {
-      if constexpr (std::is_same_v<DebugArgT, bool>) {
-        return type_identity<PerfettoTeHlExtraDebugArgBool>{};
-      } else if constexpr (std::is_same_v<DebugArgT, int64_t>) {
-        return type_identity<PerfettoTeHlExtraDebugArgInt64>{};
-      } else if constexpr (std::is_same_v<DebugArgT, double>) {
-        return type_identity<PerfettoTeHlExtraDebugArgDouble>{};
-      } else if constexpr (std::is_same_v<DebugArgT, const char*>) {
-        return type_identity<PerfettoTeHlExtraDebugArgString>{};
-      } else {
-        return type_identity<void>{};
-      }
-    }
-    using type = typename decltype(get_debug_arg_type<T>())::type;
-
-    static constexpr int enum_value = []() {
-      if constexpr (std::is_same_v<T, bool>) {
-        return PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL;
-      } else if constexpr (std::is_same_v<T, int64_t>) {
-        return PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64;
-      } else if constexpr (std::is_same_v<T, double>) {
-        return PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE;
-      } else if constexpr (std::is_same_v<T, const char*>) {
-        return PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING;
-      } else {
-        static_assert(always_false<T>::value, "Unsupported type");
-        return 0;  // Never reached, just to satisfy return type
-      }
-    }();
-  };
-
-  DebugArg(const std::string& name) : name_(name) {
-    static_assert(!std::is_same_v<typename TypeMap::type, void>,
-                  "Unsupported type for DebugArg");
-
-    typename TypeMap::type arg;
-    arg.header = {TypeMap::enum_value};
-    arg.name = name_.c_str();
-    arg_ = std::move(arg);
-  }
-
-  void set_value(T value) {
-    if constexpr (std::is_same_v<T, const char*>) {
-      arg_.value = value;
-    } else if constexpr (std::is_same_v<T, int64_t>) {
-      arg_.value = value;
-    } else if constexpr (std::is_same_v<T, bool>) {
-      arg_.value = value;
-    } else if constexpr (std::is_same_v<T, double>) {
-      arg_.value = value;
-    }
-  }
+  explicit DebugArg(const std::string& name) : name_(name) {}
 
   static void delete_arg(DebugArg* arg) { delete arg; }
 
-  const typename TypeMap::type* get() const { return &arg_; }
+  const char* name() const { return name_.c_str(); }
+  PerfettoTeHlExtraDebugArgUnion* get() { return &arg_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DebugArg);
-  typename TypeMap::type arg_;
+  PerfettoTeHlExtraDebugArgUnion arg_;
   const std::string name_;
 };
 
-template <typename T>
 class ProtoField {
  public:
-  template <typename>
-  struct always_false : std::false_type {};
-
-  template <class I>
-  struct type_identity {
-    using type = I;
-  };
-
-  struct TypeMap {
-    template <typename ProtoT>
-    static constexpr auto get_proto_type() {
-      if constexpr (std::is_same_v<ProtoT, int64_t>) {
-        return type_identity<PerfettoTeHlProtoFieldVarInt>{};
-      } else if constexpr (std::is_same_v<ProtoT, double>) {
-        return type_identity<PerfettoTeHlProtoFieldDouble>{};
-      } else if constexpr (std::is_same_v<ProtoT, const char*>) {
-        return type_identity<PerfettoTeHlProtoFieldCstr>{};
-      } else {
-        return type_identity<void>{};
-      }
-    }
-    using type = typename decltype(get_proto_type<T>())::type;
-
-    static constexpr PerfettoTeHlProtoFieldType enum_value = []() {
-      if constexpr (std::is_same_v<T, int64_t>) {
-        return PERFETTO_TE_HL_PROTO_TYPE_VARINT;
-      } else if constexpr (std::is_same_v<T, double>) {
-        return PERFETTO_TE_HL_PROTO_TYPE_DOUBLE;
-      } else if constexpr (std::is_same_v<T, const char*>) {
-        return PERFETTO_TE_HL_PROTO_TYPE_CSTR;
-      } else {
-        static_assert(always_false<T>::value, "Unsupported type");
-        return 0;  // Never reached, just to satisfy return type
-      }
-    }();
-  };
-
-  ProtoField() {
-    static_assert(!std::is_same_v<typename TypeMap::type, void>,
-                  "Unsupported type for ProtoField");
-
-    typename TypeMap::type arg;
-    arg.header.type = TypeMap::enum_value;
-    arg_ = std::move(arg);
-  }
-
-  void set_value(uint32_t id, T value) {
-    if constexpr (std::is_same_v<T, int64_t>) {
-      arg_.header.id = id;
-      arg_.value = value;
-    } else if constexpr (std::is_same_v<T, double>) {
-      arg_.header.id = id;
-      arg_.value = value;
-    } else if constexpr (std::is_same_v<T, const char*>) {
-      arg_.header.id = id;
-      arg_.str = value;
-    }
-  }
-
+  ProtoField() {}
   static void delete_field(ProtoField* field) { delete field; }
 
-  const typename TypeMap::type* get() const { return &arg_; }
+  PerfettoTeHlProtoFieldUnion* get() { return &arg_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ProtoField);
-  typename TypeMap::type arg_;
+  PerfettoTeHlProtoFieldUnion arg_;
 };
 
 class ProtoFieldNested {
@@ -427,7 +257,7 @@ class ProtoFieldNested {
   void set_id(uint32_t id);
   static void delete_field(ProtoFieldNested* field);
 
-  const PerfettoTeHlProtoFieldNested* get() const;
+  const PerfettoTeHlProtoFieldNested* get() const { return &field_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ProtoFieldNested);
@@ -448,7 +278,7 @@ class Proto {
   void clear_fields();
   static void delete_proto(Proto* proto);
 
-  const PerfettoTeHlExtraProtoFields* get() const;
+  const PerfettoTeHlExtraProtoFields* get() const { return &proto_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Proto);

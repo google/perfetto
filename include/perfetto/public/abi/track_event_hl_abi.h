@@ -106,6 +106,18 @@ struct PerfettoTeHlProtoFieldFloat {
   float value;
 };
 
+// Union over all possible proto field types.
+union PerfettoTeHlProtoFieldUnion {
+  struct PerfettoTeHlProtoFieldCstr field_cstr;
+  struct PerfettoTeHlProtoFieldBytes field_bytes;
+  struct PerfettoTeHlProtoFieldNested field_nested;
+  struct PerfettoTeHlProtoFieldVarInt field_varint;
+  struct PerfettoTeHlProtoFieldFixed64 field_fixed64;
+  struct PerfettoTeHlProtoFieldFixed32 field_fixed32;
+  struct PerfettoTeHlProtoFieldDouble field_double;
+  struct PerfettoTeHlProtoFieldFloat field_float;
+};
+
 // The type of an event extra parameter.
 enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK = 1,
@@ -182,6 +194,12 @@ struct PerfettoTeHlExtraCounterDouble {
   double value;
 };
 
+// Union over all possible counter types.
+union PerfettoTeHlExtraCounterUnion {
+  struct PerfettoTeHlExtraCounterInt64 counter_int64;
+  struct PerfettoTeHlExtraCounterDouble counter_double;
+};
+
 // PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL
 struct PerfettoTeHlExtraDebugArgBool {
   struct PerfettoTeHlExtra header;
@@ -234,6 +252,16 @@ struct PerfettoTeHlExtraDebugArgPointer {
   const char* name;
   // The value of this debug annotation.
   uintptr_t value;
+};
+
+// Union over all possible debug argument types.
+union PerfettoTeHlExtraDebugArgUnion {
+  struct PerfettoTeHlExtraDebugArgBool arg_bool;
+  struct PerfettoTeHlExtraDebugArgUint64 arg_uint64;
+  struct PerfettoTeHlExtraDebugArgInt64 arg_int64;
+  struct PerfettoTeHlExtraDebugArgDouble arg_double;
+  struct PerfettoTeHlExtraDebugArgString arg_string;
+  struct PerfettoTeHlExtraDebugArgPointer arg_pointer;
 };
 
 // PERFETTO_TE_HL_EXTRA_TYPE_FLOW

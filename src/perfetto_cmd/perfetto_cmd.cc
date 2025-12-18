@@ -1249,8 +1249,6 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     ReportTraceToAndroidFrameworkOrCrash();
 #endif
   } else {
-    PERFETTO_LOG("FinalizeTraceAndExit, trace_output_.has_value(): %d",
-                 trace_output_.has_value());
     if (trace_output_.has_value()) {
       uint64_t bytes_written = trace_output_->GetBytesWritten();
       std::string out_path = trace_output_->out_path_;
