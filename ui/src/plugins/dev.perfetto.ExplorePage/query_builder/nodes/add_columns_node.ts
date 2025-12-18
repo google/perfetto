@@ -678,6 +678,9 @@ export class AddColumnsNode implements QueryNode {
     const argSetIdCols = this.getArgSetIdColumns();
 
     if (argSetIdCols.length === 0) {
+      console.warn(
+        'Cannot show args modal: no arg_set_id columns found in input',
+      );
       return;
     }
 

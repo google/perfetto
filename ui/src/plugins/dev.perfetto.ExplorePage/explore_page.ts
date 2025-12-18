@@ -144,7 +144,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       let initialState: PreCreateState | PreCreateState[] | null = {};
       if (descriptor.preCreate) {
         const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-        if (!sqlModules) return;
+        if (!sqlModules) {
+          console.warn('Cannot add operation node: SQL modules not loaded yet');
+          return;
+        }
         initialState = await descriptor.preCreate({sqlModules});
       }
 
@@ -162,7 +165,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       }
 
       const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-      if (!sqlModules) return;
+      if (!sqlModules) {
+        console.warn('Cannot add operation node: SQL modules not loaded yet');
+        return;
+      }
 
       // Use a wrapper object to hold the node reference (allows mutation without 'let')
       const nodeRef: {current?: QueryNode} = {};
@@ -256,21 +262,31 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return newNode;
     }
 
+    console.warn(
+      `Cannot add operation node: unknown type '${derivedNodeId}' for source node ${node.nodeId}`,
+    );
     return undefined;
   }
 
   private async handleAddSourceNode(attrs: ExplorePageAttrs, id: string) {
     const descriptor = nodeRegistry.get(id);
-    if (!descriptor) return;
+    if (!descriptor) {
+      console.warn(`Cannot add source node: unknown node type '${id}'`);
+      return;
+    }
 
     let initialState: PreCreateState | PreCreateState[] | null = {};
 
     if (descriptor.preCreate) {
       const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-      if (!sqlModules) return;
+      if (!sqlModules) {
+        console.warn('Cannot add source node: SQL modules not loaded yet');
+        return;
+      }
       initialState = await descriptor.preCreate({sqlModules});
     }
 
+    // User cancelled the preCreate dialog
     if (initialState === null) {
       return;
     }
@@ -298,7 +314,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     // If no nodes were successfully created, return early
+    // (errors were already logged in the try-catch above)
     if (newNodes.length === 0) {
+      console.warn('No nodes were created from the preCreate result');
       return;
     }
 
@@ -390,7 +408,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs.setHasAutoInitialized(true);
 
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
+    if (!sqlModules) {
+      console.warn('Cannot auto-initialize tables: SQL modules not loaded yet');
+      return;
+    }
 
     try {
       // Load the base page state from JSON
@@ -419,11 +440,17 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     portIndex: number,
   ) {
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
+    if (!sqlModules) {
+      console.warn('Cannot add table: SQL modules not loaded yet');
+      return;
+    }
 
     // Get the table descriptor
     const descriptor = nodeRegistry.get('table');
-    if (!descriptor) return;
+    if (!descriptor) {
+      console.warn("Cannot add table: 'table' node type not found in registry");
+      return;
+    }
 
     // Find the table in SQL modules
     const sqlTable = sqlModules.listTables().find((t) => t.name === tableName);
@@ -458,11 +485,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     portIndex: number,
   ) {
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
+    if (!sqlModules) {
+      console.warn('Cannot insert modify columns node: SQL modules not loaded');
+      return;
+    }
 
     // Get the ModifyColumns descriptor
     const descriptor = nodeRegistry.get('modify_columns');
-    if (!descriptor) return;
+    if (!descriptor) {
+      console.warn(
+        "Cannot insert modify columns node: 'modify_columns' node type not found in registry",
+      );
+      return;
+    }
 
     // Get the current input node at the specified port
     const inputNode = getInputNodeAtPort(targetNode, portIndex);
@@ -911,7 +946,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private async loadStateFromJson(attrs: ExplorePageAttrs, json: string) {
     const {trace, sqlModulesPlugin, state, onStateUpdate} = attrs;
     const sqlModules = sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
+    if (!sqlModules) {
+      console.warn('Cannot load state from JSON: SQL modules not loaded yet');
+      return;
+    }
 
     await this.cleanupExistingNodes(state.rootNodes);
 
@@ -1029,7 +1067,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   private handleUndo(attrs: ExplorePageAttrs) {
-    if (!this.historyManager) return;
+    if (!this.historyManager) {
+      console.warn('Cannot undo: history manager not initialized');
+      return;
+    }
 
     const previousState = this.historyManager.undo();
     if (previousState) {
@@ -1038,7 +1079,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   private handleRedo(attrs: ExplorePageAttrs) {
-    if (!this.historyManager) return;
+    if (!this.historyManager) {
+      console.warn('Cannot redo: history manager not initialized');
+      return;
+    }
 
     const nextState = this.historyManager.redo();
     if (nextState) {

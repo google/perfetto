@@ -469,6 +469,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               },
               onExecute: async () => {
                 if (!selectedNode.validate()) {
+                  console.warn(
+                    `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
+                  );
                   return;
                 }
 
