@@ -30,6 +30,7 @@ import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
 import {Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
+import {createSimpleSchema} from './widgets/datagrid/sql_schema';
 import {BarChartData, ColumnDef} from './aggregation';
 import {
   createPerfettoTable,
@@ -237,7 +238,8 @@ export function createAggregationTab(
             data = await aggregation?.prepareData(trace.engine);
             dataSource = new SQLDataSource({
               engine: trace.engine,
-              baseQuery: data.tableName,
+              sqlSchema: createSimpleSchema(data.tableName),
+              rootSchemaName: 'query',
             });
           }
         });
