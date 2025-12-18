@@ -79,7 +79,7 @@ class FilterBytecodeParser {
   // can add new fields or upgrade existing fields (e.g., to FilterString).
   // The overlay uses the same opcode format as the base bytecode, but with an
   // explicit message index prefix:
-  //   [msg_index, (field_id << 3) | opcode, extra_args...] ... [checksum]
+  //   [msg_index, (field_id << 3) | opcode, argument] ... [checksum]
   // Entry sizes depend on the opcode (same as base bytecode).
   // Entries must be sorted by (msg_index, field_id). The base bytecode and
   // overlay are merged during loading, maintaining sorted field order.
