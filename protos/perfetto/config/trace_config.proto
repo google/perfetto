@@ -75,6 +75,18 @@ message TraceConfig {
     // session. This provides a more human-readable and less error-prone way to
     // configure which buffer a data source writes to.
     optional string name = 7;
+
+    // When true, uses the experimental TraceBufferV2 implementation for this
+    // buffer. This is for testing purposes only and may be removed in future
+    // versions.
+    enum ExperimentalMode {
+      // Use the default V1 implementation.
+      MODE_UNSPECIFIED = 0;
+
+      // Use TraceBufferV2.
+      TRACE_BUFFER_V2 = 1;
+    }
+    optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
 

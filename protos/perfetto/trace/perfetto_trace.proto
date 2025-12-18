@@ -4309,6 +4309,18 @@ message TraceConfig {
     // session. This provides a more human-readable and less error-prone way to
     // configure which buffer a data source writes to.
     optional string name = 7;
+
+    // When true, uses the experimental TraceBufferV2 implementation for this
+    // buffer. This is for testing purposes only and may be removed in future
+    // versions.
+    enum ExperimentalMode {
+      // Use the default V1 implementation.
+      MODE_UNSPECIFIED = 0;
+
+      // Use TraceBufferV2.
+      TRACE_BUFFER_V2 = 1;
+    }
+    optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
 
@@ -15350,7 +15362,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 44.
+// Next id: 45.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -15442,8 +15454,17 @@ message InternedData {
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
+  // Interned job names for Android Job Names. These are separate from
+  // other strings because they are under app control.
+  repeated AndroidJobName android_job_name = 44;
+
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
+}
+
+message AndroidJobName {
+  optional uint64 iid = 1;
+  optional string name = 2;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
