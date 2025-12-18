@@ -58,7 +58,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
@@ -67,7 +66,6 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/consumer.h"
-#include "perfetto/ext/tracing/core/observable_events.h"
 #include "perfetto/ext/tracing/core/priority_boost_config.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
@@ -77,8 +75,6 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/static_buffer.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
-#include "perfetto/tracing/core/tracing_service_capabilities.h"
-#include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/protozero/filtering/message_filter.h"
 #include "src/protozero/filtering/string_filter.h"
@@ -86,6 +82,7 @@
 #include "src/tracing/service/packet_stream_validator.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_v1.h"
+#include "src/tracing/service/trace_buffer_v2.h"
 
 #include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -363,7 +360,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
 
   auto uid = client_identity.uid();
   if (lockdown_mode_ && uid != base::GetCurrentUserId()) {
-    PERFETTO_DLOG("Lockdown mode. Rejecting producer with UID %ld",
+    PERFETTO_DLOG("Lockdown mode. Rejecting producer with UID %lu",
                   static_cast<unsigned long>(uid));
     return nullptr;
   }
@@ -1136,8 +1133,14 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         buffer_cfg.fill_policy() == TraceConfig::BufferConfig::DISCARD
             ? TraceBuffer::kDiscard
             : TraceBuffer::kOverwrite;
-    auto it_and_inserted =
-        buffers_.emplace(global_id, TraceBufferV1::Create(buf_size, policy));
+    std::unique_ptr<TraceBuffer> new_buffer;
+    if (buffer_cfg.experimental_mode() ==
+        TraceConfig::BufferConfig::TRACE_BUFFER_V2) {
+      new_buffer = TraceBufferV2::Create(buf_size, policy);
+    } else {
+      new_buffer = TraceBufferV1::Create(buf_size, policy);
+    }
+    auto it_and_inserted = buffers_.emplace(global_id, std::move(new_buffer));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
     std::unique_ptr<TraceBuffer>& trace_buffer = it_and_inserted.first->second;
     if (!trace_buffer) {
@@ -1513,10 +1516,10 @@ void TracingServiceImpl::StartDataSourceInstance(
 
   if (producer->IsAndroidProcessFrozen()) {
     PERFETTO_DLOG(
-        "skipping waiting of data source \"%s\" on producer \"%s\" (pid=%u) "
+        "skipping waiting of data source \"%s\" on producer \"%s\" (pid=%d) "
         "because it is frozen",
         instance->data_source_name.c_str(), producer->name_.c_str(),
-        producer->pid());
+        static_cast<int>(producer->pid()));
     start_immediately = true;
   }
 
@@ -3084,10 +3087,10 @@ void TracingServiceImpl::StopDataSourceInstance(ProducerEndpointImpl* producer,
   const DataSourceInstanceID ds_inst_id = instance->instance_id;
   if (producer->IsAndroidProcessFrozen()) {
     PERFETTO_DLOG(
-        "skipping waiting of data source \"%s\" on producer \"%s\" (pid=%u) "
+        "skipping waiting of data source \"%s\" on producer \"%s\" (pid=%d) "
         "because it is frozen",
         instance->data_source_name.c_str(), producer->name_.c_str(),
-        producer->pid());
+        static_cast<int>(producer->pid()));
     disable_immediately = true;
   }
   if (instance->will_notify_on_stop && !disable_immediately) {
@@ -4305,7 +4308,11 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     const auto buf_policy = buf->overwrite_policy();
     const auto buf_size = buf->size();
     std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
-    buf = TraceBufferV1::Create(buf_size, buf_policy);
+    if (old_buf->is_trace_buffer_v2()) {
+      buf = TraceBufferV2::Create(buf_size, buf_policy);
+    } else {
+      buf = TraceBufferV1::Create(buf_size, buf_policy);
+    }
     if (!buf) {
       // This is extremely rare but could happen on 32-bit. If the new buffer
       // allocation failed, put back the buffer where it was and fail the clone.
@@ -4476,8 +4483,13 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
     if (src.config.buffers()[buf_idx].transfer_on_clone()) {
       const auto buf_policy = src_buf->overwrite_policy();
       const auto buf_size = src_buf->size();
+      const bool is_tbv2 = src_buf->is_trace_buffer_v2();
       new_buf = std::move(src_buf);
-      src_buf = TraceBufferV1::Create(buf_size, buf_policy);
+      if (is_tbv2) {
+        src_buf = TraceBufferV2::Create(buf_size, buf_policy);
+      } else {
+        src_buf = TraceBufferV1::Create(buf_size, buf_policy);
+      }
       if (!src_buf) {
         // If the allocation fails put the buffer back and let the code below
         // handle the failure gracefully.

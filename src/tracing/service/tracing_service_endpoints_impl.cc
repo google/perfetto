@@ -507,7 +507,7 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
     } else
       chunk = shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
     if (!chunk.is_valid()) {
-      PERFETTO_DLOG("Asked to move chunk %d:%d, but it's not complete",
+      PERFETTO_DLOG("Asked to move chunk %u:%u, but it's not complete",
                     entry.page(), entry.chunk());
       continue;
     }

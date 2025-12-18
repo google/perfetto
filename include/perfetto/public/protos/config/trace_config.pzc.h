@@ -106,6 +106,14 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_BufferConfig, FillPolicy){
                                   DISCARD) = 2,
 };
 
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_BufferConfig,
+                        ExperimentalMode){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
+                                  MODE_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
+                                  TRACE_BUFFER_V2) = 1,
+};
+
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   MSG,
@@ -610,5 +618,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,
                   bool,
                   clear_before_clone,
                   6);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,
+                  STRING,
+                  const char*,
+                  name,
+                  7);
+PERFETTO_PB_FIELD(
+    perfetto_protos_TraceConfig_BufferConfig,
+    VARINT,
+    enum perfetto_protos_TraceConfig_BufferConfig_ExperimentalMode,
+    experimental_mode,
+    8);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_TRACE_CONFIG_PZC_H_
