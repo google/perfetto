@@ -15,7 +15,7 @@
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {DataSource, DataSourceModel, DataSourceResult} from './data_source';
+import {DataSource, DataSourceModel, DataSourceRows} from './data_source';
 import {Column, Filter, Pivot} from './model';
 
 export class InMemoryDataSource implements DataSource {
@@ -35,15 +35,30 @@ export class InMemoryDataSource implements DataSource {
     this.filteredSortedData = data;
   }
 
-  get result(): DataSourceResult {
+  get rows(): DataSourceRows {
     return {
       rowOffset: 0,
       rows: this.filteredSortedData,
       totalRows: this.filteredSortedData.length,
-      distinctValues: this.distinctValuesCache,
-      parameterKeys: this.parameterKeysCache,
-      aggregateTotals: this.aggregateTotalsCache,
     };
+  }
+
+  get distinctValues(): ReadonlyMap<string, readonly SqlValue[]> | undefined {
+    return this.distinctValuesCache.size > 0
+      ? this.distinctValuesCache
+      : undefined;
+  }
+
+  get parameterKeys(): ReadonlyMap<string, readonly string[]> | undefined {
+    return this.parameterKeysCache.size > 0
+      ? this.parameterKeysCache
+      : undefined;
+  }
+
+  get aggregateTotals(): ReadonlyMap<string, SqlValue> | undefined {
+    return this.aggregateTotalsCache.size > 0
+      ? this.aggregateTotalsCache
+      : undefined;
   }
 
   notify({

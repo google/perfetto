@@ -83,6 +83,7 @@ import {
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
+import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -115,6 +116,8 @@ export interface BuilderAttrs {
     width: number;
     text: string;
   }>;
+  readonly isExplorerCollapsed?: boolean;
+  readonly sidebarWidth?: number;
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
@@ -136,6 +139,8 @@ export interface BuilderAttrs {
       text: string;
     }>,
   ) => void;
+  readonly onExplorerCollapsedChange?: (collapsed: boolean) => void;
+  readonly onSidebarWidthChange?: (width: number) => void;
 
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
@@ -181,14 +186,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private isQueryRunning: boolean = false;
   private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
-  private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
   private dataSource?: DataSource;
   private drawerVisibility = SplitPanelDrawerVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
-  private sidebarWidth: number = 500; // Default width in pixels
   private readonly MIN_SIDEBAR_WIDTH = 250;
   private readonly MAX_SIDEBAR_WIDTH = 800;
+  private readonly DEFAULT_SIDEBAR_WIDTH = 500;
   private hasEverSelectedNode = false;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
@@ -197,15 +201,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.queryExecutionService = attrs.queryExecutionService;
   }
 
-  private handleSidebarResize(deltaPx: number) {
+  private handleSidebarResize(attrs: BuilderAttrs, deltaPx: number) {
+    const currentWidth = attrs.sidebarWidth ?? this.DEFAULT_SIDEBAR_WIDTH;
     // Subtract delta because the handle is on the left edge of the sidebar
     // Dragging left (negative delta) = narrower sidebar (positive change)
     // Dragging right (positive delta) = wider sidebar (negative change)
-    this.sidebarWidth = Math.max(
+    const newWidth = Math.max(
       this.MIN_SIDEBAR_WIDTH,
-      Math.min(this.MAX_SIDEBAR_WIDTH, this.sidebarWidth - deltaPx),
+      Math.min(this.MAX_SIDEBAR_WIDTH, currentWidth - deltaPx),
     );
-    m.redraw();
+    attrs.onSidebarWidthChange?.(newWidth);
   }
 
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
@@ -301,14 +306,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       }
     }
 
+    const isExplorerCollapsed = attrs.isExplorerCollapsed ?? false;
+    const sidebarWidth = attrs.sidebarWidth ?? this.DEFAULT_SIDEBAR_WIDTH;
+
     // When transitioning to unselected state with collapsed explorer, reappear at minimum size
-    if (
-      !selectedNode &&
-      this.previousSelectedNode &&
-      this.isExplorerCollapsed
-    ) {
-      this.isExplorerCollapsed = false;
-      this.sidebarWidth = this.MIN_SIDEBAR_WIDTH;
+    if (!selectedNode && this.previousSelectedNode && isExplorerCollapsed) {
+      attrs.onExplorerCollapsedChange?.(false);
+      attrs.onSidebarWidthChange?.(this.MIN_SIDEBAR_WIDTH);
     }
 
     this.previousSelectedNode = selectedNode;
@@ -316,7 +320,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const layoutClasses =
       classNames(
         'pf-query-builder-layout',
-        this.isExplorerCollapsed && 'explorer-collapsed',
+        isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
 
     const explorer = selectedNode
@@ -361,7 +365,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
             attrs.onNodeStateChange?.();
           },
-          isCollapsed: this.isExplorerCollapsed,
+          isCollapsed: isExplorerCollapsed,
           selectedView: this.selectedView,
           onViewChange: (view: number) => {
             this.selectedView = view;
@@ -504,15 +508,15 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       ),
       m(ResizeHandle, {
         direction: 'horizontal',
-        onResize: (deltaPx) => this.handleSidebarResize(deltaPx),
+        onResize: (deltaPx) => this.handleSidebarResize(attrs, deltaPx),
       }),
       m(
         '.pf-qb-explorer',
         {
           style: {
-            width: this.isExplorerCollapsed
+            width: isExplorerCollapsed
               ? '0'
-              : `${this.sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
+              : `${sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
           },
         },
         explorer,
@@ -524,19 +528,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: Icons.Info,
             title: 'Info',
             className:
-              this.selectedView === SelectedView.kInfo &&
-              !this.isExplorerCollapsed
+              this.selectedView === SelectedView.kInfo && !isExplorerCollapsed
                 ? 'pf-active'
                 : '',
             onclick: () => {
               if (
                 this.selectedView === SelectedView.kInfo &&
-                !this.isExplorerCollapsed
+                !isExplorerCollapsed
               ) {
-                this.isExplorerCollapsed = true;
+                attrs.onExplorerCollapsedChange?.(true);
               } else {
                 this.selectedView = SelectedView.kInfo;
-                this.isExplorerCollapsed = false;
+                attrs.onExplorerCollapsedChange?.(false);
               }
             },
           }),
@@ -546,18 +549,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               title: 'Edit',
               className:
                 this.selectedView === SelectedView.kModify &&
-                !this.isExplorerCollapsed
+                !isExplorerCollapsed
                   ? 'pf-active'
                   : '',
               onclick: () => {
                 if (
                   this.selectedView === SelectedView.kModify &&
-                  !this.isExplorerCollapsed
+                  !isExplorerCollapsed
                 ) {
-                  this.isExplorerCollapsed = true;
+                  attrs.onExplorerCollapsedChange?.(true);
                 } else {
                   this.selectedView = SelectedView.kModify;
-                  this.isExplorerCollapsed = false;
+                  attrs.onExplorerCollapsedChange?.(false);
                 }
               },
             }),
@@ -565,19 +568,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'code',
             title: 'Result',
             className:
-              this.selectedView === SelectedView.kResult &&
-              !this.isExplorerCollapsed
+              this.selectedView === SelectedView.kResult && !isExplorerCollapsed
                 ? 'pf-active'
                 : '',
             onclick: () => {
               if (
                 this.selectedView === SelectedView.kResult &&
-                !this.isExplorerCollapsed
+                !isExplorerCollapsed
               ) {
-                this.isExplorerCollapsed = true;
+                attrs.onExplorerCollapsedChange?.(true);
               } else {
                 this.selectedView = SelectedView.kResult;
-                this.isExplorerCollapsed = false;
+                attrs.onExplorerCollapsedChange?.(false);
               }
             },
           }),
@@ -637,7 +639,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
     this.dataSource = new SQLDataSource({
       engine,
-      baseQuery: `SELECT * FROM ${result.tableName}`,
+      sqlSchema: createSimpleSchema(result.tableName),
+      rootSchemaName: 'query',
     });
     this.queryExecuted = true;
     this.isQueryRunning = false;
