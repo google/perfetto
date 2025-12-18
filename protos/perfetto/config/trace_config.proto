@@ -658,10 +658,11 @@ message TraceConfig {
     // Note:
     // Unlike bytecode_v2 (which uses implicit message indices via EndOfMessage
     // markers), this overlay uses a triplet format with explicit indices:
-    //   [msg_index, field_id << 3 & opcode, argument] ... [checksum]
-    // Each value is varint-encoded. Triplets must be sorted by (msg_index,
-    // field_id). The parser processes bytecode_v2 and this overlay
-    // simultaneously:
+    //   [msg_index, field_id << 3 | opcode, argument] ... [checksum]
+    // Each entry is exactly 3 varints. The argument is 0 when not needed.
+    // Entries must be sorted by (msg_index, field_id).
+    //
+    // The parser processes bytecode_v2 and this overlay simultaneously:
     //  - any field not mentioned in the overlay is parsed as usual
     //  - any field in the overlay but *not* in the bytecode_v2 is added
     //    with its overlay value

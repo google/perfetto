@@ -404,8 +404,8 @@ TEST(FilterBytecodeParserTest, OverlayMultipleMessages) {
        kFilterOpcode_SimpleField | (1u << 3), kFilterOpcode_EndOfMessage,
        // Message 1
        kFilterOpcode_SimpleField | (2u << 3), kFilterOpcode_EndOfMessage},
-      {0u, kFilterOpcode_FilterString | (3u << 3),     // msg 0, field 3
-       1u, kFilterOpcode_FilterString | (4u << 3)}));  // msg 1, field 4
+      {0u, kFilterOpcode_FilterString | (3u << 3), 0u,    // msg 0, field 3
+       1u, kFilterOpcode_FilterString | (4u << 3), 0u}));  // msg 1, field 4
 
   // Message 0
   EXPECT_TRUE(parser.Query(0, 1).allowed);
@@ -431,7 +431,7 @@ TEST(FilterBytecodeParserTest, OverlayLargeFieldId) {
   EXPECT_TRUE(LoadBytecodeWithOverlay(
       &parser,
       {kFilterOpcode_SimpleField | (1u << 3), kFilterOpcode_EndOfMessage},
-      {0u, kFilterOpcode_FilterString | (200u << 3)}));
+      {0u, kFilterOpcode_FilterString | (200u << 3), 0u}));
 
   EXPECT_TRUE(parser.Query(0, 1).allowed);
   EXPECT_FALSE(parser.Query(0, 127).allowed);
