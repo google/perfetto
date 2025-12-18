@@ -84,11 +84,20 @@ struct OverlayEntry {
   uint32_t msg_index;
   uint32_t field_id;
   uint32_t message_id;
-  uint32_t field_word;
+  uint32_t optional_argument;
 };
 
-// Returns the msg_id to store for an overlay entry's opcode.
-uint32_t GetMessageId(uint32_t opcode) const {
+uint32_t GetOverlayWordCountForOpcode(uint32_t opcode) {
+  switch (opcode) {
+    case kFilterOpcode_SimpleField:
+    case kFilterOpcode_FilterString:
+      return 2;  // [msg_index, field_word]
+    default:
+      return 0;  // Invalid opcode
+  }
+}
+
+uint32_t GetOverlayMessageIdForOpcode(uint32_t opcode) {
   switch (opcode) {
     case kFilterOpcode_SimpleField:
       return FilterBytecodeParser::kSimpleField;
@@ -140,28 +149,37 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
                                 suppress_logs_for_fuzzer_)) {
       return false;
     }
-    if (overlay_words.size() % 3 != 0) {
-      PERFETTO_DLOG("overlay error: size not multiple of 3 words");
-      return false;
-    }
 
-    // Each entry is [msg_index, field_word] where field_id = field_word >> 3.
-    for (size_t i = 0; i < overlay_words.size(); i += 3) {
+    // Each entry is [msg_index, field_word[, argument]] where field_id =
+    // field_word >> 3.
+    //
+    // The argument is only present for opcodes that need it.
+    for (size_t i = 0; i < overlay_words.size();) {
       overlay.emplace_back();
 
       uint32_t opcode = overlay_words[i + 1] & kOpcodeMask;
+      uint32_t word_count = GetOverlayWordCountForOpcode(opcode);
+      if (word_count == 0) {
+        PERFETTO_DLOG("overlay error: invalid opcode %u at index %zu", opcode,
+                      i);
+        return false;
+      }
+      if (i + word_count >= overlay_words.size()) {
+        PERFETTO_DLOG(
+            "overlay error: insufficient words for opcode %u at index %zu",
+            opcode, i);
+        return false;
+      }
 
       OverlayEntry& entry = overlay.back();
       entry.msg_index = overlay_words[i];
       entry.field_id = overlay_words[i + 1] >> kOpcodeShift;
-      entry.message_id = GetMessageId(opcode);
-      entry.field_word = overlay_words[i + 2];
-
-      if (entry.message_id == 0) {
-        PERFETTO_DLOG("overlay error: invalid opcode %u at index %zu", opcode,
-                      i + 1);
-        return false;
+      entry.message_id = GetOverlayMessageIdForOpcode(opcode);
+      if (word_count == 3) {
+        entry.optional_argument = overlay_words[i + 2];
       }
+      i += word_count;
+
       if (overlay.size() == 1) {
         continue;
       }
@@ -333,7 +351,8 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
         return false;
       }
 
-      // Verify that the ranges are non-overlapping.
+      // Verify that the ranges are non-overlapping. Assumes that the ranges
+      // are sorted (they are, because the bytecode is sorted).
       for (size_t r = 0; r + 3 < ranges.size(); r += 3) {
         const uint32_t prev_range_end = ranges[r + 1];
         const uint32_t curr_range_start = ranges[r + 3];

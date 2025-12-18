@@ -16,6 +16,10 @@
 
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <string>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
