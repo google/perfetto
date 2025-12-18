@@ -187,28 +187,30 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_int64(
     jlong ptr,
     jlong val) {
   sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
-  arg->get()->arg_int64.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64;
-  arg->get()->arg_int64.name = arg->name();
-  arg->get()->arg_int64.value = val;
+  auto& arg_int64 = arg->get()->arg_int64;
+  arg_int64.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64;
+  arg_int64.name = arg->name();
+  arg_int64.value = val;
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_bool(
     jlong ptr,
     jboolean val) {
   sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
-  arg->get()->arg_bool.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL;
-  arg->get()->arg_bool.name = arg->name();
-  arg->get()->arg_bool.value = val;
+  auto& arg_bool = arg->get()->arg_bool;
+  arg_bool.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL;
+  arg_bool.name = arg->name();
+  arg_bool.value = val;
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_double(
     jlong ptr,
     jdouble val) {
   sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
-  arg->get()->arg_double.header.type =
-      PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE;
-  arg->get()->arg_double.name = arg->name();
-  arg->get()->arg_double.value = val;
+  auto& arg_double = arg->get()->arg_double;
+  arg_double.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE;
+  arg_double.name = arg->name();
+  arg_double.value = val;
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_string(
@@ -217,10 +219,10 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_string(
     jlong ptr,
     jstring val) {
   sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
-  arg->get()->arg_string.header.type =
-      PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING;
-  arg->get()->arg_string.name = arg->name();
-  arg->get()->arg_string.value = StringBuffer::utf16_to_ascii(env, val).data();
+  auto& arg_string = arg->get()->arg_string;
+  arg_string.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING;
+  arg_string.name = arg->name();
+  arg_string.value = StringBuffer::utf16_to_ascii(env, val).data();
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_init() {
