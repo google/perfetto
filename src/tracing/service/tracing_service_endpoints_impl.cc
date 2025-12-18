@@ -490,6 +490,7 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
 
     SharedMemoryABI::Chunk chunk;
     bool commit_data_over_ipc = entry.has_data();
+    bool chunk_complete = true;
     if (PERFETTO_UNLIKELY(commit_data_over_ipc)) {
       // Chunk data is passed over the wire. Create a chunk using the serialized
       // protobuf message.
@@ -504,10 +505,11 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
           reinterpret_cast<uint8_t*>(const_cast<char*>(data.data())),
           static_cast<uint16_t>(entry.data().size()),
           static_cast<uint8_t>(entry.chunk()));
+      chunk_complete = !entry.chunk_incomplete();
     } else
       chunk = shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
     if (!chunk.is_valid()) {
-      PERFETTO_DLOG("Asked to move chunk %d:%d, but it's not complete",
+      PERFETTO_DLOG("Asked to move chunk %u:%u, but it's not complete",
                     entry.page(), entry.chunk());
       continue;
     }
@@ -527,8 +529,8 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
 
     service_->CopyProducerPageIntoLogBuffer(
         id_, client_identity_, writer_id, chunk_id, buffer_id, num_fragments,
-        chunk_flags,
-        /*chunk_complete=*/true, chunk.payload_begin(), chunk.payload_size());
+        chunk_flags, chunk_complete, chunk.payload_begin(),
+        chunk.payload_size());
 
     if (!commit_data_over_ipc) {
       // This one has release-store semantics.
