@@ -76,7 +76,7 @@ describe('InMemoryDataSource', () => {
   });
 
   test('initialization', () => {
-    const result = dataSource.result;
+    const result = dataSource.rows;
     expect(result.rowOffset).toBe(0);
     expect(result.totalRows).toBe(sampleData.length);
     expect(result.rows).toEqual(sampleData);
@@ -86,7 +86,7 @@ describe('InMemoryDataSource', () => {
     test('equality filter', () => {
       const filters: Filter[] = [{field: 'name', op: '=', value: 'Alice'}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
       expect(result.rows[0].name).toBe('Alice');
     });
@@ -94,7 +94,7 @@ describe('InMemoryDataSource', () => {
     test('inequality filter', () => {
       const filters: Filter[] = [{field: 'active', op: '!=', value: 1}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(3); // Bob, David, Mallory
       result.rows.forEach((row) => expect(row.active).toBe(0));
     });
@@ -102,7 +102,7 @@ describe('InMemoryDataSource', () => {
     test('less than filter', () => {
       const filters: Filter[] = [{field: 'value', op: '<', value: 150}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       // David (null), Alice (100), Eve (100)
       expect(result.totalRows).toBe(3);
       expect(result.rows.map((r) => r.id).sort()).toEqual([1, 4, 5]);
@@ -111,7 +111,7 @@ describe('InMemoryDataSource', () => {
     test('less than or equal filter', () => {
       const filters: Filter[] = [{field: 'value', op: '<=', value: 150}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       // David (null), Alice (100), Charlie (150), Eve (100)
       expect(result.totalRows).toBe(4);
       expect(result.rows.map((r) => r.id).sort()).toEqual([1, 3, 4, 5]);
@@ -120,7 +120,7 @@ describe('InMemoryDataSource', () => {
     test('greater than filter', () => {
       const filters: Filter[] = [{field: 'value', op: '>', value: 200}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(2); // Mallory (300n), Trent (250n)
       expect(result.rows.map((r) => r.id).sort()).toEqual([6, 7]);
     });
@@ -128,7 +128,7 @@ describe('InMemoryDataSource', () => {
     test('greater than or equal filter with bigint', () => {
       const filters: Filter[] = [{field: 'value', op: '>=', value: 250n}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(2); // Mallory, Trent
       expect(result.rows.map((r) => r.id).sort()).toEqual([6, 7]);
     });
@@ -136,7 +136,7 @@ describe('InMemoryDataSource', () => {
     test('is null filter', () => {
       const filters: Filter[] = [{field: 'value', op: 'is null'}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
       expect(result.rows[0].id).toBe(4); // David
     });
@@ -144,7 +144,7 @@ describe('InMemoryDataSource', () => {
     test('is not null filter', () => {
       const filters: Filter[] = [{field: 'blob', op: 'is not null'}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(6); // All except Charlie
       expect(result.rows.find((r) => r.id === 3)).toBeUndefined();
     });
@@ -152,7 +152,7 @@ describe('InMemoryDataSource', () => {
     test('glob filter', () => {
       const filters: Filter[] = [{field: 'name', op: 'glob', value: 'A*e'}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
       expect(result.rows[0].name).toBe('Alice');
     });
@@ -160,7 +160,7 @@ describe('InMemoryDataSource', () => {
     test('glob filter with ?', () => {
       const filters: Filter[] = [{field: 'name', op: 'glob', value: 'B?b'}];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
       expect(result.rows[0].name).toBe('Bob');
     });
@@ -171,7 +171,7 @@ describe('InMemoryDataSource', () => {
         {field: 'tag', op: '=', value: 'A'},
       ];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(3); // Alice, Charlie, Trent
       result.rows.forEach((row) => {
         expect(row.active).toBe(1);
@@ -184,7 +184,7 @@ describe('InMemoryDataSource', () => {
         {field: 'name', op: '=', value: 'NonExistent'},
       ];
       dataSource.notify({filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.totalRows).toBe(0);
       expect(result.rows.length).toBe(0);
     });
@@ -194,7 +194,7 @@ describe('InMemoryDataSource', () => {
     test('sort by string ascending', () => {
       const columns: Column[] = [{field: 'name', sort: 'ASC'}];
       dataSource.notify({columns, filters: []});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.rows.map((r) => r.name)).toEqual([
         'Alice',
         'Bob',
@@ -209,7 +209,7 @@ describe('InMemoryDataSource', () => {
     test('sort by string descending', () => {
       const columns: Column[] = [{field: 'name', sort: 'DESC'}];
       dataSource.notify({columns, filters: []});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.rows.map((r) => r.name)).toEqual([
         'Trent',
         'Mallory',
@@ -224,7 +224,7 @@ describe('InMemoryDataSource', () => {
     test('sort by number ascending (includes nulls)', () => {
       const columns: Column[] = [{field: 'value', sort: 'ASC'}];
       dataSource.notify({columns, filters: []});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       // Nulls first, then 100, 100, 150, 200, 250n, 300n
       expect(result.rows.map((r) => r.id)).toEqual([4, 1, 5, 3, 2, 7, 6]);
     });
@@ -232,7 +232,7 @@ describe('InMemoryDataSource', () => {
     test('sort by number descending (includes nulls and bigint)', () => {
       const columns: Column[] = [{field: 'value', sort: 'DESC'}];
       dataSource.notify({columns, filters: []});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       // 300n, 250n, 200, 150, 100, 100, Nulls last
       expect(result.rows.map((r) => r.id)).toEqual([6, 7, 2, 3, 1, 5, 4]);
     });
@@ -240,14 +240,14 @@ describe('InMemoryDataSource', () => {
     test('sort by boolean ascending', () => {
       const columns: Column[] = [{field: 'active', sort: 'ASC'}]; // 0 then 1
       dataSource.notify({columns, filters: []});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       expect(result.rows.map((r) => r.active)).toEqual([0, 0, 0, 1, 1, 1, 1]);
     });
 
     test('sort by Uint8Array ascending (by length)', () => {
       const columns: Column[] = [{field: 'blob', sort: 'ASC'}];
       dataSource.notify({columns, filters: []});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       // null (Charlie, id:3), len 1 (David id:4, Mallory id:6), len 2 (Alice id:1, Trent id:7), len 3 (Bob id:2), len 4 (Eve id:5)
       // Original order for same length: David before Mallory, Alice before Trent.
       expect(result.rows.map((r) => r.id)).toEqual([3, 4, 6, 1, 7, 2, 5]);
@@ -256,7 +256,7 @@ describe('InMemoryDataSource', () => {
     test('sort by Uint8Array descending (by length)', () => {
       const columns: Column[] = [{field: 'blob', sort: 'DESC'}];
       dataSource.notify({columns, filters: []});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       // len 4, len 3, len 2, len 2, len 1, len 0, null
       expect(result.rows.map((r) => r.id)).toEqual([5, 2, 1, 7, 4, 6, 3]);
     });
@@ -268,7 +268,7 @@ describe('InMemoryDataSource', () => {
       });
       // Then unsort
       dataSource.notify({});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       // Should revert to original order if no filters applied
       expect(result.rows.map((r) => r.id)).toEqual(sampleData.map((r) => r.id));
     });
@@ -279,7 +279,7 @@ describe('InMemoryDataSource', () => {
       const filters: Filter[] = [{field: 'active', op: '=', value: 1}];
       const columns: Column[] = [{field: 'value', sort: 'DESC'}];
       dataSource.notify({columns, filters});
-      const result = dataSource.result;
+      const result = dataSource.rows;
       // Active: Alice (100), Charlie (150), Eve (100), Trent (250n)
       // Sorted by value desc: Trent, Charlie, Alice, Eve (Alice/Eve order by original due to stable sort on value)
       expect(result.rows.map((r) => r.id)).toEqual([7, 3, 1, 5]);
@@ -293,12 +293,12 @@ describe('InMemoryDataSource', () => {
       const columns: Column[] = [{field: 'name', sort: 'ASC'}];
 
       dataSource.notify({columns, filters});
-      const result1 = dataSource.result.rows; // Access internal array
+      const result1 = dataSource.rows.rows; // Access internal array
 
       // Spy on internal methods if possible, or check object identity
       // For this test, we'll check if the returned array reference is the same
       dataSource.notify({columns, filters}); // Identical call
-      const result2 = dataSource.result.rows;
+      const result2 = dataSource.rows.rows;
 
       expect(result1).toBe(result2); // Should be the same array instance due to caching
     });
@@ -309,10 +309,10 @@ describe('InMemoryDataSource', () => {
       const columns2: Column[] = [{field: 'name', sort: 'DESC'}];
 
       dataSource.notify({columns: columns1, filters});
-      const result1 = dataSource.result.rows;
+      const result1 = dataSource.rows.rows;
 
       dataSource.notify({columns: columns2, filters}); // Different sort
-      const result2 = dataSource.result.rows;
+      const result2 = dataSource.rows.rows;
 
       expect(result1).not.toBe(result2);
       expect(result1.map((r) => r.id)).not.toEqual(result2.map((r) => r.id));
@@ -324,10 +324,10 @@ describe('InMemoryDataSource', () => {
       const columns: Column[] = [{field: 'name', sort: 'ASC'}];
 
       dataSource.notify({columns, filters: filters1});
-      const result1 = dataSource.result.rows;
+      const result1 = dataSource.rows.rows;
 
       dataSource.notify({columns, filters: filters2}); // Different filters
-      const result2 = dataSource.result.rows;
+      const result2 = dataSource.rows.rows;
 
       expect(result1).not.toBe(result2);
       expect(result1.map((r) => r.id)).not.toEqual(result2.map((r) => r.id));
@@ -342,12 +342,12 @@ describe('InMemoryDataSource', () => {
       ];
 
       dataSource.notify({filters: filters1});
-      const result1 = dataSource.result.rows;
+      const result1 = dataSource.rows.rows;
       expect(result1.length).toBe(1);
       expect(result1[0].id).toBe(1);
 
       dataSource.notify({filters: filters2});
-      const result2 = dataSource.result.rows;
+      const result2 = dataSource.rows.rows;
       expect(result2.length).toBe(1);
       expect(result2[0].id).toBe(2);
 
@@ -357,7 +357,7 @@ describe('InMemoryDataSource', () => {
 
   test('empty data source', () => {
     const emptyDataSource = new InMemoryDataSource([]);
-    const result = emptyDataSource.result;
+    const result = emptyDataSource.rows;
     expect(result.rowOffset).toBe(0);
     expect(result.totalRows).toBe(0);
     expect(result.rows).toEqual([]);
@@ -366,7 +366,7 @@ describe('InMemoryDataSource', () => {
       columns: [{field: 'id', sort: 'DESC'}],
       filters: [{field: 'name', op: '=', value: 'test'}],
     });
-    const resultAfterUpdate = emptyDataSource.result;
+    const resultAfterUpdate = emptyDataSource.rows;
     expect(resultAfterUpdate.totalRows).toBe(0);
     expect(resultAfterUpdate.rows).toEqual([]);
   });

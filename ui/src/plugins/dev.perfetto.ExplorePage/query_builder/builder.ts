@@ -83,6 +83,7 @@ import {
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
+import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -100,6 +101,46 @@ import {DataSource} from '../../../components/widgets/datagrid/data_source';
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
 
+// Helper function for keyboard-accessible card interactions
+function createKeyboardHandler(callback: () => void) {
+  return (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      callback();
+    }
+  };
+}
+
+// Helper function to render template cards with consistent structure
+interface TemplateCardAttrs {
+  readonly icon: string;
+  readonly title: string;
+  readonly description: string;
+  readonly ariaLabel: string;
+  readonly onClick: () => void;
+}
+
+function renderTemplateCard(attrs: TemplateCardAttrs): m.Children {
+  return m(
+    Card,
+    {
+      'interactive': true,
+      'onclick': attrs.onClick,
+      'tabindex': 0,
+      'role': 'button',
+      'aria-label': attrs.ariaLabel,
+      'className': 'pf-template-card',
+      'onkeydown': createKeyboardHandler(attrs.onClick),
+    },
+    m(
+      '.pf-source-card-clickable',
+      m(Icon, {icon: attrs.icon}),
+      m('h3', attrs.title),
+    ),
+    m('p', attrs.description),
+  );
+}
+
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
@@ -115,6 +156,8 @@ export interface BuilderAttrs {
     width: number;
     text: string;
   }>;
+  readonly isExplorerCollapsed?: boolean;
+  readonly sidebarWidth?: number;
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
@@ -136,6 +179,8 @@ export interface BuilderAttrs {
       text: string;
     }>,
   ) => void;
+  readonly onExplorerCollapsedChange?: (collapsed: boolean) => void;
+  readonly onSidebarWidthChange?: (width: number) => void;
 
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
@@ -156,6 +201,11 @@ export interface BuilderAttrs {
   readonly onExport: () => void;
 
   readonly onLoadExample: () => void;
+
+  // Starting templates (when page is empty)
+  readonly onLoadEmptyTemplate?: () => void;
+  readonly onLoadLearningTemplate?: () => void;
+  readonly onLoadExploreTemplate?: () => void;
 
   // Node state change callback
   readonly onNodeStateChange?: () => void;
@@ -181,14 +231,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private isQueryRunning: boolean = false;
   private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
-  private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
   private dataSource?: DataSource;
   private drawerVisibility = SplitPanelDrawerVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
-  private sidebarWidth: number = 500; // Default width in pixels
   private readonly MIN_SIDEBAR_WIDTH = 250;
   private readonly MAX_SIDEBAR_WIDTH = 800;
+  private readonly DEFAULT_SIDEBAR_WIDTH = 500;
   private hasEverSelectedNode = false;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
@@ -197,18 +246,60 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.queryExecutionService = attrs.queryExecutionService;
   }
 
-  private handleSidebarResize(deltaPx: number) {
+  private handleSidebarResize(attrs: BuilderAttrs, deltaPx: number) {
+    const currentWidth = attrs.sidebarWidth ?? this.DEFAULT_SIDEBAR_WIDTH;
     // Subtract delta because the handle is on the left edge of the sidebar
     // Dragging left (negative delta) = narrower sidebar (positive change)
     // Dragging right (positive delta) = wider sidebar (negative change)
-    this.sidebarWidth = Math.max(
+    const newWidth = Math.max(
       this.MIN_SIDEBAR_WIDTH,
-      Math.min(this.MAX_SIDEBAR_WIDTH, this.sidebarWidth - deltaPx),
+      Math.min(this.MAX_SIDEBAR_WIDTH, currentWidth - deltaPx),
     );
-    m.redraw();
+    attrs.onSidebarWidthChange?.(newWidth);
   }
 
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
+    const results: m.Children[] = [];
+
+    // Show template buttons when nothing is selected
+    if (!attrs.selectedNode) {
+      results.push(
+        m('h4.pf-starting-section-title', 'Templates:'),
+        m(
+          '.pf-template-grid',
+          renderTemplateCard({
+            icon: 'school',
+            title: 'Learning',
+            description: 'Educational example',
+            ariaLabel: 'Start with learning template',
+            onClick: () => attrs.onLoadLearningTemplate?.(),
+          }),
+          renderTemplateCard({
+            icon: 'explore',
+            title: 'Explore Trace Data',
+            description: 'Slices and high-frequency tables',
+            ariaLabel: 'Explore trace data',
+            onClick: () => attrs.onLoadExploreTemplate?.(),
+          }),
+          renderTemplateCard({
+            icon: 'auto_stories',
+            title: 'Examples',
+            description: 'Load an example graph',
+            ariaLabel: 'Load example graph',
+            onClick: () => attrs.onLoadExample(),
+          }),
+          renderTemplateCard({
+            icon: 'delete_sweep',
+            title: 'Clear Graph',
+            description: 'Start with empty canvas',
+            ariaLabel: 'Clear graph',
+            onClick: () => attrs.onLoadEmptyTemplate?.(),
+          }),
+        ),
+        m('h4.pf-starting-section-title', 'Add sources:'),
+      );
+    }
+
     const sourceNodes = nodeRegistry
       .list()
       .filter(([_id, node]) => node.showOnLandingPage === true)
@@ -230,12 +321,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             'role': 'button',
             'aria-label': `Add ${name} source`,
             'className': 'pf-source-card',
-            'onkeydown': (e: KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                attrs.onAddSourceNode(id);
-              }
-            },
+            'onkeydown': createKeyboardHandler(() => attrs.onAddSourceNode(id)),
           },
           m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', name)),
           m('p', description),
@@ -243,36 +329,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         );
       });
 
-    // Add Examples card at the end
-    const examplesCard = m(
-      Card,
-      {
-        'interactive': true,
-        'onclick': () => attrs.onLoadExample(),
-        'tabindex': 0,
-        'role': 'button',
-        'aria-label': 'Load example graph',
-        'className': 'pf-source-card',
-        'onkeydown': (e: KeyboardEvent) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            attrs.onLoadExample();
-          }
-        },
-      },
-      m(
-        '.pf-source-card-clickable',
-        m(Icon, {icon: 'auto_stories'}),
-        m('h3', 'Examples'),
-      ),
-      m('p', 'Load an example graph'),
+    // Wrap source cards in horizontal container
+    const sourceCardsContainer = m(
+      '.pf-source-cards-horizontal',
+      ...sourceNodes,
     );
 
-    if (sourceNodes.length === 0) {
-      return [examplesCard];
-    }
-
-    return [examplesCard, ...sourceNodes];
+    return [...results, sourceCardsContainer];
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -301,14 +364,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       }
     }
 
+    const isExplorerCollapsed = attrs.isExplorerCollapsed ?? false;
+    const sidebarWidth = attrs.sidebarWidth ?? this.DEFAULT_SIDEBAR_WIDTH;
+
     // When transitioning to unselected state with collapsed explorer, reappear at minimum size
-    if (
-      !selectedNode &&
-      this.previousSelectedNode &&
-      this.isExplorerCollapsed
-    ) {
-      this.isExplorerCollapsed = false;
-      this.sidebarWidth = this.MIN_SIDEBAR_WIDTH;
+    if (!selectedNode && this.previousSelectedNode && isExplorerCollapsed) {
+      attrs.onExplorerCollapsedChange?.(false);
+      attrs.onSidebarWidthChange?.(this.MIN_SIDEBAR_WIDTH);
     }
 
     this.previousSelectedNode = selectedNode;
@@ -316,7 +378,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const layoutClasses =
       classNames(
         'pf-query-builder-layout',
-        this.isExplorerCollapsed && 'explorer-collapsed',
+        isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
 
     const explorer = selectedNode
@@ -361,7 +423,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
             attrs.onNodeStateChange?.();
           },
-          isCollapsed: this.isExplorerCollapsed,
+          isCollapsed: isExplorerCollapsed,
           selectedView: this.selectedView,
           onViewChange: (view: number) => {
             this.selectedView = view;
@@ -407,6 +469,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               },
               onExecute: async () => {
                 if (!selectedNode.validate()) {
+                  console.warn(
+                    `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
+                  );
                   return;
                 }
 
@@ -504,15 +569,15 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       ),
       m(ResizeHandle, {
         direction: 'horizontal',
-        onResize: (deltaPx) => this.handleSidebarResize(deltaPx),
+        onResize: (deltaPx) => this.handleSidebarResize(attrs, deltaPx),
       }),
       m(
         '.pf-qb-explorer',
         {
           style: {
-            width: this.isExplorerCollapsed
+            width: isExplorerCollapsed
               ? '0'
-              : `${this.sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
+              : `${sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
           },
         },
         explorer,
@@ -524,19 +589,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: Icons.Info,
             title: 'Info',
             className:
-              this.selectedView === SelectedView.kInfo &&
-              !this.isExplorerCollapsed
+              this.selectedView === SelectedView.kInfo && !isExplorerCollapsed
                 ? 'pf-active'
                 : '',
             onclick: () => {
               if (
                 this.selectedView === SelectedView.kInfo &&
-                !this.isExplorerCollapsed
+                !isExplorerCollapsed
               ) {
-                this.isExplorerCollapsed = true;
+                attrs.onExplorerCollapsedChange?.(true);
               } else {
                 this.selectedView = SelectedView.kInfo;
-                this.isExplorerCollapsed = false;
+                attrs.onExplorerCollapsedChange?.(false);
               }
             },
           }),
@@ -546,18 +610,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               title: 'Edit',
               className:
                 this.selectedView === SelectedView.kModify &&
-                !this.isExplorerCollapsed
+                !isExplorerCollapsed
                   ? 'pf-active'
                   : '',
               onclick: () => {
                 if (
                   this.selectedView === SelectedView.kModify &&
-                  !this.isExplorerCollapsed
+                  !isExplorerCollapsed
                 ) {
-                  this.isExplorerCollapsed = true;
+                  attrs.onExplorerCollapsedChange?.(true);
                 } else {
                   this.selectedView = SelectedView.kModify;
-                  this.isExplorerCollapsed = false;
+                  attrs.onExplorerCollapsedChange?.(false);
                 }
               },
             }),
@@ -565,19 +629,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'code',
             title: 'Result',
             className:
-              this.selectedView === SelectedView.kResult &&
-              !this.isExplorerCollapsed
+              this.selectedView === SelectedView.kResult && !isExplorerCollapsed
                 ? 'pf-active'
                 : '',
             onclick: () => {
               if (
                 this.selectedView === SelectedView.kResult &&
-                !this.isExplorerCollapsed
+                !isExplorerCollapsed
               ) {
-                this.isExplorerCollapsed = true;
+                attrs.onExplorerCollapsedChange?.(true);
               } else {
                 this.selectedView = SelectedView.kResult;
-                this.isExplorerCollapsed = false;
+                attrs.onExplorerCollapsedChange?.(false);
               }
             },
           }),
@@ -637,7 +700,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
     this.dataSource = new SQLDataSource({
       engine,
-      baseQuery: `SELECT * FROM ${result.tableName}`,
+      sqlSchema: createSimpleSchema(result.tableName),
+      rootSchemaName: 'query',
     });
     this.queryExecuted = true;
     this.isQueryRunning = false;

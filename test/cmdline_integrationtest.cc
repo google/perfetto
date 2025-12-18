@@ -92,7 +92,8 @@ TraceConfig CreateTraceConfigForBugreportTest(int score = 1,
     // Add a random unrelated field to keep the generator happy.
     filt.AddSimpleField(protos::pbzero::TracePacket::kTraceUuidFieldNumber);
     filt.EndMessage();
-    trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+    trace_config.mutable_trace_filter()->set_bytecode_v2(
+        filt.Serialize().bytecode);
   }
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
