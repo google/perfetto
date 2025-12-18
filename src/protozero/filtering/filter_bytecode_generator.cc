@@ -27,7 +27,8 @@
 
 namespace protozero {
 
-FilterBytecodeGenerator::FilterBytecodeGenerator() = default;
+FilterBytecodeGenerator::FilterBytecodeGenerator(BytecodeVersion min_version)
+    : min_version_(min_version) {}
 FilterBytecodeGenerator::~FilterBytecodeGenerator() = default;
 
 void FilterBytecodeGenerator::EndMessage() {
@@ -47,8 +48,36 @@ void FilterBytecodeGenerator::AddSimpleField(uint32_t field_id) {
 
 // Allows a string field which needs to be rewritten using the given chain.
 void FilterBytecodeGenerator::AddFilterStringField(uint32_t field_id) {
+  // String filtering is only available if bytecode v2+ is targeted.
+  PERFETTO_CHECK(min_version_ >= BytecodeVersion::kV2);
+
   PERFETTO_CHECK(field_id > last_field_id_);
   bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterString);
+  last_field_id_ = field_id;
+  endmessage_called_ = false;
+}
+
+// Allows a string field with a semantic type.
+void FilterBytecodeGenerator::AddFilterStringFieldWithType(
+    uint32_t field_id,
+    uint32_t semantic_type) {
+  // String filtering is only available if bytecode v2+ is targeted.
+  PERFETTO_CHECK(min_version_ >= BytecodeVersion::kV2);
+  PERFETTO_CHECK(field_id > last_field_id_);
+
+  // If min_version is at least v54, we can just use the new opcode directly.
+  if (min_version_ >= BytecodeVersion::kV54) {
+    bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
+    bytecode_.push_back(semantic_type);
+  } else {
+    // Otherwise we'll use plain FilterString opcode and add an overlay entry.
+    bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterString);
+
+    v54_overlay_.push_back(num_messages_);
+    v54_overlay_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
+    v54_overlay_.push_back(semantic_type);
+  }
+
   last_field_id_ = field_id;
   endmessage_called_ = false;
 }
@@ -116,7 +145,6 @@ FilterBytecodeGenerator::SerializeResult FilterBytecodeGenerator::Serialize() {
     result.v54_overlay =
         std::string(reinterpret_cast<const char*>(words.data()), words.size());
   }
-
   return result;
 }
 

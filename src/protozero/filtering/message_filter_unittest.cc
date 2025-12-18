@@ -930,5 +930,138 @@ TEST(MessageFilterTest, RealTracePassthrough) {
   EXPECT_TRUE(original_ser == filter_ser);
 }
 
+// End-to-end test for semantic type support with different bytecode versions
+TEST(MessageFilterTest, SemanticTypeEndToEnd) {
+  auto schema = perfetto::base::TempFile::Create();
+  static const char kSchema[] = R"(
+  syntax = "proto2";
+  message Root {
+    optional TracePacket packet = 1;
+  }
+  message TracePacket {
+    optional string atrace_name = 2;
+    optional string category = 3;
+  }
+  )";
+  perfetto::base::WriteAll(*schema, kSchema, strlen(kSchema));
+  perfetto::base::FlushFile(*schema);
+
+  FilterUtil filter;
+  std::set<std::string> filter_strings{"TracePacket:atrace_name",
+                                       "TracePacket:category"};
+  std::map<std::string, uint32_t> semantic_types{
+      {"TracePacket:atrace_name", 1},  // SEMANTIC_TYPE_ATRACE
+      {"TracePacket:category", 2},     // SEMANTIC_TYPE_JOB
+  };
+
+  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", "", {},
+                                           filter_strings, semantic_types));
+
+  // Test with v54 bytecode (semantic types inline)
+  {
+    auto result_v54 = filter.GenerateFilterBytecode(
+        FilterBytecodeGenerator::BytecodeVersion::kV54);
+    ASSERT_GT(result_v54.bytecode.size(), 0u);
+    EXPECT_EQ(result_v54.v54_overlay.size(), 0u);  // No overlay for v54
+
+    // Verify semantic types are in the bytecode
+    FilterBytecodeParser parser;
+    ASSERT_TRUE(
+        parser.Load(result_v54.bytecode.data(), result_v54.bytecode.size()));
+
+    // Query the TracePacket message (msg_index=1) fields
+    auto query_atrace = parser.Query(1, 2);  // field_id=2 (atrace_name)
+    EXPECT_TRUE(query_atrace.allowed);
+    EXPECT_TRUE(query_atrace.filter_string_field());
+    EXPECT_EQ(query_atrace.semantic_type, 1u);  // SEMANTIC_TYPE_ATRACE
+
+    auto query_category = parser.Query(1, 3);  // field_id=3 (category)
+    EXPECT_TRUE(query_category.allowed);
+    EXPECT_TRUE(query_category.filter_string_field());
+    EXPECT_EQ(query_category.semantic_type, 2u);  // SEMANTIC_TYPE_JOB
+
+    // Filter the message
+    HeapBuffered<Message> msg;
+    auto* packet = msg->BeginNestedMessage<Message>(/*field_id=*/1);
+    packet->AppendString(/*field_id=*/2, "atrace_content");
+    packet->AppendString(/*field_id=*/3, "job_content");
+    packet->Finalize();
+
+    std::vector<uint8_t> encoded = msg.SerializeAsArray();
+
+    MessageFilter flt;
+    ASSERT_TRUE(flt.LoadFilterBytecode(result_v54.bytecode.data(),
+                                       result_v54.bytecode.size()));
+    auto filtered = flt.FilterMessage(encoded.data(), encoded.size());
+    EXPECT_FALSE(filtered.error);
+    EXPECT_GT(filtered.size, 0u);
+  }
+
+  // Test with v2 bytecode (semantic types in overlay)
+  {
+    auto result_v2 = filter.GenerateFilterBytecode(
+        FilterBytecodeGenerator::BytecodeVersion::kV2);
+    ASSERT_GT(result_v2.bytecode.size(), 0u);
+    EXPECT_GT(result_v2.v54_overlay.size(), 0u);  // Overlay present for v2
+
+    // Verify base bytecode has FilterString (no semantic types)
+    FilterBytecodeParser parser_base;
+    ASSERT_TRUE(
+        parser_base.Load(result_v2.bytecode.data(), result_v2.bytecode.size()));
+
+    auto query_base_atrace = parser_base.Query(1, 2);
+    EXPECT_TRUE(query_base_atrace.allowed);
+    EXPECT_TRUE(query_base_atrace.filter_string_field());
+    EXPECT_EQ(query_base_atrace.semantic_type, 0u);  // No semantic type in v2
+
+    auto query_base_category = parser_base.Query(1, 3);
+    EXPECT_TRUE(query_base_category.allowed);
+    EXPECT_TRUE(query_base_category.filter_string_field());
+    EXPECT_EQ(query_base_category.semantic_type, 0u);  // No semantic type in v2
+
+    // Verify overlay provides semantic types
+    FilterBytecodeParser parser_overlay;
+    ASSERT_TRUE(parser_overlay.Load(
+        result_v2.bytecode.data(), result_v2.bytecode.size(),
+        result_v2.v54_overlay.data(), result_v2.v54_overlay.size()));
+
+    auto query_overlay_atrace = parser_overlay.Query(1, 2);
+    EXPECT_TRUE(query_overlay_atrace.allowed);
+    EXPECT_TRUE(query_overlay_atrace.filter_string_field());
+    EXPECT_EQ(query_overlay_atrace.semantic_type, 1u);  // SEMANTIC_TYPE_ATRACE
+
+    auto query_overlay_category = parser_overlay.Query(1, 3);
+    EXPECT_TRUE(query_overlay_category.allowed);
+    EXPECT_TRUE(query_overlay_category.filter_string_field());
+    EXPECT_EQ(query_overlay_category.semantic_type, 2u);  // SEMANTIC_TYPE_JOB
+
+    // Test filtering
+    HeapBuffered<Message> msg;
+    auto* packet = msg->BeginNestedMessage<Message>(/*field_id=*/1);
+    packet->AppendString(/*field_id=*/2, "atrace_content");
+    packet->AppendString(/*field_id=*/3, "job_content");
+    packet->Finalize();
+
+    std::vector<uint8_t> encoded = msg.SerializeAsArray();
+
+    MessageFilter flt_base;
+    ASSERT_TRUE(flt_base.LoadFilterBytecode(result_v2.bytecode.data(),
+                                            result_v2.bytecode.size()));
+    auto filtered_base = flt_base.FilterMessage(encoded.data(), encoded.size());
+    EXPECT_FALSE(filtered_base.error);
+    EXPECT_GT(filtered_base.size, 0u);
+
+    MessageFilter flt_overlay;
+    ASSERT_TRUE(flt_overlay.LoadFilterBytecode(
+        result_v2.bytecode.data(), result_v2.bytecode.size(),
+        result_v2.v54_overlay.data(), result_v2.v54_overlay.size()));
+
+    auto filtered_overlay =
+        flt_overlay.FilterMessage(encoded.data(), encoded.size());
+    EXPECT_FALSE(filtered_overlay.error);
+    EXPECT_GT(filtered_overlay.size, 0u);
+  }
+}
+
 }  // namespace
 }  // namespace protozero
