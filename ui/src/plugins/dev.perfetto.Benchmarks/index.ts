@@ -16,8 +16,10 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {createBenchmarkTab} from './benchmark_tab';
 
-export default class AggregationBenchmarkPlugin implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AggregationBenchmark';
+export default class BenchmarksPlugin implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.Benchmarks';
+  static readonly description =
+    'Internal benchmarking tools for UI testing & development';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(createBenchmarkTab(ctx));
