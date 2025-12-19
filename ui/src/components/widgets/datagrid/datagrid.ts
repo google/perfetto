@@ -393,12 +393,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Check aggregate columns (those with a field) for dependencies
       for (const agg of this.pivot.aggregates ?? []) {
-        if ('field' in agg) {
-          const colInfo = getColumnInfo(schema, rootSchema, agg.field);
-          if (colInfo?.dependsOn) {
-            for (const dep of colInfo.dependsOn) {
-              dependencyFields.add(dep);
-            }
+        if (agg.function === 'COUNT') continue;
+        const colInfo = getColumnInfo(schema, rootSchema, agg.field);
+        if (colInfo?.dependsOn) {
+          for (const dep of colInfo.dependsOn) {
+            dependencyFields.add(dep);
           }
         }
       }
