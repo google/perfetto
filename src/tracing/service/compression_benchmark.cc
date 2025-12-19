@@ -181,10 +181,9 @@ static void BM_CompressZlib(benchmark::State& state) {
   state.counters["compressed_mb"] =
       benchmark::Counter(static_cast<double>(compressed_size) / (1024 * 1024),
                          benchmark::Counter::kDefaults);
-  state.counters["ratio"] =
-      benchmark::Counter(static_cast<double>(original_size) /
-                             static_cast<double>(compressed_size),
-                         benchmark::Counter::kDefaults);
+  state.counters["ratio"] = benchmark::Counter(
+      static_cast<double>(original_size) / static_cast<double>(compressed_size),
+      benchmark::Counter::kDefaults);
   state.counters["bytes_per_sec"] = benchmark::Counter(
       static_cast<double>(original_size), benchmark::Counter::kIsRate);
 }
@@ -224,10 +223,9 @@ static void BM_CompressZstd(benchmark::State& state) {
   state.counters["compressed_mb"] =
       benchmark::Counter(static_cast<double>(compressed_size) / (1024 * 1024),
                          benchmark::Counter::kDefaults);
-  state.counters["ratio"] =
-      benchmark::Counter(static_cast<double>(original_size) /
-                             static_cast<double>(compressed_size),
-                         benchmark::Counter::kDefaults);
+  state.counters["ratio"] = benchmark::Counter(
+      static_cast<double>(original_size) / static_cast<double>(compressed_size),
+      benchmark::Counter::kDefaults);
   state.counters["bytes_per_sec"] = benchmark::Counter(
       static_cast<double>(original_size), benchmark::Counter::kIsRate);
 }
