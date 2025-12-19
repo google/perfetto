@@ -956,9 +956,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     const newState = deserializeState(json, trace, sqlModules);
     onStateUpdate(newState);
-    requestAnimationFrame(() => {
-      this.recenterGraph?.();
-    });
+    // Request recenter after state update
+    // The actual recentering will happen in the next render cycle via onReady
+    this.recenterGraph?.();
   }
 
   async handleImport(attrs: ExplorePageAttrs) {

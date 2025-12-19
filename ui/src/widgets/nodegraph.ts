@@ -57,6 +57,11 @@ import {Icons} from '../base/semantic_icons';
 // Default height estimate for labels (used for box selection calculations)
 const DEFAULT_LABEL_MIN_HEIGHT = 30;
 
+// Typical height estimate for labels with content (used for autofit calculations)
+// Labels can vary in height based on content, but this provides a reasonable
+// estimate for bounding box calculations when actual DOM measurements aren't available
+const TYPICAL_LABEL_HEIGHT = 100;
+
 interface Position {
   x: number;
   y: number;
@@ -352,6 +357,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
   let canvasElement: HTMLElement | null = null;
+
+  // API functions that are exposed to parent components via onReady callback
+  // These are initialized in oncreate and can be used in subsequent lifecycle hooks
+  let autoLayoutApi: (() => void) | null = null;
+  let recenterApi: (() => void) | null = null;
+  let findPlacementForNodeApi:
+    | ((newNode: Omit<Node, 'x' | 'y'>) => Position)
+    | null = null;
 
   const handleMouseMove = (e: PointerEvent) => {
     m.redraw();
@@ -1352,20 +1365,28 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   ) {
     if (nodes.length === 0 && labels.length === 0) return;
 
-    const nodesBBox = getNodesBoundingBox(nodes, true);
+    // Initialize bounding box
+    // If we have nodes, start with their bounding box
+    // If we only have labels, initialize with Infinity values that will be replaced
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
-    let minX = nodesBBox.minX;
-    let minY = nodesBBox.minY;
-    let maxX = nodesBBox.maxX;
-    let maxY = nodesBBox.maxY;
+    if (nodes.length > 0) {
+      const nodesBBox = getNodesBoundingBox(nodes, true);
+      minX = nodesBBox.minX;
+      minY = nodesBBox.minY;
+      maxX = nodesBBox.maxX;
+      maxY = nodesBBox.maxY;
+    }
 
     // Include labels in bounding box calculation
     labels.forEach((label) => {
       minX = Math.min(minX, label.x);
       minY = Math.min(minY, label.y);
       maxX = Math.max(maxX, label.x + label.width);
-      // Labels have a fixed height (approximately 100px based on typical usage)
-      maxY = Math.max(maxY, label.y + 100);
+      maxY = Math.max(maxY, label.y + TYPICAL_LABEL_HEIGHT);
     });
 
     // Calculate bounding box dimensions
@@ -1940,13 +1961,13 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       }
 
       // Create auto-layout function that uses actual DOM dimensions
-      const autoLayout = () => {
+      autoLayoutApi = () => {
         const {nodes = [], connections = [], onNodeMove} = vnode.attrs;
         autoLayoutGraph(nodes, connections, onNodeMove);
       };
 
       // Create recenter function that brings all nodes into view
-      const recenter = () => {
+      recenterApi = () => {
         if (latestVnode === null || canvasElement === null) {
           return;
         }
@@ -1956,9 +1977,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       };
 
       // Find a non-overlapping position for a new node
-      const findPlacementForNode = (
-        newNode: Omit<Node, 'x' | 'y'>,
-      ): Position => {
+      findPlacementForNodeApi = (newNode: Omit<Node, 'x' | 'y'>): Position => {
         if (latestVnode === null || canvasElement === null) {
           return {x: 0, y: 0};
         }
@@ -2057,14 +2076,28 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       };
 
       // Provide API to parent
-      if (onReady) {
-        onReady({autoLayout, recenter, findPlacementForNode});
+      if (
+        onReady !== undefined &&
+        autoLayoutApi !== null &&
+        recenterApi !== null &&
+        findPlacementForNodeApi !== null
+      ) {
+        onReady({
+          autoLayout: autoLayoutApi,
+          recenter: recenterApi,
+          findPlacementForNode: findPlacementForNodeApi,
+        });
       }
     },
 
     onupdate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
       latestVnode = vnode;
-      const {connections = [], nodes = [], onConnectionRemove} = vnode.attrs;
+      const {
+        connections = [],
+        nodes = [],
+        onConnectionRemove,
+        onReady,
+      } = vnode.attrs;
 
       // Re-render connections when component updates
       const svg = vnode.dom.querySelector('svg');
@@ -2075,6 +2108,21 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           nodes,
           onConnectionRemove,
         );
+      }
+
+      // Call onReady after every render cycle so parent can perform
+      // post-render actions like recentering
+      if (
+        onReady !== undefined &&
+        autoLayoutApi !== null &&
+        recenterApi !== null &&
+        findPlacementForNodeApi !== null
+      ) {
+        onReady({
+          autoLayout: autoLayoutApi,
+          recenter: recenterApi,
+          findPlacementForNode: findPlacementForNodeApi,
+        });
       }
     },
 

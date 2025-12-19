@@ -603,6 +603,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
   private hasPerformedInitialRecenter: boolean = false;
+  private recenterRequired: boolean = false;
   private labels: Label[] = [];
   private labelTexts: Map<string, string> = new Map();
   private editingLabels: Set<string> = new Set();
@@ -790,12 +791,8 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       // Call autoLayout to arrange nodes hierarchically
       // autoLayout will call onNodeMove for each node it repositions
       this.nodeGraphApi.autoLayout();
-      // Recenter after DOM updates with new positions
-      requestAnimationFrame(() => {
-        if (this.nodeGraphApi) {
-          this.nodeGraphApi.recenter();
-        }
-      });
+      // Recenter will happen in the onReady callback after the next render
+      this.recenterRequired = true;
     } else if (
       !this.hasPerformedInitialRecenter &&
       this.nodeGraphApi &&
@@ -804,11 +801,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       // Recenter on first render even if auto-layout didn't run
       // (e.g., when loading from localStorage with existing positions)
       this.hasPerformedInitialRecenter = true;
-      requestAnimationFrame(() => {
-        if (this.nodeGraphApi) {
-          this.nodeGraphApi.recenter();
-        }
-      });
+      this.recenterRequired = true;
     }
 
     return m(
@@ -827,6 +820,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           fillHeight: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
+
+            // Check if recenter is required and execute it after render
+            if (this.recenterRequired) {
+              this.nodeGraphApi.recenter();
+              this.recenterRequired = false;
+            }
+
             // Expose recenter function to parent component
             attrs.onRecenterReady?.(() => {
               if (this.nodeGraphApi) {
