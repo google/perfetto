@@ -33,6 +33,7 @@ import {findRef, toHTMLElement} from '../../../../../base/dom_utils';
 import {assertExists} from '../../../../../base/logging';
 import {ResizeHandle} from '../../../../../widgets/resize_handle';
 import {loadNodeDoc} from '../../node_doc_loader';
+import {NodeTitle} from '../../node_styling_widgets';
 
 export interface SqlSourceSerializedState {
   sql?: string;
@@ -147,7 +148,7 @@ export class SqlSourceNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: m('.pf-exp-node-title', this.getTitle()),
+      content: NodeTitle(this.getTitle()),
     };
   }
 

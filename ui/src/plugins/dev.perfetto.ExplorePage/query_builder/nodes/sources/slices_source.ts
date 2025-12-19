@@ -29,6 +29,7 @@ import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {NodeDetailsAttrs} from '../../node_explorer_types';
 import {loadNodeDoc} from '../../node_doc_loader';
+import {NodeTitle} from '../../node_styling_widgets';
 
 export interface SlicesSourceSerializedState {
   comment?: string;
@@ -73,7 +74,7 @@ export class SlicesSourceNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: m('.pf-exp-node-title', this.getTitle()),
+      content: NodeTitle(this.getTitle()),
     };
   }
 
