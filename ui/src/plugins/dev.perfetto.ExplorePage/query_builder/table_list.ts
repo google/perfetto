@@ -233,6 +233,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     const allTagsSet = new Set<string>();
     for (const module of allModules) {
       if (module.tables.length > 0) {
+        // Skip disabled modules when collecting tags if hideDisabledModules is enabled
+        if (
+          this.hideDisabledModules &&
+          attrs.sqlModules.isModuleDisabled(module.includeKey)
+        ) {
+          continue;
+        }
         for (const tag of module.tags) {
           allTagsSet.add(tag);
         }

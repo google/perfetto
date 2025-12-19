@@ -28,20 +28,21 @@ import {AddColumnsNode} from './add_columns_node';
 import {FilterDuringNode} from './filter_during_node';
 import {ModifyColumnsNode} from './modify_columns_node';
 import {FilterNode} from './filter_node';
-import {
-  QueryNode,
-  NodeType,
-  notifyNextNodes,
-  addConnection,
-  removeConnection,
-  singleNodeOperation,
-} from '../../query_node';
+import {UnionNode} from './union_node';
+import {QueryNode, NodeType, singleNodeOperation} from '../../query_node';
 import {
   insertNodeBetween,
   reconnectParentsToChildren,
   findDockedChildren,
   calculateUndockLayouts,
   getEffectiveLayout,
+  notifyNextNodes,
+  addConnection,
+  removeConnection,
+  getSecondaryInput,
+  setSecondaryInput,
+  removeSecondaryInput,
+  validateSecondaryInputs,
 } from '../graph_utils';
 import {ColumnInfo} from '../column_info';
 import {
@@ -2850,6 +2851,127 @@ describe('Connection Management', () => {
       expect(nodeA.nextNodes.length).toBe(1);
       expect(singleNodeOperation(addColsNode.type)).toBe(true);
       expect(nodeLayouts.has(addColsNode.nodeId)).toBe(false);
+    });
+  });
+
+  describe('Secondary Input Helper Functions', () => {
+    it('should get secondary input at specified port', () => {
+      const node1 = createMockPrevNode('node1', []);
+      const node2 = createMockPrevNode('node2', []);
+      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+
+      addConnection(node1, intervalNode, 0);
+      addConnection(node2, intervalNode, 1);
+
+      expect(getSecondaryInput(intervalNode, 0)).toBe(node1);
+      expect(getSecondaryInput(intervalNode, 1)).toBe(node2);
+      expect(getSecondaryInput(intervalNode, 2)).toBeUndefined();
+    });
+
+    it('should set secondary input at specified port', () => {
+      const node1 = createMockPrevNode('node1', []);
+      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+
+      setSecondaryInput(intervalNode, 0, node1);
+
+      expect(intervalNode.secondaryInputs.connections.get(0)).toBe(node1);
+    });
+
+    it('should throw when setting secondary input on node without support', () => {
+      const node1 = createMockPrevNode('node1', []);
+      const filterNode = new FilterNode({});
+
+      expect(() => {
+        setSecondaryInput(filterNode, 0, node1);
+      }).toThrow('Node does not support secondary inputs');
+    });
+
+    it('should remove secondary input at specified port', () => {
+      const node1 = createMockPrevNode('node1', []);
+      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+
+      addConnection(node1, intervalNode, 0);
+      expect(getSecondaryInput(intervalNode, 0)).toBe(node1);
+
+      removeSecondaryInput(intervalNode, 0);
+      expect(getSecondaryInput(intervalNode, 0)).toBeUndefined();
+    });
+
+    it('should handle removing non-existent secondary input', () => {
+      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+
+      // Should not throw
+      removeSecondaryInput(intervalNode, 5);
+    });
+
+    it('should handle removing secondary input from node without support', () => {
+      const filterNode = new FilterNode({});
+
+      // Should not throw
+      removeSecondaryInput(filterNode, 0);
+    });
+
+    it('should validate secondary inputs meet minimum cardinality', () => {
+      const node1 = createMockPrevNode('node1', []);
+      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+
+      // IntervalIntersect requires min 2 inputs
+      const error1 = validateSecondaryInputs(intervalNode);
+      expect(error1).toContain('Requires at least 2 inputs');
+
+      addConnection(node1, intervalNode, 0);
+      const error2 = validateSecondaryInputs(intervalNode);
+      expect(error2).toContain('Requires at least 2 inputs');
+      expect(error2).toContain('but only 1 connected');
+    });
+
+    it('should validate secondary inputs meet maximum cardinality', () => {
+      const addColsNode = new AddColumnsNode({});
+      const node1 = createMockPrevNode('node1', []);
+      const node2 = createMockPrevNode('node2', []);
+
+      // AddColumns allows max 1 secondary input (lookup table)
+      addConnection(node1, addColsNode, 0);
+      expect(validateSecondaryInputs(addColsNode)).toBeUndefined();
+
+      addConnection(node2, addColsNode, 1);
+      const error = validateSecondaryInputs(addColsNode);
+      expect(error).toContain('Allows at most 1 input');
+      expect(error).toContain('but 2 connected');
+    });
+
+    it('should validate unbounded maximum cardinality', () => {
+      const unionNode = new UnionNode({inputNodes: [], selectedColumns: []});
+      const nodes = Array.from({length: 10}, (_, i) =>
+        createMockPrevNode(`node${i}`, []),
+      );
+
+      // Union allows unbounded inputs
+      for (let i = 0; i < nodes.length; i++) {
+        addConnection(nodes[i], unionNode, i);
+      }
+
+      // With 10 inputs, validation should pass (unbounded max)
+      const error = validateSecondaryInputs(unionNode);
+      expect(error).toBeUndefined();
+    });
+
+    it('should return undefined when validation passes', () => {
+      const unionNode = new UnionNode({inputNodes: [], selectedColumns: []});
+      const node1 = createMockPrevNode('node1', []);
+      const node2 = createMockPrevNode('node2', []);
+
+      addConnection(node1, unionNode, 0);
+      addConnection(node2, unionNode, 1);
+
+      const error = validateSecondaryInputs(unionNode);
+      expect(error).toBeUndefined();
+    });
+
+    it('should return undefined for nodes without secondary inputs', () => {
+      const filterNode = new FilterNode({});
+      const error = validateSecondaryInputs(filterNode);
+      expect(error).toBeUndefined();
     });
   });
 });

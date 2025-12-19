@@ -462,8 +462,11 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
       PERFETTO_DLOG(
           "Adopting producer-provided SMB of %zu kB for producer \"%s\"",
           shm_size / 1024, endpoint->name_.c_str());
+      auto shmem_mode = client_identity.machine_id() == kDefaultMachineID
+                            ? SharedMemoryABI::ShmemMode::kDefault
+                            : SharedMemoryABI::ShmemMode::kShmemEmulation;
       endpoint->SetupSharedMemory(std::move(shm), page_size,
-                                  /*provided_by_producer=*/true);
+                                  /*provided_by_producer=*/true, shmem_mode);
     } else {
       PERFETTO_LOG(
           "Discarding incorrectly sized producer-provided SMB for producer "
@@ -2109,9 +2112,19 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
   for (const auto& [producer_id, ds_inst] :
        tracing_session->data_source_instances) {
-    if (ds_inst.no_flush)
+    if (!ds_inst.no_flush) {
+      data_source_instances[producer_id].push_back(ds_inst.instance_id);
       continue;
-    data_source_instances[producer_id].push_back(ds_inst.instance_id);
+    }
+    ProducerEndpointImpl* producer = GetProducer(producer_id);
+    if (producer->smb_scraping_enabled_ && producer->IsShmemEmulated()) {
+      // Remote producers (connected via traced_relay) don't share buffer memory
+      // with the tracing service, therefore we NEED to trigger a flush request
+      // so that the producer can self-scrape their emulated SMB. Trigger the
+      // flush by inserting an empty vector if the producer not in the map
+      // already. See RFC-0010.
+      data_source_instances.try_emplace(producer_id);
+    }
   }
   FlushDataSourceInstances(tracing_session, timeout_ms, data_source_instances,
                            std::move(callback), flush_flags);
@@ -2291,7 +2304,7 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
 void TracingServiceImpl::ScrapeSharedMemoryBuffers(
     TracingSession* tracing_session,
     ProducerEndpointImpl* producer) {
-  if (!producer->smb_scraping_enabled_)
+  if (!producer->smb_scraping_enabled_ || producer->IsShmemEmulated())
     return;
 
   // Can't copy chunks if we don't know about any trace writers.
@@ -2300,7 +2313,7 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
 
   // Performance optimization: On flush or session disconnect, this method is
   // called for each producer. If the producer doesn't participate in the
-  // session, there's no need to scape its chunks right now. We can tell if a
+  // session, there's no need to scrape its chunks right now. We can tell if a
   // producer participates in the session by checking if the producer is allowed
   // to write into the session's log buffers.
   const auto& session_buffers = tracing_session->buffers_index;
@@ -2335,76 +2348,34 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
   //   B. free chunks being migrated to kChunkBeingWritten,
   //   C. kChunkBeingWritten chunks being migrated to kChunkCompleted.
 
-  SharedMemoryABI* abi = &producer->shmem_abi_;
-  // num_pages() is immutable after the SMB is initialized and cannot be changed
-  // even by a producer even if malicious.
-  for (size_t page_idx = 0; page_idx < abi->num_pages(); page_idx++) {
-    uint32_t header_bitmap = abi->GetPageHeaderBitmap(page_idx);
+  SharedMemoryArbiterImpl::ForEachScrapableChunk(
+      &producer->shmem_abi_,
+      [&](SharedMemoryABI::Chunk* chunk, bool chunk_complete,
+          uint16_t packet_count, uint8_t packet_flags) {
+        WriterID writer_id = chunk->writer_id();
+        std::optional<BufferID> target_buffer_id =
+            producer->buffer_id_for_writer(writer_id);
 
-    uint32_t used_chunks =
-        abi->GetUsedChunks(header_bitmap);  // Returns a bitmap.
-    // Skip empty pages.
-    if (used_chunks == 0)
-      continue;
+        // We can only scrape this chunk if we know which log buffer to copy it
+        // into.
+        if (!target_buffer_id)
+          return;
 
-    // Scrape the chunks that are currently used. These should be either in
-    // state kChunkBeingWritten or kChunkComplete.
-    for (uint32_t chunk_idx = 0; used_chunks; chunk_idx++, used_chunks >>= 1) {
-      if (!(used_chunks & 1))
-        continue;
+        // Skip chunks that don't belong to the requested tracing session.
+        bool target_buffer_belongs_to_session =
+            std::find(session_buffers.begin(), session_buffers.end(),
+                      *target_buffer_id) != session_buffers.end();
+        if (!target_buffer_belongs_to_session)
+          return;
 
-      SharedMemoryABI::ChunkState state =
-          SharedMemoryABI::GetChunkStateFromHeaderBitmap(header_bitmap,
-                                                         chunk_idx);
-      PERFETTO_DCHECK(state == SharedMemoryABI::kChunkBeingWritten ||
-                      state == SharedMemoryABI::kChunkComplete);
-      bool chunk_complete = state == SharedMemoryABI::kChunkComplete;
+        uint32_t chunk_id =
+            chunk->header()->chunk_id.load(std::memory_order_relaxed);
 
-      SharedMemoryABI::Chunk chunk =
-          abi->GetChunkUnchecked(page_idx, header_bitmap, chunk_idx);
-
-      uint16_t packet_count;
-      uint8_t flags;
-      // GetPacketCountAndFlags has acquire_load semantics.
-      std::tie(packet_count, flags) = chunk.GetPacketCountAndFlags();
-
-      // It only makes sense to copy an incomplete chunk if there's at least
-      // one full packet available. (The producer may not have completed the
-      // last packet in it yet, so we need at least 2.)
-      if (!chunk_complete && packet_count < 2)
-        continue;
-
-      // At this point, it is safe to access the remaining header fields of
-      // the chunk. Even if the chunk was only just transferred from
-      // kChunkFree into kChunkBeingWritten state, the header should be
-      // written completely once the packet count increased above 1 (it was
-      // reset to 0 by the service when the chunk was freed).
-
-      WriterID writer_id = chunk.writer_id();
-      std::optional<BufferID> target_buffer_id =
-          producer->buffer_id_for_writer(writer_id);
-
-      // We can only scrape this chunk if we know which log buffer to copy it
-      // into.
-      if (!target_buffer_id)
-        continue;
-
-      // Skip chunks that don't belong to the requested tracing session.
-      bool target_buffer_belongs_to_session =
-          std::find(session_buffers.begin(), session_buffers.end(),
-                    *target_buffer_id) != session_buffers.end();
-      if (!target_buffer_belongs_to_session)
-        continue;
-
-      uint32_t chunk_id =
-          chunk.header()->chunk_id.load(std::memory_order_relaxed);
-
-      CopyProducerPageIntoLogBuffer(
-          producer->id_, producer->client_identity_, writer_id, chunk_id,
-          *target_buffer_id, packet_count, flags, chunk_complete,
-          chunk.payload_begin(), chunk.payload_size());
-    }
-  }
+        CopyProducerPageIntoLogBuffer(
+            producer->id_, producer->client_identity_, writer_id, chunk_id,
+            *target_buffer_id, packet_count, packet_flags, chunk_complete,
+            chunk->payload_begin(), chunk->payload_size());
+      });
 }
 
 void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
@@ -3432,9 +3403,17 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
     // client to go away.
     PERFETTO_DLOG("Creating SMB of %zu KB for producer \"%s\"", shm_size / 1024,
                   producer->name_.c_str());
+    // In the case the producer is using shmem emulation, because we use
+    // MMAP to allocate the memory and we never write to it, the shared
+    // memory is mapped to the zero page, essentially costing zero
+    // physical memory.
     auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
+    auto shmem_mode =
+        producer->client_identity().machine_id() == kDefaultMachineID
+            ? SharedMemoryABI::ShmemMode::kDefault
+            : SharedMemoryABI::ShmemMode::kShmemEmulation;
     producer->SetupSharedMemory(std::move(shared_memory), page_size,
-                                /*provided_by_producer=*/false);
+                                /*provided_by_producer=*/false, shmem_mode);
   }
   producer->SetupDataSource(inst_id, ds_config);
   return ds_instance;
