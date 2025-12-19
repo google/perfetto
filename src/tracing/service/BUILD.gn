@@ -84,6 +84,21 @@ if (enable_perfetto_zlib) {
   }
 }
 
+if (enable_perfetto_zstd) {
+  source_set("zstd_compressor") {
+    deps = [
+      "../../../gn:default_deps",
+      "../../../gn:zstd",
+      "../../../include/perfetto/tracing",
+      "../core",
+    ]
+    sources = [
+      "zstd_compressor.cc",
+      "zstd_compressor.h",
+    ]
+  }
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [

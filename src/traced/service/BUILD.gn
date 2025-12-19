@@ -55,6 +55,9 @@ source_set("service") {
   if (enable_perfetto_zlib) {
     deps += [ "../../tracing/service:zlib_compressor" ]
   }
+  if (enable_perfetto_zstd) {
+    deps += [ "../../tracing/service:zstd_compressor" ]
+  }
 
   sources = [ "service.cc" ]
 
