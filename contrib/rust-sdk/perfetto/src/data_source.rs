@@ -148,6 +148,8 @@ impl OnFlushArgs {
 
 type OnFlushCallback = Box<dyn FnMut(u32, &mut OnFlushArgs) + Send + Sync + 'static>;
 
+type OnClearIncrCallback<IncrT> = Box<dyn FnMut(&mut IncrT) -> bool + Send + Sync + 'static>;
+
 /// Data source buffer exhausted policy.
 #[derive(Default, PartialEq)]
 pub enum DataSourceBufferExhaustedPolicy {
@@ -185,17 +187,18 @@ impl ToDsBufferExhaustedPolicy for DataSourceBufferExhaustedPolicy {
 }
 
 #[derive(Default)]
-struct DsCallbacks {
+struct DsCallbacks<IncrT: Default> {
     on_setup: Option<OnSetupCallback>,
     on_start: Option<OnStartCallback>,
     on_stop: Option<OnStopCallback>,
     on_flush: Option<OnFlushCallback>,
+    on_clear_incr: Option<OnClearIncrCallback<IncrT>>,
 }
 
 /// Data source arguments struct.
 #[derive(Default)]
-pub struct DataSourceArgs {
-    callbacks: DsCallbacks,
+pub struct DataSourceArgs<IncrT: Default = IncrementalState> {
+    callbacks: DsCallbacks<IncrT>,
     buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
     buffer_exhausted_policy_configurable: bool,
     will_notify_on_stop: bool,
@@ -205,11 +208,11 @@ pub struct DataSourceArgs {
 /// Data source arguments builder.
 #[derive(Default)]
 #[must_use = "This is a builder; remember to call `.build()` (or keep chaining)."]
-pub struct DataSourceArgsBuilder {
-    args: DataSourceArgs,
+pub struct DataSourceArgsBuilder<IncrT: Default = IncrementalState> {
+    args: DataSourceArgs<IncrT>,
 }
 
-impl DataSourceArgsBuilder {
+impl<IncrT: Default> DataSourceArgsBuilder<IncrT> {
     /// Create new data source arguments builder.
     pub fn new() -> Self {
         Self::default()
@@ -292,8 +295,30 @@ impl DataSourceArgsBuilder {
         self
     }
 
+    /// Set clear incremental state callback.
+    ///
+    /// This callback is called when the tracing service requests clearing of
+    /// incremental state. Return `true` to clear the state in place (keeping
+    /// the same pointer), or `false` to have the state destroyed and recreated.
+    ///
+    /// # Example
+    /// ```ignore
+    /// .on_clear_incr(|state: &mut MyIncrementalState| {
+    ///     state.clear();
+    ///     true
+    /// })
+    /// ```
+    #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
+    pub fn on_clear_incr<F>(mut self, cb: F) -> Self
+    where
+        F: FnMut(&mut IncrT) -> bool + Send + Sync + 'static,
+    {
+        self.args.callbacks.on_clear_incr = Some(Box::new(cb));
+        self
+    }
+
     /// Returns data source arguments struct.
-    pub fn build(self) -> DataSourceArgs {
+    pub fn build(self) -> DataSourceArgs<IncrT> {
         self.args
     }
 }
@@ -479,11 +504,11 @@ impl<IncrT: Default> std::ops::DerefMut for TraceContext<'_, IncrT> {
 pub struct DataSource<'a: 'static, IncrT: Default = IncrementalState> {
     enabled: *mut bool,
     impl_: *mut PerfettoDsImpl,
-    callbacks: Mutex<Option<Box<DsCallbacks>>>,
+    callbacks: Mutex<Option<Box<DsCallbacks<IncrT>>>>,
     _marker: PhantomData<&'a IncrT>,
 }
 
-unsafe extern "C" fn on_setup_callback_trampoline(
+unsafe extern "C" fn on_setup_callback_trampoline<IncrT: Default>(
     _ds: *mut PerfettoDsImpl,
     inst_id: PerfettoDsInstanceIndex,
     ds_config: *mut c_void,
@@ -492,8 +517,8 @@ unsafe extern "C" fn on_setup_callback_trampoline(
     args: *mut PerfettoDsOnSetupArgs,
 ) -> *mut c_void {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
-        let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
+        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_setup {
             // SAFETY:
             // - `ds_config` must be non-null.
@@ -513,7 +538,7 @@ unsafe extern "C" fn on_setup_callback_trampoline(
     ptr::null_mut()
 }
 
-unsafe extern "C" fn on_start_callback_trampoline(
+unsafe extern "C" fn on_start_callback_trampoline<IncrT: Default>(
     _ds: *mut PerfettoDsImpl,
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
@@ -521,8 +546,8 @@ unsafe extern "C" fn on_start_callback_trampoline(
     args: *mut PerfettoDsOnStartArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
-        let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
+        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_start {
             let mut on_start_args = OnStartArgs { _args: args };
             f(inst_id, &mut on_start_args);
@@ -534,7 +559,7 @@ unsafe extern "C" fn on_start_callback_trampoline(
     }
 }
 
-unsafe extern "C" fn on_stop_callback_trampoline(
+unsafe extern "C" fn on_stop_callback_trampoline<IncrT: Default>(
     _ds: *mut PerfettoDsImpl,
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
@@ -542,8 +567,8 @@ unsafe extern "C" fn on_stop_callback_trampoline(
     args: *mut PerfettoDsOnStopArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
-        let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
+        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_stop {
             let mut on_stop_args = OnStopArgs { args };
             f(inst_id, &mut on_stop_args);
@@ -555,7 +580,7 @@ unsafe extern "C" fn on_stop_callback_trampoline(
     }
 }
 
-unsafe extern "C" fn on_flush_callback_trampoline(
+unsafe extern "C" fn on_flush_callback_trampoline<IncrT: Default>(
     _ds: *mut PerfettoDsImpl,
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
@@ -563,8 +588,8 @@ unsafe extern "C" fn on_flush_callback_trampoline(
     args: *mut PerfettoDsOnFlushArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
-        let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
+        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_flush {
             let mut on_flush_args = OnFlushArgs { args };
             f(inst_id, &mut on_flush_args);
@@ -593,6 +618,31 @@ unsafe extern "C" fn on_delete_incr_trampoline<IncrT: Default>(data: *mut c_void
     unsafe { drop(Box::from_raw(data as *mut IncrT)) };
 }
 
+unsafe extern "C" fn on_clear_incr_trampoline<IncrT: Default>(
+    incremental_state: *mut c_void,
+    user_arg: *mut c_void,
+) -> bool {
+    let result = std::panic::catch_unwind(|| {
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
+        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
+        if let Some(f) = &mut callbacks.on_clear_incr {
+            // SAFETY: `incremental_state` must be a pointer to a valid IncrT instance.
+            let state: &mut IncrT = unsafe { &mut *(incremental_state as *mut IncrT) };
+            f(state)
+        } else {
+            // No callback, return false to indicate clearing is not supported
+            false
+        }
+    });
+    match result {
+        Ok(success) => success,
+        Err(err) => {
+            eprintln!("Fatal panic: {:?}", err);
+            std::process::abort();
+        }
+    }
+}
+
 impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
     /// Create new data source type with a non-default `IncrT` type.
     pub fn new_with_incremental_state_type() -> Self {
@@ -600,7 +650,11 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
     }
 
     /// Registers the data source type named `name` with the global ewperfetto producer.
-    pub fn register(&mut self, name: &str, args: DataSourceArgs) -> Result<(), DataSourceError> {
+    pub fn register(
+        &mut self,
+        name: &str,
+        args: DataSourceArgs<IncrT>,
+    ) -> Result<(), DataSourceError> {
         use DataSourceError::*;
         let mut callbacks = self.callbacks.lock().unwrap();
         if callbacks.is_some() {
@@ -628,12 +682,13 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
         // - `desc_buffer` must be an encoded DataSourceDescriptor messaage.
         let ds_impl = unsafe {
             let ds_impl = PerfettoDsImplCreate();
-            PerfettoDsSetOnSetupCallback(ds_impl, Some(on_setup_callback_trampoline));
-            PerfettoDsSetOnStartCallback(ds_impl, Some(on_start_callback_trampoline));
-            PerfettoDsSetOnStopCallback(ds_impl, Some(on_stop_callback_trampoline));
-            PerfettoDsSetOnFlushCallback(ds_impl, Some(on_flush_callback_trampoline));
+            PerfettoDsSetOnSetupCallback(ds_impl, Some(on_setup_callback_trampoline::<IncrT>));
+            PerfettoDsSetOnStartCallback(ds_impl, Some(on_start_callback_trampoline::<IncrT>));
+            PerfettoDsSetOnStopCallback(ds_impl, Some(on_stop_callback_trampoline::<IncrT>));
+            PerfettoDsSetOnFlushCallback(ds_impl, Some(on_flush_callback_trampoline::<IncrT>));
             PerfettoDsSetOnCreateIncr(ds_impl, Some(on_create_incr_trampoline::<IncrT>));
             PerfettoDsSetOnDeleteIncr(ds_impl, Some(on_delete_incr_trampoline::<IncrT>));
+            PerfettoDsSetOnClearIncr(ds_impl, Some(on_clear_incr_trampoline::<IncrT>));
             PerfettoDsSetCbUserArg(ds_impl, user_arg);
             PerfettoDsSetBufferExhaustedPolicy(
                 ds_impl,

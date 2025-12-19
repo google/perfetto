@@ -68,6 +68,7 @@ struct PerfettoDsParams {
   // ignored.
   PerfettoDsOnCreateCustomState on_create_incr_cb;
   PerfettoDsOnDeleteCustomState on_delete_incr_cb;
+  PerfettoDsOnClearCustomState on_clear_incr_cb;
 
   // Passed to all the callbacks as the `user_arg` param.
   void* user_arg;
@@ -83,19 +84,12 @@ struct PerfettoDsParams {
 };
 
 static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
-  struct PerfettoDsParams ret = {PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_NULL,
-                                 PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP,
-                                 false,
-                                 true};
+  struct PerfettoDsParams ret = {
+      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
+      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
+      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
+      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP,
+      false,         true};
   return ret;
 }
 
@@ -159,6 +153,9 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
   }
   if (params.on_delete_incr_cb) {
     PerfettoDsSetOnDeleteIncr(ds_impl, params.on_delete_incr_cb);
+  }
+  if (params.on_clear_incr_cb) {
+    PerfettoDsSetOnClearIncr(ds_impl, params.on_clear_incr_cb);
   }
   if (params.user_arg) {
     PerfettoDsSetCbUserArg(ds_impl, params.user_arg);
