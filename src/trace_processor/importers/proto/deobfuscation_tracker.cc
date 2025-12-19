@@ -252,7 +252,7 @@ void DeobfuscationTracker::DeobfuscateProfiles(
       // populated by simpleperf, pprof, V8 JIT inside the trace itself.
       std::optional<uint32_t> obfuscated_line;
       if (frame->symbol_set_id().has_value()) {
-        symbol_cursor.SetFilterValueUnchecked(0, frame->symbol_set_id());
+        symbol_cursor.SetFilterValueUnchecked(0, *frame->symbol_set_id());
         symbol_cursor.Execute();
         if (!symbol_cursor.Eof()) {
           obfuscated_line = symbol_cursor.line_number();
