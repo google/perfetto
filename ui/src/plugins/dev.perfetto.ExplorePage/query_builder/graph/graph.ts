@@ -873,18 +873,43 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             m.redraw();
           },
           onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
-            // Remove coordinates so node becomes "docked" (renders via parent's 'next')
-            attrs.nodeLayouts.delete(childNode.id);
-
-            // Create the connection between parent and child
             const parentNode = findQueryNode(targetId, rootNodes);
             const childQueryNode = findQueryNode(childNode.id, rootNodes);
 
-            if (parentNode && childQueryNode) {
-              // Add connection (this will update both nextNodes and primaryInput/secondaryInputs)
-              addConnection(parentNode, childQueryNode);
+            if (!parentNode || !childQueryNode) {
+              console.warn('Cannot dock: parent or child node not found');
+              m.redraw();
+              return;
             }
 
+            const existingChildren = parentNode.nextNodes;
+
+            // Only allow docking if:
+            // 1. Parent has no children, OR
+            // 2. Parent has exactly one child and it's the child being docked (re-docking)
+            const canDock =
+              existingChildren.length === 0 ||
+              (existingChildren.length === 1 &&
+                existingChildren[0] === childQueryNode);
+
+            if (!canDock) {
+              console.warn('Cannot dock: parent already has children');
+              m.redraw();
+              return;
+            }
+
+            // Check if child can be docked (single-node operation)
+            if (!singleNodeOperation(childQueryNode.type)) {
+              console.warn(
+                'Cannot dock: only single-node operations can be docked',
+              );
+              m.redraw();
+              return;
+            }
+
+            // Dock the child
+            attrs.nodeLayouts.delete(childNode.id);
+            addConnection(parentNode, childQueryNode);
             m.redraw();
           },
           contextMenuOnHover: true,
