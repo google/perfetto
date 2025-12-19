@@ -133,13 +133,20 @@ if (enable_perfetto_benchmarks) {
       ":service",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../../gn:zlib",
+      "../../../protos/perfetto/trace:cpp",
       "../../../protos/perfetto/trace:zero",
       "../../../protos/perfetto/trace/ftrace:zero",
+      "../../base",
       "../../protozero",
       "../core",
       "../test:test_support",
     ]
+    if (enable_perfetto_zstd) {
+      deps += [ "../../../gn:zstd" ]
+    }
     sources = [
+      "compression_benchmark.cc",
       "packet_stream_validator_benchmark.cc",
       "trace_buffer_benchmark.cc",
     ]

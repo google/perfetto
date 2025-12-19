@@ -368,6 +368,10 @@ declare_args() {
   enable_perfetto_zlib =
       enable_perfetto_trace_processor || enable_perfetto_platform_services
 
+  # Enables Zstd support. This can be used as an alternative compression
+  # algorithm to zlib in the tracing service.
+  enable_perfetto_zstd = perfetto_build_standalone
+
   # Enables function name demangling using sources from llvm. Otherwise
   # trace_processor falls back onto using the c++ runtime demangler, which
   # typically handles only itanium mangling.
