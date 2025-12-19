@@ -43,6 +43,7 @@ const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
 interface Data extends TrackData {
   kind: 'slice';
+  minCpuId: number;
   maxCpu: number;
 
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -69,6 +70,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
   constructor(
     private readonly trace: Trace,
     private readonly config: Config,
+    private readonly minCpuId: number,
     private readonly cpuCount: number,
     private readonly threads: ThreadMap,
   ) {}
@@ -170,6 +172,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
       end,
       resolution,
       length: numRows,
+      minCpuId: this.minCpuId,
       maxCpu: this.cpuCount,
       counts: new Uint32Array(numRows),
       starts: new BigInt64Array(numRows),
@@ -277,7 +280,12 @@ export class ProcessSchedulingTrack implements TrackRenderer {
       if (!visibleWindow.overlaps(tStart, tEnd)) continue;
 
       const utid = data.utids[i];
-      const cpu = data.cpus[i];
+
+      // In multi-VM traces the UCPUs of the secondary machine could start at
+      // any number (e.g 4096), therefore in order to correctly set the
+      // position of the cpu track we need to offset the track by the minimum
+      // cpu id of that machine.
+      const cpu = data.cpus[i] - data.minCpuId;
 
       const rectStart = Math.floor(timescale.timeToPx(tStart));
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
