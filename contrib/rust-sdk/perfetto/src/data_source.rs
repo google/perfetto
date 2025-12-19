@@ -148,8 +148,6 @@ impl OnFlushArgs {
 
 type OnFlushCallback = Box<dyn FnMut(u32, &mut OnFlushArgs) + Send + Sync + 'static>;
 
-type OnClearIncrCallback<IncrT> = Box<dyn FnMut(&mut IncrT) -> bool + Send + Sync + 'static>;
-
 /// Data source buffer exhausted policy.
 #[derive(Default, PartialEq)]
 pub enum DataSourceBufferExhaustedPolicy {
@@ -187,32 +185,32 @@ impl ToDsBufferExhaustedPolicy for DataSourceBufferExhaustedPolicy {
 }
 
 #[derive(Default)]
-struct DsCallbacks<IncrT: Default> {
+struct DsCallbacks {
     on_setup: Option<OnSetupCallback>,
     on_start: Option<OnStartCallback>,
     on_stop: Option<OnStopCallback>,
     on_flush: Option<OnFlushCallback>,
-    on_clear_incr: Option<OnClearIncrCallback<IncrT>>,
 }
 
 /// Data source arguments struct.
 #[derive(Default)]
-pub struct DataSourceArgs<IncrT: Default = IncrementalState> {
-    callbacks: DsCallbacks<IncrT>,
+pub struct DataSourceArgs<IncrT: Default + Clear = IncrementalState> {
+    callbacks: DsCallbacks,
     buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
     buffer_exhausted_policy_configurable: bool,
     will_notify_on_stop: bool,
     handles_incremental_state_clear: bool,
+    _phantom: std::marker::PhantomData<IncrT>,
 }
 
 /// Data source arguments builder.
 #[derive(Default)]
 #[must_use = "This is a builder; remember to call `.build()` (or keep chaining)."]
-pub struct DataSourceArgsBuilder<IncrT: Default = IncrementalState> {
+pub struct DataSourceArgsBuilder<IncrT: Default + Clear = IncrementalState> {
     args: DataSourceArgs<IncrT>,
 }
 
-impl<IncrT: Default> DataSourceArgsBuilder<IncrT> {
+impl<IncrT: Default + Clear> DataSourceArgsBuilder<IncrT> {
     /// Create new data source arguments builder.
     pub fn new() -> Self {
         Self::default()
@@ -245,7 +243,32 @@ impl<IncrT: Default> DataSourceArgsBuilder<IncrT> {
         self
     }
 
-    /// Set incremental state clear flag.
+    /// Set whether this data source wants to receive incremental state clear notifications.
+    ///
+    /// This controls the **policy** of *whether* the tracing service should send clear
+    /// notifications to this data source. This is separate from the [`Clear`] trait,
+    /// which defines *how* to clear when notifications are received.
+    ///
+    /// # Arguments
+    ///
+    /// * `true` - The service will send IPC notifications when incremental state should
+    ///   be cleared, and your [`Clear::clear()`] implementation will be called.
+    /// * `false` (default) - The service will not send clear notifications, avoiding
+    ///   unnecessary IPC overhead. Your [`Clear::clear()`] method will never be called.
+    ///
+    /// # When to set this to `true`
+    ///
+    /// Set this to `true` if your incremental state benefits from periodic clearing:
+    /// - You intern data (strings, events, etc.) that should be reset periodically
+    /// - You maintain caches or temporary state that grows over time
+    /// - You want to ensure consistent data across trace buffer wraps
+    ///
+    /// # When to leave this as `false`
+    ///
+    /// Leave as `false` (default) if:
+    /// - You don't use incremental state (just use the default `IncrementalState`)
+    /// - Your incremental state is small or doesn't accumulate data
+    /// - You want to avoid the IPC overhead of clear notifications
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn handles_incremental_state_clear(
         mut self,
@@ -292,28 +315,6 @@ impl<IncrT: Default> DataSourceArgsBuilder<IncrT> {
         F: FnMut(u32, &mut OnFlushArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_flush = Some(Box::new(cb));
-        self
-    }
-
-    /// Set clear incremental state callback.
-    ///
-    /// This callback is called when the tracing service requests clearing of
-    /// incremental state. Return `true` to clear the state in place (keeping
-    /// the same pointer), or `false` to have the state destroyed and recreated.
-    ///
-    /// # Example
-    /// ```ignore
-    /// .on_clear_incr(|state: &mut MyIncrementalState| {
-    ///     state.clear();
-    ///     true
-    /// })
-    /// ```
-    #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
-    pub fn on_clear_incr<F>(mut self, cb: F) -> Self
-    where
-        F: FnMut(&mut IncrT) -> bool + Send + Sync + 'static,
-    {
-        self.args.callbacks.on_clear_incr = Some(Box::new(cb));
         self
     }
 
@@ -434,6 +435,56 @@ impl TraceContextBase {
     }
 }
 
+/// Trait for clearing incremental state without destroying and recreating it.
+///
+/// This trait defines the **mechanism** for how to clear incremental state when
+/// the tracing service requests it. All incremental state types must implement
+/// this trait.
+///
+/// **Note**: This trait defines *how* to clear, not *whether* to receive clear
+/// notifications. Use [`DataSourceArgsBuilder::handles_incremental_state_clear`]
+/// to control whether the service should send clear notifications at all.
+///
+/// # Default Implementation
+///
+/// The default implementation simply replaces the current instance with a new
+/// default instance (`*self = Self::default()`), which is equivalent to
+/// destroying and recreating the state.
+///
+/// # Custom Implementation
+///
+/// Override `clear()` to reuse allocated memory instead of reallocating, which
+/// can significantly improve performance for data sources with large incremental
+/// state (e.g., hash maps for interned data).
+///
+/// # Example
+///
+/// ```ignore
+/// struct MyIncrementalState {
+///     interned_strings: HashMap<String, u32>,
+/// }
+///
+/// impl Clear for MyIncrementalState {
+///     fn clear(&mut self) {
+///         // Reuses the HashMap's allocation instead of dropping and reallocating
+///         self.interned_strings.clear();
+///     }
+/// }
+/// ```
+pub trait Clear: Default {
+    /// Clears the incremental state.
+    ///
+    /// This method is called when the tracing service sends a clear notification
+    /// (only if you've set `handles_incremental_state_clear(true)`).
+    ///
+    /// The default implementation replaces the current instance with a new
+    /// default instance. Override this to reuse allocations for better performance.
+    fn clear(&mut self) {
+        // Replaces the current instance with a new default instance.
+        *self = Self::default();
+    }
+}
+
 /// Default incremental state struct used if not specified.
 pub struct IncrementalState {
     /// Set to true when incremental state has been cleared and not yet acknowledged by
@@ -447,14 +498,16 @@ impl Default for IncrementalState {
     }
 }
 
+impl Clear for IncrementalState {}
+
 /// Trace context struct passed to data source trace callbacks.
-pub struct TraceContext<'a, IncrT: Default = IncrementalState> {
+pub struct TraceContext<'a, IncrT: Default + Clear = IncrementalState> {
     base: TraceContextBase,
     pub(crate) impl_: *mut PerfettoDsImpl,
     pub(crate) _marker: PhantomData<&'a IncrT>,
 }
 
-impl<IncrT: Default> TraceContext<'_, IncrT> {
+impl<IncrT: Default + Clear> TraceContext<'_, IncrT> {
     /// Calls `cb` with the incremental state for the instance.
     pub fn with_incremental_state<F>(&mut self, mut cb: F)
     where
@@ -487,28 +540,28 @@ impl<IncrT: Default> TraceContext<'_, IncrT> {
     }
 }
 
-impl<IncrT: Default> std::ops::Deref for TraceContext<'_, IncrT> {
+impl<IncrT: Default + Clear> std::ops::Deref for TraceContext<'_, IncrT> {
     type Target = TraceContextBase;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
 }
 
-impl<IncrT: Default> std::ops::DerefMut for TraceContext<'_, IncrT> {
+impl<IncrT: Default + Clear> std::ops::DerefMut for TraceContext<'_, IncrT> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.base
     }
 }
 
 /// Data source struct.
-pub struct DataSource<'a: 'static, IncrT: Default = IncrementalState> {
+pub struct DataSource<'a: 'static, IncrT: Default + Clear = IncrementalState> {
     enabled: *mut bool,
     impl_: *mut PerfettoDsImpl,
-    callbacks: Mutex<Option<Box<DsCallbacks<IncrT>>>>,
+    callbacks: Mutex<Option<Box<DsCallbacks>>>,
     _marker: PhantomData<&'a IncrT>,
 }
 
-unsafe extern "C" fn on_setup_callback_trampoline<IncrT: Default>(
+unsafe extern "C" fn on_setup_callback_trampoline(
     _ds: *mut PerfettoDsImpl,
     inst_id: PerfettoDsInstanceIndex,
     ds_config: *mut c_void,
@@ -517,8 +570,8 @@ unsafe extern "C" fn on_setup_callback_trampoline<IncrT: Default>(
     args: *mut PerfettoDsOnSetupArgs,
 ) -> *mut c_void {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
-        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
+        let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_setup {
             // SAFETY:
             // - `ds_config` must be non-null.
@@ -538,7 +591,7 @@ unsafe extern "C" fn on_setup_callback_trampoline<IncrT: Default>(
     ptr::null_mut()
 }
 
-unsafe extern "C" fn on_start_callback_trampoline<IncrT: Default>(
+unsafe extern "C" fn on_start_callback_trampoline(
     _ds: *mut PerfettoDsImpl,
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
@@ -546,8 +599,8 @@ unsafe extern "C" fn on_start_callback_trampoline<IncrT: Default>(
     args: *mut PerfettoDsOnStartArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
-        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
+        let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_start {
             let mut on_start_args = OnStartArgs { _args: args };
             f(inst_id, &mut on_start_args);
@@ -559,7 +612,7 @@ unsafe extern "C" fn on_start_callback_trampoline<IncrT: Default>(
     }
 }
 
-unsafe extern "C" fn on_stop_callback_trampoline<IncrT: Default>(
+unsafe extern "C" fn on_stop_callback_trampoline(
     _ds: *mut PerfettoDsImpl,
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
@@ -567,8 +620,8 @@ unsafe extern "C" fn on_stop_callback_trampoline<IncrT: Default>(
     args: *mut PerfettoDsOnStopArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
-        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
+        let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_stop {
             let mut on_stop_args = OnStopArgs { args };
             f(inst_id, &mut on_stop_args);
@@ -580,7 +633,7 @@ unsafe extern "C" fn on_stop_callback_trampoline<IncrT: Default>(
     }
 }
 
-unsafe extern "C" fn on_flush_callback_trampoline<IncrT: Default>(
+unsafe extern "C" fn on_flush_callback_trampoline(
     _ds: *mut PerfettoDsImpl,
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
@@ -588,8 +641,8 @@ unsafe extern "C" fn on_flush_callback_trampoline<IncrT: Default>(
     args: *mut PerfettoDsOnFlushArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
-        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
+        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
+        let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_flush {
             let mut on_flush_args = OnFlushArgs { args };
             f(inst_id, &mut on_flush_args);
@@ -601,7 +654,7 @@ unsafe extern "C" fn on_flush_callback_trampoline<IncrT: Default>(
     }
 }
 
-unsafe extern "C" fn on_create_incr_trampoline<IncrT: Default>(
+unsafe extern "C" fn on_create_incr_trampoline<IncrT: Default + Clear>(
     _ds: *mut PerfettoDsImpl,
     _inst_id: PerfettoDsInstanceIndex,
     _tracer: *mut PerfettoDsTracerImpl,
@@ -611,28 +664,22 @@ unsafe extern "C" fn on_create_incr_trampoline<IncrT: Default>(
     Box::into_raw(boxed) as *mut c_void
 }
 
-unsafe extern "C" fn on_delete_incr_trampoline<IncrT: Default>(data: *mut c_void) {
+unsafe extern "C" fn on_delete_incr_trampoline<IncrT: Default + Clear>(data: *mut c_void) {
     // Reclaims the Box and calls drop.
     //
     // SAFETY: `data` must be a pointer to a boxed IncrT struct.
     unsafe { drop(Box::from_raw(data as *mut IncrT)) };
 }
 
-unsafe extern "C" fn on_clear_incr_trampoline<IncrT: Default>(
+unsafe extern "C" fn on_clear_incr_trampoline<IncrT: Default + Clear>(
     incremental_state: *mut c_void,
-    user_arg: *mut c_void,
+    _user_arg: *mut c_void,
 ) -> bool {
     let result = std::panic::catch_unwind(|| {
-        // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks<IncrT> struct.
-        let callbacks: &mut DsCallbacks<IncrT> = unsafe { &mut *(user_arg as *mut _) };
-        if let Some(f) = &mut callbacks.on_clear_incr {
-            // SAFETY: `incremental_state` must be a pointer to a valid IncrT instance.
-            let state: &mut IncrT = unsafe { &mut *(incremental_state as *mut IncrT) };
-            f(state)
-        } else {
-            // No callback, return false to indicate clearing is not supported
-            false
-        }
+        // SAFETY: `incremental_state` must be a pointer to a valid IncrT instance.
+        let state: &mut IncrT = unsafe { &mut *(incremental_state as *mut IncrT) };
+        state.clear();
+        true
     });
     match result {
         Ok(success) => success,
@@ -643,7 +690,7 @@ unsafe extern "C" fn on_clear_incr_trampoline<IncrT: Default>(
     }
 }
 
-impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
+impl<'a: 'static, IncrT: Default + Clear> DataSource<'a, IncrT> {
     /// Create new data source type with a non-default `IncrT` type.
     pub fn new_with_incremental_state_type() -> Self {
         Self::default()
@@ -682,10 +729,10 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
         // - `desc_buffer` must be an encoded DataSourceDescriptor messaage.
         let ds_impl = unsafe {
             let ds_impl = PerfettoDsImplCreate();
-            PerfettoDsSetOnSetupCallback(ds_impl, Some(on_setup_callback_trampoline::<IncrT>));
-            PerfettoDsSetOnStartCallback(ds_impl, Some(on_start_callback_trampoline::<IncrT>));
-            PerfettoDsSetOnStopCallback(ds_impl, Some(on_stop_callback_trampoline::<IncrT>));
-            PerfettoDsSetOnFlushCallback(ds_impl, Some(on_flush_callback_trampoline::<IncrT>));
+            PerfettoDsSetOnSetupCallback(ds_impl, Some(on_setup_callback_trampoline));
+            PerfettoDsSetOnStartCallback(ds_impl, Some(on_start_callback_trampoline));
+            PerfettoDsSetOnStopCallback(ds_impl, Some(on_stop_callback_trampoline));
+            PerfettoDsSetOnFlushCallback(ds_impl, Some(on_flush_callback_trampoline));
             PerfettoDsSetOnCreateIncr(ds_impl, Some(on_create_incr_trampoline::<IncrT>));
             PerfettoDsSetOnDeleteIncr(ds_impl, Some(on_delete_incr_trampoline::<IncrT>));
             PerfettoDsSetOnClearIncr(ds_impl, Some(on_clear_incr_trampoline::<IncrT>));
@@ -768,7 +815,7 @@ impl<'a: 'static> DataSource<'a, IncrementalState> {
     }
 }
 
-impl<'a: 'static, IncrT: Default> Default for DataSource<'a, IncrT> {
+impl<'a: 'static, IncrT: Default + Clear> Default for DataSource<'a, IncrT> {
     fn default() -> Self {
         Self {
             // `perfetto_atomic_false` is a pointer to a primitive with layout that
@@ -782,10 +829,10 @@ impl<'a: 'static, IncrT: Default> Default for DataSource<'a, IncrT> {
 }
 
 /// SAFETY: Internal handle must be thread-safe.
-unsafe impl<'a: 'static, IncrT: Default> Send for DataSource<'a, IncrT> {}
+unsafe impl<'a: 'static, IncrT: Default + Clear> Send for DataSource<'a, IncrT> {}
 
 /// SAFETY: Internal handle must be thread-safe.
-unsafe impl<'a: 'static, IncrT: Default> Sync for DataSource<'a, IncrT> {}
+unsafe impl<'a: 'static, IncrT: Default + Clear> Sync for DataSource<'a, IncrT> {}
 
 #[cfg(test)]
 mod tests {

@@ -85,11 +85,21 @@ struct PerfettoDsParams {
 
 static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
   struct PerfettoDsParams ret = {
-      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
-      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
-      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
-      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP,
-      false,         true};
+      /* .on_setup_cb = */ PERFETTO_NULL,
+      /* .on_start_cb = */ PERFETTO_NULL,
+      /* .on_stop_cb = */ PERFETTO_NULL,
+      /* .on_destroy_cb = */ PERFETTO_NULL,
+      /* .on_flush_cb = */ PERFETTO_NULL,
+      /* .on_create_tls_cb = */ PERFETTO_NULL,
+      /* .on_delete_tls_cb = */ PERFETTO_NULL,
+      /* .on_create_incr_cb = */ PERFETTO_NULL,
+      /* .on_delete_incr_cb = */ PERFETTO_NULL,
+      /* .on_clear_incr_cb = */ PERFETTO_NULL,
+      /* .user_arg = */ PERFETTO_NULL,
+      /* .buffer_exhausted_policy = */
+      PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP,
+      /* .buffer_exhausted_policy_configurable = */ false,
+      /* .will_notify_on_stop = */ true};
   return ret;
 }
 
