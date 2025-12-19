@@ -100,7 +100,7 @@ class SqlTableTab implements Tab {
     const addDebugTrack = m(
       Popup,
       {
-        trigger: m(Button, {label: 'Show debug track'}),
+        trigger: m(Button, {label: 'Add debug track'}),
         position: PopupPosition.Top,
       },
       m(AddDebugTrackMenu, {

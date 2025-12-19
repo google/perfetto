@@ -38,6 +38,9 @@ import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
 import {getSliceId, isSliceish} from '../../components/query_table/query_table';
 import {DataSource} from '../../components/widgets/datagrid/data_source';
+import {PopupMenu} from '../../widgets/menu';
+import {PopupPosition} from '../../widgets/popup';
+import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -252,6 +255,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             columnSchema[column] = {cellRenderer};
           }
           const schema: SchemaRegistry = {data: columnSchema};
+          const lastStatement = queryResult.lastStatementSql;
 
           return m(DataGrid, {
             schema,
@@ -264,11 +268,29 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               'span.pf-query-page__results-summary',
               `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
             ),
-            toolbarItemsRight: m(CopyToClipboardButton, {
-              textToCopy: queryResult.query,
-              title: 'Copy executed query to clipboard',
-              label: 'Copy Query',
-            }),
+            toolbarItemsRight: [
+              m(
+                PopupMenu,
+                {
+                  trigger: m(Button, {label: 'Add debug track'}),
+                  position: PopupPosition.Top,
+                },
+                m(AddDebugTrackMenu, {
+                  trace,
+                  query: lastStatement,
+                  availableColumns: queryResult.columns,
+                  onAdd: () => {
+                    // Navigate to the tracks page
+                    trace.navigate('#!/viewer');
+                  },
+                }),
+              ),
+              m(CopyToClipboardButton, {
+                textToCopy: queryResult.query,
+                title: 'Copy executed query to clipboard',
+                label: 'Copy Query',
+              }),
+            ],
           });
         })(),
       ];
