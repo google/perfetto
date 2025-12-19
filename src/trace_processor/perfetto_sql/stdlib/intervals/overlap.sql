@@ -520,3 +520,71 @@ RETURNS TableOrSubquery AS
   WHERE
     value = 0
 );
+
+-- Merge overlapping intervals within each partition group to generate a minimum
+-- covering set of intervals with no overlap within each partition.
+--
+-- For each partition, this macro merges overlapping intervals into
+-- non-overlapping intervals. The result contains intervals where at least
+-- one input interval is active.
+--
+-- For example, with partition 'A':
+--   Input: (ts=1, dur=10), (ts=5, dur=12)
+--   Output: (ts=1, dur=16)
+--
+-- Intervals are assumed to be ordered by ts and have dur >= 0.
+CREATE PERFETTO MACRO interval_merge_overlapping_partitioned(
+    -- Table or subquery containing interval data.
+    intervals TableOrSubquery,
+    -- Column name for partition grouping.
+    partition_column ColumnName
+)
+-- The returned table has the schema (ts TIMESTAMP, dur DURATION, partition).
+-- |ts| is the start of the merged interval. |dur| is the duration of the
+-- merged interval. |partition| is the partition key.
+RETURNS TableOrSubquery AS
+(
+  -- Algorithm: For each partition, use intervals_overlap_count_by_group to
+  -- generate a counter track. Pass over the counter track from left to right,
+  -- creating an interval when the counter first becomes non-zero and ending
+  -- an interval when it becomes zero again.
+  WITH
+    _w_prev_count AS (
+      SELECT
+        ts,
+        value,
+        lag(value, 1, 0) OVER (PARTITION BY group_name ORDER BY ts) AS prev_value,
+        group_name
+      FROM intervals_overlap_count_by_group !($intervals, ts, dur, $partition_column)
+      ORDER BY
+        group_name,
+        ts ASC
+    ),
+    _end_points AS (
+      SELECT
+        ts,
+        value,
+        group_name
+      FROM _w_prev_count
+      WHERE
+        -- start of merged intervals
+        prev_value = 0
+        -- end of merged intervals
+        OR value = 0
+    ),
+    _together AS (
+      SELECT
+        ts,
+        value,
+        lag(ts, 1, NULL) OVER (PARTITION BY group_name ORDER BY ts) AS prev_ts,
+        group_name
+      FROM _end_points
+    )
+  SELECT
+    prev_ts AS ts,
+    ts - prev_ts AS dur,
+    group_name AS $partition_column
+  FROM _together
+  WHERE
+    value = 0
+);
