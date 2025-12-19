@@ -741,7 +741,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           trigger: RoundActionButton({
             icon: Icons.Add,
             title: 'Add Node',
-            onclick: () => {}, // PopupMenu handles the click
+            onclick: () => {},
           }),
         },
         addNodeMenuItems,

@@ -51,7 +51,7 @@ export interface RoundActionButtonAttrs {
   readonly className?: string;
 }
 
-export function RoundActionButton(attrs: RoundActionButtonAttrs): m.Child {
+export function RoundActionButton(attrs: RoundActionButtonAttrs) {
   return m(Button, {
     icon: attrs.icon,
     title: attrs.title,
