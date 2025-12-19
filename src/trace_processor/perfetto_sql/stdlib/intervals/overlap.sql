@@ -531,9 +531,7 @@ RETURNS TableOrSubquery AS
 -- For example, with partition 'A':
 --   Input: (ts=1, dur=10), (ts=5, dur=12)
 --   Output: (ts=1, dur=16)
---
--- Intervals are assumed to be ordered by ts and have dur >= 0.
-CREATE PERFETTO MACRO interval_merge_overlapping_partitioned(
+CREATE PERFETTO MACRO _interval_merge_overlapping_partitioned(
     -- Table or subquery containing interval data.
     intervals TableOrSubquery,
     -- Column name for partition grouping.
@@ -549,13 +547,21 @@ RETURNS TableOrSubquery AS
   -- creating an interval when the counter first becomes non-zero and ending
   -- an interval when it becomes zero again.
   WITH
+    _sorted_intervals AS (
+      SELECT
+        *
+      FROM $intervals
+      ORDER BY
+        $partition_column,
+        ts
+    ),
     _w_prev_count AS (
       SELECT
         ts,
         value,
         lag(value, 1, 0) OVER (PARTITION BY group_name ORDER BY ts) AS prev_value,
         group_name
-      FROM intervals_overlap_count_by_group !($intervals, ts, dur, $partition_column)
+      FROM intervals_overlap_count_by_group !(_sorted_intervals, ts, dur, $partition_column)
       ORDER BY
         group_name,
         ts ASC

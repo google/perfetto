@@ -327,7 +327,7 @@ class StdlibIntervals(TestSuite):
               (12, 3, 'C')
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
@@ -358,7 +358,7 @@ class StdlibIntervals(TestSuite):
               (10, 5, 'B')
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
@@ -385,7 +385,7 @@ class StdlibIntervals(TestSuite):
               (20, 10, 'A')
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
@@ -408,7 +408,7 @@ class StdlibIntervals(TestSuite):
               (50, 5, 'C')
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
@@ -434,7 +434,7 @@ class StdlibIntervals(TestSuite):
               (50, 5, 'A')
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
@@ -459,7 +459,7 @@ class StdlibIntervals(TestSuite):
               (15, 10, 2)
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
@@ -488,7 +488,7 @@ class StdlibIntervals(TestSuite):
               (65, 10, 'A')
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
@@ -515,7 +515,7 @@ class StdlibIntervals(TestSuite):
               (30, 5, 'A')
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
@@ -541,7 +541,7 @@ class StdlibIntervals(TestSuite):
               (15, 0, 'B')
           )
         SELECT *
-        FROM interval_merge_overlapping_partitioned!(data, partition)
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
         ORDER BY partition ASC, ts ASC;
         """,
         out=Csv("""
