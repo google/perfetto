@@ -104,6 +104,7 @@ from diff_tests.parser.power.tests_power_rails import PowerPowerRails
 from diff_tests.parser.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.parser.process_tracking.tests import ProcessTracking
 from diff_tests.parser.profiling.deobfuscation_tests import Deobfuscation
+from diff_tests.parser.profiling.r8_retrace_compat.tests import R8RetraceCompat
 from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
@@ -201,6 +202,7 @@ def fetch_all_diff_tests(
       ChromeV8Parser,
       Cros,
       Deobfuscation,
+      R8RetraceCompat,
       Etm,
       Etw,
       Fs,
