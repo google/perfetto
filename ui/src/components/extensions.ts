@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {type addDebugSliceTrack} from './tracks/debug_tracks';
-import {type addDebugCounterTrack} from './tracks/debug_tracks';
 import {type addVisualizedArgTracks} from './tracks/visualized_args_tracks';
-import {type addQueryResultsTab} from './query_table/query_result_tab';
 
 // TODO(primiano & stevegolton): This injection is to break the circular
 // dependency cycle that there is between various tabs and tracks.
@@ -28,10 +25,7 @@ import {type addQueryResultsTab} from './query_table/query_result_tab';
 //    these extension points there instead
 
 export interface ExtensionApi {
-  addDebugSliceTrack: typeof addDebugSliceTrack;
-  addDebugCounterTrack: typeof addDebugCounterTrack;
   addVisualizedArgTracks: typeof addVisualizedArgTracks;
-  addQueryResultsTab: typeof addQueryResultsTab;
 }
 
 export let extensions: ExtensionApi;
