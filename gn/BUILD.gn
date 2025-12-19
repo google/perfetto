@@ -100,6 +100,7 @@ action("gen_buildflags") {
     "PERFETTO_TP_INSTRUMENTS=$enable_perfetto_trace_processor_mac_instruments",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
+    "PERFETTO_ZSTD=$enable_perfetto_zstd",
     "PERFETTO_TRACED_PERF=$enable_perfetto_traced_perf",
     "PERFETTO_HEAPPROFD=$enable_perfetto_heapprofd",
     "PERFETTO_STDERR_CRASH_DUMP=$enable_perfetto_stderr_crash_dump",
@@ -459,6 +460,16 @@ if (enable_perfetto_zlib) {
     } else {
       public_configs = [ "//third_party/zlib:zlib_config" ]
       public_deps = [ "//third_party/zlib" ]
+    }
+  }
+}
+
+# Zstd can be used as an alternative compression algorithm in tracing service.
+if (enable_perfetto_zstd) {
+  group("zstd") {
+    if (perfetto_root_path == "//") {
+      public_configs = [ "//buildtools:zstd_config" ]
+      public_deps = [ "//buildtools:zstd" ]
     }
   }
 }
