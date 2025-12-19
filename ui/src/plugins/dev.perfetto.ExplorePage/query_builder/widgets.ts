@@ -38,6 +38,33 @@ import {ResizeHandle} from '../../../widgets/resize_handle';
 import {findRef, toHTMLElement} from '../../../base/dom_utils';
 import {assertExists} from '../../../base/logging';
 
+/**
+ * Round action button with consistent styling for Explore Page.
+ * Used for undo/redo/add node buttons - provides unified styling with
+ * primary color, filled variant, and round shape.
+ */
+export interface RoundActionButtonAttrs {
+  readonly icon: string;
+  readonly title: string;
+  readonly onclick: () => void;
+  readonly disabled?: boolean;
+  readonly className?: string;
+}
+
+export function RoundActionButton(attrs: RoundActionButtonAttrs): m.Child {
+  return m(Button, {
+    icon: attrs.icon,
+    title: attrs.title,
+    onclick: attrs.onclick,
+    disabled: attrs.disabled,
+    variant: ButtonVariant.Filled,
+    rounded: true,
+    iconFilled: true,
+    intent: Intent.Primary,
+    className: classNames('pf-qb-round-action-button', attrs.className),
+  });
+}
+
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
 

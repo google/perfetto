@@ -33,7 +33,6 @@
 
 import m from 'mithril';
 
-import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
@@ -63,6 +62,7 @@ import {
   addConnection,
   removeConnection,
 } from '../graph_utils';
+import {RoundActionButton} from '../widgets';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -705,9 +705,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       m(MenuDivider),
       m(MenuTitle, {label: 'Operations'}),
       ...operationMenuItems,
-      m(MenuDivider),
       m(MenuTitle, {label: 'Modification nodes'}),
       ...modificationMenuItems,
+      m(MenuDivider),
+      m(MenuItem, {
+        label: 'Label',
+        onclick: () => this.addLabel(attrs),
+      }),
     ];
 
     const moreMenuItems = [
@@ -734,10 +738,10 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       m(
         PopupMenu,
         {
-          trigger: m(Button, {
-            label: 'Add Node',
+          trigger: RoundActionButton({
             icon: Icons.Add,
-            variant: ButtonVariant.Filled,
+            title: 'Add Node',
+            onclick: () => {}, // PopupMenu handles the click
           }),
         },
         addNodeMenuItems,
@@ -752,19 +756,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           }
         },
       }),
-      m(Button, {
-        icon: Icons.Edit,
-        variant: ButtonVariant.Minimal,
-        title: 'Add Label',
-        onclick: () => this.addLabel(attrs),
-      }),
       m(
         PopupMenu,
         {
           trigger: m(Button, {
             icon: Icons.ContextMenuAlt,
             variant: ButtonVariant.Minimal,
-            className: classNames('pf-exp-more-menu-button'),
           }),
         },
         moreMenuItems,
