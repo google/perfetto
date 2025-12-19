@@ -38,6 +38,7 @@ import {setValidationError} from '../../node_issues';
 import {TableDescription} from '../../widgets';
 import {NodeDetailsAttrs} from '../../node_explorer_types';
 import {loadNodeDoc} from '../../node_doc_loader';
+import {NodeTitle} from '../../node_styling_widgets';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
@@ -206,7 +207,7 @@ export class TableSourceNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: this.state.sqlTable?.name ?? '',
+      content: NodeTitle(this.state.sqlTable?.name ?? ''),
     };
   }
 

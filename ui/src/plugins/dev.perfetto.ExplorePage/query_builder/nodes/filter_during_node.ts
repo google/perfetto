@@ -88,7 +88,7 @@ import {
 } from '../widgets';
 import {Switch} from '../../../../widgets/switch';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {NodeTitle} from '../node_styling_widgets';
+import {NodeDetailsMessage} from '../node_styling_widgets';
 import {notifyNextNodes} from '../graph_utils';
 
 export interface FilterDuringNodeState extends QueryNodeState {
@@ -140,7 +140,12 @@ export class FilterDuringNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
+      content: [
+        NodeDetailsMessage(
+          'Filters only to intervals that occurred during input.',
+        ),
+        this.renderPartitionSelector(true),
+      ],
     };
   }
 
