@@ -20,7 +20,7 @@ import {TableSourceNode} from './query_builder/nodes/sources/table_source';
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {FilterNode} from './query_builder/nodes/filter_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
-import {addConnection, removeConnection} from './query_node';
+import {addConnection, removeConnection} from './query_builder/graph_utils';
 import {UIFilter} from './query_builder/operations/filter';
 import {ColumnInfo} from './query_builder/column_info';
 

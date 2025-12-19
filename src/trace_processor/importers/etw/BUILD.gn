@@ -18,9 +18,16 @@ source_set("minimal") {
   sources = [
     "etw_module.cc",
     "etw_module.h",
+    "file_io_tracker.cc",
+    "file_io_tracker.h",
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace/etw:zero",
+    "../../../protozero",
+    "../../storage",
+    "../../types",
+    "../common",
     "../common:parser_types",
     "../proto:proto_importer_module",
   ]

@@ -490,6 +490,7 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
 
     SharedMemoryABI::Chunk chunk;
     bool commit_data_over_ipc = entry.has_data();
+    bool chunk_complete = true;
     if (PERFETTO_UNLIKELY(commit_data_over_ipc)) {
       // Chunk data is passed over the wire. Create a chunk using the serialized
       // protobuf message.
@@ -504,6 +505,7 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
           reinterpret_cast<uint8_t*>(const_cast<char*>(data.data())),
           static_cast<uint16_t>(entry.data().size()),
           static_cast<uint8_t>(entry.chunk()));
+      chunk_complete = !entry.chunk_incomplete();
     } else
       chunk = shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
     if (!chunk.is_valid()) {
@@ -527,8 +529,8 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
 
     service_->CopyProducerPageIntoLogBuffer(
         id_, client_identity_, writer_id, chunk_id, buffer_id, num_fragments,
-        chunk_flags,
-        /*chunk_complete=*/true, chunk.payload_begin(), chunk.payload_size());
+        chunk_flags, chunk_complete, chunk.payload_begin(),
+        chunk.payload_size());
 
     if (!commit_data_over_ipc) {
       // This one has release-store semantics.
@@ -552,7 +554,8 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
 void ProducerEndpointImpl::SetupSharedMemory(
     std::unique_ptr<SharedMemory> shared_memory,
     size_t page_size_bytes,
-    bool provided_by_producer) {
+    bool provided_by_producer,
+    SharedMemoryABI::ShmemMode shmem_mode) {
   PERFETTO_DCHECK(!shared_memory_ && !shmem_abi_.is_valid());
   PERFETTO_DCHECK(page_size_bytes % 1024 == 0);
 
@@ -562,8 +565,7 @@ void ProducerEndpointImpl::SetupSharedMemory(
 
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                         shared_memory_->size(),
-                        shared_buffer_page_size_kb() * 1024,
-                        SharedMemoryABI::ShmemMode::kDefault);
+                        shared_buffer_page_size_kb() * 1024, shmem_mode);
   if (in_process_) {
     inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
         shared_memory_->start(), shared_memory_->size(),

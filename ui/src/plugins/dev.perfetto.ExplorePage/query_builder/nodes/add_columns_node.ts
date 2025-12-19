@@ -16,11 +16,10 @@ import {
   QueryNode,
   nextNodeId,
   NodeType,
-  getSecondaryInput,
-  analyzeNode,
-  isAQuery,
   SecondaryInputSpec,
 } from '../../query_node';
+import {getSecondaryInput} from '../graph_utils';
+import {analyzeNode, isAQuery} from '../query_builder_utils';
 import {
   ColumnInfo,
   columnInfoFromName,
@@ -328,7 +327,7 @@ export class AddColumnsNode implements QueryNode {
   }
 
   // Check if the Apply button should be disabled in the join modal
-  private isApplyDisabled(): boolean {
+  isApplyDisabled(): boolean {
     // When no rightNode exists, require table and columns selection
     if (!this.rightNode) {
       const selectedTable = this.state.selectedSuggestionTable;
@@ -339,7 +338,11 @@ export class AddColumnsNode implements QueryNode {
       // Also disable if there are duplicate column name errors
       return this.getJoinColumnErrors(selectedColumns, true).length > 0;
     }
-    // When rightNode exists, require columns to be selected
+    // When rightNode exists, require both join columns to be specified
+    if (!this.state.leftColumn || !this.state.rightColumn) {
+      return true;
+    }
+    // Require columns to be selected
     if (
       !this.state.selectedColumns ||
       this.state.selectedColumns.length === 0

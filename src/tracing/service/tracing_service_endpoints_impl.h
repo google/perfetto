@@ -78,7 +78,8 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   void CommitData(const CommitDataRequest&, CommitDataCallback) override;
   void SetupSharedMemory(std::unique_ptr<SharedMemory>,
                          size_t page_size_bytes,
-                         bool provided_by_producer);
+                         bool provided_by_producer,
+                         SharedMemoryABI::ShmemMode shmem_mode);
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID,
       BufferExhaustedPolicy) override;
@@ -112,6 +113,8 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
       return it->second;
     return std::nullopt;
   }
+
+  bool IsShmemEmulated() { return shmem_abi_.use_shmem_emulation(); }
 
   bool IsAndroidProcessFrozen();
   uid_t uid() const { return client_identity_.uid(); }

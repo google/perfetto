@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../base/logging';
 import {Time, time} from '../base/time';
 import {FilterExpression, SearchProvider} from '../public/search';
 import {Track} from '../public/track';
-import {planQuery} from '../trace_processor/dataset_query_utils';
+import {Dataset, UnionDatasetWithLineage} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM} from '../trace_processor/query_result';
 
@@ -81,38 +80,91 @@ async function searchTracksUsingProvider(
   // Define schema for search results
   const resultSchema = {id: NUM, ts: LONG};
 
-  const filteredTracks = tracks.filter((track) => {
+  // Filter tracks and extract datasets
+  const trackDatasetPairs: Array<{track: Track; dataset: Dataset}> = [];
+  for (const track of tracks) {
     const dataset = track.renderer.getDataset?.();
-    return dataset?.implements(resultSchema);
-  });
+    if (dataset?.implements(resultSchema)) {
+      trackDatasetPairs.push({track, dataset});
+    }
+  }
 
-  // Query all tracks with lineage tracking
-  const plan = planQuery({
-    inputs: filteredTracks,
-    datasetFetcher: (track) => assertExists(track.renderer.getDataset?.()),
-    columns: resultSchema,
-    // Include filter columns - these are needed for the WHERE clause
-    // but won't be in the final result
-    filterColumns: filter.columns,
-    // Skip partition filters since we're searching across all tracks
-    skipPartitionFilters: true,
-    queryBuilder: (baseQuery: string, resultCols: string[]) => {
-      // Select only the result columns, apply JOIN/WHERE filter
-      const cols = resultCols.map((c) => `__root.${c}`).join(', ');
-      if (filter.join) {
-        return `SELECT ${cols} FROM (${baseQuery}) AS __root JOIN ${filter.join} WHERE ${filter.where}`;
+  if (trackDatasetPairs.length === 0) {
+    return [];
+  }
+
+  // Create union dataset with lineage tracking
+  const datasets = trackDatasetPairs.map((p) => p.dataset);
+  const unionDataset = UnionDatasetWithLineage.create(datasets);
+
+  // Build query with only the columns we need:
+  // - Result columns (id, ts)
+  // - Filter columns (needed for WHERE clause)
+  // - Lineage columns (__groupid, __partition)
+  // This allows the Dataset to optimize away unused columns and joins
+  const querySchema = {
+    ...resultSchema,
+    ...(filter.columns ?? {}),
+    __groupid: NUM,
+    __partition: NUM,
+  };
+  const baseQuery = unionDataset.query(querySchema);
+
+  // Select only result columns + lineage columns (not filter columns)
+  const resultCols = Object.keys(resultSchema)
+    .map((c) => `__root.${c}`)
+    .join(',\n');
+  const lineageCols = '__root.__groupid,\n__root.__partition';
+  let finalQuery: string;
+  if (filter.join) {
+    finalQuery = `SELECT
+${indent(resultCols, 2)},
+${indent(lineageCols, 2)}
+FROM (
+${indent(baseQuery, 2)}
+) AS __root
+JOIN ${filter.join} WHERE ${filter.where}`;
+  } else {
+    finalQuery = `SELECT
+${indent(resultCols, 2)},
+${indent(lineageCols, 2)}
+FROM (
+${indent(baseQuery, 2)}
+) AS __root
+WHERE ${filter.where}`;
+  }
+
+  // Execute query
+  const queryResult = await engine.query(finalQuery);
+
+  // Process results with lineage resolution
+  const results: SearchResult[] = [];
+  const resultIterSchema = {...resultSchema, __groupid: NUM, __partition: NUM};
+  const iter = queryResult.iter(resultIterSchema);
+  for (; iter.valid() === true; iter.next()) {
+    // Resolve which dataset(s) this row came from
+    const sourceDatasets = unionDataset.resolveLineage(iter);
+
+    // Find the corresponding track(s)
+    for (const sourceDataset of sourceDatasets) {
+      const pair = trackDatasetPairs.find((p) => p.dataset === sourceDataset);
+      if (pair) {
+        results.push({
+          id: iter.get('id') as number,
+          ts: Time.fromRaw(iter.get('ts') as bigint),
+          track: pair.track,
+        });
       }
-      return `SELECT ${cols} FROM (${baseQuery}) AS __root WHERE ${filter.where}`;
-    },
-  });
+    }
+  }
 
-  // Execute the query plan, returning results with lineage tracking
-  const results = await plan.execute(engine);
+  return results;
+}
 
-  // Map results to SearchResult format
-  return results.map((result) => ({
-    id: result.row.id,
-    ts: Time.fromRaw(result.row.ts),
-    track: result.source,
-  }));
+function indent(str: string, spaces: number): string {
+  const padding = ' '.repeat(spaces);
+  return str
+    .split('\n')
+    .map((line) => padding + line)
+    .join('\n');
 }

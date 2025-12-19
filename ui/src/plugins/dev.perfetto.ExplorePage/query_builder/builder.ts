@@ -66,15 +66,15 @@
 
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
-import {Button, ButtonVariant} from '../../../widgets/button';
+import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
-import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {Card} from '../../../widgets/card';
 import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
+import {QueryNode, Query} from '../query_node';
+import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
@@ -89,7 +89,7 @@ import {addQueryResultsTab} from '../../../components/query_table/query_result_t
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
-import {DataExplorerEmptyState} from './widgets';
+import {DataExplorerEmptyState, RoundActionButton} from './widgets';
 import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
@@ -209,6 +209,9 @@ export interface BuilderAttrs {
 
   // Node state change callback
   readonly onNodeStateChange?: () => void;
+
+  // Graph recenter callback
+  readonly onRecenterReady?: (recenter: () => void) => void;
 
   // Undo / Redo
   readonly onUndo?: () => void;
@@ -515,6 +518,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,
           onExport: attrs.onExport,
+          onRecenterReady: attrs.onRecenterReady,
         }),
         selectedNode &&
           m(
@@ -544,26 +548,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         m(
           '.pf-qb-floating-controls-bottom',
           attrs.onUndo &&
-            m(Button, {
+            RoundActionButton({
               icon: Icons.Undo,
               title: 'Undo (Ctrl+Z)',
               onclick: attrs.onUndo,
               disabled: !attrs.canUndo,
-              variant: ButtonVariant.Filled,
-              rounded: true,
-              iconFilled: true,
-              intent: Intent.Primary,
             }),
           attrs.onRedo &&
-            m(Button, {
+            RoundActionButton({
               icon: Icons.Redo,
               title: 'Redo (Ctrl+Shift+Z)',
               onclick: attrs.onRedo,
               disabled: !attrs.canRedo,
-              variant: ButtonVariant.Filled,
-              rounded: true,
-              iconFilled: true,
-              intent: Intent.Primary,
             }),
         ),
       ),
