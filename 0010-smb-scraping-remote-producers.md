@@ -44,6 +44,23 @@ supports the flush request. This IPC calls (as mentioned above) will then be
 intercepted at the producer IPC level and will trigger the internal SMB scraping
 workflow.
 
+### Support incomplete chunks in CommitDataRequest IPC protocol
+
+When calling the CommitData RPC method from the producer we need to add a new
+boolean parameter to CommitDataRequest::ChunksToMove to specify whether the chunk
+being sent is complete or incomplete. The current implementation assumes all chunks
+sent over IPC are complete and this has two effects:
+
+1. The tracing service will try to read the last packet in the chunk which could be
+   write-in-progress.
+2. TraceBuffer will not allow a re-commit later of the chunk, once it is complete.
+
+In terms of backwards compatibility, we don't need to do much. Older versions of the
+service will ignore the new boolean parameter and treat the chunk as complete. This
+would mean that in some rare cases you might hit some trace errors (flagged as data
+losses). But given the chance is rare and the current implementation is already
+lossing far more data without this proposal, it is a better choice and a safe change.
+
 ## Alternatives considered
 
 ### Option 1: Extend the tracing protocol
