@@ -194,23 +194,22 @@ struct DsCallbacks {
 
 /// Data source arguments struct.
 #[derive(Default)]
-pub struct DataSourceArgs<IncrT: Default + Clear = IncrementalState> {
+pub struct DataSourceArgs {
     callbacks: DsCallbacks,
     buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
     buffer_exhausted_policy_configurable: bool,
     will_notify_on_stop: bool,
     handles_incremental_state_clear: bool,
-    _phantom: std::marker::PhantomData<IncrT>,
 }
 
 /// Data source arguments builder.
 #[derive(Default)]
 #[must_use = "This is a builder; remember to call `.build()` (or keep chaining)."]
-pub struct DataSourceArgsBuilder<IncrT: Default + Clear = IncrementalState> {
-    args: DataSourceArgs<IncrT>,
+pub struct DataSourceArgsBuilder {
+    args: DataSourceArgs,
 }
 
-impl<IncrT: Default + Clear> DataSourceArgsBuilder<IncrT> {
+impl DataSourceArgsBuilder {
     /// Create new data source arguments builder.
     pub fn new() -> Self {
         Self::default()
@@ -319,7 +318,7 @@ impl<IncrT: Default + Clear> DataSourceArgsBuilder<IncrT> {
     }
 
     /// Returns data source arguments struct.
-    pub fn build(self) -> DataSourceArgs<IncrT> {
+    pub fn build(self) -> DataSourceArgs {
         self.args
     }
 }
@@ -697,11 +696,7 @@ impl<'a: 'static, IncrT: Default + Clear> DataSource<'a, IncrT> {
     }
 
     /// Registers the data source type named `name` with the global ewperfetto producer.
-    pub fn register(
-        &mut self,
-        name: &str,
-        args: DataSourceArgs<IncrT>,
-    ) -> Result<(), DataSourceError> {
+    pub fn register(&mut self, name: &str, args: DataSourceArgs) -> Result<(), DataSourceError> {
         use DataSourceError::*;
         let mut callbacks = self.callbacks.lock().unwrap();
         if callbacks.is_some() {

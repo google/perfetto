@@ -568,20 +568,20 @@ class DataSource : public DataSourceBase {
   // Detection idiom for checking if DataSourceTraits::ClearIncrementalState(T*)
   // exists. Supports traits that don't inherit from DefaultDataSourceTraits.
   template <typename Traits, typename T, typename = void>
-  static constexpr bool HasClearIncrementalState = false;
+  struct HasClearIncrementalState : std::false_type {};
 
   template <typename Traits, typename T>
-  static constexpr bool HasClearIncrementalState<
+  struct HasClearIncrementalState<
       Traits,
       T,
-      std::void_t<decltype(Traits::ClearIncrementalState(
-          std::declval<T*>()))>> = true;
+      std::void_t<decltype(Traits::ClearIncrementalState(std::declval<T*>()))>>
+      : std::true_type {};
 
   // Wrapper that calls DataSourceTraits::ClearIncrementalState if it exists.
   // Returns false if the method is not defined in the traits.
   template <typename T>
   static bool ClearIncrementalStateWrapper(void* incremental_state, void*) {
-    if constexpr (HasClearIncrementalState<DataSourceTraits, T>) {
+    if constexpr (HasClearIncrementalState<DataSourceTraits, T>::value) {
       return DataSourceTraits::ClearIncrementalState(
           reinterpret_cast<T*>(incremental_state));
     } else {
