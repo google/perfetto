@@ -19,14 +19,16 @@ import {
 } from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {
   QueryNode,
-  createSelectColumnsProto,
   QueryNodeState,
   NodeType,
-  createFinalColumns,
   nextNodeId,
 } from '../../../query_node';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
+import {
+  ColumnInfo,
+  columnInfoFromSqlColumn,
+  newColumnInfoList,
+} from '../../column_info';
 import protos from '../../../../../protos';
 import {Trace} from '../../../../../public/trace';
 import {closeModal, showModal} from '../../../../../widgets/modal';
@@ -157,10 +159,11 @@ export class TableSourceNode implements QueryNode {
     this.nodeId = nextNodeId();
     this.state = attrs;
     this.state.onchange = attrs.onchange;
-    this.finalCols = createFinalColumns(
+    this.finalCols = newColumnInfoList(
       this.state.sqlTable?.columns.map((c) =>
         columnInfoFromSqlColumn(c, true),
       ) ?? [],
+      true,
     );
     this.nextNodes = [];
   }
@@ -222,8 +225,7 @@ export class TableSourceNode implements QueryNode {
       this.nodeId,
     );
 
-    const selectedColumns = createSelectColumnsProto(this);
-    if (selectedColumns) sq.selectColumns = selectedColumns;
+    StructuredQueryBuilder.applyNodeColumnSelection(sq, this);
     return sq;
   }
 

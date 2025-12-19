@@ -21,7 +21,7 @@ Query Analysis (Validation) → Query Materialization → Result Display
 - Generates structured query protobuf via `getStructuredQuery()`
 - Validates configuration and provides UI rendering methods
 
-**Node Connections** (`ui/src/plugins/dev.perfetto.ExplorePage/query_node.ts:350-503`)
+**Node Connections** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph_utils.ts`)
 - Primary Input: Vertical data flow (single parent node)
 - Secondary Inputs: Horizontal data flow (side connections with port numbers)
 - Bidirectional relationship management via `addConnection()`/`removeConnection()`
@@ -239,14 +239,14 @@ invalidateNode(node) {
 }
 ```
 
-**Query Hash Caching** (`ui/src/plugins/dev.perfetto.ExplorePage/query_node.ts:263-284`)
+**Query Hash Caching** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_builder_utils.ts`)
 - `hashNodeQuery()`: Expensive JSON stringification of entire query tree
 - Cached per node to avoid redundant computation during rapid analysis
 - Cache invalidated when node or upstream dependencies change
 
 ## Structured Query Generation
 
-**Query Construction** (`ui/src/plugins/dev.perfetto.ExplorePage/query_node.ts:199-235`)
+**Query Construction** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_builder_utils.ts`)
 ```typescript
 getStructuredQueries(finalNode) {
   const queries: PerfettoSqlStructuredQuery[] = [];
@@ -319,7 +319,7 @@ Nodes maintain both forward and backward links:
 
 **Core Infrastructure**:
 - `ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts` - Main plugin and state management
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_node.ts` - Node abstraction and graph operations
+- `ui/src/plugins/dev.perfetto.ExplorePage/query_node.ts` - Node abstraction and type definitions
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts` - Main UI component
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts` - Execution coordination
 
@@ -334,7 +334,8 @@ Nodes maintain both forward and backward links:
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/data_explorer.ts` - Results drawer
 
 **Utilities**:
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph_utils.ts` - Graph traversal
+- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph_utils.ts` - Graph traversal and connection management
+- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_builder_utils.ts` - Query analysis and utilities
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/cleanup_manager.ts` - Resource cleanup
 - `ui/src/plugins/dev.perfetto.ExplorePage/history_manager.ts` - Undo/redo management
 - `ui/src/plugins/dev.perfetto.ExplorePage/json_handler.ts` - Serialization
