@@ -27,7 +27,6 @@ const DEFAULT_ROW_HEIGHT = 24;
 const COL_WIDTH_INITIAL_MAX_PX = 600;
 const COL_WIDTH_MIN_PX = 50;
 const CELL_PADDING_PX = 5;
-const INITIAL_COLUMN_WIDTH_PX = 100;
 
 export type SortDirection = 'ASC' | 'DESC';
 export type CellAlignment = 'left' | 'center' | 'right';
@@ -251,20 +250,32 @@ export type GridRow = ReadonlyArray<m.Children>;
  * Column definition for Grid.
  */
 export interface GridColumn {
+  // A unique key identifying this column - used to store cached column widths
+  // and for reordering callbacks.
   readonly key: string;
+
+  // If defined, sets a fixed width for the column in pixels. The column will
+  // not be resizable and will not auto-size.
+  readonly widthPx?: number;
+
+  // Controls the minimum width of the column in pixels.
+  readonly minWidthPx?: number;
+
+  // Controls the maximum initial width when auto-sizing columns. This is the
+  // auto-size that is performed once the first time we see a column and we have
+  // rows.
   readonly maxInitialWidthPx?: number;
-  readonly header?: m.Children;
-  readonly minWidth?: number;
-  readonly thickRightBorder?: boolean;
+
+  // If defined, the column can be reordered among other columns with the same
+  // reorderGroup.
   readonly reorderable?: {readonly reorderGroup: string};
 
-  // Whether this column should have a resize handle and should be subject to
-  // auto resizing.
-  readonly resizable?: boolean;
+  // Renders this column with a thicker right border, useful for visually
+  // grouping columns.
+  readonly thickRightBorder?: boolean;
 
-  // Initial width of the column in pixels - if resizable = false then this is
-  // the fixed width of the column.
-  readonly initialWidthPx?: number;
+  // Content to put in the column header.
+  readonly header?: m.Children;
 }
 
 /**
@@ -579,9 +590,12 @@ function isPartialRowData(rowData: GridRowData): rowData is PartialRowData {
   return !Array.isArray(rowData);
 }
 
+type ColumnAutosizeState = 'header-only' | 'sized';
+
 export class Grid implements m.ClassComponent<GridAttrs> {
-  private sizedColumns: Set<string> = new Set();
+  private columnAutosizeState = new Map<string, ColumnAutosizeState>();
   private renderBounds?: {rowStart: number; rowEnd: number};
+  private hasRenderedBodyRows = false;
   private fieldToId: Map<string, number> = new Map();
   private nextId = 0;
   private boundHandleCopy = this.handleCopy.bind(this);
@@ -691,6 +705,20 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       this.fieldToId.set(field, this.nextId++);
     }
     return this.fieldToId.get(field)!;
+  }
+
+  private setColumnWidth(
+    gridDom: HTMLElement,
+    columnKey: string,
+    widthPx: number,
+  ): void {
+    const columnId = this.getColumnId(columnKey);
+    gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${widthPx}px`);
+  }
+
+  private clearColumnWidth(gridDom: HTMLElement, columnKey: string): void {
+    const columnId = this.getColumnId(columnKey);
+    gridDom.style.setProperty(`--pf-grid-col-${columnId}`, 'fit-content');
   }
 
   view({attrs}: m.Vnode<GridAttrs>) {
@@ -859,160 +887,92 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<GridAttrs, this>) {
-    const {virtualization, columns, rowData} = vnode.attrs;
-
-    // Extract rows from rowData
-    const rows = isPartialRowData(rowData) ? rowData.data : rowData;
+  oncreate({attrs, dom}: m.VnodeDOM<GridAttrs, this>) {
+    const {virtualization, columns, rowData, onReady} = attrs;
 
     // Add copy event handler for spreadsheet-friendly formatting
-    const gridDom = vnode.dom as HTMLElement;
+    const gridDom = dom as HTMLElement;
     gridDom.addEventListener('copy', this.boundHandleCopy);
 
-    if (rows.length > 0) {
-      // Check if there are new columns that need sizing
-      const newColumns = columns.filter(
-        (column) =>
-          !this.sizedColumns.has(column.key) && (column.resizable ?? true),
-      );
-
-      if (newColumns.length > 0) {
-        this.measureAndApplyWidths(
-          vnode.dom as HTMLElement,
-          newColumns.map((col) => {
-            const {
-              key,
-              minWidth = COL_WIDTH_MIN_PX,
-              maxInitialWidthPx = COL_WIDTH_INITIAL_MAX_PX,
-            } = col;
-
-            return {
-              key,
-              minWidth,
-              maxWidth: maxInitialWidthPx,
-            };
-          }),
-        );
-      }
-    } else {
-      // No rows yet, just apply initial column widths
-      for (const column of columns) {
-        const columnId = this.getColumnId(column.key);
-        gridDom.style.setProperty(
-          `--pf-grid-col-${columnId}`,
-          `${column.initialWidthPx ?? INITIAL_COLUMN_WIDTH_PX}px`,
-        );
-      }
-    }
+    this.maybeAutosizeColumns(gridDom, columns);
 
     // Only set up virtual scrolling if virtualization is enabled
-    if (virtualization === undefined) {
-      return;
+    if (virtualization) {
+      const rowHeight = virtualization.rowHeightPx;
+      const onLoadData = isPartialRowData(rowData)
+        ? rowData.onLoadData
+        : undefined;
+
+      const scrollContainer: HTMLElement = gridDom!;
+      const slider: HTMLElement = gridDom.querySelector('[ref="slider"]')!;
+
+      new VirtualScrollHelper(slider, scrollContainer, [
+        {
+          overdrawPx: 500,
+          tolerancePx: 250,
+          callback: (rect) => {
+            const rowStart = Math.floor(rect.top / rowHeight);
+            const rowCount = Math.ceil(rect.height / rowHeight);
+            this.renderBounds = {rowStart, rowEnd: rowStart + rowCount};
+            m.redraw();
+          },
+        },
+        {
+          overdrawPx: 2000,
+          tolerancePx: 1000,
+          callback: (rect) => {
+            const rowStart = Math.floor(rect.top / rowHeight);
+            const rowEnd = Math.ceil(rect.bottom / rowHeight);
+            if (onLoadData !== undefined) {
+              onLoadData(rowStart, rowEnd - rowStart);
+            }
+            m.redraw();
+          },
+        },
+      ]);
     }
 
-    const rowHeight = virtualization.rowHeightPx;
-    const onLoadData = isPartialRowData(rowData)
-      ? rowData.onLoadData
-      : undefined;
-
-    const scrollContainer: HTMLElement = (vnode.dom as HTMLElement)!;
-    const slider: HTMLElement = (vnode.dom as HTMLElement).querySelector(
-      '[ref="slider"]',
-    )!;
-
-    new VirtualScrollHelper(slider, scrollContainer, [
-      {
-        overdrawPx: 500,
-        tolerancePx: 250,
-        callback: (rect) => {
-          const rowStart = Math.floor(rect.top / rowHeight);
-          const rowCount = Math.ceil(rect.height / rowHeight);
-          this.renderBounds = {rowStart, rowEnd: rowStart + rowCount};
-          m.redraw();
-        },
-      },
-      {
-        overdrawPx: 2000,
-        tolerancePx: 1000,
-        callback: (rect) => {
-          const rowStart = Math.floor(rect.top / rowHeight);
-          const rowEnd = Math.ceil(rect.bottom / rowHeight);
-          if (onLoadData !== undefined) {
-            onLoadData(rowStart, rowEnd - rowStart);
-          }
-          m.redraw();
-        },
-      },
-    ]);
-
     // Call onReady callback with imperative API
-    if (vnode.attrs.onReady) {
-      vnode.attrs.onReady({
+    if (onReady) {
+      onReady({
         autoFitColumn: (columnKey: string) => {
-          const gridDom = vnode.dom as HTMLElement;
           const column = columns.find((c) => c.key === columnKey);
           if (!column) return;
-
-          this.measureAndApplyWidths(gridDom, [
-            {
-              key: column.key,
-              minWidth: column.minWidth ?? COL_WIDTH_MIN_PX,
-              maxWidth: Infinity,
-            },
-          ]);
-          m.redraw();
+          const {minWidthPx = COL_WIDTH_MIN_PX} = column;
+          const columnWidths = this.measureColumns(gridDom, [column.key]);
+          const width = columnWidths.get(column.key);
+          if (width !== undefined) {
+            this.setColumnWidth(
+              gridDom,
+              column.key,
+              Math.max(width, minWidthPx),
+            );
+          }
         },
         autoFitAllColumns: () => {
-          const gridDom = vnode.dom as HTMLElement;
-          this.measureAndApplyWidths(
+          const columnWidths = this.measureColumns(
             gridDom,
-            columns
-              .filter((c) => c.resizable ?? true)
-              .map((column) => ({
-                key: column.key,
-                minWidth: column.minWidth ?? COL_WIDTH_MIN_PX,
-                maxWidth: Infinity,
-              })),
+            columns.map(({key}) => key),
           );
-          m.redraw();
+          for (const column of columns) {
+            const {minWidthPx = COL_WIDTH_MIN_PX} = column;
+            const width = columnWidths.get(column.key);
+            if (width !== undefined) {
+              this.setColumnWidth(
+                gridDom,
+                column.key,
+                Math.max(width, minWidthPx),
+              );
+            }
+          }
         },
       });
     }
   }
 
   onupdate(vnode: m.VnodeDOM<GridAttrs, this>) {
-    const {columns, rowData} = vnode.attrs;
-
-    // Extract rows from rowData
-    const rows = isPartialRowData(rowData) ? rowData.data : rowData;
-
-    if (rows.length > 0) {
-      // Check if there are new columns that need sizing
-      const newColumns = columns.filter(
-        (column) => !this.sizedColumns.has(column.key),
-      );
-
-      if (newColumns.length > 0) {
-        this.measureAndApplyWidths(
-          vnode.dom as HTMLElement,
-          newColumns
-            .filter((col) => col.resizable ?? true)
-            .map((col) => {
-              const {
-                key,
-                minWidth = COL_WIDTH_MIN_PX,
-                maxInitialWidthPx = COL_WIDTH_INITIAL_MAX_PX,
-              } = col;
-
-              return {
-                key,
-                minWidth,
-                maxWidth: maxInitialWidthPx,
-              };
-            }),
-        );
-      }
-    }
+    const {columns} = vnode.attrs;
+    this.maybeAutosizeColumns(vnode.dom as HTMLElement, columns);
   }
 
   onremove(vnode: m.VnodeDOM<GridAttrs, this>) {
@@ -1020,14 +980,68 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     gridDom.removeEventListener('copy', this.boundHandleCopy);
   }
 
-  private measureAndApplyWidths(
+  // Check if any columns need resizing and update them
+  private maybeAutosizeColumns(
     gridDom: HTMLElement,
-    columns: ReadonlyArray<{
-      readonly key: string;
-      readonly minWidth: number;
-      readonly maxWidth: number;
-    }>,
+    columns: readonly GridColumn[],
   ): void {
+    // Handle fixed-width columns first (no measurement needed)
+    for (const column of columns) {
+      if (
+        column.widthPx !== undefined &&
+        this.columnAutosizeState.get(column.key) !== 'sized'
+      ) {
+        this.setColumnWidth(gridDom, column.key, column.widthPx);
+        this.columnAutosizeState.set(column.key, 'sized');
+      }
+    }
+
+    // Find auto-sized columns that need measurement:
+    // - Skip fixed-width columns (handled above)
+    // - Skip 'sized' columns (already done)
+    // - Skip 'header-only' columns if we haven't rendered body rows yet
+    const columnsToMeasure = columns.filter((col) => {
+      if (col.widthPx !== undefined) return false;
+      const state = this.columnAutosizeState.get(col.key);
+      if (state === 'sized') return false;
+      if (state === 'header-only' && !this.hasRenderedBodyRows) return false;
+      return true;
+    });
+
+    if (columnsToMeasure.length === 0) return;
+
+    const columnWidths = this.measureColumns(
+      gridDom,
+      columnsToMeasure.map(({key}) => key),
+    );
+
+    for (const column of columnsToMeasure) {
+      const {
+        key,
+        minWidthPx = COL_WIDTH_MIN_PX,
+        maxInitialWidthPx = COL_WIDTH_INITIAL_MAX_PX,
+      } = column;
+      const measuredWidth = columnWidths.get(key);
+      if (measuredWidth === undefined) continue;
+
+      const width = Math.min(
+        Math.max(measuredWidth, minWidthPx),
+        maxInitialWidthPx,
+      );
+      this.setColumnWidth(gridDom, key, width);
+      this.columnAutosizeState.set(
+        key,
+        this.hasRenderedBodyRows ? 'sized' : 'header-only',
+      );
+    }
+  }
+
+  // Measures the natural width of each column by cloning the grid, setting
+  // columns to fit-content, and measuring the max cell width per column.
+  private measureColumns(
+    gridDom: HTMLElement,
+    columns: readonly string[],
+  ): Map<string, number> {
     const gridClone = gridDom.cloneNode(true) as HTMLElement;
     gridDom.appendChild(gridClone);
 
@@ -1040,54 +1054,30 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       (el as HTMLElement).style.display = 'block';
     });
 
-    // Now read the actual widths (this will cause a reflow)
     // Find all the cells in this column (header + data rows)
-    const allCells = gridClone.querySelectorAll(`.pf-grid__cell-container`);
+    const allCells = gridClone.querySelectorAll('.pf-grid__cell-container');
 
-    // Only continue if we have more cells than just the header
-    if (allCells.length <= columns.length) {
-      gridClone.remove();
-      return;
-    }
-
-    // First, clear any previously set widths to allow natural sizing
-    columns.forEach((column) => {
-      const columnId = this.getColumnId(column.key);
-      gridClone.style.setProperty(`--pf-grid-col-${columnId}`, 'fit-content');
+    // Clear any previously set widths to allow natural sizing
+    columns.forEach((columnKey) => {
+      this.clearColumnWidth(gridClone, columnKey);
     });
 
-    // Now measure then set widths
-    columns
-      // Now, measure all the cells we have available
-      .map((column) => {
-        const columnId = this.getColumnId(column.key);
+    // Measure all the cells we have available (this will cause a reflow)
+    const columnKeyWidthTuples = columns.map((key) => {
+      const id = this.getColumnId(key);
 
-        // Find all the cells in this column
-        const cellsInThisColumn = Array.from(allCells).filter(
-          (cell) => (cell as HTMLElement).dataset['columnId'] === `${columnId}`,
-        );
+      // Find all the cells in this column and find the max width
+      const maxWidth = Array.from(allCells)
+        .filter((cell) => (cell as HTMLElement).dataset['columnId'] === `${id}`)
+        .map((c) => c.scrollWidth)
+        .reduce((acc, width) => Math.max(acc, width), 0);
 
-        const widths = cellsInThisColumn.map((c) => {
-          return c.scrollWidth;
-        });
-        const maxCellWidth = Math.max(...widths);
-        const unboundedWidth = maxCellWidth + CELL_PADDING_PX;
-        const width = Math.min(
-          column.maxWidth,
-          Math.max(column.minWidth, unboundedWidth),
-        );
-
-        // Store the width
-        this.sizedColumns.add(column.key);
-
-        return {columnId, width};
-      })
-      // Set all the variables in one go to avoid forced reflows
-      .forEach(({columnId, width}) => {
-        gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${width}px`);
-      });
+      return [key, maxWidth + CELL_PADDING_PX] as const;
+    });
 
     gridClone.remove();
+
+    return new Map(columnKeyWidthTuples);
   }
 
   private renderRows(
@@ -1101,6 +1091,9 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     if (this.renderBounds === undefined) {
       return undefined;
     }
+
+    // We're about to render body rows
+    this.hasRenderedBodyRows = true;
 
     const {rowStart, rowEnd} = this.renderBounds;
     const displayRowCount = rowEnd - rowStart;
@@ -1162,6 +1155,9 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     onRowHover?: (rowIndex: number) => void,
     onRowOut?: () => void,
   ): m.Children {
+    if (rows.length > 0) {
+      this.hasRenderedBodyRows = true;
+    }
     return rows.map((row, rowIndex) => {
       return m(
         '.pf-grid__row',
@@ -1221,10 +1217,12 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       reorderable,
       thickRightBorder,
       header,
-      resizable = true,
+      minWidthPx = COL_WIDTH_MIN_PX,
+      widthPx,
     } = column;
 
     const columnId = this.getColumnId(column.key);
+    const isFixedWidth = exists(widthPx);
 
     const renderResizeHandle = () => {
       return m('.pf-grid__resize-handle', {
@@ -1249,14 +1247,9 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
           const handlePointerMove = (e: MouseEvent) => {
             const delta = e.clientX - startX;
-            const minWidth = column.minWidth ?? COL_WIDTH_MIN_PX;
+            const minWidth = column.minWidthPx ?? COL_WIDTH_MIN_PX;
             const newWidth = Math.max(minWidth, startWidth + delta);
-
-            // Set the css variable for the column being resized
-            gridDom.style.setProperty(
-              `--pf-grid-col-${columnId}`,
-              `${newWidth}px`,
-            );
+            this.setColumnWidth(gridDom, column.key, newWidth);
           };
 
           const handlePointerUp = () => {
@@ -1283,14 +1276,10 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
           if (gridDom === null) return;
 
-          this.measureAndApplyWidths(gridDom, [
-            {
-              key: column.key,
-              minWidth: column.minWidth ?? COL_WIDTH_MIN_PX,
-              // No max - columns can grow as wide as needed on double-click
-              maxWidth: Infinity,
-            },
-          ]);
+          const width = this.measureColumns(gridDom, [column.key]).get(
+            column.key,
+          )!;
+          this.setColumnWidth(gridDom, column.key, Math.max(width, minWidthPx));
         },
       });
     };
@@ -1333,7 +1322,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         },
       },
       header,
-      resizable && renderResizeHandle(),
+      !isFixedWidth && renderResizeHandle(),
     );
   }
 }

@@ -1337,8 +1337,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         header: m(GridHeaderCell, {
           className: classNames('pf-datagrid__dd'),
         }),
-        resizable: false,
-        initialWidthPx: 24,
+        widthPx: 24,
       });
     }
 
