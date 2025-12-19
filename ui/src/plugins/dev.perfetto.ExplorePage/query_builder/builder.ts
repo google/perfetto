@@ -66,9 +66,8 @@
 
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
-import {Button, ButtonVariant} from '../../../widgets/button';
+import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
-import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {Card} from '../../../widgets/card';
 import {Keycap} from '../../../widgets/hotkey_glyphs';
@@ -90,7 +89,7 @@ import {addQueryResultsTab} from '../../../components/query_table/query_result_t
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
-import {DataExplorerEmptyState} from './widgets';
+import {DataExplorerEmptyState, RoundActionButton} from './widgets';
 import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
@@ -549,26 +548,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         m(
           '.pf-qb-floating-controls-bottom',
           attrs.onUndo &&
-            m(Button, {
+            RoundActionButton({
               icon: Icons.Undo,
               title: 'Undo (Ctrl+Z)',
               onclick: attrs.onUndo,
               disabled: !attrs.canUndo,
-              variant: ButtonVariant.Filled,
-              rounded: true,
-              iconFilled: true,
-              intent: Intent.Primary,
             }),
           attrs.onRedo &&
-            m(Button, {
+            RoundActionButton({
               icon: Icons.Redo,
               title: 'Redo (Ctrl+Shift+Z)',
               onclick: attrs.onRedo,
               disabled: !attrs.canRedo,
-              variant: ButtonVariant.Filled,
-              rounded: true,
-              iconFilled: true,
-              intent: Intent.Primary,
             }),
         ),
       ),
