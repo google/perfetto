@@ -210,6 +210,9 @@ export interface BuilderAttrs {
   // Node state change callback
   readonly onNodeStateChange?: () => void;
 
+  // Graph recenter callback
+  readonly onRecenterReady?: (recenter: () => void) => void;
+
   // Undo / Redo
   readonly onUndo?: () => void;
   readonly onRedo?: () => void;
@@ -515,6 +518,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,
           onExport: attrs.onExport,
+          onRecenterReady: attrs.onRecenterReady,
         }),
         selectedNode &&
           m(
