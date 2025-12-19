@@ -216,7 +216,7 @@ void DeobfuscationTracker::DeobfuscateProfiles(
           tables::SymbolTable::ColumnIndex::line_number,
           tables::SymbolTable::ColumnIndex::line_number,
           dataframe::IsNotNull{},
-          0,
+          std::nullopt,
       },
   });
   // Deobfuscate frames using the collected mappings.
@@ -256,7 +256,6 @@ void DeobfuscationTracker::DeobfuscateProfiles(
         symbol_cursor.Execute();
         if (!symbol_cursor.Eof()) {
           obfuscated_line = symbol_cursor.line_number();
-          break;
         }
       }
 
