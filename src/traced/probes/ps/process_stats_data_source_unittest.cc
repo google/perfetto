@@ -17,6 +17,7 @@
 #include "src/traced/probes/ps/process_stats_data_source.h"
 
 #include <dirent.h>
+#include <unistd.h>
 
 #include <memory>
 
@@ -37,7 +38,6 @@ using ::testing::_;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
-using ::testing::Invoke;
 using ::testing::Mock;
 using ::testing::Return;
 using ::testing::Truly;
@@ -185,12 +185,12 @@ TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
   auto data_source = GetProcessStatsDataSource(ds_config);
   for (int p : {10, 11, 12, 20, 21, 22, 30, 31, 32}) {
     EXPECT_CALL(*data_source, ReadProcPidFile(p, "status"))
-        .WillOnce(Invoke([](int32_t pid, const std::string&) {
+        .WillOnce([](int32_t pid, const std::string&) {
           int32_t tgid = (pid / 10) * 10;
           return "Name: \tthread_" + std::to_string(pid) +
                  "\nTgid:  " + std::to_string(tgid) +
                  "\nPid:   " + std::to_string(pid) + "\nPPid:  1\n";
-        }));
+        });
     if (p % 10 == 0) {
       std::string proc_name = "proc_" + std::to_string(p);
       proc_name.resize(proc_name.size() + 1);  // Add a trailing \0.
@@ -314,11 +314,11 @@ TEST_F(ProcessStatsDataSourceTest, RenamePids) {
   auto data_source = GetProcessStatsDataSource(config);
   for (int p : {10, 20}) {
     EXPECT_CALL(*data_source, ReadProcPidFile(p, "status"))
-        .WillRepeatedly(Invoke([](int32_t pid, const std::string&) {
+        .WillRepeatedly([](int32_t pid, const std::string&) {
           return "Name: \tthread_" + std::to_string(pid) +
                  "\nTgid:  " + std::to_string(pid) +
                  "\nPid:   " + std::to_string(pid) + "\nPPid:  1\n";
-        }));
+        });
 
     std::string old_proc_name = "proc_" + std::to_string(p);
     old_proc_name.resize(old_proc_name.size() + 1);  // Add a trailing \0.
@@ -366,6 +366,7 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   cfg.set_proc_stats_poll_ms(1);
   cfg.set_resolve_process_fds(true);
   cfg.set_record_process_runtime(true);
+  cfg.set_record_process_dmabuf_rss(true);
   cfg.add_quirks(ProcessStatsConfig::DISABLE_ON_DEMAND);
   ds_config.set_process_stats_config_raw(cfg.SerializeAsString());
   auto data_source = GetProcessStatsDataSource(ds_config);
@@ -399,38 +400,41 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   auto checkpoint = task_runner_.CreateCheckpoint("all_done");
 
   const std::string& fake_proc_path = fake_proc.path();
-  EXPECT_CALL(*data_source, OpenProcDir())
-      .WillRepeatedly(Invoke([&fake_proc_path] {
-        return base::ScopedDir(opendir(fake_proc_path.c_str()));
-      }));
+  EXPECT_CALL(*data_source, OpenProcDir()).WillRepeatedly([&fake_proc_path] {
+    return base::ScopedDir(opendir(fake_proc_path.c_str()));
+  });
   EXPECT_CALL(*data_source, GetProcMountpoint())
-      .WillRepeatedly(
-          Invoke([&fake_proc_path] { return fake_proc_path.c_str(); }));
+      .WillRepeatedly([&fake_proc_path] { return fake_proc_path.c_str(); });
 
   const int kNumIters = 4;
   int iter = 0;
   for (int pid : kPids) {
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "status"))
-        .WillRepeatedly(Invoke([&iter](int32_t p, const std::string&) {
+        .WillRepeatedly([&iter](int32_t p, const std::string&) {
           return base::StackString<1024>{
               "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
               p * 100 + iter * 10 + 1, p * 100 + iter * 10 + 2}
               .ToStdString();
-        }));
+        });
+
+    EXPECT_CALL(*data_source, ReadProcPidFile(pid, "dmabuf_rss"))
+        .WillRepeatedly([](int32_t, const std::string&) {
+          return base::StackString<1024>{"%d\n", getpagesize()}.ToStdString();
+        });
 
     // By default scan_smaps_rollup is off and /proc/<pid>/smaps_rollup
     // shouldn't be read.
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "smaps_rollup")).Times(0);
 
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "stat"))
-        .WillRepeatedly(Invoke([&iter](int32_t p, const std::string&) {
+        .WillRepeatedly([&iter](int32_t p, const std::string&) {
           return ToProcStatString(static_cast<uint64_t>(p * 100 + iter * 10),
                                   static_cast<uint64_t>(p * 200 + iter * 20),
                                   /*starttime_ticks=*/0);
-        }));
+        });
 
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "oom_score_adj"))
-        .WillRepeatedly(Invoke(
+        .WillRepeatedly(
             [checkpoint, kPids, &iter](int32_t inner_pid, const std::string&) {
               auto oom_score = inner_pid * 100 + iter * 10 + 3;
               if (inner_pid == kPids[base::ArraySize(kPids) - 1]) {
@@ -438,7 +442,7 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
                   checkpoint();
               }
               return std::to_string(oom_score);
-            }));
+            });
   }
 
   data_source->Start();
@@ -503,27 +507,32 @@ TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
 
   auto checkpoint = task_runner_.CreateCheckpoint("all_done");
 
-  EXPECT_CALL(*data_source, OpenProcDir()).WillRepeatedly(Invoke([&fake_proc] {
+  EXPECT_CALL(*data_source, OpenProcDir()).WillRepeatedly([&fake_proc] {
     return base::ScopedDir(opendir(fake_proc.path().c_str()));
-  }));
+  });
 
   const int kNumIters = 4;
   int iter = 0;
   EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "status"))
-      .WillRepeatedly(Invoke([checkpoint](int32_t p, const std::string&) {
+      .WillRepeatedly([checkpoint](int32_t p, const std::string&) {
         base::StackString<1024> ret(
             "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n", p * 100 + 1,
             p * 100 + 2);
         return ret.ToStdString();
-      }));
+      });
+
+  EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "dmabuf_rss"))
+      .WillRepeatedly([checkpoint](int32_t, const std::string&) {
+        return base::StackString<1024>{"%d\n", getpagesize()}.ToStdString();
+      });
 
   EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "oom_score_adj"))
       .WillRepeatedly(
-          Invoke([checkpoint, &iter](int32_t inner_pid, const std::string&) {
+          [checkpoint, &iter](int32_t inner_pid, const std::string&) {
             if (++iter == kNumIters)
               checkpoint();
             return std::to_string(inner_pid * 100);
-          }));
+          });
 
   data_source->Start();
   task_runner_.RunUntilCheckpoint("all_done");
@@ -611,36 +620,36 @@ TEST_F(ProcessStatsDataSourceTest, ScanSmapsRollupIsOn) {
 
   auto checkpoint = task_runner_.CreateCheckpoint("all_done");
   const auto fake_proc_path = fake_proc.path();
-  EXPECT_CALL(*data_source, OpenProcDir())
-      .WillRepeatedly(Invoke([&fake_proc_path] {
-        return base::ScopedDir(opendir(fake_proc_path.c_str()));
-      }));
+  EXPECT_CALL(*data_source, OpenProcDir()).WillRepeatedly([&fake_proc_path] {
+    return base::ScopedDir(opendir(fake_proc_path.c_str()));
+  });
   EXPECT_CALL(*data_source, GetProcMountpoint())
-      .WillRepeatedly(
-          Invoke([&fake_proc_path] { return fake_proc_path.c_str(); }));
+      .WillRepeatedly([&fake_proc_path] { return fake_proc_path.c_str(); });
 
   const int kNumIters = 4;
   int iter = 0;
   for (int pid : kPids) {
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "status"))
-        .WillRepeatedly(
-            Invoke([checkpoint, &iter](int32_t p, const std::string&) {
-              base::StackString<1024> ret(
-                  "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
-                  p * 100 + iter * 10 + 1, p * 100 + iter * 10 + 2);
-              return ret.ToStdString();
-            }));
+        .WillRepeatedly([checkpoint, &iter](int32_t p, const std::string&) {
+          base::StackString<1024> ret(
+              "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
+              p * 100 + iter * 10 + 1, p * 100 + iter * 10 + 2);
+          return ret.ToStdString();
+        });
+    EXPECT_CALL(*data_source, ReadProcPidFile(pid, "dmabuf_rss"))
+        .WillRepeatedly([](int32_t, const std::string&) {
+          return base::StackString<1024>{"%d\n", getpagesize()}.ToStdString();
+        });
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "smaps_rollup"))
-        .WillRepeatedly(
-            Invoke([checkpoint, &iter](int32_t p, const std::string&) {
-              base::StackString<1024> ret(
-                  "Name:	pid_10\nRss:	 %d kB\nPss:\t%d  kB\n",
-                  p * 100 + iter * 10 + 4, p * 100 + iter * 10 + 5);
-              return ret.ToStdString();
-            }));
+        .WillRepeatedly([checkpoint, &iter](int32_t p, const std::string&) {
+          base::StackString<1024> ret(
+              "Name:	pid_10\nRss:	 %d kB\nPss:\t%d  kB\n",
+              p * 100 + iter * 10 + 4, p * 100 + iter * 10 + 5);
+          return ret.ToStdString();
+        });
 
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "oom_score_adj"))
-        .WillRepeatedly(Invoke(
+        .WillRepeatedly(
             [checkpoint, kPids, &iter](int32_t inner_pid, const std::string&) {
               auto oom_score = inner_pid * 100 + iter * 10 + 3;
               if (inner_pid == kPids[base::ArraySize(kPids) - 1]) {
@@ -648,7 +657,7 @@ TEST_F(ProcessStatsDataSourceTest, ScanSmapsRollupIsOn) {
                   checkpoint();
               }
               return std::to_string(oom_score);
-            }));
+            });
   }
 
   data_source->Start();

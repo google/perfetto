@@ -27,21 +27,20 @@ import {
 } from './sql/details/sql_ref_renderer_registry';
 import {asUtid} from '../sql_utils/core_types';
 import {Utid} from '../sql_utils/core_types';
-import {AppImpl} from '../../core/app_impl';
+import {Trace} from '../../public/trace';
 
 export function showThreadDetailsMenuItem(
+  trace: Trace,
   utid: Utid,
-  tid?: number,
+  tid?: bigint,
 ): m.Children {
   return m(MenuItem, {
     icon: Icons.ExternalLink,
     label: 'Show thread details',
     onclick: () => {
-      // TODO(primiano): `trace` should be injected, but doing so would require
-      // an invasive refactoring of most classes in frontend/widgets/sql/*.
-      const trace = AppImpl.instance.trace;
       if (trace === undefined) return;
       addEphemeralTab(
+        trace,
         'threadDetails',
         new ThreadDetailsTab({
           trace,
@@ -53,11 +52,14 @@ export function showThreadDetailsMenuItem(
   });
 }
 
-export function threadRefMenuItems(info: {
-  utid: Utid;
-  name?: string;
-  tid?: number;
-}): m.Children {
+export function threadRefMenuItems(
+  trace: Trace,
+  info: {
+    utid: Utid;
+    name?: string;
+    tid?: bigint;
+  },
+): m.Children {
   // We capture a copy to be able to pass it across async boundary to `onclick`.
   const name = info.name;
   return [
@@ -78,27 +80,30 @@ export function threadRefMenuItems(info: {
       label: 'Copy utid',
       onclick: () => copyToClipboard(`${info.utid}`),
     }),
-    showThreadDetailsMenuItem(info.utid, info.tid),
+    showThreadDetailsMenuItem(trace, info.utid, info.tid),
   ];
 }
 
-export function renderThreadRef(info: {
-  utid: Utid;
-  name?: string;
-  tid?: number;
-}): m.Children {
+export function renderThreadRef(
+  trace: Trace,
+  info: {
+    utid: Utid;
+    name?: string;
+    tid?: bigint;
+  },
+): m.Children {
   return m(
     PopupMenu,
     {
       trigger: m(Anchor, getThreadName(info)),
     },
-    threadRefMenuItems(info),
+    threadRefMenuItems(trace, info),
   );
 }
 
 sqlIdRegistry['thread'] = createSqlIdRefRenderer<ThreadInfo>(
   async (engine, id) => await getThreadInfo(engine, asUtid(Number(id))),
-  (data: ThreadInfo) => ({
-    value: renderThreadRef(data),
+  (trace: Trace, data: ThreadInfo) => ({
+    value: renderThreadRef(trace, data),
   }),
 );

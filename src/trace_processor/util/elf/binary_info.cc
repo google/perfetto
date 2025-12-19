@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/util/elf/elf.h"
 
 namespace perfetto::trace_processor::elf {
@@ -38,7 +39,10 @@ bool InRange(const void* base,
   return ptr >= base && static_cast<const char*>(ptr) + size <=
                             static_cast<const char*>(base) + total_size;
 }
-
+// TODO(rasikanavarange): ETM registers files with large sizes causing size in
+// TraceBlobView to become truncated. This means we can not trust any of the
+// below checks for large files. So a solution is needed that is not too
+// expensive memory wise. b/438916722
 template <typename E>
 std::optional<uint64_t> GetElfLoadBias(const void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<const typename E::Ehdr*>(mem);

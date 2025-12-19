@@ -26,14 +26,15 @@ class SurfaceFlingerLayers(TestSuite):
         trace=Path('surfaceflinger_layers.textproto'),
         query="""
         SELECT
-          id, ts
+          id, ts, has_invalid_elapsed_ts
         FROM
-          surfaceflinger_layers_snapshot LIMIT 2;
+          surfaceflinger_layers_snapshot LIMIT 3;
         """,
         out=Csv("""
-        "id","ts"
-        0,2748300281655
-        1,2749500341063
+        "id","ts","has_invalid_elapsed_ts"
+        0,2748300281655,0
+        1,2749500341063,0
+        2,2749700000000,1
         """))
 
   def test_snapshot_args(self):
@@ -60,7 +61,7 @@ class SurfaceFlingerLayers(TestSuite):
         "displays[0].size.h","2400"
         "displays[0].size.w","1080"
         "displays[0].transform.type","0"
-        "elapsed_realtime_nanos","2748300281655"
+        "elapsed_realtime_nanos","123"
         "vsync_id","24766"
         "where","visibleRegionsDirty"
         """))
@@ -129,10 +130,10 @@ class SurfaceFlingerLayers(TestSuite):
         1,0,4,"WindowedMagnification:0:31#4",3,0.100000,0.000000,0.300000,0.400000,"[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
         2,1,3,"Display 0 name="Built-in Screen"#3","[NULL]",0.000000,0.000000,0.000000,0.000000,"[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
         3,1,4,"WindowedMagnification:0:31#4",3,0.000000,0.000000,0.000000,0.000000,"[NULL]","[NULL]",0,0,3,"[NULL]"
-        4,2,"[NULL]","[NULL]",-1,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
-        5,2,-2,"[NULL]",-2,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
+        4,2,"[NULL]","[NULL]",-1,0.000000,0.000000,0.000000,0.000000,"[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
+        5,2,-2,"[NULL]",-2,0.000000,0.000000,0.000000,0.000000,"[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
         6,2,1,"layer1","[NULL]",1.000000,1.000000,1.000000,1.000000,2,"[NULL]",0,0,9,10
-        7,2,2,"layer2","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0,1,11,12
+        7,2,2,"layer2","[NULL]",0.000000,0.000000,0.000000,0.000000,"[NULL]","[NULL]",0,1,11,12
         """))
 
   def test_tables_have_raw_protos(self):

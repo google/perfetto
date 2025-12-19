@@ -171,6 +171,9 @@ ORDER BY
   4 DESC;
 
 -- Time the thread spent each state and cpu in a given interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
     -- The start of the interval.
     ts TIMESTAMP,
@@ -219,6 +222,9 @@ ORDER BY
   5 DESC;
 
 -- Time spent by CPU in each scheduling state in a provided interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION sched_time_in_state_for_cpu_in_interval(
     -- CPU id.
     cpu LONG,

@@ -38,6 +38,16 @@
   }
 }
 
+@keyframes pf-spinner-rotation {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .pf-button {
   font-family: var(--pf-font-compact);
   line-height: 1;
@@ -46,6 +56,39 @@
   padding: 4px 8px;
   white-space: nowrap;
   min-width: max-content;
+  position: relative;
+
+  &--loading {
+    // The button is unclickable when loading
+    pointer-events: none;
+
+    .pf-button__label,
+    .pf-left-icon,
+    .pf-right-icon {
+      visibility: hidden;
+    }
+
+    &::after {
+      content: "";
+      height: 0.9em;
+      width: 0.9em;
+      border-radius: 100px;
+      border-style: solid;
+      border-width: 0.15em;
+      border-color: var(--pf-color-border);
+      border-top-color: var(--pf-color-primary);
+      position: absolute;
+      inset: 50%;
+      translate: -50% -50%;
+      animation: pf-spinner-rotation 1s infinite linear;
+    }
+  }
+
+  &--shrink {
+    min-width: 0;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
 
   &--rounded {
     border-radius: 100px;
@@ -85,6 +128,12 @@
 
     &.pf-compact {
       padding: 0;
+    }
+
+    &::before {
+      // Inserting a zero-width space to keep the button in flow. This allows it
+      // to stay aligned with the baseline of other text around it.
+      content: "\200B"; /* Zero-width space */
     }
   }
 

@@ -1,6 +1,6 @@
 android_blocking_calls_cuj_metric {
   cuj {
-    id: 2
+    id: 1
     name: "TEST_SYSUI_LATENCY_EVENT"
     process {
       name: "com.android.systemui"
@@ -23,7 +23,7 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 3
+    id: 2
     name: "TEST_LAUNCHER_LATENCY_EVENT"
     process {
       name: "com.google.android.apps.nexuslauncher"
@@ -46,7 +46,7 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 4
+    id: 3
     name: "CUJ_WITH_MANY_BLOCKING_CALLS"
     process {
       name: "com.google.android.third.process"
@@ -56,7 +56,7 @@ android_blocking_calls_cuj_metric {
       is_kernel_task: false
     }
     ts: 2000000
-    dur: 260000000
+    dur: 300000000
     blocking_calls {
       name: "Contending for pthread mutex"
       cnt: 1
@@ -218,6 +218,46 @@ android_blocking_calls_cuj_metric {
       min_dur_ns: 10000000
     }
     blocking_calls {
+      name: "draw-VRI[NexusLauncherActivity]"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "draw-VRI[ScreenDecorHwcOverlay]"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "draw-VRI[StatusBar]"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "draw-VRI[Taskbar]"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
       name: "inflate"
       cnt: 1
       total_dur_ms: 10
@@ -299,7 +339,7 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 5
+    id: 4
     name: "CUJ_WITH_TOP_LEVEL_SLICES"
     process {
       name: "com.google.android.top.level.slices"
@@ -362,7 +402,7 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 6
+    id: 5
     name: "OVERLAPPING_CUJ_1"
     process {
       name: "com.android.systemui"
@@ -385,7 +425,7 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 7
+    id: 6
     name: "OVERLAPPING_CUJ_2"
     process {
       name: "com.android.systemui"
@@ -408,7 +448,7 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 8
+    id: 7
     name: "WITH_NAMED_BINDER_TRANSACTION"
     process {
       name: "com.android.systemui"

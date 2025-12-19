@@ -38,7 +38,8 @@ std::string FilterToText(FilterUtil& filter,
                          std::optional<std::string> bytecode = {}) {
   std::string tmp_path = perfetto::base::TempFile::Create().path();
   {
-    perfetto::base::ScopedFstream tmp_stream(fopen(tmp_path.c_str(), "wb"));
+    perfetto::base::ScopedFstream tmp_stream(
+        perfetto::base::OpenFstream(tmp_path, "w"));
     PERFETTO_CHECK(!!tmp_stream);
     filter.set_print_stream_for_testing(*tmp_stream);
     filter.PrintAsText(bytecode);
@@ -62,7 +63,7 @@ TEST(SchemaParserTest, SchemaToBytecode_Simple) {
   )");
   FilterUtil filter;
   ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   FilterBytecodeParser fbp;
   ASSERT_TRUE(fbp.Load(bytecode.data(), bytecode.size()));
   EXPECT_TRUE(fbp.Query(0, 13).allowed);
@@ -90,7 +91,7 @@ TEST(SchemaParserTest, SchemaToBytecode_Nested) {
   )");
   FilterUtil filter;
   ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "", ""));
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   FilterBytecodeParser fbp;
   ASSERT_TRUE(fbp.Load(bytecode.data(), bytecode.size()));
   EXPECT_TRUE(fbp.Query(0, 1).allowed);
@@ -136,7 +137,7 @@ TEST(SchemaParserTest, SchemaToBytecode_Dedupe) {
   FilterUtil filter;
   ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
   filter.Dedupe();
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   FilterBytecodeParser fbp;
   ASSERT_TRUE(fbp.Load(bytecode.data(), bytecode.size()));
 
@@ -239,7 +240,7 @@ Child2.Nested 1 int64 f1
   // If we generate bytecode from the schema itself, all fields are allowed and
   // the result is identical to the unfiltered output.
   EXPECT_EQ(FilterToText(filter),
-            FilterToText(filter, filter.GenerateFilterBytecode()));
+            FilterToText(filter, filter.GenerateFilterBytecode().bytecode));
 }
 
 TEST(SchemaParserTest, PrintAsTextWithBytecodeFiltering) {
@@ -290,7 +291,7 @@ TEST(SchemaParserTest, PrintAsTextWithBytecodeFiltering) {
   FilterUtil filter_subset;
   ASSERT_TRUE(
       filter_subset.LoadMessageDefinition(schema_subset.path(), "Root", ""));
-  std::string bytecode = filter_subset.GenerateFilterBytecode();
+  std::string bytecode = filter_subset.GenerateFilterBytecode().bytecode;
 
   // Note: Child1 isn't listed even though the filter allows it, because it
   // isn't reachable from the root message.
@@ -334,7 +335,7 @@ TracePacket 5 bytes cfg
 )",
             FilterToText(filter));
 
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   // If we generate bytecode from the schema itself, all fields are allowed and
   // the result is identical to the unfiltered output.
   EXPECT_EQ(FilterToText(filter), FilterToText(filter, bytecode));
@@ -371,7 +372,7 @@ TraceConfig 1 string f1 # FILTER STRING
 )",
             FilterToText(filter));
 
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   // If we generate bytecode from the schema itself, all fields are allowed and
   // the result is identical to the unfiltered output.
   EXPECT_EQ(FilterToText(filter), FilterToText(filter, bytecode));

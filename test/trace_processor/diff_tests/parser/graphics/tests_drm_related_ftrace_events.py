@@ -127,14 +127,67 @@ class GraphicsDrmRelatedFtraceEvents(TestSuite):
         """,
         out=Csv("""
         "utid","ts","dur","name","flat_key","int_value","string_value"
-        1,9246165326050,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
-        1,9246165326050,0,"drm_sched_job","gpu sched job",13481,"[NULL]"
-        3,9246166957616,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
-        3,9246166957616,0,"drm_sched_job","gpu sched job",13482,"[NULL]"
-        3,9246167272512,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
-        3,9246167272512,0,"drm_sched_job","gpu sched job",13483,"[NULL]"
-        1,9246181907439,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
-        1,9246181907439,0,"drm_sched_job","gpu sched job",13484,"[NULL]"
+        1,9246165326050,0,"drm_sched_job_queue","gpu sched ring","[NULL]","ring0"
+        1,9246165326050,0,"drm_sched_job_queue","gpu sched job",13481,"[NULL]"
+        3,9246166957616,0,"drm_sched_job_queue","gpu sched ring","[NULL]","ring0"
+        3,9246166957616,0,"drm_sched_job_queue","gpu sched job",13482,"[NULL]"
+        3,9246167272512,0,"drm_sched_job_queue","gpu sched ring","[NULL]","ring0"
+        3,9246167272512,0,"drm_sched_job_queue","gpu sched job",13483,"[NULL]"
+        1,9246181907439,0,"drm_sched_job_queue","gpu sched ring","[NULL]","ring0"
+        1,9246181907439,0,"drm_sched_job_queue","gpu sched job",13484,"[NULL]"
+        """))
+
+  def test_drm_sched_617_gpu_track(self):
+    return DiffTestBlueprint(
+        trace=Path('drm_sched_617.textproto'),
+        query="""
+        SELECT
+          gpu_track.name,
+          ts,
+          dur,
+          slice.name,
+          flat_key,
+          int_value,
+          string_value
+        FROM
+          gpu_track
+        JOIN slice
+          ON slice.track_id = gpu_track.id
+        JOIN args
+          ON slice.arg_set_id = args.arg_set_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "name","ts","dur","name","flat_key","int_value","string_value"
+        "sched-gfx_0.0.0",2664817945719,209686,"job","fence context",401,"[NULL]"
+        "sched-gfx_0.0.0",2664817945719,209686,"job","fence seqno",1,"[NULL]"
+        """))
+
+  def test_drm_sched_617_thread_track(self):
+    return DiffTestBlueprint(
+        trace=Path('drm_sched_617.textproto'),
+        query="""
+        SELECT
+          utid,
+          ts,
+          dur,
+          slice.name,
+          flat_key,
+          int_value,
+          string_value
+        FROM
+          thread_track
+        JOIN slice
+          ON slice.track_id = thread_track.id
+        JOIN args
+          ON slice.arg_set_id = args.arg_set_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "utid","ts","dur","name","flat_key","int_value","string_value"
+        1,2664817937804,0,"drm_sched_job_queue","gpu sched ring","[NULL]","gfx_0.0.0"
+        1,2664817937804,0,"drm_sched_job_queue","fence context",401,"[NULL]"
+        1,2664817937804,0,"drm_sched_job_queue","fence seqno",1,"[NULL]"
         """))
 
   def test_drm_dma_fence_gpu_track(self):

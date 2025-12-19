@@ -79,6 +79,12 @@ experienced developer.
     why it's useful, and who uses it, see our main documentation page:
     - [**Perfetto Documentation Home**](https://perfetto.dev/docs/)
 
+## Debian Distribution
+
+For users interested in the Debian distribution of Perfetto, the official source
+of truth and packaging efforts are maintained at
+[Debian Perfetto Salsa Repository](https://salsa.debian.org/debian/perfetto)
+
 ## Community & Support
 
 Have questions? Need help?

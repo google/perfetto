@@ -25,6 +25,7 @@
 #include <mutex>
 #include <vector>
 
+#include "perfetto/ext/base/rt_mutex.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
@@ -161,6 +162,64 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
     return default_page_layout;
   }
 
+  // F is lambda with signature:
+  // void(SharedMemoryABI::Chunk*, bool chunk_complete,
+  //      uint16_t packet_count, uint8_t packet_flags)
+  template <typename F>
+  static inline void ForEachScrapableChunk(SharedMemoryABI* shmem_abi,
+                                           F handle_chunk_function) {
+    static_assert(std::is_invocable_v<F, SharedMemoryABI::Chunk*, bool,
+                                      uint16_t, uint8_t>);
+    // num_pages() is immutable after the SMB is initialized and cannot be
+    // changed even by a producer even if malicious.
+    for (size_t page_idx = 0; page_idx < shmem_abi->num_pages(); page_idx++) {
+      uint32_t header_bitmap = shmem_abi->GetPageHeaderBitmap(page_idx);
+
+      uint32_t used_chunks =
+          shmem_abi->GetUsedChunks(header_bitmap);  // Returns a bitmap.
+      // Skip empty pages.
+      if (used_chunks == 0) {
+        continue;
+      }
+
+      // Scrape the chunks that are currently used. These should be either in
+      // state kChunkBeingWritten or kChunkComplete.
+      for (uint32_t chunk_idx = 0; used_chunks;
+           chunk_idx++, used_chunks >>= 1) {
+        if (!(used_chunks & 1))
+          continue;
+
+        auto state = SharedMemoryABI::GetChunkStateFromHeaderBitmap(
+            header_bitmap, chunk_idx);
+        PERFETTO_DCHECK(state == SharedMemoryABI::kChunkBeingWritten ||
+                        state == SharedMemoryABI::kChunkComplete);
+        bool chunk_complete = state == SharedMemoryABI::kChunkComplete;
+
+        SharedMemoryABI::Chunk chunk =
+            shmem_abi->GetChunkUnchecked(page_idx, header_bitmap, chunk_idx);
+
+        uint16_t packet_count;
+        uint8_t packet_flags;
+        // GetPacketCountAndFlags has acquire_load semantics.
+        std::tie(packet_count, packet_flags) = chunk.GetPacketCountAndFlags();
+
+        // It only makes sense to copy an incomplete chunk if there's at least
+        // one full packet available. (The producer may not have completed the
+        // last packet in it yet, so we need at least 2.)
+        if (!chunk_complete && packet_count < 2)
+          continue;
+
+        // At this point, it is safe to access the remaining header fields of
+        // the chunk. Even if the chunk was only just transferred from
+        // kChunkFree into kChunkBeingWritten state, the header should be
+        // written completely once the packet count increased above 1 (it was
+        // reset to 0 by the service when the chunk was freed).
+        handle_chunk_function(&chunk, chunk_complete, packet_count,
+                              packet_flags);
+      }
+    }
+  }
+
   // SharedMemoryArbiter implementation.
   // See include/perfetto/tracing/core/shared_memory_arbiter.h for comments.
   std::unique_ptr<TraceWriter> CreateTraceWriter(
@@ -184,6 +243,8 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   void FlushPendingCommitDataRequests(
       std::function<void()> callback = {}) override;
+  void ScrapeEmulatedSharedMemoryBuffer(
+      const std::map<WriterID, BufferID>& buffer_for_writers) override;
   bool TryShutdown() override;
 
   base::TaskRunner* task_runner() const { return task_runner_; }
@@ -237,9 +298,10 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
 
-  void BindStartupTargetBufferImpl(std::unique_lock<std::mutex> scoped_lock,
-                                   uint16_t target_buffer_reservation_id,
-                                   BufferID target_buffer_id);
+  void BindStartupTargetBufferImpl(
+      std::unique_lock<base::MaybeRtMutex> scoped_lock,
+      uint16_t target_buffer_reservation_id,
+      BufferID target_buffer_id);
 
   // Returns some statistics about chunks/pages in the shared memory buffer.
   struct Stats {
@@ -277,7 +339,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   // --- Begin lock-protected members ---
 
-  std::mutex lock_;
+  base::MaybeRtMutex lock_;
 
   base::TaskRunner* task_runner_ = nullptr;
   SharedMemoryABI shmem_abi_;
@@ -326,6 +388,13 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // previously-scheduled delayed flush will still occur at the end of the
   // batching period.
   bool delayed_flush_scheduled_ = false;
+
+  // Indicates whether we have already scheduled an immediate flush due to the
+  // shared memory buffer being more than half full. Set to true when the first
+  // immediate flush is posted and cleared when the flush completes. This
+  // prevents posting multiple immediate flush tasks when chunks continue to be
+  // committed while the buffer remains over 50% full.
+  bool immediate_flush_scheduled_ = false;
 
   // Stores target buffer reservations for writers created via
   // CreateStartupTraceWriter(). A bound reservation sets

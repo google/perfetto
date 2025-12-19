@@ -68,6 +68,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
                   8);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
                   VARINT,
+                  uint64_t,
+                  thread_time_subsampling_ns,
+                  10);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
+                  VARINT,
                   bool,
                   filter_dynamic_event_names,
                   9);

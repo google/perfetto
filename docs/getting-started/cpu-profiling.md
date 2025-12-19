@@ -98,9 +98,9 @@ data_sources: {
 }
 ```
 
-Which should look similar to the following in the UI, after expanding the
-"Hardware" -> "Perf Counters" track groups. The counter tracks show the values
-as counting rates by default.
+Which should look similar to the following in the UI, after expanding the "Perf
+Counters" track groups. The counter tracks show the values as counting rates by
+default.
 
 ![Perf counter trace in the UI](/docs/images/perf-counter-ui.png)
 

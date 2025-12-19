@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {Trace} from '../../public/trace';
@@ -27,7 +27,7 @@ export function createEventLatencyTrack(
   uri: string,
   baseTable: string,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

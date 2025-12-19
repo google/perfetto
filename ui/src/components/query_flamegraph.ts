@@ -16,7 +16,6 @@ import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/logging';
-import {Monitor} from '../base/monitor';
 import {uuidv4Sql} from '../base/uuid';
 import {Engine} from '../trace_processor/engine';
 import {
@@ -37,8 +36,12 @@ import {
   FlamegraphState,
   FlamegraphView,
   FlamegraphOptionalAction,
+  FlamegraphOptionalMarker,
 } from '../widgets/flamegraph';
 import {Trace} from '../public/trace';
+import {sqliteString} from '../base/string_utils';
+import {SharedAsyncDisposable} from '../base/shared_disposable';
+import {Monitor} from '../base/monitor';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -47,15 +50,14 @@ export interface QueryFlamegraphColumn {
   // The human readable name describing the contents of the column.
   readonly displayName: string;
 
-  // Whether the name should be displayed in the UI.
-  readonly isVisible?: boolean;
+  // Function that determines whether the property should be displayed for a
+  // given node.
+  readonly isVisible?: (value: string) => boolean;
 }
 
 export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
   // The aggregation to be run when nodes are merged together in the flamegraph.
-  //
-  // TODO(lalitm): consider adding extra functions here (e.g. a top 5 or similar).
-  readonly mergeAggregation: 'ONE_OR_NULL' | 'SUM' | 'CONCAT_WITH_COMMA';
+  readonly mergeAggregation: 'ONE_OR_SUMMARY' | 'SUM' | 'CONCAT_WITH_COMMA';
 }
 
 export interface QueryFlamegraphMetric {
@@ -105,10 +107,13 @@ export interface QueryFlamegraphMetric {
   // Examples include showing a table of objects from a class reference
   // hierarchy.
   readonly optionalRootActions?: ReadonlyArray<FlamegraphOptionalAction>;
-}
 
-export interface QueryFlamegraphState {
-  state: FlamegraphState;
+  // Optional marker to be displayed on flamegraph nodes. Marker appears as
+  // a visual indicator (small dot) on the left side of nodes and is shown
+  // in the tooltip.
+  //
+  // Examples include marking inlined functions, optimized code, etc.
+  readonly optionalMarker?: FlamegraphOptionalMarker;
 }
 
 // Given a table and columns on those table (corresponding to metrics),
@@ -144,41 +149,97 @@ export function metricsFromTableOrSubquery(
   return metrics;
 }
 
+interface QueryFlamegraphAttrs {
+  // The metrics to display in the flamegraph. If undefined, the flamegraph will
+  // show a loading state.
+  readonly metrics?: ReadonlyArray<QueryFlamegraphMetric>;
+
+  // The current state of the flamegraph (filters, view, selected metric, etc).
+  readonly state?: FlamegraphState;
+
+  // Callback invoked when the flamegraph state changes (e.g., user changes
+  // filters, selects a different metric, etc).
+  readonly onStateChange: (state: FlamegraphState) => void;
+}
+
+export interface QueryFlamegraphWithMetrics {
+  flamegraph: QueryFlamegraph;
+  metrics: ReadonlyArray<QueryFlamegraphMetric>;
+}
+
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
 // data for the widget by querying an `Engine`.
-export class QueryFlamegraph {
+export class QueryFlamegraph implements AsyncDisposable {
   private data?: FlamegraphQueryData;
-  private readonly selMonitor = new Monitor([() => this.state.state]);
   private readonly queryLimiter = new AsyncLimiter();
+  private readonly dependencies: ReadonlyArray<
+    SharedAsyncDisposable<AsyncDisposable>
+  >;
+  private lastAttrs?: QueryFlamegraphAttrs;
+  private monitor = new Monitor([
+    () => this.lastAttrs?.metrics,
+    () => this.lastAttrs?.state,
+  ]);
 
   constructor(
     private readonly trace: Trace,
-    private readonly metrics: ReadonlyArray<QueryFlamegraphMetric>,
-    private state: QueryFlamegraphState,
-  ) {}
+    dependencies: ReadonlyArray<AsyncDisposable> = [],
+  ) {
+    this.dependencies = dependencies.map((d) => SharedAsyncDisposable.wrap(d));
+  }
 
-  render() {
-    if (this.selMonitor.ifStateChanged()) {
-      const metric = assertExists(
-        this.metrics.find(
-          (x) => this.state.state.selectedMetricName === x.name,
-        ),
-      );
-      const engine = this.trace.engine;
-      const state = this.state;
+  async [Symbol.asyncDispose](): Promise<void> {
+    for (const dependency of this.dependencies ?? []) {
+      await dependency[Symbol.asyncDispose]?.();
+    }
+  }
+
+  render(attrs: QueryFlamegraphAttrs) {
+    const {metrics, state, onStateChange} = attrs;
+    this.lastAttrs = attrs;
+    if (this.monitor.ifStateChanged()) {
       this.data = undefined;
-      this.queryLimiter.schedule(async () => {
-        this.data = undefined;
-        this.data = await computeFlamegraphTree(engine, metric, state.state);
-      });
+      if (metrics && state) {
+        this.fetchData(metrics, state);
+      }
     }
     return m(Flamegraph, {
-      metrics: this.metrics,
+      metrics: metrics ?? [],
       data: this.data,
-      state: this.state.state,
-      onStateChange: (state) => {
-        this.state.state = state;
+      state: state ?? {
+        view: {kind: 'TOP_DOWN'},
+        selectedMetricName: '',
+        filters: [],
       },
+      onStateChange,
+    });
+  }
+
+  fetchData(
+    metrics: ReadonlyArray<QueryFlamegraphMetric>,
+    state: FlamegraphState,
+  ) {
+    const metric = assertExists(
+      metrics.find((x) => state.selectedMetricName === x.name),
+    );
+    const engine = this.trace.engine;
+    this.queryLimiter.schedule(async () => {
+      this.data = undefined;
+      // Clone all the dependencies to make sure the the are not dropped while
+      // this function is running, adding them to the trash to make sure they
+      // are disposed after this function returns, but note this won't
+      // actually drop the tables unless this class instances have also been
+      // disposed due to the SharedAsyncDisposable logic.
+      await using trash = new AsyncDisposableStack();
+      for (const dependency of this.dependencies ?? []) {
+        // If the dependency is disposed, it means that we have already ended
+        // up cleaning up the object so none of this matters. Just return.
+        if (dependency.isDisposed) {
+          return;
+        }
+        trash.use(dependency.clone());
+      }
+      this.data = await computeFlamegraphTree(engine, metric, state);
     });
   }
 }
@@ -192,6 +253,7 @@ async function computeFlamegraphTree(
     aggregatableProperties,
     optionalNodeActions,
     optionalRootActions,
+    optionalMarker,
   }: QueryFlamegraphMetric,
   {filters, view}: FlamegraphState,
 ): Promise<FlamegraphQueryData> {
@@ -222,7 +284,8 @@ async function computeFlamegraphTree(
   const matchingColumns = ['name', ...unaggCols];
   const matchExpr = (x: string) =>
     matchingColumns.map(
-      (c) => `(IFNULL(${c}, '') like '${makeSqlFilter(x)}' escape '\\')`,
+      (c) =>
+        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
     );
 
   const showStackFilter =
@@ -452,13 +515,26 @@ async function computeFlamegraphTree(
     for (const a of [...agg, ...unagg]) {
       const r = it.get(a.name);
       if (r !== null) {
+        const value = r as string;
         properties.set(a.name, {
           displayName: a.displayName,
-          value: r as string,
-          isVisible: a.isVisible ?? true,
+          value,
+          isVisible: a.isVisible ? a.isVisible(value) : true,
         });
       }
     }
+
+    // Evaluate marker
+    let marker: string | undefined;
+    if (
+      optionalMarker &&
+      optionalMarker.isVisible(
+        new Map([...properties].map(([k, v]) => [k, v.value])),
+      )
+    ) {
+      marker = optionalMarker.name;
+    }
+
     nodes.push({
       id: it.id,
       parentId: it.parentId,
@@ -470,6 +546,7 @@ async function computeFlamegraphTree(
       xStart: it.xStart,
       xEnd: it.xEnd,
       properties,
+      marker,
     });
     if (it.depth === 1) {
       postiveRootsValue += it.cumulativeValue;
@@ -518,8 +595,14 @@ function getPivotFilter(
 function computeGroupedAggExprs(agg: ReadonlyArray<AggQueryFlamegraphColumn>) {
   const aggFor = (x: AggQueryFlamegraphColumn) => {
     switch (x.mergeAggregation) {
-      case 'ONE_OR_NULL':
-        return `IIF(COUNT() = 1, ${x.name}, NULL) AS ${x.name}`;
+      case 'ONE_OR_SUMMARY':
+        return `
+          ${x.name} || IIF(
+            COUNT(DISTINCT ${x.name}) = 1,
+            '',
+            ' ' || ' and ' || cast_string!(COUNT(DISTINCT ${x.name})) || ' others'
+          ) AS ${x.name}
+        `;
       case 'SUM':
         return `SUM(${x.name}) AS ${x.name}`;
       case 'CONCAT_WITH_COMMA':

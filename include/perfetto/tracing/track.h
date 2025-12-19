@@ -44,9 +44,9 @@
 namespace perfetto {
 namespace internal {
 class TrackRegistry;
-}
-class Flow;
-class TerminatingFlow;
+template <class T>
+class FlowImpl;
+}  // namespace internal
 
 // Track events are recorded on a timeline track, which maintains the relative
 // time ordering of all events on that track. Each thread has its own default
@@ -147,8 +147,8 @@ struct PERFETTO_EXPORT_COMPONENT Track {
 
  private:
   friend class internal::TrackRegistry;
-  friend class Flow;
-  friend class TerminatingFlow;
+  template <class T>
+  friend class internal::FlowImpl;
   static uint64_t process_uuid;
 };
 
@@ -256,7 +256,8 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
                                      ThreadTrack::Current());
     }
-    return Track::FromPointer(std::forward<TrackEventName>(name), ptr, parent);
+    return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
+                                   parent);
   }
 
   template <class TrackEventName>
@@ -517,7 +518,8 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
   TrackRegistry();
   ~TrackRegistry();
 
-  static void InitializeInstance();
+  static void InitializeInstance(
+      std::optional<uint64_t> process_uuid = std::nullopt);
   static void ResetForTesting();
   static uint64_t ComputeProcessUuid();
   static TrackRegistry* Get() { return instance_; }

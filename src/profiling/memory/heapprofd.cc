@@ -26,6 +26,7 @@
 
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/watchdog.h"
@@ -33,8 +34,6 @@
 #include "src/profiling/memory/heapprofd_producer.h"
 #include "src/profiling/memory/java_hprof_producer.h"
 #include "src/profiling/memory/wire_protocol.h"
-
-#include "perfetto/ext/base/unix_task_runner.h"
 
 // TODO(rsavitski): the task runner watchdog spawns a thread (normally for
 // tracking cpu/mem usage) that we don't strictly need.
@@ -64,7 +63,7 @@ int StartCentralHeapprofd() {
   // std::atomic for g_dump_evt.
   g_dump_evt = new base::EventFd();
 
-  base::UnixTaskRunner task_runner;
+  base::MaybeLockFreeTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks
   HeapprofdProducer producer(HeapprofdMode::kCentral, &task_runner,
                              /* exit_when_done= */ false);

@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
+#include <string>
+#include <vector>
 
+#include "perfetto/ext/base/utils.h"
+#include "src/profiling/symbolizer/symbolizer.h"
 #include "test/gtest_and_gmock.h"
 
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/profiling/symbolizer/breakpad_symbolizer.h"
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
 
 namespace {
 
@@ -34,8 +37,9 @@ TEST(BreakpadSymbolizerTest, NonExistantFile) {
   BreakpadSymbolizer symbolizer(kTestDir);
   symbolizer.SetBreakpadFileForTesting(kBadFilePath);
   std::vector<uint64_t> addresses = {0x1010u, 0x1040u, 0x10d0u, 0x1140u};
+  Symbolizer::Environment env;
   std::vector<std::vector<SymbolizedFrame>> frames =
-      symbolizer.Symbolize("mapping", "build", 0, addresses);
+      symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
   EXPECT_TRUE(frames.empty());
 }
 
@@ -72,8 +76,9 @@ TEST(BreakpadSymbolizerTest, SymbolFrames) {
   // function's range.
   std::vector<uint64_t> addresses = {0x1010u, 0x1040u, 0x10d0u, 0x1140u,
                                      0xeu,    0x1036u, 0x30d0u, 0x113eu};
+  Symbolizer::Environment env;
   std::vector<std::vector<SymbolizedFrame>> frames =
-      symbolizer.Symbolize("mapping", "build", 0, addresses);
+      symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
   ASSERT_EQ(frames.size(), 8u);
   EXPECT_EQ(frames[0][0].function_name, "foo_foo()");
   EXPECT_EQ(frames[1][0].function_name, "bar_bar_bar()");
@@ -86,5 +91,4 @@ TEST(BreakpadSymbolizerTest, SymbolFrames) {
 }
 
 }  // namespace
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling

@@ -20,7 +20,7 @@ import {raf} from '../../../../core/raf_scheduler';
 import {Engine} from '../../../../trace_processor/engine';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
-import {Arg, getArgs} from '../../../sql_utils/args';
+import {ArgsDict, getArgs} from '../../../sql_utils/args';
 import {asArgSetId} from '../../../sql_utils/core_types';
 import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
@@ -287,7 +287,7 @@ export type RenderedValue = {
 // the vdom.
 export type SqlIdRefRenderer = {
   fetch: (engine: Engine, id: bigint) => Promise<{} | undefined>;
-  render: (data: {}) => RenderedValue;
+  render: (trace: Trace, data: {}) => RenderedValue;
 };
 
 // === Impl details ===
@@ -432,7 +432,7 @@ interface Data {
   // Source statements for the arg sets.
   argSetExpressions: string[];
   // Fetched arg sets.
-  argSets: (Arg[] | Err)[];
+  argSets: (ArgsDict | Err)[];
 
   // Source statements for the SQL references.
   sqlIdRefs: {tableName: string; idExpression: string}[];
@@ -508,7 +508,7 @@ class DataController {
     for (const argSetIndex of this.argSets) {
       const argSetId = data.values[argSetIndex];
       if (argSetId === null) {
-        data.argSets.push([]);
+        data.argSets.push({});
       } else if (typeof argSetId !== 'number' && typeof argSetId !== 'bigint') {
         data.argSets.push(
           new Err(
@@ -737,6 +737,7 @@ function renderValue(
         );
       } else {
         rhs = m(TimestampWidget, {
+          trace,
           ts: Time.fromRaw(ts),
         });
       }
@@ -752,6 +753,7 @@ function renderValue(
         right:
           typeof dur === 'bigint' &&
           m(DurationWidget, {
+            trace,
             dur,
           }),
       });
@@ -764,6 +766,7 @@ function renderValue(
         right:
           typeof dur === 'bigint' &&
           m(DurationWidget, {
+            trace,
             dur,
           }),
       });
@@ -784,7 +787,7 @@ function renderValue(
             `Unknown table ${ref.tableName} (${ref.tableName}[${refData.id}])`,
           );
         } else {
-          const rendered = renderer.render(refData.data);
+          const rendered = renderer.render(trace, refData.data);
           rhs = rendered.value;
           children = rendered.children;
         }

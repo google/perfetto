@@ -13,148 +13,160 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {AsyncLimiter} from '../../../base/async_limiter';
-import {Icons} from '../../../base/semantic_icons';
+import {QueryResponse} from '../../../components/query_table/queries';
+import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {
-  QueryResponse,
-  runQueryForQueryTable,
-} from '../../../components/query_table/queries';
-import {
-  DataGridDataSource,
-  FilterDefinition,
-} from '../../../components/widgets/data_grid/common';
-import {
-  DataGrid,
-  renderCell,
-} from '../../../components/widgets/data_grid/data_grid';
-import {DataGridModel} from '../../../components/widgets/data_grid/common';
-import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
-import {Trace} from '../../../public/trace';
-import {SqlValue} from '../../../trace_processor/query_result';
+  CellRenderer,
+  ColumnSchema,
+  SchemaRegistry,
+} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Callout} from '../../../widgets/callout';
-import {DetailsShell} from '../../../widgets/details_shell';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {TextParagraph} from '../../../widgets/text_paragraph';
-import {Query, queryToRun, NodeType, QueryNode} from '../query_node';
+import {Spinner} from '../../../widgets/spinner';
+import {Switch} from '../../../widgets/switch';
+import {Query, QueryNode} from '../query_node';
 import {Intent} from '../../../widgets/common';
-import {AggregationsOperator} from './operations/aggregations';
+import {Icons} from '../../../base/semantic_icons';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {findErrors} from './query_builder_utils';
+import {UIFilter, normalizeDataGridFilter} from './operations/filter';
+import {DataExplorerEmptyState} from './widgets';
+import {Trace} from '../../../public/trace';
+import {Timestamp} from '../../../components/widgets/timestamp';
+import {DurationWidget} from '../../../components/widgets/duration';
+import {Time, Duration} from '../../../base/time';
+import {ColumnInfo} from './column_info';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {DataSource} from '../../../components/widgets/datagrid/data_source';
 
 export interface DataExplorerAttrs {
+  readonly trace: Trace;
   readonly node: QueryNode;
   readonly query?: Query | Error;
-  readonly executeQuery: boolean;
-  readonly trace: Trace;
-  readonly onQueryExecuted: (result: {
-    columns: string[];
-    error?: Error;
-    warning?: Error;
-    noDataWarning?: Error;
-  }) => void;
-  readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
+  readonly response?: QueryResponse;
+  readonly dataSource?: DataSource;
+  readonly isQueryRunning: boolean;
+  readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
+  readonly onExecute: () => void;
+  readonly onExportToTimeline?: () => void;
   readonly onchange?: () => void;
+  readonly onFilterAdd?: (
+    filter: UIFilter | UIFilter[],
+    filterOperator?: 'AND' | 'OR',
+  ) => void;
+}
+
+// Create cell renderer for timestamp columns
+function createTimestampCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
+    if (typeof value !== 'bigint') {
+      return String(value);
+    }
+    return m(Timestamp, {
+      trace,
+      ts: Time.fromRaw(value),
+    });
+  };
+}
+
+// Create cell renderer for duration columns
+function createDurationCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
+    if (typeof value !== 'bigint') {
+      return String(value);
+    }
+    return m(DurationWidget, {
+      trace,
+      dur: Duration.fromRaw(value),
+    });
+  };
+}
+
+// Get column info by name from the node's finalCols
+function getColumnInfo(
+  node: QueryNode,
+  columnName: string,
+): ColumnInfo | undefined {
+  return node.finalCols.find((col) => col.name === columnName);
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
-  private readonly asyncLimiter = new AsyncLimiter();
-  private response?: QueryResponse;
-  private dataSource?: DataGridDataSource;
-  private showAggregationCard: boolean = false;
-
-  oncreate({attrs}: m.CVnode<DataExplorerAttrs>) {
-    this.runQuery(attrs);
-  }
-
-  onupdate({attrs}: m.CVnode<DataExplorerAttrs>) {
-    this.runQuery(attrs);
-  }
-
-  private runQuery(attrs: DataExplorerAttrs) {
-    this.asyncLimiter.schedule(async () => {
-      if (
-        attrs.query === undefined ||
-        attrs.query instanceof Error ||
-        !attrs.executeQuery
-      ) {
-        return;
-      }
-
-      this.response = await runQueryForQueryTable(
-        queryToRun(attrs.query),
-        attrs.trace.engine,
-      );
-
-      const ds = new InMemoryDataSource(this.response.rows);
-      this.dataSource = {
-        get rows() {
-          return ds.rows;
-        },
-        notifyUpdate(model: DataGridModel) {
-          // We override the notifyUpdate method to ignore filters, as the data is
-          // assumed to be pre-filtered. We still apply sorting and aggregations.
-          const newModel: DataGridModel = {
-            ...model,
-            filters: [], // Always pass an empty array of filters.
-          };
-          ds.notifyUpdate(newModel);
-        },
-      };
-
-      const error = findErrors(attrs.query, this.response);
-      const warning = findWarnings(this.response, attrs.node);
-      const noDataWarning =
-        this.response?.totalRowCount === 0
-          ? new Error('Query returned no rows')
-          : undefined;
-
-      attrs.onQueryExecuted({
-        columns: this.response.columns,
-        error,
-        warning,
-        noDataWarning,
-      });
-
-      m.redraw();
-    });
-  }
-
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
-    const errors = findErrors(attrs.query, this.response);
-    const statusText = this.getStatusText(attrs.query);
-    const message = errors ? `Error: ${errors.message}` : statusText;
-
     return m(
       DetailsShell,
       {
         title: 'Query data',
-        fillParent: true,
         buttons: this.renderMenu(attrs),
+        fillHeight: true,
       },
-      this.renderContent(attrs, message),
+      this.renderContent(attrs),
     );
   }
 
-  private getStatusText(query?: Query | Error): string | undefined {
-    if (query === undefined) {
-      return 'No data to display';
-    } else if (this.response === undefined) {
-      return 'Typing...';
-    }
-    return undefined;
-  }
-
   private renderMenu(attrs: DataExplorerAttrs): m.Children {
-    const fullScreenButton = m(Button, {
-      label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
-      onclick: () => attrs.onFullScreenToggle(),
+    const autoExecute = attrs.node.state.autoExecute ?? true;
+
+    const runButton =
+      !autoExecute &&
+      m(Button, {
+        label: 'Run Query',
+        icon: 'play_arrow',
+        intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
+        disabled: !attrs.node.validate(),
+        onclick: () => attrs.onExecute(),
+      });
+
+    // Show "Queued..." when analyzing (validating query)
+    // Show spinner when actually executing the query
+    const statusIndicator =
+      attrs.isAnalyzing && !attrs.isQueryRunning
+        ? m('span.status-indicator', 'Queued...')
+        : attrs.isQueryRunning
+          ? m(Spinner)
+          : null;
+
+    const autoExecuteSwitch = m(Switch, {
+      label: 'Auto Execute',
+      checked: autoExecute,
+      onchange: (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        attrs.node.state.autoExecute = target.checked;
+        attrs.onchange?.();
+        // Execute the query when auto-execute is toggled on
+        // Analysis will happen automatically in node_explorer when autoExecute becomes true
+        if (target.checked && attrs.node.validate()) {
+          attrs.onExecute();
+        }
+      },
     });
 
-    if (attrs.isFullScreen) {
-      return fullScreenButton;
-    }
+    // Helper to create separator dot
+    const separator = () =>
+      m(
+        'span.pf-query-stats-separator',
+        {
+          'aria-hidden': 'true',
+        },
+        '•',
+      );
+
+    // Add query stats display (row count and duration)
+    const queryStats =
+      attrs.response && !attrs.isQueryRunning
+        ? m('.pf-query-stats', [
+            m('span', `${attrs.response.totalRowCount.toLocaleString()} rows`),
+            separator(),
+            m('span', `${attrs.response.durationMs.toFixed(1)}ms`),
+          ])
+        : null;
 
     const positionMenu = m(
       PopupMenu,
@@ -165,143 +177,249 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
       [
         m(MenuItem, {
-          label: 'Left',
-          onclick: () => attrs.onPositionChange('left'),
+          label: 'Export to Timeline',
+          icon: 'open_in_new',
+          onclick: () => attrs.onExportToTimeline?.(),
+          title: 'Export query results to timeline tab',
+          disabled: !(
+            attrs.onExportToTimeline &&
+            attrs.response &&
+            !attrs.isQueryRunning &&
+            attrs.node.state.materialized
+          ),
         }),
         m(MenuItem, {
-          label: 'Right',
-          onclick: () => attrs.onPositionChange('right'),
-        }),
-        m(MenuItem, {
-          label: 'Bottom',
-          onclick: () => attrs.onPositionChange('bottom'),
+          label: 'Copy Materialized Table Name',
+          icon: 'content_copy',
+          onclick: () => {
+            const tableName = attrs.node.state.materializationTableName;
+            if (tableName) {
+              navigator.clipboard.writeText(tableName);
+            }
+          },
+          title: 'Copy the materialized table name to clipboard',
+          disabled: !(
+            attrs.node.state.materialized &&
+            attrs.node.state.materializationTableName
+          ),
         }),
       ],
     );
 
-    return [fullScreenButton, positionMenu];
-  }
+    // Collect all items that should have separators between them
+    const itemsWithSeparators = [
+      runButton,
+      statusIndicator,
+      queryStats,
+      autoExecuteSwitch,
+    ].filter((item) => item !== null && item !== false);
 
-  private renderContent(
-    attrs: DataExplorerAttrs,
-    message?: string,
-  ): m.Children {
-    if (message) {
-      return m(TextParagraph, {text: message});
+    // Add separators between items
+    const menuItems: m.Children = [];
+    for (let i = 0; i < itemsWithSeparators.length; i++) {
+      menuItems.push(itemsWithSeparators[i]);
+      if (i < itemsWithSeparators.length - 1) {
+        menuItems.push(separator());
+      }
     }
 
-    if (this.response && this.dataSource) {
+    // Add menu at the end without a separator
+    menuItems.push(positionMenu);
+
+    return menuItems;
+  }
+
+  private renderContent(attrs: DataExplorerAttrs): m.Children {
+    const errors = findErrors(attrs.query, attrs.response);
+
+    // Show validation errors first (queryError is set by validate() methods).
+    // Validation errors take priority over execution errors because if validation
+    // fails, we should not execute the query at all.
+    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
+      // Clear any stale execution error when validation fails
+      attrs.node.state.issues.clearExecutionError();
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.queryError.message,
+      });
+    }
+
+    // Show execution errors (e.g., when materialization fails due to
+    // invalid column names). These are stored separately from validation errors
+    // so they survive validate() calls during rendering.
+    if (attrs.node.state.issues?.executionError) {
+      return m(
+        DataExplorerEmptyState,
+        {
+          icon: 'warning',
+          variant: 'warning',
+          title: attrs.node.state.issues.executionError.message,
+        },
+        m(Button, {
+          label: 'Retry',
+          icon: 'refresh',
+          intent: Intent.Primary,
+          onclick: () => {
+            // Clear the execution error and re-run the query
+            attrs.node.state.issues?.clearExecutionError();
+            attrs.onExecute();
+          },
+        }),
+      );
+    }
+
+    // Show execution errors with centered warning icon
+    if (errors) {
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: `Error: ${errors.message}`,
+      });
+    }
+
+    // Show response warnings with centered warning icon
+    if (attrs.node.state.issues?.responseError) {
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.responseError.message,
+      });
+    }
+
+    // Show data errors (like "no rows returned") with centered warning icon
+    if (attrs.node.state.issues?.dataError) {
+      return m(DataExplorerEmptyState, {
+        icon: 'warning',
+        variant: 'warning',
+        title: attrs.node.state.issues.dataError.message,
+      });
+    }
+
+    // Show spinner overlay when query is running
+    if (attrs.isQueryRunning) {
+      return m(DataExplorerEmptyState, {}, m(Spinner, {easing: true}));
+    }
+
+    // Show data if we have response and dataSource (even without query)
+    // This handles the case where we load existing materialized data
+    if (attrs.response && attrs.dataSource && attrs.node.validate()) {
+      // Show warning for multiple statements with centered icon
       const warning =
-        this.response.statementWithOutputCount > 1
-          ? m(
-              Callout,
-              {icon: 'warning'},
-              `${this.response.statementWithOutputCount} out of ${this.response.statementCount} `,
-              'statements returned a result. ',
-              'Only the results for the last statement are displayed.',
-            )
+        attrs.response.statementWithOutputCount > 1
+          ? m(DataExplorerEmptyState, {
+              icon: 'warning',
+              variant: 'warning',
+              title:
+                `${attrs.response.statementWithOutputCount} out of ${attrs.response.statementCount} ` +
+                'statements returned a result. ' +
+                'Only the results for the last statement are displayed.',
+            })
           : null;
 
-      const maybeAggregateButton =
-        attrs.isFullScreen &&
-        attrs.node.type !== NodeType.kSqlSource &&
-        m(
-          '.pf-ndv-floating-button',
-          m(Button, {
-            intent: Intent.Primary,
-            variant: ButtonVariant.Filled,
-            label: 'Aggregate',
-            onclick: () => {
-              this.showAggregationCard = !this.showAggregationCard;
-            },
-          }),
-        );
+      // Build schema directly
+      const columnSchema: ColumnSchema = {};
+      for (const c of attrs.response.columns) {
+        let cellRenderer: CellRenderer | undefined;
 
-      const maybeAggregationCard =
-        this.showAggregationCard &&
-        m(
-          '.pf-ndv-floating-card',
-          m(AggregationsOperator, {
-            groupByColumns: attrs.node.state.groupByColumns,
-            aggregations: attrs.node.state.aggregations,
-          }),
-        );
+        // Get column type information from the node
+        const columnInfo = getColumnInfo(attrs.node, c);
+        if (columnInfo) {
+          // Check if this is a timestamp column
+          if (columnInfo.type === 'TIMESTAMP') {
+            cellRenderer = createTimestampCellRenderer(attrs.trace);
+          }
+          // Check if this is a duration column
+          else if (columnInfo.type === 'DURATION') {
+            cellRenderer = createDurationCellRenderer(attrs.trace);
+          }
+        }
 
-      const hasAggregations = (attrs.node.state.aggregations?.length ?? 0) > 0;
-      const isSqlSource = attrs.node.type === NodeType.kSqlSource;
+        columnSchema[c] = {cellRenderer};
+      }
+      const schema: SchemaRegistry = {data: columnSchema};
 
       return [
         warning,
         m(DataGrid, {
+          schema,
+          rootSchema: 'data',
+          initialColumns: attrs.response.columns.map((col) => ({field: col})),
           fillHeight: true,
-          columns: this.response.columns.map((c) => ({name: c})),
-          data: this.dataSource,
-          showFiltersInToolbar: true,
-          filters: isSqlSource ? [] : attrs.node.state.filters,
-          onFiltersChanged:
-            hasAggregations || isSqlSource
-              ? undefined
-              : (filters: ReadonlyArray<FilterDefinition>) => {
-                  attrs.node.state.filters = [...filters];
-                  attrs.onchange?.();
-                },
-          cellRenderer: (value: SqlValue, name: string) => {
-            return renderCell(value, name);
+          data: attrs.dataSource,
+          enablePivotControls: false,
+          structuredQueryCompatMode: true,
+          // We don't actually want the datagrid to display or apply any filters
+          // to the datasource itself, so we define this but fix it as an empty
+          // array.
+          filters: [],
+          onFilterAdd: (filter) => {
+            // Normalize the filter (expands IN/NOT IN to multiple equality filters)
+            const normalizedFilters = normalizeDataGridFilter(filter);
+
+            if (attrs.onFilterAdd) {
+              // Pass all normalized filters at once
+              // Determine logical operator based on original filter type:
+              // - IN: multiple values ORed together (value = X OR value = Y)
+              // - NOT IN: multiple values ANDed together (value != X AND value != Y)
+              //   (De Morgan's law: NOT(A OR B) = NOT A AND NOT B)
+              let operator: 'AND' | 'OR' | undefined;
+              if (normalizedFilters.length > 1) {
+                operator = filter.op === 'not in' ? 'AND' : 'OR';
+              }
+              attrs.onFilterAdd(
+                normalizedFilters.length === 1
+                  ? normalizedFilters[0]
+                  : normalizedFilters,
+                operator,
+              );
+            } else {
+              // Legacy: add filters directly to node state
+              attrs.node.state.filters = [
+                ...(attrs.node.state.filters ?? []),
+                ...normalizedFilters,
+              ];
+              if (normalizedFilters.length > 1) {
+                attrs.node.state.filterOperator =
+                  filter.op === 'not in' ? 'AND' : 'OR';
+              }
+            }
+            attrs.onchange?.();
           },
         }),
-        maybeAggregateButton,
-        maybeAggregationCard,
       ];
     }
+
+    // Show a prominent execute button when autoExecute is false and not yet executed
+    const autoExecute = attrs.node.state.autoExecute ?? true;
+    if (
+      !autoExecute &&
+      !attrs.response &&
+      !attrs.isQueryRunning &&
+      !attrs.isAnalyzing
+    ) {
+      return m(
+        DataExplorerEmptyState,
+        {},
+        m(Button, {
+          label: 'Run Query',
+          icon: 'play_arrow',
+          intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
+          disabled: !attrs.node.validate(),
+          onclick: () => attrs.onExecute(),
+        }),
+      );
+    }
+
+    // Show "No data to display" when no response is available
+    // (for autoExecute=true nodes that haven't run yet)
+    if (!attrs.response) {
+      return m(DataExplorerEmptyState, {
+        title: 'No data to display',
+      });
+    }
+
     return null;
   }
-}
-
-function findErrors(
-  query?: Query | Error,
-  response?: QueryResponse,
-): Error | undefined {
-  if (query instanceof Error) {
-    return query;
-  }
-  if (response?.error) {
-    return new Error(response.error);
-  }
-  return undefined;
-}
-
-function findWarnings(
-  response: QueryResponse | undefined,
-  node: QueryNode,
-): Error | undefined {
-  if (!response || response.error) {
-    return undefined;
-  }
-
-  if (
-    response.statementCount > 0 &&
-    response.statementWithOutputCount === 0 &&
-    response.columns.length === 0
-  ) {
-    return new Error('The last statement must produce an output.');
-  }
-
-  if (node.type === NodeType.kSqlSource && response.statementCount > 1) {
-    const statements = response.query
-      .split(';')
-      .map((x) => x.trim())
-      .filter((x) => x.length > 0);
-    const allButLast = statements.slice(0, statements.length - 1);
-    const moduleIncludeRegex = /^\s*INCLUDE\s+PERFETTO\s+MODULE\s+[\w._]+\s*$/i;
-    for (const stmt of allButLast) {
-      if (!moduleIncludeRegex.test(stmt)) {
-        return new Error(
-          `Only 'INCLUDE PERFETTO MODULE ...;' statements are ` +
-            `allowed before the final statement. Error on: "${stmt}"`,
-        );
-      }
-    }
-  }
-
-  return undefined;
 }

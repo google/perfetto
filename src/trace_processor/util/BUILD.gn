@@ -64,6 +64,26 @@ source_set("build_id") {
   ]
 }
 
+source_set("blob") {
+  sources = [ "trace_blob.cc" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/trace_processor:basic_types",
+    "../../../include/perfetto/trace_processor:util",
+    "../../../protos/perfetto/common:zero",
+  ]
+}
+
+source_set("clock") {
+  sources = [ "clock_synchronizer.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base:base",
+    "../../../protos/perfetto/common:zero",
+  ]
+}
+
 source_set("profiler_util") {
   sources = [
     "profiler_util.cc",
@@ -209,6 +229,50 @@ source_set("sql_argument") {
   ]
 }
 
+source_set("args_utils") {
+  sources = [
+    "args_utils.cc",
+    "args_utils.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+    "../containers",
+    "../storage",
+    "../types",
+  ]
+}
+
+source_set("json_parser") {
+  sources = [
+    "json_parser.h",
+    "json_utils.cc",
+    "json_utils.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../containers",
+    "../importers/common",
+    "../storage",
+    "../types",
+  ]
+  if (enable_perfetto_trace_processor_json) {
+    public_deps = [ "../../../gn:jsoncpp" ]
+  }
+}
+
+source_set("json_writer") {
+  sources = [
+    "json_writer.cc",
+    "json_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
 source_set("proto_profiler") {
   sources = [
     "proto_profiler.cc",
@@ -268,10 +332,23 @@ source_set("trace_type") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace:non_minimal_zero",
+    "../../../protos/third_party/pprof:zero",
     "../../protozero",
     "../importers/android_bugreport:android_dumpstate_event",
     "../importers/android_bugreport:android_log_event",
     "../importers/perf_text:perf_text_sample_line_parser",
+  ]
+}
+
+source_set("tar_writer") {
+  sources = [
+    "tar_writer.cc",
+    "tar_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
   ]
 }
 
@@ -291,12 +368,15 @@ source_set("unittests") {
     "bump_allocator_unittest.cc",
     "debug_annotation_parser_unittest.cc",
     "glob_unittest.cc",
+    "json_parser_unittest.cc",
+    "json_writer_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
     "protozero_to_text_unittests.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
+    "tar_writer_unittest.cc",
     "trace_blob_view_reader_unittest.cc",
     "zip_reader_unittest.cc",
   ]
@@ -311,12 +391,15 @@ source_set("unittests") {
     ":descriptors",
     ":glob",
     ":gzip",
+    ":json_parser",
+    ":json_writer",
     ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_json",
     ":protozero_to_text",
     ":regex",
     ":sql_argument",
+    ":tar_writer",
     ":trace_blob_view_reader",
     ":zip_reader",
     "..:gen_cc_test_messages_descriptor",
@@ -338,7 +421,7 @@ source_set("unittests") {
   ]
   if (perfetto_build_standalone) {
     deps += [
-      "../../../protos/perfetto/metrics/chrome:lite",
+      "../../../protos/perfetto/metrics/chrome:zero",
       "../metrics:gen_cc_all_chrome_metrics_descriptor",
     ]
   }

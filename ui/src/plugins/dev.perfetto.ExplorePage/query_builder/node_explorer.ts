@@ -14,176 +14,259 @@
 
 import m from 'mithril';
 
-import {classNames} from '../../../base/classnames';
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {ExplorePageHelp} from './help';
-import {
-  analyzeNode,
-  isAQuery,
-  NodeType,
-  Query,
-  QueryNode,
-  queryToRun,
-  setOperationChanged,
-} from '../query_node';
-import {Button} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
-import {Icons} from '../../../base/semantic_icons';
-import {FilterDefinition} from '../../../components/widgets/data_grid/common';
-import {Operator} from './operations/operation_component';
+import {Query, QueryNode} from '../query_node';
+import {isAQuery, queryToRun} from './query_builder_utils';
 import {Trace} from '../../../public/trace';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {TextInput} from '../../../widgets/text_input';
-import {SqlSourceNode} from './sources/sql_source';
+import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
+import {AggregationNode} from './nodes/aggregation_node';
+import {NodeIssues} from './node_issues';
+import {TabStrip} from '../../../widgets/tabs';
+import {NodeModifyAttrs} from './node_explorer_types';
+import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
+import {DataExplorerEmptyState, InfoBox} from './widgets';
+import {QueryExecutionService} from './query_execution_service';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
-  readonly onQueryAnalyzed: (query: Query | Error, reexecute?: boolean) => void;
-  readonly onExecute: () => void;
+  readonly queryExecutionService: QueryExecutionService;
+  /** Called when analysis completes (with query, error, or undefined if skipped) */
+  readonly onQueryAnalyzed: (query: Query | Error | undefined) => void;
+  readonly onAnalysisStateChange?: (isAnalyzing: boolean) => void;
+  /** Called when execution starts */
+  readonly onExecutionStart?: () => void;
+  /** Called when execution succeeds */
+  readonly onExecutionSuccess?: (result: {
+    tableName: string;
+    rowCount: number;
+    columns: string[];
+    durationMs: number;
+  }) => void;
+  /** Called when execution fails */
+  readonly onExecutionError?: (error: unknown) => void;
   readonly onchange?: () => void;
+  readonly resolveNode: (nodeId: string) => QueryNode | undefined;
+  readonly isCollapsed?: boolean;
+  readonly selectedView?: number;
+  readonly onViewChange?: (view: number) => void;
+  /** Whether there's already a result displayed (for reuse optimization) */
+  readonly hasExistingResult?: boolean;
 }
 
 enum SelectedView {
-  kModify = 0,
-  kSql = 1,
-  kProto = 2,
+  kInfo = 0,
+  kModify = 1,
+  kResult = 2,
 }
 
 export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private readonly tableAsyncLimiter = new AsyncLimiter();
 
-  private selectedView: number = 0;
-
   private prevSqString?: string;
 
   private currentQuery?: Query | Error;
   private sqlForDisplay?: string;
+  private resultTabMode: 'sql' | 'proto' = 'sql';
 
-  view({attrs}: m.CVnode<NodeExplorerAttrs>) {
-    const {node} = attrs;
-    if (!node) {
-      return m(ExplorePageHelp);
+  private renderTitleRow(node: QueryNode): m.Child {
+    return m(
+      '.pf-exp-node-explorer__title-row',
+      m('.title', m('h2', node.getTitle())),
+    );
+  }
+
+  private updateQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
+    // TODO: Re-implement WITH statement dependencies for SqlSourceNode
+    // This was removed during the connection model migration
+    if (node instanceof SqlSourceNode && node.state.sql) {
+      // Validate that the node doesn't reference itself
+      const nodeIds = node.findDependencies();
+      for (const nodeId of nodeIds) {
+        if (nodeId === node.nodeId) {
+          node.state.issues = new NodeIssues();
+          node.state.issues.queryError = new Error(
+            'Node cannot depend on itself',
+          );
+          return;
+        }
+      }
     }
 
-    const renderModeMenu = (): m.Child => {
-      return m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            icon: Icons.ContextMenuAlt,
-          }),
-        },
-        [
-          m(MenuItem, {
-            label: 'Modify',
-            onclick: () => {
-              this.selectedView = SelectedView.kModify;
-            },
-          }),
-          m(MenuItem, {
-            label: 'Show SQL',
-            onclick: () => {
-              this.selectedView = SelectedView.kSql;
-            },
-          }),
-          m(MenuItem, {
-            label: 'Show proto',
-            onclick: () => {
-              this.selectedView = SelectedView.kProto;
-            },
-          }),
-        ],
+    const sq = node.getStructuredQuery();
+    if (sq === undefined) {
+      // Report error instead of silently returning
+      const error = new Error(
+        'Cannot generate structured query. This usually means:\n' +
+          '• Multi-source nodes (Union/Merge/Intersect) need at least 2 connected inputs\n' +
+          '• All input ports must be connected\n' +
+          '• Previous nodes must be valid',
       );
-    };
+      this.currentQuery = error;
+      attrs.onQueryAnalyzed(error);
+      // Clear prevSqString so that when node becomes valid again, we'll re-process it
+      this.prevSqString = undefined;
+      return;
+    }
 
-    const operators = (): m.Child => {
-      switch (node.type) {
-        case NodeType.kSimpleSlices:
-        case NodeType.kTable:
-          return m(Operator, {
-            filter: {
-              sourceCols: node.state.sourceCols,
-              filters: node.state.filters,
-              onFiltersChanged: (
-                newFilters: ReadonlyArray<FilterDefinition>,
-              ) => {
-                node.state.filters = newFilters as FilterDefinition[];
-                attrs.onchange?.();
+    const curSqString = JSON.stringify(sq.toJSON(), null, 2);
+
+    if (curSqString !== this.prevSqString || node.state.hasOperationChanged) {
+      if (node.state.hasOperationChanged) {
+        node.state.hasOperationChanged = false;
+      }
+
+      // Use the centralized service to handle analysis and execution.
+      // The service decides whether to analyze/execute based on autoExecute flag.
+      this.tableAsyncLimiter.schedule(async () => {
+        try {
+          const result = await attrs.queryExecutionService.processNode(
+            node,
+            attrs.trace.engine,
+            {
+              manual: false, // This is automatic processing, not manual "Run Query"
+              hasExistingResult: attrs.hasExistingResult,
+              onAnalysisStart: () => attrs.onAnalysisStateChange?.(true),
+              onAnalysisComplete: (query) => {
+                this.currentQuery = query;
+                if (isAQuery(query) && node instanceof AggregationNode) {
+                  node.updateGroupByColumns();
+                }
+                attrs.onQueryAnalyzed(query);
+                this.prevSqString = curSqString;
+                attrs.onAnalysisStateChange?.(false);
               },
+              onExecutionStart: () => attrs.onExecutionStart?.(),
+              onExecutionSuccess: (result) =>
+                attrs.onExecutionSuccess?.(result),
+              onExecutionError: (error) => attrs.onExecutionError?.(error),
             },
-            groupby: {
-              groupByColumns: node.state.groupByColumns,
-              aggregations: node.state.aggregations,
-            },
-            onchange: () => {
-              setOperationChanged(node);
-              attrs.onchange?.();
-            },
-          });
-        case NodeType.kSqlSource:
-          return;
-      }
-    };
+          );
 
-    const getAndRunQuery = (): void => {
-      if (node.type === NodeType.kSqlSource) {
-        const sql = (node as SqlSourceNode).state.sql ?? '';
-        const sq = node.getStructuredQuery();
-        const newSqString = sq ? JSON.stringify(sq.toJSON(), null, 2) : '';
-
-        const rawSqlHasChanged =
-          !this.currentQuery ||
-          !isAQuery(this.currentQuery) ||
-          sql !== this.currentQuery.sql;
-
-        if (newSqString !== this.prevSqString || rawSqlHasChanged) {
-          if (sq) {
-            this.tableAsyncLimiter.schedule(async () => {
-              const analyzedQuery = await analyzeNode(node, attrs.trace.engine);
-              if (isAQuery(analyzedQuery)) {
-                this.sqlForDisplay = queryToRun(analyzedQuery);
-              }
-              m.redraw();
-            });
+          // If skipped (autoExecute=false), update tracking but don't notify
+          if (result.query === undefined) {
+            this.prevSqString = curSqString;
           }
-
-          this.currentQuery = {
-            sql,
-            textproto: newSqString,
-            modules: [],
-            preambles: [],
-          };
-          attrs.onQueryAnalyzed(this.currentQuery, false);
-          this.prevSqString = newSqString;
-
-          if (rawSqlHasChanged) {
-            attrs.onExecute();
-          }
-        }
-        return;
-      }
-
-      const sq = node.getStructuredQuery();
-      if (sq === undefined) return;
-
-      const curSqString = JSON.stringify(sq.toJSON(), null, 2);
-
-      if (curSqString !== this.prevSqString) {
-        this.tableAsyncLimiter.schedule(async () => {
-          this.currentQuery = await analyzeNode(node, attrs.trace.engine);
-          if (!isAQuery(this.currentQuery)) {
+        } catch (e) {
+          // Silently handle "Already analyzing" errors - the AsyncLimiter
+          // will retry when the current analysis completes
+          if (e instanceof Error && e.message.includes('Already analyzing')) {
             return;
           }
-          attrs.onQueryAnalyzed(this.currentQuery);
-          attrs.onExecute();
-          this.prevSqString = curSqString;
-        });
-      }
-    };
+          // For other errors, set them as the current query and stop analyzing
+          const error = e instanceof Error ? e : new Error(String(e));
+          this.currentQuery = error;
+          attrs.onQueryAnalyzed(error);
+          attrs.onAnalysisStateChange?.(false);
+        }
+      });
+    }
+  }
 
-    getAndRunQuery();
+  private renderButtons(
+    buttons?: NodeModifyAttrs['topLeftButtons'],
+  ): m.Children {
+    if (!buttons || buttons.length === 0) {
+      return [];
+    }
+    const result: m.Children = [];
+    for (const btn of buttons) {
+      const attrs: Partial<ButtonAttrs> = {
+        onclick: btn.onclick,
+        variant: btn.variant ?? ButtonVariant.Outlined, // Default to Outlined
+      };
+      if (btn.label) attrs.label = btn.label;
+      if (btn.icon) attrs.icon = btn.icon;
+      if (btn.compact !== undefined) attrs.compact = btn.compact;
+      result.push(m(Button, attrs as ButtonAttrs));
+    }
+    return result;
+  }
+
+  private renderTopButtons(buttons: NodeModifyAttrs): m.Child {
+    if (!buttons.topLeftButtons && !buttons.topRightButtons) {
+      return null;
+    }
+
+    return m('.pf-exp-node-explorer__buttons-top-container', [
+      m('.pf-exp-node-explorer__buttons-top', [
+        m(
+          '.pf-exp-node-explorer__buttons-top-left',
+          this.renderButtons(buttons.topLeftButtons),
+        ),
+        m(
+          '.pf-exp-node-explorer__buttons-top-right',
+          this.renderButtons(buttons.topRightButtons),
+        ),
+      ]),
+    ]);
+  }
+
+  private renderBottomButtons(buttons: NodeModifyAttrs): m.Child {
+    if (!buttons.bottomLeftButtons && !buttons.bottomRightButtons) {
+      return null;
+    }
+
+    return m('.pf-exp-node-explorer__buttons-bottom', [
+      m(
+        '.pf-exp-node-explorer__buttons-bottom-left',
+        this.renderButtons(buttons.bottomLeftButtons),
+      ),
+      m(
+        '.pf-exp-node-explorer__buttons-bottom-right',
+        this.renderButtons(buttons.bottomRightButtons),
+      ),
+    ]);
+  }
+
+  private renderSections(sections?: NodeModifyAttrs['sections']): m.Child {
+    if (!sections || sections.length === 0) {
+      return null;
+    }
+
+    return m(
+      '.pf-exp-node-explorer__sections',
+      sections.map((section) =>
+        m(
+          '.pf-exp-node-explorer__section',
+          section.title &&
+            m('h3.pf-exp-node-explorer__section-title', section.title),
+          m('.pf-exp-node-explorer__section-content', section.content),
+        ),
+      ),
+    );
+  }
+
+  private renderModifyView(node: QueryNode): m.Child {
+    const modifyResult = node.nodeSpecificModify();
+
+    // Check if node returned attrs (new pattern) or m.Child (old pattern)
+    if (this.isNodeModifyAttrs(modifyResult)) {
+      const attrs = modifyResult as NodeModifyAttrs;
+      return m('.pf-exp-node-explorer__modify', [
+        m(InfoBox, attrs.info),
+        this.renderTopButtons(attrs),
+        this.renderSections(attrs.sections),
+        this.renderBottomButtons(attrs),
+      ]);
+    }
+
+    // Fallback to old pattern for backwards compatibility
+    return modifyResult as m.Child;
+  }
+
+  private isNodeModifyAttrs(value: unknown): value is NodeModifyAttrs {
+    if (value === null || value === undefined) return false;
+    if (typeof value !== 'object') return false;
+
+    const obj = value as Record<string, unknown>;
+
+    // Check if it has the required info property
+    return 'info' in obj;
+  }
+
+  private renderContent(node: QueryNode, selectedView: number): m.Child {
     const sql: string =
       this.sqlForDisplay ??
       (isAQuery(this.currentQuery)
@@ -195,68 +278,71 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         ? this.currentQuery.message
         : 'Proto not available.';
 
-    return [
-      m(
-        `.pf-node-explorer${
-          node.type === NodeType.kSqlSource
-            ? '.pf-node-explorer-sql-source'
-            : ''
-        }`,
-        m(
-          '.pf-node-explorer__title-row',
-          m(
-            '.title',
-            (!node.validate() ||
-              node.state.queryError ||
-              node.state.responseError ||
-              node.state.dataError) &&
-              m(Icon, {
-                icon: Icons.Warning,
-                filled: true,
-                className: classNames(
-                  (!node.validate() || node.state.queryError) &&
-                    'pf-node-explorer__warning-icon--error',
-                  node.state.responseError &&
-                    'pf-node-explorer__warning-icon--warning',
-                ),
-                title:
-                  `Invalid node: \n` +
-                  (node.state.queryError?.message ?? '') +
-                  (node.state.responseError?.message ?? '') +
-                  (node.state.dataError?.message ?? ''),
-              }),
-            m(TextInput, {
-              placeholder: node.getTitle(),
-              oninput: (e: InputEvent) => {
-                if (!e.target) return;
-                node.state.customTitle = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-                if (node.state.customTitle === '') {
-                  node.state.customTitle = undefined;
-                }
-              },
-            }),
-          ),
-          m('span.spacer'), // Added spacer to push menu to the right
-          renderModeMenu(),
-        ),
-        m(
-          'article',
-          this.selectedView === SelectedView.kModify && [
-            node.nodeSpecificModify(),
-            operators(),
-          ],
-          this.selectedView === SelectedView.kSql &&
-            (isAQuery(this.currentQuery)
+    return m(
+      'article',
+      selectedView === SelectedView.kInfo && node.nodeInfo(),
+      selectedView === SelectedView.kModify && this.renderModifyView(node),
+      selectedView === SelectedView.kResult &&
+        m('.', [
+          m(TabStrip, {
+            tabs: [
+              {key: 'sql', title: 'SQL'},
+              {key: 'proto', title: 'Proto'},
+            ],
+            currentTabKey: this.resultTabMode,
+            onTabChange: (key: string) => {
+              this.resultTabMode = key as 'sql' | 'proto';
+            },
+          }),
+          m('hr', {
+            style: {
+              margin: '0',
+              borderTop: '1px solid var(--separator-color)',
+            },
+          }),
+          this.resultTabMode === 'sql'
+            ? isAQuery(this.currentQuery)
               ? m(CodeSnippet, {language: 'SQL', text: sql})
-              : m('div', sql)),
-          this.selectedView === SelectedView.kProto &&
-            (isAQuery(this.currentQuery)
+              : m(DataExplorerEmptyState, {
+                  icon: 'info',
+                  title: 'SQL not available',
+                })
+            : isAQuery(this.currentQuery)
               ? m(CodeSnippet, {text: textproto, language: 'textproto'})
-              : m('div', textproto)),
-        ),
-      ),
-    ];
+              : m(DataExplorerEmptyState, {
+                  icon: 'info',
+                  title: 'Proto not available',
+                }),
+        ]),
+    );
+  }
+
+  view({attrs}: m.CVnode<NodeExplorerAttrs>) {
+    const {node, isCollapsed, selectedView = SelectedView.kInfo} = attrs;
+    if (!node) {
+      return null;
+    }
+
+    // Update the node's onchange callback to point to our attrs.onchange
+    // This ensures that changes in the node's UI components trigger the callback chain
+    node.state.onchange = attrs.onchange;
+
+    // Process the node via the centralized service.
+    // The service handles all autoExecute logic internally:
+    // - If autoExecute=true: Analyze and execute automatically
+    // - If autoExecute=false: Skip until user clicks "Run Query"
+    this.updateQuery(node, attrs);
+
+    if (isCollapsed) {
+      return m('.pf-exp-node-explorer.collapsed');
+    }
+
+    return m(
+      `.pf-exp-node-explorer${
+        node instanceof SqlSourceNode ? '.pf-exp-node-explorer-sql-source' : ''
+      }`,
+      m('.pf-exp-node-explorer__header', this.renderTitleRow(node)),
+      this.renderContent(node, selectedView),
+    );
   }
 }

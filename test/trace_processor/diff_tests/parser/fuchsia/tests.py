@@ -283,5 +283,5 @@ class Fuchsia(TestSuite):
         "trace_id_is_process_scoped",0,"[NULL]","[NULL]","bool","false"
         "track_compressor_idx",0,"[NULL]","[NULL]","int","0"
         "upid",1,"[NULL]","[NULL]","int","1"
-        "utid",1,"[NULL]","[NULL]","int","1"
+        "utid",2,"[NULL]","[NULL]","int","2"
         """))

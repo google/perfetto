@@ -113,7 +113,6 @@ class SurfaceFlingerTransactions(TestSuite):
         INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
-          arg_set_id,
           transaction_id,
           pid,
           uid,
@@ -125,9 +124,9 @@ class SurfaceFlingerTransactions(TestSuite):
         WHERE transaction_type = 'LAYER_CHANGED';
         """,
         out=Csv("""
-        "snapshot_id","arg_set_id","transaction_id","pid","uid","layer_id","display_id","flags_id"
-        0,0,10518374908656,0,10238,100,"[NULL]",0
-        1,21,10518374908658,0,10238,100,"[NULL]",0
+        "snapshot_id","transaction_id","pid","uid","layer_id","display_id","flags_id"
+        0,10518374908656,0,10238,100,"[NULL]",0
+        1,10518374908658,0,10238,100,"[NULL]",0
         """))
 
   def test_surfaceflinger_transaction_layer_change_args(self):

@@ -17,7 +17,7 @@ packet {
   timestamp: 2748300281655
   timestamp_clock_id: 3
   surfaceflinger_layers_snapshot {
-    elapsed_realtime_nanos: 2748300281655
+    elapsed_realtime_nanos: 123
     where: "visibleRegionsDirty"
     layers {
       layers {
@@ -285,7 +285,7 @@ packet {
   timestamp: 2749700000000
   timestamp_clock_id: 3
   surfaceflinger_layers_snapshot {
-    elapsed_realtime_nanos: 2749700000000
+    elapsed_realtime_nanos: 0
     excludes_composition_state: true
     layers {
       layers { parent: -1 }

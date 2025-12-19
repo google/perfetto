@@ -42,7 +42,6 @@ using ::perfetto::ipc::gen::ReplyProto;
 using ::perfetto::ipc::gen::RequestProto;
 using ::testing::_;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::Mock;
 
 ipc::TestSocket kTestSocket{"client_impl_unittest"};
@@ -257,12 +256,12 @@ TEST_F(ClientImplTest, BindAndInvokeMethod) {
   // Bind |proxy| to the fake host.
   cli_->BindService(proxy->GetWeakPtr());
   auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint("on_connect");
 
   // Invoke a valid method.
   EXPECT_CALL(*host_method, OnInvoke(_, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [](const Frame::InvokeMethod& req, Frame::InvokeMethodReply* reply) {
             RequestProto req_args;
             EXPECT_TRUE(req_args.ParseFromString(req.args_proto()));
@@ -270,7 +269,7 @@ TEST_F(ClientImplTest, BindAndInvokeMethod) {
             ReplyProto reply_args;
             reply->set_reply_proto(reply_args.SerializeAsString());
             reply->set_success(true);
-          }));
+          });
 
   RequestProto req;
   req.set_data("req_data");
@@ -306,17 +305,17 @@ TEST_F(ClientImplTest, InvokeMethodDropReply) {
   // Bind |proxy| to the fake host.
   cli_->BindService(proxy->GetWeakPtr());
   auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint("on_connect");
 
   auto on_req_received = task_runner_->CreateCheckpoint("on_req_received");
   EXPECT_CALL(*host_method, OnInvoke(_, _))
-      .WillOnce(Invoke([on_req_received](const Frame::InvokeMethod& req,
-                                         Frame::InvokeMethodReply*) {
+      .WillOnce([on_req_received](const Frame::InvokeMethod& req,
+                                  Frame::InvokeMethodReply*) {
         RequestProto req_args;
         EXPECT_TRUE(req.drop_reply());
         on_req_received();
-      }));
+      });
 
   // Invoke a method without binding any callback to the Deferred object.
   Deferred<ProtoMessage> no_callback;
@@ -335,21 +334,21 @@ TEST_F(ClientImplTest, BindAndInvokeStreamingMethod) {
   std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
   cli_->BindService(proxy->GetWeakPtr());
   auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint("on_connect");
 
   // Invoke a valid method, reply kNumReplies times.
   int replies_left = kNumReplies;
   EXPECT_CALL(*host_method, OnInvoke(_, _))
       .Times(kNumReplies)
-      .WillRepeatedly(Invoke([&replies_left](const Frame::InvokeMethod& req,
-                                             Frame::InvokeMethodReply* reply) {
+      .WillRepeatedly([&replies_left](const Frame::InvokeMethod& req,
+                                      Frame::InvokeMethodReply* reply) {
         RequestProto req_args;
         EXPECT_TRUE(req_args.ParseFromString(req.args_proto()));
         reply->set_reply_proto(ReplyProto().SerializeAsString());
         reply->set_success(true);
         reply->set_has_more(--replies_left > 0);
-      }));
+      });
 
   RequestProto req;
   req.set_data("req_data");
@@ -378,7 +377,7 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
   cli_->BindService(proxy->GetWeakPtr());
   auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint("on_connect");
 
   base::TempFile tx_file = base::TempFile::CreateUnlinked();
@@ -389,12 +388,12 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   host_->next_reply_fd_ = tx_file.fd();
 
   EXPECT_CALL(*host_method, OnInvoke(_, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [](const Frame::InvokeMethod&, Frame::InvokeMethodReply* reply) {
             RequestProto req_args;
             reply->set_reply_proto(ReplyProto().SerializeAsString());
             reply->set_success(true);
-          }));
+          });
 
   RequestProto req;
   auto on_reply = task_runner_->CreateCheckpoint("on_reply");
@@ -424,7 +423,7 @@ TEST_F(ClientImplTest, SendFileDescriptor) {
   std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
   cli_->BindService(proxy->GetWeakPtr());
   auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint("on_connect");
 
   base::TempFile tx_file = base::TempFile::CreateUnlinked();
@@ -433,12 +432,12 @@ TEST_F(ClientImplTest, SendFileDescriptor) {
                                                sizeof(kFileContent))),
             sizeof(kFileContent));
   EXPECT_CALL(*host_method, OnInvoke(_, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [](const Frame::InvokeMethod&, Frame::InvokeMethodReply* reply) {
             RequestProto req_args;
             reply->set_reply_proto(ReplyProto().SerializeAsString());
             reply->set_success(true);
-          }));
+          });
 
   RequestProto req;
   auto on_reply = task_runner_->CreateCheckpoint("on_reply");
@@ -474,9 +473,9 @@ TEST_F(ClientImplTest, BindSameServiceMultipleTimesShouldFail) {
     auto closure = task_runner_->CreateCheckpoint(checkpoint_name);
     if (i == 0) {
       // Only the first call should succeed.
-      EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(closure));
+      EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(closure);
     } else {
-      EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(closure));
+      EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(closure);
     }
     cli_->BindService(proxy[i]->GetWeakPtr());
     task_runner_->RunUntilCheckpoint(checkpoint_name);
@@ -496,10 +495,10 @@ TEST_F(ClientImplTest, BindRequestsAreQueuedIfNotConnected) {
 
   InSequence seq;
   auto on_connect1 = task_runner_->CreateCheckpoint("on_connect1");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect1));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect1);
 
   auto on_connect2 = task_runner_->CreateCheckpoint("on_connect2");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect2));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect2);
 
   task_runner_->RunUntilCheckpoint("on_connect1");
   task_runner_->RunUntilCheckpoint("on_connect2");
@@ -525,19 +524,19 @@ TEST_F(ClientImplTest, DropCallbacksIfServiceProxyIsDestroyed) {
   // despite the fact that the host gave a successful reply.
   proxy.reset(new FakeProxy("FakeSvc", &proxy_events_));
   auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   cli_->BindService(proxy->GetWeakPtr());
   task_runner_->RunUntilCheckpoint("on_connect");
 
   RequestProto req;
   auto on_reply_sent = task_runner_->CreateCheckpoint("on_reply_sent");
   EXPECT_CALL(*host_method, OnInvoke(_, _))
-      .WillOnce(Invoke([on_reply_sent](const Frame::InvokeMethod&,
-                                       Frame::InvokeMethodReply* reply) {
+      .WillOnce([on_reply_sent](const Frame::InvokeMethod&,
+                                Frame::InvokeMethodReply* reply) {
         ReplyProto reply_args;
         reply->set_success(true);
         on_reply_sent();
-      }));
+      });
 
   auto on_reject = task_runner_->CreateCheckpoint("on_reject");
   Deferred<ProtoMessage> deferred_reply(
@@ -559,7 +558,7 @@ TEST_F(ClientImplTest, ClientDestroyedBeforeProxy) {
 
   std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
   auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   cli_->BindService(proxy->GetWeakPtr());
   task_runner_->RunUntilCheckpoint("on_connect");
 
@@ -583,7 +582,7 @@ TEST_F(ClientImplTest, HostNotReachable) {
   std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
 
   auto on_disconnect = task_runner_->CreateCheckpoint("on_disconnect");
-  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(on_disconnect);
   cli_->BindService(proxy->GetWeakPtr());
   task_runner_->RunUntilCheckpoint("on_disconnect");
 }
@@ -597,11 +596,11 @@ TEST_F(ClientImplTest, HostDisconnection) {
   // Bind |proxy| to the fake host.
   cli_->BindService(proxy->GetWeakPtr());
   auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint("on_connect");
 
   auto on_disconnect = task_runner_->CreateCheckpoint("on_disconnect");
-  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(on_disconnect);
   host_.reset();
   task_runner_->RunUntilCheckpoint("on_disconnect");
 }
@@ -620,7 +619,7 @@ TEST_F(ClientImplTest, HostDisconnectionBeforeBindReply) {
   cli_->BindService(proxy->GetWeakPtr());
   task_runner_->RunUntilIdle();
   auto on_disconnect = task_runner_->CreateCheckpoint("on_disconnect");
-  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(on_disconnect);
   // Shutdown the host before it's able to send the Bind reply. The ClientImpl
   // should receive an OnDisconnect() callback and propagate that to the service
   // proxy.
@@ -648,7 +647,7 @@ TEST_F(ClientImplTest, HostConnectionFailure) {
     client.reset();
     on_disconnect_reached();
   };
-  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(on_disconnect);
   task_runner_->RunUntilCheckpoint("on_disconnect");
 }
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)

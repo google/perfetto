@@ -69,6 +69,8 @@ from diff_tests.parser.chrome.tests import ChromeParser
 from diff_tests.parser.chrome.tests_memory_snapshots import ChromeMemorySnapshots
 from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.cros.tests import Cros
+from diff_tests.parser.etm.tests import Etm
+from diff_tests.parser.etw.tests import Etw
 from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
@@ -93,6 +95,7 @@ from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.perf_text.tests import PerfTextParser
+from diff_tests.parser.pprof.tests_pprof import PprofParser
 from diff_tests.parser.power.tests_battery_stats import BatteryStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -101,12 +104,14 @@ from diff_tests.parser.power.tests_power_rails import PowerPowerRails
 from diff_tests.parser.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.parser.process_tracking.tests import ProcessTracking
 from diff_tests.parser.profiling.deobfuscation_tests import Deobfuscation
+from diff_tests.parser.profiling.r8_retrace_compat.tests import R8RetraceCompat
 from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
+from diff_tests.parser.simpleperf_proto.tests import SimpleperfProtoParser
 from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
@@ -122,7 +127,9 @@ from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.android.gpu import AndroidGpu
 from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
 from diff_tests.stdlib.android.heap_profile_tests import HeapProfile
+from diff_tests.stdlib.prelude.unhex import UnHex
 from diff_tests.stdlib.android.memory import AndroidMemory
+from diff_tests.stdlib.android.network_packets import AndroidNetworkPackets
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
 from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
@@ -143,17 +150,22 @@ from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
 from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
+from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
+from diff_tests.stdlib.prelude.package_lookup_tests import PackageLookup
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
 from diff_tests.stdlib.slices.tests import Slices
+from diff_tests.stdlib.slices.tests_stack import SlicesStack
 from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
+from diff_tests.stdlib.stacks.tests import Stacks
+from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
@@ -190,6 +202,9 @@ def fetch_all_diff_tests(
       ChromeV8Parser,
       Cros,
       Deobfuscation,
+      R8RetraceCompat,
+      Etm,
+      Etw,
       Fs,
       Fuchsia,
       GenericFtrace,
@@ -214,11 +229,13 @@ def fetch_all_diff_tests(
       ProfilingLlvmSymbolizer,
       SchedParser,
       Simpleperf,
+      SimpleperfProtoParser,
       StdlibSched,
       Smoke,
       SmokeComputeMetrics,
       SmokeJson,
       SmokeSchedEvents,
+      Symbolize,
       InputMethodClients,
       InputMethodManagerService,
       InputMethodService,
@@ -248,6 +265,7 @@ def fetch_all_diff_tests(
       ArtHprofParser,
       ArtMethodParser,
       PerfTextParser,
+      PprofParser,
   ]
 
   metrics_tests = [
@@ -275,9 +293,11 @@ def fetch_all_diff_tests(
 
   stdlib_tests = [
       AndroidMemory,
+      AndroidNetworkPackets,
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,
+      ArgsFunctions,
       CpuClusters,
       Battery,
       DesktopMode,
@@ -293,8 +313,10 @@ def fetch_all_diff_tests(
       StdlibCounterIntervals,
       DynamicTables,
       Memory,
+      PackageLookup,
       PreludeMathFunctions,
       HeapGraph,
+      UnHex,
       PreludePprofFunctions,
       PreludeWindowFunctions,
       RegexpExtract,
@@ -302,10 +324,12 @@ def fetch_all_diff_tests(
       PreludeSlices,
       StdlibSmoke,
       Slices,
+      SlicesStack,
       SpanJoinLeftJoin,
       SpanJoinOuterJoin,
       SpanJoinRegression,
       SpanJoinSmoke,
+      Stacks,
       StdlibIntervals,
       SystemUICujs,
       IntervalsIntersect,

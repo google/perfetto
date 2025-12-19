@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {getColorForSlice} from '../../components/colorizer';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
@@ -24,7 +24,7 @@ const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
 
 export function createScrollJankV3Track(trace: Trace, uri: string) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

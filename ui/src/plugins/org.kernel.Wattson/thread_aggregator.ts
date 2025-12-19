@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {exists} from '../../base/utils';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -27,7 +27,7 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
   probe(area: AreaSelection): Aggregation | undefined {
     const selectedCpus: number[] = [];
     for (const trackInfo of area.tracks) {
-      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+      if (trackInfo?.tags?.kinds?.includes(CPU_SLICE_TRACK_KIND)) {
         exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
       }
     }
@@ -38,7 +38,7 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
         await engine.query(`drop view if exists ${this.id};`);
         const duration = area.end - area.start;
         const cpusCsv = `(` + selectedCpus.join() + `)`;
-        engine.query(`
+        await engine.query(`
           INCLUDE PERFETTO MODULE wattson.tasks.attribution;
           INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
           INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
@@ -110,9 +110,9 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
             GROUP BY utid
           ),
           secondary AS (
-            SELECT utid,
-              ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
-                AS percent_of_total_energy
+            SELECT
+              utid,
+              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
             FROM base
             GROUP BY utid
           )
@@ -137,30 +137,37 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
       {
         title: 'TID',
         columnId: 'tid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'PID',
         columnId: 'pid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Active power (estimated mW)',
         columnId: 'active_mw',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Active energy (estimated mWs)',
         columnId: 'active_mws',
         sum: true,
+        formatHint: 'NUMERIC',
+        sort: 'DESC',
       },
       {
         title: 'Idle transitions overhead (estimated mWs)',
         columnId: 'idle_cost_mws',
         sum: false,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Total energy (estimated mWs)',
         columnId: 'total_mws',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: '% of total energy',
@@ -173,9 +180,5 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Wattson by thread';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'active_mws', direction: 'DESC'};
   }
 }

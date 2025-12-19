@@ -73,10 +73,10 @@ static_library("libpprofbuilder") {
 }
 
 source_set("lib") {
+  public_deps = [ ":pprofbuilder" ]
   deps = [
     ":gen_cc_trace_descriptor",
     ":gen_cc_winscope_descriptor",
-    ":pprofbuilder",
     ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
@@ -92,6 +92,7 @@ source_set("lib") {
     "../trace_processor/util:descriptors",
     "../trace_processor/util:gzip",
     "../trace_processor/util:protozero_to_text",
+    "../trace_processor/util:tar_writer",
     "../trace_processor/util:trace_type",
   ]
   sources = [
@@ -99,6 +100,8 @@ source_set("lib") {
     "deobfuscate_profile.h",
     "symbolize_profile.cc",
     "symbolize_profile.h",
+    "trace_to_bundle.cc",
+    "trace_to_bundle.h",
     "trace_to_firefox.cc",
     "trace_to_firefox.h",
     "trace_to_hprof.cc",
@@ -110,7 +113,6 @@ source_set("lib") {
     "trace_to_systrace.cc",
     "trace_to_systrace.h",
     "trace_to_text.cc",
-    "trace_to_text.h",
     "trace_to_text.h",
     "trace_unpack.cc",
     "trace_unpack.h",

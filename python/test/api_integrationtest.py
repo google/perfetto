@@ -214,9 +214,16 @@ class TestApi(unittest.TestCase):
         self.assertEqual(row.dur, dur_result[num])
 
   def test_simple_resolver(self):
+    sample_path = example_android_trace_path()
     dur = [178646, 178646, 178646, 178646]
     source = ['generator', 'path', 'path_resolver', 'file']
-    expected = pd.DataFrame(list(zip(dur, source)), columns=['dur', 'source'])
+
+    # Only path and path_resolver will resolve to PathUriResolver so those will have the _path added
+    # to their metadata
+    path = [None, sample_path, sample_path, None]
+
+    expected = pd.DataFrame(
+        list(zip(dur, source, path)), columns=['dur', 'source', '_path'])
 
     with create_batch_tp(
         traces='simple:path={}'.format(example_android_trace_path())) as btp:
@@ -244,12 +251,14 @@ class TestApi(unittest.TestCase):
     ]
     source = ['recursive_gen', 'generator', 'path', 'generator', 'path']
     root_source = [
-        None, 'recursive_path', 'recursive_path', 'recursive_obj',
+        float('nan'), 'recursive_path', 'recursive_path', 'recursive_obj',
         'recursive_obj'
     ]
+    sample_path = example_android_trace_path()
+    path = [None, None, sample_path, None, sample_path]
     expected = pd.DataFrame(
-        list(zip(dur, source, root_source)),
-        columns=['dur', 'source', 'root_source'])
+        list(zip(dur, source, root_source, path)),
+        columns=['dur', 'source', 'root_source', '_path'])
 
     uri = 'recursive:path={};skip_resolve_file=true'.format(
         example_android_trace_path())
@@ -529,3 +538,111 @@ class TestApi(unittest.TestCase):
     self.assertIn(trace_summary.metric_bundles[1].specs[0].id,
                   ['metric_one', 'metric_two'])
     tp.close()
+
+  def test_metadata_from_path(self):
+    # When loading a trace directly from a path, metadata should be empty
+    with create_tp(trace=example_android_trace_path()) as tp:
+      self.assertEqual(tp.metadata, {"_path": example_android_trace_path()})
+
+  def test_metadata_from_file(self):
+    # When loading a trace from a file object, metadata should be empty
+    with open(example_android_trace_path(), 'rb') as file:
+      with create_tp(trace=file) as tp:
+        self.assertEqual(tp.metadata, {})
+
+  def test_metadata_from_generator(self):
+    # When loading a trace from a generator, metadata should be empty
+    def reader_generator():
+      with open(example_android_trace_path(), 'rb') as file:
+        yield file.read(1024)
+
+    with create_tp(trace=reader_generator()) as tp:
+      self.assertEqual(tp.metadata, {})
+
+  def test_metadata_from_resolver(self):
+    # Test that metadata is captured from a URI resolver
+    registry = PLATFORM_DELEGATE().default_resolver_registry()
+    registry.register(SimpleResolver)
+
+    # Create a custom resolver that returns a single trace with known metadata
+    class MetadataTestResolver(TraceUriResolver):
+      PREFIX = 'metadata_test'
+
+      def __init__(self):
+        pass
+
+      def resolve(self):
+        return [
+            TraceUriResolver.Result(
+                example_android_trace_path(),
+                metadata={
+                    'test_key': 'test_value',
+                    'trace_id': '12345'
+                })
+        ]
+
+    registry.register(MetadataTestResolver)
+
+    config = TraceProcessorConfig(
+        bin_path=os.environ["SHELL_PATH"], resolver_registry=registry)
+
+    with TraceProcessor(trace='metadata_test:', config=config) as tp:
+      self.assertEqual(
+          tp.metadata, {
+              'test_key': 'test_value',
+              'trace_id': '12345',
+              '_path': example_android_trace_path()
+          })
+
+  def test_metadata_from_resolver_merged(self):
+    # Test that metadata is merged when using nested resolvers
+    registry = PLATFORM_DELEGATE().default_resolver_registry()
+
+    # Create a two-level resolver to test metadata merging
+    class OuterResolver(TraceUriResolver):
+      PREFIX = 'outer'
+
+      def __init__(self):
+        pass
+
+      def resolve(self):
+        return [
+            TraceUriResolver.Result(
+                'inner:',
+                metadata={
+                    'outer_key': 'outer_value',
+                    'shared_key': 'from_outer'
+                })
+        ]
+
+    class InnerResolver(TraceUriResolver):
+      PREFIX = 'inner'
+
+      def __init__(self):
+        pass
+
+      def resolve(self):
+        return [
+            TraceUriResolver.Result(
+                example_android_trace_path(),
+                metadata={
+                    'inner_key': 'inner_value',
+                    'shared_key': 'from_inner'
+                })
+        ]
+
+    registry.register(OuterResolver)
+    registry.register(InnerResolver)
+
+    config = TraceProcessorConfig(
+        bin_path=os.environ["SHELL_PATH"], resolver_registry=registry)
+
+    with TraceProcessor(trace='outer:', config=config) as tp:
+      # Inner metadata should override outer metadata for shared keys
+      expected_metadata = {
+          'outer_key': 'outer_value',
+          'inner_key': 'inner_value',
+          'shared_key': 'from_inner',
+          '_path': example_android_trace_path()
+      }
+      self.assertEqual(tp.metadata, expected_metadata)

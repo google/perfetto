@@ -3,7 +3,7 @@
 This guide shows how to make a new Perfetto Python library release to PyPI.
 
 The release process is split into two stages, both orchestrated by the
-`tools/release_python.py` script.
+`tools/release/release_python.py` script.
 
 ## Stage 1: Bumping the version
 
@@ -12,7 +12,7 @@ The first stage creates a pull request to update the package version.
 1. Run the release script from the root of the repository.
 
 ```bash
-tools/release_python.py --bump-version
+tools/release/release_python.py --bump-version
 ```
 
 The script will guide you through the following steps:
@@ -34,7 +34,7 @@ The second stage publishes the package to PyPI and then creates a second pull re
 2. Run the release script again, providing the landed commit hash.
 
 ```bash
-tools/release_python.py --publish --commit <landed-commit-hash>
+tools/release/release_python.py --publish --commit <landed-commit-hash>
 ```
 
 The script will then perform the following steps:

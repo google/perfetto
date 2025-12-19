@@ -22,12 +22,12 @@ from typing import Dict, List, Optional, NamedTuple
 from python.generators.sql_processing.docs_extractor import DocsExtractor
 from python.generators.sql_processing.utils import ObjKind
 from python.generators.sql_processing.utils import COLUMN_TYPES, MACRO_ARG_TYPES
-
 from python.generators.sql_processing.utils import ALLOWED_PREFIXES
 from python.generators.sql_processing.utils import OBJECT_NAME_ALLOWLIST
-
 from python.generators.sql_processing.utils import ANY_PATTERN
 from python.generators.sql_processing.utils import ARG_DEFINITION_PATTERN
+from python.generators.sql_processing.utils import CREATE_TABLE_ALLOWLIST
+from python.generators.sql_processing.utils import is_internal
 
 
 @dataclass
@@ -35,10 +35,8 @@ class DocParseOptions:
   # TODO(lalitm): set this to true and/or remove this check once Google3 modules
   # adhere to this check.
   enforce_every_column_set_is_documented: bool = False
-
-
-def _is_internal(name: str) -> bool:
-  return re.match(r'^_.*', name, re.IGNORECASE) is not None
+  # Include internal artifacts (those starting with _) in the output
+  include_internal: bool = False
 
 
 def _is_snake_case(s: str) -> bool:
@@ -55,6 +53,9 @@ def parse_comment(comment: str) -> str:
 
 def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
   """Returns error message if the name is not correct, None otherwise."""
+  # Internal artifacts (starting with _) don't need to follow naming conventions
+  if is_internal(name):
+    return None
   if module in ["common", "prelude", "deprecated"]:
     if name.startswith(module):
       return (f'Names of tables/views/functions in the "{module}" module '
@@ -111,9 +112,10 @@ class AbstractDocParser(ABC):
     return self.name.strip()
 
   def _parse_desc_not_empty(self, desc: str):
-    if not desc:
+    # Internal artifacts don't need descriptions
+    if not desc and not is_internal(self.name):
       self._error('Description of the table/view/function/macro is missing')
-    return desc.strip()
+    return desc.strip() if desc else ""
 
   def _parse_columns(
       self,
@@ -121,13 +123,17 @@ class AbstractDocParser(ABC):
       kind: ObjKind,
   ) -> Dict[str, Arg]:
     columns = self._parse_args_definition(schema) if schema else {}
-    if not schema and self.options.enforce_every_column_set_is_documented:
+
+    # Internal artifacts don't need column documentation
+    is_internal_artifact = is_internal(self.name)
+
+    if not schema and self.options.enforce_every_column_set_is_documented and not is_internal_artifact:
       self._error(
           'Description of the columns of table/view/function is missing')
       return columns
 
     for column_name, properties in columns.items():
-      if not properties.description:
+      if not properties.description and not is_internal_artifact:
         self._error(
             f'Column "{column_name}" is missing a description. Please add a '
             'comment in front of the column definition')
@@ -152,8 +158,11 @@ class AbstractDocParser(ABC):
   def _parse_args(self, sql_args_str: str, kind: ObjKind) -> Dict[str, Arg]:
     args = self._parse_args_definition(sql_args_str)
 
+    # Internal artifacts don't need arg documentation
+    is_internal_artifact = is_internal(self.name)
+
     for arg in args:
-      if not args[arg].description:
+      if not args[arg].description and not is_internal_artifact:
         self._error(f'Arg "{arg}" is missing a description. '
                     'Please add a comment in front of the arg definition.')
 
@@ -236,6 +245,10 @@ class TableViewDocParser(AbstractDocParser):
 
     or_replace, perfetto_or_virtual, type, self.name, schema = doc.obj_match
 
+    # Skip internal artifacts early if not including them
+    if is_internal(self.name) and not self.options.include_internal:
+      return None
+
     if or_replace is not None:
       self._error(
           f'{type} "{self.name}": CREATE OR REPLACE is not allowed in stdlib '
@@ -243,10 +256,8 @@ class TableViewDocParser(AbstractDocParser):
           f'use CREATE instead.')
       return
 
-    if _is_internal(self.name):
-      return None
-
-    if type.lower() == "table" and not perfetto_or_virtual:
+    if (type.lower() == "table" and not perfetto_or_virtual and
+        self.name not in CREATE_TABLE_ALLOWLIST):
       self._error(
           f'{type} "{self.name}": Can only expose CREATE PERFETTO tables')
       return
@@ -289,8 +300,8 @@ class FunctionDocParser(AbstractDocParser):
           f'as standard library modules can only included once. Please just '
           f'use CREATE instead.')
 
-    # Ignore internal functions.
-    if _is_internal(self.name):
+    # Ignore internal functions unless explicitly requested.
+    if is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
@@ -300,7 +311,8 @@ class FunctionDocParser(AbstractDocParser):
                   f' (should be {name.casefold()})')
 
     ret_desc = None if ret_comment is None else parse_comment(ret_comment)
-    if not ret_desc:
+    # Internal artifacts don't need return descriptions
+    if not ret_desc and not is_internal(name):
       self._error(f'Function "{name}": return description is missing')
 
     return Function(
@@ -308,7 +320,7 @@ class FunctionDocParser(AbstractDocParser):
         desc=self._parse_desc_not_empty(doc.description),
         args=self._parse_args(args, ObjKind.function),
         return_type=ret_type,
-        return_desc=ret_desc,
+        return_desc=ret_desc if ret_desc else "",
     )
 
 
@@ -341,8 +353,8 @@ class TableFunctionDocParser(AbstractDocParser):
           f'use CREATE instead.')
       return
 
-    # Ignore internal functions.
-    if _is_internal(self.name):
+    # Ignore internal functions unless explicitly requested.
+    if is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
@@ -390,8 +402,8 @@ class MacroDocParser(AbstractDocParser):
           f'as standard library modules can only included once. Please just '
           f'use CREATE instead.')
 
-    # Ignore internal macros.
-    if _is_internal(self.name):
+    # Ignore internal macros unless explicitly requested.
+    if is_internal(self.name) and not self.options.include_internal:
       return None
 
     name = self._parse_name()
@@ -437,11 +449,22 @@ class IncludeParser(AbstractDocParser):
     )
 
 
+class ModuleDoc:
+  """Module-level documentation"""
+  name: str
+  desc: str
+
+  def __init__(self, name: str, desc: str):
+    self.name = name
+    self.desc = desc
+
+
 class ParsedModule:
   """Data class containing all of the documentation of single SQL file"""
   package_name: str = ""
   module_as_list: List[str]
   module: str
+  module_doc: Optional[ModuleDoc] = None
   errors: List[str] = []
   table_views: List[TableOrView] = []
   functions: List[Function] = []
@@ -449,19 +472,66 @@ class ParsedModule:
   macros: List[Macro] = []
   includes: List[Include]
 
-  def __init__(self, package_name: str, module_as_list: List[str],
-               errors: List[str], table_views: List[TableOrView],
-               functions: List[Function], table_functions: List[TableFunction],
-               macros: List[Macro], includes: List[Include]):
+  def __init__(self,
+               package_name: str,
+               module_as_list: List[str],
+               errors: List[str],
+               table_views: List[TableOrView],
+               functions: List[Function],
+               table_functions: List[TableFunction],
+               macros: List[Macro],
+               includes: List[Include],
+               module_doc: Optional[ModuleDoc] = None):
     self.package_name = package_name
     self.module_as_list = module_as_list
     self.module = ".".join(module_as_list)
+    self.module_doc = module_doc
     self.errors = errors
     self.table_views = table_views
     self.functions = functions
     self.table_functions = table_functions
     self.macros = macros
     self.includes = includes
+
+
+def _extract_module_doc(sql: str) -> Optional[ModuleDoc]:
+  """Extracts module-level documentation from -- @module comments."""
+  lines = sql.split('\n')
+
+  # Find the @module line
+  module_name = None
+  module_desc_lines = []
+  in_module_doc = False
+
+  for line in lines:
+    stripped = line.strip()
+
+    # Check for @module directive
+    if stripped.startswith('-- @module'):
+      module_name = stripped[len('-- @module'):].strip()
+      in_module_doc = True
+      continue
+
+    # If we found @module, collect description lines
+    if in_module_doc:
+      if stripped.startswith('--'):
+        # Remove leading '--' and whitespace
+        desc_line = stripped[2:].lstrip()
+        module_desc_lines.append(desc_line)
+      elif stripped == '':
+        # Empty line is OK, keep collecting
+        continue
+      else:
+        # Non-comment line, stop collecting
+        break
+
+  if not module_name:
+    return None
+
+  # Join description lines with proper spacing
+  module_desc = '\n'.join(module_desc_lines).strip()
+
+  return ModuleDoc(name=module_name, desc=module_desc)
 
 
 def parse_file(
@@ -484,14 +554,19 @@ def parse_file(
   if package_name == "deprecated":
     return
 
+  # Extract module-level documentation
+  module_doc = _extract_module_doc(sql)
+
   # Extract all the docs from the SQL.
   extractor = DocsExtractor(path, package_name, sql)
   docs = extractor.extract()
   if extractor.errors:
     return ParsedModule(package_name, module_as_list, extractor.errors, [], [],
-                        [], [], [])
+                        [], [], [], module_doc)
 
   # Parse the extracted docs.
+  # Note: We collect errors from all parsers even if the result is None (filtered out),
+  # to ensure validation errors are reported for internal artifacts.
   errors: List[str] = []
   table_views: List[TableOrView] = []
   functions: List[Function] = []
@@ -531,4 +606,4 @@ def parse_file(
       errors += parser.errors
 
   return ParsedModule(package_name, module_as_list, errors, table_views,
-                      functions, table_functions, macros, includes)
+                      functions, table_functions, macros, includes, module_doc)

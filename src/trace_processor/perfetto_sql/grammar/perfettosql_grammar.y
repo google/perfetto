@@ -27,7 +27,7 @@
 #define YYPARSEFREENEVERNULL 1
 }
 
-%token CREATE REPLACE PERFETTO MACRO INCLUDE MODULE RETURNS FUNCTION.
+%token CREATE REPLACE PERFETTO MACRO INCLUDE MODULE RETURNS FUNCTION DELEGATES.
 
 %left OR.
 %left AND.
@@ -109,6 +109,11 @@ cmd ::= CREATE or_replace(R) PERFETTO FUNCTION ID(N) LP sql_argument_list(A) RP 
   OnPerfettoSqlCreateFunction(state, R, &N, A, T, &E, &S);
 }
 
+// CREATE PERFETTO FUNCTION with delegating implementation
+cmd ::= CREATE or_replace(R) PERFETTO FUNCTION ID(N) LP sql_argument_list(A) RP RETURNS return_type(T) DELEGATES TO ID(I) pscantok(S). {
+  OnPerfettoSqlCreateDelegatingFunction(state, R, &N, A, T, &I, &S);
+}
+
 %type return_type { struct PerfettoSqlFnReturnType* }
 %destructor return_type { OnPerfettoSqlFnFreeReturnType(state, $$); }
 return_type(Y) ::= ID(X). {
@@ -187,166 +192,168 @@ cmd ::= DROP PERFETTO INDEX ID(N) ON ID(T). {
 }
 // Reprint of input file "buildtools/sqlite_src/src/parse.y".
 // Symbols:
-//   0 $                      160 ELSE                  
-//   1 SEMI                   161 INDEX                 
-//   2 EXPLAIN                162 ALTER                 
-//   3 QUERY                  163 ADD                   
-//   4 PLAN                   164 WINDOW                
-//   5 BEGIN                  165 OVER                  
-//   6 TRANSACTION            166 FILTER                
-//   7 DEFERRED               167 COLUMN                
-//   8 IMMEDIATE              168 AGG_FUNCTION          
-//   9 EXCLUSIVE              169 AGG_COLUMN            
-//  10 COMMIT                 170 TRUEFALSE             
-//  11 END                    171 ISNOT                 
-//  12 ROLLBACK               172 FUNCTION              
-//  13 SAVEPOINT              173 UMINUS                
-//  14 RELEASE                174 UPLUS                 
-//  15 TO                     175 TRUTH                 
-//  16 TABLE                  176 REGISTER              
-//  17 CREATE                 177 VECTOR                
-//  18 IF                     178 SELECT_COLUMN         
-//  19 NOT                    179 IF_NULL_ROW           
-//  20 EXISTS                 180 ASTERISK              
-//  21 TEMP                   181 SPAN                  
-//  22 LP                     182 ERROR                 
-//  23 RP                     183 SPACE                 
-//  24 AS                     184 ILLEGAL               
-//  25 COMMA                  185 input                 
-//  26 WITHOUT                186 cmdlist               
-//  27 ABORT                  187 ecmd                  
-//  28 ACTION                 188 cmdx                  
-//  29 AFTER                  189 explain               
-//  30 ANALYZE                190 cmd                   
-//  31 ASC                    191 transtype             
-//  32 ATTACH                 192 trans_opt             
-//  33 BEFORE                 193 nm                    
-//  34 BY                     194 savepoint_opt         
-//  35 CASCADE                195 create_table          
-//  36 CAST                   196 create_table_args     
-//  37 CONFLICT               197 createkw              
-//  38 DATABASE               198 temp                  
-//  39 DESC                   199 ifnotexists           
-//  40 DETACH                 200 dbnm                  
-//  41 EACH                   201 columnlist            
-//  42 FAIL                   202 conslist_opt          
-//  43 OR                     203 table_option_set      
-//  44 AND                    204 select                
-//  45 IS                     205 table_option          
-//  46 MATCH                  206 columnname            
-//  47 LIKE_KW                207 carglist              
-//  48 BETWEEN                208 typetoken             
-//  49 IN                     209 typename              
-//  50 ISNULL                 210 signed                
-//  51 NOTNULL                211 plus_num              
-//  52 NE                     212 minus_num             
-//  53 EQ                     213 scanpt                
-//  54 GT                     214 scantok               
-//  55 LE                     215 ccons                 
-//  56 LT                     216 term                  
-//  57 GE                     217 expr                  
-//  58 ESCAPE                 218 onconf                
-//  59 ID                     219 sortorder             
-//  60 COLUMNKW               220 autoinc               
-//  61 DO                     221 eidlist_opt           
-//  62 FOR                    222 refargs               
-//  63 IGNORE                 223 defer_subclause       
-//  64 INITIALLY              224 generated             
-//  65 INSTEAD                225 refarg                
-//  66 NO                     226 refact                
-//  67 KEY                    227 init_deferred_pred_opt
-//  68 OF                     228 conslist              
-//  69 OFFSET                 229 tconscomma            
-//  70 PRAGMA                 230 tcons                 
-//  71 RAISE                  231 sortlist              
-//  72 RECURSIVE              232 eidlist               
-//  73 REPLACE                233 defer_subclause_opt   
-//  74 RESTRICT               234 orconf                
-//  75 ROW                    235 resolvetype           
-//  76 ROWS                   236 raisetype             
-//  77 TRIGGER                237 ifexists              
-//  78 VACUUM                 238 fullname              
-//  79 VIEW                   239 selectnowith          
-//  80 VIRTUAL                240 oneselect             
-//  81 WITH                   241 wqlist                
-//  82 NULLS                  242 multiselect_op        
-//  83 FIRST                  243 distinct              
-//  84 LAST                   244 selcollist            
-//  85 CURRENT                245 from                  
-//  86 FOLLOWING              246 where_opt             
-//  87 PARTITION              247 groupby_opt           
-//  88 PRECEDING              248 having_opt            
-//  89 RANGE                  249 orderby_opt           
-//  90 UNBOUNDED              250 limit_opt             
-//  91 EXCLUDE                251 window_clause         
-//  92 GROUPS                 252 values                
-//  93 OTHERS                 253 nexprlist             
-//  94 TIES                   254 sclp                  
-//  95 GENERATED              255 as                    
-//  96 ALWAYS                 256 seltablist            
-//  97 MATERIALIZED           257 stl_prefix            
-//  98 REINDEX                258 joinop                
-//  99 RENAME                 259 on_using              
-// 100 CTIME_KW               260 indexed_by            
-// 101 ANY                    261 exprlist              
-// 102 BITAND                 262 xfullname             
-// 103 BITOR                  263 idlist                
-// 104 LSHIFT                 264 indexed_opt           
-// 105 RSHIFT                 265 nulls                 
-// 106 PLUS                   266 with                  
-// 107 MINUS                  267 where_opt_ret         
-// 108 STAR                   268 setlist               
-// 109 SLASH                  269 insert_cmd            
-// 110 REM                    270 idlist_opt            
-// 111 CONCAT                 271 upsert                
-// 112 PTR                    272 returning             
-// 113 COLLATE                273 filter_over           
-// 114 BITNOT                 274 likeop                
-// 115 ON                     275 between_op            
-// 116 INDEXED                276 in_op                 
-// 117 STRING                 277 paren_exprlist        
-// 118 JOIN_KW                278 case_operand          
-// 119 CONSTRAINT             279 case_exprlist         
-// 120 DEFAULT                280 case_else             
-// 121 NULL                   281 uniqueflag            
-// 122 PRIMARY                282 collate               
-// 123 UNIQUE                 283 vinto                 
-// 124 CHECK                  284 nmnum                 
-// 125 REFERENCES             285 trigger_decl          
-// 126 AUTOINCR               286 trigger_cmd_list      
-// 127 INSERT                 287 trigger_time          
-// 128 DELETE                 288 trigger_event         
-// 129 UPDATE                 289 foreach_clause        
-// 130 SET                    290 when_clause           
-// 131 DEFERRABLE             291 trigger_cmd           
-// 132 FOREIGN                292 trnm                  
-// 133 DROP                   293 tridxby               
-// 134 UNION                  294 database_kw_opt       
-// 135 ALL                    295 key_opt               
-// 136 EXCEPT                 296 add_column_fullname   
-// 137 INTERSECT              297 kwcolumn_opt          
-// 138 SELECT                 298 create_vtab           
-// 139 VALUES                 299 vtabarglist           
-// 140 DISTINCT               300 vtabarg               
-// 141 DOT                    301 vtabargtoken          
-// 142 FROM                   302 lp                    
-// 143 JOIN                   303 anylist               
-// 144 USING                  304 wqitem                
-// 145 ORDER                  305 wqas                  
-// 146 GROUP                  306 windowdefn_list       
-// 147 HAVING                 307 windowdefn            
-// 148 LIMIT                  308 window                
-// 149 WHERE                  309 frame_opt             
-// 150 RETURNING              310 part_opt              
-// 151 INTO                   311 filter_clause         
-// 152 NOTHING                312 over_clause           
-// 153 FLOAT                  313 range_or_rows         
-// 154 BLOB                   314 frame_bound           
-// 155 INTEGER                315 frame_bound_s         
-// 156 VARIABLE               316 frame_bound_e         
-// 157 CASE                   317 frame_exclude_opt     
-// 158 WHEN                   318 frame_exclude         
-// 159 THEN                  
+//   0 $                      162 INDEX                 
+//   1 SEMI                   163 ALTER                 
+//   2 EXPLAIN                164 ADD                   
+//   3 QUERY                  165 WINDOW                
+//   4 PLAN                   166 OVER                  
+//   5 BEGIN                  167 FILTER                
+//   6 TRANSACTION            168 COLUMN                
+//   7 DEFERRED               169 AGG_FUNCTION          
+//   8 IMMEDIATE              170 AGG_COLUMN            
+//   9 EXCLUSIVE              171 TRUEFALSE             
+//  10 COMMIT                 172 FUNCTION              
+//  11 END                    173 UPLUS                 
+//  12 ROLLBACK               174 UMINUS                
+//  13 SAVEPOINT              175 TRUTH                 
+//  14 RELEASE                176 REGISTER              
+//  15 TO                     177 VECTOR                
+//  16 TABLE                  178 SELECT_COLUMN         
+//  17 CREATE                 179 IF_NULL_ROW           
+//  18 IF                     180 ASTERISK              
+//  19 NOT                    181 SPAN                  
+//  20 EXISTS                 182 ERROR                 
+//  21 TEMP                   183 QNUMBER               
+//  22 LP                     184 SPACE                 
+//  23 RP                     185 COMMENT               
+//  24 AS                     186 ILLEGAL               
+//  25 COMMA                  187 input                 
+//  26 WITHOUT                188 cmdlist               
+//  27 ABORT                  189 ecmd                  
+//  28 ACTION                 190 cmdx                  
+//  29 AFTER                  191 explain               
+//  30 ANALYZE                192 cmd                   
+//  31 ASC                    193 transtype             
+//  32 ATTACH                 194 trans_opt             
+//  33 BEFORE                 195 nm                    
+//  34 BY                     196 savepoint_opt         
+//  35 CASCADE                197 create_table          
+//  36 CAST                   198 create_table_args     
+//  37 CONFLICT               199 createkw              
+//  38 DATABASE               200 temp                  
+//  39 DESC                   201 ifnotexists           
+//  40 DETACH                 202 dbnm                  
+//  41 EACH                   203 columnlist            
+//  42 FAIL                   204 conslist_opt          
+//  43 OR                     205 table_option_set      
+//  44 AND                    206 select                
+//  45 IS                     207 table_option          
+//  46 ISNOT                  208 columnname            
+//  47 MATCH                  209 carglist              
+//  48 LIKE_KW                210 typetoken             
+//  49 BETWEEN                211 typename              
+//  50 IN                     212 signed                
+//  51 ISNULL                 213 plus_num              
+//  52 NOTNULL                214 minus_num             
+//  53 NE                     215 scanpt                
+//  54 EQ                     216 scantok               
+//  55 GT                     217 ccons                 
+//  56 LE                     218 term                  
+//  57 LT                     219 expr                  
+//  58 GE                     220 onconf                
+//  59 ESCAPE                 221 sortorder             
+//  60 ID                     222 autoinc               
+//  61 COLUMNKW               223 eidlist_opt           
+//  62 DO                     224 refargs               
+//  63 FOR                    225 defer_subclause       
+//  64 IGNORE                 226 generated             
+//  65 INITIALLY              227 refarg                
+//  66 INSTEAD                228 refact                
+//  67 NO                     229 init_deferred_pred_opt
+//  68 KEY                    230 conslist              
+//  69 OF                     231 tconscomma            
+//  70 OFFSET                 232 tcons                 
+//  71 PRAGMA                 233 sortlist              
+//  72 RAISE                  234 eidlist               
+//  73 RECURSIVE              235 defer_subclause_opt   
+//  74 REPLACE                236 orconf                
+//  75 RESTRICT               237 resolvetype           
+//  76 ROW                    238 raisetype             
+//  77 ROWS                   239 ifexists              
+//  78 TRIGGER                240 fullname              
+//  79 VACUUM                 241 selectnowith          
+//  80 VIEW                   242 oneselect             
+//  81 VIRTUAL                243 wqlist                
+//  82 WITH                   244 multiselect_op        
+//  83 NULLS                  245 distinct              
+//  84 FIRST                  246 selcollist            
+//  85 LAST                   247 from                  
+//  86 CURRENT                248 where_opt             
+//  87 FOLLOWING              249 groupby_opt           
+//  88 PARTITION              250 having_opt            
+//  89 PRECEDING              251 orderby_opt           
+//  90 RANGE                  252 limit_opt             
+//  91 UNBOUNDED              253 window_clause         
+//  92 EXCLUDE                254 values                
+//  93 GROUPS                 255 nexprlist             
+//  94 OTHERS                 256 mvalues               
+//  95 TIES                   257 sclp                  
+//  96 GENERATED              258 as                    
+//  97 ALWAYS                 259 seltablist            
+//  98 MATERIALIZED           260 stl_prefix            
+//  99 REINDEX                261 joinop                
+// 100 RENAME                 262 on_using              
+// 101 CTIME_KW               263 indexed_by            
+// 102 ANY                    264 exprlist              
+// 103 BITAND                 265 xfullname             
+// 104 BITOR                  266 idlist                
+// 105 LSHIFT                 267 indexed_opt           
+// 106 RSHIFT                 268 nulls                 
+// 107 PLUS                   269 with                  
+// 108 MINUS                  270 where_opt_ret         
+// 109 STAR                   271 setlist               
+// 110 SLASH                  272 insert_cmd            
+// 111 REM                    273 idlist_opt            
+// 112 CONCAT                 274 upsert                
+// 113 PTR                    275 returning             
+// 114 COLLATE                276 filter_over           
+// 115 BITNOT                 277 likeop                
+// 116 ON                     278 between_op            
+// 117 INDEXED                279 in_op                 
+// 118 STRING                 280 paren_exprlist        
+// 119 JOIN_KW                281 case_operand          
+// 120 CONSTRAINT             282 case_exprlist         
+// 121 DEFAULT                283 case_else             
+// 122 NULL                   284 uniqueflag            
+// 123 PRIMARY                285 collate               
+// 124 UNIQUE                 286 vinto                 
+// 125 CHECK                  287 nmnum                 
+// 126 REFERENCES             288 trigger_decl          
+// 127 AUTOINCR               289 trigger_cmd_list      
+// 128 INSERT                 290 trigger_time          
+// 129 DELETE                 291 trigger_event         
+// 130 UPDATE                 292 foreach_clause        
+// 131 SET                    293 when_clause           
+// 132 DEFERRABLE             294 trigger_cmd           
+// 133 FOREIGN                295 trnm                  
+// 134 DROP                   296 tridxby               
+// 135 UNION                  297 database_kw_opt       
+// 136 ALL                    298 key_opt               
+// 137 EXCEPT                 299 add_column_fullname   
+// 138 INTERSECT              300 kwcolumn_opt          
+// 139 SELECT                 301 create_vtab           
+// 140 VALUES                 302 vtabarglist           
+// 141 DISTINCT               303 vtabarg               
+// 142 DOT                    304 vtabargtoken          
+// 143 FROM                   305 lp                    
+// 144 JOIN                   306 anylist               
+// 145 USING                  307 wqitem                
+// 146 ORDER                  308 wqas                  
+// 147 GROUP                  309 withnm                
+// 148 HAVING                 310 windowdefn_list       
+// 149 LIMIT                  311 windowdefn            
+// 150 WHERE                  312 window                
+// 151 RETURNING              313 frame_opt             
+// 152 INTO                   314 part_opt              
+// 153 NOTHING                315 filter_clause         
+// 154 FLOAT                  316 over_clause           
+// 155 BLOB                   317 range_or_rows         
+// 156 INTEGER                318 frame_bound           
+// 157 VARIABLE               319 frame_bound_s         
+// 158 CASE                   320 frame_bound_e         
+// 159 WHEN                   321 frame_exclude_opt     
+// 160 THEN                   322 frame_exclude         
+// 161 ELSE                  
 explain ::= EXPLAIN.
 explain ::= EXPLAIN QUERY PLAN.
 cmdx ::= cmd.
@@ -442,7 +449,9 @@ multiselect_op ::= EXCEPT|INTERSECT.
 oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt orderby_opt limit_opt.
 oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt window_clause orderby_opt limit_opt.
 values ::= VALUES LP nexprlist RP.
-values ::= values COMMA LP nexprlist RP.
+oneselect ::= mvalues.
+mvalues ::= values COMMA LP nexprlist RP.
+mvalues ::= mvalues COMMA LP nexprlist RP.
 distinct ::= DISTINCT.
 distinct ::= ALL.
 distinct ::=.
@@ -625,7 +634,7 @@ trigger_cmd ::= scanpt insert_cmd INTO trnm idlist_opt select upsert scanpt.
 trigger_cmd ::= DELETE FROM trnm tridxby where_opt scanpt.
 trigger_cmd ::= scanpt select scanpt.
 expr ::= RAISE LP IGNORE RP.
-expr ::= RAISE LP raisetype COMMA nm RP.
+expr ::= RAISE LP raisetype COMMA expr RP.
 raisetype ::= ROLLBACK.
 raisetype ::= ABORT.
 raisetype ::= FAIL.
@@ -655,7 +664,8 @@ with ::= WITH RECURSIVE wqlist.
 wqas ::= AS.
 wqas ::= AS MATERIALIZED.
 wqas ::= AS NOT MATERIALIZED.
-wqitem ::= nm eidlist_opt wqas LP select RP.
+wqitem ::= withnm eidlist_opt wqas LP select RP.
+withnm ::= nm.
 wqlist ::= wqitem.
 wqlist ::= wqlist COMMA wqitem.
 windowdefn_list ::= windowdefn_list COMMA windowdefn.
@@ -687,6 +697,7 @@ filter_over ::= filter_clause.
 over_clause ::= OVER LP window RP.
 over_clause ::= OVER nm.
 filter_clause ::= FILTER LP WHERE expr RP.
+term ::= QNUMBER.
 input ::= cmdlist.
 cmdlist ::= cmdlist ecmd.
 cmdlist ::= ecmd.
@@ -753,4 +764,4 @@ with ::=.
 windowdefn_list ::= windowdefn.
 window ::= frame_opt.
 
-%token SPACE ILLEGAL.
+%token SPACE COMMENT ILLEGAL.

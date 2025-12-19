@@ -139,7 +139,7 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
         "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-        36093928491870,36093,17131594098,500000,2850000,2112132
+        36093928491870,36093,17131594098,500000,2850000,2106863
             """))
 
   def test_cpu_cycles_in_interval(self):
@@ -152,14 +152,32 @@ class LinuxCpu(TestSuite):
               millicycles,
               megacycles,
               runtime,
+              awake_runtime,
               min_freq,
               max_freq,
               avg_freq
              FROM cpu_cycles_in_interval(TRACE_START(), TRACE_DUR() / 10);
              """),
         out=Csv("""
-          "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-          31636287288,31,76193077,614400,1708800,415998
+          "millicycles","megacycles","runtime","awake_runtime","min_freq","max_freq","avg_freq"
+          31636287288,31,76193077,76193077,614400,1708800,660492
+            """))
+
+  def test_cpu_utilization_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.system;
+
+             SELECT
+              awake_dur,
+              awake_utilization,
+              awake_unnormalized_utilization
+             FROM cpu_utilization_in_interval(TRACE_START(), TRACE_DUR());
+             """),
+        out=Csv("""
+          "awake_dur","awake_utilization","awake_unnormalized_utilization"
+          7814964417,22.490000,89.960000
             """))
 
   def test_cpu_cycles_per_cpu(self):
@@ -180,14 +198,14 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
           "cpu","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-          0,4007488375822,4007,2260291804,930000,1803000,1775516
-          1,3985923237512,3985,2247149674,930000,1803000,1776869
-          2,4047926756581,4047,2276274170,930000,1803000,1781496
-          3,3992276081242,3992,2248956757,930000,1803000,1778975
-          4,5134318459625,5134,2203887266,553000,2348000,2335531
-          5,5615703220380,5615,2438499077,553000,2348000,2308698
-          6,4715590442538,4715,1737264802,500000,2850000,2725191
-          7,4594701918170,4594,1719270548,500000,2850000,2685290
+          0,4007488375822,4007,2260291804,930000,1803000,1772996
+          1,3985923237512,3985,2247149674,930000,1803000,1773769
+          2,4047926756581,4047,2276274170,930000,1803000,1778312
+          3,3992276081242,3992,2248956757,930000,1803000,1775168
+          4,5134318459625,5134,2203887266,553000,2348000,2329665
+          5,5615703220380,5615,2438499077,553000,2348000,2302934
+          6,4715590442538,4715,1737264802,500000,2850000,2714377
+          7,4594701918170,4594,1719270548,500000,2850000,2672472
             """))
 
   def test_cpu_cycles_per_cpu_in_interval(self):
@@ -208,10 +226,10 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
           "cpu","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-          0,27811901835,27,50296201,614400,1708800,554220
-          1,2893791427,2,4709947,614400,614400,615831
-          2,177750720,0,3718178,864000,864000,47885
-          3,752843306,0,17468751,614400,864000,43128
+          0,27811901835,27,50296201,614400,1708800,665261
+          1,2893791427,2,4709947,614400,614400,614523
+          2,177750720,0,3718178,864000,864000,867076
+          3,752843306,0,17468751,614400,864000,640717
             """))
 
   def test_cpu_cycles_per_thread(self):
@@ -233,9 +251,9 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
         "utid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-        1,39042295612,39,28747861,614400,1708800,1359695
+        1,39042295612,39,28747861,614400,1708800,1358134
         2,286312857,0,167552,1708800,1708800,1714448
-        8,124651656403,124,99592232,614400,1708800,1255974
+        8,124651656403,124,99592232,614400,1708800,1251623
             """))
 
   def test_cpu_cycles_per_thread_in_interval(self):
@@ -249,6 +267,7 @@ class LinuxCpu(TestSuite):
               millicycles,
               megacycles,
               runtime,
+              awake_runtime,
               min_freq,
               max_freq,
               avg_freq
@@ -256,20 +275,115 @@ class LinuxCpu(TestSuite):
              WHERE utid < 100
              """),
         out=Csv("""
-            "utid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-            1,1226879384,1,1996874,614400,614400,614669
-            14,1247778191,1,2446930,614400,614400,513911
-            15,1407232193,1,2384063,614400,614400,593768
-            16,505278870,0,1142238,614400,614400,444396
-            30,29888102,0,48646,614400,614400,622668
-            37,"[NULL]","[NULL]",222814,"[NULL]","[NULL]","[NULL]"
-            38,"[NULL]","[NULL]",2915520,"[NULL]","[NULL]","[NULL]"
-            45,"[NULL]","[NULL]",2744688,"[NULL]","[NULL]","[NULL]"
-            54,"[NULL]","[NULL]",8614114,"[NULL]","[NULL]","[NULL]"
-            61,151616101,0,246771,614400,614400,618841
-            62,58740000,0,8307552,1708800,1708800,7071
-            92,243675648,0,962397,864000,864000,255157
+            "utid","millicycles","megacycles","runtime","awake_runtime","min_freq","max_freq","avg_freq"
+            1,1226879384,1,1996874,1996874,614400,614400,614669
+            14,1247778191,1,2446930,2446930,614400,614400,614669
+            15,1407232193,1,2384063,2384063,614400,614400,614511
+            16,505278870,0,1142238,1142238,614400,614400,614694
+            30,29888102,0,48646,48646,614400,614400,622668
+            37,"[NULL]","[NULL]",222814,222814,"[NULL]","[NULL]","[NULL]"
+            38,"[NULL]","[NULL]",2915520,2915520,"[NULL]","[NULL]","[NULL]"
+            45,"[NULL]","[NULL]",2744688,2744688,"[NULL]","[NULL]","[NULL]"
+            54,"[NULL]","[NULL]",8614114,8614114,"[NULL]","[NULL]","[NULL]"
+            61,151616101,0,246771,246771,614400,614400,616325
+            62,58740000,0,8307552,8307552,1708800,1708800,1727647
+            92,243675648,0,962397,962397,864000,864000,864098
             """))
+
+  def test_cpu_cycles_per_thread_per_cpu(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
+
+             SELECT
+              utid,
+              cpu,
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles_per_thread_per_cpu
+             WHERE utid < 10
+             """),
+        out=Csv("""
+        "utid","cpu","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+        1,0,21613219642,21,17794320,614400,1708800,1214635
+        1,1,2497607711,2,1461615,1708800,1708800,1709519
+        1,2,4364824719,4,3151458,614400,1708800,1385218
+        1,3,10566643540,10,6340468,1363200,1708800,1666663
+        2,3,286312857,0,167552,1708800,1708800,1714448
+        8,0,46170039382,46,43358479,614400,1708800,1064856
+        8,1,14938296493,14,9838169,614400,1708800,1518428
+        8,2,47599704832,47,35501050,614400,1708800,1340798
+        8,3,15943615696,15,10894534,614400,1708800,1463522
+        """))
+
+  def test_cpu_cycles_per_thread_per_cpu_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+           INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
+
+           SELECT
+            utid,
+            cpu,
+            millicycles,
+            megacycles,
+            runtime,
+            min_freq,
+            max_freq,
+            avg_freq
+           FROM cpu_cycles_per_thread_per_cpu_in_interval(TRACE_START(), TRACE_DUR() / 10)
+           WHERE utid < 100
+           """),
+        out=Csv("""
+          "utid","cpu","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+          1,0,1226879384,1,1996874,614400,614400,614669
+          14,0,1133538499,1,2049326,614400,614400,614717
+          14,1,114239692,0,185937,614400,614400,617511
+          14,2,"[NULL]","[NULL]",211667,"[NULL]","[NULL]","[NULL]"
+          15,0,980352605,0,1595626,614400,614400,614641
+          15,1,426879588,0,694791,614400,614400,615100
+          15,3,"[NULL]","[NULL]",93646,"[NULL]","[NULL]","[NULL]"
+          16,0,505278870,0,822394,614400,614400,614694
+          16,2,"[NULL]","[NULL]",319844,"[NULL]","[NULL]","[NULL]"
+          30,1,29888102,0,48646,614400,614400,622668
+          37,0,"[NULL]","[NULL]",157397,"[NULL]","[NULL]","[NULL]"
+          37,2,"[NULL]","[NULL]",65417,"[NULL]","[NULL]","[NULL]"
+          38,2,"[NULL]","[NULL]",2915520,"[NULL]","[NULL]","[NULL]"
+          45,0,"[NULL]","[NULL]",2690990,"[NULL]","[NULL]","[NULL]"
+          45,3,"[NULL]","[NULL]",53698,"[NULL]","[NULL]","[NULL]"
+          54,0,"[NULL]","[NULL]",3688906,"[NULL]","[NULL]","[NULL]"
+          54,3,"[NULL]","[NULL]",4925208,"[NULL]","[NULL]","[NULL]"
+          61,0,151616101,0,246771,614400,614400,616325
+          62,0,58740000,0,34375,1708800,1708800,1727647
+          62,3,"[NULL]","[NULL]",8273177,"[NULL]","[NULL]","[NULL]"
+          92,0,243675648,0,962397,864000,864000,864098
+          """))
+
+  def test_cpu_thread_utilization_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+              INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
+
+              SELECT
+                upid,
+                utid,
+                thread_name,
+                awake_dur,
+                awake_utilization,
+                awake_unnormalized_utilization
+              FROM cpu_thread_utilization_in_interval(TRACE_START(), TRACE_DUR())
+              WHERE thread_name LIKE 'kswapd%'
+              """),
+        out=Csv("""
+            "upid","utid","thread_name","awake_dur","awake_utilization","awake_unnormalized_utilization"
+            62,62,"kswapd0",125991305,0.362560,1.450240
+              """))
 
   def test_cpu_cycles_per_process(self):
     return DiffTestBlueprint(
@@ -290,9 +404,9 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
         "upid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-        1,79550724630,79,56977346,614400,1708800,1398005
+        1,79550724630,79,56977346,614400,1708800,1396190
         2,286312857,0,167552,1708800,1708800,1714448
-        8,124651656403,124,99592232,614400,1708800,1255974
+        8,124651656403,124,99592232,614400,1708800,1251623
             """))
 
   def test_cpu_cycles_per_process_in_interval(self):
@@ -306,6 +420,7 @@ class LinuxCpu(TestSuite):
               millicycles,
               megacycles,
               runtime,
+              awake_runtime,
               min_freq,
               max_freq,
               avg_freq
@@ -313,11 +428,31 @@ class LinuxCpu(TestSuite):
              WHERE upid < 30;
              """),
         out=Csv("""
-          "upid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-          1,2163648305,2,3521563,614400,614400,614672
-          14,1247778191,1,2446930,614400,614400,513911
-          15,1407232193,1,2384063,614400,614400,593768
-          16,505278870,0,1142238,614400,614400,444396
+          "upid","millicycles","megacycles","runtime","awake_runtime","min_freq","max_freq","avg_freq"
+          1,2163648305,2,3521563,3521563,614400,614400,614498
+          14,1247778191,1,2446930,2446930,614400,614400,614669
+          15,1407232193,1,2384063,2384063,614400,614400,614511
+          16,505278870,0,1142238,1142238,614400,614400,614694
+            """))
+
+  def test_cpu_process_utilization_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.process;
+
+             SELECT
+              upid,
+              process_name,
+              awake_dur,
+              awake_utilization,
+              awake_unnormalized_utilization
+             FROM cpu_process_utilization_in_interval(TRACE_START(), TRACE_DUR())
+             WHERE process_name LIKE 'kswapd%';
+             """),
+        out=Csv("""
+          "upid","process_name","awake_dur","awake_utilization","awake_unnormalized_utilization"
+          62,"kswapd0",125991305,0.362560,1.450240
             """))
 
   def test_cpu_cycles_per_thread_slice(self):
@@ -337,19 +472,19 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
         "id","utid","millicycles","megacycles"
+        110,17,13022368,0
+        121,17,9618704,0
         125,6,6375728,0
         126,6,8699728,0
         128,6,5565648,0
         129,6,5565648,0
+        146,24,6916224,0
+        151,26,5296064,0
+        203,17,150060016,0
         214,6,7132688,0
-        270,6,662972400,0
-        271,6,58483872,0
-        274,6,571785696,0
-        277,6,206411922,0
-        278,6,190908162,0
             """))
 
-  def test_cpu_cycles_per_thread_slice(self):
+  def test_cpu_cycles_per_thread_slice_in_interval(self):
     return DiffTestBlueprint(
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=("""

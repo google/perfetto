@@ -20,6 +20,8 @@
 #include <fcntl.h>  // For mode_t & O_RDONLY/RDWR. Exists also on Windows.
 #include <stddef.h>
 
+#include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -28,10 +30,12 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/sys_types.h"
 
 namespace perfetto {
 namespace base {
+
+class TaskRunner;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using FileOpenMode = int;
@@ -63,12 +67,17 @@ ssize_t Read(int fd, void* dst, size_t dst_size);
 //   succeeds, and returns the number of bytes written.
 ssize_t WriteAll(int fd, const void* buf, size_t count);
 
+// Copies all data from |fd_in| to |fd_out|. Saves the offset of |fd_in|,
+// rewinds it to the beginning, copies the content, and restores the offset.
+// |fd_in| can't be a pipe, socket of FIFO.
+base::Status CopyFileContents(int fd_in, int fd_out);
+
 ssize_t WriteAllHandle(PlatformHandle, const void* buf, size_t count);
 
 ScopedFile OpenFile(const std::string& path,
                     int flags,
                     FileOpenMode = kFileModeInvalid);
-ScopedFstream OpenFstream(const char* path, const char* mode);
+ScopedFstream OpenFstream(const std::string& path, const std::string& mode);
 
 // This is an alias for close(). It's to avoid leaking windows.h in headers.
 // Exported because ScopedFile is used in the /include/ext API by Chromium
@@ -91,6 +100,30 @@ bool FileExists(const std::string& path);
 // extension.
 std::string GetFileExtension(const std::string& filename);
 
+// Returns the basename component of a path (the final component after the last
+// directory separator). Behaves like man 2 basename, but works with both '/'
+// and '\' separators for cross-platform compatibility.
+// Examples:
+//   Basename("/usr/bin/ls") => "ls"
+//   Basename("/usr/bin/") => "bin"
+//   Basename("/") => "/"
+//   Basename("foo") => "foo"
+//   Basename("") => "."
+//   Basename("C:\\Windows\\System32") => "System32"
+std::string Basename(const std::string& path);
+
+// Returns the directory component of a path (everything up to but not
+// including the final component). Behaves like man 2 dirname, but works with
+// both '/' and '\' separators for cross-platform compatibility.
+// Examples:
+//   Dirname("/usr/bin/ls") => "/usr/bin"
+//   Dirname("/usr/bin") => "/usr"
+//   Dirname("/") => "/"
+//   Dirname("foo") => "."
+//   Dirname("") => "."
+//   Dirname("C:\\Windows\\System32") => "C:\\Windows"
+std::string Dirname(const std::string& path);
+
 // Puts the path to all files under |dir_path| in |output|, recursively walking
 // subdirectories. File paths are relative to |dir_path|. Only files are
 // included, not directories. Path separator is always '/', even on windows (not
@@ -109,6 +142,38 @@ std::optional<uint64_t> GetFileSize(const std::string& path);
 
 // Returns the size of the open file |fd|, or nullopt in case of error.
 std::optional<uint64_t> GetFileSize(PlatformHandle fd);
+
+// This class uses inotify (on Linux/Android) to watch for the creation of
+// files in the filesystem. When the specified file is created, it triggers a
+// callback function.
+// Destroying the returned unique_ptr will automatically unregister the watch.
+//
+// Note: This only works with filesystem paths (not abstract sockets or other
+// special file types).
+// It's only supported on Linux and Android, it's a no-op (returns nullptr) on
+// other platforms.
+//
+// Usage:
+//   auto watch = LinuxFileWatch::WatchFileCreation(
+//       task_runner, "/tmp/my_file", []() {
+//         // Called when /tmp/my_file is created
+//       });
+class LinuxFileWatch {
+ public:
+  // Creates a watcher for file creation. Returns nullptr if the path is not a
+  // valid filesystem path or if the platform doesn't support inotify. The
+  // callback will be invoked on the provided TaskRunner when the file is
+  // created.
+  static std::unique_ptr<LinuxFileWatch> WatchFileCreation(
+      TaskRunner*,
+      const char* path,
+      std::function<void()> callback);
+
+  virtual ~LinuxFileWatch();
+
+ protected:
+  LinuxFileWatch() = default;
+};
 
 }  // namespace base
 }  // namespace perfetto

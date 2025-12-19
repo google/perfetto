@@ -167,7 +167,7 @@
       "tools/gn",
       "gen",
       "[CACHE]/builder/perfetto/out/android-arm",
-      "--args=is_debug=false monolithic_binaries=true target_os=\"android\" target_cpu=\"arm\""
+      "--args=is_clang=true monolithic_binaries=true is_debug=false enable_perfetto_etm_importer=false target_os=\"android\" target_cpu=\"arm\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -279,7 +279,41 @@
     "name": "android-arm.Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/trace_processor_shell@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/trace_processor_shell",
+      "gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm.Artifact upload.gsutil upload (2)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm/trace_processor_shell@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\"}@@@"
     ]
   },
   {
@@ -388,10 +422,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm.Artifact upload.gsutil upload (2)",
+    "name": "android-arm.Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/traceconv@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/traceconv@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/traceconv",
+      "gs://perfetto-luci-artifacts/latest/android-arm/traceconv"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm.Artifact upload.gsutil upload (4)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm/traceconv@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\"}@@@"
     ]
   },
   {
@@ -500,10 +568,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm.Artifact upload.gsutil upload (3)",
+    "name": "android-arm.Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/tracebox@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/tracebox@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/tracebox",
+      "gs://perfetto-luci-artifacts/latest/android-arm/tracebox"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm.Artifact upload.gsutil upload (6)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm/tracebox@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\"}@@@"
     ]
   },
   {
@@ -612,10 +714,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm.Artifact upload.gsutil upload (4)",
+    "name": "android-arm.Artifact upload.gsutil upload (7)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/perfetto@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/perfetto@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/perfetto",
+      "gs://perfetto-luci-artifacts/latest/android-arm/perfetto"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm.Artifact upload.gsutil upload (8)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm/perfetto@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\"}@@@"
     ]
   },
   {
@@ -724,10 +860,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm.Artifact upload.gsutil upload (5)",
+    "name": "android-arm.Artifact upload.gsutil upload (9)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/traced@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/traced@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/traced",
+      "gs://perfetto-luci-artifacts/latest/android-arm/traced"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm.Artifact upload.gsutil upload (10)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm/traced@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
     ]
   },
   {
@@ -836,10 +1006,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm.Artifact upload.gsutil upload (6)",
+    "name": "android-arm.Artifact upload.gsutil upload (11)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/traced_probes@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm/traced_probes@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/traced_probes",
+      "gs://perfetto-luci-artifacts/latest/android-arm/traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm.Artifact upload.gsutil upload (12)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm/traced_probes@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
     ]
   },
   {
@@ -932,7 +1136,7 @@
       "tools/gn",
       "gen",
       "[CACHE]/builder/perfetto/out/android-arm64",
-      "--args=is_debug=false monolithic_binaries=true target_os=\"android\" target_cpu=\"arm64\""
+      "--args=is_clang=true monolithic_binaries=true is_debug=false enable_perfetto_etm_importer=false target_os=\"android\" target_cpu=\"arm64\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -1044,7 +1248,41 @@
     "name": "android-arm64.Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/trace_processor_shell@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/trace_processor_shell",
+      "gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm64.Artifact upload.gsutil upload (2)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
     ]
   },
   {
@@ -1153,10 +1391,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm64.Artifact upload.gsutil upload (2)",
+    "name": "android-arm64.Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/traceconv@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/traceconv@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/traceconv",
+      "gs://perfetto-luci-artifacts/latest/android-arm64/traceconv"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm64.Artifact upload.gsutil upload (4)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm64/traceconv@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
     ]
   },
   {
@@ -1265,10 +1537,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm64.Artifact upload.gsutil upload (3)",
+    "name": "android-arm64.Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/tracebox@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/tracebox@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/tracebox",
+      "gs://perfetto-luci-artifacts/latest/android-arm64/tracebox"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm64.Artifact upload.gsutil upload (6)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm64/tracebox@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
     ]
   },
   {
@@ -1377,10 +1683,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm64.Artifact upload.gsutil upload (4)",
+    "name": "android-arm64.Artifact upload.gsutil upload (7)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/perfetto@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/perfetto@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/perfetto",
+      "gs://perfetto-luci-artifacts/latest/android-arm64/perfetto"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm64.Artifact upload.gsutil upload (8)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm64/perfetto@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
     ]
   },
   {
@@ -1489,10 +1829,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm64.Artifact upload.gsutil upload (5)",
+    "name": "android-arm64.Artifact upload.gsutil upload (9)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/traced@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/traced@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/traced",
+      "gs://perfetto-luci-artifacts/latest/android-arm64/traced"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm64.Artifact upload.gsutil upload (10)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm64/traced@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
     ]
   },
   {
@@ -1601,10 +1975,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-arm64.Artifact upload.gsutil upload (6)",
+    "name": "android-arm64.Artifact upload.gsutil upload (11)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/traced_probes@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-arm64/traced_probes@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/traced_probes",
+      "gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-arm64.Artifact upload.gsutil upload (12)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-arm64/traced_probes@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\"}@@@"
     ]
   },
   {
@@ -1697,7 +2105,7 @@
       "tools/gn",
       "gen",
       "[CACHE]/builder/perfetto/out/android-x86",
-      "--args=is_debug=false monolithic_binaries=true target_os=\"android\" target_cpu=\"x86\""
+      "--args=is_clang=true monolithic_binaries=true is_debug=false enable_perfetto_etm_importer=false target_os=\"android\" target_cpu=\"x86\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -1809,7 +2217,41 @@
     "name": "android-x86.Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/trace_processor_shell@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/trace_processor_shell",
+      "gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x86.Artifact upload.gsutil upload (2)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x86/trace_processor_shell@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\"}@@@"
     ]
   },
   {
@@ -1918,10 +2360,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x86.Artifact upload.gsutil upload (2)",
+    "name": "android-x86.Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/traceconv@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/traceconv@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/traceconv",
+      "gs://perfetto-luci-artifacts/latest/android-x86/traceconv"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x86.Artifact upload.gsutil upload (4)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x86/traceconv@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\"}@@@"
     ]
   },
   {
@@ -2030,10 +2506,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x86.Artifact upload.gsutil upload (3)",
+    "name": "android-x86.Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/tracebox@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/tracebox@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/tracebox",
+      "gs://perfetto-luci-artifacts/latest/android-x86/tracebox"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x86.Artifact upload.gsutil upload (6)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x86/tracebox@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\"}@@@"
     ]
   },
   {
@@ -2142,10 +2652,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x86.Artifact upload.gsutil upload (4)",
+    "name": "android-x86.Artifact upload.gsutil upload (7)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/perfetto@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/perfetto@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/perfetto",
+      "gs://perfetto-luci-artifacts/latest/android-x86/perfetto"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x86.Artifact upload.gsutil upload (8)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x86/perfetto@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\"}@@@"
     ]
   },
   {
@@ -2254,10 +2798,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x86.Artifact upload.gsutil upload (5)",
+    "name": "android-x86.Artifact upload.gsutil upload (9)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/traced@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/traced@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/traced",
+      "gs://perfetto-luci-artifacts/latest/android-x86/traced"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x86.Artifact upload.gsutil upload (10)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x86/traced@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
     ]
   },
   {
@@ -2366,10 +2944,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x86.Artifact upload.gsutil upload (6)",
+    "name": "android-x86.Artifact upload.gsutil upload (11)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/traced_probes@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x86/traced_probes@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/traced_probes",
+      "gs://perfetto-luci-artifacts/latest/android-x86/traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x86.Artifact upload.gsutil upload (12)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x86/traced_probes@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
     ]
   },
   {
@@ -2462,7 +3074,7 @@
       "tools/gn",
       "gen",
       "[CACHE]/builder/perfetto/out/android-x64",
-      "--args=is_debug=false monolithic_binaries=true target_os=\"android\" target_cpu=\"x64\""
+      "--args=is_clang=true monolithic_binaries=true is_debug=false enable_perfetto_etm_importer=false target_os=\"android\" target_cpu=\"x64\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -2574,7 +3186,41 @@
     "name": "android-x64.Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/trace_processor_shell@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/trace_processor_shell",
+      "gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x64.Artifact upload.gsutil upload (2)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x64/trace_processor_shell@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
     ]
   },
   {
@@ -2683,10 +3329,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x64.Artifact upload.gsutil upload (2)",
+    "name": "android-x64.Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/traceconv@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/traceconv@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/traceconv",
+      "gs://perfetto-luci-artifacts/latest/android-x64/traceconv"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x64.Artifact upload.gsutil upload (4)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x64/traceconv@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
     ]
   },
   {
@@ -2795,10 +3475,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x64.Artifact upload.gsutil upload (3)",
+    "name": "android-x64.Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/tracebox@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/tracebox@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x64/tracebox\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/tracebox",
+      "gs://perfetto-luci-artifacts/latest/android-x64/tracebox"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x64.Artifact upload.gsutil upload (6)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x64/tracebox@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x64/tracebox\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
     ]
   },
   {
@@ -2907,10 +3621,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x64.Artifact upload.gsutil upload (4)",
+    "name": "android-x64.Artifact upload.gsutil upload (7)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/perfetto@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/perfetto@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x64/perfetto\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/perfetto",
+      "gs://perfetto-luci-artifacts/latest/android-x64/perfetto"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x64.Artifact upload.gsutil upload (8)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x64/perfetto@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x64/perfetto\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
     ]
   },
   {
@@ -3019,10 +3767,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x64.Artifact upload.gsutil upload (5)",
+    "name": "android-x64.Artifact upload.gsutil upload (9)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/traced@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/traced@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x64/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/traced",
+      "gs://perfetto-luci-artifacts/latest/android-x64/traced"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x64.Artifact upload.gsutil upload (10)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x64/traced@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traced\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x64/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
     ]
   },
   {
@@ -3131,10 +3913,44 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "android-x64.Artifact upload.gsutil upload (6)",
+    "name": "android-x64.Artifact upload.gsutil upload (11)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/traced_probes@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/traced_probes@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traced\", \"android-x64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x64/traced_probes\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x64/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/traced_probes",
+      "gs://perfetto-luci-artifacts/latest/android-x64/traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "android-x64.Artifact upload.gsutil upload (12)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/android-x64/traced_probes@@@",
+      "@@@SET_BUILD_PROPERTY@gsutil_urls@{\"android-arm64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced\", \"android-arm64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traced_probes\", \"android-arm64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/trace_processor_shell\", \"android-arm64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/traceconv\", \"android-arm64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/tracebox\", \"android-arm64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm64/perfetto\", \"android-arm64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm64/traced\", \"android-arm|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced\", \"android-arm|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traced_probes\", \"android-arm|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-arm/trace_processor_shell\", \"android-arm|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-arm/traceconv\", \"android-arm|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-arm/tracebox\", \"android-arm|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-arm/perfetto\", \"android-arm|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-arm/traced\", \"android-x64|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traced\", \"android-x64|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x64/traced_probes\", \"android-x64|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traced_probes\", \"android-x64|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x64/trace_processor_shell\", \"android-x64|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x64/traceconv\", \"android-x64|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x64/tracebox\", \"android-x64|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x64/perfetto\", \"android-x64|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x64/traced\", \"android-x86|Artifact upload|gsutil upload\": \"gs://perfetto-luci-artifacts//android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (10)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced\", \"android-x86|Artifact upload|gsutil upload (11)\": \"gs://perfetto-luci-artifacts//android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (12)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traced_probes\", \"android-x86|Artifact upload|gsutil upload (2)\": \"gs://perfetto-luci-artifacts/latest/android-x86/trace_processor_shell\", \"android-x86|Artifact upload|gsutil upload (3)\": \"gs://perfetto-luci-artifacts//android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (4)\": \"gs://perfetto-luci-artifacts/latest/android-x86/traceconv\", \"android-x86|Artifact upload|gsutil upload (5)\": \"gs://perfetto-luci-artifacts//android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (6)\": \"gs://perfetto-luci-artifacts/latest/android-x86/tracebox\", \"android-x86|Artifact upload|gsutil upload (7)\": \"gs://perfetto-luci-artifacts//android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (8)\": \"gs://perfetto-luci-artifacts/latest/android-x86/perfetto\", \"android-x86|Artifact upload|gsutil upload (9)\": \"gs://perfetto-luci-artifacts//android-x86/traced\"}@@@"
     ]
   },
   {

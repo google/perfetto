@@ -36,13 +36,14 @@ export function instructionsPage(recMgr: RecordingManager): RecordSubpage {
 }
 
 type RecMgrAttrs = {recMgr: RecordingManager};
+
 class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
   private configTxt = '';
   private cmdline?: string;
   private docsLink?: string;
 
   constructor({attrs}: m.CVnode<RecMgrAttrs>) {
-    // Generate the config PBTX.
+    // Generate the config PBTX (text proto format).
     const cfg = attrs.recMgr.genTraceConfig();
     const cfgBytes = protos.TraceConfig.encode(cfg).finish().slice();
     traceConfigToTxt(cfgBytes).then((txt) => {
@@ -50,7 +51,7 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
       m.redraw();
     });
 
-    // Generate the cmdline instructions.
+    // Generate platform-specific commands.
     switch (attrs.recMgr.currentPlatform) {
       case 'ANDROID':
         this.cmdline =
@@ -68,10 +69,21 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
         this.cmdline =
           'There is no cmdline support for Chrome/CrOS.\n' +
           'You must use the recording UI via the extension to record traces.';
+        break;
     }
   }
 
-  view() {
+  view({attrs}: m.CVnode<RecMgrAttrs>) {
+    const recMgr = attrs.recMgr;
+
+    if (!recMgr.recordConfig.hasActiveProbes()) {
+      return m(
+        '.note',
+        "It looks like you didn't select any data source. ",
+        'Please select some from the "Probes" menu on the left.',
+      );
+    }
+
     return [
       this.docsLink &&
         m(
@@ -84,21 +96,15 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
           ),
         ),
       this.cmdline &&
-        m(
-          '',
-          m(CodeSnippet, {
-            language: 'Shell',
-            text: this.cmdline,
-          }),
-        ),
-      m('p', 'Save the file below as: config.pbtx'),
-      m(
-        '',
         m(CodeSnippet, {
-          language: 'textproto',
-          text: this.configTxt,
+          language: 'Shell',
+          text: this.cmdline,
         }),
-      ),
+      m('p', 'Save the file below as: config.pbtx'),
+      m(CodeSnippet, {
+        language: 'textproto',
+        text: this.configTxt,
+      }),
     ];
   }
 }

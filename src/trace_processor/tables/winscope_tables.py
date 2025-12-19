@@ -21,6 +21,7 @@ from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
@@ -203,16 +204,26 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('sequence_id', CppUint32())
+        C('sequence_id', CppUint32()),
+        C(
+            'has_invalid_elapsed_ts',
+            CppOptional(CppUint32()),
+        ),
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger layers snapshot',
         group='Winscope',
         columns={
-            'ts': 'Timestamp of the snapshot',
-            'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto_id': 'String id for raw proto message',
-            'sequence_id': 'Sequence id of the trace packet'
+            'ts':
+                'Timestamp of the snapshot',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'sequence_id':
+                'Sequence id of the trace packet',
+            'has_invalid_elapsed_ts':
+                'Indicates whether snapshot was recorded without elapsed timestamp',
         }))
 
 SURFACE_FLINGER_DISPLAY_TABLE = Table(
@@ -451,6 +462,16 @@ VIEWCAPTURE_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'package_name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'window_name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='ViewCapture',
@@ -459,6 +480,8 @@ VIEWCAPTURE_TABLE = Table(
             'ts': 'The timestamp the views were captured',
             'arg_set_id': 'Extra args parsed from the proto message',
             'base64_proto_id': 'String id for raw proto message',
+            'package_name': 'Package name',
+            'window_name': 'Window name',
         }))
 
 VIEWCAPTURE_VIEW_TABLE = Table(
@@ -478,14 +501,46 @@ VIEWCAPTURE_VIEW_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C('node_id', CppUint32()),
+        C('hashcode', CppUint32()),
+        C('is_visible', CppInt64()),
+        C('parent_id', CppUint32()),
+        C(
+            'view_id',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'class_name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('trace_rect_id', CppTableId(WINSCOPE_TRACE_RECT_TABLE)),
     ],
     tabledoc=TableDoc(
         doc='ViewCapture view',
         group='Winscope',
         columns={
-            'snapshot_id': 'The snapshot that generated this view',
-            'arg_set_id': 'Extra args parsed from the proto message',
-            '': 'String id for raw proto message',
+            'snapshot_id':
+                'The snapshot that generated this view',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'node_id':
+                'View id from proto message',
+            'hashcode':
+                'View hashcode from proto message',
+            'is_visible':
+                'Is visible view',
+            'parent_id':
+                'View parentId from proto message',
+            'view_id':
+                'View viewId from proto message',
+            'class_name':
+                'View className from proto message',
+            'trace_rect_id':
+                'Used to associate with row in __intrinsic_winscope_trace_rect',
         }))
 
 VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
@@ -699,15 +754,117 @@ WINDOW_MANAGER_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'focused_display_id',
+            CppUint32(),
+        ),
+        C(
+            'has_invalid_elapsed_ts',
+            CppUint32(),
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('windowmanager'),
     tabledoc=TableDoc(
         doc='WindowManager',
         group='Winscope',
         columns={
-            'ts': 'The timestamp the state snapshot was captured',
-            'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto_id': 'String id for raw proto message',
+            'ts':
+                'The timestamp the state snapshot was captured',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'focused_display_id':
+                'Focused display id for this snapshot',
+            'has_invalid_elapsed_ts':
+                'Indicates whether snapshot was recorded without elapsed timestamp',
+        }))
+
+WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
+    python_module=__file__,
+    class_name='WindowManagerWindowContainerTable',
+    sql_name='__intrinsic_windowmanager_windowcontainer',
+    columns=[
+        C('snapshot_id', CppTableId(WINDOW_MANAGER_TABLE)),
+        C(
+            'arg_set_id',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'title',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'token',
+            CppInt32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'parent_token',
+            CppOptional(CppInt32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'child_index',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'is_visible',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'window_rect_id',
+            CppOptional(CppTableId(WINSCOPE_TRACE_RECT_TABLE)),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'container_type',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'name_override',
+            CppOptional(CppString()),
+        ),
+    ],
+    wrapping_sql_view=WrappingSqlView('windowmanager_windowcontainer'),
+    tabledoc=TableDoc(
+        doc='WindowManager',
+        group='Winscope',
+        columns={
+            'snapshot_id':
+                'The snapshot that generated this window container',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'title':
+                "The window container's title",
+            'token':
+                "The window container's token",
+            'parent_token':
+                "The parent window container's token",
+            'child_index':
+                "The index of this window container within the parent's children",
+            'is_visible':
+                "The window container visibility",
+            'window_rect_id':
+                "The rect corresponding to this window container",
+            'container_type':
+                "The window container type e.g. DisplayContent, TaskFragment",
+            'name_override':
+                "Optional name override for some container types",
         }))
 
 PROTOLOG_TABLE = Table(
@@ -788,5 +945,6 @@ ALL_TABLES = [
     WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE,
     WINDOW_MANAGER_TABLE,
+    WINDOW_MANAGER_WINDOW_CONTAINER_TABLE,
     PROTOLOG_TABLE,
 ]

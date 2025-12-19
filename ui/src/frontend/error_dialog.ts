@@ -18,12 +18,14 @@ import {GcsUploader} from '../base/gcs_uploader';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
-import {globals} from './globals';
 import {AppImpl} from '../core/app_impl';
 import {Router} from '../core/router';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Intent} from '../widgets/common';
 import {Checkbox} from '../widgets/checkbox';
+import {Anchor} from '../widgets/anchor';
+import {Icons} from '../base/semantic_icons';
+import {mapStackTraceWithMinifiedSourceMap} from '../base/source_map_utils';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -51,6 +53,12 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
 
   if (err.message.includes('Unable to claim interface')) {
     showWebUSBError();
+    timeLastReport = now;
+    return;
+  }
+
+  if (err.message.includes('ABT: Got no attachments from extension')) {
+    showABTError();
     timeLastReport = now;
     return;
   }
@@ -99,6 +107,8 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
     return;
   }
 
+  err.stack = mapStackTraceWithMinifiedSourceMap(err.stack);
+
   showModal({
     key: MODAL_KEY,
     title: 'Oops, something went wrong. Please file a bug.',
@@ -138,7 +148,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     }
 
     // If the user is not a googler, don't even offer the option to upload it.
-    if (!globals.isInternalUser) return;
+    if (!AppImpl.instance.isInternalUser) return;
 
     if (traceSource.type === 'FILE') {
       this.traceState = 'NOT_UPLOADED';
@@ -307,7 +317,7 @@ function showOutOfMemoryDialog() {
       m('.pf-modal-bash', tpCmd),
       m('br'),
       m('span', 'For details see '),
-      m('a', {href: url, target: '_blank'}, url),
+      m(Anchor, {href: url, target: '_blank', icon: Icons.ExternalLink}, url),
     ),
   });
 }
@@ -330,6 +340,7 @@ function showUnknownFileError() {
         m('li', 'Android systrace'),
         m('li', 'Fuchsia trace'),
         m('li', 'Ninja build log'),
+        m('li', 'pprof'),
       ),
     ),
   });
@@ -342,14 +353,47 @@ function showWebUSBError() {
       'div',
       m(
         'span',
-        `Is adb already running on the host? Run this command and
-      try again.`,
+        `Cannot access the USB interface for ADB. This can happen when:`,
       ),
       m('br'),
+      m('br'),
+      m(
+        'ul',
+        m('li', 'Another tool is already using ADB (e.g., chrome://inspect)'),
+        m('li', 'ADB server is running on the host machine'),
+        m('li', 'Another profiling tool has exclusive access to the device'),
+      ),
+      m('br'),
+      m('span', 'Try the following solutions:'),
+      m('br'),
+      m('br'),
+      m(
+        'ol',
+        m('li', 'Close chrome://inspect or other debugging tools'),
+        m('li', 'Run the command below to kill the ADB server:'),
+      ),
       m('.pf-modal-bash', '> adb kill-server'),
       m('br'),
-      m('span', 'For details see '),
-      m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
+      m('span', '3. Disconnect and reconnect your device'),
+      m('br'),
+      m('br'),
+      m(
+        'span',
+        'Note: Perfetto and chrome://inspect cannot be used simultaneously as they both require exclusive access to the USB ADB interface.',
+      ),
+    ),
+  });
+}
+
+function showABTError() {
+  showModal({
+    title: 'An ABT error occurred',
+    content: m(
+      'div',
+      m(
+        'span',
+        `The Android Bug Tool (ABT) Chrome extension did not pass a valid file.`,
+      ),
     ),
   });
 }

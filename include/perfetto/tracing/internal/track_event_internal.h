@@ -113,6 +113,7 @@ struct TrackEventTlsState {
   template <typename TraceContext>
   explicit TrackEventTlsState(const TraceContext& trace_context);
   bool enable_thread_time_sampling = false;
+  uint64_t thread_time_subsampling_ns = 0;
   bool filter_debug_annotations = false;
   bool filter_dynamic_event_names = false;
   uint64_t timestamp_unit_multiplier = 1;
@@ -176,6 +177,7 @@ struct TrackEventIncrementalState {
   // The value is used for delta encoding of counter values.
   std::unordered_map<uint64_t, int64_t> last_counter_value_per_track;
   int64_t last_thread_time_ns = 0;
+  uint64_t last_thread_time_timestamp_ns = 0;
 };
 
 // The backend portion of the track event trace point implemention. Outlined to
@@ -370,6 +372,7 @@ TrackEventTlsState::TrackEventTlsState(const TraceContext& trace_context) {
     filter_debug_annotations = config.filter_debug_annotations();
     filter_dynamic_event_names = config.filter_dynamic_event_names();
     enable_thread_time_sampling = config.enable_thread_time_sampling();
+    thread_time_subsampling_ns = config.thread_time_subsampling_ns();
     if (config.has_timestamp_unit_multiplier()) {
       timestamp_unit_multiplier = config.timestamp_unit_multiplier();
     }

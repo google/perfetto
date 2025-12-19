@@ -42,7 +42,10 @@ class SqlGlot(CodeFormatterBase):
     return filtered
 
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
-    venv_py = '.venv/bin/python3'
+    if sys.platform != 'win32':
+      venv_py = '.venv/bin/python3'
+    else:
+      venv_py = '.venv/Scripts/python3.exe'
     fmt_script = 'python/tools/format_sql.py'
     if not os.path.exists(venv_py):
       err = f'Cannot find ${venv_py}\nRun tools/install-build-deps'

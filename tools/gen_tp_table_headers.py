@@ -24,7 +24,7 @@ from typing import Set
 
 # Allow importing of root-relative modules.
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(os.path.join(ROOT_DIR))
+sys.path.insert(0, os.path.join(ROOT_DIR))
 
 #pylint: disable=wrong-import-position
 from python.generators.trace_processor_table.serialize import serialize_header

@@ -87,6 +87,8 @@ packet {
       }
     }
   }
+}
+packet {
   deobfuscation_mapping {
     package_name: "com.google.android.webview"
     version_code: 1234

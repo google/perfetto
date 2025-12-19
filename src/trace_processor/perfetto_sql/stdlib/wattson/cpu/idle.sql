@@ -26,11 +26,37 @@ FROM _device_cpu_deep_idle_offsets AS offsets
 JOIN _wattson_device AS device
   ON offsets.device = device.name;
 
--- Adjust duration of active portion to be slightly longer to account for
--- overhead cost of transitioning out of deep idle. This is done because the
--- device is active and consumes power for longer than the logs actually report.
-CREATE PERFETTO TABLE _adjusted_deep_idle AS
+-- Table that is empty if the actual cpuidle counters do not exist on this trace
+CREATE PERFETTO VIEW _wattson_cpuidle_counters_exist AS
+SELECT
+  id
+FROM cpu_counter_track
+WHERE
+  name = 'cpuidle'
+LIMIT 1;
+
+-- Create table that uses idle counters if present, otherwise extrapolates idle
+-- states in a simplified way (only 2 states, active or idle) from the swapper
+-- thread.
+CREATE PERFETTO TABLE _unified_idle_state AS
 WITH
+  -- If _wattson_cpuidle_counters_exist has rows, this CTE returns empty,
+  -- effectively disabling the 'swapper_as_idle' branch efficiently.
+  const_params AS (
+    SELECT
+      (
+        SELECT
+          idle
+        FROM _deepest_idle
+        LIMIT 1
+      ) AS deepest_idle
+    WHERE
+      NOT EXISTS(
+        SELECT
+          1
+        FROM _wattson_cpuidle_counters_exist
+      )
+  ),
   idle_prev AS (
     SELECT
       ts,
@@ -49,8 +75,55 @@ WITH
     JOIN cpu_counter_track AS cct
       ON cli.track_id = cct.id
   ),
-  -- Adjusted ts if applicable, which makes the current active state longer if
-  -- it is coming from an idle exit.
+  swapper_as_idle AS (
+    SELECT
+      ts,
+      cpu,
+      iif(is_idle, p.deepest_idle, 4294967295) AS idle
+    FROM sched, const_params AS p
+    LEFT JOIN thread
+      USING (utid)
+  ),
+  idle_transitions AS (
+    SELECT
+      ts,
+      cpu,
+      idle,
+      lag(idle, 1, idle) OVER (PARTITION BY cpu ORDER BY ts) != idle AS transitioned
+    FROM swapper_as_idle
+  ),
+  continuous_idle_slices AS (
+    SELECT
+      ts,
+      cpu,
+      idle
+    FROM idle_transitions
+    WHERE
+      transitioned
+  )
+SELECT
+  ts,
+  prev_ts,
+  idle,
+  idle_prev,
+  cpu
+FROM idle_prev
+UNION ALL
+SELECT
+  ts,
+  lag(ts, 1, trace_start()) OVER (PARTITION BY cpu ORDER BY ts) AS prev_ts,
+  idle,
+  lag(idle) OVER (PARTITION BY cpu ORDER BY ts) AS idle_prev,
+  cpu
+FROM continuous_idle_slices;
+
+-- Adjust duration of active portion to be slightly longer to account for
+-- overhead cost of transitioning out of deep idle. This is done because the
+-- device is active and consumes power for longer than the logs actually report.
+CREATE PERFETTO TABLE _adjusted_deep_idle AS
+-- Adjusted ts if applicable, which makes the current active state longer if
+-- it is coming from an idle exit.
+WITH
   idle_mod AS (
     SELECT
       iif(
@@ -61,7 +134,7 @@ WITH
       ) AS ts,
       cpu,
       idle
-    FROM idle_prev
+    FROM _unified_idle_state
     JOIN _filtered_deep_idle_offsets
       USING (cpu)
   ),
@@ -116,6 +189,8 @@ SELECT
   first_slices.cpu,
   NULL AS idle
 FROM first_cpu_idle_slices AS first_slices
+WHERE
+  dur > 0
 UNION ALL
 SELECT
   ts,
@@ -123,6 +198,8 @@ SELECT
   cpu,
   idle
 FROM _cpu_idle
+WHERE
+  dur > 0
 UNION ALL
 -- Add empty cpu idle counters for CPUs that are physically present, but did not
 -- have a single idle event register. The time region needs to be defined so

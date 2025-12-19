@@ -71,8 +71,7 @@ When traces are opened via `postMessage`, Perfetto avoids storing the trace as
 doing so may violate the retention policy of the original trace source. That is
 to say the trace is not uploaded anywhere. Thus, you must provide a URL that
 provides a direct link to the same trace via your infrastructure, which should
-automatically re-open Perfetto perfetto and use postmessage to supply the same
-trace.
+automatically re-open Perfetto and use postmessage to supply the same trace.
 
 The `url` and `appStateHash` properties work together to allow users to share a
 link to a trace that, when opened, restores the trace and the UI to the same
@@ -227,6 +226,43 @@ Try the following examples:
 - [query](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&query=select%20'Hello%2C%20world!'%20as%20msg)
 
 You must take care to correctly escape strings where needed.
+
+## Configuring the UI with startup commands
+
+Beyond controlling the initial view and selection, you can also automatically
+configure the UI itself when a trace opens by embedding startup commands in the
+URL. This is particularly useful for dashboard integration where you want to
+provide users with a pre-configured analysis environment.
+
+**Adding startup commands via URL**:
+
+Pass startup commands in the `startupCommands` parameter as a URL-encoded JSON
+array. The commands execute automatically after the trace loads, allowing you to
+pin tracks, create debug tracks, or run any other UI automation.
+
+```js
+// Example: Pin CPU tracks and create a debug track
+const commands = [
+  {id: 'dev.perfetto.PinTracksByRegex', args: ['.*CPU [0-3].*']},
+  {
+    id: 'dev.perfetto.AddDebugSliceTrack',
+    args: [
+      "SELECT ts, dur as value FROM slice WHERE name LIKE '%render%'",
+      'Render Operations',
+    ],
+  },
+];
+
+const url = `https://ui.perfetto.dev/#!/?startupCommands=${encodeURIComponent(
+  JSON.stringify(commands),
+)}`;
+```
+
+The startup commands use the same JSON format as described in the
+[UI automation documentation](/docs/visualization/perfetto-ui.md#startup-commands),
+but must be URL-encoded when passed as a parameter. For the list of stable
+commands with backwards compatibility guarantees, see the
+[Commands Automation Reference](/docs/visualization/commands-automation-reference.md).
 
 ## Source links
 

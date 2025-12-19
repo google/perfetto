@@ -21,10 +21,10 @@
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/json/json_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/json_parser.h"
 
 namespace perfetto::trace_processor {
 
@@ -44,6 +44,9 @@ class JsonTraceParser {
   TraceProcessorContext* const context_;
   SystraceLineParser systrace_line_parser_;
   json::Iterator it_;
+
+  StringId process_sort_index_hint_id_;
+  StringId thread_sort_index_hint_id_;
 
   void MaybeAddFlow(StringPool* pool, TrackId track_id, const JsonEvent& event);
 };

@@ -32,6 +32,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidPolledStateConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidPowerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSdkSyspropGuardConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemPropertyConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidUserListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelocksConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumHistogramSamplesConfig);
@@ -95,6 +96,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   uint32_t,
                   target_buffer,
                   2);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  STRING,
+                  const char*,
+                  target_buffer_name,
+                  11);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   VARINT,
                   uint32_t,
@@ -320,6 +326,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_CpuPerUidConfig,
                   cpu_per_uid_config,
                   137);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_AndroidUserListConfig,
+                  user_list_config,
+                  138);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
                   const char*,

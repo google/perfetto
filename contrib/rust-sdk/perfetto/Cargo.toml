@@ -1,0 +1,34 @@
+[package]
+edition = "2024"
+name = "perfetto-sdk"
+version = "0.1.3"
+authors = ["David Reveman <dreveman@gmail.com>"]
+description = "Bindings for the Perfetto tracing framework"
+readme = "README.md"
+keywords = [
+    "tracing",
+    "perfetto",
+]
+categories = ["development-tools::profiling"]
+license = "Apache-2.0"
+homepage = "https://www.perfetto.dev"
+repository = "https://github.com/google/perfetto"
+
+[features]
+default = ["vendored"]
+intrinsics = []
+vendored = ["perfetto-sdk-sys/vendored"]
+
+[dependencies]
+perfetto-sdk-sys = { path = "../perfetto-sys", version = "0.1", default-features = false }
+bitflags = "2"
+paste = "1"
+thiserror = "1"
+
+[[example]]
+name = "track_event"
+path = "examples/track_event.rs"
+
+[[example]]
+name = "data_source"
+path = "examples/data_source.rs"

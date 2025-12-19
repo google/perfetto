@@ -165,6 +165,20 @@ bool ValidateKprobeName(const std::string& name) {
                      [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
+// See: "Exclusive single-tenant features" in ftrace_config.proto for more
+// details.
+bool HasExclusiveFeatures(const FtraceConfig& request) {
+  return !request.tids_to_trace().empty() ||
+         !request.tracefs_options().empty() ||
+         !request.tracing_cpumask().empty();
+}
+
+bool IsValidTracefsOptionName(const std::string& name) {
+  return !name.empty() && std::all_of(name.begin(), name.end(), [](char c) {
+    return std::isalnum(c) || c == '-' || c == '_';
+  });
+}
+
 }  // namespace
 
 std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
@@ -176,7 +190,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
     std::string name;
     std::tie(group, name) = EventToStringGroupAndName(config_value);
     if (name == "*") {
-      for (const auto& event : ReadEventsInGroupFromFs(*ftrace_, group))
+      for (const auto& event : ReadEventsInGroupFromFs(*tracefs_, group))
         events.insert(event);
     } else if (group.empty()) {
       // If there is no group specified, find an event with that name and
@@ -235,7 +249,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
   }
 
   // If throttle_rss_stat: true, use the rss_stat_throttled event if supported
-  if (request.throttle_rss_stat() && ftrace_->SupportsRssStatThrottled()) {
+  if (request.throttle_rss_stat() && tracefs_->SupportsRssStatThrottled()) {
     auto it = std::find_if(
         events.begin(), events.end(), [](const GroupAndName& event) {
           return event.group() == "kmem" && event.name() == "rss_stat";
@@ -326,7 +340,7 @@ bool FtraceConfigMuxer::SetSyscallEventFilter(
   }
 
   if (current_state_.syscall_filter != filter_set) {
-    if (!ftrace_->SetSyscallFilter(filter_set)) {
+    if (!tracefs_->SetSyscallFilter(filter_set)) {
       return false;
     }
 
@@ -349,7 +363,7 @@ void FtraceConfigMuxer::EnableFtraceEvent(const Event* event,
     filter->AddEnabledEvent(event->ftrace_event_id);
     return;
   }
-  if (ftrace_->EnableEvent(event->group, event->name)) {
+  if (tracefs_->EnableEvent(event->group, event->name)) {
     current_state_.ftrace_events.AddEnabledEvent(event->ftrace_event_id);
     filter->AddEnabledEvent(event->ftrace_event_id);
   } else {
@@ -360,14 +374,14 @@ void FtraceConfigMuxer::EnableFtraceEvent(const Event* event,
 }
 
 FtraceConfigMuxer::FtraceConfigMuxer(
-    Tracefs* ftrace,
+    Tracefs* tracefs,
     AtraceWrapper* atrace_wrapper,
     ProtoTranslationTable* table,
     SyscallTable syscalls,
     std::map<std::string, base::FlatSet<GroupAndName>> predefined_events,
     std::map<std::string, std::vector<GroupAndName>> vendor_events,
     bool secondary_instance)
-    : ftrace_(ftrace),
+    : tracefs_(tracefs),
       atrace_wrapper_(atrace_wrapper),
       table_(table),
       syscalls_(syscalls),
@@ -381,30 +395,31 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
                                     const FtraceConfig& request,
                                     FtraceSetupErrors* errors) {
   EventFilter filter;
+  bool config_has_exclusive_features = HasExclusiveFeatures(request);
   if (ds_configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
 
     // If someone outside of perfetto is using a non-nop tracer, yield. We can't
     // realistically figure out all notions of "in use" even if we look at
     // set_event or events/enable, so this is all we check for.
-    if (!request.preserve_ftrace_buffer() && !ftrace_->IsTracingAvailable()) {
+    if (!request.preserve_ftrace_buffer() && !tracefs_->IsTracingAvailable()) {
       PERFETTO_ELOG(
           "ftrace in use by non-Perfetto. Check that %s current_tracer is nop.",
-          ftrace_->GetRootPath().c_str());
+          tracefs_->GetRootPath().c_str());
       return false;
     }
 
     // Clear tracefs state, remembering which value of "tracing_on" to restore
     // to after we're done, though we won't restore the rest of the tracefs
     // state.
-    current_state_.saved_tracing_on = ftrace_->GetTracingOn();
+    current_state_.saved_tracing_on = tracefs_->GetTracingOn();
     if (!request.preserve_ftrace_buffer()) {
-      ftrace_->SetTracingOn(false);
+      tracefs_->SetTracingOn(false);
       // Android: this will fail on release ("user") builds due to ACLs, but
       // that's acceptable since the per-event enabling/disabling should still
       // be balanced.
-      ftrace_->DisableAllEvents();
-      ftrace_->ClearTrace();
+      tracefs_->DisableAllEvents();
+      tracefs_->ClearTrace();
     }
 
     // Set up the new tracefs state, without starting recording.
@@ -416,7 +431,88 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       // clock or buffer sizes because that clears the kernel buffers.
       RememberActiveClock();
     }
+  } else {
+    std::string exclusive_feature_error;
+    if (config_has_exclusive_features) {
+      exclusive_feature_error =
+          "Attempted to start an ftrace session with advanced features while "
+          "another session was active.";
+    } else if (current_state_.exclusive_feature_active) {
+      exclusive_feature_error =
+          "Attempted to start an ftrace session while another session with "
+          "advanced features was active.";
+    }
+
+    if (!exclusive_feature_error.empty()) {
+      PERFETTO_ELOG("%s", exclusive_feature_error.c_str());
+      if (errors)
+        errors->exclusive_feature_error = exclusive_feature_error;
+      return false;
+    }
   }
+
+  if (!request.tids_to_trace().empty()) {
+    std::vector<std::string> tid_strings;
+    for (const auto& tid : request.tids_to_trace()) {
+      tid_strings.push_back(std::to_string(tid));
+    }
+
+    if (!tracefs_->SetEventTidFilter(tid_strings)) {
+      PERFETTO_ELOG("Failed to set event tid filter");
+      return false;
+    }
+  }
+
+  if (!request.tracefs_options().empty()) {
+    base::FlatHashMap<std::string, bool> current_tracefs_options;
+    for (const auto& tracefs_option : request.tracefs_options()) {
+      // Skip unset options.
+      if (tracefs_option.state() ==
+          FtraceConfig::TracefsOption::STATE_UNKNOWN) {
+        continue;
+      }
+      const auto& name = tracefs_option.name();
+      if (!IsValidTracefsOptionName(name)) {
+        PERFETTO_ELOG(
+            "Invalid tracefs option name: %s. The string can only contain "
+            "alphanumeric characters, hyphens and underscores.",
+            name.c_str());
+        return false;
+      }
+      // Get the current option state and save it for later.
+      auto option_state = tracefs_->GetTracefsOption(name);
+      if (!option_state.has_value()) {
+        PERFETTO_ELOG("Tracefs option not found: %s", name.c_str());
+        return false;
+      }
+      current_tracefs_options[name] = option_state.value();
+
+      bool new_state =
+          tracefs_option.state() == FtraceConfig::TracefsOption::STATE_ENABLED;
+      if (!tracefs_->SetTracefsOption(name, new_state)) {
+        PERFETTO_ELOG("Failed to set tracefs option: %s", name.c_str());
+        return false;
+      }
+    }
+    current_state_.saved_tracefs_options = std::move(current_tracefs_options);
+  }
+
+  if (!request.tracing_cpumask().empty()) {
+    auto current_tracing_cpumask = tracefs_->GetTracingCpuMask();
+    if (!current_tracing_cpumask.has_value()) {
+      PERFETTO_ELOG("Failed to get tracing cpumask");
+      return false;
+    }
+    if (!tracefs_->SetTracingCpuMask(request.tracing_cpumask())) {
+      PERFETTO_ELOG("Failed to set tracing cpumask: %s",
+                    request.tracing_cpumask().c_str());
+      return false;
+    }
+    current_state_.saved_tracing_cpumask =
+        std::move(current_tracing_cpumask.value());
+  }
+
+  current_state_.exclusive_feature_active = config_has_exclusive_features;
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
 
@@ -449,7 +545,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       continue;
     }
     // Create kprobe in the kernel by writing to the tracefs.
-    if (!ftrace_->CreateKprobeEvent(
+    if (!tracefs_->CreateKprobeEvent(
             group_and_name.group(), group_and_name.name(),
             group_and_name.group() == kKretprobeGroup)) {
       PERFETTO_ELOG("Failed creation of kprobes event %s",
@@ -465,7 +561,8 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     }
     if (!event || event->proto_field_id !=
                       protos::pbzero::FtraceEvent::kKprobeEventFieldNumber) {
-      ftrace_->RemoveKprobeEvent(group_and_name.group(), group_and_name.name());
+      tracefs_->RemoveKprobeEvent(group_and_name.group(),
+                                  group_and_name.name());
 
       PERFETTO_ELOG("Can't enable kprobe %s",
                     group_and_name.ToString().c_str());
@@ -531,32 +628,33 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   // steering in the parser), and we don't want to remove functions midway
   // through a trace (but some might get added).
   if (request.enable_function_graph()) {
-    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionFilters()) {
+    if (!current_state_.funcgraph_on && !tracefs_->ClearFunctionFilters()) {
       PERFETTO_PLOG("Failed to clear .../set_ftrace_filter");
       return false;
     }
-    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionGraphFilters()) {
+    if (!current_state_.funcgraph_on &&
+        !tracefs_->ClearFunctionGraphFilters()) {
       PERFETTO_PLOG("Failed to clear .../set_graph_function");
       return false;
     }
-    if (!current_state_.funcgraph_on && !ftrace_->ClearMaxGraphDepth()) {
+    if (!current_state_.funcgraph_on && !tracefs_->ClearMaxGraphDepth()) {
       PERFETTO_PLOG("Failed to clear .../max_graph_depth");
       return false;
     }
-    if (!ftrace_->AppendFunctionFilters(request.function_filters())) {
+    if (!tracefs_->AppendFunctionFilters(request.function_filters())) {
       PERFETTO_PLOG("Failed to append to .../set_ftrace_filter");
       return false;
     }
-    if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots())) {
+    if (!tracefs_->AppendFunctionGraphFilters(request.function_graph_roots())) {
       PERFETTO_PLOG("Failed to append to .../set_graph_function");
       return false;
     }
-    if (!ftrace_->SetMaxGraphDepth(request.function_graph_max_depth())) {
+    if (!tracefs_->SetMaxGraphDepth(request.function_graph_max_depth())) {
       PERFETTO_PLOG("Failed to write to .../max_graph_depth");
       return false;
     }
     if (!current_state_.funcgraph_on &&
-        !ftrace_->SetCurrentTracer("function_graph")) {
+        !tracefs_->SetCurrentTracer("function_graph")) {
       PERFETTO_LOG(
           "Unable to enable function_graph tracing since a concurrent ftrace "
           "data source is using a different tracer");
@@ -586,6 +684,12 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     }
   }
 
+  // perfetto v53: self-describing protos are now enabled by default.
+  bool denser_generic_event_encoding =
+      request.has_denser_generic_event_encoding()
+          ? request.denser_generic_event_encoding()
+          : true;
+
   std::vector<std::string> apps(request.atrace_apps());
   std::vector<std::string> categories(request.atrace_categories());
   std::vector<std::string> categories_sdk_optout = Subtract(
@@ -598,7 +702,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
           std::move(categories), std::move(categories_sdk_optout),
           request.symbolize_ksyms(), request.drain_buffer_percent(),
           GetSyscallsReturningFds(syscalls_), std::move(kprobes),
-          request.debug_ftrace_abi(), request.denser_generic_event_encoding()));
+          request.debug_ftrace_abi(), denser_generic_event_encoding));
   return true;
 }
 
@@ -621,7 +725,7 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
 
   // Enable kernel event writer.
   if (first_config) {
-    if (!ftrace_->SetTracingOn(true)) {
+    if (!tracefs_->SetTracingOn(true)) {
       PERFETTO_ELOG("Failed to enable ftrace.");
       active_configs_.erase(id);
       return false;
@@ -682,7 +786,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     const Event* event = table_->GetEventById(id);
     // Any event that was enabled must exist.
     PERFETTO_DCHECK(event);
-    if (ftrace_->DisableEvent(event->group, event->name))
+    if (tracefs_->DisableEvent(event->group, event->name))
       current_state_.ftrace_events.DisableEvent(event->ftrace_event_id);
   }
 
@@ -693,7 +797,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       // This was the last active config for now, but potentially more dormant
       // configs need to be activated. We are not interested in reading while no
       // active configs so disable tracing_on here.
-      ftrace_->SetTracingOn(false);
+      tracefs_->SetTracingOn(false);
     }
   }
 
@@ -704,19 +808,35 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   // configs around. Tear down the rest of the ftrace config only if all
   // configs are removed.
   if (ds_configs_.empty()) {
-    if (ftrace_->SetCpuBufferSizeInPages(1))
+    if (tracefs_->SetCpuBufferSizeInPages(1))
       current_state_.cpu_buffer_size_pages = 1;
-    ftrace_->SetBufferPercent(50);
-    ftrace_->DisableAllEvents();
-    ftrace_->ClearTrace();
-    ftrace_->SetTracingOn(current_state_.saved_tracing_on);
+    tracefs_->SetBufferPercent(50);
+    tracefs_->DisableAllEvents();
+    tracefs_->ClearTrace();
+    tracefs_->SetTracingOn(current_state_.saved_tracing_on);
 
     // Kprobe cleanup cannot happen while we're still tracing as uninstalling
     // kprobes clears all tracing buffers in the kernel.
     for (const GroupAndName& probe : current_state_.installed_kprobes) {
-      ftrace_->RemoveKprobeEvent(probe.group(), probe.name());
+      tracefs_->RemoveKprobeEvent(probe.group(), probe.name());
       table_->RemoveEvent(probe);
     }
+
+    if (current_state_.exclusive_feature_active) {
+      tracefs_->ClearEventTidFilter();
+      if (current_state_.saved_tracing_cpumask.has_value()) {
+        tracefs_->SetTracingCpuMask(
+            current_state_.saved_tracing_cpumask.value());
+        current_state_.saved_tracing_cpumask.reset();
+      }
+      for (auto it = current_state_.saved_tracefs_options.GetIterator(); it;
+           ++it) {
+        tracefs_->SetTracefsOption(it.key(), it.value());
+      }
+      current_state_.saved_tracefs_options.Clear();
+      current_state_.exclusive_feature_active = false;
+    }
+
     current_state_.installed_kprobes.clear();
   }
 
@@ -751,16 +871,16 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
 bool FtraceConfigMuxer::ResetCurrentTracer() {
   if (!current_state_.funcgraph_on)
     return true;
-  if (!ftrace_->ResetCurrentTracer()) {
+  if (!tracefs_->ResetCurrentTracer()) {
     PERFETTO_PLOG("Failed to reset current_tracer to nop");
     return false;
   }
   current_state_.funcgraph_on = false;
-  if (!ftrace_->ClearFunctionFilters()) {
+  if (!tracefs_->ClearFunctionFilters()) {
     PERFETTO_PLOG("Failed to reset set_ftrace_filter.");
     return false;
   }
-  if (!ftrace_->ClearFunctionGraphFilters()) {
+  if (!tracefs_->ClearFunctionGraphFilters()) {
     PERFETTO_PLOG("Failed to reset set_function_graph.");
     return false;
   }
@@ -775,19 +895,19 @@ const FtraceDataSourceConfig* FtraceConfigMuxer::GetDataSourceConfig(
 }
 
 void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
-  std::set<std::string> clocks = ftrace_->AvailableClocks();
+  std::set<std::string> clocks = tracefs_->AvailableClocks();
 
   if (config.use_monotonic_raw_clock() && clocks.count(kClockMonoRaw)) {
-    ftrace_->SetClock(kClockMonoRaw);
+    tracefs_->SetClock(kClockMonoRaw);
   } else {
-    std::string current_clock = ftrace_->GetClock();
+    std::string current_clock = tracefs_->GetClock();
     for (size_t i = 0; i < base::ArraySize(kClocks); i++) {
       std::string clock = std::string(kClocks[i]);
       if (!clocks.count(clock))
         continue;
       if (current_clock == clock)
         break;
-      ftrace_->SetClock(clock);
+      tracefs_->SetClock(clock);
       break;
     }
   }
@@ -796,7 +916,7 @@ void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
 }
 
 void FtraceConfigMuxer::RememberActiveClock() {
-  std::string current_clock = ftrace_->GetClock();
+  std::string current_clock = tracefs_->GetClock();
   namespace pb0 = protos::pbzero;
   if (current_clock == "boot") {
     // "boot" is the default expectation on modern kernels, which is why we
@@ -819,7 +939,7 @@ void FtraceConfigMuxer::SetupBufferSize(const FtraceConfig& request) {
   size_t pages = ComputeCpuBufferSizeInPages(request.buffer_size_kb(),
                                              request.buffer_size_lower_bound(),
                                              phys_ram_pages);
-  ftrace_->SetCpuBufferSizeInPages(pages);
+  tracefs_->SetCpuBufferSizeInPages(pages);
   current_state_.cpu_buffer_size_pages = pages;
 }
 
@@ -868,7 +988,7 @@ bool FtraceConfigMuxer::UpdateBufferPercent() {
   if (min_percent == kUnsetPercent)
     return true;
   // Let the kernel ignore values >100.
-  return ftrace_->SetBufferPercent(min_percent);
+  return tracefs_->SetBufferPercent(min_percent);
 }
 
 void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request,

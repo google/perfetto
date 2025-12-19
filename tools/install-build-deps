@@ -183,11 +183,20 @@ BUILD_DEPS_HOST = [
         'https://android.googlesource.com/platform/external/googletest.git',
         '609281088cfefc76f9d0ce82e1ff6c30cc3591e5', 'all', 'all'),
 
-    # Keep in sync with Chromium's //third_party/protobuf.
+    # Keep in sync with gRPC's third_party/protobuf.
     Dependency(
         'buildtools/protobuf',
         'https://chromium.googlesource.com/external/github.com/protocolbuffers/protobuf.git',
-        'f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c',  # refs/tags/v21.12
+        '74211c0dfc2777318ab53c2cd2c317a2ef9012de',  # refs/tags/v31.1
+        'all',
+        'all'),
+
+    # Required by protobuf v22+ and gRPC. It's not allowed in our repo beyond
+    # the usage by those deps.
+    Dependency(
+        'buildtools/abseil-cpp',
+        'https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git',
+        '76bb24329e8bf5f39704eb10d21b9a80befa7c81',  # 20250512.1
         'all',
         'all'),
 
@@ -332,23 +341,23 @@ BUILD_DEPS_HOST = [
 BUILD_DEPS_BAZEL = [
     Dependency(
         'buildtools/mac/bazel',
-        'https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-darwin-x86_64',
-        '52dd34c17cc97b3aa5bdfe3d45c4e3938226f23dd0bfb47beedd625a953f1f05',
+        'https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-darwin-x86_64',
+        '84e1b822b6d076151a9a5b7a962e8230f565a17207196056bfe35303077b8147',
         'darwin', 'x64'),
     Dependency(
         'buildtools/mac/bazel',
-        'https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-darwin-arm64',
-        '02b117b97d0921ae4d4f4e11d27e2c0930381df416e373435d5d0419c6a26f24',
+        'https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-darwin-arm64',
+        'a89f446641ab1cce603691cb7030865d1fb014e260ee5710615516e3cacd2414',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/linux64/bazel',
-        'https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-linux-x86_64',
-        'c97f02133adce63f0c28678ac1f21d65fa8255c80429b588aeeba8a1fac6202b',
+        'https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-linux-x86_64',
+        '18255229d933b8da10151bdef223a302744296b09af8af1988c93faa1ea3c71f',
         'linux', 'x64'),
     Dependency(
         'buildtools/linux64/bazel',
-        'https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-linux-arm64',
-        'd7aedc8565ed47b6231badb80b09f034e389c5f2b1c2ac2c55406f7c661d8b88',
+        'https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-linux-arm64',
+        '0c455abf42814ac53539ddd8147249a11b9e05c7dc83dbd6c8dfac1aec243d85',
         'linux', 'arm64'),
 ]
 
@@ -390,13 +399,6 @@ BUILD_DEPS_ANDROID = [
 
 # Dependencies required to run Android tests.
 TEST_DEPS_ANDROID = [
-    # Android emulator images.
-    Dependency(
-        'buildtools/aosp-arm.zip',
-        'https://storage.googleapis.com/perfetto/aosp-02022018-arm.zip',
-        'f5c7a3a22ad7aa0bd14ba467e8697e1e917d306699bd25622aa4419a413b9b67',
-        'all', 'all'),
-
     # platform-tools.zip contains adb binaries.
     Dependency(
         'buildtools/android_sdk/platform-tools.zip',
@@ -408,7 +410,16 @@ TEST_DEPS_ANDROID = [
         'https://dl.google.com/android/repository/platform-tools_r26.0.0-linux.zip',
         '90208207521d85abf0d46e3374aa4e04b7aff74e4f355c792ac334de7a77e50b',
         'linux', 'x64'),
+]
 
+# Emulators required to run Android tests.
+EMULATOR_DEPS_ANDROID = [
+    # Android emulator images.
+    Dependency(
+        'buildtools/aosp-arm.zip',
+        'https://storage.googleapis.com/perfetto/aosp-02022018-arm.zip',
+        'f5c7a3a22ad7aa0bd14ba467e8697e1e917d306699bd25622aa4419a413b9b67',
+        'all', 'all'),
     # Android emulator binaries.
     Dependency(
         'buildtools/emulator',
@@ -419,7 +430,7 @@ TEST_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA256 = 'b30108e05268ce6c65bb4126b65f6bfac165d17f5c1fd285046e7e6fd76c209f'
 
-TYPEFACES_SHA256 = '1065172aaf0e9c22bc4f206ed9fdf5f1b4355d233fb21f9f26a89cd66c941940'
+TYPEFACES_SHA256 = 'a26274ca7c3d97a37c29de0ffa5c41a8d6431fc8e07ecdd5856dde143999dcd3'
 
 UI_DEPS = [
     Dependency(
@@ -441,7 +452,12 @@ UI_DEPS = [
         'buildtools/mac/emsdk.tgz',
         'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac.tgz',
         '2682c43580ae2265b4c7f3c7963629f7f501eb24a8ffa01be0059f9f5b3b8cd0',
-        'darwin', 'all'),
+        'darwin', 'arm64'),
+    Dependency(
+        'buildtools/mac/emsdk.tgz',
+        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac-x64.tgz',
+        'e1b2e6d4797338ed884f9d8a8419f93fc42cfcdea5e8a8b29fe13c6fd3fe7f7a',
+        'darwin', 'x64'),
     Dependency(
         'buildtools/linux64/emsdk.tgz',
         'https://storage.googleapis.com/perfetto/emscripten-4.0.8-linux.tgz',
@@ -482,10 +498,19 @@ BIGTRACE_DEPS = [
     Dependency(
         'buildtools/grpc/src',
         'https://chromium.googlesource.com/external/github.com/grpc/grpc.git',
-        '4795c5e69b25e8c767b498bea784da0ef8c96fd5', 'all', 'all', True),
+        'f5ffb68d8a2fd603dff16287e90a4ac571e1fec6', 'all', 'all',
+        True),  # v1.76.0
     Dependency('buildtools/cpp-httplib',
                'https://github.com/yhirose/cpp-httplib.git',
                '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)
+]
+
+# Dependencies to build Rust SDK.
+BUILD_DEPS_RUST = [
+    Dependency(
+        'buildtools/rustup/rustup-init.sh', 'https://sh.rustup.rs',
+        '17247e4bcacf6027ec2e11c79a72c494c9af69ac8d1abcc1b271fa4375a106c2',
+        'all', 'all'),
 ]
 
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
@@ -505,7 +530,8 @@ BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
 
 ALL_DEPS = (
     BUILD_DEPS_HOST + BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID +
-    BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID + UI_DEPS)
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID +
+    EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
@@ -518,6 +544,11 @@ PYTHON_VENV_BIN_DIR = os.path.join(
 PYTHON_STATUS_FILE = os.path.join(PYTHON_VENV_DIR, '.last_install')
 PYTHON_REQUIREMENTS = os.path.join(ROOT_DIR, 'python', 'requirements.txt')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
+RUST_TOOLCHAIN = os.environ.get("RUST_TOOLCHAIN", "nightly-2025-01-03")
+RUSTUP_HOME = os.path.join(ROOT_DIR, 'buildtools/rustup')
+RUSTUP_INIT_FILE = os.path.join(RUSTUP_HOME, 'rustup-init.sh')
+CARGO_HOME = os.path.join(ROOT_DIR, '.cargo')
+RUSTUP_FILE = os.path.join(CARGO_HOME, 'bin/rustup')
 
 
 def CheckCallRetry(*args, **kwargs):
@@ -685,6 +716,55 @@ def CheckNodeModules():
   return expected == actual
 
 
+def InstallRustToolchain(force_clean=False):
+  if force_clean:
+    logging.info('Clearing %s', RUSTUP_HOME)
+    subprocess.check_call(
+        ['git', 'clean', '-qxffd', RUSTUP_HOME, '--exclude=rustup-init.sh'],
+        cwd=ROOT_DIR)
+    logging.info('Clearing %s', CARGO_HOME)
+    subprocess.check_call(['git', 'clean', '-qxffd', CARGO_HOME], cwd=ROOT_DIR)
+
+  cmd = [
+      'sh', RUSTUP_INIT_FILE, '-y', f'--default-toolchain={RUST_TOOLCHAIN}',
+      '--no-modify-path', '--profile=minimal', '--component=rustfmt,clippy'
+  ]
+  env = os.environ.copy()
+  env['RUSTUP_HOME'] = RUSTUP_HOME
+  env['CARGO_HOME'] = CARGO_HOME
+  logging.info(f'Installing rust toolchain using `{" ".join(cmd)}`')
+  subprocess.check_call(cmd, cwd=ROOT_DIR, env=env)
+
+
+def CheckRustToolchain():
+  """Returns True if the toolchain is up-to-date.
+
+  Checks if Rust toolchains are up to date using `rustup check`
+  and returns True if up to date, False otherwise.
+  """
+  if not os.path.exists(RUSTUP_FILE):
+    return False
+
+  # Run rustup check and capture its output and exit code.
+  env = os.environ.copy()
+  env['RUSTUP_HOME'] = RUSTUP_HOME
+  env['CARGO_HOME'] = CARGO_HOME
+  result = subprocess.run([RUSTUP_FILE, "check"],
+                          capture_output=True,
+                          text=True,
+                          check=False)
+  if result.returncode == 0:
+    if "update available" not in result.stdout.lower(
+    ) and "update available" not in result.stderr.lower():
+      return True
+  logging.info("rustup check stdout:")
+  logging.info(result.stdout)
+  logging.info("rustup check stderr:")
+  logging.info(result.stderr)
+  logging.info(f"rustup check exit code: {result.returncode}")
+  return False
+
+
 def CheckPythonVenv():
   """Returns True if the python venv is up-to-date."""
   if not os.path.exists(PYTHON_STATUS_FILE):
@@ -692,19 +772,31 @@ def CheckPythonVenv():
   with open(PYTHON_STATUS_FILE, 'r') as f:
     actual = f.read()
   expected = HashLocalFile(PYTHON_REQUIREMENTS)
-  return expected == actual
+  if expected != actual:
+    return False
+  # The venv can be invalidated if the version of python in the system is
+  # upgraded. Detect that by trying to find its own pip.
+  venv_python_exe = 'python3' if sys.platform != 'win32' else 'python'
+  venv_python = os.path.join(PYTHON_VENV_BIN_DIR, venv_python_exe)
+  cmd = [venv_python, '-c', 'import pip']
+  if subprocess.call(cmd, stderr=subprocess.DEVNULL) != 0:
+    logging.warning('The python venv is stale due an upgrade of the system ' +
+                    'python package and needs regeneration')
+    return False
+  return True
 
 
 def InstallPythonVenv():
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
   cur_python_interpreter = sys.executable
-  if not os.path.exists(venv_pip):
-    cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
-    logging.info(f'Installing python venv {" ".join(cmd)}')
-    subprocess.check_call(cmd)
+
+  shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
+  cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+  logging.info(f'Installing python venv {" ".join(cmd)}')
+  subprocess.check_call(cmd)
 
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
-  logging.info(f'Updating pythong packages {" ".join(cmd)}')
+  logging.info(f'Updating python packages {" ".join(cmd)}')
   subprocess.check_call(cmd)
   with open(PYTHON_STATUS_FILE, 'w') as f:
     f.write(HashLocalFile(PYTHON_REQUIREMENTS))
@@ -780,6 +872,8 @@ def Main():
       default=GetArch(),
       choices=['arm64', 'x64'],
       help='Override the autodetected build CPU architecture')
+  parser.add_argument(
+      '--rust', action='store_true', help='Rust toolchain to build Rust SDK')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
@@ -799,9 +893,11 @@ def Main():
   if args.bazel:
     # We build Android Java SDK using Bazel, so we need Android build and test
     # deps to do build ":all" targets and run tests.
+    # We don't run Bazel Android tests on the prebuilt emulator, so we don't
+    # need emulator deps.
     deps += BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.android:
-    deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
+    deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID + EMULATOR_DEPS_ANDROID
   if args.linux_arm:
     deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS
   if args.ui:
@@ -809,8 +905,11 @@ def Main():
   # TODO(b/360084012) Change the arg name to bigtrace
   if args.grpc:
     deps += BIGTRACE_DEPS
+  if args.rust:
+    deps += BUILD_DEPS_RUST
   deps_updated = False
   nodejs_updated = False
+  rustup_updated = False
 
   for old_dir in CLEANUP_OLD_DIRS:
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
@@ -856,6 +955,8 @@ def Main():
       shutil.move(download_path, local_path)
       if 'nodejs' in dep.target_folder:
         nodejs_updated = True
+      if 'rustup' in dep.target_folder:
+        rustup_updated = True
 
     assert (HashLocalFile(local_path) == dep.checksum)
 
@@ -913,6 +1014,12 @@ def Main():
       deps_updated |= venv_needs_update
     elif venv_needs_update:
       InstallPythonVenv()
+
+  if args.rust:
+    if args.check_only:
+      deps_updated |= not CheckRustToolchain()
+    else:
+      InstallRustToolchain(force_clean=rustup_updated)
 
   # Install the pre-push hook if the .git/hooks directory exists and it's a
   # non check-only invocation. Not on windows (symlinks are not supported

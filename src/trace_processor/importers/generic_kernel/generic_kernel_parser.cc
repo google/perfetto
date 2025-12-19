@@ -152,39 +152,41 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
       return utid;
     }
     case TaskStateEnum::TASK_STATE_DESTROYED: {
-      return context_->process_tracker->GetThreadOrNull(tid);
-    }
-    case TaskStateEnum::TASK_STATE_DEAD: {
       auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
       if (!utid_opt) {
         utid_opt = context_->process_tracker->GetOrCreateThread(tid);
         context_->process_tracker->UpdateThreadName(
             *utid_opt, comm_id, ThreadNamePriority::kGenericKernelTask);
-      } else if (ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
-                     *utid_opt) == destroyed_string_id_) {
-        context_->storage->IncrementStats(
-            stats::generic_task_state_invalid_order);
-        utid_opt = std::nullopt;
       }
       context_->process_tracker->EndThread(ts, tid);
       return utid_opt;
     }
-    case TaskStateEnum::TASK_STATE_RUNNING: {
-      auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
-      if (utid_opt &&
-          ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
-              *utid_opt) == running_string_id_) {
-        context_->storage->IncrementStats(
-            stats::generic_task_state_invalid_order);
-        return std::nullopt;
-      }
-      PERFETTO_FALLTHROUGH;
-    }
+    case TaskStateEnum::TASK_STATE_DEAD:
+    case TaskStateEnum::TASK_STATE_RUNNING:
     case TaskStateEnum::TASK_STATE_RUNNABLE:
     case TaskStateEnum::TASK_STATE_INTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_STOPPED: {
-      UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+      UniqueTid utid;
+      if (auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
+          utid_opt) {
+        StringId prev_state_id =
+            ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
+                *utid_opt);
+        // The only accepted state after DEAD is DESTROYED
+        bool is_invalid_order = prev_state_id == dead_string_id_;
+        // Consecutive RUNNING states are invalid
+        is_invalid_order |= state == TaskStateEnum::TASK_STATE_RUNNING &&
+                            prev_state_id == running_string_id_;
+        if (is_invalid_order) {
+          context_->storage->IncrementStats(
+              stats::generic_task_state_invalid_order);
+          return std::nullopt;
+        }
+        utid = *utid_opt;
+      } else {
+        utid = context_->process_tracker->GetOrCreateThread(tid);
+      }
       context_->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;
@@ -272,8 +274,57 @@ void GenericKernelParser::ParseGenericTaskRenameEvent(
     protozero::ConstBytes data) {
   protos::pbzero::GenericKernelTaskRenameEvent::Decoder task_rename_event(data);
   StringId comm = context_->storage->InternString(task_rename_event.comm());
+  auto utid =
+      context_->process_tracker->GetOrCreateThread(task_rename_event.tid());
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-      task_rename_event.tid(), comm, ThreadNamePriority::kGenericKernelTask);
+      utid, comm, ThreadNamePriority::kGenericKernelTask);
+}
+
+void GenericKernelParser::ParseGenericProcessTree(protozero::ConstBytes data) {
+  protos::pbzero::GenericKernelProcessTree::Decoder process_tree(data);
+  ProcessTracker* process_tracker = context_->process_tracker.get();
+
+  for (auto it = process_tree.processes(); it; ++it) {
+    protos::pbzero::GenericKernelProcessTree::Process::Decoder proc(*it);
+    if (!proc.has_cmdline())
+      continue;
+    const int64_t pid = proc.pid();
+    const int64_t ppid = proc.ppid();
+    base::StringView cmdline = proc.cmdline();
+    base::StringView name = cmdline;
+
+    // Use argv0 as name if cmdline has spaces in it.
+    size_t delim_pos = name.find(' ');
+    if (delim_pos != base::StringView::npos) {
+      name = name.substr(0, delim_pos);
+    }
+
+    auto pupid = process_tracker->GetOrCreateProcessWithoutMainThread(ppid);
+    auto upid = process_tracker->GetOrCreateProcessWithoutMainThread(pid);
+
+    upid = process_tracker->UpdateProcessWithParent(
+        upid, pupid, /*associate_main_thread*/ false);
+    process_tracker->SetProcessMetadata(upid, name, cmdline);
+  }
+
+  for (auto it = process_tree.threads(); it; ++it) {
+    protos::pbzero::GenericKernelProcessTree::Thread::Decoder thread(*it);
+    const int64_t pid = thread.pid();
+    const int64_t tid = thread.tid();
+    const bool is_main_thread = thread.is_main_thread();
+
+    auto upid = process_tracker->GetOrCreateProcessWithoutMainThread(pid);
+
+    auto utid = process_tracker->GetOrCreateThreadWithParent(tid, upid, false);
+
+    process_tracker->SetMainThread(utid, is_main_thread);
+
+    if (thread.has_comm()) {
+      StringId comm_id = context_->storage->InternString(thread.comm());
+      process_tracker->UpdateThreadName(utid, comm_id,
+                                        ThreadNamePriority::kProcessTree);
+    }
+  }
 }
 
 void GenericKernelParser::ParseGenericCpuFrequencyEvent(

@@ -12,103 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {parseJsonWithBigints} from '../../base/json_utils';
 import {Engine} from '../../trace_processor/engine';
-import {
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
-import {ArgSetId, ArgsId, asArgId} from './core_types';
+import {STR_NULL} from '../../trace_processor/query_result';
+import {ArgSetId} from './core_types';
 
-export type ArgValue = bigint | string | number | boolean | null;
-export type ArgValueType =
-  | 'int'
-  | 'uint'
-  | 'pointer'
-  | 'string'
-  | 'bool'
-  | 'real'
-  | 'null';
+export type ArgValue = string | number | boolean | bigint | null;
+export type Args = ArgValue | Args[] | ArgsDict;
+export type ArgsDict = {[key: string]: Args};
 
-export interface Arg {
-  id: ArgsId;
-  flatKey: string;
-  key: string;
-  value: ArgValue;
-  displayValue: string;
+export function parseArgs(args: string): ArgsDict {
+  return parseJsonWithBigints(args) as ArgsDict;
 }
 
 export async function getArgs(
   engine: Engine,
   argSetId: ArgSetId,
-): Promise<Arg[]> {
+): Promise<ArgsDict> {
   const query = await engine.query(`
-    SELECT
-      id,
-      flat_key as flatKey,
-      key,
-      int_value as intValue,
-      string_value as stringValue,
-      real_value as realValue,
-      value_type as valueType,
-      display_value as displayValue
-    FROM args
-    WHERE arg_set_id = ${argSetId}
-    ORDER BY id`);
+    SELECT __intrinsic_arg_set_to_json(${argSetId}) as args_json
+  `);
   const it = query.iter({
-    id: NUM,
-    flatKey: STR,
-    key: STR,
-    intValue: LONG_NULL,
-    stringValue: STR_NULL,
-    realValue: NUM_NULL,
-    valueType: STR,
-    displayValue: STR_NULL,
+    args_json: STR_NULL,
   });
 
-  const result: Arg[] = [];
-  for (; it.valid(); it.next()) {
-    const value = parseValue(it.valueType as ArgValueType, it);
-    result.push({
-      id: asArgId(it.id),
-      flatKey: it.flatKey,
-      key: it.key,
-      value,
-      displayValue: it.displayValue ?? 'NULL',
-    });
+  if (!it.valid() || it.args_json === null) {
+    return {};
   }
 
-  return result;
-}
-
-function parseValue(
-  valueType: ArgValueType,
-  value: {
-    intValue: bigint | null;
-    stringValue: string | null;
-    realValue: number | null;
-  },
-): ArgValue {
-  switch (valueType) {
-    case 'int':
-    case 'uint':
-      return value.intValue;
-    case 'pointer':
-      return value.intValue === null
-        ? null
-        : `0x${value.intValue.toString(16)}`;
-    case 'string':
-      return value.stringValue;
-    case 'bool':
-      return value.intValue === null ? null : value.intValue !== 0n;
-    case 'real':
-      return value.realValue;
-    case 'null':
-      return null;
-    default:
-      const x: number = valueType;
-      throw new Error(`Unable to process arg of type ${x}`);
-  }
+  const argsDict = parseJsonWithBigints(it.args_json);
+  return argsDict;
 }

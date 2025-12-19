@@ -388,6 +388,40 @@ class ProfilingHeapGraph(TestSuite):
         """,
         out=Path('heap_graph_flamegraph_system-server-heap-graph.out'))
 
+  def test_heap_graph_root_sorting(self):
+    # We expect RootA to be the parent because it comes first alphabetically
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_root_sorting.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+        SELECT
+          p.name AS parent_of_child
+        FROM _heap_graph_class_tree c
+        JOIN _heap_graph_class_tree p ON c.parent_id = p.id
+        WHERE c.name = 'Child';
+        """,
+        out=Csv('''
+          "parent_of_child"
+          "RootA"
+        '''))
+
+  def test_heap_graph_root_sorting_reverse(self):
+    # We expect RootA to be the parent because it comes first alphabetically
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_root_sorting_reverse.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+        SELECT
+          p.name AS parent_of_child
+        FROM _heap_graph_class_tree c
+        JOIN _heap_graph_class_tree p ON c.parent_id = p.id
+        WHERE c.name = 'Child';
+        """,
+        out=Csv('''
+          "parent_of_child"
+          "RootA"
+        '''))
+
   def test_heap_profile_flamegraph_system_server_native_profile(self):
     return DiffTestBlueprint(
         trace=DataPath('system-server-native-profile'),

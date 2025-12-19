@@ -16,9 +16,11 @@ import m from 'mithril';
 import {SchedSqlId} from '../sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {AppImpl} from '../../core/app_impl';
+import {Trace} from '../../public/trace';
 
 interface SchedRefAttrs {
+  readonly trace: Trace;
+
   // The id of the referenced sched slice in the sched_slice table.
   readonly id: SchedSqlId;
 
@@ -31,9 +33,8 @@ interface SchedRefAttrs {
   readonly switchToCurrentSelectionTab?: boolean;
 }
 
-export function goToSchedSlice(id: SchedSqlId) {
-  // TODO(primiano): the Trace object should be properly injected here.
-  AppImpl.instance.trace?.selection.selectSqlEvent('sched_slice', id, {
+export function goToSchedSlice(trace: Trace, id: SchedSqlId) {
+  trace.selection.selectSqlEvent('sched_slice', id, {
     scrollToSelection: true,
   });
 }
@@ -45,8 +46,7 @@ export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          // TODO(primiano): the Trace object should be properly injected here.
-          AppImpl.instance.trace?.selection.selectSqlEvent(
+          vnode.attrs.trace.selection.selectSqlEvent(
             'sched_slice',
             vnode.attrs.id,
             {

@@ -22,6 +22,8 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- Converts the heap graph into a tree by performing a BFS on the graph from
 -- the roots. This basically ends up with all paths being the shortest path
 -- from the root to the node (with lower ids being picked in the case of ties).
+-- Root nodes are sorted by class name before traversal to make the output
+-- more deterministic.
 CREATE PERFETTO TABLE _heap_graph_object_min_depth_tree AS
 SELECT
   node_id AS id,
@@ -34,9 +36,11 @@ FROM graph_reachable_bfs!(
     ORDER BY ref.owned_id
   ),
   (
-    SELECT id AS node_id
-    FROM heap_graph_object
-    WHERE root_type IS NOT NULL
+    SELECT o.id AS node_id
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    WHERE o.root_type IS NOT NULL
+    ORDER BY c.name, o.id
   )
 )
 ORDER BY
@@ -73,7 +77,7 @@ RETURNS TableOrSubquery AS
     )
   SELECT
     path_hash,
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     count(r.owned_id) AS outgoing_reference_count,
     o.*
   FROM _path_hashes AS h
@@ -105,8 +109,8 @@ RETURNS TableOrSubquery AS
     )
   SELECT
     path_hash,
-    c.name AS class_name,
-    r.field_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
+    coalesce(r.deobfuscated_field_name, r.field_name) AS field_name,
     r.field_type_name,
     src.*
   FROM _path_hashes AS h
@@ -138,8 +142,8 @@ RETURNS TableOrSubquery AS
     )
   SELECT
     path_hash,
-    c.name AS class_name,
-    r.field_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
+    coalesce(r.deobfuscated_field_name, r.field_name) AS field_name,
     r.field_type_name,
     dst.*
   FROM _path_hashes AS h
@@ -162,7 +166,7 @@ CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
 RETURNS TableOrSubquery AS
 (
   SELECT
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     o.heap_type,
     o.root_type,
     o.reachable,
@@ -206,7 +210,7 @@ CREATE PERFETTO MACRO _heap_graph_retaining_object_count_agg(
 RETURNS TableOrSubquery AS
 (
   SELECT
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     o.heap_type,
     o.root_type,
     o.reachable,
@@ -253,7 +257,7 @@ RETURNS TableOrSubquery AS
     count() AS object_count,
     sum(o.self_size) AS total_size,
     sum(o.native_size) AS total_native_size,
-    c.name AS class_name
+    coalesce(c.deobfuscated_name, c.name) AS class_name
   FROM $path_hashes AS h
   JOIN heap_graph_object AS o
     ON h.id = o.id

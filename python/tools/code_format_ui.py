@@ -75,7 +75,8 @@ class Eslint(CodeFormatterBase):
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
     out_ui_dir = os.path.join(repo_root, 'out', 'ui')
     if not os.path.exists(out_ui_dir):
-      # Unfortunately eslint requires a UI build to run.
+      # Eslint requires all source dependencies to exist (e.g.: the .pbjs files),
+      # so a UI build needs to be run first.
       print(f'Cannot run eslint because there is no UI build in {out_ui_dir}')
       return 127
     tool = 'node_modules/.bin/eslint'

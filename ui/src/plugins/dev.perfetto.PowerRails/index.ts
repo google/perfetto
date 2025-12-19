@@ -47,7 +47,7 @@ export default class implements PerfettoPlugin {
         COALESCE(friendly_name, raw_power_rail_name) as name,
         machine_id as machine
       FROM android_power_rails_metadata
-      ORDER BY name
+      ORDER BY machine_id, name
     `);
 
     if (result.numRows() === 0) {
@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
     });
     ctx.plugins
       .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.workspace, 'POWER')
+      .getOrCreateStandardGroup(ctx.defaultWorkspace, 'POWER')
       .addChildInOrder(powerRailsGroup);
 
     for (; it.valid(); it.next()) {
@@ -100,7 +100,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         tags: {
-          kind: COUNTER_TRACK_KIND,
+          kinds: [COUNTER_TRACK_KIND],
           trackIds: [trackId],
           type: 'power_rails',
         },

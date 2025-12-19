@@ -15,7 +15,12 @@
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {getThreadOrProcUri} from '../../public/utils';
-import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../trace_processor/query_result';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 import {uuidv4Sql} from '../../base/uuid';
@@ -26,7 +31,7 @@ import {
 } from './process_scheduling_track';
 import {
   Config as ProcessSummaryTrackConfig,
-  PROCESS_SUMMARY_TRACK,
+  PROCESS_SUMMARY_TRACK_KIND,
   ProcessSummaryTrack,
 } from './process_summary_track';
 
@@ -38,15 +43,6 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
-    await this.addKernelThreadSummary(ctx);
-  }
-
-  private getCpuCountByMachine(ctx: Trace): number[] {
-    const cpuCountByMachine: number[] = [];
-    for (const c of ctx.traceInfo.cpus) {
-      cpuCountByMachine[c.machine] = (cpuCountByMachine[c.machine] ?? 0) + 1;
-    }
-    return cpuCountByMachine;
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
@@ -68,9 +64,16 @@ export default class implements PerfettoPlugin {
     });
 
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
-    const cpuCountByMachine = this.getCpuCountByMachine(ctx);
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;
+
+      WITH machine_cpu_counts AS (
+        SELECT
+          IFNULL(machine_id, 0) AS machine,
+          COUNT(*) AS cpu_count
+        FROM cpu
+        GROUP BY machine
+      )
 
       select *
       from (
@@ -98,10 +101,13 @@ export default class implements PerfettoPlugin {
               arg_set_id = process.arg_set_id and
               flat_key = 'chrome.process_label'
           ), '') as chromeProcessLabels,
-          ifnull(machine_id, 0) as machine
+          ifnull(machine_id, 0) as machine,
+          IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
         from _process_available_info_summary
         join process using(upid)
         left join android_process_metadata using(upid)
+        LEFT JOIN machine_cpu_counts
+          ON machine_cpu_counts.machine = IFNULL(machine_id, 0)
       )
       union all
       select *
@@ -117,22 +123,26 @@ export default class implements PerfettoPlugin {
           0 as isDebuggable,
           0 as isBootImageProfiling,
           '' as chromeProcessLabels,
-          ifnull(machine_id, 0) as machine
+          ifnull(machine_id, 0) as machine,
+          IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
         from _thread_available_info_summary
         join thread using (utid)
+        LEFT JOIN machine_cpu_counts
+          ON machine_cpu_counts.machine = IFNULL(machine_id, 0)
         where upid is null
       )
     `);
     const it = result.iter({
       upid: NUM_NULL,
       utid: NUM_NULL,
-      pid: NUM_NULL,
-      tid: NUM_NULL,
+      pid: LONG_NULL,
+      tid: LONG_NULL,
       hasSched: NUM_NULL,
       isDebuggable: NUM_NULL,
       isBootImageProfiling: NUM_NULL,
       chromeProcessLabels: STR,
       machine: NUM,
+      cpuCount: NUM,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -143,7 +153,7 @@ export default class implements PerfettoPlugin {
       const isDebuggable = Boolean(it.isDebuggable);
       const isBootImageProfiling = Boolean(it.isBootImageProfiling);
       const subtitle = it.chromeProcessLabels;
-      const machine = it.machine;
+      const cpuCount = it.cpuCount;
 
       // Group by upid if present else by utid.
       const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
@@ -167,11 +177,10 @@ export default class implements PerfettoPlugin {
           utid,
         };
 
-        const cpuCount = cpuCountByMachine[machine] ?? 0;
         ctx.tracks.registerTrack({
           uri,
           tags: {
-            kind: PROCESS_SCHEDULING_TRACK_KIND,
+            kinds: [PROCESS_SCHEDULING_TRACK_KIND],
           },
           chips,
           renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
@@ -187,7 +196,7 @@ export default class implements PerfettoPlugin {
         ctx.tracks.registerTrack({
           uri,
           tags: {
-            kind: PROCESS_SUMMARY_TRACK,
+            kinds: [PROCESS_SUMMARY_TRACK_KIND],
           },
           chips,
           renderer: new ProcessSummaryTrack(ctx.engine, config),
@@ -195,59 +204,5 @@ export default class implements PerfettoPlugin {
         });
       }
     }
-  }
-
-  private async addKernelThreadSummary(ctx: Trace): Promise<void> {
-    const {engine} = ctx;
-
-    // Identify kernel threads if this is a linux system trace, and sufficient
-    // process information is available. Kernel threads are identified by being
-    // children of kthreadd (always pid 2).
-    // The query will return the kthreadd process row first, which must exist
-    // for any other kthreads to be returned by the query.
-    // TODO(rsavitski): figure out how to handle the idle process (swapper),
-    // which has pid 0 but appears as a distinct process (with its own comm) on
-    // each cpu. It'd make sense to exclude its thread state track, but still
-    // put process-scoped tracks in this group.
-    const result = await engine.query(`
-      select
-        t.utid, p.upid, (case p.pid when 2 then 1 else 0 end) isKthreadd
-      from
-        thread t
-        join process p using (upid)
-        left join process parent on (p.parent_upid = parent.upid)
-        join
-          (select true from metadata m
-             where (m.name = 'system_name' and m.str_value = 'Linux')
-           union
-           select 1 from (select true from sched limit 1))
-      where
-        p.pid = 2 or parent.pid = 2
-      order by isKthreadd desc
-    `);
-
-    const it = result.iter({
-      utid: NUM,
-      upid: NUM,
-    });
-
-    // Not applying kernel thread grouping.
-    if (!it.valid()) {
-      return;
-    }
-
-    const config: ProcessSummaryTrackConfig = {
-      pidForColor: 2,
-      upid: it.upid,
-      utid: it.utid,
-    };
-
-    ctx.tracks.registerTrack({
-      uri: '/kernel',
-      tags: {
-        kind: PROCESS_SUMMARY_TRACK,
-      },
-      renderer: new ProcessSummaryTrack(ctx.engine, config),
-    });
   }
 }

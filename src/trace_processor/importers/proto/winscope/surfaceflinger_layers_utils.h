@@ -179,6 +179,34 @@ inline TransformMatrix GetTransformMatrix(const LayerDecoder& layer_decoder) {
   }
   return matrix;
 }
+
+// Constructs corner radii from available proto data.
+inline geometry::CornerRadii GetCornerRadii(const LayerDecoder& layer) {
+  geometry::CornerRadii corner_radii;
+
+  bool has_corner_radii = false;
+  if (layer.has_corner_radii()) {
+    protos::pbzero::CornerRadiiProto::Decoder radii_decoder(
+        layer.corner_radii());
+    if (radii_decoder.tl() > 0 || radii_decoder.tr() > 0 ||
+        radii_decoder.bl() > 0 || radii_decoder.br() > 0) {
+      has_corner_radii = true;
+      corner_radii.tl = static_cast<double>(radii_decoder.tl());
+      corner_radii.tr = static_cast<double>(radii_decoder.tr());
+      corner_radii.bl = static_cast<double>(radii_decoder.bl());
+      corner_radii.br = static_cast<double>(radii_decoder.br());
+    }
+  }
+  if (!has_corner_radii && layer.has_corner_radius()) {
+    auto radius = static_cast<double>(layer.corner_radius());
+    corner_radii.tl = radius;
+    corner_radii.tr = radius;
+    corner_radii.bl = radius;
+    corner_radii.br = radius;
+  }
+
+  return corner_radii;
+}
 }  // namespace layer
 
 namespace display {

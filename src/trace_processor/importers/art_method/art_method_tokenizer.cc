@@ -215,10 +215,11 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
       evt.action = ArtMethodEvent::kExit;
       break;
   }
-  ASSIGN_OR_RETURN(int64_t ts, context_->clock_tracker->ToTraceTime(
-                                   protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
-                                   (ts_ + ts_delta) * 1000));
-  stream_->Push(ts, evt);
+  std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
+      protos::pbzero::BUILTIN_CLOCK_MONOTONIC, (ts_ + ts_delta) * 1000);
+  if (ts) {
+    stream_->Push(*ts, evt);
+  }
   return base::OkStatus();
 }
 

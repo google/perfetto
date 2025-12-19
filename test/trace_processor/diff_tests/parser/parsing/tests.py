@@ -417,7 +417,13 @@ class Parsing(TestSuite):
   def test_android_log_counts(self):
     return DiffTestBlueprint(
         trace=DataPath('android_log.pb'),
-        query=Path('android_log_counts_test.sql'),
+        query="""SELECT count(*) AS cnt FROM android_logs UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE prio = 3 UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE prio > 4 UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE tag = 'screen_toggled' UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE tag GLOB '*_pss' UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE msg GLOB '*i2c?write*' OR msg GLOB '*I2C?Write*' UNION ALL
+          SELECT count(*) AS cnt FROM android_logs WHERE ts >= 1510113924391 AND ts < 1512610021879;""",
         out=Csv("""
         "cnt"
         2249
@@ -758,20 +764,22 @@ class Parsing(TestSuite):
         }
         """),
         query="""
-        SELECT id, name, key_type, int_value, str_value FROM metadata;
+        SELECT name, key_type, int_value, str_value
+        FROM metadata
+        ORDER BY name;
         """,
         out=Csv('''
-          "id","name","key_type","int_value","str_value"
-          0,"trace_uuid","single","[NULL]","00000000-0000-0000-7f42-b235fa358661"
-          1,"trace_time_clock_id","single",6,"[NULL]"
-          2,"cr-a-playstore_version_code","single",101,"[NULL]"
-          3,"cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
-          4,"cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
-          5,"cr-background_tracing_metadata","single","[NULL]","CgUlDsAbXx2RziSz"
-          6,"cr-scenario_name_hash","single",3005533841,"[NULL]"
-          7,"cr-triggered_rule_name_hash","single",1595654158,"[NULL]"
-          8,"trace_size_bytes","single",95,"[NULL]"
-          9,"trace_type","single","[NULL]","proto"
+          "name","key_type","int_value","str_value"
+          "cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
+          "cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
+          "cr-a-playstore_version_code","single",101,"[NULL]"
+          "cr-background_tracing_metadata","single","[NULL]","CgUlDsAbXx2RziSz"
+          "cr-scenario_name_hash","single",3005533841,"[NULL]"
+          "cr-triggered_rule_name_hash","single",1595654158,"[NULL]"
+          "trace_size_bytes","single",95,"[NULL]"
+          "trace_time_clock_id","single",6,"[NULL]"
+          "trace_type","single","[NULL]","proto"
+          "trace_uuid","single","[NULL]","00000000-0000-0000-7f42-b235fa358661"
         '''))
 
   def test_chrome_metadata_multiple(self):
@@ -821,20 +829,22 @@ class Parsing(TestSuite):
         }
         """),
         query="""
-        SELECT id, name, key_type, int_value, str_value FROM metadata;
+        SELECT name, key_type, int_value, str_value
+        FROM metadata
+        ORDER BY name;
         """,
         out=Csv("""
-        "id","name","key_type","int_value","str_value"
-        0,"trace_uuid","single","[NULL]","00000000-0000-0000-0de8-df55233147f0"
-        1,"trace_time_clock_id","single",6,"[NULL]"
-        2,"cr-a-playstore_version_code","single",101,"[NULL]"
-        3,"cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
-        4,"cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
-        5,"cr-b-playstore_version_code","single",102,"[NULL]"
-        6,"cr-b-enabled_categories","single","[NULL]","cat3,cat4,cat5"
-        7,"cr-b-field_trial_hashes","single","[NULL]","{ name: 1234, group: 5678 } { name: 9012, group: 3456 } "
-        8,"trace_size_bytes","single",110,"[NULL]"
-        9,"trace_type","single","[NULL]","proto"
+          "name","key_type","int_value","str_value"
+          "cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
+          "cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
+          "cr-a-playstore_version_code","single",101,"[NULL]"
+          "cr-b-enabled_categories","single","[NULL]","cat3,cat4,cat5"
+          "cr-b-field_trial_hashes","single","[NULL]","{ name: 1234, group: 5678 } { name: 9012, group: 3456 } "
+          "cr-b-playstore_version_code","single",102,"[NULL]"
+          "trace_size_bytes","single",110,"[NULL]"
+          "trace_time_clock_id","single",6,"[NULL]"
+          "trace_type","single","[NULL]","proto"
+          "trace_uuid","single","[NULL]","00000000-0000-0000-0de8-df55233147f0"
         """))
 
   # CPU info
@@ -967,6 +977,38 @@ class Parsing(TestSuite):
         3,"com.google.android.gms",10100,1,"com.google.android.gms",1234,0
         4,"com.google.android.gms.persistent",10100,1,"com.google.android.gms",1234,0
         5,"com.google.android.gms",10100,1,"com.google.android.gms",1234,0
+        """))
+
+  # package metadata with user type
+  def test_package_metadata_user_type(self):
+    return DiffTestBlueprint(
+        trace=DataPath('user_package_metadata.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_metadata;
+        
+        SELECT
+          package_name, 
+          process_name, 
+          uid, 
+          user_id, 
+          user_type 
+        FROM 
+          android_process_metadata
+        WHERE package_name IS NOT NULL 
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "package_name","process_name","uid","user_id","user_type"
+        "com.google.android.bluetooth","/vendor/bin/hw/android.hardware.bluetooth@1.1-service.synabtlinux",1002,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.googlequicksearchbox","com.google.android.googlequicksearchbox:search",10180,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.apps.turbo","com.google.android.apps.turbo:aab",10164,11,"android.os.usertype.full.SECONDARY"
+        "com.google.android.apps.messaging","com.google.android.apps.messaging",10171,11,"android.os.usertype.full.SECONDARY"
+        "com.google.android.googlequicksearchbox","com.google.android.googlequicksearchbox:googleapp",10180,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.googlequicksearchbox","com.google.android.googlequicksearchbox:interactor",10180,11,"android.os.usertype.full.SECONDARY"
+        "com.android.systemui","com.android.systemui",10252,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.apps.nest.dockmanager.app","com.google.android.apps.nest.dockmanager.app",10187,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.flipendo","com.google.android.flipendo",10268,0,"android.os.usertype.system.HEADLESS"
+        "com.google.android.pixelsystemservice","com.google.android.pixelsystemservice",10269,0,"android.os.usertype.system.HEADLESS"
         """))
 
   # Flow events importing from json
@@ -1658,25 +1700,25 @@ class Parsing(TestSuite):
         out=Csv("""
         "ts","cpu","utid","machine_id"
         5230311628979,0,1,1
-        5230315517287,0,11,1
+        5230315517287,0,50,1
         5230315524649,0,1,1
-        5230315676788,0,10,1
+        5230315676788,0,49,1
         5230315684911,0,1,1
-        5230319663217,0,10,1
+        5230319663217,0,49,1
         5230319684310,0,1,1
-        5230323692459,0,10,1
-        5230323726976,0,11,1
+        5230323692459,0,49,1
+        5230323726976,0,50,1
         5230323764556,0,1,1
-        5230327702466,0,10,1
+        5230327702466,0,49,1
         5230327736100,0,1,1
-        5230331761483,0,10,1
-        5230331800905,0,11,1
+        5230331761483,0,49,1
+        5230331800905,0,50,1
         5230331837332,0,1,1
-        5230421799455,0,10,1
+        5230421799455,0,49,1
         5230421810047,0,1,1
-        5230422048874,0,1306,"[NULL]"
-        5230422153284,0,1306,"[NULL]"
-        5230425693562,0,10,1
+        5230422048874,0,1305,"[NULL]"
+        5230422153284,0,1305,"[NULL]"
+        5230425693562,0,49,1
         """))
 
   # Kernel idle tasks created by /sbin/init should be filtered.

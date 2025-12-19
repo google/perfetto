@@ -51,6 +51,7 @@ struct FtraceKprobeStats {
 
 struct FtraceSetupErrors {
   std::string atrace_errors;
+  std::string exclusive_feature_error;
   std::vector<std::string> unknown_ftrace_events;
   std::vector<std::string> failed_ftrace_events;
 };

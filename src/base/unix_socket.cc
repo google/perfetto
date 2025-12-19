@@ -24,6 +24,8 @@
 #include <sys/types.h>
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/android_utils.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -45,7 +47,8 @@
 #include <unistd.h>
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
 #include <sys/ucred.h>
 #endif
 
@@ -294,6 +297,22 @@ std::string AddrinfoToIpStr(const struct addrinfo* addrinfo_ptr) {
   return std::string(ip_str_buffer);
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+// On macOS, setsockopt(SO_SNDTIMEO/SO_RCVTIMEO) can fail with EINVAL if the
+// peer has disconnected. Since the server cannot know this, we check if
+// getpeername() also fails to detect the disconnection and swallow the error.
+// This keeps the behaviour aligned to Linux.
+bool ShouldIgnoreSocketTimeoutError(SocketHandle fd) {
+  if (errno != EINVAL)
+    return false;
+
+  struct sockaddr_storage addr;
+  socklen_t addr_len = sizeof(addr);
+  return getpeername(fd, reinterpret_cast<struct sockaddr*>(&addr),
+                     &addr_len) != 0;
+}
+#endif
+
 }  // namespace
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -411,7 +430,8 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
                              SockType type)
     : fd_(std::move(fd)), family_(family), type_(type) {
   PERFETTO_CHECK(fd_);
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
   const int no_sigpipe = 1;
   setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
 #endif
@@ -779,9 +799,18 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
   }
 #endif
 
-  return setsockopt(*fd_, SOL_SOCKET, SO_SNDTIMEO,
-                    reinterpret_cast<const char*>(&timeout),
-                    sizeof(timeout)) == 0;
+  if (setsockopt(*fd_, SOL_SOCKET, SO_SNDTIMEO,
+                 reinterpret_cast<const char*>(&timeout),
+                 sizeof(timeout)) == 0) {
+    return true;
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  if (ShouldIgnoreSocketTimeoutError(*fd_))
+    return true;
+#endif
+
+  return false;
 }
 
 bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
@@ -795,9 +824,18 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
       (timeout_ms - (timeout_sec * 1000)) * 1000);
 #endif
-  return setsockopt(*fd_, SOL_SOCKET, SO_RCVTIMEO,
-                    reinterpret_cast<const char*>(&timeout),
-                    sizeof(timeout)) == 0;
+  if (setsockopt(*fd_, SOL_SOCKET, SO_RCVTIMEO,
+                 reinterpret_cast<const char*>(&timeout),
+                 sizeof(timeout)) == 0) {
+    return true;
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  if (ShouldIgnoreSocketTimeoutError(*fd_))
+    return true;
+#endif
+
+  return false;
 }
 
 std::string UnixSocketRaw::GetSockAddr() const {
@@ -1040,7 +1078,8 @@ void UnixSocket::ReadPeerCredentialsPosix() {
   PERFETTO_CHECK(res == 0);
   peer_uid_ = user_cred.uid;
   peer_pid_ = user_cred.pid;
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
   struct xucred user_cred;
   socklen_t len = sizeof(user_cred);
   int res = getsockopt(sock_raw_.fd(), 0, LOCAL_PEERCRED, &user_cred, &len);
@@ -1291,6 +1330,22 @@ void UnixSocket::EventListener::OnNewIncomingConnection(
 void UnixSocket::EventListener::OnConnect(UnixSocket*, bool) {}
 void UnixSocket::EventListener::OnDisconnect(UnixSocket*) {}
 void UnixSocket::EventListener::OnDataAvailable(UnixSocket*) {}
+
+std::unique_ptr<LinuxFileWatch> WatchUnixSocketCreation(
+    TaskRunner* task_runner,
+    const char* sock_name,
+    std::function<void()> callback) {
+  if constexpr (!PERFETTO_FLAGS(USE_UNIX_SOCKET_INOTIFY))
+    return nullptr;
+
+  if (!sock_name || base::GetSockFamily(sock_name) != base::SockFamily::kUnix ||
+      sock_name[0] == '@') {
+    // We can add a inotify watch only for non-abstract (linked) Unix sockets.
+    return nullptr;
+  }
+  return LinuxFileWatch::WatchFileCreation(task_runner, sock_name,
+                                           std::move(callback));
+}
 
 }  // namespace base
 }  // namespace perfetto

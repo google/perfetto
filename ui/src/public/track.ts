@@ -22,7 +22,18 @@ import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
-import {Theme} from './theme';
+import {CanvasColors} from './canvas_colors';
+import {z} from 'zod';
+
+/**
+ * Represents a snap point for the snap-to-boundaries feature.
+ * When dragging selection boundaries, the cursor can snap to these points
+ * to enable precise measurement of time intervals.
+ */
+export interface SnapPoint {
+  /** The timestamp to snap to */
+  time: time;
+}
 
 export interface TrackFilterCriteria {
   readonly name: string;
@@ -109,7 +120,10 @@ export interface TrackRenderContext extends TrackContext {
    */
   readonly timescale: TimeScale;
 
-  readonly theme: Theme;
+  /**
+   * Semantic colors which can vary depending on the current theme.
+   */
+  readonly colors: CanvasColors;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -159,6 +173,58 @@ export interface TrackMouseEvent {
   readonly timescale: TimeScale;
 }
 
+/**
+ * A descriptor for a track setting, which describes the setting's metadata and
+ * how to render a control for it. This is separate from the track setting
+ * itself because multiple tracks (which will need different TrackSetting
+ * instances) can share the same descriptor, which would make them editable in
+ * bulk.
+ *
+ * A lot of the fields in this interface are currently unused, but they will be
+ * used in the future when track serialization is implemented.
+ */
+export interface TrackSettingDescriptor<T> {
+  // A unique identifier for this setting. Will be used to store the serialized
+  // value for this setting. Currently unused.
+  readonly id: string;
+
+  // A human readable name for this setting. This is displayed in the settings
+  // menu unless overridden.
+  readonly name: string;
+
+  // A human readable description for this setting. Currently unused, but good
+  // practice to require this in order to document what a setting does and is
+  // used for.
+  readonly description: string;
+
+  // A Zod schema describing the setting's value type which is used to infer the
+  // automatic settings menu type and options, and will be used for
+  // serialization and deserialization.
+  readonly schema: z.ZodType<T>;
+
+  // The default value for this setting. This will be used to render a 'reset'
+  // button in the render menu, and possibly as a fallback if parsing fails when
+  // we add serialization. Currently unused.
+  readonly defaultValue: T;
+
+  // An optional function used to render a control for this setting. This
+  // describes what the control looks like in the settings menu on the track and
+  // also the bulk settings menu when multiple tracks are selected. If omitted,
+  // a control will be automatically generated based on the schema and name.
+  render?(setter: (value: T) => void, values: ReadonlyArray<T>): m.Children;
+}
+
+/**
+ * A setting that can be changed by the user that affects how the track is
+ * rendered or behaves. References a TrackSettingDescriptor which describes the
+ * setting's metadata and how to render a control for it.
+ */
+export interface TrackSetting<T> {
+  readonly descriptor: TrackSettingDescriptor<T>;
+  getValue: () => T;
+  setValue(newValue: T): void;
+}
+
 export interface TrackRenderer {
   /**
    * Describes which root table the events on this track come from. This is
@@ -167,6 +233,19 @@ export interface TrackRenderer {
    * TODO(stevegolton): Maybe move this onto dataset directly?
    */
   readonly rootTableName?: string;
+
+  /**
+   * An optional list of settings that can be modified externally to affect how
+   * the track is rendered or behaves.
+   *
+   * These settings are user-editable and are shown in the track settings menu.
+   * They can also be modified in bulk if multiple tracks share the same setting
+   * descriptor.
+   *
+   * Note: The core does not yet provide a mechanism to persist these settings
+   * to permalinks.
+   */
+  readonly settings?: ReadonlyArray<TrackSetting<unknown>>;
 
   /**
    * Optional lifecycle hook called on the first render cycle. Should be used to
@@ -238,6 +317,25 @@ export interface TrackRenderer {
   // Optional: Returns tooltip content if available. If the return value is
   // falsy, no tooltip is rendered.
   renderTooltip?(): m.Children;
+
+  /**
+   * Optional: Find the nearest snap point to the given time.
+   * Returns undefined if no snap point is within threshold.
+   *
+   * This method is used by the snap-to-boundaries feature to enable precise
+   * measurement of time intervals. When dragging selection boundaries, the
+   * cursor can snap to these points.
+   *
+   * @param targetTime - Target time to snap from
+   * @param thresholdPx - Maximum pixel distance to snap
+   * @param timescale - For converting between time and pixels
+   * @returns The nearest snap point, or undefined if none within threshold
+   */
+  getSnapPoint?(
+    targetTime: time,
+    thresholdPx: number,
+    timescale: TimeScale,
+  ): SnapPoint | undefined;
 }
 
 // An set of key/value pairs describing a given track. These are used for
@@ -257,11 +355,10 @@ export type TrackTags = Partial<WellKnownTrackTags> & {
 };
 
 interface WellKnownTrackTags {
-  // The track "kind", used by various subsystems e.g. aggregation controllers.
-  // This is where "XXX_TRACK_KIND" values should be placed.
-  // TODO(stevegolton): This will be deprecated once we handle group selections
-  // in a more generic way - i.e. EventSet.
-  kind: string;
+  // The track "kinds", are by various subsystems e.g. aggregation controllers
+  // in order to select tracks to operate on. A good analogy is how CSS
+  // selectors can match elements using their class list.
+  kinds: ReadonlyArray<string>;
 
   // Optional: list of track IDs represented by this trace.
   // This list is used for participation in track indexing by track ID.
@@ -277,12 +374,6 @@ interface WellKnownTrackTags {
 
   // Optional: The UPID associated with this track.
   upid: number;
-
-  // Used for sorting and grouping
-  scope: string;
-
-  // Group name, used as a hint to ask track decider to put this in a group
-  groupName: string;
 
   // Track type, used for filtering
   type: string;
@@ -334,5 +425,6 @@ export interface Overlay {
     timescale: TimeScale,
     size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
+    theme: CanvasColors,
   ): void;
 }

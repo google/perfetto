@@ -52,10 +52,10 @@ std::string SubstrTrim(const std::string& input) {
 SystraceLineTokenizer::SystraceLineTokenizer()
     : std_line_matcher_(
           std::regex(R"(-(\d+)\s+\(?\s*(\d+|-+)?\)?\s?\[(\d+)\]\s*)"
-                     R"([a-zA-Z0-9.]{0,5}\s+(\d+\.\d+):\s+(\S+):)")) {
+                     R"([a-zA-Z0-9.]{0,5}\s*(\d+\.\d+):\s+(\S+):)")) {
   if constexpr (regex::IsRegexSupported()) {
     auto regex_or = regex::Regex::Create(
-        R"(-([0-9]+)[[:space:]]+\(?[[:space:]]*([0-9]+|-+)?\)?[[:space:]]?\[([0-9]+)\][[:space:]]*[a-zA-Z0-9.]{0,5}[[:space:]]+([0-9]+\.[0-9]+):[[:space:]]+([^[:space:]]+):)");
+        R"(-([0-9]+)[[:space:]]+\(?[[:space:]]*([0-9]+|-+)?\)?[[:space:]]?\[([0-9]+)\][[:space:]]*[a-zA-Z0-9.]{0,5}[[:space:]]*([0-9]+\.[0-9]+):[[:space:]]+([^[:space:]]+):)");
     if (!regex_or.ok()) {
       PERFETTO_FATAL("%s", regex_or.status().c_message());
     }

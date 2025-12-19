@@ -22,6 +22,7 @@ import {removeFalsyValues} from '../base/array_utils';
 import {assertUnreachable} from '../base/logging';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
 import {HTMLAttrs} from './common';
+import {classNames} from '../base/classnames';
 
 export interface EditorAttrs extends HTMLAttrs {
   // Content of the editor. If defined, the editor operates in controlled mode,
@@ -39,8 +40,14 @@ export interface EditorAttrs extends HTMLAttrs {
   // Whether the editor should be focused on creation.
   readonly autofocus?: boolean;
 
+  // Whether the editor should fill the height of its container.
+  readonly fillHeight?: boolean;
+
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
+
+  // Callback for the Ctrl/Cmd + S key binding.
+  onSave?: () => void;
 
   // Callback for every change to the editor's content.
   onUpdate?: (text: string) => void;
@@ -57,6 +64,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
+    const onSave = attrs.onSave;
     const onUpdate = attrs.onUpdate;
 
     if (onExecute) {
@@ -76,6 +84,17 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
             text = selectedText;
           }
           onExecute(text);
+          m.redraw();
+          return true;
+        },
+      });
+    }
+
+    if (onSave) {
+      keymaps.push({
+        key: 'Mod-s',
+        run: (_view: EditorView) => {
+          onSave();
           m.redraw();
           return true;
         },
@@ -150,9 +169,13 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     }
   }
 
-  view({attrs}: m.Vnode<EditorAttrs, this>): void | m.Children {
+  view({attrs}: m.Vnode<EditorAttrs>): m.Children {
+    const className = classNames(
+      attrs.className,
+      attrs.fillHeight && 'pf-editor--fill-height',
+    );
     return m('.pf-editor', {
-      className: attrs.className,
+      className: className,
       ref: attrs.ref,
     });
   }

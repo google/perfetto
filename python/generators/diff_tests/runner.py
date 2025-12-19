@@ -16,9 +16,11 @@
 import concurrent.futures
 import datetime
 import os
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from python.generators.diff_tests.models import (TestCase, TestResult, TestType,
                                                  PerfResult, Config)
@@ -41,13 +43,26 @@ class TestResults:
   test_failures: List[str]
   perf_data: List[PerfResult]
   test_time_ms: int
+  skipped_tests_filter: List[Tuple[str, str]]
+  total_tests_to_run: int
+  tests_skipped_by_name: int
 
-  def str(self, no_colors: bool, tests_no: int) -> str:
+  def str(self, no_colors: bool) -> str:
     c = ColorFormatter(no_colors)
+    total_tests = self.total_tests_to_run + self.tests_skipped_by_name + len(
+        self.skipped_tests_filter)
+    tests_in_filter = self.total_tests_to_run + len(self.skipped_tests_filter)
+    passed_tests = self.total_tests_to_run - len(self.test_failures)
     res = (
-        f"[==========] {tests_no} tests ran. ({self.test_time_ms} ms total)\n"
+        f"[==========] Name filter selected {tests_in_filter} tests out of {total_tests}.\n"
+        f"[==========] {self.total_tests_to_run} tests ran out of {tests_in_filter} total. ({self.test_time_ms} ms total)\n"
         f"{c.green('[  PASSED  ]')} "
-        f"{tests_no - len(self.test_failures)} tests.\n")
+        f"{passed_tests} tests.\n")
+    if len(self.skipped_tests_filter) > 0:
+      res += (f"{c.yellow('[ SKIPPED  ]')} "
+              f"{len(self.skipped_tests_filter)} tests.\n")
+      for name, reason in self.skipped_tests_filter:
+        res += f"{c.yellow('[ SKIPPED  ]')} {name} (reason: {reason})\n"
     if len(self.test_failures) > 0:
       res += (f"{c.red('[  FAILED  ]')} "
               f"{len(self.test_failures)} tests.\n")
@@ -63,9 +78,17 @@ class DiffTestsRunner:
   def __init__(self, config: Config):
     self.config = config
     self.test_loader = TestLoader(os.path.abspath(self.config.test_dir))
+    self.enabled_modules = self._get_build_config()
 
   def run(self) -> TestResults:
-    tests = self.test_loader.discover_and_load_tests(self.config.name_filter)
+    # Discover and filter tests.
+    db = self.test_loader.discover_and_load_tests(self.config.name_filter,
+                                                  self.enabled_modules)
+    tests = db.runnable
+    total_tests_to_run = len(tests)
+    tests_skipped_by_name = len(db.skipped_name_filter)
+
+    sys.stderr.write(f'[==========] Running {total_tests_to_run} tests.\n')
 
     trace_descriptor_path = get_trace_descriptor_path(
         os.path.dirname(self.config.trace_processor_path),
@@ -113,16 +136,21 @@ class DiffTestsRunner:
         (datetime.datetime.now() - test_run_start).total_seconds() * 1000)
     if self.config.quiet:
       sys.stderr.write(f"\r")
-    return TestResults(failures, perf_results, test_time_ms)
+    return TestResults(failures, perf_results, test_time_ms,
+                       db.skipped_module_missing, total_tests_to_run,
+                       tests_skipped_by_name)
 
   def _run_test(self, test: TestCase,
                 trace_descriptor_path: str) -> Tuple[str, str, TestResult]:
+    # Simpleperf is not an extension of Perfetto's trace proto, but a separate
+    # format. Only pass it for simpleperf-specific tests.
     extension_descriptor_paths = [
         self.config.chrome_extensions, self.config.test_extensions,
         self.config.winscope_extensions
     ]
     gen_trace_file = generate_trace_file(test, trace_descriptor_path,
-                                         extension_descriptor_paths)
+                                         extension_descriptor_paths,
+                                         self.config.simpleperf_descriptor)
 
     if gen_trace_file:
       trace_path = os.path.realpath(gen_trace_file.name)
@@ -155,9 +183,10 @@ class DiffTestsRunner:
         gen_trace_file.close()
         os.remove(trace_path)
 
+    print_trace_path = gen_trace_file and self.config.keep_input
     run_str = self._process_test_result(result, trace_path,
                                         extension_descriptor_paths,
-                                        trace_descriptor_path)
+                                        trace_descriptor_path, print_trace_path)
     return test.name, run_str, result
 
   def _process_test_result(
@@ -166,6 +195,7 @@ class DiffTestsRunner:
       trace_path: str,
       extension_descriptor_paths: List[str],
       trace_descriptor_path: str,
+      print_trace_path: bool,
   ) -> str:
     colors = ColorFormatter(self.config.no_colors)
 
@@ -191,6 +221,7 @@ class DiffTestsRunner:
       return res
 
     run_str = f"{colors.yellow('[ RUN      ]')} {result.test.name}\n"
+    run_diagnostics = [f"trace_path: {trace_path}"] if print_trace_path else []
     if result.exit_code != 0 or not result.passed:
       result.passed = False
       run_str += result.stderr
@@ -202,11 +233,32 @@ class DiffTestsRunner:
       else:
         run_str += write_cmdlines()
 
-      run_str += (f"{colors.red('[  FAILED  ]')} {result.test.name}\n")
+      run_str += (f"{colors.red('[  FAILED  ]')} {result.test.name}")
     else:
       assert result.perf_result
-      run_str += (
-          f"{colors.green('[       OK ]')} {result.test.name} "
-          f"(ingest: {result.perf_result.ingest_time_ns / 1000000:.2f} ms "
-          f"query: {result.perf_result.real_time_ns / 1000000:.2f} ms)\n")
+      run_str += f"{colors.green('[       OK ]')} {result.test.name}"
+      run_diagnostics.append(
+          f"ingest: {result.perf_result.ingest_time_ns / 1000000:.2f} ms")
+      run_diagnostics.append(
+          f"query: {result.perf_result.real_time_ns / 1000000:.2f} ms")
+    run_str += f" ({' '.join(run_diagnostics)})\n" if run_diagnostics else "\n"
     return run_str
+
+  def _get_build_config(self) -> Set[str]:
+    """Returns the modules from trace processor."""
+    with tempfile.NamedTemporaryFile(
+        mode='w', suffix='.textproto') as empty_trace:
+      empty_trace.write('')
+      empty_trace.flush()
+      args = [
+          self.config.trace_processor_path,
+          empty_trace.name,
+          '--query-string',
+          'select name from __intrinsic_modules',
+      ]
+      modules_str = subprocess.check_output(args, stderr=subprocess.PIPE)
+      modules = set(
+          line.strip('"')
+          for line in modules_str.decode('utf-8').splitlines()
+          if line and not line.startswith('name'))
+      return modules

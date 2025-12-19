@@ -42,13 +42,13 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/json/json_parser.h"
 #include "src/trace_processor/importers/json/json_trace_parser.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/json_parser.h"
+#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -772,14 +772,14 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   if (PERFETTO_LIKELY(event.id_type == JsonEvent::IdType::kNone)) {
     if (PERFETTO_UNLIKELY(id2_global)) {
       event.async_cookie_type = JsonEvent::AsyncCookieType::kId2Global;
-      event.async_cookie = static_cast<int64_t>(base::FnvHasher::Combine(
+      event.async_cookie = static_cast<int64_t>(base::MurmurHashCombine(
           event.cat.raw_id(),
           id2_global->type == JsonEvent::IdType::kString
               ? static_cast<uint64_t>(id2_global->id.id_str.raw_id())
               : id2_global->id.id_uint64));
     } else if (PERFETTO_UNLIKELY(id2_local)) {
       event.async_cookie_type = JsonEvent::AsyncCookieType::kId2Local;
-      event.async_cookie = static_cast<int64_t>(base::FnvHasher::Combine(
+      event.async_cookie = static_cast<int64_t>(base::MurmurHashCombine(
           event.cat.raw_id(),
           id2_local->type == JsonEvent::IdType::kString
               ? static_cast<uint64_t>(id2_local->id.id_str.raw_id())
@@ -788,11 +788,11 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   } else if (event.id_type == JsonEvent::IdType::kString) {
     event.async_cookie_type = JsonEvent::AsyncCookieType::kId;
     event.async_cookie = static_cast<int64_t>(
-        base::FnvHasher::Combine(event.cat.raw_id(), event.id.id_str.raw_id()));
+        base::MurmurHashCombine(event.cat.raw_id(), event.id.id_str.raw_id()));
   } else if (event.id_type == JsonEvent::IdType::kUint64) {
     event.async_cookie_type = JsonEvent::AsyncCookieType::kId;
     event.async_cookie = static_cast<int64_t>(
-        base::FnvHasher::Combine(event.cat.raw_id(), event.id.id_uint64));
+        base::MurmurHashCombine(event.cat.raw_id(), event.id.id_uint64));
   }
   if (PERFETTO_UNLIKELY(event.phase == 'P')) {
     if (status = ParseV8SampleEvent(event); !status.ok()) {

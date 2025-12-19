@@ -20,6 +20,8 @@ import {showModal} from '../widgets/modal';
 import {utf8Decode} from '../base/string_utils';
 import {convertToJson} from './trace_converter';
 import {assetSrc} from '../base/assets';
+import {Anchor} from '../widgets/anchor';
+import {Icons} from '../base/semantic_icons';
 
 const CTRACE_HEADER = 'TRACE:\n';
 
@@ -198,10 +200,11 @@ export async function openInOldUIWithSizeCheck(trace: Blob): Promise<void> {
         'p',
         'More options can be found at ',
         m(
-          'a',
+          Anchor,
           {
             href: 'https://goto.google.com/opening-large-traces',
             target: '_blank',
+            icon: Icons.ExternalLink,
           },
           'go/opening-large-traces',
         ),

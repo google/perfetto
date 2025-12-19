@@ -192,63 +192,50 @@ TAB: <code>perf</code> profiles on Linux
 TAB: <code>simpleperf</code> profiles on Android
 
 On Android, `simpleperf` is used for CPU profiling. The necessary Python scripts
-(`app_profiler.py`, `gecko_profile_generator.py`) can be obtained by cloning
-them directly from the Android Open Source Project (AOSP).
+(`app_profiler.py`, `gecko_profile_generator.py`) can be obtained by downloading
+them directly from the Android Open Source Project (AOSP) using git. You will also
+need the NDK.
 
-1.  **Clone the `simpleperf` scripts from AOSP:** This command performs a
-    shallow clone of the `platform/system/extras` repository, which contains
-    `simpleperf` and its scripts. This helps to minimize the download size.
-
+1.  **Download the `simpleperf` scripts:**
     ```bash
     git clone https://android.googlesource.com/platform/system/extras --depth=1
     ```
 
-    After cloning, the scripts will be located in the `extras/simpleperf/`
-    subdirectory (e.g., `./extras/simpleperf/app_profiler.py`). **Note:** This
-    method provides the scripts. You will also need a compatible `simpleperf`
-    binary. This binary is typically available on your Android device (if it
-    supports profiling) and `app_profiler.py` will attempt to use it. Ensure any
-    Python dependencies for the scripts are also met in your host environment.
+    After cloning, the scripts will be located in the `extras/simpleperf/scripts` subdirectory.
+    Note: this method provides the post-processing scripts, but you will also need a compatible
+    `simpleperf` binary to record the profile. This binary is typically available on your Android
+    device and `app_profiler.py` will find it automatically.
 
-2.  **Record a profile using `app_profiler.py`:** This script automates
-    profiling a specific app.
+2.  **Record a profile using `app_profiler.py`:** This script invokes the recording on-device and
+    puls the profile to the host machine over ADB.
 
     ```bash
-    # Path to the simpleperf directory from your AOSP clone
-    SIMPLEPERF_SCRIPT_DIR=./extras/simpleperf
-
     # Replace <your.app.package.name>
-    python ${SIMPLEPERF_SCRIPT_DIR}/app_profiler.py \
+    python extras/simpleperf/scripts/app_profiler.py \
         --app <your.app.package.name> \
         -r "-g --duration 10" \
-        -o ./simpleperf_output
+        -o perf.data
     ```
 
-    - This command profiles the specified app for 10 seconds with DWARF call
-      graphs (`-g`).
-    - It saves `perf.data` and a `binary_cache` (for symbols) into the
-      `./simpleperf_output` directory on your host machine.
-    - For more details, run
-      `python ${SIMPLEPERF_SCRIPT_DIR}/app_profiler.py --help` and consult the
-      [Simpleperf documentation](https://android.googlesource.com/platform/system/extras/+/master/simpleperf/README.md).
+    - This command profiles the specified app for 10 seconds with DWARF call graphs (`-g`).
+    - It writes `perf.data` and a `binary_cache/` (for symbols).
+    - For more details, see the [simpleperf
+      documentation](https://android.googlesource.com/platform/system/extras/+/refs/heads/main/simpleperf/doc/README.md)).
 
 3.  **Convert `simpleperf` data to Firefox Profiler JSON:** Use the
     `gecko_profile_generator.py` script from the same AOSP checkout.
       ```bash
-      # Path to the simpleperf directory from your AOSP clone
-      SIMPLEPERF_SCRIPT_DIR=./extras/simpleperf
-
-      python ${SIMPLEPERF_SCRIPT_DIR}/gecko_profile_generator.py \
-          -i ./simpleperf_output/perf.data \
-          --symfs ./simpleperf_output/binary_cache \
-          -o my_android_profile.json
+      python extras/simpleperf/scripts/gecko_profile_generator.py \
+          --symfs binary_cache \
+          -i perf.data \
+          > gecko_profile.json
       ```
 
-    * This converts the `simpleperf` data, using symbols from the `binary_cache`, into the Firefox Profiler JSON format.
+    * This converts the `simpleperf` data, using symbols from the `binary_cache`, into the Firefox
+      Profiler JSON format.
 
 4. **Open this trace in ui.perfetto.dev**
-
-    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the `my_android_profile.json`
+    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the `gecko_profile.json`
     file into the UI. Once the trace opens, you should be able select either individual
     CPU samples or ranges of time containing CPU samples to get a flamegraph of all
     the samples in that region.
@@ -271,13 +258,11 @@ Other methods (less common for Perfetto import scenarios):
 - **Documentation on the format (can be technical):**
   - [Gecko Profile Format (GitHub)](https://github.com/firefox-devtools/profiler/blob/main/docs-developer/gecko-profile-format.md)
   - [Processed Profile Format (GitHub)](https://github.com/firefox-devtools/profiler/blob/main/docs-developer/processed-profile-format.md)
-- **Linux `perf` Tool:**
+- **Linux `perf` tool:**
   [perf Wiki](https://perf.wiki.kernel.org/index.php/Main_Page),
   [man page](https://man7.org/linux/man-pages/man1/perf.1.html)
-- **Android `simpleperf` (AOSP):** Source and documentation can be found within
-  the `platform/system/extras` repository in AOSP.
-- **Android `simpleperf` Documentation (overview):**
-  [Simpleperf Introduction (Android GoogleSource)](https://android.googlesource.com/platform/system/extras/+/master/simpleperf/README.md)
+- **Android `simpleperf` tool:**
+  [Simpleperf usage](https://android.googlesource.com/platform/system/extras/+/refs/heads/main/simpleperf/doc/README.md)
 
 ## Android systrace format
 
@@ -425,6 +410,90 @@ stacks, timestamps, process/thread identifiers, CPU number, and event names.
     Here's an example of what that looks like
 
     ![](/docs/images/perf-profile-in-ui.png)
+
+**External Resources:**
+
+- **`perf-script` man page:** `man perf-script` (or search online, e.g.,
+  [perf-script Linux man page](https://man7.org/linux/man-pages/man1/perf-script.1.html))
+- **`perf` tool general information:**
+  [perf Wiki (kernel.org)](https://perf.wiki.kernel.org/index.php/Main_Page)
+- **Brendan Gregg's `perf` examples:**
+  [Brendan Gregg's perf page](https://www.brendangregg.com/perf.html) (Contains
+  many examples of `perf script` usage, especially for flame graphs)
+
+## Simpleperf proto format
+
+**Description:** Simpleperf is Android's profiling tool built on top of the
+Linux perf framework. The "Simpleperf proto format" refers to the binary
+protobuf format generated by the `simpleperf report-sample --protobuf` command.
+This format contains CPU samples with call stacks, process/thread information,
+file mappings, and symbol tables in a compact binary representation. Android
+Studio's CPU profiler uses this format internally when displaying simpleperf
+profiles.
+
+**Common Scenarios:** This format is used for:
+
+- Profiling Android applications and system services using simpleperf
+- Analyzing CPU performance on Android devices
+- Capturing stack samples with symbol information for both native and managed
+  code
+- Working with profiles collected by Android Studio's CPU profiler (which
+  converts simpleperf data to this proto format)
+
+**Perfetto Support:**
+
+- **Perfetto UI & Trace Processor:** Perfetto's Trace Processor can directly
+  parse simpleperf's protobuf format.
+  - The importer processes **CPU samples with call stacks**, file mappings, and
+    symbol tables
+  - Samples are imported into `cpu_profile_stack_sample` table with full call
+    stack information
+  - Call stacks are stored in standard profiling tables
+    (`stack_profile_callsite`, `stack_profile_frame`, `stack_profile_mapping`)
+  - Thread and process information is extracted and stored in the process/thread
+    tables
+  - This allows simpleperf profiles to be visualized as flamegraphs in the
+    Perfetto UI and queried using SQL
+- **Limitations:**
+  - Context switch records in simpleperf format are not yet imported
+  - Event type metadata is stored but not yet used for filtering or
+    categorization
+
+**How to Generate:**
+
+1.  **Record a profile with simpleperf:** First, capture profiling data using
+    `simpleperf record`.
+
+    ```bash
+    # Example: Profile an Android app with call graphs
+    adb shell simpleperf record -p <pid> -g --duration 10
+    adb pull /data/local/tmp/perf.data simpleperf.data
+    ```
+
+    Refer to `simpleperf record --help` for detailed command options.
+
+2.  **Convert to proto format:** Use `simpleperf report-sample` to convert the
+    raw recording to protobuf format:
+
+    ```bash
+    # Convert to proto format with call chains
+    simpleperf report-sample --protobuf --show-callchain \
+      -i simpleperf.data -o simpleperf.proto
+
+    # Optionally provide symbol directories for better symbolization
+    simpleperf report-sample --protobuf --show-callchain \
+      -i simpleperf.data -o simpleperf.proto \
+      --symdir /path/to/symbols
+    ```
+
+    The `--show-callchain` flag is required to include call stack information in
+    the output.
+
+3.  **Open in ui.perfetto.dev**
+
+    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the
+    `simpleperf.proto` file. The trace will be imported and you can view
+    flamegraphs of the CPU samples by selecting time ranges in the UI.
 
 ## Linux ftrace textual format
 
@@ -658,16 +727,6 @@ consumes the resulting XML file).
   [Instruments User Guide](https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/InstrumentsUserGuide/)
   or search for current Instruments documentation on
   [developer.apple.com](https://developer.apple.com).
-
-**External Resources:**
-
-- **`perf-script` man page:** `man perf-script` (or search online, e.g.,
-  [perf-script Linux man page](https://man7.org/linux/man-pages/man1/perf-script.1.html))
-- **`perf` tool general information:**
-  [perf Wiki (kernel.org)](https://perf.wiki.kernel.org/index.php/Main_Page)
-- **Brendan Gregg's `perf` examples:**
-  [Brendan Gregg's perf page](https://www.brendangregg.com/perf.html) (Contains
-  many examples of `perf script` usage, especially for flame graphs)
 
 ## Ninja logs format (`.ninja_log`)
 
@@ -920,3 +979,78 @@ into Zircon Virtual Memory Objects (VMOs) for efficiency.
   [Fuchsia trace format](https://fuchsia.dev/fuchsia-src/reference/tracing/trace-format)
 - **Tutorial on recording and visualizing:**
   [Record and visualize a trace (Fuchsia Docs)](https://fuchsia.dev/fuchsia-src/development/tracing/tutorial/record-and-visualize-a-trace)
+
+## pprof format
+
+**Description:** The `pprof` format is a protocol buffer-based format used for
+storing CPU profile data. `pprof` is a tool for visualization and analysis of
+profiling data. It reads a collection of profiling samples in `profile.proto`
+format and generates reports to visualize and help analyze the data. It was
+developed for and is used by the [Go programming language's pprof profiler](https://pkg.go.dev/runtime/pprof),
+but has since been adopted by a wide range of other profilers for other
+languages (e.g. Python, C++, Rust, etc.).
+
+**Common Scenarios:** The most common reason Perfetto users encounter this
+format is for:
+
+- **Visualizing Go CPU profiles:** Developers often collect CPU samples using
+  the Go pprof profiler and need a way to visualize them.
+- **Using cross-platform profiling tools:** Some profiling tools and libraries
+  are designed to output or convert their data into this format, facilitating
+  analysis with pprof-compatible tools.
+- **Analyzing Linux `perf` profiles:** `pprof` can read `perf.data` files
+  generated by the [Linux perf](https://perf.wiki.kernel.org/index.php/Main_Page)
+  tool by using the `perf_to_profile` program from the
+  [perf_data_converter](https://github.com/google/perf_data_converter) package.
+
+**Perfetto Support:**
+
+- **Perfetto UI:** When a `pprof` file is opened, Perfetto visualizes the
+  profiling data as an interactive flamegraph. If the `pprof` file contains
+  multiple metrics (e.g., CPU time and memory allocations), the UI allows you
+  to switch between them, displaying a separate flamegraph for each metric.
+  This enables intuitive analysis of call stacks and helps identify performance
+  hotspots across different dimensions.
+
+  Here's an example of what that looks like
+
+  ![](/docs/images/pprof-in-ui.png)
+
+**How to Generate:** The most relevant generation path for Perfetto users
+involves collecting CPU profiles from Go programs or converting `perf.data` files.
+
+1.  **Collect a CPU profile from a Go program:** You can either use the
+    `runtime/pprof` package to programmatically collect a profile or use the
+    `net/http/pprof` package to expose a profiling endpoint on a running server.
+
+    To collect a profile from a running server, you can use the `go tool pprof`
+    command:
+
+    ```bash
+    go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+    ```
+
+    This will collect a 30-second CPU profile and open it in the pprof tool.
+    You can then save the profile to a file using the `save` command in the
+    pprof tool.
+
+2.  **Convert Linux `perf.data` to pprof format:** Use the `perf_to_profile`
+    tool from the `perf_data_converter` package.
+
+    ```bash
+    perf_to_profile -i perf.data -o perf.pprof
+    ```
+
+**External Resources:**
+
+- **pprof GitHub Repository:**
+  [https://github.com/google/pprof](https://github.com/google/pprof)
+- **Go pprof documentation:**
+  [https://pkg.go.dev/runtime/pprof](https://pkg.go.dev/runtime/pprof)
+- **pprof format specification:**
+  [https://github.com/google/pprof/blob/main/proto/profile.proto](https://github.com/google/pprof/blob/main/proto/profile.proto)
+- **Linux `perf` tool:**
+  [perf Wiki](https://perf.wiki.kernel.org/index.php/Main_Page)
+- **`perf_data_converter` GitHub Repository:**
+  [https://github.com/google/perf_data_converter](https://github.com/google/perf_data_converter)
+

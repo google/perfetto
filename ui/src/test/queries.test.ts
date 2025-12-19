@@ -39,13 +39,19 @@ test('omnibox query', async () => {
   await pth.waitForPerfettoIdle();
   await omnibox.press('Enter');
 
-  await pth.waitForIdleAndScreenshot('query mode.png');
+  await pth.waitForIdleAndScreenshot('query mode.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   page.locator('.pf-data-grid').getByText('17806091326279').click();
-  await pth.waitForIdleAndScreenshot('row 1 clicked.png');
+  await pth.waitForIdleAndScreenshot('row 1 clicked.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   page.locator('.pf-data-grid').getByText('17806092405136').click();
-  await pth.waitForIdleAndScreenshot('row 2 clicked.png');
+  await pth.waitForIdleAndScreenshot('row 2 clicked.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   // Clear the omnibox
   await omnibox.selectText();
@@ -68,7 +74,9 @@ test('query page', async () => {
     await textbox.fill(`select id, ts, dur, name from slices limit ${i}`);
     await textbox.press('ControlOrMeta+Enter');
     await textbox.blur();
-    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`);
+    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`, {
+      mask: [page.locator('.pf-data-grid__toolbar')],
+    });
   }
 
   // Now test the query history.
@@ -90,7 +98,11 @@ test('query page', async () => {
     .nth(1)
     .dblclick();
   await pth.waitForPerfettoIdle();
-  expect(
-    await page.locator('.pf-query-page .pf-data-grid tbody tr').count(),
-  ).toEqual(2);
+
+  // Get all rows, but filter for *only* those that have a 'cell' inside to
+  // avoid counting the header row.
+  const dataRows = page.getByRole('row').filter({
+    has: page.getByRole('cell'),
+  });
+  expect(await dataRows.count()).toEqual(2);
 });

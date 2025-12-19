@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <tuple>
 #include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -32,15 +31,18 @@
 
 namespace perfetto::trace_processor {
 
-class ArgsTracker;
+class ClockSynchronizerListenerImpl;
 class ArgsTranslationTable;
 class ClockConverter;
-class ClockTracker;
+template <typename T>
+class ClockSynchronizer;
 class CpuTracker;
 class DescriptorPool;
 class EventTracker;
+class FileIoTracker;
 class FlowTracker;
 class GlobalArgsTracker;
+class ImportLogsTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -60,8 +62,10 @@ class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
+struct TrackCompressorGroupIdxState;
 
 using MachineId = tables::MachineTable::Id;
+using ClockTracker = ClockSynchronizer<ClockSynchronizerListenerImpl>;
 
 class TraceProcessorContext {
  public:
@@ -138,6 +142,9 @@ class TraceProcessorContext {
   GlobalPtr<DescriptorPool> descriptor_pool_;
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
+  GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
+  GlobalPtr<StackProfileTracker> stack_profile_tracker;
+  GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
 
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of
@@ -169,6 +176,7 @@ class TraceProcessorContext {
 
   PerTracePtr<TraceState> trace_state;
   PerTracePtr<Destructible> content_analyzer;
+  PerTracePtr<ImportLogsTracker> import_logs_tracker;
 
   // Per-Machine State
   // =================
@@ -192,14 +200,13 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<ProcessTrackTranslationTable>
       process_track_translation_table;
   PerTraceAndMachinePtr<SliceTranslationTable> slice_translation_table;
-  PerTraceAndMachinePtr<ArgsTracker> args_tracker;
   PerTraceAndMachinePtr<TrackTracker> track_tracker;
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;
+  PerTraceAndMachinePtr<FileIoTracker> file_io_tracker;
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
-  PerTraceAndMachinePtr<StackProfileTracker> stack_profile_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -227,14 +234,9 @@ class TraceProcessorContext {
 class TraceProcessorContext::ForkedContextState {
  public:
   using TraceIdAndMachineId = std::pair<uint32_t, uint32_t>;
-  struct Hasher {
-    uint64_t operator()(const TraceIdAndMachineId& key) {
-      return base::MurmurHashCombine(key.first, key.second);
-    }
-  };
   base::FlatHashMap<TraceIdAndMachineId,
                     std::unique_ptr<TraceProcessorContext>,
-                    Hasher>
+                    base::MurmurHash<TraceIdAndMachineId>>
       trace_and_machine_to_context;
   base::FlatHashMap<uint32_t, TraceProcessorContext*> trace_to_context;
   base::FlatHashMap<uint32_t, TraceProcessorContext*> machine_to_context;

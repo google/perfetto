@@ -16,23 +16,27 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 
 interface DetailsShellAttrs {
-  title: m.Children;
-  description?: m.Children;
-  buttons?: m.Children;
-
+  // Additional class names to apply to the shell
+  readonly className?: string;
+  // Main title of the details shell.
+  readonly title: m.Children;
+  // A little descriptive text to be placed next to the title in a smaller font.
+  readonly description?: m.Children;
+  // Buttons to be rendered on the right side of the header bar.
+  readonly buttons?: m.Children;
   // Vertically fill parent container and disable scrolling
-  fillParent?: boolean;
+  readonly fillHeight?: boolean;
 }
 
 // A shell for details panels to be more visually consistent.
 // It provides regular placement for the header bar and placement of buttons
 export class DetailsShell implements m.ClassComponent<DetailsShellAttrs> {
   view({attrs, children}: m.Vnode<DetailsShellAttrs>) {
-    const {title, description, buttons, fillParent = true} = attrs;
+    const {title, description, buttons, fillHeight = true, className} = attrs;
 
     return m(
       'section.pf-details-shell',
-      {class: classNames(fillParent && 'pf-fill-parent')},
+      {class: classNames(fillHeight && 'pf-fill-height', className)},
       m(
         'header.pf-header-bar',
         m('h1.pf-header-title', title),

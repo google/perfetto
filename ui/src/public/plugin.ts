@@ -14,6 +14,7 @@
 
 import {Trace} from './trace';
 import {App} from './app';
+import {RouteArgs} from './route_schema';
 
 /**
  * This interface defines the shape of the plugins's class constructor (i.e. the
@@ -28,7 +29,7 @@ export interface PerfettoPluginStatic<T extends PerfettoPlugin> {
   readonly id: string;
   readonly description?: string;
   readonly dependencies?: ReadonlyArray<PerfettoPluginStatic<PerfettoPlugin>>;
-  onActivate?(app: App): void;
+  onActivate?(app: App, args: RouteArgs): void;
   metricVisualisations?(): MetricVisualisation[];
   new (trace: Trace): T;
 }
@@ -38,7 +39,7 @@ export interface PerfettoPluginStatic<T extends PerfettoPlugin> {
  * is created from the class constructor above at trace load time.
  */
 export interface PerfettoPlugin {
-  onTraceLoad?(ctx: Trace): Promise<void>;
+  onTraceLoad?(ctx: Trace, args?: {[key: string]: unknown}): Promise<void>;
 }
 
 export interface MetricVisualisation {

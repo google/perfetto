@@ -32,7 +32,7 @@ namespace {
 base::ScopedFstream OpenTestTrace(const std::string& path) {
   std::string full_path = base::GetTestDataPath(path);
   EXPECT_TRUE(base::FileExists(full_path)) << full_path;
-  return base::ScopedFstream(fopen(full_path.c_str(), "rb"));
+  return base::OpenFstream(full_path, "r");
 }
 
 std::vector<uint8_t> ReadAllData(const base::ScopedFstream& f) {

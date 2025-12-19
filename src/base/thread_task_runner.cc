@@ -24,8 +24,8 @@
 #include <thread>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/thread_utils.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -48,7 +48,6 @@ ThreadTaskRunner& ThreadTaskRunner::operator=(ThreadTaskRunner&& other) {
 
 ThreadTaskRunner::~ThreadTaskRunner() {
   if (task_runner_) {
-    PERFETTO_CHECK(!task_runner_->QuitCalled());
     task_runner_->Quit();
 
     PERFETTO_DCHECK(thread_.joinable());
@@ -61,8 +60,8 @@ ThreadTaskRunner::ThreadTaskRunner(const std::string& name) : name_(name) {
   std::mutex init_lock;
   std::condition_variable init_cv;
 
-  std::function<void(UnixTaskRunner*)> initializer =
-      [this, &init_lock, &init_cv](UnixTaskRunner* task_runner) {
+  std::function<void(MaybeLockFreeTaskRunner*)> initializer =
+      [this, &init_lock, &init_cv](MaybeLockFreeTaskRunner* task_runner) {
         std::lock_guard<std::mutex> lock(init_lock);
         task_runner_ = task_runner;
         // Notify while still holding the lock, as init_cv ceases to exist as
@@ -80,12 +79,12 @@ ThreadTaskRunner::ThreadTaskRunner(const std::string& name) : name_(name) {
 }
 
 void ThreadTaskRunner::RunTaskThread(
-    std::function<void(UnixTaskRunner*)> initializer) {
+    std::function<void(MaybeLockFreeTaskRunner*)> initializer) {
   if (!name_.empty()) {
     base::MaybeSetThreadName(name_);
   }
 
-  UnixTaskRunner task_runner;
+  MaybeLockFreeTaskRunner task_runner;
   task_runner.PostTask(std::bind(std::move(initializer), &task_runner));
   task_runner.Run();
 }

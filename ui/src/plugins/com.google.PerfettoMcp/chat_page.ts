@@ -13,14 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Chat, GenerateContentResponse} from '@google/genai';
+import {
+  Chat,
+  GenerateContentResponse,
+  GenerateContentResponseUsageMetadata,
+} from '@google/genai';
 import {Trace} from '../../public/trace';
 import {TextInput} from '../../widgets/text_input';
 import markdownit from 'markdown-it';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
+import {Setting} from '../../public/settings';
 
 // Interface for a single message in the chat display
+
 interface ChatMessage {
   role: 'ai' | 'user' | 'error' | 'thought' | 'toolcall' | 'spacer';
   text: string;
@@ -30,21 +36,24 @@ interface ChatMessage {
 export interface ChatPageAttrs {
   readonly trace: Trace;
   readonly chat: Chat;
-  readonly showThoughts: boolean;
+  readonly showThoughts: Setting<boolean>;
+  readonly showTokens: Setting<boolean>;
 }
 
 export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   private messages: ChatMessage[];
   private userInput: string;
   private isLoading: boolean;
-  private useStream: boolean = true;
-  private showThoughts: boolean;
+  private showThoughts: Setting<boolean>;
+  private showTokens: Setting<boolean>;
   private readonly chat: Chat;
   private md: markdownit;
+  private usage?: GenerateContentResponseUsageMetadata;
 
   constructor({attrs}: m.CVnode<ChatPageAttrs>) {
     this.chat = attrs.chat;
     this.showThoughts = attrs.showThoughts;
+    this.showTokens = attrs.showTokens;
     this.md = markdownit();
     this.userInput = '';
     this.isLoading = false;
@@ -57,7 +66,7 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   }
 
   async processResponse(response: GenerateContentResponse) {
-    if (this.showThoughts) {
+    if (this.showThoughts.get()) {
       const candidateParts = response.candidates?.[0]?.content?.parts;
       if (candidateParts !== undefined) {
         candidateParts.forEach((part) => {
@@ -78,6 +87,10 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
 
     if (response.text !== undefined) {
       this.updateAiResponse(response.text);
+    }
+
+    if (response.usageMetadata) {
+      this.usage = response.usageMetadata;
     }
 
     m.redraw();
@@ -105,20 +118,12 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
     m.redraw();
 
     try {
-      if (this.useStream) {
-        const responseStream = await this.chat.sendMessageStream({
-          message: trimmedInput,
-        });
+      const responseStream = await this.chat.sendMessageStream({
+        message: trimmedInput,
+      });
 
-        for await (const part of responseStream) {
-          this.processResponse(part);
-        }
-      } else {
-        const response = await this.chat.sendMessage({
-          message: trimmedInput,
-        });
-
-        this.processResponse(response);
+      for await (const part of responseStream) {
+        this.processResponse(part);
       }
 
       this.messages.push({role: 'spacer', text: ''});
@@ -202,6 +207,18 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
             : 'Ask me about your trace...',
           disabled: this.isLoading,
         }),
+
+        this.showTokens.get()
+          ? [
+              m('.pf-ai-chat-panel__tokens', [
+                m('div.pf-ai-chat-panel__tokens__label', 'Tokens'),
+                m(
+                  'div.pf-ai-chat-panel__tokens__count',
+                  this.usage?.totalTokenCount ?? '--',
+                ),
+              ]),
+            ]
+          : [],
 
         m(Button, {
           icon: 'arrow_forward',

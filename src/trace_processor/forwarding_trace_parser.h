@@ -44,7 +44,6 @@ class ForwardingTraceParser : public ChunkedTraceReader {
 
  private:
   base::Status Init(const TraceBlobView&);
-  void UpdateSorterForTraceType(TraceType trace_type);
 
   TraceProcessorContext* const input_context_;
 

@@ -38,17 +38,11 @@ async function getTrackHelpButton(
   return trackButtons.locator('button i.pf-icon:has-text("help")');
 }
 
-test('Track with no description', async () => {
-  await pth.openTraceFile('api34_startup_cold.perfetto-trace');
-  const helpButton = await getTrackHelpButton('Cpu 0 Frequency');
-  await expect(helpButton).toHaveCount(0);
-});
-
 [
   {
     testName: 'Cpu thread scheduling description',
     traceFile: 'api34_startup_cold.perfetto-trace',
-    trackName: 'Cpu 2',
+    trackName: 'CPU Scheduling/CPU 2 Scheduling',
     screenshotName: 'cpu_scheduling_description.png',
   },
   {

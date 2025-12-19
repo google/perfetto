@@ -23,35 +23,113 @@ import {
   SqlPackage,
   SqlTable,
   SqlTableFunction,
-  SqlType,
-  TableAndColumn,
-  createTableColumnFromPerfettoSql,
 } from './sql_modules';
-import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {TableColumn} from '../../components/widgets/sql/table/table_column';
+import {Trace} from '../../public/trace';
+import {
+  parsePerfettoSqlTypeFromString,
+  PerfettoSqlType,
+} from '../../trace_processor/perfetto_sql_type';
+import {unwrapResult} from '../../base/result';
+import {createTableColumn} from '../../components/widgets/sql/table/columns';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
+  private disabledModules: Set<string> = new Set();
+  private initPromise: Promise<void>;
 
-  constructor(docs: SqlModulesDocsSchema) {
-    this.packages = docs.map((json) => new StdlibPackageImpl(json));
+  constructor(trace: Trace, docs: SqlModulesDocsSchema) {
+    this.packages = docs.map((json) => new StdlibPackageImpl(trace, json));
+    // Start computing disabled modules based on data availability
+    this.initPromise = this.computeDisabledModules(trace, docs);
   }
 
-  findAllTablesWithLinkedId(tableAndColumn: TableAndColumn): SqlTable[] {
-    const linkedIdTables: SqlTable[] = [];
-    for (const t of this.listTables()) {
-      const allLinkedCols = t.linkedIdColumns;
-      if (
-        allLinkedCols.find(
-          (c) =>
-            c.type.tableAndColumn &&
-            c.type.tableAndColumn.isEqual(tableAndColumn),
-        )
-      ) {
-        linkedIdTables.push(t);
+  async waitForInit(): Promise<void> {
+    await this.initPromise;
+  }
+
+  private async computeDisabledModules(
+    trace: Trace,
+    docs: SqlModulesDocsSchema,
+  ): Promise<void> {
+    // Build dependency graph: module -> modules that include it
+    const dependents = new Map<string, Set<string>>();
+    const modulesWithChecks = new Map<string, string>();
+
+    for (const pkg of docs) {
+      for (const mod of pkg.modules) {
+        const moduleName = mod.module_name;
+
+        // Store data check SQL if present
+        if (mod.data_check_sql) {
+          modulesWithChecks.set(moduleName, mod.data_check_sql);
+        }
+
+        // Build reverse dependency graph
+        if (mod.includes) {
+          for (const includedModule of mod.includes) {
+            if (!dependents.has(includedModule)) {
+              dependents.set(includedModule, new Set());
+            }
+            dependents.get(includedModule)!.add(moduleName);
+          }
+        }
       }
     }
-    return linkedIdTables;
+
+    // Check data availability for modules with checks
+    const missingDataModules = new Set<string>();
+    for (const [moduleName, checkSql] of modulesWithChecks) {
+      try {
+        const result = await trace.engine.query(checkSql);
+        // EXISTS returns 0 or 1
+        if (result.numRows() > 0) {
+          // Use iter() to avoid type checking issues with VARINT
+          const iter = result.iter({});
+          iter.next();
+          const hasDataValue = iter.get('has_data');
+          const hasData =
+            typeof hasDataValue === 'bigint'
+              ? hasDataValue !== 0n
+              : Number(hasDataValue) !== 0;
+          if (!hasData) {
+            missingDataModules.add(moduleName);
+          }
+        }
+      } catch (e) {
+        // If query fails, assume no data
+        missingDataModules.add(moduleName);
+      }
+    }
+
+    // BFS to find all transitive dependents of modules with missing data
+    const queue = Array.from(missingDataModules);
+    const disabled = new Set(missingDataModules);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const deps = dependents.get(current);
+
+      if (deps) {
+        for (const dependent of deps) {
+          if (!disabled.has(dependent)) {
+            disabled.add(dependent);
+            queue.push(dependent);
+          }
+        }
+      }
+    }
+
+    this.disabledModules = disabled;
+  }
+
+  isModuleDisabled(moduleName: string): boolean {
+    return this.disabledModules.has(moduleName);
+  }
+
+  getDisabledModules(): ReadonlySet<string> {
+    return this.disabledModules;
   }
 
   getTable(tableName: string): SqlTable | undefined {
@@ -91,11 +169,11 @@ export class StdlibPackageImpl implements SqlPackage {
   readonly name: string;
   readonly modules: SqlModule[];
 
-  constructor(docs: DocsPackageSchemaType) {
+  constructor(trace: Trace, docs: DocsPackageSchemaType) {
     this.name = docs.name;
     this.modules = [];
     for (const moduleJson of docs.modules) {
-      this.modules.push(new StdlibModuleImpl(moduleJson));
+      this.modules.push(new StdlibModuleImpl(trace, moduleJson));
     }
   }
 
@@ -129,11 +207,11 @@ export class StdlibPackageImpl implements SqlPackage {
     return undefined;
   }
 
-  getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
+  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined {
     for (const module of this.modules) {
       for (const t of module.tables) {
         if (t.name == tableName) {
-          return module.getSqlTableDescription(tableName);
+          return module.getSqlTableDefinition(tableName);
         }
       }
     }
@@ -143,19 +221,25 @@ export class StdlibPackageImpl implements SqlPackage {
 
 export class StdlibModuleImpl implements SqlModule {
   readonly includeKey: string;
+  readonly tags: string[];
   readonly tables: SqlTable[];
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
   readonly macros: SqlMacro[];
+  readonly dataCheckSql?: string;
+  readonly includes: string[];
 
-  constructor(docs: DocsModuleSchemaType) {
+  constructor(trace: Trace, docs: DocsModuleSchemaType) {
     this.includeKey = docs.module_name;
+    this.tags = docs.tags;
+    this.dataCheckSql = docs.data_check_sql ?? undefined;
+    this.includes = docs.includes ?? [];
 
     const neededInclude = this.includeKey.startsWith('prelude')
       ? undefined
       : this.includeKey;
     this.tables = docs.data_objects.map(
-      (json) => new SqlTableImpl(json, neededInclude),
+      (json) => new SqlTableImpl(trace, json, neededInclude),
     );
 
     this.functions = docs.functions.map((json) => new StdlibFunctionImpl(json));
@@ -174,7 +258,7 @@ export class StdlibModuleImpl implements SqlModule {
     return undefined;
   }
 
-  getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
+  getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined {
     const sqlTable = this.getTable(tableName);
     if (sqlTable === undefined) {
       return undefined;
@@ -182,7 +266,10 @@ export class StdlibModuleImpl implements SqlModule {
     return {
       imports: [this.includeKey],
       name: sqlTable.name,
-      columns: sqlTable.getTableColumns(),
+      columns: sqlTable.columns.map((col) => ({
+        column: col.name,
+        type: col.type,
+      })),
     };
   }
 }
@@ -216,7 +303,9 @@ class StdlibTableFunctionImpl implements SqlTableFunction {
     this.summaryDesc = docs.summary_desc;
     this.description = docs.desc;
     this.args = docs.args.map((json) => new StdlibFunctionArgImpl(json));
-    this.returnCols = docs.cols.map((json) => new StdlibColumnImpl(json));
+    this.returnCols = docs.cols.map(
+      (json) => new StdlibColumnImpl(json, this.name),
+    );
   }
 }
 
@@ -243,82 +332,51 @@ class SqlTableImpl implements SqlTable {
   includeKey?: string;
   description: string;
   type: string;
+  importance?: 'high' | 'mid' | 'low';
   columns: SqlColumn[];
   idColumn: SqlColumn | undefined;
-  linkedIdColumns: SqlColumn[];
-  joinIdColumns: SqlColumn[];
 
-  constructor(docs: DocsDataObjectSchemaType, includeKey: string | undefined) {
+  constructor(
+    readonly trace: Trace,
+    docs: DocsDataObjectSchemaType,
+    includeKey: string | undefined,
+  ) {
     this.name = docs.name;
     this.includeKey = includeKey;
     this.description = docs.desc;
     this.type = docs.type;
-    this.columns = docs.cols.map((json) => new StdlibColumnImpl(json));
-
-    this.linkedIdColumns = [];
-    this.joinIdColumns = [];
-    for (const c of this.columns) {
-      if (c.type.name === 'id') {
-        this.idColumn = c;
-        continue;
-      }
-      if (c.type.shortName === 'id') {
-        this.linkedIdColumns.push(c);
-        continue;
-      }
-      if (c.type.shortName === 'joinid') {
-        this.joinIdColumns.push(c);
-        continue;
-      }
-    }
-  }
-
-  getIdColumns(): SqlColumn[] {
-    return this.columns.filter((c) => c.type.shortName === 'id');
-  }
-
-  getJoinIdColumns(): SqlColumn[] {
-    return this.columns.filter((c) => c.type.shortName === 'joinid');
-  }
-
-  getIdTables(): TableAndColumn[] {
-    return this.getIdColumns()
-      .map((c) => c.type.tableAndColumn)
-      .filter((tAndC) => tAndC !== undefined) as TableAndColumn[];
-  }
-
-  getJoinIdTables(): TableAndColumn[] {
-    return this.getJoinIdColumns()
-      .map((c) => c.type.tableAndColumn)
-      .filter((tAndC) => tAndC !== undefined) as TableAndColumn[];
+    this.importance = docs.importance ?? undefined;
+    this.columns = docs.cols.map(
+      (json) => new StdlibColumnImpl(json, this.name),
+    );
   }
 
   getTableColumns(): TableColumn[] {
     return this.columns.map((col) =>
-      createTableColumnFromPerfettoSql(col, this.name),
+      createTableColumn({
+        trace: this.trace,
+        column: col.name,
+        type: col.type,
+      }),
     );
   }
 }
 
 class StdlibColumnImpl implements SqlColumn {
   name: string;
-  type: SqlType;
+  type: PerfettoSqlType;
   description: string;
 
-  constructor(docs: DocsArgOrColSchemaType) {
-    this.type = {
-      name: docs.type.toLowerCase(),
-      shortName: docs.type.split('(')[0].toLowerCase(),
-      tableAndColumn:
-        docs.table && docs.column
-          ? new TableAndColumnImpl(
-              docs.table.toLowerCase(),
-              docs.column.toLowerCase(),
-            )
-          : undefined,
-    };
-    this.description = docs.desc;
+  constructor(docs: DocsArgOrColSchemaType, tableName: string) {
     this.name = docs.name;
+    this.type = unwrapResult(
+      parsePerfettoSqlTypeFromString({
+        type: docs.type,
+        table: tableName,
+        column: this.name,
+      }),
+    );
+    this.description = docs.desc;
   }
 }
 
@@ -331,18 +389,6 @@ class StdlibFunctionArgImpl implements SqlArgument {
     this.type = docs.type;
     this.description = docs.desc;
     this.name = docs.name;
-  }
-}
-
-export class TableAndColumnImpl implements TableAndColumn {
-  table: string;
-  column: string;
-  constructor(table: string, column: string) {
-    this.table = table;
-    this.column = column;
-  }
-  isEqual(o: TableAndColumn): boolean {
-    return o.table === this.table && o.column === this.column;
   }
 }
 
@@ -360,6 +406,7 @@ const DATA_OBJECT_SCHEMA = z.object({
   desc: z.string(),
   summary_desc: z.string(),
   type: z.string(),
+  importance: z.enum(['high', 'mid', 'low']).nullish(),
   cols: z.array(ARG_OR_COL_SCHEMA),
 });
 type DocsDataObjectSchemaType = z.infer<typeof DATA_OBJECT_SCHEMA>;
@@ -395,10 +442,13 @@ type DocsMacroSchemaType = z.infer<typeof MACRO_SCHEMA>;
 
 const MODULE_SCHEMA = z.object({
   module_name: z.string(),
+  tags: z.array(z.string()),
   data_objects: z.array(DATA_OBJECT_SCHEMA),
   functions: z.array(FUNCTION_SCHEMA),
   table_functions: z.array(TABLE_FUNCTION_SCHEMA),
   macros: z.array(MACRO_SCHEMA),
+  data_check_sql: z.string().nullish(),
+  includes: z.array(z.string()).nullish(),
 });
 type DocsModuleSchemaType = z.infer<typeof MODULE_SCHEMA>;
 

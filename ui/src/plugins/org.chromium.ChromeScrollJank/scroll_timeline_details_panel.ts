@@ -15,12 +15,7 @@
 import m from 'mithril';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import {
-  LONG,
-  NUM_NULL,
-  SqlValue,
-  STR,
-} from '../../trace_processor/query_result';
+import {LONG, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Duration, duration, Time, time} from '../../base/time';
@@ -29,53 +24,20 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
-import {fromSqlBool, renderSliceRef, renderSqlRef} from './utils';
+import {fromSqlBool, renderSqlRef} from './utils';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {
-  TableColumn,
-  TableManager,
-} from '../../components/widgets/sql/table/table_column';
-import {renderStandardCell} from '../../components/widgets/sql/table/render_cell_utils';
+import {ColumnDefinition} from '../../components/widgets/sql/table/table_description';
 import {ScrollTimelineModel} from './scroll_timeline_model';
-import {
-  DurationColumn,
-  StandardColumn,
-  TimestampColumn,
-} from '../../components/widgets/sql/table/columns';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 
-function createPluginSliceIdColumn(
-  trace: Trace,
-  trackUri: string,
-  name: string,
-): TableColumn {
-  const col = new StandardColumn(name);
-  col.renderCell = (value: SqlValue, tableManager: TableManager) => {
-    if (value === null || typeof value !== 'bigint') {
-      return renderStandardCell(value, name, tableManager);
-    }
-    return renderSliceRef({
-      trace: trace,
-      id: Number(value),
-      trackUri: trackUri,
-      title: `${value}`,
-    });
-  };
-  return col;
-}
-
-function createScrollTimelineTableColumns(
-  trace: Trace,
-  trackUri: string,
-): TableColumn[] {
-  return [
-    createPluginSliceIdColumn(trace, trackUri, 'id'),
-    new StandardColumn('scroll_update_id'),
-    new TimestampColumn('ts'),
-    new DurationColumn('dur'),
-    new StandardColumn('name'),
-    new StandardColumn('classification'),
-  ];
-}
+const SCROLL_TIMELINE_TABLE_COLUMNS: ColumnDefinition[] = [
+  {column: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
+  {column: 'scroll_update_id', type: PerfettoSqlTypes.INT},
+  {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+  {column: 'dur', type: PerfettoSqlTypes.DURATION},
+  {column: 'name', type: PerfettoSqlTypes.STRING},
+  {column: 'classification', type: PerfettoSqlTypes.STRING},
+];
 
 export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
   // Information about the scroll update *slice*, which was emitted by
@@ -204,23 +166,23 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         }),
         m(TreeNode, {
           left: 'Start time',
-          right: m(Timestamp, {ts: this.sliceData.ts}),
+          right: m(Timestamp, {trace: this.trace, ts: this.sliceData.ts}),
         }),
         m(TreeNode, {
           left: 'Duration',
-          right: m(DurationWidget, {dur: this.sliceData.dur}),
+          right: m(DurationWidget, {
+            trace: this.trace,
+            dur: this.sliceData.dur,
+          }),
         }),
         m(TreeNode, {
           left: 'SQL ID',
           right: renderSqlRef({
             trace: this.trace,
             tableName: this.model.tableName,
-            tableDescription: {
+            tableDefinition: {
               name: this.model.tableName,
-              columns: createScrollTimelineTableColumns(
-                this.trace,
-                this.model.trackUri,
-              ),
+              columns: SCROLL_TIMELINE_TABLE_COLUMNS,
             },
             id: this.id,
           }),
@@ -235,11 +197,11 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
     if (this.sliceData === undefined || this.scrollData === undefined) {
       child = 'Loading...';
     } else {
-      const scrollTableDescription = this.trace.plugins
+      const scrollTableDefinition = this.trace.plugins
         .getPlugin(SqlModulesPlugin)
         .getSqlModules()
         ?.getModuleForTable('chrome_scroll_update_info')
-        ?.getSqlTableDescription('chrome_scroll_update_info');
+        ?.getSqlTableDefinition('chrome_scroll_update_info');
       child = m(
         Tree,
         m(TreeNode, {
@@ -247,7 +209,10 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
           right:
             this.scrollData.vsyncInterval === undefined
               ? `${this.scrollData.vsyncInterval}`
-              : m(DurationWidget, {dur: this.scrollData.vsyncInterval}),
+              : m(DurationWidget, {
+                  trace: this.trace,
+                  dur: this.scrollData.vsyncInterval,
+                }),
         }),
         m(TreeNode, {
           left: 'Is presented',
@@ -275,7 +240,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
             trace: this.trace,
             tableName: 'chrome_scroll_update_info',
             id: this.sliceData.scrollUpdateId,
-            tableDescription: scrollTableDescription,
+            tableDefinition: scrollTableDefinition,
           }),
         }),
       );

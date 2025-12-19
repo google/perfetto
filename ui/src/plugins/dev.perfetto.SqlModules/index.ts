@@ -14,48 +14,87 @@
 
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
+import {defer} from '../../base/deferred';
 import {extensions} from '../../components/extensions';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SqlModules} from './sql_modules';
-import {SQL_MODULES_DOCS_SCHEMA, SqlModulesImpl} from './sql_modules_impl';
+import {
+  SQL_MODULES_DOCS_SCHEMA,
+  SqlModulesDocsSchema,
+  SqlModulesImpl,
+} from './sql_modules_impl';
 
-let globSqlModules: SqlModules | undefined;
+const docs = defer<SqlModulesDocsSchema>();
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
 
+  private sqlModules: SqlModules | undefined;
+
   static onActivate(_: App): void {
     // Load the SQL modules JSON file when the plugin when the app starts up,
     // rather than waiting until trace load.
-    loadJson();
+    loadJson().then(docs.resolve.bind(docs));
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    docs.then(async (resolvedDocs) => {
+      const impl = new SqlModulesImpl(trace, resolvedDocs);
+      impl.waitForInit().then(() => {
+        this.sqlModules = impl;
+        m.redraw();
+      });
+    });
+
     trace.commands.registerCommand({
-      id: 'perfetto.OpenSqlModulesTable',
+      id: 'dev.perfetto.OpenSqlModulesTable',
       name: 'Open table...',
       callback: async () => {
-        if (!globSqlModules) {
+        if (!this.sqlModules) {
           window.alert('Sql modules are still loading... Please wait.');
           return;
         }
 
-        const tables = globSqlModules.listTablesNames();
+        const tables = this.sqlModules.listTablesNames();
+
+        // Annotate disabled modules in the prompt
+        const annotatedTables = tables.map((tableName) => {
+          const module = this.sqlModules!.getModuleForTable(tableName);
+          if (module && this.sqlModules!.isModuleDisabled(module.includeKey)) {
+            return `${tableName} (no data)`;
+          }
+          return tableName;
+        });
 
         const chosenTable = await trace.omnibox.prompt(
           'Choose a table...',
-          tables,
+          annotatedTables,
         );
         if (chosenTable === undefined) {
           return;
         }
-        const module = globSqlModules.getModuleForTable(chosenTable);
+
+        // Strip the annotation if present
+        const actualTableName = chosenTable.replace(' (no data)', '');
+        const module = this.sqlModules.getModuleForTable(actualTableName);
         if (module === undefined) {
           return;
         }
-        const sqlTable = module.getSqlTableDescription(chosenTable);
+
+        // Warn if opening a disabled module
+        if (this.sqlModules.isModuleDisabled(module.includeKey)) {
+          const proceed = window.confirm(
+            `Warning: The module "${module.includeKey}" may not have data in this trace. ` +
+              `The table might be empty. Continue anyway?`,
+          );
+          if (!proceed) {
+            return;
+          }
+        }
+
+        const sqlTable = module.getSqlTableDefinition(actualTableName);
         sqlTable &&
           extensions.addLegacySqlTableTab(trace, {
             table: sqlTable,
@@ -65,17 +104,12 @@ export default class implements PerfettoPlugin {
   }
 
   getSqlModules(): SqlModules | undefined {
-    return globSqlModules;
+    return this.sqlModules;
   }
 }
 
 async function loadJson() {
   const x = await fetch(assetSrc('stdlib_docs.json'));
   const json = await x.json();
-  const docs = SQL_MODULES_DOCS_SCHEMA.parse(json);
-  const sqlModules = new SqlModulesImpl(docs);
-
-  globSqlModules = sqlModules;
-
-  m.redraw();
+  return SQL_MODULES_DOCS_SCHEMA.parse(json);
 }

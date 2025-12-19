@@ -20,13 +20,13 @@ function formatMillis(millis: number) {
   return millis.toFixed(1);
 }
 
-export default class implements PerfettoPlugin {
+export default class QueryLogPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.QueryLog';
   async onTraceLoad(trace: Trace): Promise<void> {
-    const tabUri = `${trace.pluginId}#QueryLogTab`;
+    const tabUri = `${QueryLogPlugin.id}#QueryLogTab`;
 
     trace.commands.registerCommand({
-      id: `${trace.pluginId}#ShowQueryLogTab`,
+      id: `dev.perfetto.ShowQueryLogTab`,
       name: 'Show query log tab',
       callback: () => {
         trace.tabs.showTab(tabUri);
@@ -38,7 +38,7 @@ export default class implements PerfettoPlugin {
       uri: tabUri,
       content: {
         getTitle() {
-          return 'Query log';
+          return 'Query Log';
         },
         render() {
           // Show the logs in reverse order
@@ -56,7 +56,7 @@ export default class implements PerfettoPlugin {
             queryLog.map((ql) =>
               m(
                 'tr',
-                m('td', ql.query),
+                m('td', m('pre', ql.query.trim())),
                 m('td', ql.tag),
                 m(
                   'td',

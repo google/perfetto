@@ -19,7 +19,7 @@
 
 #include <optional>
 
-#include "perfetto/ext/base/string_writer.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "src/trace_processor/types/version_number.h"
 
 namespace perfetto {
@@ -30,7 +30,7 @@ namespace trace_processor {
 // flag.
 void WriteGfpFlag(uint64_t value,
                   std::optional<VersionNumber> version,
-                  base::StringWriter* writer);
+                  base::FixedStringWriter* writer);
 
 }  // namespace trace_processor
 }  // namespace perfetto

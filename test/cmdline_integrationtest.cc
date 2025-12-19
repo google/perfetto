@@ -20,6 +20,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -91,7 +92,8 @@ TraceConfig CreateTraceConfigForBugreportTest(int score = 1,
     // Add a random unrelated field to keep the generator happy.
     filt.AddSimpleField(protos::pbzero::TracePacket::kTraceUuidFieldNumber);
     filt.EndMessage();
-    trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+    trace_config.mutable_trace_filter()->set_bytecode_v2(
+        filt.Serialize().bytecode);
   }
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -1130,6 +1132,87 @@ TEST_F(PerfettoCmdlineTest, CloneByName) {
   ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
 }
 
+TEST_F(PerfettoCmdlineTest, CloneWriteIntoFileSession) {
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10);
+  trace_config.set_unique_session_name("my_session_name");
+
+  const std::string write_into_file_path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(write_into_file_path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          write_into_file_path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  const std::string cloned_file_path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit_1(cloned_file_path);
+  auto clone_proc = ExecPerfetto(
+      {"--out", cloned_file_path, "--clone-by-name", "my_session_name"});
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  auto* fake_producer = test_helper().ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+  });
+
+  test_helper().WaitForProducerEnabled();
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written");
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written");
+
+  // Wait until all the data for the 'write_into_file' session is written into
+  // file.
+  bool write_into_file_data_ready = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    protos::gen::Trace trace;
+    if (!ParseNotEmptyTraceFromFile(write_into_file_path, trace)) {
+      continue;
+    }
+    ssize_t test_packets_count =
+        std::count_if(trace.packet().begin(), trace.packet().end(),
+                      [](const protos::gen::TracePacket& tp) {
+                        return tp.has_for_testing();
+                      });
+    if (test_packets_count == kTestMessageCount) {
+      write_into_file_data_ready = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(write_into_file_data_ready);
+
+  // Now we clone the session.
+  std::string stderr_str;
+  EXPECT_EQ(0, clone_proc.Run(&stderr_str)) << stderr_str;
+
+  perfetto_proc.SendSigterm();
+  background_trace.join();
+  // And now we assert that both original 'write_into_file' and the cloned
+  // session have the same events.
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
+    ExpectTraceContainsTestMessages(trace, kTestMessageCount);
+    ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
+  }
+  {
+    protos::gen::Trace cloned_trace;
+    ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_file_path, cloned_trace));
+    ExpectTraceContainsTestMessages(cloned_trace, kTestMessageCount);
+    ExpectTraceContainsTestMessagesWithSize(cloned_trace, kTestMessageSize);
+  }
+}
+
 // Regression test for b/279753347: --save-for-bugreport would create an empty
 // file if no session with bugreport_score was active.
 TEST_F(PerfettoCmdlineTest, UnavailableBugreportLeavesNoEmptyFiles) {
@@ -1149,6 +1232,67 @@ TEST_F(PerfettoCmdlineTest, UnavailableBugreportLeavesNoEmptyFiles) {
   // is not empty.
   EXPECT_NE(base::GetFileSize(GetBugreportTracePath()), 0);
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+TEST_F(PerfettoCmdlineTest, DoNotDeleteNotEmptyWriteIntoFileTraceOnError) {
+  // We call `test_helper().RestartService()` to simulate `traced` dropping
+  // the connection to the `perfetto_cmd`, so we run this test only in
+  // `PERFETTO_START_DAEMONS` mode.
+  // FakeProducer crashes is this case, so we just don't start it. Even without
+  // a data source, the tracing session writes some data on disk, that is enough
+  // for us.
+  TraceConfig trace_config;
+  trace_config.set_unique_session_name("my_write_into_file_session");
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10);
+
+  const std::string write_into_file_path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(write_into_file_path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          write_into_file_path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  std::string perfetto_cmd_stderr;
+  std::thread background_trace([&perfetto_proc, &perfetto_cmd_stderr]() {
+    EXPECT_EQ(0, perfetto_proc.Run(&perfetto_cmd_stderr))
+        << perfetto_cmd_stderr;
+  });
+
+  // Wait until some data is written into the trace file.
+  bool write_into_file_data_ready = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    protos::gen::Trace trace;
+    if (ParseNotEmptyTraceFromFile(write_into_file_path, trace)) {
+      write_into_file_data_ready = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(write_into_file_data_ready);
+
+  // Tracing session is still running, now simulate `traced` dropping the
+  // connection to the `perfetto_cmd`
+  test_helper().RestartService();
+
+  background_trace.join();
+  // Assert perfetto_cmd disconnected with an error.
+  EXPECT_THAT(
+      perfetto_cmd_stderr,
+      HasSubstr("Service error: EnableTracing IPC request rejected. This is "
+                "likely due to a loss of the traced connection"));
+  // Assert trace file exists and not empty.
+  protos::gen::Trace trace;
+  EXPECT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
+}
+#endif
 
 // Tests that SaveTraceForBugreport() works also if the trace has triggers
 // defined and those triggers have not been hit. This is a regression test for

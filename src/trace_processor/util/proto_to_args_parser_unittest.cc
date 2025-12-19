@@ -37,6 +37,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/base/test//status_matchers.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -236,6 +237,29 @@ TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
           "field_bytes field_bytes <bytes size=3>"));
 }
 
+TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<protozero::Message> raw{kChunkSize, kChunkSize};
+  protozero::PackedVarInt packed;
+  packed.Append(int32_t{10});
+  packed.Append(int32_t{20});
+  raw->AppendBytes(EveryField::kRepeatedInt32FieldNumber, packed.data(),
+                   packed.size());
+  auto binary_proto = raw.SerializeAsArray();
+
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+
+  ProtoToArgsParser parser(pool);
+  ASSERT_OK(parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.EveryField", nullptr, *this));
+  EXPECT_THAT(args(),
+              testing::ElementsAre("repeated_int32 repeated_int32[0] 10",
+                                   "repeated_int32 repeated_int32[1] 20"));
+}
+
 TEST_F(ProtoToArgsParserTest, NestedProto) {
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
@@ -337,12 +361,12 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
+  int nested_val = 0;
   parser.AddParsingOverrideForField(
-      "super_nested.value_c",
-      [](const protozero::Field& field, ProtoToArgsParser::Delegate&) {
-        static int val = 0;
-        ++val;
-        EXPECT_EQ(1, val);
+      "super_nested.value_c", [&nested_val](const protozero::Field& field,
+                                            ProtoToArgsParser::Delegate&) {
+        ++nested_val;
+        EXPECT_EQ(1, nested_val);
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
         return std::nullopt;
       });

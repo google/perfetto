@@ -36,7 +36,7 @@ class ChromeParser(TestSuite):
             }
             parent_uuid: 0
             chrome_thread {
-              thread_type: THREAD_POOL_FG_WORKER
+              thread_type: 4
             }
           }
         }
@@ -75,7 +75,7 @@ class ChromeParser(TestSuite):
         # INFO) is assumed (otherwise the UI will not show the message).
         out=Csv("""
         "utid","tag","msg","prio"
-        1,"foo.cc:123","log message",4
+        2,"foo.cc:123","log message",4
         """))
 
   def test_chrome_log_message_priority(self):
@@ -93,7 +93,7 @@ class ChromeParser(TestSuite):
             }
             parent_uuid: 0
             chrome_thread {
-              thread_type: THREAD_POOL_FG_WORKER
+              thread_type: 4
             }
           }
         }
@@ -131,7 +131,7 @@ class ChromeParser(TestSuite):
         """,
         out=Csv("""
         "utid","tag","msg","prio"
-        1,"foo.cc:123","log message",5
+        2,"foo.cc:123","log message",5
         """))
 
   def test_chrome_log_message_args(self):
@@ -149,7 +149,7 @@ class ChromeParser(TestSuite):
             }
             parent_uuid: 0
             chrome_thread {
-              thread_type: THREAD_POOL_FG_WORKER
+              thread_type: 4
             }
           }
         }
@@ -187,6 +187,64 @@ class ChromeParser(TestSuite):
         "log message","func","foo.cc",123
         """))
 
+  def test_chrome_log_message_args_to_json(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 12345
+            thread {
+              pid: 123
+              tid: 345
+            }
+            parent_uuid: 0
+            chrome_thread {
+              thread_type: 4
+            }
+          }
+        }
+
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 10
+          track_event {
+            track_uuid: 12345
+            categories: "cat1"
+            type: TYPE_INSTANT
+            name: "slice1"
+            log_message {
+                body_iid: 1
+                source_location_iid: 3
+            }
+          }
+          interned_data {
+            log_message_body {
+                iid: 1
+                body: "log message"
+            }
+            source_locations {
+                iid: 3
+                function_name: "func"
+                file_name: "foo.cc"
+                line_number: 123
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          name,
+          __intrinsic_arg_set_to_json(arg_set_id) AS args_json
+        FROM slice;
+        """,
+        out=Csv("""
+        "name","args_json"
+        "slice1","{\"track_event\":{\"log_message\":{\"message\":\"log message\",\"file_name\":\"foo.cc\",\"function_name\":\"func\",\"line_number\":123}}}"
+        """))
+
   def test_chrome_thread_is_sandboxed_tid(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -217,7 +275,7 @@ class ChromeParser(TestSuite):
               process_name: "process1"
             }
             chrome_process {
-              process_type: PROCESS_SERVICE_TRACING
+              process_type: 10
             }
           }
           trusted_uid: 0

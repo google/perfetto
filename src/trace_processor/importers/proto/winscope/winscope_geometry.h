@@ -34,6 +34,14 @@ struct Size {
   double h;
 };
 
+// Represents a 2D rect's corner radii (specified in SurfaceFlinger).
+struct CornerRadii {
+  double tl = 0;
+  double tr = 0;
+  double bl = 0;
+  double br = 0;
+};
+
 // Used to represent and manipulate Winscope rect data to perform various
 // computations during Winscope data parsing, such as computing SurfaceFlinger
 // visibilities. These rects are added to the __intrinsic_winscope_rect table.
@@ -46,6 +54,11 @@ class Rect {
 
   bool operator==(const Rect& other) const;
 
+  template <typename H>
+  friend H PerfettoHashValue(H hasher, const Rect& rect) {
+    return H::Combine(std::move(hasher), rect.x, rect.y, rect.w, rect.h);
+  }
+
   bool IsAlmostEqual(const Rect& other) const;
   bool IsEmpty() const;
   Rect CropRect(const Rect& other) const;
@@ -56,6 +69,7 @@ class Rect {
   double y = 0;
   double w = 0;
   double h = 0;
+  CornerRadii radii;
 };
 
 // Represents a region e.g. visible region, touchable region in SurfaceFlinger.
@@ -68,6 +82,11 @@ struct Region {
 class TransformMatrix {
  public:
   bool operator==(const TransformMatrix& other) const;
+
+  template <typename H>
+  friend H PerfettoHashValue(H h, const TransformMatrix& m) {
+    return H::Combine(std::move(h), m.dsdx, m.dtdx, m.tx, m.dsdy, m.dtdy, m.ty);
+  }
 
   Point TransformPoint(Point point) const;
   Rect TransformRect(const Rect& r) const;

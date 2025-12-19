@@ -26,8 +26,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @hide
  */
 final class PerfettoTrackEventExtra {
-  private static final AtomicLong sNamedTrackId = new AtomicLong();
-
   private final long mPtr;
 
   PerfettoTrackEventExtra(PerfettoNativeMemoryCleaner memoryCleaner) {
@@ -120,11 +118,13 @@ final class PerfettoTrackEventExtra {
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
+    private final long mId;
 
-    NamedTrack(String name, long parentUuid, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(sNamedTrackId.incrementAndGet(), name, parentUuid);
+    NamedTrack(long id, String name, long parentUuid, PerfettoNativeMemoryCleaner memoryCleaner) {
+      mPtr = native_init(id, name, parentUuid);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
+      mId = id;
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
@@ -178,11 +178,11 @@ final class PerfettoTrackEventExtra {
     private static native long native_get_extra_ptr(long ptr);
   }
 
-  static final class CounterInt64 implements PerfettoPointer {
+  static final class Counter implements PerfettoPointer {
     private final long mPtr;
     private final long mExtraPtr;
 
-    CounterInt64(PerfettoNativeMemoryCleaner memoryCleaner) {
+    Counter(PerfettoNativeMemoryCleaner memoryCleaner) {
       mPtr = native_init();
       mExtraPtr = native_get_extra_ptr(mPtr);
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
@@ -193,8 +193,12 @@ final class PerfettoTrackEventExtra {
       return mExtraPtr;
     }
 
-    public void setValue(long value) {
-      native_set_value(mPtr, value);
+    public void setValueInt64(long value) {
+      native_set_value_int64(mPtr, value);
+    }
+
+    public void setValueDouble(double value) {
+      native_set_value_double(mPtr, value);
     }
 
     @CriticalNative
@@ -204,45 +208,16 @@ final class PerfettoTrackEventExtra {
     private static native long native_delete();
 
     @CriticalNative
-    private static native void native_set_value(long ptr, long value);
+    private static native void native_set_value_int64(long ptr, long value);
+
+    @CriticalNative
+    private static native void native_set_value_double(long ptr, double value);
 
     @CriticalNative
     private static native long native_get_extra_ptr(long ptr);
   }
 
-  static final class CounterDouble implements PerfettoPointer {
-    private final long mPtr;
-    private final long mExtraPtr;
-
-    CounterDouble(PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init();
-      mExtraPtr = native_get_extra_ptr(mPtr);
-      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
-    }
-
-    @Override
-    public long getPtr() {
-      return mExtraPtr;
-    }
-
-    public void setValue(double value) {
-      native_set_value(mPtr, value);
-    }
-
-    @CriticalNative
-    private static native long native_init();
-
-    @CriticalNative
-    private static native long native_delete();
-
-    @CriticalNative
-    private static native void native_set_value(long ptr, double value);
-
-    @CriticalNative
-    private static native long native_get_extra_ptr(long ptr);
-  }
-
-  static final class ArgInt64 implements PerfettoPointer {
+  static final class Arg implements PerfettoPointer {
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -251,7 +226,7 @@ final class PerfettoTrackEventExtra {
 
     private final String mName;
 
-    ArgInt64(String name, PerfettoNativeMemoryCleaner memoryCleaner) {
+    Arg(String name, PerfettoNativeMemoryCleaner memoryCleaner) {
       mPtr = native_init(name);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
@@ -267,8 +242,20 @@ final class PerfettoTrackEventExtra {
       return mName;
     }
 
-    public void setValue(long val) {
-      native_set_value(mPtr, val);
+    public void setValueInt64(long val) {
+      native_set_value_int64(mPtr, val);
+    }
+
+    public void setValueBool(boolean val) {
+      native_set_value_bool(mPtr, val);
+    }
+
+    public void setValueDouble(double val) {
+      native_set_value_double(mPtr, val);
+    }
+
+    public void setValueString(String val) {
+      native_set_value_string(mPtr, val);
     }
 
     @FastNative
@@ -281,133 +268,16 @@ final class PerfettoTrackEventExtra {
     private static native long native_get_extra_ptr(long ptr);
 
     @CriticalNative
-    private static native void native_set_value(long ptr, long val);
-  }
+    private static native void native_set_value_int64(long ptr, long val);
 
-  static final class ArgBool implements PerfettoPointer {
-    // Private pointer holding Perfetto object with metadata
-    private final long mPtr;
+    @CriticalNative
+    private static native void native_set_value_bool(long ptr, boolean val);
 
-    // Public pointer to Perfetto object itself
-    private final long mExtraPtr;
-
-    private final String mName;
-
-    ArgBool(String name, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(name);
-      mExtraPtr = native_get_extra_ptr(mPtr);
-      mName = name;
-      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
-    }
-
-    @Override
-    public long getPtr() {
-      return mExtraPtr;
-    }
-
-    public String getName() {
-      return mName;
-    }
-
-    public void setValue(boolean val) {
-      native_set_value(mPtr, val);
-    }
+    @CriticalNative
+    private static native void native_set_value_double(long ptr, double val);
 
     @FastNative
-    private static native long native_init(String name);
-
-    @CriticalNative
-    private static native long native_delete();
-
-    @CriticalNative
-    private static native long native_get_extra_ptr(long ptr);
-
-    @CriticalNative
-    private static native void native_set_value(long ptr, boolean val);
-  }
-
-  static final class ArgDouble implements PerfettoPointer {
-    // Private pointer holding Perfetto object with metadata
-    private final long mPtr;
-
-    // Public pointer to Perfetto object itself
-    private final long mExtraPtr;
-
-    private final String mName;
-
-    ArgDouble(String name, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(name);
-      mExtraPtr = native_get_extra_ptr(mPtr);
-      mName = name;
-      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
-    }
-
-    @Override
-    public long getPtr() {
-      return mExtraPtr;
-    }
-
-    public String getName() {
-      return mName;
-    }
-
-    public void setValue(double val) {
-      native_set_value(mPtr, val);
-    }
-
-    @FastNative
-    private static native long native_init(String name);
-
-    @CriticalNative
-    private static native long native_delete();
-
-    @CriticalNative
-    private static native long native_get_extra_ptr(long ptr);
-
-    @CriticalNative
-    private static native void native_set_value(long ptr, double val);
-  }
-
-  static final class ArgString implements PerfettoPointer {
-    // Private pointer holding Perfetto object with metadata
-    private final long mPtr;
-
-    // Public pointer to Perfetto object itself
-    private final long mExtraPtr;
-
-    private final String mName;
-
-    ArgString(String name, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(name);
-      mExtraPtr = native_get_extra_ptr(mPtr);
-      mName = name;
-      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
-    }
-
-    @Override
-    public long getPtr() {
-      return mExtraPtr;
-    }
-
-    public String getName() {
-      return mName;
-    }
-
-    public void setValue(String val) {
-      native_set_value(mPtr, val);
-    }
-
-    @FastNative
-    private static native long native_init(String name);
-
-    @CriticalNative
-    private static native long native_delete();
-
-    @CriticalNative
-    private static native long native_get_extra_ptr(long ptr);
-
-    @FastNative
-    private static native void native_set_value(long ptr, String val);
+    private static native void native_set_value_string(long ptr, String val);
   }
 
   static final class Proto implements PerfettoPointer, FieldContainer {
@@ -453,14 +323,14 @@ final class PerfettoTrackEventExtra {
     private static native void native_clear_fields(long ptr);
   }
 
-  static final class FieldInt64 implements PerfettoPointer {
+  static final class Field implements PerfettoPointer {
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
     // Public pointer to Perfetto object itself
     private final long mFieldPtr;
 
-    FieldInt64(PerfettoNativeMemoryCleaner memoryCleaner) {
+    Field(PerfettoNativeMemoryCleaner memoryCleaner) {
       mPtr = native_init();
       mFieldPtr = native_get_extra_ptr(mPtr);
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
@@ -471,8 +341,20 @@ final class PerfettoTrackEventExtra {
       return mFieldPtr;
     }
 
-    public void setValue(long id, long val) {
-      native_set_value(mPtr, id, val);
+    public void setValueInt64(long id, long val) {
+      native_set_value_int64(mPtr, id, val);
+    }
+
+    public void setValueDouble(long id, double val) {
+      native_set_value_double(mPtr, id, val);
+    }
+
+    public void setValueString(long id, String val) {
+      native_set_value_string(mPtr, id, val);
+    }
+
+    public void setValueWithInterning(long id, String val, long internedTypeId) {
+      native_set_value_with_interning(mPtr, id, val, internedTypeId);
     }
 
     @CriticalNative
@@ -485,77 +367,17 @@ final class PerfettoTrackEventExtra {
     private static native long native_get_extra_ptr(long ptr);
 
     @CriticalNative
-    private static native void native_set_value(long ptr, long id, long val);
-  }
-
-  static final class FieldDouble implements PerfettoPointer {
-    // Private pointer holding Perfetto object with metadata
-    private final long mPtr;
-
-    // Public pointer to Perfetto object itself
-    private final long mFieldPtr;
-
-    FieldDouble(PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init();
-      mFieldPtr = native_get_extra_ptr(mPtr);
-      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
-    }
-
-    @Override
-    public long getPtr() {
-      return mFieldPtr;
-    }
-
-    public void setValue(long id, double val) {
-      native_set_value(mPtr, id, val);
-    }
+    private static native void native_set_value_int64(long ptr, long id, long val);
 
     @CriticalNative
-    private static native long native_init();
-
-    @CriticalNative
-    private static native long native_delete();
-
-    @CriticalNative
-    private static native long native_get_extra_ptr(long ptr);
-
-    @CriticalNative
-    private static native void native_set_value(long ptr, long id, double val);
-  }
-
-  static final class FieldString implements PerfettoPointer {
-    // Private pointer holding Perfetto object with metadata
-    private final long mPtr;
-
-    // Public pointer to Perfetto object itself
-    private final long mFieldPtr;
-
-    FieldString(PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init();
-      mFieldPtr = native_get_extra_ptr(mPtr);
-      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
-    }
-
-    @Override
-    public long getPtr() {
-      return mFieldPtr;
-    }
-
-    public void setValue(long id, String val) {
-      native_set_value(mPtr, id, val);
-    }
-
-    @CriticalNative
-    private static native long native_init();
-
-    @CriticalNative
-    private static native long native_delete();
-
-    @CriticalNative
-    private static native long native_get_extra_ptr(long ptr);
+    private static native void native_set_value_double(long ptr, long id, double val);
 
     @FastNative
-    private static native void native_set_value(long ptr, long id, String val);
+    private static native void native_set_value_string(long ptr, long id, String val);
+
+    @FastNative
+    private static native void native_set_value_with_interning(
+        long ptr, long id, String val, long internedTypeId);
   }
 
   static final class FieldNested implements PerfettoPointer, FieldContainer {

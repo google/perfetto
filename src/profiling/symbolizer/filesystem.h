@@ -17,15 +17,16 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_FILESYSTEM_H_
 #define SRC_PROFILING_SYMBOLIZER_FILESYSTEM_H_
 
-#include "src/profiling/symbolizer/local_symbolizer.h"
+#include <cstddef>
+#include <functional>
+#include <string>
+#include <vector>
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
 
 using FileCallback = std::function<void(const char*, size_t)>;
 bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn);
 
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling
 
 #endif  // SRC_PROFILING_SYMBOLIZER_FILESYSTEM_H_

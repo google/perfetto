@@ -21,7 +21,7 @@ import("../../gn/wasm.gni")
 # On standalone builds this is all the OSes we support. On chromium builds,
 # though, this really means !is_fuchsia && !is_nacl.
 _subprocess_supported =
-    is_linux || is_chromeos || is_android || is_mac || is_win
+    is_linux || is_chromeos || is_android || is_mac || is_win || is_freebsd
 
 perfetto_component("base") {
   deps = [
@@ -50,6 +50,7 @@ perfetto_component("base") {
     "paged_memory.cc",
     "periodic_task.cc",
     "pipe.cc",
+    "rt_mutex.cc",
     "scoped_mmap.cc",
     "scoped_sched_boost.cc",
     "status.cc",
@@ -71,6 +72,7 @@ perfetto_component("base") {
 
   if (!is_nacl) {
     sources += [
+      "lock_free_task_runner.cc",
       "thread_task_runner.cc",
       "unix_task_runner.cc",
     ]
@@ -208,7 +210,11 @@ perfetto_unittest_source_set("unittests") {
 
   sources = [
     "base64_unittest.cc",
+    "bits_unittest.cc",
     "circular_queue_unittest.cc",
+    "dynamic_string_writer_unittest.cc",
+    "file_utils_unittest.cc",
+    "fixed_string_writer_unittest.cc",
     "flags_unittest.cc",
     "flat_hash_map_unittest.cc",
     "flat_set_unittest.cc",
@@ -221,6 +227,7 @@ perfetto_unittest_source_set("unittests") {
     "no_destructor_unittest.cc",
     "paged_memory_unittest.cc",
     "periodic_task_unittest.cc",
+    "rt_mutex_unittest.cc",
     "scoped_file_unittest.cc",
     "scoped_mmap_unittest.cc",
     "scoped_sched_boost_unittest.cc",
@@ -231,7 +238,6 @@ perfetto_unittest_source_set("unittests") {
     "string_utils_unittest.cc",
     "string_view_splitter_unittest.cc",
     "string_view_unittest.cc",
-    "string_writer_unittest.cc",
     "task_runner_unittest.cc",
     "temp_file_unittest.cc",
     "thread_checker_unittest.cc",
@@ -294,6 +300,8 @@ if (enable_perfetto_benchmarks) {
     sources = [
       "flat_hash_map_benchmark.cc",
       "flat_set_benchmark.cc",
+      "rt_mutex_benchmark.cc",
+      "task_runner_benchmark.cc",
     ]
   }
 }

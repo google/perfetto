@@ -39,16 +39,17 @@ constexpr uint64_t kDefaultSamplingFrequencyHz = 10;
 constexpr uint32_t kDefaultDataPagesPerRingBuffer = 256;  // 1 MB: 256x 4k pages
 constexpr uint32_t kDefaultReadTickPeriodMs = 100;
 constexpr uint32_t kDefaultRemoteDescriptorTimeoutMs = 100;
+constexpr uint32_t kDefaultUnwindStateClearPeriodMs = 300000;  // 5 mins
 
 // Acceptable forms: "sched/sched_switch" or "sched:sched_switch".
 std::pair<std::string, std::string> SplitTracepointString(
     const std::string& input) {
-  auto slash_pos = input.find("/");
+  auto slash_pos = input.find('/');
   if (slash_pos != std::string::npos)
     return std::make_pair(input.substr(0, slash_pos),
                           input.substr(slash_pos + 1));
 
-  auto colon_pos = input.find(":");
+  auto colon_pos = input.find(':');
   if (colon_pos != std::string::npos)
     return std::make_pair(input.substr(0, colon_pos),
                           input.substr(colon_pos + 1));
@@ -60,7 +61,7 @@ std::pair<std::string, std::string> SplitTracepointString(
 std::optional<uint32_t> ParseTracepointAndResolveId(
     const protos::gen::PerfEvents::Tracepoint& tracepoint,
     const EventConfig::tracepoint_id_fn_t& tracepoint_id_lookup) {
-  std::string full_name = tracepoint.name();
+  const std::string& full_name = tracepoint.name();
   std::string tp_group;
   std::string tp_name;
   std::tie(tp_group, tp_name) = SplitTracepointString(full_name);
@@ -118,7 +119,7 @@ constexpr bool IsPowerOfTwo(size_t v) {
 // returns |std::nullopt| if the input is invalid.
 std::optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
   if (!config_value) {
-    static_assert(IsPowerOfTwo(kDefaultDataPagesPerRingBuffer), "");
+    static_assert(IsPowerOfTwo(kDefaultDataPagesPerRingBuffer));
     return std::make_optional(kDefaultDataPagesPerRingBuffer);
   }
 
@@ -242,36 +243,78 @@ int32_t ToClockId(protos::gen::PerfEvents::PerfClock pb_enum) {
   }
 }
 
+PerfCounter WithEventModifiers(
+    PerfCounter counter,
+    const std::vector<protos::gen::PerfEvents::PerfEvents::EventModifier>&
+        modifiers) {
+  using protos::gen::PerfEvents;
+  bool include_user = false;
+  bool include_kernel = false;
+  bool include_hv = false;
+  bool has_counting_scope = false;
+
+  for (const auto& m : modifiers) {
+    switch (static_cast<int>(m)) {  // cast to pacify -Wswitch-enum
+      case PerfEvents::EVENT_MODIFIER_COUNT_USERSPACE:
+        include_user = true;
+        has_counting_scope = true;
+        break;
+      case PerfEvents::EVENT_MODIFIER_COUNT_KERNEL:
+        include_kernel = true;
+        has_counting_scope = true;
+        break;
+      case PerfEvents::EVENT_MODIFIER_COUNT_HYPERVISOR:
+        include_hv = true;
+        has_counting_scope = true;
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (has_counting_scope) {
+    counter.attr_exclude_user = !include_user;
+    counter.attr_exclude_kernel = !include_kernel;
+    counter.attr_exclude_hv = !include_hv;
+  }
+
+  return counter;
+}
+
 // Build a singular event from an event description provided by either
-// a PerfEvents::Timebase or a FollowerEvent materialized by the
-// polymorphic parameter event_desc.
+// a PerfEvents::Timebase or a FollowerEvent.
 template <typename T>
 std::optional<PerfCounter> MakePerfCounter(
     const EventConfig::tracepoint_id_fn_t& tracepoint_id_lookup,
     const std::string& name,
     const T& event_desc) {
-  if (event_desc.has_counter()) {
-    auto maybe_counter = ToPerfCounter(name, event_desc.counter());
-    if (!maybe_counter)
-      return std::nullopt;
-    return maybe_counter;
-  } else if (event_desc.has_tracepoint()) {
-    const auto& tracepoint_pb = event_desc.tracepoint();
-    std::optional<uint32_t> maybe_id =
-        ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
-    if (!maybe_id)
-      return std::nullopt;
-    return PerfCounter::Tracepoint(name, tracepoint_pb.name(),
-                                   tracepoint_pb.filter(), *maybe_id);
-  } else if (event_desc.has_raw_event()) {
-    const auto& raw = event_desc.raw_event();
-    return PerfCounter::RawEvent(name, raw.type(), raw.config(), raw.config1(),
-                                 raw.config2());
-  } else {
-    return PerfCounter::BuiltinCounter(
-        name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
-        PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK);
-  }
+  auto build_counter_without_modifiers = [&]() -> std::optional<PerfCounter> {
+    if (event_desc.has_counter()) {
+      return ToPerfCounter(name, event_desc.counter());
+    } else if (event_desc.has_tracepoint()) {
+      const auto& tracepoint_pb = event_desc.tracepoint();
+      std::optional<uint32_t> maybe_id =
+          ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
+      if (!maybe_id)
+        return std::nullopt;
+      return PerfCounter::Tracepoint(name, tracepoint_pb.name(),
+                                     tracepoint_pb.filter(), *maybe_id);
+    } else if (event_desc.has_raw_event()) {
+      const auto& raw = event_desc.raw_event();
+      return PerfCounter::RawEvent(name, raw.type(), raw.config(),
+                                   raw.config1(), raw.config2());
+    } else {
+      return PerfCounter::BuiltinCounter(
+          name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
+          PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK);
+    }
+  };
+
+  std::optional<PerfCounter> counter = build_counter_without_modifiers();
+  if (!counter)
+    return std::nullopt;
+
+  return WithEventModifiers(counter.value(), event_desc.modifiers());
 }
 
 bool IsSupportedUnwindMode(
@@ -397,6 +440,9 @@ std::optional<EventConfig> EventConfig::CreatePolling(
   pe.config = timebase_event.attr_config;
   pe.config1 = timebase_event.attr_config1;
   pe.config2 = timebase_event.attr_config2;
+  pe.exclude_user = timebase_event.attr_exclude_user;
+  pe.exclude_kernel = timebase_event.attr_exclude_kernel;
+  pe.exclude_hv = timebase_event.attr_exclude_hv;
 
   // Include all counters in the group when reading the timebase. Always set
   // this option as it changes the layout of the data returned by the read
@@ -416,6 +462,9 @@ std::optional<EventConfig> EventConfig::CreatePolling(
     pe_follower.config = e.attr_config;
     pe_follower.config1 = e.attr_config1;
     pe_follower.config2 = e.attr_config2;
+    pe_follower.exclude_user = e.attr_exclude_user;
+    pe_follower.exclude_kernel = e.attr_exclude_kernel;
+    pe_follower.exclude_hv = e.attr_exclude_hv;
     pe_follower.sample_type = pe.sample_type;
 
     pe_followers.push_back(pe_follower);
@@ -439,8 +488,8 @@ std::optional<EventConfig> EventConfig::CreatePolling(
       /*unwind_mode=*/protos::gen::PerfEventConfig::UNWIND_SKIP,
       /*target_filter=*/{}, /*ring_buffer_pages=*/0, poll_period_ms,
       /*samples_per_tick_limit=*/1, /*remote_descriptor_timeout_ms=*/0,
-      /*unwind_state_clear_period_ms=*/0, /*max_enqueued_footprint_bytes=*/0,
-      /*target_installed_by=*/{});
+      /*unwind_state_clear_period_ms=*/0,
+      /*max_enqueued_footprint_bytes=*/0, /*target_installed_by=*/{});
 }
 
 // static
@@ -534,11 +583,16 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   uint64_t max_enqueued_footprint_bytes =
       pb_config.max_enqueued_footprint_kb() * 1024;
 
-  // Android-specific options.
+  // Android-specific option.
   uint32_t remote_descriptor_timeout_ms =
       pb_config.remote_descriptor_timeout_ms()
           ? pb_config.remote_descriptor_timeout_ms()
           : kDefaultRemoteDescriptorTimeoutMs;
+
+  uint32_t unwind_state_clear_period_ms =
+      pb_config.unwind_state_clear_period_ms()
+          ? pb_config.unwind_state_clear_period_ms()
+          : kDefaultUnwindStateClearPeriodMs;
 
   // Build the underlying syscall config struct.
   perf_event_attr pe = {};
@@ -550,6 +604,9 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   pe.config = timebase_event.attr_config;
   pe.config1 = timebase_event.attr_config1;
   pe.config2 = timebase_event.attr_config2;
+  pe.exclude_user = timebase_event.attr_exclude_user;
+  pe.exclude_kernel = timebase_event.attr_exclude_kernel;
+  pe.exclude_hv = timebase_event.attr_exclude_hv;
   if (sampling_frequency) {
     pe.freq = true;
     pe.sample_freq = sampling_frequency;
@@ -596,6 +653,9 @@ std::optional<EventConfig> EventConfig::CreateSampling(
     pe_follower.config = e.attr_config;
     pe_follower.config1 = e.attr_config1;
     pe_follower.config2 = e.attr_config2;
+    pe_follower.exclude_user = e.attr_exclude_user;
+    pe_follower.exclude_kernel = e.attr_exclude_kernel;
+    pe_follower.exclude_hv = e.attr_exclude_hv;
     // Some arguments must match the timebase:
     pe_follower.sample_type = pe.sample_type;
     pe_follower.clockid = pe.clockid;
@@ -609,7 +669,7 @@ std::optional<EventConfig> EventConfig::CreateSampling(
       std::move(followers), RecordingMode::kSampling, kernel_frames,
       unwind_mode, std::move(target_filter), ring_buffer_pages.value(),
       read_tick_period_ms, samples_per_tick_limit, remote_descriptor_timeout_ms,
-      pb_config.unwind_state_clear_period_ms(), max_enqueued_footprint_bytes,
+      unwind_state_clear_period_ms, max_enqueued_footprint_bytes,
       pb_config.target_installed_by());
 }
 

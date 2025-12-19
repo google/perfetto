@@ -64,7 +64,6 @@ inline std::string ToString(const SchedOsHooks::SchedOsConfig& cfg) {
 
 namespace {
 using ::testing::Eq;
-using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 
@@ -116,15 +115,15 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
   class MockSchedOsHooks : public base::SchedOsHooks {
    public:
     MockSchedOsHooks() : current_config(kInitConfig) {
-      ON_CALL(*this, GetCurrentSchedConfig()).WillByDefault(Invoke([&] {
+      ON_CALL(*this, GetCurrentSchedConfig()).WillByDefault([&] {
         return current_config;
-      }));
+      });
       ON_CALL(*this, SetSchedConfig)
-          .WillByDefault(Invoke([&](const SchedOsConfig& arg) {
+          .WillByDefault([&](const SchedOsConfig& arg) {
             PERFETTO_DCHECK(base::GetThreadId() == expected_boosted_thread);
             current_config = arg;
             return base::OkStatus();
-          }));
+          });
     }
     MOCK_METHOD(base::Status,
                 SetSchedConfig,

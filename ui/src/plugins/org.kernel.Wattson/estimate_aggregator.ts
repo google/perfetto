@@ -21,7 +21,7 @@ import {
 } from './track_kinds';
 import {Aggregator} from '../../components/aggregation_adapter';
 import {WattsonAggregationPanel} from './aggregation_panel';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 
 export class WattsonEstimateSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_estimate_aggregation';
@@ -31,8 +31,8 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     const estimateTracks: string[] = [];
     for (const trackInfo of area.tracks) {
       if (
-        (trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND ||
-          trackInfo?.tags?.kind === GPUSS_ESTIMATE_TRACK_KIND) &&
+        (trackInfo?.tags?.kinds?.includes(CPUSS_ESTIMATE_TRACK_KIND) ||
+          trackInfo?.tags?.kinds?.includes(GPUSS_ESTIMATE_TRACK_KIND)) &&
         exists(trackInfo.tags?.wattson)
       ) {
         estimateTracks.push(`${trackInfo.tags.wattson}`);
@@ -44,7 +44,7 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
       prepareData: async (engine: Engine) => {
         await engine.query(`drop view if exists ${this.id};`);
         const query = this.getEstimateTracksQuery(area, estimateTracks);
-        engine.query(query);
+        await engine.query(query);
 
         return {
           tableName: this.id,
@@ -98,25 +98,24 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
       {
         title: 'Name',
         columnId: 'name',
+        sort: 'ASC',
       },
       {
         title: 'Power (estimated mW)',
         columnId: 'power_mw',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Energy (estimated mWs)',
         columnId: 'energy_mws',
         sum: true,
+        formatHint: 'NUMERIC',
       },
     ];
   }
 
   getTabName() {
     return 'Wattson estimates';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'name', direction: 'ASC'};
   }
 }

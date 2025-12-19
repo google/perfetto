@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/public/compiler.h"
@@ -65,6 +66,12 @@ using uncompressed_dimensions_t = decltype(UncompressedDimensions(
             : std::tuple_size_v<typename BlueprintT::dimensions_t> - 1>()));
 
 }  // namespace internal
+
+// Keeps track of the track group count across multiple traces/machines to
+// avoid clashes.
+struct TrackCompressorGroupIdxState {
+  uint32_t track_groups = 0;
+};
 
 // "Compresses" and interns trace processor tracks for a given track type.
 //
@@ -187,7 +194,8 @@ class TrackCompressor {
             auto fn =
                 MakeNameFn<F, decltype(x)...>(blueprint.name_blueprint.fn);
             return tracks::BlueprintT<
-                decltype(fn), typename BT::unit_blueprint_t, decltype(x)...,
+                decltype(fn), typename BT::unit_blueprint_t,
+                typename BT::description_blueprint_t, decltype(x)...,
                 tracks::DimensionBlueprintT<uint32_t>>{
                 {
                     blueprint.event_type,
@@ -197,11 +205,13 @@ class TrackCompressor {
                 },
                 fn,
                 blueprint.unit_blueprint,
+                blueprint.description_blueprint,
             };
           } else {
             return tracks::BlueprintT<
                 typename BT::name_blueprint_t, typename BT::unit_blueprint_t,
-                decltype(x)..., tracks::DimensionBlueprintT<uint32_t>>{
+                typename BT::description_blueprint_t, decltype(x)...,
+                tracks::DimensionBlueprintT<uint32_t>>{
                 {
                     blueprint.event_type,
                     blueprint.type,
@@ -210,6 +220,7 @@ class TrackCompressor {
                 },
                 blueprint.name_blueprint,
                 blueprint.unit_blueprint,
+                blueprint.description_blueprint,
             };
           }
         },
@@ -377,7 +388,7 @@ class TrackCompressor {
   PERFETTO_ALWAYS_INLINE TrackSet& GetOrCreateTrackSet(uint64_t hash) {
     auto [it, inserted] = sets_.Insert(hash, {});
     if (inserted) {
-      it->set_id = static_cast<uint32_t>(sets_.size() - 1);
+      it->set_id = context_->track_group_idx_state->track_groups++;
     }
     return *it;
   }

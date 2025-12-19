@@ -76,7 +76,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 8008
@@ -128,7 +128,19 @@ your `trace_converter_template.py` script.
 
 </details>
 
+If you only have symbolized function names, call `add_frame(...)` with just the
+interned function name ID: e.g. `add_frame(packet.interned_data, FRAME_MAIN, FUNC_MAIN)`.
+
 ![Associating Tracks with Processes](/docs/images/synthetic-track-event-process-counter.png)
+
+You can query process-associated counter data using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT counter.ts, counter.value, process.name AS process_name 
+FROM counter 
+JOIN process_counter_track ON counter.track_id = process_counter_track.id
+JOIN process USING(upid)
+WHERE process.pid = 1234;
+```
 
 Once you have defined a process track, you can parent various other kinds of
 tracks to it. This includes tracks for specific threads within that process (see
@@ -186,7 +198,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 8009
@@ -255,6 +267,15 @@ your `trace_converter_template.py` script.
 
 ![Associating Tracks with Threads](/docs/images/synthetic-track-event-thread-slice.png)
 
+You can query thread-specific slices using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+INCLUDE PERFETTO MODULE slices.with_context;
+
+SELECT ts, dur, name, thread_name
+FROM thread_slice 
+WHERE tid = 5678;
+```
+
 ## Advanced Track Customization
 
 Beyond associating tracks with OS concepts, Perfetto offers ways to fine-tune
@@ -299,7 +320,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9000
@@ -390,16 +411,22 @@ your `trace_converter_template.py` script.
 
 ### Sharing Y-Axis Between Counters
 
-When visualizing multiple counter tracks, it is often useful to have them share the same Y-axis range. This allows for easy comparison of their values. Perfetto supports this feature through the `y_axis_share_key` field in the `CounterDescriptor`.
+When visualizing multiple counter tracks, it is often useful to have them share
+the same Y-axis range. This allows for easy comparison of their values. Perfetto
+supports this feature through the `y_axis_share_key` field in the
+`CounterDescriptor`.
 
-All counter tracks that have the same `y_axis_share_key` and the same parent track will share their Y-axis range in the UI.
+All counter tracks that have the same `y_axis_share_key` and the same parent
+track will share their Y-axis range in the UI.
 
 **Python Example: Sharing Y-Axis**
 
-In this example, we create two counter tracks with the same `y_axis_share_key`. This will cause them to be rendered with the same Y-axis range in the Perfetto UI.
+In this example, we create two counter tracks with the same `y_axis_share_key`.
+This will cause them to be rendered with the same Y-axis range in the Perfetto
+UI.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9005
@@ -441,6 +468,83 @@ In this example, we create two counter tracks with the same `y_axis_share_key`. 
 </details>
 
 ![Sharing Y-Axis](/docs/images/synthetic-track-event-share-y-axis.png)
+
+### Adding a Track Description
+
+You can add a human-readable description to any track to provide more context
+about the data it contains. In the Perfetto UI, this description appears in a
+popup when the user clicks the help icon next to the track's name. This is
+useful for explaining what a track represents, the meaning of its events, or how
+it should be interpreted, especially in complex custom traces.
+
+To add a description, you simply set the optional `description` field in the
+track's `TrackDescriptor`.
+
+#### Python Example
+
+This example defines two tracks: one with a `description` field set and one
+without, to illustrate the difference in the UI.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9005
+
+    # --- Define Track UUID ---
+    described_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    undescribed_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    # --- 1. Define two tracks, one with a description and one without ---
+    # Track WITH description
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = described_track_uuid
+    desc.name = "Track With Description"
+    desc.description = "This track shows the processing stages for incoming user requests. Click the (?) icon to see this text."
+
+    # Track WITHOUT description
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = undescribed_track_uuid
+    desc.name = "Track Without Description"
+    # The 'description' field is simply not set.
+
+    # Helper to add a slice event to the track
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # --- 2. Emit some events on both tracks ---
+    # Events for the described track
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=described_track_uuid, name="Request #123")
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_END,
+                    event_track_uuid=described_track_uuid)
+
+    # Events for the undescribed track
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=undescribed_track_uuid, name="Some Other Task")
+    add_slice_event(ts=1500, event_type=TrackEvent.TYPE_SLICE_END,
+                    event_track_uuid=undescribed_track_uuid)
+```
+
+</details>
+
+![Adding a Track Description](/docs/images/synthetic-track-event-description.png)
+
+## Advanced Event Writing
+
+This section covers advanced TrackEvent features for specialized use cases,
+including data optimization techniques and event linking mechanisms.
 
 ### Interning Data for Trace Size Optimization
 
@@ -487,7 +591,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9002
@@ -574,6 +678,342 @@ your `trace_converter_template.py` script.
 
 ![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
 
+### {#callstacks} Interned Callstacks
+
+The [Getting Started guide](/docs/getting-started/converting.md#callstacks)
+covers inline callstacks for simple use cases. This section covers interned
+callstacks for efficiency when callstacks repeat or when you need binary
+mapping information for symbolization.
+
+Interned callstacks define the callstack structure once in `InternedData` and
+reference it by ID from multiple events. At a minimum you only need to define
+**frames**, **callstacks**, and reference those callstacks from your events. The
+other pieces are optional and can be supplied when you have that information:
+
+1.  **Build IDs** and **Mapping Paths** → **Mappings** (binaries/libraries). You
+    may skip this entirely if you do not have binary metadata.
+2.  **Mappings** → **Frames** (function + location). `mapping_id`, `rel_pc`,
+    `source_file_id`, `line_number`, etc. are all optional—set only what makes
+    sense for your data.
+3.  **Frames** → **Callstacks** (frame sequences)
+4.  **Callstacks** → Events (via `callstack_iid`)
+
+#### Python Example: Interned Callstacks
+
+This example demonstrates the complete workflow for interning callstacks,
+including mappings, frames, and callstacks. For minimal traces you can skip the
+mapping entries and populate frames with just function names (and whatever
+location details you have).
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import TracePacket
+    TRUSTED_PACKET_SEQUENCE_ID = 9001
+
+    # --- Define Track UUID ---
+    interned_callstack_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    def add_function_name(entry, iid, name):
+        item = entry.function_names.add()
+        item.iid = iid
+        item.str = name.encode()
+
+    def add_mapping(entry, iid, build_id, start, end, path_id):
+        mapping_entry = entry.mappings.add()
+        mapping_entry.iid = iid
+        mapping_entry.build_id = build_id
+        mapping_entry.exact_offset = 0
+        mapping_entry.start = start
+        mapping_entry.end = end
+        mapping_entry.load_bias = 0
+        mapping_entry.path_string_ids.append(path_id)
+
+    def add_frame(entry, iid, function_name_id, mapping_id=None, rel_pc=None):
+        frame_entry = entry.frames.add()
+        frame_entry.iid = iid
+        frame_entry.function_name_id = function_name_id
+        if mapping_id is not None:
+            frame_entry.mapping_id = mapping_id
+        if rel_pc is not None:
+            frame_entry.rel_pc = rel_pc
+
+    def add_callstack(entry, iid, frame_ids):
+        callstack_entry = entry.callstacks.add()
+        callstack_entry.iid = iid
+        callstack_entry.frame_ids.extend(frame_ids)
+
+    def emit_track_event(
+        ts,
+        event_type,
+        name,
+        callstack_iid,
+    ):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = interned_callstack_track_uuid
+        if name is not None:
+            packet.track_event.name = name
+        if callstack_iid is not None:
+            packet.track_event.callstack_iid = callstack_iid
+        packet.sequence_flags = TracePacket.SEQ_NEEDS_INCREMENTAL_STATE
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 1. Define the track
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = interned_callstack_track_uuid
+    desc.name = "Interned Callstack Demo"
+
+    # 2. Define interned data (mappings, frames, callstacks)
+    # We'll create this in a single packet that initializes the interning state
+
+    packet = builder.add_packet()
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    packet.sequence_flags = (TracePacket.SEQ_INCREMENTAL_STATE_CLEARED |
+                            TracePacket.SEQ_NEEDS_INCREMENTAL_STATE)
+
+    # Define Build IDs
+    BUILD_ID_APP = 1
+    BUILD_ID_LIBC = 2
+
+    build_id_entry = packet.interned_data.build_ids.add()
+    build_id_entry.iid = BUILD_ID_APP
+    build_id_entry.str = b"a1b2c3d4e5f67890"  # Hex-encoded build ID
+
+    build_id_entry = packet.interned_data.build_ids.add()
+    build_id_entry.iid = BUILD_ID_LIBC
+    build_id_entry.str = b"1234567890abcdef"
+
+    # Define Mapping Paths
+    PATH_APP = 1
+    PATH_LIBC = 2
+
+    path_entry = packet.interned_data.mapping_paths.add()
+    path_entry.iid = PATH_APP
+    path_entry.str = b"/usr/bin/myapp"
+
+    path_entry = packet.interned_data.mapping_paths.add()
+    path_entry.iid = PATH_LIBC
+    path_entry.str = b"/lib/x86_64-linux-gnu/libc.so.6"
+
+    # Define Mappings
+    MAPPING_APP = 1
+    MAPPING_LIBC = 2
+
+    add_mapping(packet.interned_data, MAPPING_APP, BUILD_ID_APP, 0x400000, 0x500000, PATH_APP)
+    add_mapping(packet.interned_data, MAPPING_LIBC, BUILD_ID_LIBC, 0x7F0000000000, 0x7F0000200000, PATH_LIBC)
+
+    # Define Frames
+    FUNC_MAIN = 1
+    FUNC_PROCESS_REQUESTS = 2
+    FUNC_HANDLE_REQUEST = 3
+    FUNC_MALLOC = 4
+
+    add_function_name(packet.interned_data, FUNC_MAIN, "main")
+    add_function_name(packet.interned_data, FUNC_PROCESS_REQUESTS, "ProcessRequests")
+    add_function_name(packet.interned_data, FUNC_HANDLE_REQUEST, "HandleRequest")
+    add_function_name(packet.interned_data, FUNC_MALLOC, "malloc")
+
+    FRAME_MAIN = 1
+    FRAME_PROCESS_REQUESTS = 2
+    FRAME_HANDLE_REQUEST = 3
+    FRAME_MALLOC = 4
+
+    add_frame(packet.interned_data, FRAME_MAIN, FUNC_MAIN, MAPPING_APP, 0x1234)
+    add_frame(packet.interned_data, FRAME_PROCESS_REQUESTS, FUNC_PROCESS_REQUESTS, MAPPING_APP, 0x2345)
+    add_frame(packet.interned_data, FRAME_HANDLE_REQUEST, FUNC_HANDLE_REQUEST, MAPPING_APP, 0x3456)
+    add_frame(packet.interned_data, FRAME_MALLOC, FUNC_MALLOC, MAPPING_LIBC, 0x8765)
+
+    # Define Callstacks
+    # Callstack 1: main -> ProcessRequests -> HandleRequest
+    CALLSTACK_1 = 1
+    add_callstack(packet.interned_data, CALLSTACK_1, [FRAME_MAIN, FRAME_PROCESS_REQUESTS, FRAME_HANDLE_REQUEST])
+
+    # Callstack 2: main -> ProcessRequests -> HandleRequest -> malloc
+    CALLSTACK_2 = 2
+    add_callstack(
+        packet.interned_data,
+        CALLSTACK_2,
+        [FRAME_MAIN, FRAME_PROCESS_REQUESTS, FRAME_HANDLE_REQUEST, FRAME_MALLOC],
+    )
+
+    # 3. Create events that reference the interned callstacks
+    # Event 1: References CALLSTACK_1
+    emit_track_event(
+        ts=5000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="HandleRequest",
+        callstack_iid=CALLSTACK_1,
+    )
+
+    emit_track_event(
+        ts=5300,
+        event_type=TrackEvent.TYPE_SLICE_END,
+        name=None,
+        callstack_iid=None,
+    )
+
+    # Event 2: References CALLSTACK_2
+    emit_track_event(
+        ts=5100,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="AllocateMemory",
+        callstack_iid=CALLSTACK_2,
+    )
+
+    emit_track_event(
+        ts=5200,
+        event_type=TrackEvent.TYPE_SLICE_END,
+        name=None,
+        callstack_iid=None,
+    )
+
+    # Event 3: Another event with CALLSTACK_1 (reusing the interned data)
+    emit_track_event(
+        ts=6000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="HandleRequest",
+        callstack_iid=CALLSTACK_1,
+    )
+
+    emit_track_event(
+        ts=6400,
+        event_type=TrackEvent.TYPE_SLICE_END,
+        name=None,
+        callstack_iid=None,
+    )
+```
+
+</details>
+
+**Notes:**
+
+-   Sequence flags: Use `SEQ_INCREMENTAL_STATE_CLEARED |
+    SEQ_NEEDS_INCREMENTAL_STATE` when defining interned data (for the first time); use only
+    `SEQ_NEEDS_INCREMENTAL_STATE` when referencing it or defining *more* incremental data.
+-   Frame order: `frame_ids` are ordered outermost to innermost (same as inline
+    callstacks).
+-   Reuse: Event 3 reuses `CALLSTACK_1`, demonstrating the efficiency gain.
+
+After running the script, opening the generated trace in the
+[Perfetto UI](https://ui.perfetto.dev) and doing an area selection will display
+the following output:
+
+![Interned Callstacks](/docs/images/synthetic-track-event-interned-callstack.png)
+
+### Linking Related Events with Correlation IDs
+
+Correlation IDs provide a way to visually link slices that are part of the same
+logical operation, even when they are not causally connected. Unlike flows,
+which represent direct cause-and-effect relationships, correlation IDs group
+events that share a common context or belong to the same high-level operation.
+
+**Common use cases:**
+
+- **GPU rendering**: Link all slices involved in rendering the same frame across
+  different GPU stages
+- **Distributed systems**: Group all slices related to the same RPC request as
+  it moves through different services
+- **Network processing**: Connect all slices involved in processing the same
+  network request through different kernel stages
+
+**Visual benefits:** The Perfetto UI can use correlation IDs to assign
+consistent colors to related slices or highlight the entire correlated set when
+one slice is hovered, making it easier to track related operations across
+different tracks.
+
+**Relationship to flows:**
+
+- Use **flows** when events have a direct causal relationship (A triggers B)
+- Use **correlation IDs** when events are part of the same logical operation but
+  not directly connected
+- You can use both together: flows for causal connections within a correlated
+  group
+
+Perfetto supports three types of correlation identifiers:
+
+- `correlation_id`: A 64-bit unsigned integer (most efficient, recommended for
+  most cases)
+- `correlation_id_str`: A string value (most flexible, human-readable)
+- `correlation_id_str_iid`: An interned string ID (see
+  [Interning Data for Trace Size Optimization](#interning-data-for-trace-size-optimization)
+  above for details on interning)
+
+#### Python Example
+
+This example demonstrates correlation IDs using integer identifiers by
+simulating different stages of processing for two separate requests across
+multiple service tracks.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9010
+
+    # --- Define Track UUIDs ---
+    frontend_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    auth_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    database_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    cache_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+
+    # 1. Define the tracks
+    define_custom_track(frontend_track_uuid, "Frontend Service")
+    define_custom_track(auth_track_uuid, "Auth Service")
+    define_custom_track(database_track_uuid, "Database Service")
+    define_custom_track(cache_track_uuid, "Cache Service")
+
+    # Helper to add slice with correlation ID
+    def add_correlated_slice(ts_start, ts_end, track_uuid, slice_name, correlation_id):
+        # Start slice
+        packet = builder.add_packet()
+        packet.timestamp = ts_start
+        packet.track_event.type = TrackEvent.TYPE_SLICE_BEGIN
+        packet.track_event.track_uuid = track_uuid
+        packet.track_event.name = slice_name
+        packet.track_event.correlation_id = correlation_id
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+        # End slice
+        packet = builder.add_packet()
+        packet.timestamp = ts_end
+        packet.track_event.type = TrackEvent.TYPE_SLICE_END
+        packet.track_event.track_uuid = track_uuid
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # --- Request #42: All slices with correlation_id = 42 ---
+    REQUEST_42_ID = 42
+    add_correlated_slice(1000, 1200, frontend_track_uuid, "Handle Request #42", REQUEST_42_ID)
+    add_correlated_slice(1100, 1400, auth_track_uuid, "Authenticate Request #42", REQUEST_42_ID)
+    add_correlated_slice(1350, 1600, database_track_uuid, "Query for Request #42", REQUEST_42_ID)
+
+    # --- Request #123: All slices with correlation_id = 123 ---
+    REQUEST_123_ID = 123
+    add_correlated_slice(2000, 2300, frontend_track_uuid, "Handle Request #123", REQUEST_123_ID)
+    add_correlated_slice(2100, 2500, database_track_uuid, "Query for Request #123", REQUEST_123_ID)
+    add_correlated_slice(2400, 2600, cache_track_uuid, "Cache Request #123", REQUEST_123_ID)
+```
+
+</details>
+
+![Correlation IDs](/docs/images/synthetic-track-event-correlation-ids.png)
+
 ## {#controlling-track-merging} Controlling Track Merging
 
 By default, the Perfetto UI merges tracks that share the same name. This is
@@ -605,7 +1045,7 @@ In this example, we create two tracks with the same name. By setting their
 always displayed as distinct tracks in the UI.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9003
@@ -657,7 +1097,7 @@ into a single visual track. The name of the merged group will be taken from one
 of the tracks (usually the one with the lower UUID).
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9004
@@ -709,8 +1149,8 @@ for moderately sized traces, but can lead to high memory consumption if you are
 generating traces with millions of events.
 
 For these scenarios, the `StreamingTraceProtoBuilder` is the recommended
-solution. It writes each `TracePacket` to a file as it's created, keeping
-memory usage minimal regardless of the trace size.
+solution. It writes each `TracePacket` to a file as it's created, keeping memory
+usage minimal regardless of the trace size.
 
 ### How it Works
 
@@ -727,12 +1167,14 @@ The API for the streaming builder is slightly different:
 
 Here is a complete, standalone Python script that demonstrates how to use the
 `StreamingTraceProtoBuilder`. It is based on the "Creating Basic Timeline
-Slices" example from the [Getting Started guide](/docs/getting-started/converting.md).
+Slices" example from the
+[Getting Started guide](/docs/getting-started/converting.md).
 
-You can save this code as a new file (e.g., `streaming_converter.py`) and run it.
+You can save this code as a new file (e.g., `streaming_converter.py`) and run
+it.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
 #!/usr/bin/env python3

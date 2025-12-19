@@ -23,17 +23,13 @@ import {PageManager} from './page';
 import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
 import {SettingsManager} from './settings';
+import {TraceStream} from './stream';
 
 /**
- * The API endpoint to interact programmaticaly with the UI before a trace has
+ * The API endpoint to interact programmatically with the UI before a trace has
  * been loaded. This is passed to plugins' OnActivate().
  */
 export interface App {
-  /**
-   * The unique id for this plugin (as specified in the PluginDescriptor),
-   * or '__core__' for the interface exposed to the core.
-   */
-  readonly pluginId: string;
   readonly commands: CommandManager;
   readonly sidebar: SidebarManager;
   readonly omnibox: OmniboxManager;
@@ -50,11 +46,6 @@ export interface App {
   readonly initialRouteArgs: RouteArgs;
 
   /**
-   * Args in the URL bar that start with this plugin's id.
-   */
-  readonly initialPluginRouteArgs: {[key: string]: number | boolean | string};
-
-  /**
    * Returns the current trace object, if any. The instance being returned is
    * bound to the same plugin of App.pluginId.
    */
@@ -65,17 +56,23 @@ export interface App {
    */
   readonly raf: Raf;
 
+  // True if the current user is an 'internal' user. E.g. a Googler on
+  // ui.perfetto.dev. Plugins might use this to determine whether to show
+  // certain internal links or expose certain experimental features by default.
+  readonly isInternalUser: boolean;
+
   /**
    * Navigate to a new page.
    */
   navigate(newHash: string): void;
 
-  openTraceFromFile(file: File): void;
-  openTraceFromUrl(url: string): void;
+  openTraceFromFile(file: File): Promise<Trace>;
+  openTraceFromUrl(url: string): Promise<Trace>;
+  openTraceFromStream(stream: TraceStream): Promise<Trace>;
   openTraceFromBuffer(args: {
     buffer: ArrayBuffer;
     title: string;
     fileName: string;
-  }): void;
+  }): Promise<Trace>;
   closeCurrentTrace(): void;
 }

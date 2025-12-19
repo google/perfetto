@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -89,13 +90,17 @@ class PerfEventAttr : public RefCounted {
     return id_offset_from_end_;
   }
 
+  tables::PerfSessionTable::Id perf_session_id() const {
+    return perf_session_id_;
+  }
+
   void set_event_name(std::string event_name) {
     event_name_ = std::move(event_name);
   }
 
   size_t sample_id_size() const { return sample_id_size_; }
 
-  PerfCounter& GetOrCreateCounter(uint32_t cpu);
+  PerfCounter& GetOrCreateCounter(std::optional<uint32_t> cpu);
 
   ClockTracker::ClockId clock_id() const { return clock_id_; }
 
@@ -106,7 +111,8 @@ class PerfEventAttr : public RefCounted {
     return attr_.sample_period < (1ull << 62);
   }
 
-  PerfCounter CreateCounter(uint32_t cpu) const;
+  PerfCounter CreateGlobalCounter() const;
+  PerfCounter CreateCpuCounter(uint32_t cpu) const;
 
   TraceProcessorContext* const context_;
   const ClockTracker::ClockId clock_id_;
@@ -117,7 +123,14 @@ class PerfEventAttr : public RefCounted {
   std::optional<size_t> id_offset_from_start_;
   std::optional<size_t> id_offset_from_end_;
   size_t sample_id_size_;
+
+  // Counter not bound to a specific CPU. Might actually be an aggregate from
+  // multiple per-cpu counters in cases such as thread-scoped profiling.
+  std::unique_ptr<PerfCounter> global_counter_;
+
+  // Keyed by cpu index. Per-cpu counters.
   std::unordered_map<uint32_t, PerfCounter> counters_;
+
   std::string event_name_;
 };
 

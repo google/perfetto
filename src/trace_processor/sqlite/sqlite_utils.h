@@ -127,6 +127,28 @@ inline void SetError(sqlite3_context* ctx,
                                 status.c_message()));
 }
 
+// Return NULL from a SQLite function implementation. This is more efficient
+// than calling sqlite::result::Null(ctx) because SQLite functions automatically
+// return NULL by default when no result is set.
+// IMPORTANT: Only use this inside SQLite function Step() implementations.
+inline void ReturnNullFromFunction(sqlite3_context*) {
+  // Intentionally empty - SQLite functions return NULL by default
+}
+
+// Return from a void SQLite function implementation. This sets a special "VOID"
+// pointer type to prevent the function result from being included in query
+// output. Use this for functions that perform side effects but don't return
+// values. IMPORTANT: Only use this inside SQLite function Step()
+// implementations.
+inline void ReturnVoidFromFunction(sqlite3_context* ctx) {
+  // Set the "VOID" pointer type to a non-null value. Note that because of the
+  // weird way |sqlite3_value_pointer| works, we need to set some value even if
+  // we don't actually read it - just set it to a pointer to an empty string for
+  // this reason.
+  static char kVoidValue[] = "";
+  sqlite::result::StaticPointer(ctx, kVoidValue, "VOID");
+}
+
 // For a given |sqlite3_index_info| struct received in a BestIndex call, returns
 // whether all |arg_count| arguments (with |is_arg_column| indicating whether a
 // given column is a function argument) have exactly one equality constraint

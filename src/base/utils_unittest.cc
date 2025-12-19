@@ -36,6 +36,9 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "test/gtest_and_gmock.h"
+#include "test/status_matchers.h"
+
+using testing::StartsWith;
 
 namespace perfetto {
 namespace base {
@@ -103,7 +106,9 @@ TEST(UtilsTest, PipeBlockingRW) {
 // is a HANDLE.
 TEST(UtilsTest, ReadWritePlatformHandle) {
   auto tmp = TempDir::Create();
-  std::string payload = "foo\nbar\0baz\r\nqux";
+  // Explicitly set the string size, we want to write all data to the file.
+  std::string payload("foo\nbar\0baz\r\nqux", 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
   std::string tmp_path = tmp.path() + "/temp.txt";
 
   // Write a file using PlatformHandle. Note: the {} blocks are to make sure
@@ -214,6 +219,179 @@ TEST(UtilsTest, HexDump) {
 00000010: 6F 70                                             op
 )");
 }
+
+TEST(UtilsTest, CopyFileContents) {
+  auto assert_file_content_fn = [&](TempFile& file,
+                                    const std::string& expected) {
+    // Flush content of the original dst FD.
+    ASSERT_TRUE(FlushFile(*file));
+    std::string actual;
+    // Open a new FD from the path.
+    ASSERT_TRUE(ReadFile(file.path(), &actual));
+    ASSERT_EQ(expected, actual);
+  };
+
+  // Copy empty file.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst = TempFile::Create();
+
+    ASSERT_OK(CopyFileContents(*src, *dst));
+    assert_file_content_fn(dst, "");
+  }
+
+  // Copy small file.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst = TempFile::Create();
+
+    std::string payload = "payload\n\r123";
+    WriteAll(*src, payload.data(), payload.size());
+
+    ASSERT_OK(CopyFileContents(*src, *dst));
+    assert_file_content_fn(dst, payload);
+
+    // Append more data to the same file.
+    ASSERT_OK(CopyFileContents(*src, *dst));
+    assert_file_content_fn(dst, payload + payload);
+  }
+
+  // Copy large file.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst = TempFile::Create();
+
+    std::string payload(35678, 'A');
+    WriteAll(*src, payload.data(), payload.size());
+
+    ASSERT_OK(CopyFileContents(*src, *dst));
+    assert_file_content_fn(dst, payload);
+  }
+
+  // Test CopyFileContents doesn't change 'src' offset.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst = TempFile::Create();
+
+    std::string payload = "payload\n\r123";
+    WriteAll(*src, payload.data(), payload.size());
+
+    constexpr off_t kSrcOffset = 5;
+    // Change offset of 'src'.
+    ASSERT_EQ(kSrcOffset, lseek(*src, kSrcOffset, SEEK_SET));
+
+    ASSERT_OK(CopyFileContents(*src, *dst));
+    assert_file_content_fn(dst, payload);
+
+    // Assert offset of 'src' doesn't change.
+    ASSERT_EQ(kSrcOffset, lseek(*src, 0, SEEK_CUR));
+  }
+
+  // Test CopyFileContents doesn't change 'src' offset when failed.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst_normal_file = TempFile::Create();
+    ScopedFile dst_read_only = OpenFile(dst_normal_file.path(), O_RDONLY);
+
+    std::string payload = "payload\n\r123";
+    WriteAll(*src, payload.data(), payload.size());
+
+    constexpr off_t kSrcOffset = 5;
+    // Change offset of 'src'.
+    ASSERT_EQ(kSrcOffset, lseek(*src, kSrcOffset, SEEK_SET));
+
+    // Assert we can't write to read only file.
+    Status result = CopyFileContents(*src, *dst_read_only);
+    ASSERT_THAT(result.message(), StartsWith("Write failed:"));
+
+    // Assert offset of 'src' doesn't change.
+    ASSERT_EQ(kSrcOffset, lseek(*src, 0, SEEK_CUR));
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Test CopyFileContents can read special files with zero length that might
+  // actually have contents (such as a seq_file).
+  // This test is important, because 'sendfile' can't read from such files, and
+  // we want to make sure that if/when we implement the platform specific
+  // optimization we won't forget about this special case.
+  {
+    ScopedFile proc_self_src = OpenFile("/proc/self/cmdline", O_RDONLY);
+    ASSERT_TRUE(proc_self_src);
+
+    std::string src_content;
+    ASSERT_TRUE(ReadFileDescriptor(*proc_self_src, &src_content));
+
+    TempFile dst = TempFile::Create();
+    ASSERT_OK(CopyFileContents(*proc_self_src, *dst));
+    assert_file_content_fn(dst, src_content);
+  }
+#endif
+}
+
+TEST(UtilsTest, GetFileSize) {
+  TempFile file = TempFile::Create();
+  // Explicitly set the string size, we want to write all data to the file.
+  std::string payload("foo\nbar\0baz\r\nqux", 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
+  WriteAll(*file, payload.data(), payload.size());
+  FlushFile(*file);
+
+  auto maybe_size = GetFileSize(file.path());
+  ASSERT_TRUE(maybe_size.has_value());
+  ASSERT_EQ(maybe_size.value(), payload.size());
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
+  auto tmp = TempDir::Create();
+  std::string tmp_path = tmp.path() + "/temp.txt";
+
+  ASSERT_DEATH_IF_SUPPORTED(
+      { auto fstream_write = OpenFstream(tmp_path, "wt"); }, "");
+
+  ASSERT_DEATH_IF_SUPPORTED(
+      { auto fstream_write = OpenFstream(tmp_path, "w,ccs=UTF-8"); }, "");
+}
+
+TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
+  auto tmp = TempDir::Create();
+  std::string tmp_path = tmp.path() + "/temp.txt";
+  // Explicitly set the string size, we want to write all data to the file.
+  std::string payload("foo\nbar\0baz\r\nqux", 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
+
+  for (const char* mode : {"w", "wb"}) {
+    {
+      auto fstream_write = OpenFstream(tmp_path, mode);
+      size_t res = fwrite(payload.data(), payload.size(), 1, *fstream_write);
+      ASSERT_EQ(res, 1ul);
+    }
+    {
+      // If not in binary mode, '\r\n' sequences are translated when both read
+      // and write using FILE* API. So we read back data using `ReadFile` (it
+      // uses `open` with O_BINARY flag on Windows) to get the real bytes from
+      // the disk.
+      std::string actual;
+      ASSERT_TRUE(ReadFile(tmp_path, &actual));
+      ASSERT_EQ(actual, payload);
+    }
+    ASSERT_EQ(remove(tmp_path.c_str()), 0);
+  }
+
+  {
+    TempFile file = TempFile::Create();
+    WriteAll(*file, payload.data(), payload.size());
+
+    auto fstream = OpenFstream(file.path(), "r");
+    std::string actual(128, '\0');
+    size_t bytes_read = fread(actual.data(), 1, actual.size(), *fstream);
+    ASSERT_EQ(bytes_read, payload.size());
+    actual.resize(bytes_read);
+    ASSERT_EQ(actual, payload);
+  }
+}
+#endif
 
 }  // namespace
 }  // namespace base

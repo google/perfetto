@@ -16,7 +16,7 @@
 **
 ** The "lemon" program processes an LALR(1) input grammar file, then uses
 ** this template to construct a parser.  The "lemon" program inserts text
-** at each "%%" line.  Also, any "P-a-r-s-e" identifer prefix (without the
+** at each "%%" line.  Also, any "P-a-r-s-e" identifier prefix (without the
 ** interstitial "-" characters) contained in this template is changed into
 ** the value of the %name directive from the grammar.  Otherwise, the content
 ** of this template is copied straight through into the generate parser
@@ -86,6 +86,9 @@
 **    PreprocessorGrammarParseARG_STORE     Code to store %extra_argument into yypParser
 **    PreprocessorGrammarParseARG_FETCH     Code to extract %extra_argument from yypParser
 **    PreprocessorGrammarParseCTX_*         As PreprocessorGrammarParseARG_ except for %extra_context
+**    YYREALLOC          Name of the realloc() function to use
+**    YYFREE             Name of the free() function to use
+**    YYDYNSTACK         True if stack space should be extended on heap
 **    YYERRORSYMBOL      is the code number of the error symbol.  If not
 **                       defined, then do no error processing.
 **    YYNSTATE           the combined number of states.
@@ -99,6 +102,8 @@
 **    YY_NO_ACTION       The yy_action[] code for no-op
 **    YY_MIN_REDUCE      Minimum value for reduce actions
 **    YY_MAX_REDUCE      Maximum value for reduce actions
+**    YY_MIN_DSTRCTR     Minimum symbol value that has a destructor
+**    YY_MAX_DSTRCTR     Maximum symbol value that has a destructor
 */
 #ifndef INTERFACE
 # define INTERFACE 1
@@ -122,6 +127,9 @@ typedef union {
 #define PreprocessorGrammarParseARG_PARAM
 #define PreprocessorGrammarParseARG_FETCH
 #define PreprocessorGrammarParseARG_STORE
+#define YYREALLOC realloc
+#define YYFREE free
+#define YYDYNSTACK 0
 #define PreprocessorGrammarParseCTX_SDECL struct PreprocessorGrammarState* state;
 #define PreprocessorGrammarParseCTX_PDECL ,struct PreprocessorGrammarState* state
 #define PreprocessorGrammarParseCTX_PARAM ,state
@@ -139,6 +147,8 @@ typedef union {
 #define YY_NO_ACTION         70
 #define YY_MIN_REDUCE        71
 #define YY_MAX_REDUCE        96
+#define YY_MIN_DSTRCTR       17
+#define YY_MAX_DSTRCTR       17
 /************* End control #defines *******************************************/
 #define YY_NLOOKAHEAD ((int)(sizeof(yy_lookahead)/sizeof(yy_lookahead[0])))
 
@@ -152,6 +162,22 @@ typedef union {
 */
 #ifndef yytestcase
 # define yytestcase(X)
+#endif
+
+/* Macro to determine if stack space has the ability to grow using
+** heap memory.
+*/
+#if YYSTACKDEPTH<=0 || YYDYNSTACK
+# define YYGROWABLESTACK 1
+#else
+# define YYGROWABLESTACK 0
+#endif
+
+/* Guarantee a minimum number of initial stack slots.
+*/
+#if YYSTACKDEPTH<=0
+# undef YYSTACKDEPTH
+# define YYSTACKDEPTH 2  /* Need a minimum stack size */
 #endif
 
 
@@ -307,14 +333,9 @@ struct yyParser {
 #endif
   PreprocessorGrammarParseARG_SDECL                /* A place to hold %extra_argument */
   PreprocessorGrammarParseCTX_SDECL                /* A place to hold %extra_context */
-#if YYSTACKDEPTH<=0
-  int yystksz;                  /* Current side of the stack */
-  yyStackEntry *yystack;        /* The parser's stack */
-  yyStackEntry yystk0;          /* First stack entry */
-#else
-  yyStackEntry yystack[YYSTACKDEPTH];  /* The parser's stack */
-  yyStackEntry *yystackEnd;            /* Last entry in the stack */
-#endif
+  yyStackEntry *yystackEnd;           /* Last entry in the stack */
+  yyStackEntry *yystack;              /* The parser stack */
+  yyStackEntry yystk0[YYSTACKDEPTH];  /* Initial stack space */
 };
 typedef struct yyParser yyParser;
 
@@ -417,37 +438,45 @@ static const char *const yyRuleName[] = {
 #endif /* NDEBUG */
 
 
-#if YYSTACKDEPTH<=0
+#if YYGROWABLESTACK
 /*
 ** Try to increase the size of the parser stack.  Return the number
 ** of errors.  Return 0 on success.
 */
 static int yyGrowStack(yyParser *p){
+  int oldSize = 1 + (int)(p->yystackEnd - p->yystack);
   int newSize;
   int idx;
   yyStackEntry *pNew;
 
-  newSize = p->yystksz*2 + 100;
-  idx = p->yytos ? (int)(p->yytos - p->yystack) : 0;
-  if( p->yystack==&p->yystk0 ){
-    pNew = malloc(newSize*sizeof(pNew[0]));
-    if( pNew ) pNew[0] = p->yystk0;
+  newSize = oldSize*2 + 100;
+  idx = (int)(p->yytos - p->yystack);
+  if( p->yystack==p->yystk0 ){
+    pNew = YYREALLOC(0, newSize*sizeof(pNew[0]));
+    if( pNew==0 ) return 1;
+    memcpy(pNew, p->yystack, oldSize*sizeof(pNew[0]));
   }else{
-    pNew = realloc(p->yystack, newSize*sizeof(pNew[0]));
+    pNew = YYREALLOC(p->yystack, newSize*sizeof(pNew[0]));
+    if( pNew==0 ) return 1;
   }
-  if( pNew ){
-    p->yystack = pNew;
-    p->yytos = &p->yystack[idx];
+  p->yystack = pNew;
+  p->yytos = &p->yystack[idx];
 #ifndef NDEBUG
-    if( yyTraceFILE ){
-      fprintf(yyTraceFILE,"%sStack grows from %d to %d entries.\n",
-              yyTracePrompt, p->yystksz, newSize);
-    }
-#endif
-    p->yystksz = newSize;
+  if( yyTraceFILE ){
+    fprintf(yyTraceFILE,"%sStack grows from %d to %d entries.\n",
+            yyTracePrompt, oldSize, newSize);
   }
-  return pNew==0; 
+#endif
+  p->yystackEnd = &p->yystack[newSize-1];
+  return 0;
 }
+#endif /* YYGROWABLESTACK */
+
+#if !YYGROWABLESTACK
+/* For builds that do no have a growable stack, yyGrowStack always
+** returns an error.
+*/
+# define yyGrowStack(X) 1
 #endif
 
 /* Datatype of the argument to the memory allocated passed as the
@@ -467,24 +496,14 @@ void PreprocessorGrammarParseInit(void *yypRawParser PreprocessorGrammarParseCTX
 #ifdef YYTRACKMAXSTACKDEPTH
   yypParser->yyhwm = 0;
 #endif
-#if YYSTACKDEPTH<=0
-  yypParser->yytos = NULL;
-  yypParser->yystack = NULL;
-  yypParser->yystksz = 0;
-  if( yyGrowStack(yypParser) ){
-    yypParser->yystack = &yypParser->yystk0;
-    yypParser->yystksz = 1;
-  }
-#endif
+  yypParser->yystack = yypParser->yystk0;
+  yypParser->yystackEnd = &yypParser->yystack[YYSTACKDEPTH-1];
 #ifndef YYNOERRORRECOVERY
   yypParser->yyerrcnt = -1;
 #endif
   yypParser->yytos = yypParser->yystack;
   yypParser->yystack[0].stateno = 0;
   yypParser->yystack[0].major = 0;
-#if YYSTACKDEPTH>0
-  yypParser->yystackEnd = &yypParser->yystack[YYSTACKDEPTH-1];
-#endif
 }
 
 #ifndef PreprocessorGrammarParse_ENGINEALWAYSONSTACK
@@ -574,9 +593,26 @@ static void yy_pop_parser_stack(yyParser *pParser){
 */
 void PreprocessorGrammarParseFinalize(void *p){
   yyParser *pParser = (yyParser*)p;
-  while( pParser->yytos>pParser->yystack ) yy_pop_parser_stack(pParser);
-#if YYSTACKDEPTH<=0
-  if( pParser->yystack!=&pParser->yystk0 ) free(pParser->yystack);
+
+  /* In-lined version of calling yy_pop_parser_stack() for each
+  ** element left in the stack */
+  yyStackEntry *yytos = pParser->yytos;
+  while( yytos>pParser->yystack ){
+#ifndef NDEBUG
+    if( yyTraceFILE ){
+      fprintf(yyTraceFILE,"%sPopping %s\n",
+        yyTracePrompt,
+        yyTokenName[yytos->major]);
+    }
+#endif
+    if( yytos->major>=YY_MIN_DSTRCTR ){
+      yy_destructor(pParser, yytos->major, &yytos->minor);
+    }
+    yytos--;
+  }
+
+#if YYGROWABLESTACK
+  if( pParser->yystack!=pParser->yystk0 ) YYFREE(pParser->yystack);
 #endif
 }
 
@@ -801,25 +837,19 @@ static void yy_shift(
     assert( yypParser->yyhwm == (int)(yypParser->yytos - yypParser->yystack) );
   }
 #endif
-#if YYSTACKDEPTH>0 
-  if( yypParser->yytos>yypParser->yystackEnd ){
-    yypParser->yytos--;
-    yyStackOverflow(yypParser);
-    return;
-  }
-#else
-  if( yypParser->yytos>=&yypParser->yystack[yypParser->yystksz] ){
+  yytos = yypParser->yytos;
+  if( yytos>yypParser->yystackEnd ){
     if( yyGrowStack(yypParser) ){
       yypParser->yytos--;
       yyStackOverflow(yypParser);
       return;
     }
+    yytos = yypParser->yytos;
+    assert( yytos <= yypParser->yystackEnd );
   }
-#endif
   if( yyNewState > YY_MAX_SHIFT ){
     yyNewState += YY_MIN_REDUCE - YY_MIN_SHIFTREDUCE;
   }
-  yytos = yypParser->yytos;
   yytos->stateno = yyNewState;
   yytos->major = yyMajor;
   yytos->minor.yy0 = yyMinor;
@@ -1208,19 +1238,12 @@ void PreprocessorGrammarParse(
                   (int)(yypParser->yytos - yypParser->yystack));
         }
 #endif
-#if YYSTACKDEPTH>0 
         if( yypParser->yytos>=yypParser->yystackEnd ){
-          yyStackOverflow(yypParser);
-          break;
-        }
-#else
-        if( yypParser->yytos>=&yypParser->yystack[yypParser->yystksz-1] ){
           if( yyGrowStack(yypParser) ){
             yyStackOverflow(yypParser);
             break;
           }
         }
-#endif
       }
       yyact = yy_reduce(yypParser,yyruleno,yymajor,yyminor PreprocessorGrammarParseCTX_PARAM);
     }else if( yyact <= YY_MAX_SHIFTREDUCE ){

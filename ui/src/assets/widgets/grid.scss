@@ -1,0 +1,310 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../theme";
+
+$border-1: 1px solid var(--pf-color-border);
+$border-2: 1px solid var(--pf-color-border-secondary);
+$border-3: 2px solid var(--pf-color-border);
+$inline-padding: 0.5em;
+$block-padding: 0.3em;
+$indent-size: 16px;
+$indent-guide-offset: 12px;
+
+.pf-grid-header-cell {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  white-space: nowrap;
+
+  &__main-content {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  &__title {
+    display: flex;
+    align-items: baseline;
+    overflow: hidden;
+  }
+
+  &__title-wrapper {
+    flex-shrink: 1; // The title should shrink if necessary to avoid overflow.
+    text-overflow: ellipsis;
+    overflow: hidden;
+    padding: $block-padding $inline-padding;
+  }
+
+  &__sub-content {
+    padding: $block-padding $inline-padding;
+  }
+
+  .pf-visible-on-hover {
+    display: none;
+
+    &.pf-active {
+      display: block;
+    }
+  }
+
+  &:hover {
+    .pf-visible-on-hover {
+      display: block;
+    }
+  }
+
+  &__sort-button {
+    // Eliminate the extra space added by the button element.
+    margin-left: -$inline-padding;
+
+    // Muted color for the sort button when not actively sorted (hint state)
+    &.pf-grid-cell--hint {
+      color: var(--pf-color-text-hint);
+    }
+  }
+}
+
+.pf-grid-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  overflow: hidden;
+  height: 100%;
+
+  --pf-cell-padding-block: 0;
+  --pf-cell-padding-inline: 0;
+  --pf-grid-cell-indent: 0;
+
+  &__menu-button {
+    // Eliminate the extra space between the menu button and the cell content added by the content padding.
+    margin-left: calc(-1 * var(--pf-cell-padding-inline));
+  }
+
+  &__indent {
+    flex-shrink: 0;
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+    margin-right: calc(var(--pf-cell-padding-inline) * -1);
+
+    &--leaf {
+      visibility: hidden;
+    }
+  }
+
+  &__content {
+    flex: 1 1 auto;
+    padding: var(--pf-cell-padding-block) var(--pf-cell-padding-inline);
+    align-items: baseline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    height: 100%;
+  }
+
+  &--padded {
+    --pf-cell-padding-block: #{$block-padding};
+    --pf-cell-padding-inline: #{$inline-padding};
+  }
+
+  &--align-right {
+    .pf-grid-cell__menu-button {
+      margin-left: 0;
+      margin-right: calc(-1 * var(--pf-cell-padding-inline));
+      order: 2;
+    }
+
+    .pf-grid-cell__content {
+      order: 3;
+      text-align: right;
+    }
+  }
+
+  &--align-center {
+    .pf-grid-cell__content {
+      text-align: center;
+    }
+  }
+
+  &--nullish {
+    .pf-grid-cell__content {
+      font-style: italic;
+      color: var(--pf-color-text-muted);
+      text-align: center;
+    }
+  }
+
+  &--hint {
+    .pf-grid-cell__content {
+      color: var(--pf-color-text-hint);
+    }
+  }
+
+  &--wrap {
+    .pf-grid-cell__content {
+      white-space: normal;
+    }
+  }
+
+  .pf-visible-on-hover {
+    display: none;
+
+    &.pf-active {
+      display: block;
+    }
+  }
+
+  &:hover {
+    .pf-visible-on-hover {
+      display: block;
+    }
+  }
+}
+
+.pf-grid {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--pf-font-compact);
+  font-size: 14px;
+  overflow: auto;
+  isolation: isolate; // Improves layerization performance.
+
+  // If fill height is set, the grid should fill the height of its parent, and
+  // the table content should scroll, otherwise it takes the height of the table
+  // content.
+  &--fill-height {
+    height: 100%;
+  }
+
+  &__header {
+    flex: 0 0 auto;
+
+    display: flex;
+    flex-direction: column;
+    border-bottom: $border-1;
+    min-width: max-content;
+    position: sticky;
+    top: 0;
+    z-index: 1; // Ensure header is above body rows when scrolling.
+    background: var(--pf-color-background);
+    font-weight: 500;
+  }
+
+  &__puck {
+    will-change: transform; // Improves layerization performance.
+  }
+
+  &__body {
+    min-width: max-content;
+    background: var(--pf-color-background);
+    flex: 0 0 auto;
+
+    .pf-grid__row {
+      &:hover {
+        background-color: color_hover(transparent);
+      }
+      border-bottom: $border-2;
+    }
+  }
+
+  &__empty-state {
+    margin-block: auto;
+  }
+
+  &__row {
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex-direction: row;
+    overflow: hidden;
+
+    .pf-visible-on-row-hover {
+      visibility: hidden;
+    }
+
+    &:hover {
+      .pf-visible-on-row-hover {
+        visibility: visible;
+      }
+    }
+  }
+
+  &__cell-container {
+    position: relative; // Positioned element in order to place absolutely positioned children relative to this.
+    border-right: $border-2;
+
+    &[draggable="true"] {
+      cursor: grab;
+
+      &:active {
+        cursor: grabbing;
+      }
+    }
+
+    &--border-right-thick {
+      border-right: $border-3;
+    }
+
+    // Drag indicator shown on all cells in the target column (header and body)
+    &--drag-over-before::after,
+    &--drag-over-after::after {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      width: 3px;
+      background-color: var(--pf-color-accent);
+      pointer-events: none;
+    }
+
+    &--drag-over-before::after {
+      left: -2px;
+    }
+
+    &--drag-over-after::after {
+      right: -2px;
+    }
+  }
+
+  &__resize-handle {
+    position: absolute; // Control positioning within cell.
+    width: 9px; // Wider than visible to make it easier to grab.
+    right: -5px; // Straddle cell right border.
+    inset-block: 0; // Fill full height of cell.
+    z-index: 1; // Appear above adjacent cells.
+    cursor: col-resize; // Indicate resizability.
+    user-select: none; // Prevent text selection while resizing.
+    touch-action: none; // Disable touch gestures like scrolling while dragging.
+
+    &:hover,
+    &:active {
+      &::after {
+        content: "";
+        position: absolute; // Control positioning within resize handle.
+        left: 3px; // Center within resize handle.
+        width: 3px; // Narrower than resize handle to avoid looking too busy.
+        inset-block: 0; // Fill full height of cell.
+        background-color: var(--pf-color-accent);
+      }
+    }
+  }
+}
+
+.pf-grid-filter {
+  .pf-chip__label {
+    max-width: 300px;
+  }
+}

@@ -16,13 +16,7 @@
 // This file exists purely to keep legacy systems in place without introducing a
 // ton of circular imports.
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
-export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
 export const SLICE_TRACK_KIND = 'SliceTrack';
-export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
-export const INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND =
-  'InstrumentsSamplesProfileTrack';
 export const COUNTER_TRACK_KIND = 'CounterTrack';
-export const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
-export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';

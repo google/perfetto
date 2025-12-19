@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,44 @@ import {toHTMLElement} from '../base/dom_utils';
 import {DragGestureHandler} from '../base/drag_gesture_handler';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {Button, ButtonBar} from './button';
+import {classNames} from '../base/classnames';
+import {HTMLAttrs} from './common';
+import {Icons} from '../base/semantic_icons';
+
+export interface TabAttrs extends HTMLAttrs {
+  // Is this tab currently active?
+  readonly active?: boolean;
+  // Whether to show a close button on the tab.
+  readonly hasCloseButton?: boolean;
+  // What happens when the close button is clicked.
+  readonly onClose?: () => void;
+}
+
+export class Tab implements m.ClassComponent<TabAttrs> {
+  view({attrs, children}: m.CVnode<TabAttrs>): m.Children {
+    const {active, hasCloseButton, ...rest} = attrs;
+    return m(
+      '.pf-split-panel__tab',
+      {
+        ...rest,
+        className: classNames(active && 'pf-split-panel__tab--active'),
+        onauxclick: () => {
+          attrs.onClose?.();
+        },
+      },
+      m('.pf-split-panel__tab-title', children),
+      hasCloseButton &&
+        m(Button, {
+          compact: true,
+          icon: Icons.Close,
+          onclick: (e) => {
+            e.stopPropagation();
+            attrs.onClose?.();
+          },
+        }),
+    );
+  }
+}
 
 export enum SplitPanelDrawerVisibility {
   VISIBLE,
@@ -25,9 +63,12 @@ export enum SplitPanelDrawerVisibility {
   COLLAPSED,
 }
 
-export interface SplitPanelAttrs {
-  // Content to display on the handle.
-  readonly handleContent?: m.Children;
+export interface TabbedSplitPanelAttrs {
+  // Content to put to the left of the tabs on the split handle.
+  readonly leftHandleContent?: m.Children;
+
+  // Tabs to display on the split handle.
+  readonly tabs?: m.Children;
 
   // Content to display inside the drawer.
   readonly drawerContent?: m.Children;
@@ -40,6 +81,9 @@ export interface SplitPanelAttrs {
 
   // What height should the drawer be initially?
   readonly startingHeight?: number;
+
+  // Called when the active tab is changed.
+  onTabChange?(key: string): void;
 
   // Called when the drawer visibility is changed.
   onVisibilityChange?(visibility: SplitPanelDrawerVisibility): void;
@@ -66,16 +110,16 @@ export interface SplitPanelAttrs {
  * |└────────────────────────────────────────────────────────────────┘|
  * │┌────────────────────────────────────────────────────────────────┐|
  * ││pf-split-panel__handle                                          ││
- * │|┌─────────────────────────────────┐┌───────────────────────────┐||
- * |||pf-split-panel__handle-content   ||pf-button-bar              |||
- * ||└─────────────────────────────────┘└───────────────────────────┘||
+ * │|┌─────────────────┐┌─────────────────────┐┌────────────────────┐||
+ * |||leftHandleContent||.pf-split-panel__tabs||.pf-button-bar      |||
+ * ||└─────────────────┘└─────────────────────┘└────────────────────┘||
  * |└────────────────────────────────────────────────────────────────┘|
  * │┌────────────────────────────────────────────────────────────────┐|
  * ││pf-split-panel__drawer                                          ││
  * |└────────────────────────────────────────────────────────────────┘|
  * └──────────────────────────────────────────────────────────────────┘
  */
-export class SplitPanel implements m.ClassComponent<SplitPanelAttrs> {
+export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
   private readonly trash = new DisposableStack();
 
   // The actual height of the vdom node. It matches resizableHeight if VISIBLE,
@@ -91,17 +135,18 @@ export class SplitPanel implements m.ClassComponent<SplitPanelAttrs> {
   // Current visibility state (if not controlled).
   private visibility = SplitPanelDrawerVisibility.VISIBLE;
 
-  constructor({attrs}: m.CVnode<SplitPanelAttrs>) {
+  constructor({attrs}: m.CVnode<TabbedSplitPanelAttrs>) {
     this.resizableHeight = attrs.startingHeight ?? 100;
   }
 
-  view({attrs, children}: m.CVnode<SplitPanelAttrs>) {
+  view({attrs, children}: m.CVnode<TabbedSplitPanelAttrs>) {
     const {
+      leftHandleContent,
+      drawerContent,
       visibility = this.visibility,
       className,
-      handleContent,
       onVisibilityChange,
-      drawerContent,
+      tabs,
     } = attrs;
 
     switch (visibility) {
@@ -124,13 +169,12 @@ export class SplitPanel implements m.ClassComponent<SplitPanelAttrs> {
       {
         className,
       },
-      // Note: Using BEM class naming conventions: See https://getbem.com/
       m('.pf-split-panel__main', children),
-      m(
-        '.pf-split-panel__handle',
-        m('.pf-split-panel__handle-content', handleContent),
+      m('.pf-split-panel__handle', [
+        leftHandleContent,
+        m('.pf-split-panel__tabs', tabs),
         this.renderTabResizeButtons(visibility, onVisibilityChange),
-      ),
+      ]),
       m(
         '.pf-split-panel__drawer',
         {
@@ -141,7 +185,7 @@ export class SplitPanel implements m.ClassComponent<SplitPanelAttrs> {
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<SplitPanelAttrs, this>) {
+  oncreate(vnode: m.VnodeDOM<TabbedSplitPanelAttrs, this>) {
     let dragStartY = 0;
     let heightWhenDragStarted = 0;
 

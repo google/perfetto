@@ -464,21 +464,21 @@ class TrackEvent(TestSuite):
         "track","process","thread","thread_process","ts","dur","category","name","key","string_value","int_value"
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg1","value1","[NULL]"
-        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.phase","S","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg2","value2","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_trace_source_id","[NULL]",1234
-        "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
+        "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
         "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.phase","S","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.arg3","value3","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.step","Step1","[NULL]"
-        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.phase","T","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.arg4","value4","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.step","Step2","[NULL]"
-        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.phase","p","[NULL]"
         """))
 
@@ -578,7 +578,7 @@ class TrackEvent(TestSuite):
           "event.category","event.category","[NULL]","cat"
           "event.name","event.name","[NULL]","[NULL]"
           "event.name","event.name","[NULL]","name1"
-          "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"
+          "legacy_event.passthrough_utid","legacy_event.passthrough_utid",2,"[NULL]"
           "legacy_trace_source_id","legacy_trace_source_id",1234,"[NULL]"
           "name","name","[NULL]","name1"
           "scope","scope","[NULL]","cat"
@@ -1011,6 +1011,49 @@ class TrackEvent(TestSuite):
         "Before Event"
         "Event Name"
         "Second Name"
+        """))
+
+  def test_track_event_callstacks(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_callstacks.textproto'),
+        query="""
+        WITH inline_slices AS (
+          SELECT
+            callsite_id
+          FROM slice
+          JOIN __intrinsic_track_event_callstacks USING (slice_id)
+          WHERE name GLOB 'Inline Slice *'
+        ),
+        inline_stats AS (
+          SELECT
+            COUNT(DISTINCT callsite_id) AS inline_unique_callstacks
+          FROM inline_slices
+          WHERE callsite_id IS NOT NULL
+        )
+        SELECT
+          slice.name,
+          COALESCE(spf.name, '[NULL]') AS leaf_frame,
+          COALESCE(sps.source_file, '[NULL]') AS source_file,
+          COALESCE(sps.line_number, 0) AS line_number,
+          inline_stats.inline_unique_callstacks
+        FROM slice
+        CROSS JOIN inline_stats
+        LEFT JOIN __intrinsic_track_event_callstacks tec
+          ON tec.slice_id = slice.id AND tec.callsite_id IS NOT NULL
+        LEFT JOIN stack_profile_callsite spc
+          ON spc.id = tec.callsite_id
+        LEFT JOIN stack_profile_frame spf
+          ON spf.id = spc.frame_id
+        LEFT JOIN stack_profile_symbol sps
+          ON sps.symbol_set_id = spf.symbol_set_id AND sps.id = spf.symbol_set_id
+        WHERE slice.name IN ('Inline Slice 1', 'Inline Slice 2', 'Interned Slice')
+        ORDER BY slice.name;
+        """,
+        out=Csv("""
+        "name","leaf_frame","source_file","line_number","inline_unique_callstacks"
+        "Inline Slice 1","InlineLeaf","leaf.cc",42,1
+        "Inline Slice 2","InlineLeaf","leaf.cc",42,1
+        "Interned Slice","FuncB","[NULL]",0,1
         """))
 
   def test_track_event_name_resolution_extended(self):

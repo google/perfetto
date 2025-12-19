@@ -21,7 +21,7 @@ import {Popup, PopupAttrs, PopupPosition} from './popup';
 
 export interface MenuItemAttrs extends HTMLAttrs {
   // Text to display on the menu button.
-  label: string;
+  label: m.Children;
   // Optional left icon.
   icon?: string;
   // Optional right icon.
@@ -40,6 +40,9 @@ export interface MenuItemAttrs extends HTMLAttrs {
   // clicking it will result in the popup being dismissed.
   // Defaults to false when menuitem has children, true otherwise.
   closePopupOnClick?: boolean;
+
+  // Callback for when the menu is opened (only when the menu item has children).
+  onChange?(isOpen: boolean): void;
 }
 
 // An interactive menu element with an icon.
@@ -57,18 +60,20 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
     const {
       rightIcon = 'chevron_right',
       closePopupOnClick = false,
+      onChange,
       ...rest
     } = attrs;
 
     return m(
       PopupMenu,
       {
-        popupPosition: PopupPosition.RightStart,
+        position: PopupPosition.RightStart,
         trigger: m(MenuItem, {
           rightIcon: rightIcon,
           closePopupOnClick,
           ...rest,
         }),
+        onChange,
         showArrow: false,
         createNewGroup: false,
         edgeOffset: 5, // Adjust for popup padding & border.
@@ -116,6 +121,18 @@ export class MenuDivider implements m.ClassComponent {
   }
 }
 
+export interface MenuTitleAttrs extends HTMLAttrs {
+  // Text to display in the title.
+  readonly label?: string;
+}
+
+// An element which shows a dividing line between menu items.
+export class MenuTitle implements m.ClassComponent {
+  view({attrs}: m.CVnode<MenuTitleAttrs>) {
+    return m('.pf-menu-title', attrs.label);
+  }
+}
+
 // A siple container for a menu.
 // The menu contents are passed in as children, and are typically MenuItems or
 // MenuDividers, but really they can be any Mithril component.
@@ -126,22 +143,6 @@ export class Menu implements m.ClassComponent<HTMLAttrs> {
 }
 
 interface PopupMenuAttrs extends PopupAttrs {
-  // The trigger is mithril component which is used to toggle the popup when
-  // clicked, and provides the anchor on the page which the popup shall hover
-  // next to, and to which the popup's arrow shall point. The popup shall move
-  // around the page with this component, as if attached to it.
-  // This trigger can be any mithril component, but it is typically a Button,
-  // an Icon, or some other interactive component.
-  // Beware this element will have its `onclick`, `ref`, and `active` attributes
-  // overwritten.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  trigger: m.Vnode<any, any>;
-  // Which side of the trigger to place to popup.
-  // Defaults to "bottom".
-  popupPosition?: PopupPosition;
-  // Whether we should show the little arrow pointing to the trigger.
-  // Defaults to true.
-  showArrow?: boolean;
   // Whether this popup should form a new popup group.
   // When nesting popups, grouping controls how popups are closed.
   // When closing popups via the Escape key, each group is closed one by one,
@@ -157,17 +158,13 @@ interface PopupMenuAttrs extends PopupAttrs {
 // MenuDividers, but really they can be any Mithril component.
 export class PopupMenu implements m.ClassComponent<PopupMenuAttrs> {
   view({attrs, children}: m.CVnode<PopupMenuAttrs>) {
-    const {
-      trigger,
-      popupPosition = PopupPosition.Bottom,
-      ...popupAttrs
-    } = attrs;
+    const {trigger, position = PopupPosition.Bottom, ...popupAttrs} = attrs;
 
     return m(
       Popup,
       {
         trigger,
-        position: popupPosition,
+        position,
         className: 'pf-popup-menu',
         ...popupAttrs,
       },

@@ -44,7 +44,7 @@ export class TraceConfigBuilder {
 
   // It has get-or-create semantics.
   addDataSource(name: string, targetBufId?: string): protos.IDataSourceConfig {
-    return getOrCreate(this.dataSources, name, () => ({
+    return getOrCreate(this.dataSources, name + targetBufId, () => ({
       targetBufId,
       config: {name},
     })).config;
@@ -74,6 +74,20 @@ export class TraceConfigBuilder {
     cfg.ftraceConfig ??= {};
     cfg.ftraceConfig.atraceCategories ??= [];
     cfg.ftraceConfig.atraceCategories.push(...cats);
+  }
+
+  addTrackEventEnabledCategories(...cats: string[]) {
+    const cfg = this.addDataSource('track_event');
+    cfg.trackEventConfig ??= {};
+    cfg.trackEventConfig.enabledCategories ??= [];
+    cfg.trackEventConfig.enabledCategories.push(...cats);
+  }
+
+  addTrackEventDisabledCategories(...cats: string[]) {
+    const cfg = this.addDataSource('track_event');
+    cfg.trackEventConfig ??= {};
+    cfg.trackEventConfig.disabledCategories ??= [];
+    cfg.trackEventConfig.disabledCategories.push(...cats);
   }
 
   toTraceConfig(): protos.TraceConfig {

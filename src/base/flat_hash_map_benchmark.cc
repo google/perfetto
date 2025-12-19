@@ -12,18 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <random>
+#include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include <benchmark/benchmark.h>
-#include <stdio.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/scoped_file.h"
 
 // This benchmark allows to compare our FlatHashMap implementation against
@@ -88,6 +96,15 @@ class Ours : public base::FlatHashMap<Key, Value, Hasher, Probe> {
   }
 
   Iterator find(const Key& key) {
+    const size_t idx = this->FindInternal(key);
+    return Iterator(this->keys_[idx], this->values_[idx]);
+  }
+
+  // Heterogeneous find
+  template <typename K,
+            typename H = Hasher,
+            typename = typename H::is_transparent>
+  Iterator find(const K& key) {
     const size_t idx = this->FindInternal(key);
     return Iterator(this->keys_[idx], this->values_[idx]);
   }
@@ -397,3 +414,78 @@ BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14FastMap);
 #endif
 
 BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, Ours_LinearProbing);
+
+// Heterogeneous lookup benchmarks
+template <typename MapType>
+void BM_HashMap_HeterogeneousLookup_String(benchmark::State& state) {
+  std::vector<std::string> keys;
+  const size_t kNumSamples = num_samples();
+
+  // Create a set of unique string keys
+  for (size_t i = 0; i < kNumSamples; i++) {
+    keys.push_back("key_" + std::to_string(i));
+  }
+
+  // Build the map
+  MapType mapz;
+  for (const auto& key : keys) {
+    mapz.insert({key, 42});
+  }
+
+  // Benchmark looking up using string_view (heterogeneous lookup)
+  for (auto _ : state) {
+    int64_t total = 0;
+    for (const auto& key : keys) {
+      std::string_view key_view = key;
+      auto it = mapz.find(key_view);
+      if (it != mapz.end()) {
+        total += it->second;
+      }
+    }
+    benchmark::DoNotOptimize(total);
+    benchmark::ClobberMemory();
+  }
+  state.counters["lookups"] = Counter(static_cast<double>(keys.size()),
+                                      Counter::kIsIterationInvariantRate);
+}
+
+template <typename MapType>
+void BM_HashMap_RegularLookup_String(benchmark::State& state) {
+  std::vector<std::string> keys;
+  const size_t kNumSamples = num_samples();
+
+  // Create a set of unique string keys
+  for (size_t i = 0; i < kNumSamples; i++) {
+    keys.push_back("key_" + std::to_string(i));
+  }
+
+  // Build the map
+  MapType mapz;
+  for (const auto& key : keys) {
+    mapz.insert({key, 42});
+  }
+
+  // Benchmark looking up using std::string (regular lookup)
+  for (auto _ : state) {
+    int64_t total = 0;
+    for (const auto& key : keys) {
+      auto it = mapz.find(key);
+      if (it != mapz.end()) {
+        total += it->second;
+      }
+    }
+    benchmark::DoNotOptimize(total);
+    benchmark::ClobberMemory();
+  }
+  state.counters["lookups"] = Counter(static_cast<double>(keys.size()),
+                                      Counter::kIsIterationInvariantRate);
+}
+
+using Ours_String_LinearProbing =
+    Ours<std::string, uint64_t, base::MurmurHash<std::string>, LinearProbe>;
+using StdUnorderedMap_String = std::unordered_map<std::string, uint64_t>;
+
+BENCHMARK_TEMPLATE(BM_HashMap_HeterogeneousLookup_String,
+                   Ours_String_LinearProbing);
+BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, Ours_String_LinearProbing);
+BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, StdUnorderedMap_String);

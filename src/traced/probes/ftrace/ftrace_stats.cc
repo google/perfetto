@@ -28,6 +28,8 @@ void FtraceStats::Write(protos::pbzero::FtraceStats* writer) const {
   writer->set_kernel_symbols_mem_kb(kernel_symbols_mem_kb);
   if (!setup_errors.atrace_errors.empty())
     writer->set_atrace_errors(setup_errors.atrace_errors);
+  if (!setup_errors.exclusive_feature_error.empty())
+    writer->set_exclusive_feature_error(setup_errors.exclusive_feature_error);
   for (const std::string& err : setup_errors.unknown_ftrace_events)
     writer->add_unknown_ftrace_events(err);
   for (const std::string& err : setup_errors.failed_ftrace_events)

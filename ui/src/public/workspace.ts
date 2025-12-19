@@ -217,6 +217,20 @@ export class TrackNode {
   }
 
   /**
+   * Get all ancestors of this node from root to immediate parent.
+   * Returns an empty array if this node has no parent.
+   */
+  getAncestors(): TrackNode[] {
+    const ancestors: TrackNode[] = [];
+    let current = this.parent;
+    while (current && current.name !== '') {
+      ancestors.push(current);
+      current = current.parent;
+    }
+    return ancestors.reverse(); // Return from root to immediate parent
+  }
+
+  /**
    * Find this node's root node - this may be a workspace or another node.
    */
   get rootNode(): TrackNode {

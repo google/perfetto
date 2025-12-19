@@ -1,3 +1,4 @@
+/abseil-cpp/
 /android_sdk/
 /android-core/
 /android-libbase/
@@ -39,6 +40,7 @@ buildtools_hash_revision_for_cache_on_ci.txt
 /open_csd/
 /pigweed/
 /protobuf/
+/rustup/
 /sqlglot/
 /sqlite_src/
 /sqlite/

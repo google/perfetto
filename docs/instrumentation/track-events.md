@@ -371,7 +371,9 @@ Some examples of valid combinations:
 
    ```C++
      TRACE_EVENT("category", "Name", [&](perfetto::EventContext ctx) {
-       ctx.event()->set_custom_value(...);
+       auto* debug_annotation = ctx.event()->add_debug_annotations();
+       debug_annotation->set_name("key");
+       debug_annotation->set_string_value("value");
      });
    ```
 
@@ -380,7 +382,9 @@ Some examples of valid combinations:
    ```C++
      TRACE_EVENT("category", "Name", time_in_nanoseconds,
          [&](perfetto::EventContext ctx) {
-       ctx.event()->set_custom_value(...);
+       auto* debug_annotation = ctx.event()->add_debug_annotations();
+       debug_annotation->set_name("key");
+       debug_annotation->set_string_value("value");
      });
    ```
 
@@ -421,7 +425,9 @@ Some examples of valid combinations:
      TRACE_EVENT("category", "Name", "arg", value1,
                  pbzero::TrackEvent::kFieldName, value2,
                  [&](perfetto::EventContext ctx) {
-                     ctx.event()->set_custom_value(...);
+                     auto* debug_annotation = ctx.event()->add_debug_annotations();
+                     debug_annotation->set_name("key");
+                     debug_annotation->set_string_value("value");
                  });
    ```
 
@@ -438,7 +444,9 @@ Some examples of valid combinations:
    ```C++
      TRACE_EVENT("category", "Name", perfetto::Track(1234),
                  [&](perfetto::EventContext ctx) {
-                     ctx.event()->set_custom_value(...);
+                     auto* debug_annotation = ctx.event()->add_debug_annotations();
+                     debug_annotation->set_name("key");
+                     debug_annotation->set_string_value("value");
                  });
    ```
 
@@ -454,7 +462,9 @@ Some examples of valid combinations:
    ```C++
      TRACE_EVENT("category", "Name", perfetto::Track(1234),
                  time_in_nanoseconds, [&](perfetto::EventContext ctx) {
-                     ctx.event()->set_custom_value(...);
+                     auto* debug_annotation = ctx.event()->add_debug_annotations();
+                     debug_annotation->set_name("key");
+                     debug_annotation->set_string_value("value");
                  });
    ```
 

@@ -84,6 +84,18 @@ class BinaryProto:
 
 
 @dataclass
+class SimpleperfProto:
+  """Represents a simpleperf_proto binary file with inline generation."""
+  records: List[str]  # List of textproto strings for Record messages
+
+
+@dataclass
+class PprofTextproto:
+  """Represents a pprof file in textproto format."""
+  contents: str
+
+
+@dataclass
 class Systrace:
   """Represents a systrace file in string format."""
   contents: str
@@ -128,7 +140,7 @@ class TraceInjector:
 @dataclass
 class DiffTestBlueprint:
   """Blueprint for running the diff test.
-  
+
   'query' is being run over data from the 'trace 'and result will be compared
   to the 'out. Each test (function in class inheriting from TestSuite) returns
   a DiffTestBlueprint.
@@ -139,6 +151,8 @@ class DiffTestBlueprint:
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
   trace_modifier: Union[TraceInjector, None] = None
   register_files_dir: Optional[DataPath] = None
+  # If set, this test will only be run if all of these module_dependencies are enabled.
+  module_dependencies: Optional[List[str]] = None
   index_dir: str = ''
   test_data_dir: str = ''
 
@@ -156,6 +170,9 @@ class DiffTestBlueprint:
 
   def is_trace_rawtext(self):
     return isinstance(self.trace, RawText)
+
+  def is_trace_simpleperf_proto(self):
+    return isinstance(self.trace, SimpleperfProto)
 
   def is_query_file(self):
     return isinstance(self.query, Path)
@@ -192,7 +209,7 @@ def removeprefix(s: str, prefix: str):
 
 class TestSuite:
   """Virtual class responsible for fetching diff tests.
-  
+
   All functions with name starting with `test_` have to return
   DiffTestBlueprint and function name is a test name. All DiffTestModules have
   to be included in `test/diff_tests/trace_processor/include_index.py`. `fetch`

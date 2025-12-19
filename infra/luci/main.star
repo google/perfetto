@@ -82,7 +82,6 @@ def official_builder(name, os, caches=[]):
             name = "perfetto",
             cipd_package = "infra/recipe_bundles/chromium.googlesource.com/external/github.com/google/perfetto",
             cipd_version = "refs/heads/upstream/main",
-            use_python3 = True,
         ),
         dimensions = {
             "pool": "luci.perfetto.official",
@@ -96,6 +95,13 @@ def official_builder(name, os, caches=[]):
                 bucket = "official",
                 repo = "https://chromium.googlesource.com/external/github.com/google/perfetto",
                 refs = ["refs/tags/upstream/v.+"],
+            ),
+            luci.gitiles_poller(
+                name = "perfetto-nightly-trigger",
+                bucket = "official",
+                repo = "https://chromium.googlesource.com/external/github.com/google/perfetto",
+                schedule = "0 5 * * *",
+                refs = ["refs/heads/upstream/main"],
             ),
         ],
         caches = [

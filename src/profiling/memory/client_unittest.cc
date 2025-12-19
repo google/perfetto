@@ -43,7 +43,8 @@ TEST(ClientTest, GetThreadStackRangeBase) {
   th.join();
 }
 
-#if defined(ADDRESS_SANITIZER)
+#if defined(ADDRESS_SANITIZER) || defined(LEAK_SANITIZER) || \
+    defined(THREAD_SANITIZER) || defined(MEMORY_SANITIZER)
 #define MAYBE_GetSigaltStackRange DISABLED_GetSigaltStackRange
 #else
 #define MAYBE_GetSigaltStackRange GetSigaltStackRange

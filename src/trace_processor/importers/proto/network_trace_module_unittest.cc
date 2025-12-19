@@ -32,7 +32,10 @@
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -63,9 +66,14 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
     storage_ = context_.storage.get();
+    context_.metadata_tracker =
+        std::make_unique<MetadataTracker>(context_.storage.get());
+    context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&context_, 1);
+    context_.clock_tracker = std::make_unique<ClockTracker>(
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(storage_);
     context_.slice_translation_table =
@@ -78,6 +86,8 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    context_.track_group_idx_state =
+        std::make_unique<TrackCompressorGroupIdxState>();
   }
 
   base::Status TokenizeAndParse() {
@@ -90,7 +100,6 @@ class NetworkTraceModuleTest : public testing::Test {
         reader->Parse(TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
     context_.sorter->ExtractEventsForced();
     context_.slice_tracker->FlushPendingSlices();
-    context_.args_tracker->Flush();
     return status;
   }
 

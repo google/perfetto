@@ -17,9 +17,9 @@
 #include "src/profiling/memory/client_api_factory.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/heap_profile.h"
@@ -144,7 +144,7 @@ void StartHeapprofdIfStatic() {
 
   srv_sock.SetBlocking(false);
 
-  base::UnixTaskRunner task_runner;
+  base::MaybeLockFreeTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks
   HeapprofdProducer producer(HeapprofdMode::kChild, &task_runner,
                              /* exit_when_done= */ false);

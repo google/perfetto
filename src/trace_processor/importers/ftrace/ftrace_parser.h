@@ -345,6 +345,8 @@ class FtraceParser {
                               int64_t timestamp,
                               protozero::ConstBytes blob);
   void ParseMaliGpuPowerState(int64_t ts, protozero::ConstBytes blob);
+  void ParseDmabufRssStat(int64_t ts, uint32_t pid, protozero::ConstBytes blob);
+  void ParseFwtpPerfettoCounter(protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   GenericFtraceTracker* generic_tracker_;
@@ -530,7 +532,7 @@ class FtraceParser {
 
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
-      return base::FnvHasher::Combine(p.first, p.second);
+      return base::MurmurHashCombine(p.first, p.second);
     }
   };
 

@@ -28,6 +28,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -464,7 +465,7 @@ void TracingMuxerImpl::ConsumerImpl::OnConnect() {
     muxer_->QueryServiceState(session_id_, std::move(callback));
   }
   if (session_to_clone_) {
-    service_->CloneSession(*session_to_clone_);
+    service_->CloneSession(std::move(*session_to_clone_));
     session_to_clone_ = std::nullopt;
   }
 
@@ -1665,6 +1666,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
       producer->service_->NotifyDataSourceStopped(instance_id);
   }
   producer->SweepDeadServices();
+  base::MaybeReleaseAllocatorMemToOS();
 }
 
 void TracingMuxerImpl::ClearDataSourceIncrementalState(
@@ -1989,14 +1991,14 @@ void TracingMuxerImpl::CloneTracingSession(
   // Multiple concurrent cloning isn't supported.
   PERFETTO_DCHECK(!consumer->clone_trace_callback_);
   consumer->clone_trace_callback_ = std::move(callback);
-  ConsumerEndpoint::CloneSessionArgs consumer_args{};
+  ConsumerEndpoint::CloneSessionArgs consumer_args;
   consumer_args.unique_session_name = args.unique_session_name;
   if (!consumer->connected_) {
     consumer->session_to_clone_ = std::move(consumer_args);
     return;
   }
   consumer->session_to_clone_ = std::nullopt;
-  consumer->service_->CloneSession(consumer_args);
+  consumer->service_->CloneSession(std::move(consumer_args));
 }
 
 void TracingMuxerImpl::ChangeTracingSessionConfig(

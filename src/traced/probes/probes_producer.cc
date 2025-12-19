@@ -22,6 +22,9 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/crash_keys.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -50,6 +53,7 @@
 #include "src/traced/probes/statsd_client/statsd_binder_data_source.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/traced/probes/system_info/system_info_data_source.h"
+#include "src/traced/probes/user_list/user_list_data_source.h"
 
 namespace perfetto {
 namespace {
@@ -60,8 +64,11 @@ constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 // Should be larger than FtraceController::kControllerFlushTimeoutMs.
 constexpr uint32_t kFlushTimeoutMs = 1000;
 
-constexpr size_t kTracingSharedMemSizeHintBytes = 1024 * 1024;
+constexpr size_t kTracingSharedMemSizeHintBytes = 2 * 1024 * 1024;
 constexpr size_t kTracingSharedMemPageSizeHintBytes = 32 * 1024;
+
+base::CrashKey g_crash_key_ds_count("ds_instance_count");
+base::CrashKey g_crash_key_session_count("tracing_session_count");
 
 }  // namespace
 
@@ -88,7 +95,7 @@ ProbesProducer::~ProbesProducer() {
   instance_ = nullptr;
   // The ftrace data sources must be deleted before the ftrace controller.
   data_sources_.clear();
-  ftrace_.reset();
+  ftrace_controller_.reset();
 }
 
 void ProbesProducer::Restart() {
@@ -121,10 +128,10 @@ ProbesProducer::CreateDSInstance<FtraceDataSource>(
   FtraceConfig ftrace_config;
   ftrace_config.ParseFromString(config.ftrace_config_raw());
   // Lazily create on the first instance.
-  if (!ftrace_) {
-    ftrace_ = FtraceController::Create(task_runner_, this);
+  if (!ftrace_controller_) {
+    ftrace_controller_ = FtraceController::Create(task_runner_, this);
 
-    if (!ftrace_) {
+    if (!ftrace_controller_) {
       PERFETTO_ELOG("Failed to create FtraceController");
       ftrace_creation_failed_ = true;
       return nullptr;
@@ -134,9 +141,9 @@ ProbesProducer::CreateDSInstance<FtraceDataSource>(
   PERFETTO_LOG("Ftrace setup (target_buf=%" PRIu32 ")", config.target_buffer());
   const BufferID buffer_id = static_cast<BufferID>(config.target_buffer());
   std::unique_ptr<FtraceDataSource> data_source(new FtraceDataSource(
-      ftrace_->GetWeakPtr(), session_id, std::move(ftrace_config),
+      ftrace_controller_->GetWeakPtr(), session_id, std::move(ftrace_config),
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall)));
-  if (!ftrace_->AddDataSource(data_source.get())) {
+  if (!ftrace_controller_->AddDataSource(data_source.get())) {
     PERFETTO_ELOG("Failed to setup ftrace");
     return nullptr;
   }
@@ -296,6 +303,18 @@ ProbesProducer::CreateDSInstance<SystemInfoDataSource>(
 
 template <>
 std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<UserListDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::unique_ptr<ProbesDataSource>(new UserListDataSource(
+      config, session_id,
+      endpoint_->CreateTraceWriter(buffer_id,
+                                   perfetto::BufferExhaustedPolicy::kStall)));
+}
+
+template <>
+std::unique_ptr<ProbesDataSource>
 ProbesProducer::CreateDSInstance<InitialDisplayStateDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
@@ -365,6 +384,7 @@ constexpr const DataSourceTraits kAllDataSources[] = {
 #endif
     Ds<SysStatsDataSource>(),
     Ds<SystemInfoDataSource>(),
+    Ds<UserListDataSource>(),
 };
 
 }  // namespace
@@ -372,6 +392,7 @@ constexpr const DataSourceTraits kAllDataSources[] = {
 void ProbesProducer::OnConnect() {
   PERFETTO_DCHECK(state_ == kConnecting);
   state_ = kConnected;
+  sock_inotify_.reset();
   ResetConnectionBackoff();
   PERFETTO_LOG("Connected to the service");
 
@@ -415,13 +436,23 @@ void ProbesProducer::OnConnect() {
 void ProbesProducer::OnDisconnect() {
   PERFETTO_DCHECK(state_ == kConnected || state_ == kConnecting);
   PERFETTO_LOG("Disconnected from tracing service");
+
   if (state_ == kConnected)
     return task_runner_->PostTask([this] { this->Restart(); });
 
   state_ = kNotConnected;
   IncreaseConnectionBackoff();
-  task_runner_->PostDelayedTask([this] { this->Connect(); },
-                                connection_backoff_ms_);
+
+  auto reconnect_task = [weak_this = weak_factory_.GetWeakPtr()] {
+    if (weak_this && weak_this->state_ == kNotConnected)
+      weak_this->Connect();
+  };
+
+  task_runner_->PostDelayedTask(reconnect_task, connection_backoff_ms_);
+  if (!sock_inotify_) {
+    sock_inotify_ = base::WatchUnixSocketCreation(task_runner_, socket_name_,
+                                                  reconnect_task);
+  }
 }
 
 void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
@@ -466,6 +497,11 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
   session_data_sources_[session_id].emplace(data_source->descriptor,
                                             data_source.get());
   data_sources_[instance_id] = std::move(data_source);
+
+  // Set crash keys for debugging overload crashes.
+  g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
+  g_crash_key_session_count.Set(
+      static_cast<int64_t>(session_data_sources_.size()));
 }
 
 void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
@@ -541,6 +577,15 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   // were acked), and therefore the kill would race against the tracefs
   // cleanup.
   endpoint_->NotifyDataSourceStopped(id);
+
+  // This is to reduce the noise in Android performance benchmarks that measure
+  // the memory of perfetto processes.
+  base::MaybeReleaseAllocatorMemToOS();
+
+  // Set crash keys for debugging overload crashes.
+  g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
+  g_crash_key_session_count.Set(
+      static_cast<int64_t>(session_data_sources_.size()));
 }
 
 void ProbesProducer::OnTracingSetup() {

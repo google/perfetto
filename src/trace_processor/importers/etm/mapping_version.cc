@@ -22,7 +22,7 @@
 #include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/common/address_range.h"
 
 namespace perfetto::trace_processor::etm {
@@ -30,13 +30,12 @@ namespace perfetto::trace_processor::etm {
 MappingVersion::MappingVersion(MappingId id,
                                int64_t create_ts,
                                AddressRange range,
-                               std::optional<TraceBlobView> content)
-    : id_(id), create_ts_(create_ts), range_(range) {
-  if (content) {
-    content_ = std::move(*content);
-  }
-  PERFETTO_CHECK(content_.size() == range.length() ||
-                 content_.data() == nullptr);
+                               std::optional<TraceBlob> content)
+    : id_(id),
+      create_ts_(create_ts),
+      range_(range),
+      content_(content ? std::move(*content) : TraceBlob::Allocate(0)) {
+  PERFETTO_CHECK(content_.size() == range.length() || content_.size() == 0);
 }
 
 MappingVersion MappingVersion::SplitFront(uint64_t mid) {
@@ -45,15 +44,16 @@ MappingVersion MappingVersion::SplitFront(uint64_t mid) {
   AddressRange tail(mid, range_.end());
   uint64_t offset = mid - range_.start();
 
-  TraceBlobView head_content;
-  TraceBlobView tail_content;
+  std::optional<TraceBlob> head_content;
+  std::optional<TraceBlob> tail_content;
   if (content_.size() != 0) {
-    head_content = content_.slice_off(0, offset);
-    tail_content = content_.slice_off(offset, content_.size() - offset);
+    head_content = TraceBlob::CopyFrom(content_.data(), offset);
+    tail_content =
+        TraceBlob::CopyFrom(content_.data() + offset, content_.size() - offset);
   }
 
   range_ = tail;
-  content_ = std::move(tail_content);
+  content_ = tail_content ? std::move(*tail_content) : TraceBlob::Allocate(0);
 
   return MappingVersion(id_, create_ts_, head, std::move(head_content));
 }

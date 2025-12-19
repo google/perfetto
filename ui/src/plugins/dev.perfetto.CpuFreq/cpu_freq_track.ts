@@ -259,7 +259,7 @@ export class CpuFreqTrack implements TrackRenderer {
     size,
     timescale,
     visibleWindow,
-    theme,
+    colors,
   }: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -349,7 +349,7 @@ export class CpuFreqTrack implements TrackRenderer {
     }
 
     // Draw CPU idle rectangles that overlay the CPU freq graph.
-    ctx.fillStyle = `rgba(240, 240, 240, 1)`;
+    ctx.fillStyle = `rgba(128,128,128, 0.2)`;
     {
       for (let i = startIdx; i < endIdx; i++) {
         if (data.lastIdleValues[i] < 0) {
@@ -370,6 +370,7 @@ export class CpuFreqTrack implements TrackRenderer {
         const width = xEnd - x;
         const height = calculateY(data.lastFreqKHz[i]) - zeroY;
 
+        ctx.clearRect(x, zeroY, width, height);
         ctx.fillRect(x, zeroY, width, height);
       }
     }
@@ -410,11 +411,11 @@ export class CpuFreqTrack implements TrackRenderer {
 
     // Write the Y scale on the top left corner.
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = theme.COLOR_BACKGROUND;
+    ctx.fillStyle = colors.COLOR_BACKGROUND;
     ctx.globalAlpha = 0.6;
     ctx.fillRect(0, 0, 42, 18);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = theme.COLOR_TEXT;
+    ctx.fillStyle = colors.COLOR_TEXT;
     ctx.textAlign = 'left';
     ctx.fillText(`${yLabel}`, 4, 14);
 

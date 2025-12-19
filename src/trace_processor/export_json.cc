@@ -58,6 +58,7 @@
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/args_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/config.h>
@@ -156,7 +157,6 @@ class JsonExporter {
     RETURN_IF_ERROR(ExportSlices());
     RETURN_IF_ERROR(ExportFlows());
     RETURN_IF_ERROR(ExportRawEvents());
-    RETURN_IF_ERROR(ExportCpuProfileSamples());
     RETURN_IF_ERROR(ExportMetadata());
     RETURN_IF_ERROR(ExportStats());
     RETURN_IF_ERROR(ExportMemorySnapshots());
@@ -531,18 +531,20 @@ class JsonExporter {
           inf_value_(Json::StaticString("Infinity")),
           neg_inf_value_(Json::StaticString("-Infinity")) {
       const auto& arg_table = storage_->arg_table();
-      Json::Value* cur_args_ptr = nullptr;
+      ArgSet arg_set;
       uint32_t cur_args_set_id = std::numeric_limits<uint32_t>::max();
       for (auto it = arg_table.IterateRows(); it; ++it) {
         ArgSetId set_id = it.arg_set_id();
         if (set_id != cur_args_set_id) {
-          cur_args_ptr =
-              args_sets_.Insert(set_id, Json::Value(Json::objectValue)).first;
+          args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
+          arg_set = ArgSet();
           cur_args_set_id = set_id;
         }
-        const char* key = storage->GetString(it.key()).c_str();
-        Variadic value = storage_->GetArgValue(it.row_number().row_number());
-        AppendArg(cur_args_ptr, key, VariadicToJson(value));
+        arg_set.AppendArg(storage->GetString(it.key()),
+                          storage_->GetArgValue(it.row_number().row_number()));
+      }
+      if (cur_args_set_id != std::numeric_limits<uint32_t>::max()) {
+        args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
       }
       PostprocessArgs();
     }
@@ -595,45 +597,26 @@ class JsonExporter {
       PERFETTO_FATAL("Not reached");  // For gcc.
     }
 
-    static void AppendArg(Json::Value* target,
-                          const std::string& key,
-                          const Json::Value& value) {
-      for (base::StringSplitter parts(key, '.'); parts.Next();) {
-        if (PERFETTO_UNLIKELY(!target->isNull() && !target->isObject())) {
-          PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
-                        key.c_str(), target->toStyledString().c_str());
-          return;
-        }
-        std::string key_part = parts.cur_token();
-        size_t bracketpos = key_part.find('[');
-        if (bracketpos == std::string::npos) {  // A single item
-          target = &(*target)[key_part];
-        } else {  // A list item
-          target = &(*target)[key_part.substr(0, bracketpos)];
-          while (bracketpos != std::string::npos) {
-            // We constructed this string from an int earlier in trace_processor
-            // so it shouldn't be possible for this (or the StringToUInt32
-            // below) to fail.
-            std::string s =
-                key_part.substr(bracketpos + 1, key_part.find(']', bracketpos) -
-                                                    bracketpos - 1);
-            if (PERFETTO_UNLIKELY(!target->isNull() && !target->isArray())) {
-              PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
-                            key.c_str(), target->toStyledString().c_str());
-              return;
-            }
-            std::optional<uint32_t> index = base::StringToUInt32(s);
-            if (PERFETTO_UNLIKELY(!index)) {
-              PERFETTO_ELOG("Expected to be able to extract index from %s",
-                            key_part.c_str());
-              return;
-            }
-            target = &(*target)[index.value()];
-            bracketpos = key_part.find('[', bracketpos + 1);
+    Json::Value ArgNodeToJson(const ArgNode& node) {
+      switch (node.GetType()) {
+        case ArgNode::Type::kPrimitive:
+          return VariadicToJson(node.GetPrimitiveValue());
+        case ArgNode::Type::kArray: {
+          Json::Value result(Json::arrayValue);
+          for (const auto& child : node.GetArray()) {
+            result.append(ArgNodeToJson(child));
           }
+          return result;
+        }
+        case ArgNode::Type::kDict: {
+          Json::Value result(Json::objectValue);
+          for (const auto& [key, value] : node.GetDict()) {
+            result[key] = ArgNodeToJson(value);
+          }
+          return result;
         }
       }
-      *target = value;
+      PERFETTO_FATAL("Not reached");  // For gcc.
     }
 
     void PostprocessArgs() {
@@ -1257,226 +1240,6 @@ class JsonExporter {
         writer_.MergeMetadata(args);
       }
     }
-    return base::OkStatus();
-  }
-
-  class MergedProfileSamplesEmitter {
-   public:
-    // The TraceFormatWriter must outlive this instance.
-    explicit MergedProfileSamplesEmitter(TraceFormatWriter& writer)
-        : writer_(writer) {}
-
-    MergedProfileSamplesEmitter(const MergedProfileSamplesEmitter&) = delete;
-    MergedProfileSamplesEmitter& operator=(const MergedProfileSamplesEmitter&) =
-        delete;
-    MergedProfileSamplesEmitter& operator=(
-        MergedProfileSamplesEmitter&& value) = delete;
-
-    uint64_t AddEventForUtid(UniqueTid utid,
-                             int64_t ts,
-                             CallsiteId callsite_id,
-                             const Json::Value& event) {
-      auto current_sample = current_events_.find(utid);
-
-      // If there's a current entry for our thread and it matches the callsite
-      // of the new sample, update the entry with the new timestamp. Otherwise
-      // create a new entry.
-      if (current_sample != current_events_.end() &&
-          current_sample->second.callsite_id() == callsite_id) {
-        current_sample->second.UpdateWithNewSample(ts);
-        return current_sample->second.event_id();
-      }
-
-      if (current_sample != current_events_.end()) {
-        current_events_.erase(current_sample);
-      }
-
-      auto new_entry = current_events_.emplace(
-          std::piecewise_construct, std::forward_as_tuple(utid),
-          std::forward_as_tuple(writer_, callsite_id, ts, event));
-      return new_entry.first->second.event_id();
-    }
-
-    static uint64_t GenerateNewEventId() {
-      // "n"-phase events are nestable async events which get tied together
-      // with their id, so we need to give each one a unique ID as we only
-      // want the samples to show up on their own track in the trace-viewer
-      // but not nested together (unless they're nested under a merged event).
-      static size_t g_id_counter = 0;
-      return ++g_id_counter;
-    }
-
-   private:
-    class Sample {
-     public:
-      Sample(TraceFormatWriter& writer,
-             CallsiteId callsite_id,
-             int64_t ts,
-             Json::Value event)
-          : writer_(writer),
-            callsite_id_(callsite_id),
-            begin_ts_(ts),
-            end_ts_(ts),
-            event_(std::move(event)),
-            event_id_(MergedProfileSamplesEmitter::GenerateNewEventId()),
-            sample_count_(1) {}
-
-      Sample(const Sample&) = delete;
-      Sample& operator=(const Sample&) = delete;
-
-      Sample(Sample&&) = delete;
-      Sample& operator=(Sample&& value) = delete;
-
-      ~Sample() {
-        // No point writing a merged event if we only got a single sample
-        // as ExportCpuProfileSamples will already be writing the instant event.
-        if (sample_count_ == 1)
-          return;
-
-        event_["id"] = base::Uint64ToHexString(event_id_);
-
-        // Write the BEGIN event.
-        event_["ph"] = "b";
-        // We subtract 1us as a workaround for the first async event not
-        // nesting underneath the parent event if the timestamp is identical.
-        int64_t begin_in_us_ = begin_ts_ / 1000;
-        event_["ts"] = Json::Int64(std::min(begin_in_us_ - 1, begin_in_us_));
-        writer_.WriteCommonEvent(event_);
-
-        // Write the END event.
-        event_["ph"] = "e";
-        event_["ts"] = Json::Int64(end_ts_ / 1000);
-        // No need for args for the end event; remove them to save some space.
-        event_["args"].clear();
-        writer_.WriteCommonEvent(event_);
-      }
-
-      void UpdateWithNewSample(int64_t ts) {
-        // We assume samples for a given thread will appear in timestamp
-        // order; if this assumption stops holding true, we'll have to sort the
-        // samples first.
-        if (ts < end_ts_ || begin_ts_ > ts) {
-          PERFETTO_ELOG(
-              "Got an timestamp out of sequence while merging stack samples "
-              "during JSON export!\n");
-          PERFETTO_DCHECK(false);
-        }
-
-        end_ts_ = ts;
-        sample_count_++;
-      }
-
-      uint64_t event_id() const { return event_id_; }
-      CallsiteId callsite_id() const { return callsite_id_; }
-
-      TraceFormatWriter& writer_;
-      CallsiteId callsite_id_;
-      int64_t begin_ts_;
-      int64_t end_ts_;
-      Json::Value event_;
-      uint64_t event_id_;
-      size_t sample_count_;
-    };
-
-    std::unordered_map<UniqueTid, Sample> current_events_;
-    TraceFormatWriter& writer_;
-  };
-
-  base::Status ExportCpuProfileSamples() {
-    MergedProfileSamplesEmitter merged_sample_emitter(writer_);
-
-    const tables::CpuProfileStackSampleTable& samples =
-        storage_->cpu_profile_stack_sample_table();
-    for (auto it = samples.IterateRows(); it; ++it) {
-      Json::Value event;
-      event["ts"] = Json::Int64(it.ts() / 1000);
-
-      UniqueTid utid = static_cast<UniqueTid>(it.utid());
-      auto pid_and_tid = UtidToPidAndTid(utid);
-      event["pid"] = Json::Int(pid_and_tid.first);
-      event["tid"] = Json::Int(pid_and_tid.second);
-
-      event["ph"] = "n";
-      event["cat"] = "disabled-by-default-cpu_profiler";
-      event["name"] = "StackCpuSampling";
-      event["s"] = "t";
-
-      // Add a dummy thread timestamp to this event to match the format of
-      // instant events. Useful in the UI to view args of a selected group of
-      // samples.
-      event["tts"] = Json::Int64(1);
-
-      const auto& callsites = storage_->stack_profile_callsite_table();
-      const auto& frames = storage_->stack_profile_frame_table();
-      const auto& mappings = storage_->stack_profile_mapping_table();
-
-      std::vector<std::string> callstack;
-      std::optional<CallsiteId> opt_callsite_id = it.callsite_id();
-
-      while (opt_callsite_id) {
-        CallsiteId callsite_id = *opt_callsite_id;
-        auto callsite_row = *callsites.FindById(callsite_id);
-
-        FrameId frame_id = callsite_row.frame_id();
-        auto frame_row = *frames.FindById(frame_id);
-
-        MappingId mapping_id = frame_row.mapping();
-        auto mapping_row = *mappings.FindById(mapping_id);
-
-        NullTermStringView symbol_name;
-        auto opt_symbol_set_id = frame_row.symbol_set_id();
-        if (opt_symbol_set_id) {
-          symbol_name = storage_->GetString(
-              storage_->symbol_table()[*opt_symbol_set_id].name());
-        }
-
-        base::StackString<1024> frame_entry(
-            "%s - %s [%s]\n",
-            (symbol_name.empty()
-                 ? base::Uint64ToHexString(
-                       static_cast<uint64_t>(frame_row.rel_pc()))
-                       .c_str()
-                 : symbol_name.c_str()),
-            GetNonNullString(storage_, mapping_row.name()),
-            GetNonNullString(storage_, mapping_row.build_id()));
-
-        callstack.emplace_back(frame_entry.ToStdString());
-
-        opt_callsite_id = callsite_row.parent_id();
-      }
-
-      std::string merged_callstack;
-      for (auto entry = callstack.rbegin(); entry != callstack.rend();
-           ++entry) {
-        merged_callstack += *entry;
-      }
-
-      event["args"]["frames"] = merged_callstack;
-      event["args"]["process_priority"] = it.process_priority();
-
-      // TODO(oysteine): Used for backwards compatibility with the memlog
-      // pipeline, should remove once we've switched to looking directly at the
-      // tid.
-      event["args"]["thread_id"] = Json::Int(pid_and_tid.second);
-
-      // Emit duration events for adjacent samples with the same callsite.
-      // For now, only do this when the trace has already been symbolized i.e.
-      // are not directly output by Chrome, to avoid interfering with other
-      // processing pipelines.
-      std::optional<CallsiteId> opt_current_callsite_id = it.callsite_id();
-
-      if (opt_current_callsite_id && storage_->symbol_table().row_count() > 0) {
-        uint64_t parent_event_id = merged_sample_emitter.AddEventForUtid(
-            utid, it.ts(), *opt_current_callsite_id, event);
-        event["id"] = base::Uint64ToHexString(parent_event_id);
-      } else {
-        event["id"] = base::Uint64ToHexString(
-            MergedProfileSamplesEmitter::GenerateNewEventId());
-      }
-
-      writer_.WriteCommonEvent(event);
-    }
-
     return base::OkStatus();
   }
 

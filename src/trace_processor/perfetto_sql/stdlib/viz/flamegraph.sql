@@ -32,7 +32,7 @@ CREATE PERFETTO MACRO _viz_flamegraph_prepare_filter(
   hide_frame Expr,
   pivot Expr,
   impossible_stack_bits Expr,
-  grouping _ColumnNameList
+  grouping ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -189,8 +189,8 @@ CREATE PERFETTO MACRO _viz_flamegraph_upwards_hash(
   source TableOrSubquery,
   filtered TableOrSubquery,
   accumulated TableOrSubquery,
-  grouping _ColumnNameList,
-  grouped _ColumnNameList
+  grouping ColumnNameList,
+  grouped ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -246,8 +246,8 @@ CREATE PERFETTO MACRO _viz_flamegraph_downwards_hash(
   source TableOrSubquery,
   filtered TableOrSubquery,
   accumulated TableOrSubquery,
-  grouping _ColumnNameList,
-  grouped _ColumnNameList,
+  grouping ColumnNameList,
+  grouped ColumnNameList,
   showDownward Expr
 )
 RETURNS TableOrSubquery
@@ -305,8 +305,8 @@ RETURNS Expr AS $a;
 -- ids, grouping all hashes together.
 CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
   hashed TableOrSubquery,
-  grouping _ColumnNameList,
-  grouped_agged_exprs _ColumnNameList
+  grouping ColumnNameList,
+  grouped_agged_exprs ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -361,8 +361,8 @@ AS (
 CREATE PERFETTO MACRO _viz_flamegraph_global_layout(
   merged TableOrSubquery,
   layout TableOrSubquery,
-  grouping _ColumnNameList,
-  grouped _ColumnNameList
+  grouping ColumnNameList,
+  grouped ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (

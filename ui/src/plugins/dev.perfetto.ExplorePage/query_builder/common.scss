@@ -1,0 +1,67 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../../../assets/theme";
+
+// Common styles for inputs
+.pf-exp-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  transition: border-color 0.2s ease-in-out;
+  background: var(--pf-color-background);
+  color: inherit;
+
+  &:focus {
+    border-color: var(--pf-color-primary);
+    outline: none;
+  }
+}
+
+// Common styles for query builder nodes
+.pf-exp-node {
+  border: 1px solid var(--pf-color-border);
+  border-radius: 8px;
+  background-color: var(--pf-color-background);
+  box-shadow: 0 2px 4px var(--pf-color-box-shadow);
+  width: fit-content;
+  max-width: 300px;
+  box-sizing: border-box;
+
+  &--selected {
+    border-color: var(--pf-color-primary);
+  }
+
+  &--dragging {
+    opacity: 0.4;
+  }
+}
+
+// Common editor style
+.pf-exp-editor {
+  padding: 0.75rem;
+  border-radius: 4px;
+  border: 1px solid var(--pf-color-border);
+}
+
+.pf-exp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+}

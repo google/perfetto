@@ -16,11 +16,17 @@ import {createFakeTraceImpl} from '../../../../core/fake_trace_impl';
 import {tableColumnId} from './table_column';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
-import {StandardColumn, TimestampColumn} from './columns';
+import {createTableColumn} from './columns';
+import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 
-const idColumn = new StandardColumn('id');
-const nameColumn = new StandardColumn('name');
-const tsColumn = new TimestampColumn('ts');
+const trace = createFakeTraceImpl({allowQueries: true});
+const idColumn = createTableColumn({trace, column: 'id', type: undefined});
+const nameColumn = createTableColumn({trace, column: 'name', type: undefined});
+const tsColumn = createTableColumn({
+  trace,
+  column: 'ts',
+  type: PerfettoSqlTypes.TIMESTAMP,
+});
 
 const table: SqlTableDescription = {
   name: 'table',
@@ -29,7 +35,6 @@ const table: SqlTableDescription = {
 };
 
 test('sqlTableState: columnManupulation', () => {
-  const trace = createFakeTraceImpl({allowQueries: true});
   const state = new SqlTableState(trace, table);
 
   state.addColumn(tsColumn, 0);
