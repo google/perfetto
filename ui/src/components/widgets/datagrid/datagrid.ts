@@ -46,6 +46,7 @@ import {
   SchemaRegistry,
   getColumnInfo,
   getDefaultVisibleColumns,
+  isCellRenderResult,
 } from './datagrid_schema';
 import {DataGridToolbar, GridFilterChip} from './datagrid_toolbar';
 import {DataGridExportButton} from './export_button';
@@ -364,10 +365,57 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
 
+    // Collect all fields needed including dependencies
+    const visibleFields = this.columns.map((c) => c.field);
+    const dependencyFields = new Set<string>();
+
+    // Gather dependency fields from column definitions
+    for (const col of this.columns) {
+      const colInfo = getColumnInfo(schema, rootSchema, col.field);
+      if (colInfo?.dependsOn) {
+        for (const dep of colInfo.dependsOn) {
+          dependencyFields.add(dep);
+        }
+      }
+    }
+
+    // Also gather dependency fields from pivot columns when in pivot mode
+    if (this.pivot) {
+      // Check groupBy columns for dependencies
+      for (const groupByCol of this.pivot.groupBy) {
+        const colInfo = getColumnInfo(schema, rootSchema, groupByCol.field);
+        if (colInfo?.dependsOn) {
+          for (const dep of colInfo.dependsOn) {
+            dependencyFields.add(dep);
+          }
+        }
+      }
+
+      // Check aggregate columns (those with a field) for dependencies
+      for (const agg of this.pivot.aggregates ?? []) {
+        if ('field' in agg) {
+          const colInfo = getColumnInfo(schema, rootSchema, agg.field);
+          if (colInfo?.dependsOn) {
+            for (const dep of colInfo.dependsOn) {
+              dependencyFields.add(dep);
+            }
+          }
+        }
+      }
+    }
+
+    // Create columns array with dependencies included
+    const columnsWithDeps: readonly Column[] = [
+      ...this.columns,
+      ...Array.from(dependencyFields)
+        .filter((field) => !visibleFields.includes(field))
+        .map((field) => ({field})),
+    ];
+
     // Notify the data source of the current model state.
     const datasource = getOrCreateDataSource(data);
     datasource.notify({
-      columns: this.columns,
+      columns: columnsWithDeps,
       filters: this.filters,
       pagination: {
         offset: this.paginationOffset,
@@ -1099,17 +1147,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         const totalValue = datasource.aggregateTotals?.get(field);
         const isLoading = totalValue === undefined;
         // Don't show grand total for ANY aggregation (it's just an arbitrary value)
+        let totalContent: m.Children;
+        if (!isLoading && colInfo?.cellRenderer) {
+          const rendered = colInfo.cellRenderer(totalValue, {});
+          totalContent = isCellRenderResult(rendered)
+            ? rendered.content
+            : rendered;
+        } else if (!isLoading) {
+          totalContent = renderCell(totalValue, field);
+        }
         subContent =
           aggregate === 'ANY'
             ? m(AggregationCell, {symbol: aggregate})
-            : m(
-                AggregationCell,
-                {symbol: aggregate, isLoading},
-                !isLoading &&
-                  (colInfo?.cellRenderer
-                    ? colInfo.cellRenderer(totalValue, {})
-                    : renderCell(totalValue, field)),
-              );
+            : m(AggregationCell, {symbol: aggregate, isLoading}, totalContent);
       }
 
       return {
@@ -1160,12 +1210,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           const colInfo = columnInfoCache.get(field);
           const cellRenderer =
             colInfo?.cellRenderer ?? ((v: SqlValue) => renderCell(v, field));
+          const rendered = cellRenderer(value, row);
+          const isRich = isCellRenderResult(rendered);
 
           return m(
             GridCell,
             {
-              align: getAligment(value),
-              nullish: value === null,
+              align: isRich ? rendered.align ?? 'left' : getAligment(value),
+              nullish: isRich
+                ? rendered.nullish ?? value === null
+                : value === null,
               menuItems: [
                 m(CellFilterMenu, {
                   value,
@@ -1174,7 +1228,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 }),
               ],
             },
-            cellRenderer(value, row),
+            isRich ? rendered.content : rendered,
           );
         });
       })
@@ -1374,16 +1428,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       const aggregateTotalValue = datasource.aggregateTotals?.get(alias);
       const symbol = agg.function;
       const isLoading = aggregateTotalValue === undefined;
+      let aggTotalContent: m.Children;
+      if (!isLoading && colInfo?.cellRenderer) {
+        const rendered = colInfo.cellRenderer(aggregateTotalValue, {});
+        aggTotalContent = isCellRenderResult(rendered)
+          ? rendered.content
+          : rendered;
+      } else if (!isLoading) {
+        aggTotalContent = renderCell(aggregateTotalValue, alias);
+      }
       const subContent =
         agg.function !== 'ANY'
-          ? m(
-              AggregationCell,
-              {symbol, isLoading},
-              !isLoading &&
-                (colInfo?.cellRenderer
-                  ? colInfo.cellRenderer(aggregateTotalValue, {})
-                  : renderCell(aggregateTotalValue, alias)),
-            )
+          ? m(AggregationCell, {symbol, isLoading}, aggTotalContent)
           : m(AggregationCell, {symbol});
 
       columns.push({
@@ -1444,13 +1500,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           const colInfo = getColumnInfo(schema, rootSchema, field);
           const cellRenderer =
             colInfo?.cellRenderer ?? ((v: SqlValue) => renderCell(v, field));
+          const rendered = cellRenderer(value, row);
+          const isRich = isCellRenderResult(rendered);
 
           cells.push(
             m(
               GridCell,
               {
-                align: getAligment(value),
-                nullish: value === null,
+                align: isRich ? rendered.align ?? 'left' : getAligment(value),
+                nullish: isRich
+                  ? rendered.nullish ?? value === null
+                  : value === null,
                 className: 'pf-data-grid__groupby-column',
                 menuItems: [
                   m(MenuItem, {
@@ -1466,7 +1526,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   }),
                 ],
               },
-              cellRenderer(value, row),
+              isRich ? rendered.content : rendered,
             ),
           );
         }
@@ -1494,23 +1554,26 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           const value = row[alias];
 
           // For aggregates with a field, we can use the field's cell renderer
-          let cellRenderer: (v: SqlValue, r: Row) => m.Children = (v) =>
-            String(v ?? '');
+          let cellRenderer;
           if ('field' in agg) {
-            const colInfo = getColumnInfo(schema, rootSchema, agg.field);
-            if (colInfo?.cellRenderer) {
-              cellRenderer = colInfo.cellRenderer;
-            }
+            const aggColInfo = getColumnInfo(schema, rootSchema, agg.field);
+            cellRenderer = aggColInfo?.cellRenderer;
           }
+
+          const rendered = cellRenderer?.(value, row);
+          const isRich = rendered !== undefined && isCellRenderResult(rendered);
 
           cells.push(
             m(
               GridCell,
               {
-                align: 'right',
-                nullish: value === null,
+                // Default to 'right' for aggregates, but allow override
+                align: isRich ? rendered.align ?? 'left' : getAligment(value),
+                nullish: isRich
+                  ? rendered.nullish ?? value === null
+                  : value === null,
               },
-              cellRenderer(value, row),
+              isRich ? rendered.content : rendered ?? String(value ?? ''),
             ),
           );
         }
