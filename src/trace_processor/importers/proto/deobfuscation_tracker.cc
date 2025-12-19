@@ -16,9 +16,12 @@
 
 #include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
@@ -28,6 +31,7 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -201,6 +205,20 @@ void DeobfuscationTracker::DeobfuscateProfiles(
     }
   }
 
+  auto symbol_cursor = context_->storage->symbol_table().CreateCursor({
+      dataframe::FilterSpec{
+          tables::SymbolTable::ColumnIndex::symbol_set_id,
+          tables::SymbolTable::ColumnIndex::symbol_set_id,
+          dataframe::Eq{},
+          std::nullopt,
+      },
+      dataframe::FilterSpec{
+          tables::SymbolTable::ColumnIndex::line_number,
+          tables::SymbolTable::ColumnIndex::line_number,
+          dataframe::IsNotNull{},
+          0,
+      },
+  });
   // Deobfuscate frames using the collected mappings.
   auto* frames_tbl = context_->storage->mutable_stack_profile_frame_table();
   for (auto it = method_mappings.GetIterator(); it; ++it) {
@@ -229,15 +247,16 @@ void DeobfuscationTracker::DeobfuscateProfiles(
         continue;
       }
 
-      // Try to get line number from existing symbol entry (from symbolization).
+      // Try to get line number from existing symbol entry. Note that the
+      // symbol table is not just populated during symbolization, it's also
+      // populated by simpleperf, pprof, V8 JIT inside the trace itself.
       std::optional<uint32_t> obfuscated_line;
       if (frame->symbol_set_id().has_value()) {
-        const auto& symbol_tbl = context_->storage->symbol_table();
-        for (auto sym_it = symbol_tbl.IterateRows(); sym_it; ++sym_it) {
-          if (sym_it.symbol_set_id() == *frame->symbol_set_id()) {
-            obfuscated_line = sym_it.line_number();
-            break;
-          }
+        symbol_cursor.SetFilterValueUnchecked(0, frame->symbol_set_id());
+        symbol_cursor.Execute();
+        if (!symbol_cursor.Eof()) {
+          obfuscated_line = symbol_cursor.line_number();
+          break;
         }
       }
 
