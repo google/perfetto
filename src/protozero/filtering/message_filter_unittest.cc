@@ -1004,20 +1004,18 @@ TEST(MessageFilterTest, SemanticTypeEndToEnd) {
     ASSERT_GT(result_v2.bytecode.size(), 0u);
     EXPECT_GT(result_v2.v54_overlay.size(), 0u);  // Overlay present for v2
 
-    // Verify base bytecode has FilterString (no semantic types)
+    // Verify base bytecode denies fields (v2 doesn't support semantic types)
     FilterBytecodeParser parser_base;
     ASSERT_TRUE(
         parser_base.Load(result_v2.bytecode.data(), result_v2.bytecode.size()));
 
     auto query_base_atrace = parser_base.Query(1, 2);
-    EXPECT_TRUE(query_base_atrace.allowed);
-    EXPECT_TRUE(query_base_atrace.filter_string_field());
-    EXPECT_EQ(query_base_atrace.semantic_type, 0u);  // No semantic type in v2
+    EXPECT_FALSE(query_base_atrace.allowed);  // Field is denied in v2
+    EXPECT_FALSE(query_base_atrace.filter_string_field());
 
     auto query_base_category = parser_base.Query(1, 3);
-    EXPECT_TRUE(query_base_category.allowed);
-    EXPECT_TRUE(query_base_category.filter_string_field());
-    EXPECT_EQ(query_base_category.semantic_type, 0u);  // No semantic type in v2
+    EXPECT_FALSE(query_base_category.allowed);  // Field is denied in v2
+    EXPECT_FALSE(query_base_category.filter_string_field());
 
     // Verify overlay provides semantic types
     FilterBytecodeParser parser_overlay;

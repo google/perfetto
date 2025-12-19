@@ -70,9 +70,10 @@ void FilterBytecodeGenerator::AddFilterStringFieldWithType(
     bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
     bytecode_.push_back(semantic_type);
   } else {
-    // Otherwise we'll use plain FilterString opcode and add an overlay entry.
-    bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterString);
+    // On bytecode v2, the field will just be totally denied. Just don't add
+    // anything.
 
+    // On v54 it will allowed.
     v54_overlay_.push_back(num_messages_);
     v54_overlay_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
     v54_overlay_.push_back(semantic_type);
