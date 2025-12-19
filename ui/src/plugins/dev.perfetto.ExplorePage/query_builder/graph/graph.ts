@@ -54,16 +54,15 @@ import {
   NodePort,
 } from '../../../../widgets/nodegraph';
 import {createEditableTextLabels} from './text_label';
-import {
-  QueryNode,
-  singleNodeOperation,
-  NodeType,
-  addConnection,
-  removeConnection,
-} from '../../query_node';
+import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {NodeBox} from './node_box';
 import {buildMenuItems} from './menu_utils';
-import {getAllNodes, findNodeById} from '../graph_utils';
+import {
+  getAllNodes,
+  findNodeById,
+  addConnection,
+  removeConnection,
+} from '../graph_utils';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -117,6 +116,7 @@ export interface GraphAttrs {
   ) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
+  readonly onRecenterReady?: (recenter: () => void) => void;
 }
 
 // ========================================
@@ -601,6 +601,8 @@ export interface TextLabelData {
 export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
+  private hasPerformedInitialRecenter: boolean = false;
+  private recenterRequired: boolean = false;
   private labels: Label[] = [];
   private labelTexts: Map<string, string> = new Map();
   private editingLabels: Set<string> = new Set();
@@ -741,6 +743,16 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         addNodeMenuItems,
       ),
       m(Button, {
+        icon: 'center_focus_strong',
+        variant: ButtonVariant.Minimal,
+        title: 'Center Graph',
+        onclick: () => {
+          if (this.nodeGraphApi) {
+            this.nodeGraphApi.recenter();
+          }
+        },
+      }),
+      m(Button, {
         icon: Icons.Edit,
         variant: ButtonVariant.Minimal,
         title: 'Add Label',
@@ -774,14 +786,21 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       nodes.length > 0
     ) {
       this.hasPerformedInitialLayout = true;
-      // Defer autoLayout to next tick to ensure DOM nodes are fully rendered
-      setTimeout(() => {
-        if (this.nodeGraphApi) {
-          // Call autoLayout to arrange nodes hierarchically
-          // autoLayout will call onNodeMove for each node it repositions
-          this.nodeGraphApi.autoLayout();
-        }
-      }, 0);
+      this.hasPerformedInitialRecenter = true;
+      // Call autoLayout to arrange nodes hierarchically
+      // autoLayout will call onNodeMove for each node it repositions
+      this.nodeGraphApi.autoLayout();
+      // Recenter will happen in the onReady callback after the next render
+      this.recenterRequired = true;
+    } else if (
+      !this.hasPerformedInitialRecenter &&
+      this.nodeGraphApi &&
+      nodes.length > 0
+    ) {
+      // Recenter on first render even if auto-layout didn't run
+      // (e.g., when loading from localStorage with existing positions)
+      this.hasPerformedInitialRecenter = true;
+      this.recenterRequired = true;
     }
 
     return m(
@@ -800,6 +819,19 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           fillHeight: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
+
+            // Check if recenter is required and execute it after render
+            if (this.recenterRequired) {
+              this.nodeGraphApi.recenter();
+              this.recenterRequired = false;
+            }
+
+            // Expose recenter function to parent component
+            attrs.onRecenterReady?.(() => {
+              if (this.nodeGraphApi) {
+                this.nodeGraphApi.recenter();
+              }
+            });
           },
           multiselect: false,
           onNodeSelect: (nodeId: string) => {

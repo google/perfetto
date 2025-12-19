@@ -89,7 +89,7 @@ import {
 import {Switch} from '../../../../widgets/switch';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle} from '../node_styling_widgets';
-import {notifyNextNodes} from '../../query_node';
+import {notifyNextNodes} from '../graph_utils';
 
 export interface FilterDuringNodeState extends QueryNodeState {
   filterNegativeDurPrimary?: boolean; // Filter negative durations in primary input

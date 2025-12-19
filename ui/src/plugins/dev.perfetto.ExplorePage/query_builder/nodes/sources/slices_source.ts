@@ -17,10 +17,13 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
-  createFinalColumns,
   nextNodeId,
 } from '../../../query_node';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
+import {
+  ColumnInfo,
+  columnInfoFromSqlColumn,
+  newColumnInfoList,
+} from '../../column_info';
 import protos from '../../../../../protos';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
@@ -45,7 +48,7 @@ export class SlicesSourceNode implements QueryNode {
     this.nodeId = nextNodeId();
     this.state = attrs;
     this.state.onchange = attrs.onchange;
-    this.finalCols = createFinalColumns(slicesSourceNodeColumns(true));
+    this.finalCols = newColumnInfoList(slicesSourceNodeColumns(true), true);
     this.nextNodes = [];
   }
 
@@ -88,15 +91,7 @@ export class SlicesSourceNode implements QueryNode {
       this.nodeId,
     );
 
-    // Manually create selectColumns for the specific columns we want
-    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
-    for (const col of this.finalCols) {
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnName = col.column.name;
-      selectColumns.push(selectColumn);
-    }
-    sq.selectColumns = selectColumns;
-
+    StructuredQueryBuilder.applyNodeColumnSelection(sq, this);
     return sq;
   }
 

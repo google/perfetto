@@ -16,11 +16,10 @@ import {
   QueryNode,
   nextNodeId,
   NodeType,
-  getSecondaryInput,
-  analyzeNode,
-  isAQuery,
   SecondaryInputSpec,
 } from '../../query_node';
+import {getSecondaryInput} from '../graph_utils';
+import {analyzeNode, isAQuery} from '../query_builder_utils';
 import {
   ColumnInfo,
   columnInfoFromName,

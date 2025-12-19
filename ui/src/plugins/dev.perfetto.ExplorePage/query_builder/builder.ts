@@ -74,7 +74,8 @@ import {Card} from '../../../widgets/card';
 import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
+import {QueryNode, Query} from '../query_node';
+import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
@@ -209,6 +210,9 @@ export interface BuilderAttrs {
 
   // Node state change callback
   readonly onNodeStateChange?: () => void;
+
+  // Graph recenter callback
+  readonly onRecenterReady?: (recenter: () => void) => void;
 
   // Undo / Redo
   readonly onUndo?: () => void;
@@ -515,6 +519,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,
           onExport: attrs.onExport,
+          onRecenterReady: attrs.onRecenterReady,
         }),
         selectedNode &&
           m(

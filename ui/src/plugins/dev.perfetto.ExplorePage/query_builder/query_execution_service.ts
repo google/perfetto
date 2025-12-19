@@ -14,13 +14,8 @@
 
 import {NUM} from '../../../trace_processor/query_result';
 import {Engine} from '../../../trace_processor/engine';
-import {
-  Query,
-  QueryNode,
-  hashNodeQuery,
-  analyzeNode,
-  isAQuery,
-} from '../query_node';
+import {Query, QueryNode} from '../query_node';
+import {hashNodeQuery, analyzeNode, isAQuery} from './query_builder_utils';
 import {getAllDownstreamNodes} from './graph_utils';
 
 /**
@@ -931,6 +926,13 @@ export class QueryExecutionService {
    * @param node The node to process
    * @param engine The engine for analysis and execution
    * @param options Configuration and callbacks
+   * @param options.manual True when user explicitly clicked "Run Query"
+   * @param options.hasExistingResult Whether there's already a result displayed
+   * @param options.onAnalysisStart Called when analysis starts
+   * @param options.onAnalysisComplete Called when analysis completes
+   * @param options.onExecutionStart Called when execution starts
+   * @param options.onExecutionSuccess Called when execution succeeds
+   * @param options.onExecutionError Called when execution fails
    * @returns Object with query (if analyzed) and whether execution occurred
    */
   async processNode(

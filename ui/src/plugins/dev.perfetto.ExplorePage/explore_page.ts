@@ -23,10 +23,7 @@ import {
   QueryNodeState,
   NodeType,
   NodeActions,
-  addConnection,
-  removeConnection,
   singleNodeOperation,
-  notifyNextNodes,
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {FilterNode} from './query_builder/nodes/filter_node';
@@ -47,6 +44,9 @@ import {
   findDockedChildren,
   calculateUndockLayouts,
   getEffectiveLayout,
+  addConnection,
+  removeConnection,
+  notifyNextNodes,
 } from './query_builder/graph_utils';
 import {showExamplesModal} from './examples_modal';
 import {
@@ -89,6 +89,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
+  private recenterGraph?: () => void;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -955,6 +956,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     const newState = deserializeState(json, trace, sqlModules);
     onStateUpdate(newState);
+    // Request recenter after state update
+    // The actual recentering will happen in the next render cycle via onReady
+    this.recenterGraph?.();
   }
 
   async handleImport(attrs: ExplorePageAttrs) {
@@ -1320,6 +1324,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onRedo: () => this.handleRedo(attrs),
         canUndo: this.historyManager?.canUndo() ?? false,
         canRedo: this.historyManager?.canRedo() ?? false,
+        onRecenterReady: (recenter) => {
+          this.recenterGraph = recenter;
+        },
       }),
     );
   }
