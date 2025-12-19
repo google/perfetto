@@ -239,6 +239,16 @@ export interface DataGridAttrs {
   readonly showExportButton?: boolean;
 
   /**
+   * When true, enables pivot controls that allow users to modify the pivot
+   * structure (add/remove groupBy columns, add/remove aggregates, change
+   * aggregate functions, drill down). When false, pivot controls are hidden
+   * and the pivot structure becomes read-only.
+   *
+   * Default = true.
+   */
+  readonly enablePivotControls?: boolean;
+
+  /**
    * When true, disables 'not glob' and 'not contains' filter options. Use this
    * when the backend (e.g., structured query) doesn't support negated glob
    * operations.
@@ -291,6 +301,7 @@ interface FlatGridBuildContext {
   readonly result: DataSource['rows'];
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
+  readonly enablePivotControls: boolean;
 }
 
 /**
@@ -304,6 +315,7 @@ interface PivotGridBuildContext {
   readonly result: DataSource['rows'];
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
+  readonly enablePivotControls: boolean;
 }
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
@@ -355,6 +367,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       structuredQueryCompatMode = false,
+      enablePivotControls = true,
       toolbarItemsLeft,
       toolbarItemsRight,
       showExportButton,
@@ -464,6 +477,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         result,
         pivot: this.pivot!,
         structuredQueryCompatMode,
+        enablePivotControls,
       };
 
       gridColumns = this.buildPivotColumns(pivotContext);
@@ -486,6 +500,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         result,
         columnInfoCache,
         structuredQueryCompatMode,
+        enablePivotControls,
       };
 
       gridColumns = this.buildFlatColumns(flatContext);
@@ -1038,6 +1053,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       datasource,
       columnInfoCache,
       structuredQueryCompatMode,
+      enablePivotControls,
     } = ctx;
 
     // Find the current sort direction (if any column is sorted)
@@ -1090,51 +1106,35 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           parameterKeyColumns: this.parameterKeyColumns,
         }),
         m(MenuDivider),
-        m(MenuItem, {
-          label: 'Group by this column',
-          icon: 'pivot_table_chart',
-          onclick: () => this.groupByColumn(field, attrs),
-        }),
+        enablePivotControls &&
+          m(MenuItem, {
+            label: 'Group by this column',
+            icon: 'pivot_table_chart',
+            onclick: () => this.groupByColumn(field, attrs),
+          }),
         m(MenuDivider),
-        // Aggregate menu - show available functions based on column type
+        // Summary menu - show available functions based on column type
         // Filter out ANY since it only makes sense in pivot mode (arbitrary value from group)
         (() => {
           const funcs = getAggregateFunctionsForColumnType(columnType).filter(
             (f) => f !== 'ANY',
           );
           if (funcs.length === 0) return undefined;
-          return aggregate
-            ? [
-                m(
-                  MenuItem,
-                  {label: 'Change aggregate', icon: 'swap_horiz'},
-                  funcs.map((func) =>
-                    m(MenuItem, {
-                      label: func,
-                      disabled: func === aggregate,
-                      onclick: () =>
-                        this.updateColumnAggregate(field, func, attrs),
-                    }),
-                  ),
-                ),
-                m(MenuItem, {
-                  label: 'Remove aggregate',
-                  icon: Icons.Remove,
-                  onclick: () =>
-                    this.updateColumnAggregate(field, undefined, attrs),
-                }),
-              ]
-            : m(
-                MenuItem,
-                {label: 'Add aggregate', icon: 'functions'},
-                funcs.map((func) =>
-                  m(MenuItem, {
-                    label: func,
-                    onclick: () =>
-                      this.updateColumnAggregate(field, func, attrs),
-                  }),
-                ),
-              );
+          return m(MenuItem, {label: 'Summary function', icon: 'functions'}, [
+            m(MenuItem, {
+              label: 'None',
+              disabled: aggregate === undefined,
+              onclick: () =>
+                this.updateColumnAggregate(field, undefined, attrs),
+            }),
+            ...funcs.map((func) =>
+              m(MenuItem, {
+                label: func,
+                disabled: func === aggregate,
+                onclick: () => this.updateColumnAggregate(field, func, attrs),
+              }),
+            ),
+          ]);
         })(),
         m(MenuDivider),
         m(ColumnInfoMenu, {field, colInfo, aggregateFunc: aggregate}),
@@ -1248,6 +1248,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       datasource,
       pivot,
       structuredQueryCompatMode,
+      enablePivotControls,
     } = ctx;
 
     const columns: GridColumn[] = [];
@@ -1291,26 +1292,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             this.distinctValuesColumns.delete(field),
         }),
         m(MenuDivider),
-        m(ColumnMenu, {
-          schema,
-          rootSchema,
-          visibleColumns: currentGroupByFields,
-          onAddColumn: (newField) => this.addGroupByColumn(newField, attrs, i),
-          dataSource: datasource,
-          parameterKeyColumns: this.parameterKeyColumns,
-          canRemove: true,
-          onRemove: () => this.removeGroupByColumn(i, attrs),
-          removeLabel: 'Remove from group by',
-          addLabel: 'Add to group by',
-        }),
-        m(AggregateMenu, {
-          schema,
-          rootSchema,
-          existingAggregates: pivot.aggregates,
-          // From groupBy column, insert aggregate at the start (closest to groupBys)
-          onAddAggregate: (func, aggField) =>
-            this.addAggregateColumn(func, aggField, attrs, -1),
-        }),
+        enablePivotControls &&
+          m(ColumnMenu, {
+            schema,
+            rootSchema,
+            visibleColumns: currentGroupByFields,
+            onAddColumn: (newField) =>
+              this.addGroupByColumn(newField, attrs, i),
+            dataSource: datasource,
+            parameterKeyColumns: this.parameterKeyColumns,
+            canRemove: true,
+            onRemove: () => this.removeGroupByColumn(i, attrs),
+            removeLabel: 'Remove group by',
+            addLabel: 'Add group by',
+          }),
         m(MenuDivider),
         m(ColumnInfoMenu, {field, colInfo}),
       ];
@@ -1336,15 +1331,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       });
     }
 
-    columns.push({
-      key: '__drilldown__',
-      header: m(GridHeaderCell, {
-        className: classNames('pf-datagrid__dd'),
-      }),
-      resizable: false,
-      initialWidthPx: 24,
-      thickRightBorder: true,
-    });
+    if (enablePivotControls) {
+      columns.push({
+        key: '__drilldown__',
+        header: m(GridHeaderCell, {
+          className: classNames('pf-datagrid__dd'),
+        }),
+        resizable: false,
+        initialWidthPx: 24,
+      });
+    }
 
     // Build aggregate columns
     const aggregates = pivot.aggregates ?? [];
@@ -1369,7 +1365,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         'field' in agg
           ? m(
               MenuItem,
-              {label: 'Change function', icon: 'swap_horiz'},
+              {label: 'Change function', icon: 'functions'},
               getAggregateFunctionsForColumnType(colInfo?.columnType).map(
                 (func) =>
                   m(MenuItem, {
@@ -1400,20 +1396,22 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.updatePivotAggregateSort(i, direction, attrs),
         ),
         m(MenuDivider),
-        m(MenuItem, {
-          label: 'Remove aggregate',
-          icon: Icons.Remove,
-          onclick: () => this.removeAggregateColumn(i, attrs),
-        }),
-        changeFunctionSubmenu,
-        groupByThisMenuItem,
-        m(AggregateMenu, {
-          schema,
-          rootSchema,
-          existingAggregates: pivot.aggregates,
-          onAddAggregate: (func, aggField) =>
-            this.addAggregateColumn(func, aggField, attrs, i),
-        }),
+        enablePivotControls && [
+          changeFunctionSubmenu,
+          groupByThisMenuItem,
+          m(AggregateMenu, {
+            schema,
+            rootSchema,
+            existingAggregates: pivot.aggregates,
+            onAddAggregate: (func, aggField) =>
+              this.addAggregateColumn(func, aggField, attrs, i),
+          }),
+          m(MenuItem, {
+            label: 'Remove column',
+            icon: Icons.Remove,
+            onclick: () => this.removeAggregateColumn(i, attrs),
+          }),
+        ],
         m(MenuDivider),
         m(ColumnInfoMenu, {
           field: 'field' in agg ? agg.field : alias,
@@ -1467,7 +1465,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Each row contains values for groupBy columns and aggregate columns.
    */
   private buildPivotRows(ctx: PivotGridBuildContext): m.Children[][] {
-    const {attrs, schema, rootSchema, result, pivot} = ctx;
+    const {attrs, schema, rootSchema, result, pivot, enablePivotControls} = ctx;
 
     if (result === undefined) return [];
 
@@ -1512,12 +1510,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   : value === null,
                 className: 'pf-data-grid__groupby-column',
                 menuItems: [
-                  m(MenuItem, {
-                    label: 'Drill down',
-                    icon: 'zoom_in',
-                    onclick: () => this.drillDown(row, attrs),
-                  }),
-                  m(MenuDivider),
+                  enablePivotControls && [
+                    m(MenuItem, {
+                      label: 'Drill down',
+                      icon: 'zoom_in',
+                      onclick: () => this.drillDown(row, attrs),
+                    }),
+                    m(MenuDivider),
+                  ],
                   m(CellFilterMenu, {
                     value,
                     onFilterAdd: (filter) =>
@@ -1530,22 +1530,26 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           );
         }
 
-        const drillDownCell = m(
-          '.pf-datagrid__dd-cell',
-          {className: 'pf-datagrid__dd'},
-          m(Button, {
-            className: 'pf-visible-on-row-hover pf-datagrid__drilldown-button',
-            icon: Icons.GoTo,
-            rounded: true,
-            title: 'Drill down into this group',
-            fillWidth: true,
-            onclick: () => {
-              this.drillDown(row, attrs);
-            },
-          }),
-        );
+        // Only add drill-down cell if pivot controls are enabled
+        if (enablePivotControls) {
+          const drillDownCell = m(
+            '.pf-datagrid__dd-cell',
+            {className: 'pf-datagrid__dd'},
+            m(Button, {
+              className:
+                'pf-visible-on-row-hover pf-datagrid__drilldown-button',
+              icon: Icons.GoTo,
+              rounded: true,
+              title: 'Drill down into this group',
+              fillWidth: true,
+              onclick: () => {
+                this.drillDown(row, attrs);
+              },
+            }),
+          );
 
-        cells.push(drillDownCell);
+          cells.push(drillDownCell);
+        }
 
         // Render aggregate columns
         for (const agg of aggregates) {
