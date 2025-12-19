@@ -208,15 +208,15 @@ void DeobfuscationTracker::DeobfuscateProfiles(
   auto symbol_cursor = context_->storage->symbol_table().CreateCursor({
       dataframe::FilterSpec{
           tables::SymbolTable::ColumnIndex::symbol_set_id,
-          tables::SymbolTable::ColumnIndex::symbol_set_id,
+          0,
           dataframe::Eq{},
-          std::nullopt,
+          {},
       },
       dataframe::FilterSpec{
           tables::SymbolTable::ColumnIndex::line_number,
-          tables::SymbolTable::ColumnIndex::line_number,
+          1,
           dataframe::IsNotNull{},
-          std::nullopt,
+          {},
       },
   });
   // Deobfuscate frames using the collected mappings.
