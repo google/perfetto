@@ -1355,7 +1355,10 @@ base::Status RunQueriesFromFile(TraceProcessor* trace_processor,
                                 bool expect_output) {
   std::string queries;
   if (!base::ReadFile(query_file_path, &queries)) {
-    return base::ErrStatus("Unable to read file %s", query_file_path.c_str());
+    return base::ErrStatus(
+        "Unable to read file %s. If you're passing an SQL query, did you mean "
+        "to use the -Q flag instead?",
+        query_file_path.c_str());
   }
   return RunQueries(trace_processor, queries, expect_output);
 }

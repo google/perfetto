@@ -24,7 +24,7 @@ def _proto_gen_impl(ctx):
     includes = [
         f
         for dep in ctx.attr.deps
-        for f in dep[ProtoInfo].transitive_imports.to_list()
+        for f in dep[ProtoInfo].transitive_sources.to_list()
     ]
     proto_paths = [
         f

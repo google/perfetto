@@ -37,6 +37,7 @@ using ::testing::Le;
 using ::testing::Not;
 using ::testing::Property;
 using ::testing::SizeIs;
+using tracing_service::TracingServiceImpl;
 
 template <typename F>
 TracePacket CreateTracePacket(F fill_function) {

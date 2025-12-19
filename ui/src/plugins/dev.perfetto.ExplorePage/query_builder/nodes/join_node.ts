@@ -22,22 +22,19 @@ import {
   getSecondaryInput,
 } from '../../query_node';
 import protos from '../../../../protos';
-import {ColumnInfo} from '../column_info';
+import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {TextInput} from '../../../../widgets/text_input';
-import {TabStrip} from '../../../../widgets/tabs';
-import {Select} from '../../../../widgets/select';
-import {Editor} from '../../../../widgets/editor';
 import {Switch} from '../../../../widgets/switch';
 import {
   StructuredQueryBuilder,
   JoinCondition,
 } from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
-import {FormRow} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {NodeTitle, ColumnName} from '../node_styling_widgets';
+import {NodeTitle} from '../node_styling_widgets';
+import {JoinConditionSelector, JoinConditionDisplay} from '../join_widgets';
+import {ResizableSqlEditor} from '../widgets';
 
 export interface JoinSerializedState {
   leftNodeId: string;
@@ -50,6 +47,18 @@ export interface JoinSerializedState {
   rightColumn?: string;
   sqlExpression?: string;
   comment?: string;
+  leftColumns?: {
+    name: string;
+    type: string;
+    checked: boolean;
+    alias?: string;
+  }[];
+  rightColumns?: {
+    name: string;
+    type: string;
+    checked: boolean;
+    alias?: string;
+  }[];
 }
 
 export interface JoinNodeState extends QueryNodeState {
@@ -62,6 +71,9 @@ export interface JoinNodeState extends QueryNodeState {
   leftColumn: string;
   rightColumn: string;
   sqlExpression: string;
+  // Column selections from left and right sources with checked/alias state
+  leftColumns?: ColumnInfo[];
+  rightColumns?: ColumnInfo[];
 }
 
 export class JoinNode implements QueryNode {
@@ -80,63 +92,20 @@ export class JoinNode implements QueryNode {
   }
 
   get finalCols(): ColumnInfo[] {
-    // Both nodes must be connected for join to produce columns
-    if (!this.leftNode || !this.rightNode) {
-      return [];
-    }
-
-    const leftCols = this.leftNode.finalCols;
-    const rightCols = this.rightNode.finalCols;
-
+    // Return only checked columns from both left and right sources
     const result: ColumnInfo[] = [];
-    const seenColumns = new Set<string>();
 
-    // Handle equality condition: if joining on same column name (e.g., id = id),
-    // include it once. Otherwise, handle equality columns separately.
-    if (this.state.conditionType === 'equality') {
-      if (this.state.leftColumn && this.state.rightColumn) {
-        if (this.state.leftColumn === this.state.rightColumn) {
-          // Same column name on both sides (e.g., id = id)
-          // Include it once in the output
-          const equalityCol = leftCols.find(
-            (c) => c.name === this.state.leftColumn,
-          );
-          if (equalityCol) {
-            result.push({...equalityCol, checked: true});
-            seenColumns.add(this.state.leftColumn);
-          }
-        }
-        // If different column names (e.g., id = parent_id), don't add to seenColumns yet
-        // They'll be handled in the deduplication logic below
+    // Add checked columns from left
+    for (const col of this.state.leftColumns ?? []) {
+      if (col.checked) {
+        result.push(col);
       }
     }
 
-    // Identify which columns are duplicated across inputs
-    const columnCounts = new Map<string, number>();
-    for (const col of leftCols) {
-      if (!seenColumns.has(col.name)) {
-        columnCounts.set(col.name, (columnCounts.get(col.name) ?? 0) + 1);
-      }
-    }
-    for (const col of rightCols) {
-      if (!seenColumns.has(col.name)) {
-        columnCounts.set(col.name, (columnCounts.get(col.name) ?? 0) + 1);
-      }
-    }
-
-    // Add only non-duplicated columns from left
-    for (const col of leftCols) {
-      if (!seenColumns.has(col.name) && columnCounts.get(col.name) === 1) {
-        result.push({...col, checked: true});
-        seenColumns.add(col.name);
-      }
-    }
-
-    // Add only non-duplicated columns from right
-    for (const col of rightCols) {
-      if (!seenColumns.has(col.name) && columnCounts.get(col.name) === 1) {
-        result.push({...col, checked: true});
-        seenColumns.add(col.name);
+    // Add checked columns from right
+    for (const col of this.state.rightColumns ?? []) {
+      if (col.checked) {
+        result.push(col);
       }
     }
 
@@ -155,6 +124,8 @@ export class JoinNode implements QueryNode {
       leftColumn: state.leftColumn ?? '',
       rightColumn: state.rightColumn ?? '',
       sqlExpression: state.sqlExpression ?? '',
+      leftColumns: state.leftColumns ?? [],
+      rightColumns: state.rightColumns ?? [],
     };
     this.secondaryInputs = {
       connections: new Map(),
@@ -173,6 +144,75 @@ export class JoinNode implements QueryNode {
       this.secondaryInputs.connections.set(1, state.rightNode);
     }
     this.nextNodes = [];
+
+    // Initialize column arrays from connected nodes if empty
+    this.updateColumnArrays();
+  }
+
+  onPrevNodesUpdated() {
+    // Update column arrays when input nodes change
+    this.updateColumnArrays();
+  }
+
+  // Update column arrays when nodes change or on initialization
+  private updateColumnArrays() {
+    // Update left columns if left node is connected
+    if (this.leftNode) {
+      const sourceCols = this.leftNode.finalCols;
+      const newLeftColumns = newColumnInfoList(sourceCols);
+
+      // Preserve checked status and aliases for columns that still exist
+      const existingLeftColumns = this.state.leftColumns ?? [];
+      for (const oldCol of existingLeftColumns) {
+        const newCol = newLeftColumns.find(
+          (c) => c.column.name === oldCol.column.name,
+        );
+        if (newCol) {
+          newCol.checked = oldCol.checked;
+          newCol.alias = oldCol.alias;
+        }
+      }
+
+      // Default all to unchecked if this is first initialization
+      if (existingLeftColumns.length === 0) {
+        for (const col of newLeftColumns) {
+          col.checked = false;
+        }
+      }
+
+      this.state.leftColumns = newLeftColumns;
+    } else {
+      this.state.leftColumns = [];
+    }
+
+    // Update right columns if right node is connected
+    if (this.rightNode) {
+      const sourceCols = this.rightNode.finalCols;
+      const newRightColumns = newColumnInfoList(sourceCols);
+
+      // Preserve checked status and aliases for columns that still exist
+      const existingRightColumns = this.state.rightColumns ?? [];
+      for (const oldCol of existingRightColumns) {
+        const newCol = newRightColumns.find(
+          (c) => c.column.name === oldCol.column.name,
+        );
+        if (newCol) {
+          newCol.checked = oldCol.checked;
+          newCol.alias = oldCol.alias;
+        }
+      }
+
+      // Default all to unchecked if this is first initialization
+      if (existingRightColumns.length === 0) {
+        for (const col of newRightColumns) {
+          col.checked = false;
+        }
+      }
+
+      this.state.rightColumns = newRightColumns;
+    } else {
+      this.state.rightColumns = [];
+    }
   }
 
   validate(): boolean {
@@ -231,10 +271,15 @@ export class JoinNode implements QueryNode {
       return false;
     }
 
-    // Check if there are any columns to expose after deduplication
-    if (this.finalCols.length === 0) {
+    // Check if there are any columns selected
+    const leftColumns = this.state.leftColumns ?? [];
+    const rightColumns = this.state.rightColumns ?? [];
+    const hasCheckedColumns =
+      leftColumns.some((c) => c.checked) || rightColumns.some((c) => c.checked);
+
+    if (!hasCheckedColumns) {
       this.setValidationError(
-        'No columns to expose. All columns are duplicated across both inputs. Use a Modify Columns node to alias columns in one of the sources.',
+        'No columns selected. Select at least one column from either source.',
       );
       return false;
     }
@@ -262,12 +307,12 @@ export class JoinNode implements QueryNode {
 
     if (this.state.conditionType === 'equality') {
       if (this.state.leftColumn && this.state.rightColumn) {
-        content = m(
-          '.pf-exp-join-condition',
-          ColumnName(`${this.state.leftQueryAlias}.${this.state.leftColumn}`),
-          m('span.pf-exp-join-equals', ' = '),
-          ColumnName(`${this.state.rightQueryAlias}.${this.state.rightColumn}`),
-        );
+        content = m(JoinConditionDisplay, {
+          leftAlias: this.state.leftQueryAlias,
+          rightAlias: this.state.rightQueryAlias,
+          leftColumn: this.state.leftColumn,
+          rightColumn: this.state.rightColumn,
+        });
       } else {
         content = m('.pf-exp-node-details-message', 'No condition set');
       }
@@ -288,11 +333,8 @@ export class JoinNode implements QueryNode {
     this.validate();
     const error = this.state.issues?.queryError;
 
-    // Get available columns from left and right nodes
-    const leftCols = this.leftNode?.finalCols ?? [];
-    const rightCols = this.rightNode?.finalCols ?? [];
-
     const sections: NodeModifyAttrs['sections'] = [];
+    const bottomRightButtons: NodeModifyAttrs['bottomRightButtons'] = [];
 
     // Add error if present
     if (error) {
@@ -301,150 +343,96 @@ export class JoinNode implements QueryNode {
       });
     }
 
-    // Query aliases section
-    sections.push({
-      title: 'Query Aliases',
-      content: [
-        m(
-          FormRow,
-          {label: 'Left Alias:'},
-          m(TextInput, {
-            value: this.state.leftQueryAlias,
-            placeholder: 'e.g., left, t1, base',
-            oninput: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              this.state.leftQueryAlias = target.value;
-              this.state.onchange?.();
-            },
-          }),
-        ),
-        m(
-          FormRow,
-          {label: 'Right Alias:'},
-          m(TextInput, {
-            value: this.state.rightQueryAlias,
-            placeholder: 'e.g., right, t2, other',
-            oninput: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              this.state.rightQueryAlias = target.value;
-              this.state.onchange?.();
-            },
-          }),
-        ),
-      ],
-    });
-
     // Join type section
     sections.push({
       title: 'Join Type',
-      content: m(
-        FormRow,
-        {label: 'Left Join:'},
-        m(Switch, {
-          checked: this.state.joinType === 'LEFT',
-          onchange: (e: Event) => {
-            const target = e.target as HTMLInputElement;
-            this.state.joinType = target.checked ? 'LEFT' : 'INNER';
-            this.state.onchange?.();
-          },
-        }),
-      ),
+      content: m(Switch, {
+        checked: this.state.joinType === 'LEFT',
+        label: 'Left Join',
+        onchange: (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          this.state.joinType = target.checked ? 'LEFT' : 'INNER';
+          this.state.onchange?.();
+        },
+      }),
     });
 
-    // Join condition section
+    // Join condition section with integrated column selection
     sections.push({
-      title: 'Join Condition',
-      content: [
-        m(TabStrip, {
-          tabs: [
-            {key: 'equality', title: 'Equality'},
-            {key: 'freeform', title: 'Freeform SQL'},
-          ],
-          currentTabKey: this.state.conditionType,
-          onTabChange: (key: string) => {
-            this.state.conditionType = key as 'equality' | 'freeform';
-            this.state.onchange?.();
-          },
-        }),
-        m(
-          'div',
-          {style: {paddingTop: '10px'}},
-          this.state.conditionType === 'equality'
-            ? [
-                m(
-                  FormRow,
-                  {label: 'Left Column:'},
-                  m(
-                    Select,
-                    {
-                      onchange: (e: Event) => {
-                        const target = e.target as HTMLSelectElement;
-                        this.state.leftColumn = target.value;
-                        this.state.onchange?.();
-                      },
-                    },
-                    m(
-                      'option',
-                      {disabled: true, selected: !this.state.leftColumn},
-                      'Select column',
-                    ),
-                    leftCols.map((col) =>
-                      m(
-                        'option',
-                        {
-                          value: col.column.name,
-                          selected: col.column.name === this.state.leftColumn,
-                        },
-                        col.column.name,
-                      ),
-                    ),
-                  ),
-                ),
-                m(
-                  FormRow,
-                  {label: 'Right Column:'},
-                  m(
-                    Select,
-                    {
-                      onchange: (e: Event) => {
-                        const target = e.target as HTMLSelectElement;
-                        this.state.rightColumn = target.value;
-                        this.state.onchange?.();
-                      },
-                    },
-                    m(
-                      'option',
-                      {disabled: true, selected: !this.state.rightColumn},
-                      'Select column',
-                    ),
-                    rightCols.map((col) =>
-                      m(
-                        'option',
-                        {
-                          value: col.column.name,
-                          selected: col.column.name === this.state.rightColumn,
-                        },
-                        col.column.name,
-                      ),
-                    ),
-                  ),
-                ),
-              ]
-            : m(Editor, {
-                text: this.state.sqlExpression,
-                language: 'perfetto-sql',
-                onUpdate: (text: string) => {
-                  this.state.sqlExpression = text;
+      content:
+        this.state.conditionType === 'equality'
+          ? m(JoinConditionSelector, {
+              leftLabel: 'Left',
+              rightLabel: 'Right',
+              leftColumns: this.state.leftColumns ?? [],
+              rightColumns: this.state.rightColumns ?? [],
+              leftColumn: this.state.leftColumn,
+              rightColumn: this.state.rightColumn,
+              onLeftColumnChange: (columnName: string) => {
+                this.state.leftColumn = columnName;
+                this.state.onchange?.();
+              },
+              onRightColumnChange: (columnName: string) => {
+                this.state.rightColumn = columnName;
+                this.state.onchange?.();
+              },
+              onLeftColumnToggle: (index: number, checked: boolean) => {
+                if (this.state.leftColumns) {
+                  this.state.leftColumns[index].checked = checked;
                   this.state.onchange?.();
-                },
-              }),
-        ),
-      ],
+                }
+              },
+              onRightColumnToggle: (index: number, checked: boolean) => {
+                if (this.state.rightColumns) {
+                  this.state.rightColumns[index].checked = checked;
+                  this.state.onchange?.();
+                }
+              },
+              onLeftColumnAlias: (index: number, alias: string) => {
+                if (this.state.leftColumns) {
+                  this.state.leftColumns[index].alias =
+                    alias.trim() === '' ? undefined : alias;
+                  this.state.onchange?.();
+                }
+              },
+              onRightColumnAlias: (index: number, alias: string) => {
+                if (this.state.rightColumns) {
+                  this.state.rightColumns[index].alias =
+                    alias.trim() === '' ? undefined : alias;
+                  this.state.onchange?.();
+                }
+              },
+            })
+          : m(ResizableSqlEditor, {
+              sql: this.state.sqlExpression,
+              onUpdate: (text: string) => {
+                this.state.sqlExpression = text;
+                this.state.onchange?.();
+              },
+            }),
+    });
+
+    // Mode switch button
+    bottomRightButtons.push({
+      label:
+        this.state.conditionType === 'equality'
+          ? 'Switch to freeform SQL'
+          : 'Switch to equality',
+      icon: this.state.conditionType === 'equality' ? 'code' : 'view_column',
+      onclick: () => {
+        this.state.conditionType =
+          this.state.conditionType === 'equality' ? 'freeform' : 'equality';
+        // Disable auto-execute in freeform SQL mode
+        this.state.autoExecute = this.state.conditionType === 'equality';
+        this.state.onchange?.();
+      },
+      compact: true,
     });
 
     return {
       info: 'Combines rows from exactly two inputs side-by-side by matching on a join key. Each row from the first input is matched with rows from the second input where the join column values are equal.',
       sections,
+      bottomRightButtons,
     };
   }
 
@@ -460,6 +448,12 @@ export class JoinNode implements QueryNode {
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
       sqlExpression: this.state.sqlExpression,
+      leftColumns: this.state.leftColumns
+        ? newColumnInfoList(this.state.leftColumns)
+        : undefined,
+      rightColumns: this.state.rightColumns
+        ? newColumnInfoList(this.state.rightColumns)
+        : undefined,
     };
     return new JoinNode(stateCopy);
   }
@@ -492,10 +486,13 @@ export class JoinNode implements QueryNode {
     if (sq === undefined) return undefined;
 
     // Add select_columns to explicitly specify which columns to return
-    // This ensures we only expose the clean, well-defined columns from finalCols
+    // Include aliases if specified
     sq.selectColumns = this.finalCols.map((col) => {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectCol.columnNameOrExpression = col.name;
+      selectCol.columnNameOrExpression = col.column.name;
+      if (col.alias) {
+        selectCol.alias = col.alias;
+      }
       return selectCol;
     });
 
@@ -513,6 +510,18 @@ export class JoinNode implements QueryNode {
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
       sqlExpression: this.state.sqlExpression,
+      leftColumns: (this.state.leftColumns ?? []).map((c) => ({
+        name: c.name,
+        type: c.type,
+        checked: c.checked,
+        alias: c.alias,
+      })),
+      rightColumns: (this.state.rightColumns ?? []).map((c) => ({
+        name: c.name,
+        type: c.type,
+        checked: c.checked,
+        alias: c.alias,
+      })),
     };
   }
 
@@ -525,6 +534,22 @@ export class JoinNode implements QueryNode {
       leftColumn: state.leftColumn ?? '',
       rightColumn: state.rightColumn ?? '',
       sqlExpression: state.sqlExpression ?? '',
+      leftColumns:
+        state.leftColumns?.map((c) => ({
+          name: c.name,
+          type: c.type,
+          checked: c.checked,
+          column: {name: c.name},
+          alias: c.alias,
+        })) ?? [],
+      rightColumns:
+        state.rightColumns?.map((c) => ({
+          name: c.name,
+          type: c.type,
+          checked: c.checked,
+          column: {name: c.name},
+          alias: c.alias,
+        })) ?? [],
     };
   }
 

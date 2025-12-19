@@ -175,15 +175,12 @@
   position: relative;
 }
 
-.pf-exp-node-explorer__buttons {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+// Top buttons container - absolutely positioned overlay
+.pf-exp-node-explorer__buttons-top-container {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
   pointer-events: none;
   z-index: 10;
 
@@ -192,13 +189,28 @@
   }
 }
 
-.pf-exp-node-explorer__buttons-top,
+.pf-exp-node-explorer__buttons-top {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 0;
+  gap: 0.5rem;
+}
+
+// Bottom buttons - sticky at bottom of scrolling container
 .pf-exp-node-explorer__buttons-bottom {
   display: flex;
   justify-content: space-between;
-  // Only vertical padding - horizontal padding comes from article
-  padding: 1rem 0;
+  padding: 1rem 0.5rem 0.5rem 0;
   gap: 0.5rem;
+  position: sticky;
+  bottom: -0.5rem;
+  margin-top: auto;
+  z-index: 10;
+  pointer-events: none;
+
+  .pf-button {
+    pointer-events: auto;
+  }
 }
 
 .pf-exp-node-explorer__buttons-top-left,
@@ -208,6 +220,14 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.pf-exp-node-explorer__buttons-bottom-left,
+.pf-exp-node-explorer__buttons-bottom-right {
+  .pf-button {
+    pointer-events: auto;
+    background-color: var(--pf-color-background);
+  }
 }
 
 .pf-exp-node-explorer__sections {

@@ -47,6 +47,10 @@ SELECT
   _android_jank_cuj_counter_value(cuj_name, 'missedAppFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_app_frames,
   _android_jank_cuj_counter_value(cuj_name, 'missedSfFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_sf_frames,
   _android_jank_cuj_counter_value(cuj_name, 'maxSuccessiveMissedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames_max_successive,
+  _android_jank_cuj_counter_value(cuj_name, 'totalAnimTime', ts_earliest_allowed_counter, ts_end_next_cuj) AS anim_duration_ms,
+  -- weighted jank is stored in janks per ms in the counters, since the counters are ints.
+  _android_jank_cuj_counter_value(cuj_name, 'weightedAppJank', ts_earliest_allowed_counter, ts_end_next_cuj) / 1000.0 AS weighted_missed_app_frames,
+  _android_jank_cuj_counter_value(cuj_name, 'weightedSfJank', ts_earliest_allowed_counter, ts_end_next_cuj) / 1000.0 AS weighted_missed_sf_frames,
   -- convert ms to nanos to align with the unit for `dur` in the other tables
   _android_jank_cuj_counter_value(cuj_name, 'maxFrameTimeMillis', ts_earliest_allowed_counter, ts_end_next_cuj) * 1000000 AS frame_dur_max,
   _android_cuj_missed_vsyncs_for_callback(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*SF*') AS sf_callback_missed_frames,

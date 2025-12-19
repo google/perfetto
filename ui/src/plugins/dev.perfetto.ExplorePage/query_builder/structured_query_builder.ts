@@ -426,6 +426,53 @@ export class StructuredQueryBuilder {
   }
 
   /**
+   * Creates a structured query from a time range.
+   * Produces a single-row result with columns: id (always 0), ts, dur.
+   *
+   * Mode is automatically determined:
+   * - STATIC mode: when both ts and dur are provided (fixed values)
+   * - DYNAMIC mode: when ts or dur is missing (uses trace bounds)
+   *
+   * In DYNAMIC mode:
+   * - If ts is not provided, the backend will use trace_start()
+   * - If dur is not provided, the backend will use trace_dur()
+   *
+   * @param ts The start timestamp in nanoseconds (optional)
+   * @param dur The duration in nanoseconds (optional)
+   * @param nodeId The node id to assign
+   * @returns A new structured query for the time range
+   */
+  static fromTimeRange(
+    ts?: bigint,
+    dur?: bigint,
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery {
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = nodeId ?? nextNodeId();
+
+    const timeRange =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalTimeRange();
+
+    // Determine mode: STATIC if both ts and dur are set, DYNAMIC otherwise
+    // Mode enum values: STATIC = 0, DYNAMIC = 1
+    const hasTs = ts !== undefined;
+    const hasDur = dur !== undefined;
+    const isStatic = hasTs && hasDur;
+    timeRange.mode = isStatic ? 0 : 1; // 0 = STATIC, 1 = DYNAMIC
+
+    // Convert bigint to number for protobuf (protobufjs uses number for int64)
+    if (hasTs) {
+      timeRange.ts = Number(ts);
+    }
+    if (hasDur) {
+      timeRange.dur = Number(dur);
+    }
+
+    sq.experimentalTimeRange = timeRange;
+    return sq;
+  }
+
+  /**
    * Creates a structured query with a join operation.
    *
    * @param leftQuery The left query to join (can be a QueryNode or structured query)

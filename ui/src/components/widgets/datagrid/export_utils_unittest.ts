@@ -14,9 +14,9 @@
 
 import {
   defaultValueFormatter,
-  formatAsTSV,
   formatAsJSON,
   formatAsMarkdown,
+  formatAsTSV,
 } from './export_utils';
 
 describe('export_utils', () => {

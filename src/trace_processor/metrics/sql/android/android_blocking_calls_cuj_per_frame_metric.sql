@@ -48,7 +48,7 @@ frame_cnt_per_cuj AS (
   SELECT
     COUNT(*) AS frame_cnt,
     cuj_name
-  FROM _android_frames_in_cuj
+  FROM _android_distinct_frames_in_cuj
   GROUP BY cuj_name
 )
 SELECT
