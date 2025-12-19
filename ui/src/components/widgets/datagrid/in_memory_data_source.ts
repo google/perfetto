@@ -15,14 +15,8 @@
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {DataSource, DataSourceModel, DataSourceResult} from './data_source';
-import {
-  DataGridColumn,
-  SortBy,
-  SortByColumn,
-  Filter,
-  PivotModel,
-} from './model';
+import {DataSource, DataSourceModel, DataSourceRows} from './data_source';
+import {Column, Filter, Pivot} from './model';
 
 export class InMemoryDataSource implements DataSource {
   private data: ReadonlyArray<Row> = [];
@@ -32,40 +26,54 @@ export class InMemoryDataSource implements DataSource {
   private aggregateTotalsCache = new Map<string, SqlValue>();
 
   // Cached state for diffing
-  private oldSorting: SortBy = {direction: 'UNSORTED'};
+  private oldColumns?: readonly Column[];
   private oldFilters: ReadonlyArray<Filter> = [];
-  private oldPivot?: PivotModel;
+  private oldPivot?: Pivot;
 
   constructor(data: ReadonlyArray<Row>) {
     this.data = data;
     this.filteredSortedData = data;
   }
 
-  get result(): DataSourceResult {
+  get rows(): DataSourceRows {
     return {
       rowOffset: 0,
       rows: this.filteredSortedData,
       totalRows: this.filteredSortedData.length,
-      distinctValues: this.distinctValuesCache,
-      parameterKeys: this.parameterKeysCache,
-      aggregateTotals: this.aggregateTotalsCache,
     };
+  }
+
+  get distinctValues(): ReadonlyMap<string, readonly SqlValue[]> | undefined {
+    return this.distinctValuesCache.size > 0
+      ? this.distinctValuesCache
+      : undefined;
+  }
+
+  get parameterKeys(): ReadonlyMap<string, readonly string[]> | undefined {
+    return this.parameterKeysCache.size > 0
+      ? this.parameterKeysCache
+      : undefined;
+  }
+
+  get aggregateTotals(): ReadonlyMap<string, SqlValue> | undefined {
+    return this.aggregateTotalsCache.size > 0
+      ? this.aggregateTotalsCache
+      : undefined;
   }
 
   notify({
     columns,
-    sorting = {direction: 'UNSORTED'},
     filters = [],
     pivot,
     distinctValuesColumns,
     parameterKeyColumns,
   }: DataSourceModel): void {
     if (
-      !this.isSortByEqual(sorting, this.oldSorting) ||
+      !this.areColumnsEqual(columns, this.oldColumns) ||
       !this.areFiltersEqual(filters, this.oldFilters) ||
       !arePivotsEqual(pivot, this.oldPivot)
     ) {
-      this.oldSorting = sorting;
+      this.oldColumns = columns;
       this.oldFilters = filters;
       this.oldPivot = pivot;
 
@@ -73,17 +81,18 @@ export class InMemoryDataSource implements DataSource {
       this.aggregateTotalsCache.clear();
 
       // In pivot mode, separate filters into pre-pivot and post-pivot
-      // Post-pivot filters apply to aggregate columns (keys in pivot.values)
-      const aggregateColumns = pivot
-        ? new Set(Object.keys(pivot.values))
-        : null;
+      // Post-pivot filters apply to aggregate columns
+      const aggregates = pivot?.aggregates ?? [];
+      const aggregateFields = new Set(
+        aggregates.map((a) => ('field' in a ? a.field : '__count__')),
+      );
       const prePivotFilters =
         pivot && !pivot.drillDown
-          ? filters.filter((f) => !aggregateColumns?.has(f.column))
+          ? filters.filter((f) => !aggregateFields.has(f.field))
           : filters;
       const postPivotFilters =
         pivot && !pivot.drillDown
-          ? filters.filter((f) => aggregateColumns?.has(f.column))
+          ? filters.filter((f) => aggregateFields.has(f.field))
           : [];
 
       // Apply pre-pivot filters (on source data)
@@ -106,8 +115,15 @@ export class InMemoryDataSource implements DataSource {
         this.computeColumnAggregates(result, columns);
       }
 
-      // Apply sorting
-      result = this.applySorting(result, sorting);
+      // Apply sorting - find sorted column from columns or pivot
+      const sortedColumn = this.findSortedColumn(columns, pivot);
+      if (sortedColumn) {
+        result = this.applySorting(
+          result,
+          sortedColumn.field,
+          sortedColumn.direction,
+        );
+      }
 
       // Store the filtered and sorted data
       this.filteredSortedData = result;
@@ -190,21 +206,60 @@ export class InMemoryDataSource implements DataSource {
     return this.filteredSortedData;
   }
 
-  private isSortByEqual(a: SortBy, b: SortBy): boolean {
-    if (a.direction === 'UNSORTED' && b.direction === 'UNSORTED') {
-      return true;
-    }
+  /**
+   * Compare columns for equality (including sort state).
+   */
+  private areColumnsEqual(
+    a: readonly Column[] | undefined,
+    b: readonly Column[] | undefined,
+  ): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
 
-    if (a.direction !== 'UNSORTED' && b.direction !== 'UNSORTED') {
-      const aColumn = a as SortByColumn;
-      const bColumn = b as SortByColumn;
+    return a.every((colA, i) => {
+      const colB = b[i];
       return (
-        aColumn.column === bColumn.column &&
-        aColumn.direction === bColumn.direction
+        colA.field === colB.field &&
+        colA.sort === colB.sort &&
+        colA.aggregate === colB.aggregate
       );
+    });
+  }
+
+  /**
+   * Find the column that has sorting applied.
+   */
+  private findSortedColumn(
+    columns: readonly Column[] | undefined,
+    pivot?: Pivot,
+  ): {field: string; direction: 'ASC' | 'DESC'} | undefined {
+    // Check pivot groupBy columns for sort
+    if (pivot) {
+      for (const col of pivot.groupBy) {
+        if (typeof col !== 'string' && col.sort) {
+          return {field: col.field, direction: col.sort};
+        }
+      }
+      // Check pivot aggregates for sort
+      for (const agg of pivot.aggregates ?? []) {
+        if (agg.sort) {
+          const field = 'field' in agg ? agg.field : '__count__';
+          return {field, direction: agg.sort};
+        }
+      }
     }
 
-    return false;
+    // Check regular columns for sort
+    if (columns) {
+      for (const col of columns) {
+        if (col.sort) {
+          return {field: col.field, direction: col.sort};
+        }
+      }
+    }
+
+    return undefined;
   }
 
   // Helper function to compare arrays of filter definitions for equality.
@@ -234,7 +289,7 @@ export class InMemoryDataSource implements DataSource {
     return data.filter((row) => {
       // Check if row passes all filters
       return filters.every((filter) => {
-        const value = row[filter.column];
+        const value = row[filter.field];
 
         switch (filter.op) {
           case '=':
@@ -288,15 +343,9 @@ export class InMemoryDataSource implements DataSource {
 
   private applySorting(
     data: ReadonlyArray<Row>,
-    sortBy: SortBy,
+    sortColumn: string,
+    sortDirection: 'ASC' | 'DESC',
   ): ReadonlyArray<Row> {
-    if (sortBy.direction === 'UNSORTED') {
-      return data;
-    }
-
-    const sortColumn = (sortBy as SortByColumn).column;
-    const sortDirection = (sortBy as SortByColumn).direction;
-
     return [...data].sort((a, b) => {
       const valueA = a[sortColumn];
       const valueB = b[sortColumn];
@@ -340,12 +389,13 @@ export class InMemoryDataSource implements DataSource {
 
   private applyPivoting(
     data: ReadonlyArray<Row>,
-    pivot: PivotModel,
+    pivot: Pivot,
   ): ReadonlyArray<Row> {
     const groups = new Map<string, Row[]>();
+    const groupByFields = pivot.groupBy.map(({field}) => field);
 
     for (const row of data) {
-      const key = pivot.groupBy.map((col) => row[col]).join('-');
+      const key = groupByFields.map((field) => row[field]).join('-');
       if (!groups.has(key)) {
         groups.set(key, []);
       }
@@ -353,26 +403,41 @@ export class InMemoryDataSource implements DataSource {
     }
 
     const result: Row[] = [];
+    const aggregates = pivot.aggregates ?? [];
 
     for (const group of groups.values()) {
       const newRow: Row = {};
-      for (const col of pivot.groupBy) {
-        newRow[col] = group[0][col];
+      for (const field of groupByFields) {
+        newRow[field] = group[0][field];
       }
-      for (const [alias, value] of Object.entries(pivot.values)) {
-        if (value.func === 'COUNT') {
+      for (const agg of aggregates) {
+        // Determine the alias (field name in the result row)
+        const alias =
+          agg.function === 'COUNT'
+            ? '__count__'
+            : 'field' in agg
+              ? agg.field
+              : '__unknown__';
+
+        if (agg.function === 'COUNT') {
           newRow[alias] = group.length;
           continue;
         }
 
+        const aggField = 'field' in agg ? agg.field : null;
+        if (!aggField) {
+          newRow[alias] = null;
+          continue;
+        }
+
         const values = group
-          .map((row) => row[value.col])
+          .map((row) => row[aggField])
           .filter((v) => v !== null);
         if (values.length === 0) {
           newRow[alias] = null;
           continue;
         }
-        switch (value.func) {
+        switch (agg.function) {
           case 'SUM':
             newRow[alias] = values.reduce(
               (acc: number, val) => acc + (Number(val) || 0),
@@ -413,15 +478,16 @@ export class InMemoryDataSource implements DataSource {
 
   private applyDrillDown(
     data: ReadonlyArray<Row>,
-    pivot: PivotModel,
+    pivot: Pivot,
   ): ReadonlyArray<Row> {
     const drillDown = pivot.drillDown!;
 
     return data.filter((row) => {
       // Check if this row matches all the drillDown values
       return pivot.groupBy.every((col) => {
-        const drillDownValue = drillDown[col];
-        const rowValue = row[col];
+        const field = col.field;
+        const drillDownValue = drillDown[field];
+        const rowValue = row[field];
         return valuesEqual(rowValue, drillDownValue);
       });
     });
@@ -435,9 +501,16 @@ export class InMemoryDataSource implements DataSource {
    */
   private computeAggregateTotals(
     pivotedData: ReadonlyArray<Row>,
-    pivot: PivotModel,
+    pivot: Pivot,
   ): void {
-    for (const [alias, pivotValue] of Object.entries(pivot.values)) {
+    const aggregates = pivot.aggregates ?? [];
+    for (const agg of aggregates) {
+      const alias =
+        agg.function === 'COUNT'
+          ? '__count__'
+          : 'field' in agg
+            ? agg.field
+            : '__unknown__';
       const values = pivotedData
         .map((row) => row[alias])
         .filter((v) => v !== null);
@@ -447,7 +520,7 @@ export class InMemoryDataSource implements DataSource {
         continue;
       }
 
-      switch (pivotValue.func) {
+      switch (agg.function) {
         case 'SUM':
         case 'COUNT':
           // Sum up all the sums/counts
@@ -492,33 +565,30 @@ export class InMemoryDataSource implements DataSource {
    */
   private computeColumnAggregates(
     data: ReadonlyArray<Row>,
-    columns: ReadonlyArray<DataGridColumn>,
+    columns: ReadonlyArray<Column>,
   ): void {
     for (const col of columns) {
-      if (!col.aggregation) continue;
+      if (!col.aggregate) continue;
 
       const values = data
-        .map((row) => row[col.column])
+        .map((row) => row[col.field])
         .filter((v) => v !== null);
 
       if (values.length === 0) {
-        this.aggregateTotalsCache.set(col.column, null);
+        this.aggregateTotalsCache.set(col.field, null);
         continue;
       }
 
-      switch (col.aggregation) {
+      switch (col.aggregate) {
         case 'SUM':
           this.aggregateTotalsCache.set(
-            col.column,
+            col.field,
             values.reduce((acc: number, val) => acc + (Number(val) || 0), 0),
           );
           break;
-        case 'COUNT':
-          this.aggregateTotalsCache.set(col.column, values.length);
-          break;
         case 'AVG':
           this.aggregateTotalsCache.set(
-            col.column,
+            col.field,
             (values.reduce(
               (acc: number, val) => acc + (Number(val) || 0),
               0,
@@ -527,18 +597,18 @@ export class InMemoryDataSource implements DataSource {
           break;
         case 'MIN':
           this.aggregateTotalsCache.set(
-            col.column,
+            col.field,
             values.reduce((acc, val) => (val < acc ? val : acc), values[0]),
           );
           break;
         case 'MAX':
           this.aggregateTotalsCache.set(
-            col.column,
+            col.field,
             values.reduce((acc, val) => (val > acc ? val : acc), values[0]),
           );
           break;
         case 'ANY':
-          this.aggregateTotalsCache.set(col.column, values[0]);
+          this.aggregateTotalsCache.set(col.field, values[0]);
           break;
       }
     }
@@ -599,11 +669,17 @@ function compareNumeric(a: SqlValue, b: SqlValue): number {
   }
 }
 
-function arePivotsEqual(a?: PivotModel, b?: PivotModel): boolean {
+function arePivotsEqual(a?: Pivot, b?: Pivot): boolean {
   if (a === b) return true;
   if (a === undefined || b === undefined) return false;
-  if (a.groupBy.join(',') !== b.groupBy.join(',')) return false;
-  if (JSON.stringify(a.values) !== JSON.stringify(b.values)) return false;
+  // Compare groupBy fields
+  const aGroupBy = a.groupBy.map(({field}) => field).join(',');
+  const bGroupBy = b.groupBy.map(({field}) => field).join(',');
+  if (aGroupBy !== bGroupBy) return false;
+  // Compare aggregates
+  if (JSON.stringify(a.aggregates) !== JSON.stringify(b.aggregates)) {
+    return false;
+  }
   // Check drillDown equality
   if (a.drillDown === b.drillDown) return true;
   if (a.drillDown === undefined || b.drillDown === undefined) return false;

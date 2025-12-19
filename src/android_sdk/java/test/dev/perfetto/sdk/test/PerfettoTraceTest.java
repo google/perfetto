@@ -114,13 +114,13 @@ public class PerfettoTraceTest {
     // We test that the GC triggers 'free native memory' function when the corresponding java
     // objects are garbage collected.
     AllocationStats allocationStats = PerfettoTrackEventBuilder.getNativeAllocationStats();
-    String argStringClsName = "dev.perfetto.sdk.PerfettoTrackEventExtra$ArgString";
-    assertThat(allocationStats.getAllocCountForTarget(argStringClsName)).isEqualTo(600_000);
+    String argClsName = "dev.perfetto.sdk.PerfettoTrackEventExtra$Arg";
+    assertThat(allocationStats.getAllocCountForTarget(argClsName)).isEqualTo(600_000);
     // Assert that the native memory was freed at least once.
     // In practice the counter is usually greater than 300_000 if not manually trigger GC,
     // and 599_995 (600_000 - dev.perfetto.sdk.PerfettoTrackEventBuilder#DEFAULT_EXTRA_CACHE_SIZE)
     // if do manually trigger.
-    assertThat(allocationStats.getFreeCountForTarget(argStringClsName)).isGreaterThan(0);
+    assertThat(allocationStats.getFreeCountForTarget(argClsName)).isGreaterThan(0);
     String allocDebugStats = allocationStats.reportStats();
     Log.d(TAG, "Memory cleaner allocation stats: " + allocDebugStats);
   }
@@ -470,6 +470,48 @@ public class PerfettoTraceTest {
     assertThat(hasTrackEvent).isTrue();
     assertThat(hasSourceLocation).isTrue();
     assertThat(mCategoryNames).contains(FOO);
+  }
+
+  @Test
+  public void testProtoWithInterning() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    final long fieldId = 1;
+    final long internedTypeId = 44; // InternedData.android_job_name
+    final String stringToIntern = "my_interned_string";
+
+    PerfettoTrace.instant(FOO_CATEGORY, "event_with_interning")
+        .beginProto()
+        .addFieldWithInterning(fieldId, stringToIntern, internedTypeId)
+        .endProto()
+        .emit();
+
+    byte[] traceBytes = session.close();
+
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    boolean hasInternedString = false;
+
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasInternedData()) {
+        InternedData internedData = packet.getInternedData();
+        if (internedData.getAndroidJobNameCount() > 0) {
+          if (internedData.getAndroidJobName(0).getName().equals(stringToIntern)) {
+            hasInternedString = true;
+          }
+        }
+      }
+
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(hasInternedString).isTrue();
   }
 
   @Test

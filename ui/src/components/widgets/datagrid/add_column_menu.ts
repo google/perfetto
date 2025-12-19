@@ -14,18 +14,20 @@
 
 import m from 'mithril';
 import {FuzzyFinder} from '../../../base/fuzzy';
+import {Icons} from '../../../base/semantic_icons';
 import {maybeUndefined} from '../../../base/utils';
 import {EmptyState} from '../../../widgets/empty_state';
 import {Icon} from '../../../widgets/icon';
 import {MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
+import {DataSource} from './data_source';
 import {
   SchemaRegistry,
   isColumnDef,
   isParameterizedColumnDef,
   isSchemaRef,
-} from './column_schema';
-import {DataSource} from './data_source';
+} from './datagrid_schema';
+import {AggregateColumn, AggregateFunction} from './model';
 
 interface AddColumnMenuContext {
   readonly dataSource: DataSource;
@@ -45,7 +47,7 @@ interface AddColumnMenuContext {
  * @param context Context containing dataSource and parameterKeyColumns for key discovery
  * @param maxDepth Maximum recursion depth (default 5)
  */
-export function buildAddColumnMenuFromSchema(
+function buildAddColumnMenuFromSchema(
   registry: SchemaRegistry,
   schemaName: string,
   pathPrefix: string,
@@ -99,8 +101,7 @@ export function buildAddColumnMenuFromSchema(
     } else if (isParameterizedColumnDef(entry)) {
       // Parameterized column - show available keys from datasource
       const title = typeof entry.title === 'string' ? entry.title : columnName;
-      const availableKeys =
-        context.dataSource.result?.parameterKeys?.get(fullPath);
+      const availableKeys = context.dataSource.parameterKeys?.get(fullPath);
       menuItems.push(
         m(
           MenuItem,
@@ -277,5 +278,261 @@ export class ParameterizedColumnSubmenu
           }),
         ]),
     ]);
+  }
+}
+
+interface ColumnMenuAttrs {
+  readonly schema: SchemaRegistry;
+  readonly rootSchema: string;
+  readonly visibleColumns: ReadonlyArray<string>;
+  readonly onAddColumn: (field: string) => void;
+  readonly dataSource: DataSource;
+  readonly parameterKeyColumns: Set<string>;
+
+  // Optional remove button - if not provided, only "Add" is shown
+  readonly canRemove?: boolean;
+  readonly onRemove?: () => void;
+
+  // Custom labels (defaults: "Remove column", "Add column")
+  readonly removeLabel?: string;
+  readonly addLabel?: string;
+}
+
+/**
+ * Renders column management menu items.
+ * Can show "Remove" and "Add" buttons with configurable labels.
+ * If onRemove is not provided, only the "Add" button is shown.
+ */
+export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
+  view({attrs}: m.Vnode<ColumnMenuAttrs>): m.Children {
+    const {
+      canRemove,
+      onRemove,
+      schema,
+      rootSchema,
+      visibleColumns,
+      onAddColumn,
+      dataSource,
+      parameterKeyColumns,
+      removeLabel = 'Remove column',
+      addLabel = 'Add column',
+    } = attrs;
+
+    const addColumnSubmenu = buildAddColumnMenuFromSchema(
+      schema,
+      rootSchema,
+      '',
+      0,
+      visibleColumns,
+      onAddColumn,
+      {dataSource, parameterKeyColumns},
+    );
+
+    const items: m.Children[] = [];
+
+    // Only show remove button if onRemove is provided
+    if (onRemove !== undefined) {
+      items.push(
+        m(MenuItem, {
+          label: removeLabel,
+          disabled: !canRemove,
+          icon: Icons.Remove,
+          onclick: onRemove,
+        }),
+      );
+    }
+
+    items.push(
+      m(
+        MenuItem,
+        {label: addLabel, icon: Icons.AddColumnRight},
+        addColumnSubmenu,
+      ),
+    );
+
+    return items;
+  }
+}
+
+// Numeric aggregate functions - only valid for quantitative/identifier columns
+const NUMERIC_AGGREGATE_FUNCTIONS: AggregateFunction[] = [
+  'SUM',
+  'AVG',
+  'MIN',
+  'MAX',
+];
+
+// Text-safe aggregate functions - valid for all column types
+const TEXT_SAFE_AGGREGATE_FUNCTIONS: AggregateFunction[] = ['ANY'];
+
+/**
+ * Returns the available aggregate functions for a column based on its type.
+ * Numeric aggregates (SUM, AVG, MIN, MAX) are only available for quantitative
+ * and identifier columns. ANY is available for all column types.
+ */
+export function getAggregateFunctionsForColumnType(
+  columnType: 'text' | 'quantitative' | 'identifier' | undefined,
+): AggregateFunction[] {
+  if (columnType === 'quantitative' || columnType === 'identifier') {
+    return [...NUMERIC_AGGREGATE_FUNCTIONS, ...TEXT_SAFE_AGGREGATE_FUNCTIONS];
+  }
+  // For 'text' columns or undefined, only text-safe aggregates
+  return TEXT_SAFE_AGGREGATE_FUNCTIONS;
+}
+
+/**
+ * Checks if an aggregate with the given function and field already exists.
+ */
+function isAggregateExists(
+  existingAggregates: readonly AggregateColumn[] | undefined,
+  func: AggregateFunction | 'COUNT',
+  field: string | undefined,
+): boolean {
+  if (!existingAggregates) return false;
+  return existingAggregates.some((agg) => {
+    if (agg.function !== func) return false;
+    const aggField = 'field' in agg ? agg.field : undefined;
+    return aggField === field;
+  });
+}
+
+/**
+ * Builds menu items for adding aggregate columns from a schema.
+ * Each column shows a submenu with aggregate function options.
+ */
+function buildAggregateColumnMenuFromSchema(
+  registry: SchemaRegistry,
+  schemaName: string,
+  pathPrefix: string,
+  depth: number,
+  onSelect: (func: AggregateFunction, field: string) => void,
+  existingAggregates: readonly AggregateColumn[] | undefined,
+  maxDepth: number = 5,
+): m.Children[] {
+  const schema = maybeUndefined(registry[schemaName]);
+  if (!schema) return [];
+
+  if (depth > maxDepth) {
+    return [m(MenuItem, {label: '(max depth reached)', disabled: true})];
+  }
+
+  const menuItems: m.Children[] = [];
+
+  for (const [columnName, entry] of Object.entries(schema)) {
+    const fullPath = pathPrefix ? `${pathPrefix}.${columnName}` : columnName;
+
+    if (isColumnDef(entry)) {
+      const title = entry.title ?? columnName;
+      // Get available aggregate functions based on column type
+      const availableFuncs = getAggregateFunctionsForColumnType(
+        entry.columnType,
+      );
+      const aggFuncItems = availableFuncs.map((func) => {
+        const exists = isAggregateExists(existingAggregates, func, fullPath);
+        return m(MenuItem, {
+          label: func,
+          disabled: exists,
+          onclick: exists ? undefined : () => onSelect(func, fullPath),
+        });
+      });
+
+      menuItems.push(m(MenuItem, {label: title}, aggFuncItems));
+    } else if (isSchemaRef(entry)) {
+      const refTitle = entry.title ?? columnName;
+      const childMenuItems = buildAggregateColumnMenuFromSchema(
+        registry,
+        entry.ref,
+        fullPath,
+        depth + 1,
+        onSelect,
+        existingAggregates,
+        maxDepth,
+      );
+
+      if (childMenuItems.length > 0) {
+        menuItems.push(m(MenuItem, {label: refTitle}, childMenuItems));
+      }
+    } else if (isParameterizedColumnDef(entry)) {
+      // For parameterized columns, show just the base name with a note
+      const title = typeof entry.title === 'string' ? entry.title : columnName;
+      // Get available aggregate functions based on filter type
+      const availableFuncs = getAggregateFunctionsForColumnType(
+        entry.filterType,
+      );
+      const aggFuncItems = availableFuncs.map((func) => {
+        const exists = isAggregateExists(existingAggregates, func, fullPath);
+        return m(MenuItem, {
+          label: func,
+          disabled: exists,
+          onclick: exists ? undefined : () => onSelect(func, fullPath),
+        });
+      });
+
+      menuItems.push(m(MenuItem, {label: `${title} (base)`}, aggFuncItems));
+    }
+  }
+
+  return menuItems;
+}
+
+interface AggregateMenuAttrs {
+  readonly schema: SchemaRegistry;
+  readonly rootSchema: string;
+  readonly onAddAggregate: (
+    func: AggregateFunction | 'COUNT',
+    field: string | undefined,
+  ) => void;
+
+  // Existing aggregates to gray out in the menu
+  readonly existingAggregates?: readonly AggregateColumn[];
+
+  // Custom label (default: "Add aggregate")
+  readonly label?: string;
+}
+
+/**
+ * Renders an "Add aggregate" menu item with:
+ * - COUNT option (no field needed)
+ * - Column picker submenu where each column has aggregate function options
+ */
+export class AggregateMenu implements m.ClassComponent<AggregateMenuAttrs> {
+  view({attrs}: m.Vnode<AggregateMenuAttrs>): m.Children {
+    const {
+      schema,
+      rootSchema,
+      onAddAggregate,
+      existingAggregates,
+      label = 'Add aggregate',
+    } = attrs;
+
+    const columnAggSubmenu = buildAggregateColumnMenuFromSchema(
+      schema,
+      rootSchema,
+      '',
+      0,
+      (func, field) => onAddAggregate(func, field),
+      existingAggregates,
+    );
+
+    const countExists = isAggregateExists(
+      existingAggregates,
+      'COUNT',
+      undefined,
+    );
+
+    return m(
+      MenuItem,
+      {label, icon: Icons.AddColumnRight},
+      // COUNT option - doesn't need a field
+      m(MenuItem, {
+        label: 'COUNT',
+        disabled: countExists,
+        onclick: countExists
+          ? undefined
+          : () => onAddAggregate('COUNT', undefined),
+      }),
+      // Column-based aggregates
+      ...columnAggSubmenu,
+    );
   }
 }
