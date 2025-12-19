@@ -20,14 +20,9 @@ import {
   NodeType,
 } from '../../query_node';
 import {Checkbox} from '../../../../widgets/checkbox';
-import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {TextInput} from '../../../../widgets/text_input';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
-import {
-  SIMPLE_TYPE_KINDS,
-  isIdType,
-  perfettoSqlTypeToString,
-} from '../../../../trace_processor/perfetto_sql_type';
+import {SIMPLE_TYPE_KINDS} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
@@ -39,6 +34,7 @@ import {
   ColumnName,
 } from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
+import {renderTypeSelector} from './modify_columns_utils';
 
 export interface ModifyColumnsSerializedState {
   primaryInputId?: string;
@@ -335,6 +331,30 @@ export class ModifyColumnsNode implements QueryNode {
       this.state.onchange?.();
     };
 
+    const handleTypeChange = (index: number, newType: string) => {
+      const newSelectedColumns = [...this.state.selectedColumns];
+      const lowerType = newType.toLowerCase();
+
+      // Check if it's a simple type
+      const isSimple = SIMPLE_TYPE_KINDS.includes(
+        lowerType as (typeof SIMPLE_TYPE_KINDS)[number],
+      );
+
+      const originalType = col.column.type;
+      newSelectedColumns[index] = {
+        ...newSelectedColumns[index],
+        type: newType,
+        column: {
+          ...newSelectedColumns[index].column,
+          type: isSimple
+            ? {kind: lowerType as (typeof SIMPLE_TYPE_KINDS)[number]}
+            : originalType, // Keep original if it's an ID type
+        },
+      };
+      this.state.selectedColumns = newSelectedColumns;
+      this.state.onchange?.();
+    };
+
     return m(
       DraggableItem,
       {
@@ -369,63 +389,7 @@ export class ModifyColumnsNode implements QueryNode {
         placeholder: 'alias',
         value: col.alias ? col.alias : '',
       }),
-      this.renderTypeSelector(col, index),
-    );
-  }
-
-  private renderTypeSelector(col: ColumnInfo, index: number): m.Child {
-    const currentType = col.type ?? 'UNKNOWN';
-    const originalType = col.column.type;
-
-    // Build the list of type options
-    const typeOptions: {label: string; value: string}[] = [];
-
-    // If the original type is an ID type, include it as an option
-    if (originalType !== undefined && isIdType(originalType)) {
-      const idTypeStr = perfettoSqlTypeToString(originalType);
-      typeOptions.push({label: idTypeStr, value: idTypeStr});
-    }
-
-    // Add all simple types
-    for (const type of SIMPLE_TYPE_KINDS) {
-      typeOptions.push({label: type.toUpperCase(), value: type.toUpperCase()});
-    }
-
-    const handleTypeChange = (newType: string) => {
-      const newSelectedColumns = [...this.state.selectedColumns];
-      const lowerType = newType.toLowerCase();
-
-      // Check if it's a simple type
-      const isSimple = SIMPLE_TYPE_KINDS.includes(
-        lowerType as (typeof SIMPLE_TYPE_KINDS)[number],
-      );
-
-      newSelectedColumns[index] = {
-        ...newSelectedColumns[index],
-        type: newType,
-        column: {
-          ...newSelectedColumns[index].column,
-          type: isSimple
-            ? {kind: lowerType as (typeof SIMPLE_TYPE_KINDS)[number]}
-            : originalType, // Keep original if it's an ID type
-        },
-      };
-      this.state.selectedColumns = newSelectedColumns;
-      this.state.onchange?.();
-    };
-
-    return m(
-      PopupMenu,
-      {
-        trigger: m('.pf-column-type', currentType),
-      },
-      typeOptions.map((opt) =>
-        m(MenuItem, {
-          label: opt.label,
-          active: currentType === opt.value,
-          onclick: () => handleTypeChange(opt.value),
-        }),
-      ),
+      renderTypeSelector(col, index, handleTypeChange),
     );
   }
 
