@@ -14247,6 +14247,7 @@ filegroup {
     name: "perfetto_src_trace_processor_importers_etw_minimal",
     srcs: [
         "src/trace_processor/importers/etw/etw_module.cc",
+        "src/trace_processor/importers/etw/file_io_tracker.cc",
     ],
 }
 
