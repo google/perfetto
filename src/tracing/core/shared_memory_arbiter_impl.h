@@ -164,12 +164,12 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   // F is lambda with signature:
   // void(SharedMemoryABI::Chunk*, bool chunk_complete,
-  //      std::pair<uint16_t, uint8_t> packetCountAndFlags)
+  //      uint16_t packet_count, uint8_t packet_flags)
   template <typename F>
   static inline void ForEachScrapableChunk(SharedMemoryABI* shmem_abi,
                                            F handle_chunk_function) {
     static_assert(std::is_invocable_v<F, SharedMemoryABI::Chunk*, bool,
-                                      std::pair<uint16_t, uint8_t>>);
+                                      uint16_t, uint8_t>);
     // num_pages() is immutable after the SMB is initialized and cannot be
     // changed even by a producer even if malicious.
     for (size_t page_idx = 0; page_idx < shmem_abi->num_pages(); page_idx++) {
@@ -198,13 +198,15 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
         SharedMemoryABI::Chunk chunk =
             shmem_abi->GetChunkUnchecked(page_idx, header_bitmap, chunk_idx);
 
+        uint16_t packet_count;
+        uint8_t packet_flags;
         // GetPacketCountAndFlags has acquire_load semantics.
-        auto packet_count_and_flags = chunk.GetPacketCountAndFlags();
+        std::tie(packet_count, packet_flags) = chunk.GetPacketCountAndFlags();
 
         // It only makes sense to copy an incomplete chunk if there's at least
         // one full packet available. (The producer may not have completed the
         // last packet in it yet, so we need at least 2.)
-        if (!chunk_complete && packet_count_and_flags.first < 2)
+        if (!chunk_complete && packet_count < 2)
           continue;
 
         // At this point, it is safe to access the remaining header fields of
@@ -212,7 +214,8 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
         // kChunkFree into kChunkBeingWritten state, the header should be
         // written completely once the packet count increased above 1 (it was
         // reset to 0 by the service when the chunk was freed).
-        handle_chunk_function(&chunk, chunk_complete, packet_count_and_flags);
+        handle_chunk_function(&chunk, chunk_complete, packet_count,
+                              packet_flags);
       }
     }
   }

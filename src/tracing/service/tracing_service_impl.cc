@@ -2273,7 +2273,7 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
   SharedMemoryArbiterImpl::ForEachScrapableChunk(
       &producer->shmem_abi_,
       [&](SharedMemoryABI::Chunk* chunk, bool chunk_complete,
-          std::pair<uint16_t, uint8_t> packet_count_and_flags) {
+          uint16_t packet_count, uint8_t packet_flags) {
         WriterID writer_id = chunk->writer_id();
         std::optional<BufferID> target_buffer_id =
             producer->buffer_id_for_writer(writer_id);
@@ -2290,16 +2290,12 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
         if (!target_buffer_belongs_to_session)
           return;
 
-        uint16_t packet_count;
-        uint8_t flags;
-        std::tie(packet_count, flags) = packet_count_and_flags;
-
         uint32_t chunk_id =
             chunk->header()->chunk_id.load(std::memory_order_relaxed);
 
         CopyProducerPageIntoLogBuffer(
             producer->id_, producer->client_identity_, writer_id, chunk_id,
-            *target_buffer_id, packet_count, flags, chunk_complete,
+            *target_buffer_id, packet_count, packet_flags, chunk_complete,
             chunk->payload_begin(), chunk->payload_size());
       });
 }

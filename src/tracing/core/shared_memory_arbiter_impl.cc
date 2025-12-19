@@ -917,7 +917,7 @@ void SharedMemoryArbiterImpl::ScrapeEmulatedSharedMemoryBuffer(
 
   CommitDataRequest commit_req;
   ForEachScrapableChunk(&shmem_abi_, [&](SharedMemoryABI::Chunk* chunk,
-                                         bool chunk_complete, auto) {
+                                         bool chunk_complete, auto, auto) {
     const auto writer = buffer_for_writers.find(chunk->writer_id());
     if (writer == buffer_for_writers.end())
       return;
