@@ -1092,9 +1092,6 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       return undefined;
     }
 
-    // We're about to render body rows
-    this.hasRenderedBodyRows = true;
-
     const {rowStart, rowEnd} = this.renderBounds;
     const displayRowCount = rowEnd - rowStart;
 
@@ -1103,14 +1100,18 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       (_, i) => rowStart + i,
     );
 
-    return indices
-      .map((rowIndex) => {
-        const relativeIndex = rowIndex - rowOffset;
-        const row =
-          relativeIndex >= 0 && relativeIndex < rows.length
-            ? rows[relativeIndex]
-            : undefined;
+    // Generate a list of rows that should be rendered
+    const renderableRows = indices.map((rowIndex) => {
+      const relativeIndex = rowIndex - rowOffset;
+      const row =
+        relativeIndex >= 0 && relativeIndex < rows.length
+          ? rows[relativeIndex]
+          : undefined;
+      return [rowIndex, row] as const;
+    });
 
+    const renderedRows = renderableRows
+      .map(([rowIndex, row]) => {
         if (row !== undefined) {
           return m(
             '.pf-grid__row',
@@ -1147,6 +1148,20 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         }
       })
       .filter(exists);
+
+    if (!this.hasRenderedBodyRows) {
+      // Check if any rows have content in them so we know when to trigger our
+      // initial column autosize
+      const hasContent = renderableRows.some(
+        ([_, row]) => row !== undefined && row.length > 0,
+      );
+
+      if (hasContent) {
+        this.hasRenderedBodyRows = true;
+      }
+    }
+
+    return renderedRows;
   }
 
   private renderAllRows(
