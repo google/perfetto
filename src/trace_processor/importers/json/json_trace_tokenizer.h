@@ -77,8 +77,11 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Validate trace is complete
+  base::Status OnPushDataToSorter() override;
+
+  // LEGACY: Calls new phase methods for backward compatibility
  private:
   // Enum which tracks which type of JSON trace we are dealing with.
   enum class TraceFormat : uint8_t {

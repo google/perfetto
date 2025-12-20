@@ -73,12 +73,19 @@ base::Status PprofTraceReader::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status PprofTraceReader::NotifyEndOfFile() {
+base::Status PprofTraceReader::OnPushDataToSorter() {
+  // Idempotency: if buffer is empty, we've already pushed
   if (buffer_.empty()) {
-    return base::ErrStatus("Empty pprof data");
+    return base::OkStatus();
   }
 
-  return ParseProfile();
+  // Phase 1: Parse profile and write to storage
+  auto status = ParseProfile();
+
+  // Clear buffer for idempotency
+  buffer_.clear();
+
+  return status;
 }
 
 base::Status PprofTraceReader::ParseProfile() {

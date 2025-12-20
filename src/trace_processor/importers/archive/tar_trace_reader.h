@@ -44,8 +44,14 @@ class TarTraceReader : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Validate TAR stream + delegate to inner parsers
+  base::Status OnPushDataToSorter() override;
+
+  // NEW: Phase 3 - Delegate to inner parsers
+  void OnEventsFullyExtracted() override;
+
+  // LEGACY: Calls new phase methods for backward compatibility
  private:
   struct Metadata {
     std::string name;

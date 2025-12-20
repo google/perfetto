@@ -35,7 +35,6 @@ class PerfTextTraceTokenizer : public ChunkedTraceReader {
   ~PerfTextTraceTokenizer() override;
 
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
  private:
   TraceProcessorContext* const context_;

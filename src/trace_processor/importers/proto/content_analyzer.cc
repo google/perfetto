@@ -56,7 +56,8 @@ void ProtoContentAnalyzer::ProcessPacket(
   }
 }
 
-void ProtoContentAnalyzer::NotifyEndOfFile() {
+void ProtoContentAnalyzer::OnEventsFullyExtracted() {
+  // Phase 3: Aggregate samples and populate experimental proto tables
   // TODO(kraskevich): consider generating a flamegraph-compatable table once
   // Perfetto UI supports custom flamegraphs (b/227644078).
   for (auto annotated_map = aggregated_samples_.GetIterator(); annotated_map;

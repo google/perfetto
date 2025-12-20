@@ -56,8 +56,14 @@ class PerfDataTokenizer : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Validate parsing is complete
+  base::Status OnPushDataToSorter() override;
+
+  // NEW: Phase 3 - Finalize tracker
+  void OnEventsFullyExtracted() override;
+
+  // LEGACY: Calls new phase methods for backward compatibility
  private:
   enum class ParsingState : uint8_t {
     kParseHeader,

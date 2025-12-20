@@ -643,7 +643,7 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
 
   HeapGraphTracker::Get(context())->FinalizeAllProfiles();
   RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
-  DeobfuscationTracker::Get(context())->NotifyEndOfFile();
+  DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
 
   // Rebuild the bounds table once everything has been completed: we do this
   // so that if any data was added to tables in

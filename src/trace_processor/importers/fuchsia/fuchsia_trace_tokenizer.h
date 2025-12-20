@@ -46,8 +46,14 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Delegate to proto trace reader
+  base::Status OnPushDataToSorter() override;
+
+  // NEW: Phase 3 - Delegate to proto trace reader
+  void OnEventsFullyExtracted() override;
+
+  // LEGACY: Calls new phase methods for backward compatibility
  private:
   struct ProviderInfo {
     std::string name;

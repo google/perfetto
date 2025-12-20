@@ -382,7 +382,8 @@ base::Status ArtMethodTokenizer::Streaming::ParseSummary(
   }
 }
 
-base::Status ArtMethodTokenizer::Streaming::NotifyEndOfFile() const {
+base::Status ArtMethodTokenizer::Streaming::OnPushDataToSorter() const {
+  // Phase 1: Process remaining records + validate
   if (mode_ != kDone) {
     return base::ErrStatus("ART Method trace: trace is incomplete");
   }
@@ -415,6 +416,11 @@ base::Status ArtMethodTokenizer::Streaming::NotifyEndOfFile() const {
     RETURN_IF_ERROR(tokenizer_->ParseRecord(
         tid, *it.MaybeRead(tokenizer_->record_size_ - 2)));
   }
+}
+
+base::Status ArtMethodTokenizer::Streaming::NotifyEndOfFile() const {
+  // LEGACY wrapper: calls new phase methods for backward compatibility
+  return OnPushDataToSorter();
 }
 
 base::Status ArtMethodTokenizer::NonStreaming::Parse() {
@@ -469,11 +475,17 @@ base::Status ArtMethodTokenizer::NonStreaming::Parse() {
   return base::OkStatus();
 }
 
-base::Status ArtMethodTokenizer::NonStreaming::NotifyEndOfFile() const {
+base::Status ArtMethodTokenizer::NonStreaming::OnPushDataToSorter() const {
+  // Phase 1: Validate parsing is complete
   if (mode_ == NonStreaming::kData && tokenizer_->reader_.empty()) {
     return base::OkStatus();
   }
   return base::ErrStatus("ART Method trace: trace is incomplete");
+}
+
+base::Status ArtMethodTokenizer::NonStreaming::NotifyEndOfFile() const {
+  // LEGACY wrapper: calls new phase methods for backward compatibility
+  return OnPushDataToSorter();
 }
 
 base::StatusOr<bool> ArtMethodTokenizer::NonStreaming::ParseHeaderStart(
@@ -613,14 +625,15 @@ base::Status ArtMethodTokenizer::NonStreaming::ParseHeaderSectionLine(
       std::string(line).c_str());
 }
 
-base::Status ArtMethodTokenizer::NotifyEndOfFile() {
+base::Status ArtMethodTokenizer::OnPushDataToSorter() {
+  // Phase 1: Process remaining records + validate (delegate to sub-parser)
   switch (sub_parser_.index()) {
     case base::variant_index<SubParser, Detect>():
       return base::ErrStatus("ART Method trace: trace is incomplete");
     case base::variant_index<SubParser, Streaming>():
-      return std::get<Streaming>(sub_parser_).NotifyEndOfFile();
+      return std::get<Streaming>(sub_parser_).OnPushDataToSorter();
     case base::variant_index<SubParser, NonStreaming>():
-      return std::get<NonStreaming>(sub_parser_).NotifyEndOfFile();
+      return std::get<NonStreaming>(sub_parser_).OnPushDataToSorter();
   }
   PERFETTO_FATAL("For GCC");
 }

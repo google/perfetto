@@ -221,7 +221,7 @@ class ProcessTracker {
   ArgsTracker::BoundInserter AddArgsToThread(UniqueTid utid);
 
   // Called when the trace was fully loaded.
-  void NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
   // Tracks the namespace-local pids for a process running in a pid namespace.
   void UpdateNamespacedProcess(int64_t pid, std::vector<int64_t> nspid);

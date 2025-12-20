@@ -31,7 +31,8 @@ SymbolTracker::SymbolTracker(TraceProcessorContext* context)
 
 SymbolTracker::~SymbolTracker() = default;
 
-void SymbolTracker::NotifyEndOfFile() {
+void SymbolTracker::OnEventsFullyExtracted() {
+  // Phase 3: Symbolize stack profile frames
   const StringId kEmptyString = context_->storage->InternString("");
   for (auto frame = context_->storage->mutable_stack_profile_frame_table()
                         ->IterateRows();

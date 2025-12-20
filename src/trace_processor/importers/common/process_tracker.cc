@@ -658,7 +658,8 @@ ArgsTracker::BoundInserter ProcessTracker::AddArgsToThread(UniqueTid utid) {
   return args_tracker_.AddArgsToThread(utid);
 }
 
-void ProcessTracker::NotifyEndOfFile() {
+void ProcessTracker::OnEventsFullyExtracted() {
+  // Phase 3: Flush args and clear state
   args_tracker_.Flush();
   tids_.Clear();
   pids_.Clear();
