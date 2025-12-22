@@ -16,6 +16,7 @@ import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
 import {ActionButtonHelper} from './action_button_helper';
 import {Button, ButtonVariant} from './button';
+import { copyToClipboard } from 'src/base/clipboard';
 
 export class CopyButtonHelper extends ActionButtonHelper {
   async copy(textToCopy: string | (() => string | Promise<string>)) {
@@ -25,7 +26,7 @@ export class CopyButtonHelper extends ActionButtonHelper {
           ? textToCopy
           : await Promise.resolve(textToCopy());
 
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
     });
   }
 }
