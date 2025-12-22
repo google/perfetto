@@ -52,26 +52,34 @@
   }
 
   .record-ctl {
-    margin: 0.5em;
-    padding: 0.5em;
     display: grid;
-    grid-template-columns: 24px auto 24px;
+    grid-template-columns: 50px auto 50px;
     box-sizing: content-box;
-    height: 24px;
-    line-height: 24px;
+    height: 50px;
+    line-height: 50px;
     .hidden {
       visibility: hidden;
     }
     .record-target {
-      font-size: 13px;
-      color: var(--pf-color-text-muted);
+      font-size: 14px;
       overflow: hidden;
       text-overflow: ellipsis;
+      line-height: 14px;
+      align-self: center;
     }
     .pf-button {
       padding: 0;
       margin: 0;
       font-size: 20px;
+    }
+
+    i {
+      margin: auto;
+      font-size: 32px;
+      width: 38px;
+      height: 38px;
+      padding: 3px;
+      grid-area: icon;
     }
   }
 
@@ -98,6 +106,7 @@
   a:visited {
     text-decoration: none;
   }
+
 
   li {
     @include transition();
