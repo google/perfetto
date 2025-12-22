@@ -27,15 +27,17 @@ export function renderCodeSnippet(): m.Children {
       ),
     ),
     renderWidgetShowcase({
-      renderWidget: ({wide}) =>
+      renderWidget: ({wide, downloadFileName}) =>
         m(CodeSnippet, {
           language: 'SQL',
           text: wide
             ? 'SELECT a_very_long_column_name, another_super_long_column_name, yet_another_ridiculously_long_column_name FROM a_table_with_an_unnecessarily_long_name WHERE some_condition_is_true AND another_condition_is_also_true;'
             : 'SELECT * FROM slice LIMIT 10;',
+          downloadFileName: downloadFileName,
         }),
       initialOpts: {
         wide: false,
+        downloadFileName: "",
       },
     }),
   ];

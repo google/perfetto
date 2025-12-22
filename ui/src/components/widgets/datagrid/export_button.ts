@@ -15,8 +15,8 @@
 import m from 'mithril';
 import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
+import {ActionButtonHelper} from '../../../widgets/action_button_helper';
 import {Button} from '../../../widgets/button';
-import {CopyButtonHelper} from '../../../widgets/copy_to_clipboard_button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 
 export type ExportFormat = 'tsv' | 'json' | 'markdown';
@@ -28,17 +28,18 @@ export interface DataGridExportButtonAttrs {
 /**
  * DataGrid copy button component with dropdown menu for copying data to clipboard
  * in different formats (TSV, Markdown, JSON).
- * Maintains its own CopyButtonHelper state to show "Copied" feedback.
+ * Maintains its own ActionButtonHelper state to show "Copied" feedback.
  */
 export class DataGridExportButton
   implements m.ClassComponent<DataGridExportButtonAttrs>
 {
-  private helper = new CopyButtonHelper();
+  private helper = new ActionButtonHelper();
 
   view({attrs}: m.CVnode<DataGridExportButtonAttrs>) {
     const {onExportData} = attrs;
     const loading = this.helper.state === 'working';
-    const icon = this.helper.state === 'copied' ? Icons.Check : Icons.Download;
+    const icon =
+      this.helper.state === 'completed' ? Icons.Check : Icons.Download;
 
     return m(
       PopupMenu,
@@ -58,7 +59,9 @@ export class DataGridExportButton
             title: 'Tab-separated values - paste into spreadsheets',
             onclick: async () => {
               const content = await onExportData('tsv');
-              await this.helper.copy(content);
+              await this.helper.execute(async () => {
+                await navigator.clipboard.writeText(content);
+              });
             },
           }),
           m(MenuItem, {
@@ -67,7 +70,9 @@ export class DataGridExportButton
             title: 'Markdown table format',
             onclick: async () => {
               const content = await onExportData('markdown');
-              await this.helper.copy(content);
+              await this.helper.execute(async () => {
+                await navigator.clipboard.writeText(content);
+              });
             },
           }),
           m(MenuItem, {
@@ -76,7 +81,9 @@ export class DataGridExportButton
             title: 'JSON array of objects',
             onclick: async () => {
               const content = await onExportData('json');
-              await this.helper.copy(content);
+              await this.helper.execute(async () => {
+                await navigator.clipboard.writeText(content);
+              });
             },
           }),
         ]),

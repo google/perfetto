@@ -55,7 +55,11 @@ export class ConfigTab implements m.ClassComponent<ConfigTabAttrs> {
           subtitle: 'TraceConfig protobuf used to record this trace',
         },
         attrs.data.configText
-          ? m(CodeSnippet, {text: attrs.data.configText, language: 'prototext'})
+          ? m(CodeSnippet, {
+              text: attrs.data.configText,
+              language: 'prototext',
+              downloadFileName: 'config.pbtx',
+            })
           : m(EmptyState, {
               icon: 'settings',
               title: 'No trace configuration available',
