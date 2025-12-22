@@ -330,25 +330,20 @@ export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
 
     const items: m.Children[] = [];
 
-    // Only show remove button if onRemove is provided
-    if (onRemove !== undefined) {
-      items.push(
+    return [
+      m(
+        MenuItem,
+        {label: addLabel, icon: Icons.AddColumnRight},
+        addColumnSubmenu,
+      ),
+      onRemove &&
         m(MenuItem, {
           label: removeLabel,
           disabled: !canRemove,
           icon: Icons.Remove,
           onclick: onRemove,
         }),
-      );
-    }
-
-    items.push(
-      m(
-        MenuItem,
-        {label: addLabel, icon: Icons.AddColumnRight},
-        addColumnSubmenu,
-      ),
-    );
+    ];
 
     return items;
   }
@@ -502,7 +497,7 @@ export class AggregateMenu implements m.ClassComponent<AggregateMenuAttrs> {
       rootSchema,
       onAddAggregate,
       existingAggregates,
-      label = 'Add aggregate',
+      label = 'Add column',
     } = attrs;
 
     const columnAggSubmenu = buildAggregateColumnMenuFromSchema(

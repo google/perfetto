@@ -17,6 +17,7 @@
 #ifndef SRC_PROFILING_DEOBFUSCATOR_H_
 #define SRC_PROFILING_DEOBFUSCATOR_H_
 
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>

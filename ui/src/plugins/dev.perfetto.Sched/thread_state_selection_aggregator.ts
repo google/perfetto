@@ -112,6 +112,8 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         );
 
         await engine.query(`
+          include perfetto module android.cpu.cluster_type;
+
           create or replace perfetto table ${this.id} as
           select
             tstate.id as id,
@@ -124,12 +126,13 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             ucpu,
             dur,
             dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            cluster.cluster_type as cluster,
+            android_cpu_cluster_mapping.cluster_type as cluster_type,
             __groupid,
             __partition
           from ${iiTable.name} tstate
           join thread using (utid)
           left join process using (upid)
+          left join android_cpu_cluster_mapping using(ucpu)
         `);
 
         const query = `
@@ -221,7 +224,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             );
           },
         },
-        {title: 'Cluster', columnId: 'cluster', formatHint: 'STRING'},
+        {title: 'Cluster Type', columnId: 'cluster_type', formatHint: 'STRING'},
         {
           title: 'Process',
           columnId: 'process_name',
