@@ -32,6 +32,7 @@ import {
   SchemaRegistry,
 } from './widgets/datagrid/datagrid_schema';
 import {DataSource} from './widgets/datagrid/data_source';
+import {shortUuid} from '../base/uuid';
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
@@ -93,6 +94,7 @@ export class AggregationPanel
       }
       const schema: SchemaRegistry = {data: columnSchema};
       const initialColumns: readonly Column[] = model.map((c) => ({
+        id: shortUuid(),
         field: c.columnId,
         aggregate: c.sum ? 'SUM' : undefined,
         sort: c.sort,

@@ -282,12 +282,12 @@ export class SliceSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [{field: 'name'}],
+      groupBy: [{id: 'name', field: 'name'}],
       aggregates: [
-        {function: 'COUNT'},
-        {field: 'dur', function: 'SUM', sort: 'DESC'},
-        {field: 'self_dur', function: 'SUM'},
-        {field: 'dur', function: 'AVG'},
+        {id: 'count', function: 'COUNT'},
+        {id: 'total_time_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {id: 'self_time_sum', field: 'self_dur', function: 'SUM'},
+        {id: 'total_time_avg', field: 'dur', function: 'AVG'},
       ],
       columns: [
         {

@@ -131,16 +131,20 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   getColumnDefinitions(): AggregatePivotModel {
     return {
       groupBy: [
-        {field: 'pid'},
-        {field: 'process_name'},
-        {field: 'tid'},
-        {field: 'thread_name'},
+        {id: 'pid', field: 'pid'},
+        {id: 'process_name', field: 'process_name'},
+        {id: 'tid', field: 'tid'},
+        {id: 'thread_name', field: 'thread_name'},
       ],
       aggregates: [
-        {function: 'COUNT'},
-        {field: 'dur', function: 'SUM', sort: 'DESC'},
-        {field: 'fraction_of_total', function: 'SUM'},
-        {field: 'dur', function: 'AVG'},
+        {id: 'count', function: 'COUNT'},
+        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {
+          id: 'fraction_of_total_sum',
+          field: 'fraction_of_total',
+          function: 'SUM',
+        },
+        {id: 'dur_avg', field: 'dur', function: 'AVG'},
       ],
       columns: [
         {
