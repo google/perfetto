@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 
-export type ActionState = 'idle' | 'working' | 'completed';
+export type ActionState = 'idle' | 'working' | 'done';
 
 export class ActionButtonHelper {
   private _state: ActionState = 'idle';
-  private completedTimeoutId: ReturnType<typeof setTimeout> | undefined;
+  private doneTimeoutId: ReturnType<typeof setTimeout> | undefined;
   private loadingTimeoutId: ReturnType<typeof setTimeout> | undefined;
   private readonly timeout: number;
   private readonly loadingDelay: number;
@@ -33,9 +33,9 @@ export class ActionButtonHelper {
   }
 
   async execute(action: () => Promise<void>) {
-    clearTimeout(this.completedTimeoutId);
+    clearTimeout(this.doneTimeoutId);
     clearTimeout(this.loadingTimeoutId);
-    this.completedTimeoutId = undefined;
+    this.doneTimeoutId = undefined;
     this.loadingTimeoutId = undefined;
 
     // Set to working after a delay
@@ -51,10 +51,10 @@ export class ActionButtonHelper {
       clearTimeout(this.loadingTimeoutId);
       this.loadingTimeoutId = undefined;
 
-      this._state = 'completed';
+      this._state = 'done';
       m.redraw();
 
-      this.completedTimeoutId = setTimeout(() => {
+      this.doneTimeoutId = setTimeout(() => {
         this._state = 'idle';
         m.redraw();
       }, this.timeout);

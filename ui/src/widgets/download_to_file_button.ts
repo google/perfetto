@@ -40,7 +40,7 @@ export class DownloadToFileButton
         case 'idle':
         case 'working':
           return attrs.label;
-        case 'completed':
+        case 'done':
           return 'Downloaded';
       }
     })(this.helper.state);
@@ -48,7 +48,7 @@ export class DownloadToFileButton
     return m(Button, {
       variant: attrs.variant,
       title: attrs.title ?? 'Download to file',
-      icon: this.helper.state === 'completed' ? Icons.Check : Icons.Download,
+      icon: this.helper.state === 'done' ? Icons.Check : Icons.Download,
       loading: this.helper.state === 'working',
       label,
       onclick: async () => {

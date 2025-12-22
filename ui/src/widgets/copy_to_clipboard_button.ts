@@ -36,14 +36,14 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
           case 'idle':
           case 'working':
             return attrs.label;
-          case 'completed':
+          case 'done':
             return 'Copied';
         }
       })();
       return m(Button, {
         variant: attrs.variant,
         title: attrs.title ?? 'Copy to clipboard',
-        icon: helper.state === 'completed' ? Icons.Check : Icons.Copy,
+        icon: helper.state === 'done' ? Icons.Check : Icons.Copy,
         loading: helper.state === 'working',
         label,
         onclick: async () => {

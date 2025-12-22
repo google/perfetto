@@ -44,8 +44,7 @@ export class DataGridExportButton
   view({attrs}: m.CVnode<DataGridExportButtonAttrs>) {
     const {onExportData} = attrs;
     const loading = this.helper.state === 'working';
-    const icon =
-      this.helper.state === 'completed' ? Icons.Check : Icons.Download;
+    const icon = this.helper.state === 'done' ? Icons.Check : Icons.Download;
 
     return m(
       PopupMenu,
