@@ -66,6 +66,9 @@
       text-overflow: ellipsis;
       line-height: 14px;
       align-self: center;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
     .pf-button {
       padding: 0;
@@ -106,7 +109,6 @@
   a:visited {
     text-decoration: none;
   }
-
 
   li {
     @include transition();
