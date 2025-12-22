@@ -44,31 +44,18 @@ export class ActionButtonHelper {
       m.redraw();
     }, this.loadingDelay);
 
-    try {
-      await action();
+    await action();
 
-      // Clear the loading timeout in case action completed quickly
-      clearTimeout(this.loadingTimeoutId);
-      this.loadingTimeoutId = undefined;
+    // Clear the loading timeout in case action completed quickly
+    clearTimeout(this.loadingTimeoutId);
+    this.loadingTimeoutId = undefined;
 
-      this._state = 'done';
-      m.redraw();
+    this._state = 'done';
+    m.redraw();
 
-      this.doneTimeoutId = setTimeout(() => {
-        this._state = 'idle';
-        m.redraw();
-      }, this.timeout);
-    } catch (e) {
-      // If the action fails, we should probably reset to idle or show error.
-      // For now, let's just reset to idle immediately or maybe after a short delay?
-      // The original code didn't handle errors explicitly, but async functions reject.
-      // If it fails, we probably don't want to show "Copied".
-      // Let's just log and reset.
-      console.error(e);
-      clearTimeout(this.loadingTimeoutId);
+    this.doneTimeoutId = setTimeout(() => {
       this._state = 'idle';
       m.redraw();
-      throw e; // Re-throw so caller can handle if needed
-    }
+    }, this.timeout);
   }
 }

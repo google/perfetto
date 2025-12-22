@@ -101,7 +101,7 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
           text: this.cmdline,
         }),
       m(CodeSnippet, {
-        language: 'prototext',
+        language: 'textproto',
         text: this.configTxt,
         downloadFileName: 'config.pbtx',
       }),

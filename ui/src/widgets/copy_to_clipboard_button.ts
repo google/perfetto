@@ -17,6 +17,19 @@ import {Icons} from '../base/semantic_icons';
 import {ActionButtonHelper} from './action_button_helper';
 import {Button, ButtonVariant} from './button';
 
+export class CopyButtonHelper extends ActionButtonHelper {
+  async copy(textToCopy: string | (() => string | Promise<string>)) {
+    await this.execute(async () => {
+      const text =
+        typeof textToCopy === 'string'
+          ? textToCopy
+          : await Promise.resolve(textToCopy());
+
+      await navigator.clipboard.writeText(text);
+    });
+  }
+}
+
 export interface CopyToClipboardButtonAttrs {
   readonly textToCopy: string | (() => string | Promise<string>);
   readonly title?: string;
@@ -25,7 +38,7 @@ export interface CopyToClipboardButtonAttrs {
 }
 
 export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs> {
-  const helper = new ActionButtonHelper();
+  const helper = new CopyButtonHelper();
 
   return {
     view({attrs}: m.Vnode<CopyToClipboardButtonAttrs>): m.Children {
@@ -40,6 +53,7 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
             return 'Copied';
         }
       })();
+
       return m(Button, {
         variant: attrs.variant,
         title: attrs.title ?? 'Copy to clipboard',
@@ -47,14 +61,7 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
         loading: helper.state === 'working',
         label,
         onclick: async () => {
-          await helper.execute(async () => {
-            const text =
-              typeof attrs.textToCopy === 'string'
-                ? attrs.textToCopy
-                : await Promise.resolve(attrs.textToCopy());
-
-            await navigator.clipboard.writeText(text);
-          });
+          await helper.copy(attrs.textToCopy);
         },
       });
     },
