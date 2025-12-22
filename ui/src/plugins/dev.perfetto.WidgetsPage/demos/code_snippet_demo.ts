@@ -37,7 +37,7 @@ export function renderCodeSnippet(): m.Children {
         }),
       initialOpts: {
         wide: false,
-        downloadFileName: "",
+        downloadFileName: '',
       },
     }),
   ];

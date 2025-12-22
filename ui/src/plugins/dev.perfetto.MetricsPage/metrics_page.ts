@@ -193,10 +193,7 @@ function renderResult(
     return m('pre.pf-metrics-page__error', `${result.error}`);
   }
 
-  return m(CodeSnippet, {
-    language: format,
-    text: result.value,
-  });
+  return m(CodeSnippet, {language: format, text: result.value});
 }
 
 interface MetricV1FetcherAttrs {

@@ -19,11 +19,7 @@ import {ActionButtonHelper} from './action_button_helper';
 import {Button, ButtonVariant} from './button';
 
 export interface DownloadToFileButtonAttrs {
-  readonly content:
-    | string
-    | Blob
-    | Uint8Array
-    | (() => string | Blob | Uint8Array | Promise<string | Blob | Uint8Array>);
+  readonly content: string | (() => string | Promise<string>);
   readonly fileName: string;
   readonly title?: string;
   readonly label?: string;
@@ -58,9 +54,9 @@ export class DownloadToFileButton
       onclick: async () => {
         await this.helper.execute(async () => {
           const content =
-            typeof attrs.content === 'function'
-              ? await Promise.resolve(attrs.content())
-              : attrs.content;
+            typeof attrs.content === 'string'
+              ? attrs.content
+              : await Promise.resolve(attrs.content());
           await download({
             content,
             fileName: attrs.fileName,

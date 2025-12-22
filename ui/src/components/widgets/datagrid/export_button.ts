@@ -35,6 +35,12 @@ export class DataGridExportButton
 {
   private helper = new ActionButtonHelper();
 
+  private async copyToClipboard(content: string) {
+    await this.helper.execute(async () => {
+      await navigator.clipboard.writeText(content);
+    });
+  }
+
   view({attrs}: m.CVnode<DataGridExportButtonAttrs>) {
     const {onExportData} = attrs;
     const loading = this.helper.state === 'working';
@@ -59,9 +65,7 @@ export class DataGridExportButton
             title: 'Tab-separated values - paste into spreadsheets',
             onclick: async () => {
               const content = await onExportData('tsv');
-              await this.helper.execute(async () => {
-                await navigator.clipboard.writeText(content);
-              });
+              await this.copyToClipboard(content);
             },
           }),
           m(MenuItem, {
@@ -70,9 +74,7 @@ export class DataGridExportButton
             title: 'Markdown table format',
             onclick: async () => {
               const content = await onExportData('markdown');
-              await this.helper.execute(async () => {
-                await navigator.clipboard.writeText(content);
-              });
+              await this.copyToClipboard(content);
             },
           }),
           m(MenuItem, {
@@ -81,9 +83,7 @@ export class DataGridExportButton
             title: 'JSON array of objects',
             onclick: async () => {
               const content = await onExportData('json');
-              await this.helper.execute(async () => {
-                await navigator.clipboard.writeText(content);
-              });
+              await this.copyToClipboard(content);
             },
           }),
         ]),
