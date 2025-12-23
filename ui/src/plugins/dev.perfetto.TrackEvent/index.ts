@@ -46,8 +46,8 @@ import ProcessSummaryPlugin from '../dev.perfetto.ProcessSummary';
 import {
   Config as SliceTrackSummaryConfig,
   SLICE_TRACK_SUMMARY_KIND,
-  SliceTrackSummary,
-} from '../dev.perfetto.ProcessSummary/slice_track_summary';
+  GroupSummaryTrack,
+} from '../dev.perfetto.ProcessSummary/group_summary_track';
 
 function createTrackEventDetailsPanel(trace: Trace) {
   return () =>
@@ -73,6 +73,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
   private parentTrackNodes = new Map<string, TrackNode>();
   private store?: Store<TrackEventPluginState>;
+
+  private trackUrisToResolve = new Map<string, GroupSummaryTrack>();
 
   private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
     const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
@@ -273,6 +275,13 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           utid: utid ?? null,
         };
 
+        const track = new GroupSummaryTrack(
+          ctx,
+          config,
+          cpuCount,
+          threads,
+          false,
+        );
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
@@ -283,15 +292,9 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             utid: utid ?? undefined,
             trackEvent: true,
           },
-          renderer: new SliceTrackSummary(
-            ctx,
-            uri,
-            config,
-            cpuCount,
-            threads,
-            false,
-          ),
+          renderer: track,
         });
+        this.trackUrisToResolve.set(uri, track);
       }
       const parent = this.findParentTrackNode(
         ctx,
@@ -316,6 +319,15 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionTab(
       this.createTrackEventCallstackFlamegraphTab(ctx),
     );
+
+    // Now that all the tracks have been added, we can fetch the datasets.
+    for (const [uri, track] of this.trackUrisToResolve) {
+      const node = ctx.defaultWorkspace.tracks.getTrackByUri(uri);
+      if (!node) {
+        continue;
+      }
+      track.fetchDatasetsFromSliceTracks(node);
+    }
   }
 
   private createTrackEventCallstackFlamegraphTab(trace: Trace) {

@@ -25,10 +25,10 @@ import ThreadPlugin from '../dev.perfetto.Thread';
 import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 import {uuidv4Sql} from '../../base/uuid';
 import {
-  Config as SliceTrackSummaryConfig,
+  Config,
   SLICE_TRACK_SUMMARY_KIND,
-  SliceTrackSummary,
-} from './slice_track_summary';
+  GroupSummaryTrack,
+} from './group_summary_track';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
@@ -36,8 +36,23 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ProcessSummary';
   static readonly dependencies = [ThreadPlugin];
 
+  private trackUrisToResolve = new Map<string, GroupSummaryTrack>();
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
+
+    // We need to do this because for slice tracks, other plugins might be
+    // adding tracks in onTraceLoad which we won't see here. So we wait for
+    // traceready to bind the tracks.
+    ctx.onTraceReady.addListener(async () => {
+      for (const [uri, track] of this.trackUrisToResolve) {
+        const node = ctx.defaultWorkspace.tracks.getTrackByUri(uri);
+        if (!node) {
+          continue;
+        }
+        track.fetchDatasetsFromSliceTracks(node);
+      }
+    });
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
@@ -71,7 +86,6 @@ export default class implements PerfettoPlugin {
         FROM cpu
         GROUP BY machine
       )
-
       select *
       from (
         select
@@ -167,99 +181,30 @@ export default class implements PerfettoPlugin {
       // for additional details.
       isBootImageProfiling && chips.push('boot image profiling');
 
-      const config: SliceTrackSummaryConfig = {
+      const config: Config = {
         pidForColor,
         upid,
         utid,
       };
-
+      const track = new GroupSummaryTrack(
+        ctx,
+        config,
+        cpuCount,
+        threads,
+        hasSched,
+      );
       ctx.tracks.registerTrack({
         uri,
         tags: {
           kinds: [SLICE_TRACK_SUMMARY_KIND],
         },
         chips,
-        renderer: new SliceTrackSummary(
-          ctx,
-          uri,
-          config,
-          cpuCount,
-          threads,
-          hasSched,
-        ),
+        renderer: track,
         subtitle,
       });
+      if (!hasSched) {
+        this.trackUrisToResolve.set(uri, track);
+      }
     }
   }
-<<<<<<< HEAD
-
-  private async addKernelThreadSummary(ctx: Trace): Promise<void> {
-    const {engine} = ctx;
-
-    // Identify kernel threads if this is a linux system trace, and sufficient
-    // process information is available. Kernel threads are identified by being
-    // children of kthreadd (always pid 2).
-    // The query will return the kthreadd process row first, which must exist
-    // for any other kthreads to be returned by the query.
-    // TODO(rsavitski): figure out how to handle the idle process (swapper),
-    // which has pid 0 but appears as a distinct process (with its own comm) on
-    // each cpu. It'd make sense to exclude its thread state track, but still
-    // put process-scoped tracks in this group.
-    const result = await engine.query(`
-      select
-        t.utid, p.upid, (case p.pid when 2 then 1 else 0 end) isKthreadd
-      from
-        thread t
-        join process p using (upid)
-        left join process parent on (p.parent_upid = parent.upid)
-        join
-          (select true from metadata m
-             where (m.name = 'system_name' and m.str_value = 'Linux')
-           union
-           select 1 from (select true from sched limit 1))
-      where
-        p.pid = 2 or parent.pid = 2
-      order by isKthreadd desc
-    `);
-
-    const it = result.iter({
-      utid: NUM,
-      upid: NUM,
-    });
-
-    // Not applying kernel thread grouping.
-    if (!it.valid()) {
-      return;
-    }
-
-    // Get CPU count for kernel thread summary
-    const cpuCountResult = await engine.query(`
-      SELECT COUNT(*) as cpu_count FROM cpu WHERE IFNULL(machine_id, 0) = 0
-    `);
-    const cpuCount = cpuCountResult.firstRow({cpu_count: NUM}).cpu_count;
-
-    const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
-    const config: SliceTrackSummaryConfig = {
-      pidForColor: 2,
-      upid: it.upid,
-      utid: it.utid,
-    };
-
-    ctx.tracks.registerTrack({
-      uri: '/kernel',
-      tags: {
-        kinds: [SLICE_TRACK_SUMMARY_KIND],
-      },
-      renderer: new SliceTrackSummary(
-        ctx,
-        '/kernel',
-        config,
-        cpuCount,
-        threads,
-        false,
-      ),
-    });
-  }
-=======
->>>>>>> origin/main
 }
