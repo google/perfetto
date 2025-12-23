@@ -64,9 +64,10 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
         this.docsLink = 'https://perfetto.dev/docs/quickstart/linux-tracing';
         break;
       case 'CHROME':
-        this.cmdline = 'tools/perf/crossbench loading ' +
-            '--probe="perfetto:/tmp/config.txtpb --url=http://test.com" ' +
-            '--browser=path/to/chrome';
+        this.cmdline =
+          'tools/perf/crossbench loading ' +
+          '--probe="perfetto:/tmp/config.txtpb --url=http://test.com" ' +
+          '--browser=path/to/chrome';
         this.docsLink = 'https://perfetto.dev/docs/quickstart/chrome-tracing';
         break;
       case 'CHROME_OS':
