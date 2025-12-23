@@ -58,7 +58,7 @@ export class ConfigTab implements m.ClassComponent<ConfigTabAttrs> {
           ? m(CodeSnippet, {
               text: attrs.data.configText,
               language: 'prototext',
-              downloadFileName: 'config.pbtx',
+              downloadFileName: 'config.txtpb',
             })
           : m(EmptyState, {
               icon: 'settings',

@@ -103,7 +103,7 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
       m(CodeSnippet, {
         language: 'textproto',
         text: this.configTxt,
-        downloadFileName: 'config.pbtx',
+        downloadFileName: 'config.txtpb',
       }),
     ];
   }
