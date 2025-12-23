@@ -54,6 +54,7 @@ export enum ProfileType {
   NATIVE_HEAP_PROFILE = 'heap_profile:libc.malloc',
   JAVA_HEAP_SAMPLES = 'heap_profile:com.android.art',
   JAVA_HEAP_GRAPH = 'graph',
+  HEAP_PROFILE_SAMPLE = 'heap_profile_sample',
   PERF_SAMPLE = 'perf',
   INSTRUMENTS_SAMPLE = 'instruments',
 }
@@ -443,6 +444,12 @@ function flamegraphMetrics(
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
       ];
+    case ProfileType.HEAP_PROFILE_SAMPLE:
+      // This should not be called for individual samples
+      // Individual samples use HeapProfileSampleFlamegraphDetailsPanel
+      throw new Error(
+        'Use HeapProfileSampleFlamegraphDetailsPanel for individual samples',
+      );
     case ProfileType.PERF_SAMPLE:
       throw new Error('Perf sample not supported');
     case ProfileType.INSTRUMENTS_SAMPLE:
@@ -505,6 +512,8 @@ function getFlamegraphTitle(type: ProfileType) {
       return 'Mixed heap profile';
     case ProfileType.NATIVE_HEAP_PROFILE:
       return 'Native heap profile';
+    case ProfileType.HEAP_PROFILE_SAMPLE:
+      return 'Heap profile sample';
     case ProfileType.PERF_SAMPLE:
       assertFalse(false, 'Perf sample not supported');
       return 'Impossible';

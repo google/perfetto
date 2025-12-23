@@ -438,6 +438,10 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
+  for (auto it = storage.heap_profile_sample_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts(), end_ns);
+  }
   for (auto it = storage.thread_state_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts() + it.dur(), end_ns);
@@ -1153,6 +1157,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables, storage->mutable_heap_graph_class_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_heap_profile_allocation_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_heap_profile_sample_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_perf_sample_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_stack_profile_mapping_table());
