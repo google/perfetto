@@ -14,7 +14,8 @@
 
 import {IntervalIntersectNode} from './interval_intersect_node';
 import {ModifyColumnsNode} from './modify_columns_node';
-import {QueryNode, notifyNextNodes} from '../../query_node';
+import {QueryNode} from '../../query_node';
+import {notifyNextNodes} from '../graph_utils';
 import {ColumnInfo} from '../column_info';
 import {
   PerfettoSqlType,

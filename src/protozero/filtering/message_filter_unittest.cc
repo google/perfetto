@@ -63,7 +63,7 @@ TEST(MessageFilterTest, EndToEnd) {
 
   FilterUtil filter;
   ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "", ""));
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
 
   HeapBuffered<Message> msg;
@@ -155,7 +155,7 @@ TEST(MessageFilterTest, Passthrough) {
   FilterUtil filter;
   ASSERT_TRUE(filter.LoadMessageDefinition(
       schema.path(), "", "", {"TracePacket:other", "TracePacket:cfg"}));
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
 
   HeapBuffered<Message> msg;
@@ -233,7 +233,7 @@ TEST(MessageFilterTest, ChangeRoot) {
 
   FilterUtil filter;
   ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "", ""));
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
 
   HeapBuffered<Message> msg;
@@ -296,7 +296,7 @@ TEST(MessageFilterTest, StringFilter) {
   FilterUtil filter;
   ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "", "", {},
                                            {"TraceConfig:f2"}));
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
   PERFETTO_LOG(
       "%s", perfetto::base::Base64Encode(perfetto::base::StringView(bytecode))
@@ -339,7 +339,7 @@ TEST(MessageFilterTest, MalformedInput) {
   perfetto::base::FlushFile(*schema);
   FilterUtil filter;
   ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "", ""));
-  std::string bytecode = filter.GenerateFilterBytecode();
+  std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
   MessageFilter flt;
   ASSERT_TRUE(flt.LoadFilterBytecode(bytecode.data(), bytecode.size()));

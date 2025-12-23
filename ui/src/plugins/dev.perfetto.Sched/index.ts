@@ -154,10 +154,10 @@ export default class SchedPlugin implements PerfettoPlugin {
 
   async addCpuSliceTracks(ctx: Trace, cpus: ReadonlyArray<Cpu>): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceSelectionAggregator()),
+      createAggregationTab(ctx, new CpuSliceSelectionAggregator(ctx)),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator()),
+      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator(ctx)),
     );
 
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
@@ -252,7 +252,7 @@ export default class SchedPlugin implements PerfettoPlugin {
     const {engine} = ctx;
 
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ThreadStateSelectionAggregator()),
+      createAggregationTab(ctx, new ThreadStateSelectionAggregator(ctx)),
     );
 
     if (SchedPlugin.threadStateByCpuFlag.get()) {

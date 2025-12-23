@@ -44,6 +44,11 @@ enum FilterOpcode : uint32_t {
   kFilterOpcode_FilterString = 4,
 };
 
+// Constants for extracting opcode and field_id from bytecode words.
+// Bytecode words are encoded as: (field_id << kOpcodeShift) | opcode
+constexpr uint32_t kOpcodeMask = 0x7u;
+constexpr uint32_t kOpcodeShift = 3;
+
 }  // namespace protozero
 
 #endif  // SRC_PROTOZERO_FILTERING_FILTER_BYTECODE_COMMON_H_

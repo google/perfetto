@@ -304,3 +304,249 @@ class StdlibIntervals(TestSuite):
         300,10,10,5,0
         310,0,11,5,1
         """))
+
+  def test_interval_merge_overlapping_partitioned(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- Partition A: overlapping intervals
+              (1, 10, 'A'),
+              (5, 12, 'A'),
+              (20, 5, 'A'),
+              -- Partition B: non-overlapping intervals
+              (10, 5, 'B'),
+              (20, 10, 'B'),
+              -- Partition C: nested intervals
+              (0, 20, 'C'),
+              (5, 5, 'C'),
+              (12, 3, 'C')
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        1,16,"A"
+        20,5,"A"
+        10,5,"B"
+        20,10,"B"
+        0,20,"C"
+        """))
+
+  def test_interval_merge_overlapping_partitioned_adjacent(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- Adjacent intervals that touch (end of one equals start of next)
+              -- are treated as continuous and get merged
+              (0, 10, 'A'),
+              (10, 10, 'A'),
+              (20, 10, 'A'),
+              -- Non-adjacent intervals with gaps remain separate
+              (0, 5, 'B'),
+              (10, 5, 'B')
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        0,30,"A"
+        0,5,"B"
+        10,5,"B"
+        """))
+
+  def test_interval_merge_overlapping_partitioned_chain(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- Chain of overlapping intervals that all merge into one
+              (0, 10, 'A'),
+              (5, 10, 'A'),
+              (10, 10, 'A'),
+              (15, 10, 'A'),
+              (20, 10, 'A')
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        0,30,"A"
+        """))
+
+  def test_interval_merge_overlapping_partitioned_single(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- Single interval per partition
+              (10, 20, 'A'),
+              (30, 15, 'B'),
+              (50, 5, 'C')
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        10,20,"A"
+        30,15,"B"
+        50,5,"C"
+        """))
+
+  def test_interval_merge_overlapping_partitioned_complete_overlap(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- All intervals completely overlap within partition
+              (0, 100, 'A'),
+              (10, 20, 'A'),
+              (30, 10, 'A'),
+              (50, 5, 'A')
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        0,100,"A"
+        """))
+
+  def test_interval_merge_overlapping_partitioned_numeric_partition(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- Numeric partition keys
+              (0, 10, 1),
+              (5, 10, 1),
+              (20, 5, 1),
+              (0, 10, 2),
+              (15, 10, 2)
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        0,15,1
+        20,5,1
+        0,10,2
+        15,10,2
+        """))
+
+  def test_interval_merge_overlapping_partitioned_multiple_gaps(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- Multiple merged groups with gaps between them
+              (0, 10, 'A'),
+              (5, 10, 'A'),
+              (30, 10, 'A'),
+              (35, 10, 'A'),
+              (60, 10, 'A'),
+              (65, 10, 'A')
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        0,15,"A"
+        30,15,"A"
+        60,15,"A"
+        """))
+
+  def test_interval_merge_overlapping_partitioned_same_start(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- Multiple intervals with same start time
+              (10, 5, 'A'),
+              (10, 10, 'A'),
+              (10, 15, 'A'),
+              (30, 10, 'A'),
+              (30, 5, 'A')
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        10,15,"A"
+        30,10,"A"
+        """))
+
+  def test_interval_merge_overlapping_partitioned_zero_dur(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur, partition) AS (
+            VALUES
+              -- Zero duration intervals are treated as points
+              (0, 10, 'A'),
+              (5, 0, 'A'),
+              (20, 10, 'A'),
+              (10, 10, 'B'),
+              (15, 0, 'B')
+          )
+        SELECT *
+        FROM _interval_merge_overlapping_partitioned!(data, partition)
+        ORDER BY partition ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","partition"
+        0,10,"A"
+        20,10,"A"
+        10,10,"B"
+        """))

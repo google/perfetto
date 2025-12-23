@@ -16,6 +16,10 @@
 
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <string>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
@@ -81,17 +85,39 @@ void FilterBytecodeGenerator::AddNestedField(uint32_t field_id,
 // The returned bytecode is a binary buffer which consists of a sequence of
 // varints (the opcodes) and a checksum.
 // The returned string can be passed as-is to FilterBytecodeParser.Load().
-std::string FilterBytecodeGenerator::Serialize() {
+FilterBytecodeGenerator::SerializeResult FilterBytecodeGenerator::Serialize() {
   PERFETTO_CHECK(endmessage_called_);
   PERFETTO_CHECK(max_msg_index_ < num_messages_);
-  protozero::PackedVarInt words;
-  perfetto::base::FnvHasher hasher;
-  for (uint32_t word : bytecode_) {
-    words.Append(word);
-    hasher.Update(word);
+
+  SerializeResult result;
+
+  // Serialize main bytecode.
+  {
+    protozero::PackedVarInt words;
+    perfetto::base::FnvHasher hasher;
+    for (uint32_t word : bytecode_) {
+      words.Append(word);
+      hasher.Update(word);
+    }
+    words.Append(static_cast<uint32_t>(hasher.digest()));
+    result.bytecode =
+        std::string(reinterpret_cast<const char*>(words.data()), words.size());
   }
-  words.Append(static_cast<uint32_t>(hasher.digest()));
-  return std::string(reinterpret_cast<const char*>(words.data()), words.size());
+
+  // Serialize v54 overlay if non-empty.
+  if (!v54_overlay_.empty()) {
+    protozero::PackedVarInt words;
+    perfetto::base::FnvHasher hasher;
+    for (uint32_t word : v54_overlay_) {
+      words.Append(word);
+      hasher.Update(word);
+    }
+    words.Append(static_cast<uint32_t>(hasher.digest()));
+    result.v54_overlay =
+        std::string(reinterpret_cast<const char*>(words.data()), words.size());
+  }
+
+  return result;
 }
 
 }  // namespace protozero

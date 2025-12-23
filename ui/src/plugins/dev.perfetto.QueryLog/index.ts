@@ -38,7 +38,7 @@ export default class QueryLogPlugin implements PerfettoPlugin {
       uri: tabUri,
       content: {
         getTitle() {
-          return 'Query log';
+          return 'Query Log';
         },
         render() {
           // Show the logs in reverse order
@@ -56,7 +56,7 @@ export default class QueryLogPlugin implements PerfettoPlugin {
             queryLog.map((ql) =>
               m(
                 'tr',
-                m('td', ql.query),
+                m('td', m('pre', ql.query.trim())),
                 m('td', ql.tag),
                 m(
                   'td',

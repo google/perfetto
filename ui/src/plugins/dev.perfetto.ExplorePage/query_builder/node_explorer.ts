@@ -15,7 +15,8 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {isAQuery, Query, QueryNode, queryToRun} from '../query_node';
+import {Query, QueryNode} from '../query_node';
+import {isAQuery, queryToRun} from './query_builder_utils';
 import {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
@@ -104,6 +105,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       );
       this.currentQuery = error;
       attrs.onQueryAnalyzed(error);
+      // Clear prevSqString so that when node becomes valid again, we'll re-process it
+      this.prevSqString = undefined;
       return;
     }
 

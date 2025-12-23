@@ -17,8 +17,10 @@
 #ifndef SRC_PROFILING_DEOBFUSCATOR_H_
 #define SRC_PROFILING_DEOBFUSCATOR_H_
 
+#include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,16 +32,21 @@ namespace profiling {
 std::string FlattenClasses(
     const std::map<std::string, std::vector<std::string>>& m);
 
+// R8 inline method mapping with line number information.
+// Multiple entries with the same obfuscated_name and overlapping obfuscated
+// line ranges form an inline chain, ordered innermost (inlined) first.
+struct MethodMapping {
+  std::string obfuscated_name;
+  std::string deobfuscated_name;  // Fully qualified: "com.example.Class.method"
+  std::optional<uint32_t> obfuscated_line_start;
+  std::optional<uint32_t> obfuscated_line_end;
+  std::optional<uint32_t> source_line_start;
+  std::optional<uint32_t> source_line_end;
+};
+
 class ObfuscatedClass {
  public:
   explicit ObfuscatedClass(std::string d) : deobfuscated_name_(std::move(d)) {}
-  ObfuscatedClass(
-      std::string d,
-      std::map<std::string, std::string> f,
-      std::map<std::string, std::map<std::string, std::vector<std::string>>> m)
-      : deobfuscated_name_(std::move(d)),
-        deobfuscated_fields_(std::move(f)),
-        deobfuscated_methods_(std::move(m)) {}
 
   const std::string& deobfuscated_name() const { return deobfuscated_name_; }
 
@@ -47,15 +54,10 @@ class ObfuscatedClass {
     return deobfuscated_fields_;
   }
 
-  std::map<std::string, std::string> deobfuscated_methods() const {
-    std::map<std::string, std::string> result;
-    for (const auto& p : deobfuscated_methods_) {
-      result.emplace(p.first, FlattenClasses(p.second));
-    }
-    return result;
-  }
-
-  bool redefined_methods() const { return redefined_methods_; }
+  // Returns map of obfuscated_name -> deobfuscated_name.
+  // For R8 inline chains, returns the outermost method.
+  // For ambiguous mappings, joins names with " | ".
+  std::map<std::string, std::string> deobfuscated_methods() const;
 
   bool AddField(std::string obfuscated_name, std::string deobfuscated_name) {
     auto p = deobfuscated_fields_.emplace(std::move(obfuscated_name),
@@ -63,28 +65,18 @@ class ObfuscatedClass {
     return p.second || p.first->second == deobfuscated_name;
   }
 
-  void AddMethod(std::string obfuscated_name, std::string deobfuscated_name) {
-    std::string cls = deobfuscated_name_;
-    auto dot = deobfuscated_name.rfind('.');
-    if (dot != std::string::npos) {
-      cls = deobfuscated_name.substr(0, dot);
-      deobfuscated_name = deobfuscated_name.substr(dot + 1);
-    }
-    auto& deobfuscated_names_for_cls =
-        deobfuscated_methods_[std::move(obfuscated_name)][std::move(cls)];
-    deobfuscated_names_for_cls.push_back(std::move(deobfuscated_name));
-    if (deobfuscated_names_for_cls.size() > 1 ||
-        deobfuscated_methods_.size() > 1) {
-      redefined_methods_ = true;
-    }
+  void AddMethod(MethodMapping mapping) {
+    method_mappings_.push_back(std::move(mapping));
+  }
+
+  const std::vector<MethodMapping>& method_mappings() const {
+    return method_mappings_;
   }
 
  private:
   std::string deobfuscated_name_;
   std::map<std::string, std::string> deobfuscated_fields_;
-  std::map<std::string, std::map<std::string, std::vector<std::string>>>
-      deobfuscated_methods_;
-  bool redefined_methods_ = false;
+  std::vector<MethodMapping> method_mappings_;
 };
 
 class ProguardParser {

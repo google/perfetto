@@ -31,7 +31,9 @@ test('get query for simple dataset', () => {
     schema: {id: NUM},
   });
 
-  expect(dataset.query()).toEqual('SELECT id FROM (slice)');
+  expect(dataset.query()).toEqual(`SELECT
+  id
+FROM (slice)`);
 });
 
 test("get query for simple dataset with 'eq' filter", () => {
@@ -44,7 +46,10 @@ test("get query for simple dataset with 'eq' filter", () => {
     },
   });
 
-  expect(dataset.query()).toEqual('SELECT id FROM (slice) WHERE id = 123');
+  expect(dataset.query()).toEqual(`SELECT
+  id
+FROM (slice)
+WHERE id = 123`);
 });
 
 test("get query for simple dataset with an 'in' filter", () => {
@@ -57,9 +62,10 @@ test("get query for simple dataset with an 'in' filter", () => {
     },
   });
 
-  expect(dataset.query()).toEqual(
-    'SELECT id FROM (slice) WHERE id IN (123, 456)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id
+FROM (slice)
+WHERE id IN (123, 456)`);
 });
 
 test('get query with column mapping', () => {
@@ -69,7 +75,10 @@ test('get query with column mapping', () => {
     select: {id: 'id', name: 'slice_name'},
   });
 
-  expect(dataset.query()).toEqual('SELECT id, slice_name AS name FROM (slice)');
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  slice_name AS name
+FROM (slice)`);
 });
 
 test('get query with partial column mapping', () => {
@@ -80,9 +89,11 @@ test('get query with partial column mapping', () => {
   });
 
   // Only 'name' is mapped, 'id' and 'dur' use their original names
-  expect(dataset.query()).toEqual(
-    'SELECT id, slice_name AS name, dur FROM (slice)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  slice_name AS name,
+  dur
+FROM (slice)`);
 });
 
 test('get query with column mapping and filter', () => {
@@ -96,9 +107,11 @@ test('get query with column mapping and filter', () => {
     },
   });
 
-  expect(dataset.query()).toEqual(
-    'SELECT slice_id AS id, slice_name AS name FROM (slice) WHERE id = 123',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  slice_id AS id,
+  slice_name AS name
+FROM (slice)
+WHERE id = 123`);
 });
 
 test('get query with single join', () => {
@@ -110,9 +123,11 @@ test('get query with single join', () => {
     },
   });
 
-  expect(dataset.query()).toEqual(
-    'SELECT id, name, tid FROM (slice) JOIN thread AS thread USING (utid)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  name,
+  tid
+FROM (slice) JOIN thread AS thread USING (utid)`);
 });
 
 test('get query with multiple joins', () => {
@@ -125,9 +140,11 @@ test('get query with multiple joins', () => {
     },
   });
 
-  expect(dataset.query()).toEqual(
-    'SELECT id, name, process_name FROM (slice) JOIN thread AS thread USING (utid) JOIN process AS process USING (upid)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  name,
+  process_name
+FROM (slice) JOIN thread AS thread USING (utid) JOIN process AS process USING (upid)`);
 });
 
 test('get query with joins and filter', () => {
@@ -143,9 +160,11 @@ test('get query with joins and filter', () => {
     },
   });
 
-  expect(dataset.query()).toEqual(
-    'SELECT id, name FROM (slice) JOIN thread AS thread USING (utid) WHERE id = 123',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  name
+FROM (slice) JOIN thread AS thread USING (utid)
+WHERE id = 123`);
 });
 
 test('get query with joins, column mapping, and filter', () => {
@@ -162,9 +181,11 @@ test('get query with joins, column mapping, and filter', () => {
     },
   });
 
-  expect(dataset.query()).toEqual(
-    'SELECT slice_id AS id, thread.name AS thread_name FROM (slice) JOIN thread AS thread USING (utid) WHERE id IN (123, 456)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  slice_id AS id,
+  thread.name AS thread_name
+FROM (slice) JOIN thread AS thread USING (utid)
+WHERE id IN (123, 456)`);
 });
 
 test('get query with select using object format', () => {
@@ -180,9 +201,10 @@ test('get query with select using object format', () => {
     },
   });
 
-  expect(dataset.query()).toEqual(
-    'SELECT id, thread.name AS thread_name FROM (slice) JOIN thread AS thread USING (utid)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  thread.name AS thread_name
+FROM (slice) JOIN thread AS thread USING (utid)`);
 });
 
 test('get query with mixed select formats', () => {
@@ -199,9 +221,11 @@ test('get query with mixed select formats', () => {
     },
   });
 
-  expect(dataset.query()).toEqual(
-    'SELECT slice_id AS id, slice.name AS name, thread.name AS thread_name FROM (slice) JOIN thread AS thread USING (utid)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  slice_id AS id,
+  slice.name AS name,
+  thread.name AS thread_name
+FROM (slice) JOIN thread AS thread USING (utid)`);
 });
 
 test('unique joins not referenced in select are omitted', () => {
@@ -215,7 +239,10 @@ test('unique joins not referenced in select are omitted', () => {
   });
 
   // Neither join is referenced, so both should be omitted
-  expect(dataset.query()).toEqual('SELECT id, name FROM (slice)');
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  name
+FROM (slice)`);
 });
 
 test('non-unique joins are always included', () => {
@@ -229,9 +256,10 @@ test('non-unique joins are always included', () => {
   });
 
   // Both joins should be included even though not referenced
-  expect(dataset.query()).toEqual(
-    'SELECT id, name FROM (slice) JOIN thread AS thread USING (utid) JOIN process AS process USING (upid)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  name
+FROM (slice) JOIN thread AS thread USING (utid) JOIN process AS process USING (upid)`);
 });
 
 test('unique joins referenced in select are included', () => {
@@ -249,9 +277,10 @@ test('unique joins referenced in select are included', () => {
   });
 
   // Only 'thread' join is referenced, so 'process' should be omitted
-  expect(dataset.query()).toEqual(
-    'SELECT id, thread.name AS thread_name FROM (slice) JOIN thread AS thread USING (utid)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  thread.name AS thread_name
+FROM (slice) JOIN thread AS thread USING (utid)`);
 });
 
 test('mixed unique and non-unique joins', () => {
@@ -266,9 +295,10 @@ test('mixed unique and non-unique joins', () => {
 
   // 'thread' is unique and not referenced, so omitted
   // 'process' is not unique, so included
-  expect(dataset.query()).toEqual(
-    'SELECT id, name FROM (slice) JOIN process AS process USING (upid)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id,
+  name
+FROM (slice) JOIN process AS process USING (upid)`);
 });
 
 test('union query with column elimination', () => {
@@ -286,9 +316,11 @@ test('union query with column elimination', () => {
   ]);
 
   // When querying with a subset of columns, only those columns are selected
-  expect(dataset.query({id: NUM, name: STR})).toEqual(
-    'SELECT id, name FROM (slice) WHERE id IN (123, 456)',
-  );
+  expect(dataset.query({id: NUM, name: STR})).toEqual(`SELECT
+  id,
+  name
+FROM (slice)
+WHERE id IN (123, 456)`);
 });
 
 test('union query with join elimination', () => {
@@ -322,14 +354,19 @@ test('union query with join elimination', () => {
   ]);
 
   // When querying without thread_name, the unique thread join should be eliminated
-  expect(dataset.query({id: NUM, name: STR})).toEqual(
-    'SELECT id, name FROM (slice) WHERE id IN (123, 456)',
-  );
+  expect(dataset.query({id: NUM, name: STR})).toEqual(`SELECT
+  id,
+  name
+FROM (slice)
+WHERE id IN (123, 456)`);
 
   // When querying with thread_name, the thread join should be included
-  expect(dataset.query({id: NUM, name: STR, thread_name: STR})).toEqual(
-    'SELECT id, name, thread.name AS thread_name FROM (slice) JOIN thread AS thread USING (utid) WHERE id IN (123, 456)',
-  );
+  expect(dataset.query({id: NUM, name: STR, thread_name: STR})).toEqual(`SELECT
+  id,
+  name,
+  thread.name AS thread_name
+FROM (slice) JOIN thread AS thread USING (utid)
+WHERE id IN (123, 456)`);
 });
 
 test('get query for union dataset', () => {
@@ -353,9 +390,10 @@ test('get query for union dataset', () => {
   ]);
 
   // Query automatically optimizes the union into a single source with IN filter
-  expect(dataset.query()).toEqual(
-    'SELECT id FROM (slice) WHERE id IN (123, 456)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id
+FROM (slice)
+WHERE id IN (123, 456)`);
 });
 
 test('union dataset batches large numbers of unions', () => {
@@ -377,7 +415,7 @@ test('union dataset batches large numbers of unions', () => {
 
   // After optimization, all 800 datasets are merged into a single source with
   // an IN filter, so the query should just be a simple SELECT with WHERE IN.
-  expect(query).toContain('SELECT bar FROM (foo) WHERE some_id IN (');
+  expect(query).toContain('SELECT\n  bar\nFROM (foo)\nWHERE some_id IN (');
 
   // The IN clause should contain all 800 values
   const inMatch = query.match(/IN \(([\d, ]+)\)/);
@@ -513,9 +551,10 @@ test('optimize a union dataset', () => {
   ]);
 
   // Optimization happens automatically in query()
-  expect(dataset.query()).toEqual(
-    'SELECT id FROM (slice) WHERE track_id IN (123, 456)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id
+FROM (slice)
+WHERE track_id IN (123, 456)`);
 });
 
 test('optimize a union dataset with different types of filters', () => {
@@ -539,9 +578,10 @@ test('optimize a union dataset with different types of filters', () => {
   ]);
 
   // Optimization merges all values into a single IN filter
-  expect(dataset.query()).toEqual(
-    'SELECT id FROM (slice) WHERE track_id IN (123, 456, 789)',
-  );
+  expect(dataset.query()).toEqual(`SELECT
+  id
+FROM (slice)
+WHERE track_id IN (123, 456, 789)`);
 });
 
 test('optimize a union dataset with different schemas', () => {
@@ -558,9 +598,10 @@ test('optimize a union dataset with different schemas', () => {
 
   // When querying with the union schema (which is empty {}), we get an empty
   // SELECT. But we can query with a specific schema to get columns.
-  expect(dataset.query({foo: NUM, bar: NUM})).toEqual(
-    'SELECT foo, bar FROM (slice)',
-  );
+  expect(dataset.query({foo: NUM, bar: NUM})).toEqual(`SELECT
+  foo,
+  bar
+FROM (slice)`);
 });
 
 test('union type widening', () => {

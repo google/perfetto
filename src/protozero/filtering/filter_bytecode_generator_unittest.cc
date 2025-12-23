@@ -38,7 +38,7 @@ TEST(FilterBytecodeGeneratorTest, SimpleFields) {
   gen.EndMessage();
 
   FilterBytecodeParser parser;
-  std::string bytecode = gen.Serialize();
+  std::string bytecode = gen.Serialize().bytecode;
   ASSERT_TRUE(parser.Load(reinterpret_cast<const uint8_t*>(bytecode.data()),
                           bytecode.size()));
   EXPECT_FALSE(parser.Query(0, 0).allowed);
@@ -61,7 +61,7 @@ TEST(FilterBytecodeGeneratorTest, SimpleAndRanges) {
   gen.EndMessage();
 
   FilterBytecodeParser parser;
-  std::string bytecode = gen.Serialize();
+  std::string bytecode = gen.Serialize().bytecode;
   ASSERT_TRUE(parser.Load(reinterpret_cast<const uint8_t*>(bytecode.data()),
                           bytecode.size()));
   EXPECT_FALSE(parser.Query(0, 0).allowed);
@@ -103,7 +103,7 @@ TEST(FilterBytecodeGeneratorTest, Nested) {
   gen.EndMessage();
 
   FilterBytecodeParser parser;
-  std::string bytecode = gen.Serialize();
+  std::string bytecode = gen.Serialize().bytecode;
   ASSERT_TRUE(parser.Load(reinterpret_cast<const uint8_t*>(bytecode.data()),
                           bytecode.size()));
 

@@ -44,6 +44,7 @@
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/etw/file_io_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -63,6 +64,7 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context) {
   context->slice_tracker = Ptr<SliceTracker>::MakeRoot(context);
   context->slice_translation_table =
       Ptr<SliceTranslationTable>::MakeRoot(context->storage.get());
+  context->file_io_tracker = Ptr<FileIoTracker>::MakeRoot(context);
   context->flow_tracker = Ptr<FlowTracker>::MakeRoot(context);
   context->process_track_translation_table =
       Ptr<ProcessTrackTranslationTable>::MakeRoot(context->storage.get());

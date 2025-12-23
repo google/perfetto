@@ -14,14 +14,8 @@
 
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
-import {assertExists} from '../../base/logging';
 import {QueryResponse, runQueryForQueryTable} from './queries';
-import {QueryError} from '../../trace_processor/query_result';
-import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
-import {Button} from '../../widgets/button';
-import {PopupMenu} from '../../widgets/menu';
-import {PopupPosition} from '../../widgets/popup';
-import {QueryTable} from './query_table';
+import {QueryResultsTable} from './query_table';
 import {Trace} from '../../public/trace';
 import {Tab} from '../../public/tab';
 
@@ -54,7 +48,6 @@ export function addQueryResultsTab(
 
 export class QueryResultTab implements Tab {
   private queryResponse?: QueryResponse;
-  private sqlViewName?: string;
 
   constructor(
     private readonly trace: Trace,
@@ -72,13 +65,7 @@ export class QueryResultTab implements Tab {
         this.trace.engine,
       );
       this.queryResponse = result;
-      if (result.error !== undefined) {
-        return;
-      }
     }
-
-    // TODO(stevegolton): Do we really need to create this view upfront?
-    this.sqlViewName = await this.createViewForDebugTrack(uuidv4());
   }
 
   getTitle(): string {
@@ -89,62 +76,16 @@ export class QueryResultTab implements Tab {
   }
 
   render(): m.Children {
-    return m(QueryTable, {
+    return m(QueryResultsTable, {
+      isLoading: this.isLoading(),
       trace: this.trace,
       query: this.args.query,
       resp: this.queryResponse,
       fillHeight: true,
-      contextButtons: [
-        this.sqlViewName === undefined
-          ? null
-          : m(
-              PopupMenu,
-              {
-                trigger: m(Button, {label: 'Show debug track'}),
-                position: PopupPosition.Top,
-              },
-              m(AddDebugTrackMenu, {
-                trace: this.trace,
-                query: `select * from ${this.sqlViewName}`,
-                availableColumns: assertExists(this.queryResponse).columns,
-              }),
-            ),
-      ],
     });
   }
 
   isLoading() {
     return this.queryResponse === undefined;
   }
-
-  async createViewForDebugTrack(uuid: string): Promise<string> {
-    const viewId = uuidToViewName(uuid);
-    // Assuming that the query results come from a SELECT query, try creating a
-    // view to allow us to reuse it for further queries.
-    const hasValidQueryResponse =
-      this.queryResponse && this.queryResponse.error === undefined;
-    const sqlQuery = hasValidQueryResponse
-      ? this.queryResponse!.lastStatementSql
-      : this.args.query;
-    try {
-      const createViewResult = await this.trace.engine.query(
-        `create view ${viewId} as ${sqlQuery}`,
-      );
-      if (createViewResult.error()) {
-        // If it failed, do nothing.
-        return '';
-      }
-    } catch (e) {
-      if (e instanceof QueryError) {
-        // If it failed, do nothing.
-        return '';
-      }
-      throw e;
-    }
-    return viewId;
-  }
-}
-
-export function uuidToViewName(uuid: string): string {
-  return `view_${uuid.split('-').join('_')}`;
 }

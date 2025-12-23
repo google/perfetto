@@ -14,7 +14,7 @@
 
 import {assertUnreachable} from '../base/logging';
 import {getOrCreate} from '../base/utils';
-import {checkExtends, SqlValue, unionTypes} from './query_result';
+import {checkExtends, NUM, SqlValue, unionTypes, UNKNOWN} from './query_result';
 import {sqlValueToSqliteString} from './sql_utils';
 
 /**
@@ -168,13 +168,13 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
 
   query(schema?: DatasetSchema) {
     schema = schema ?? this.schema;
-    const cols = Object.keys(schema);
+    const colNames = Object.keys(schema);
 
     // Track which joins are referenced in select statements
     const referencedJoins = new Set<string>();
 
     // Build the SELECT clause with column mappings if provided
-    const selectCols = cols.map((col) => {
+    const selectCols = colNames.map((col) => {
       const selectValue = this.select?.[col as keyof T];
       if (selectValue === undefined) {
         return col;
@@ -228,12 +228,16 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
       }
     }
 
-    const selectSql = `SELECT ${selectCols.join(', ')} FROM ${fromClause}`;
+    const colList = selectCols.join(',\n');
+    const selectSql = `SELECT
+${indent(colList, 2)}
+FROM ${fromClause}`;
     const filterSql = this.filterQuery();
     if (filterSql === undefined) {
       return selectSql;
     }
-    return `${selectSql} WHERE ${filterSql}`;
+    return `${selectSql}
+WHERE ${filterSql}`;
   }
 
   implements<T extends DatasetSchema>(required: T): this is Dataset<T> {
@@ -415,7 +419,7 @@ export class UnionDataset<T extends DatasetSchema = DatasetSchema>
     }
 
     // Handle large number of sub-queries by batching into multiple CTEs.
-    let sql = 'with\n';
+    let sql = 'WITH\n';
     const cteNames: string[] = [];
 
     // Create CTEs for batches of sub-queries
@@ -424,7 +428,9 @@ export class UnionDataset<T extends DatasetSchema = DatasetSchema>
       const cteName = `union_batch_${Math.floor(i / MAX_SUBQUERIES_PER_UNION)}`;
       cteNames.push(cteName);
 
-      sql += `${cteName} as (\n${batch.join('\nUNION ALL\n')}\n)`;
+      sql += `${cteName} AS (
+${indent(batch.join('\nUNION ALL\n'), 2)}
+)`;
 
       // Add comma unless this is the last CTE.
       if (i + MAX_SUBQUERIES_PER_UNION < subQueries.length) {
@@ -432,12 +438,16 @@ export class UnionDataset<T extends DatasetSchema = DatasetSchema>
       }
     }
 
-    const cols = Object.keys(querySchema);
+    const cols = Object.keys(querySchema).join(',\n');
 
     // Union all the CTEs together in the final query.
     sql += '\n';
     sql += cteNames
-      .map((name) => `SELECT ${cols.join(', ')} FROM ${name}`)
+      .map(
+        (name) => `SELECT
+${indent(cols, 2)}
+FROM ${name}`,
+      )
       .join('\nUNION ALL\n');
 
     return sql;
@@ -476,3 +486,318 @@ function mergeFilters(filters: InFilter[]): InFilter | undefined {
   const values = new Set(filters.flatMap((filter) => filter.in));
   return {col, in: Array.from(values)};
 }
+
+function indent(str: string, spaces: number): string {
+  const padding = ' '.repeat(spaces);
+  return str
+    .split('\n')
+    .map((line) => padding + line)
+    .join('\n');
+}
+
+const lineageSchema = {__groupid: NUM, __partition: UNKNOWN};
+
+/**
+ * Internal structure for tracking partition maps in UnionDatasetWithLineage.
+ */
+interface PartitionMapWithUnfiltered<T> {
+  /** For each partition column, map values to source items */
+  columns: Map<string, Map<SqlValue, Set<T>>>;
+  /** Items without filters that should match all rows */
+  unfilteredInputs: Set<T>;
+}
+
+/**
+ * A union dataset that automatically adds __groupid and __partition columns
+ * for lineage tracking. This allows resolving which source dataset(s) each
+ * row came from after querying.
+ *
+ * @example
+ * ```ts
+ * const union = UnionDatasetWithLineage.create([ds1, ds2, ds3]);
+ * const result = await engine.query(union.query());
+ * const iter = result.iter(union.schema);
+ *
+ * for (; iter.valid(); iter.next()) {
+ *   const sourceDatasets = union.resolveLineage(iter);
+ *   console.log('Row came from:', sourceDatasets, iter.a, iter.b);
+ * }
+ * ```
+ */
+export class UnionDatasetWithLineage<T extends DatasetSchema>
+  implements Dataset<T>
+{
+  readonly sourceDatasets: ReadonlyArray<Dataset>;
+  private readonly sourceGroupArray: Array<[string, Array<{dataset: Dataset}>]>;
+  private readonly partitionMaps: Map<
+    string,
+    PartitionMapWithUnfiltered<Dataset>
+  >;
+
+  static create<T extends readonly Dataset[]>(
+    datasets: T,
+  ): UnionDatasetWithLineage<T[number]['schema'] & typeof lineageSchema> {
+    return new UnionDatasetWithLineage(datasets);
+  }
+
+  private constructor(readonly datasets: ReadonlyArray<Dataset>) {
+    this.sourceDatasets = datasets;
+
+    // Group datasets by src (for SourceDatasets)
+    const sourceGroups = new Map<string, Array<{dataset: Dataset}>>();
+
+    for (const dataset of datasets) {
+      if (dataset instanceof SourceDataset) {
+        const group = sourceGroups.get(dataset.src) ?? [];
+        group.push({dataset});
+        sourceGroups.set(dataset.src, group);
+      } else {
+        // Non-SourceDataset: treat as its own group with a unique key
+        const key = `__other_${sourceGroups.size}`;
+        sourceGroups.set(key, [{dataset}]);
+      }
+    }
+
+    this.sourceGroupArray = Array.from(sourceGroups.entries());
+
+    // Build partition maps for each group
+    this.partitionMaps = new Map();
+    for (const [src, group] of this.sourceGroupArray) {
+      this.partitionMaps.set(src, this.buildPartitionMap(group));
+    }
+  }
+
+  get schema(): T {
+    // Compute union schema from all datasets
+    let unionSchema: Record<string, SqlValue> | undefined = undefined;
+    this.sourceDatasets.forEach((ds) => {
+      const dsSchema = ds.schema;
+      if (unionSchema === undefined) {
+        unionSchema = dsSchema;
+      } else {
+        const newSch: Record<string, SqlValue> = {};
+        for (const [key, value] of Object.entries(unionSchema)) {
+          if (key in dsSchema) {
+            const commonType = unionTypes(value, dsSchema[key]);
+            if (commonType !== undefined) {
+              newSch[key] = commonType;
+            }
+          }
+        }
+        unionSchema = newSch;
+      }
+    });
+
+    // Add lineage columns to the schema
+    const result = {...(unionSchema ?? {}), ...lineageSchema};
+    return result as unknown as T;
+  }
+
+  query(schema?: DatasetSchema): string {
+    const querySchema = schema ?? this.schema;
+
+    // Remove lineage columns from the requested schema to get base columns
+    const baseSchemaEntries = Object.entries(querySchema).filter(
+      ([key]) => key !== '__groupid' && key !== '__partition',
+    );
+    const baseSchema: DatasetSchema = Object.fromEntries(baseSchemaEntries);
+
+    const resultColNames = Object.keys(baseSchema);
+
+    // Build per-group queries with __groupid and __partition columns
+    const groupQueries: string[] = [];
+
+    for (let groupId = 0; groupId < this.sourceGroupArray.length; groupId++) {
+      const [src, group] = this.sourceGroupArray[groupId];
+      const partitionMap = this.partitionMaps.get(src)!;
+      const partitionColumns = Array.from(partitionMap.columns.keys());
+
+      // Build union dataset for this group
+      const datasets = group.map((g) => g.dataset);
+      const unionDataset = UnionDataset.create(datasets);
+
+      // Build query schema: base columns + partition columns
+      const groupQuerySchema: DatasetSchema = {
+        ...baseSchema,
+        ...Object.fromEntries(partitionColumns.map((col) => [col, NUM])),
+      };
+
+      const baseQuery = unionDataset.query(groupQuerySchema);
+
+      // Normalize partition to single __partition column (use first partition col or NULL)
+      const partitionExpr =
+        partitionColumns.length > 0 ? partitionColumns[0] : 'NULL';
+
+      // Select result columns + groupid + partition
+      const selectCols = resultColNames.join(',\n');
+      groupQueries.push(
+        `SELECT
+${indent(selectCols, 2)},
+  ${groupId} AS __groupid,
+  ${partitionExpr} AS __partition
+FROM (
+${indent(baseQuery, 2)}
+)`,
+      );
+    }
+
+    // Handle empty case
+    if (groupQueries.length === 0) {
+      const cols = resultColNames.join(',\n');
+      return `SELECT
+${indent(cols, 2)},
+  0 AS __groupid,
+  NULL AS __partition
+WHERE FALSE`;
+    }
+
+    // Single group - no need for UNION
+    if (groupQueries.length === 1) {
+      return groupQueries[0];
+    }
+
+    // Small number of groups - use simple UNION ALL
+    if (groupQueries.length <= MAX_SUBQUERIES_PER_UNION) {
+      return groupQueries.join('\nUNION ALL\n');
+    }
+
+    // Large number of groups - use CTEs to avoid SQLite limits
+    const ctes: string[] = [];
+    const cteNames: string[] = [];
+
+    for (let i = 0; i < groupQueries.length; i += MAX_SUBQUERIES_PER_UNION) {
+      const chunk = groupQueries.slice(i, i + MAX_SUBQUERIES_PER_UNION);
+      const cteName = `_lineage_chunk_${Math.floor(i / MAX_SUBQUERIES_PER_UNION)}`;
+      cteNames.push(cteName);
+      ctes.push(`${cteName} AS (
+${indent(chunk.join('\nUNION ALL\n'), 2)}
+)`);
+    }
+
+    const cteSection = `WITH ${ctes.join(',\n')}`;
+    const finalUnion = cteNames
+      .map((name) => `SELECT * FROM ${name}`)
+      .join('\nUNION ALL\n');
+
+    return `${cteSection}\n${finalUnion}`;
+  }
+
+  implements<T extends DatasetSchema>(schema: T): this is Dataset<T> {
+    return Object.entries(schema).every(([name, required]) => {
+      return name in this.schema && checkExtends(required, this.schema[name]);
+    });
+  }
+
+  /**
+   * Resolve which source dataset(s) a row came from using its lineage columns.
+   *
+   * @param row - A row object containing __groupid and __partition values
+   * @returns The source dataset(s) that produced this row
+   */
+  resolveLineage(row: typeof lineageSchema): readonly Dataset[] {
+    const groupId = row.__groupid as number;
+    const partitionValue = row.__partition;
+
+    if (groupId < 0 || groupId >= this.sourceGroupArray.length) {
+      return [];
+    }
+
+    const [src, group] = this.sourceGroupArray[groupId];
+    const partitionMap = this.partitionMaps.get(src)!;
+
+    const results: Dataset[] = [];
+
+    // No partition columns - all datasets in group match
+    if (partitionMap.columns.size === 0) {
+      return group.map((g) => g.dataset);
+    }
+
+    // Find matching datasets via partition value
+    for (const [_colName, valueMap] of partitionMap.columns.entries()) {
+      const matchingDatasets =
+        valueMap.get(partitionValue) ?? valueMap.get(Number(partitionValue));
+      if (matchingDatasets) {
+        results.push(...matchingDatasets);
+        break;
+      }
+    }
+
+    // Add unfiltered datasets - they match all rows
+    for (const unfilteredDataset of partitionMap.unfilteredInputs) {
+      results.push(unfilteredDataset);
+    }
+
+    return results;
+  }
+
+  /**
+   * Build partition map for a group of datasets.
+   * Maps partition column values back to source datasets for O(1) lineage lookup.
+   */
+  private buildPartitionMap(
+    group: Array<{dataset: Dataset}>,
+  ): PartitionMapWithUnfiltered<Dataset> {
+    const partitionMap: PartitionMapWithUnfiltered<Dataset> = {
+      columns: new Map(),
+      unfilteredInputs: new Set(),
+    };
+
+    for (const {dataset} of group) {
+      if (!(dataset instanceof SourceDataset)) {
+        // Non-SourceDataset: treat as unfiltered
+        partitionMap.unfilteredInputs.add(dataset);
+        continue;
+      }
+
+      if (!dataset.filter) {
+        // Track datasets without filters - they match all rows
+        partitionMap.unfilteredInputs.add(dataset);
+        continue;
+      }
+
+      const colName = dataset.filter.col;
+      const valueMap = partitionMap.columns.get(colName) ?? new Map();
+      partitionMap.columns.set(colName, valueMap);
+
+      const values =
+        'eq' in dataset.filter ? [dataset.filter.eq] : dataset.filter.in;
+
+      for (const value of values) {
+        const sourceSet = valueMap.get(value) ?? new Set();
+        sourceSet.add(dataset);
+        valueMap.set(value, sourceSet);
+      }
+    }
+
+    return partitionMap;
+  }
+}
+
+// async function _testUnionDatasetWithLineage(engine: Engine) {
+//   const ds1 = new SourceDataset({
+//     src: 'table1',
+//     schema: {a: NUM, b: STR},
+//     filter: {
+//       col: 'd',
+//       eq: 10,
+//     },
+//   });
+//   const ds2 = new SourceDataset({
+//     src: 'table2',
+//     schema: {a: NUM, b: STR, c: NUM},
+//     filter: {
+//       col: 'd',
+//       in: [1, 2, 3],
+//     },
+//   });
+
+//   const union = UnionDatasetWithLineage.create([ds1, ds2]);
+//   const result = await engine.query(
+//     `SELECT * FROM (${union.query()}) WHERE b LIKE '%test%'`,
+//   );
+//   const iter = result.iter(union.schema);
+//   for (; iter.valid(); iter.next()) {
+//     const sourceDatasets = union.resolveLineage(iter);
+//     console.log('Found search result: ', sourceDatasets, iter.a, iter.b);
+//   }
+// }

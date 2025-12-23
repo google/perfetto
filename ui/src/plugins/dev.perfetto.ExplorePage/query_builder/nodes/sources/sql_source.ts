@@ -14,15 +14,13 @@
 
 import m from 'mithril';
 import {
-  createSelectColumnsProto,
   QueryNode,
   QueryNodeState,
   NodeType,
-  createFinalColumns,
   nextNodeId,
-  notifyNextNodes,
 } from '../../../query_node';
-import {columnInfoFromName} from '../../column_info';
+import {notifyNextNodes} from '../../graph_utils';
+import {columnInfoFromName, newColumnInfoList} from '../../column_info';
 import protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
@@ -35,6 +33,7 @@ import {findRef, toHTMLElement} from '../../../../../base/dom_utils';
 import {assertExists} from '../../../../../base/logging';
 import {ResizeHandle} from '../../../../../widgets/resize_handle';
 import {loadNodeDoc} from '../../node_doc_loader';
+import {NodeTitle} from '../../node_styling_widgets';
 
 export interface SqlSourceSerializedState {
   sql?: string;
@@ -96,7 +95,7 @@ export class SqlSourceNode implements QueryNode {
       // SQL source nodes require manual execution since users write SQL
       autoExecute: attrs.autoExecute ?? false,
     };
-    this.finalCols = createFinalColumns([]);
+    this.finalCols = [];
     this.nextNodes = [];
   }
 
@@ -105,8 +104,9 @@ export class SqlSourceNode implements QueryNode {
   }
 
   setSourceColumns(columns: string[]) {
-    this.finalCols = createFinalColumns(
+    this.finalCols = newColumnInfoList(
       columns.map((c) => columnInfoFromName(c)),
+      true,
     );
     m.redraw();
   }
@@ -148,7 +148,7 @@ export class SqlSourceNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: m('.pf-exp-node-title', this.getTitle()),
+      content: NodeTitle(this.getTitle()),
     };
   }
 
@@ -177,8 +177,7 @@ export class SqlSourceNode implements QueryNode {
       this.nodeId,
     );
 
-    const selectedColumns = createSelectColumnsProto(this);
-    if (selectedColumns) sq.selectColumns = selectedColumns;
+    StructuredQueryBuilder.applyNodeColumnSelection(sq, this);
     return sq;
   }
 
@@ -190,13 +189,13 @@ export class SqlSourceNode implements QueryNode {
         onUpdate: (text: string) => {
           this.state.sql = text;
           // Clear columns when SQL changes to prevent stale column usage
-          this.finalCols = createFinalColumns([]);
+          this.finalCols = [];
           m.redraw();
         },
         onExecute: (text: string) => {
           this.state.sql = text.trim();
           // Clear columns when SQL changes to prevent stale column usage
-          this.finalCols = createFinalColumns([]);
+          this.finalCols = [];
           m.redraw();
         },
       }),

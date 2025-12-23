@@ -30,6 +30,15 @@ namespace protozero {
 // cmdline tool). See go/trace-filtering for the full filtering design.
 class FilterBytecodeGenerator {
  public:
+  // Result of Serialize(). Contains the main bytecode and an optional overlay.
+  // The v54_overlay contains entries for opcodes that were rewritten to be
+  // backwards-compatible in the main bytecode. Newer parsers can apply the
+  // overlay to get the full functionality.
+  struct SerializeResult {
+    std::string bytecode;
+    std::string v54_overlay;
+  };
+
   FilterBytecodeGenerator();
   ~FilterBytecodeGenerator();
 
@@ -60,10 +69,12 @@ class FilterBytecodeGenerator {
   // made).
   void AddNestedField(uint32_t field_id, uint32_t message_index);
 
-  // Returns the filter bytecode, which is a buffer containing a sequence of
-  // varints and a checksum. The returned string can be passed to
-  // FilterBytecodeParser.Load().
-  std::string Serialize();
+  // Returns the filter bytecode and overlay. The bytecode is a buffer
+  // containing a sequence of varints and a checksum. The returned bytecode
+  // can be passed to FilterBytecodeParser.Load().
+  // The v54_overlay may be empty if no backwards-incompatible opcodes were
+  // used. If non-empty, it should be passed alongside the bytecode to Load().
+  SerializeResult Serialize();
 
  private:
   uint32_t num_messages_ = 0;
@@ -72,6 +83,12 @@ class FilterBytecodeGenerator {
   bool endmessage_called_ = false;
 
   std::vector<uint32_t> bytecode_;
+
+  // Overlay entries for v54. Each entry is [msg_index, field_word, argument]
+  // where field_word = (field_id << 3) | opcode. The overlay contains entries
+  // for opcodes that were rewritten to be backwards-compatible in the main
+  // bytecode. Sorted by (msg_index, field_id).
+  std::vector<uint32_t> v54_overlay_;
 };
 
 }  // namespace protozero

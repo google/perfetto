@@ -37,7 +37,8 @@ CREATE PERFETTO FUNCTION android_is_app_jank_type(
 -- True when the jank type represents app jank
 RETURNS BOOL AS
 SELECT
-  $jank_type GLOB '*App Deadline Missed*';
+  $jank_type GLOB '*App Deadline Missed*'
+  OR $jank_type GLOB '*App Resynced Jitter*';
 
 -- Categorizes whether the jank was caused by the sf, app or "Dropped Frame"
 CREATE PERFETTO FUNCTION android_is_missed_frame_type(

@@ -16,7 +16,34 @@ import m from 'mithril';
 import {maybeUndefined} from '../../../base/utils';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 
-export type CellRenderer = (value: SqlValue, row: Row) => m.Children;
+/**
+ * Rich return type for cell renderers that need to control alignment/styling.
+ * Renderers can return this instead of plain m.Children to override defaults.
+ */
+export interface CellRenderResult {
+  readonly content: m.Children;
+  readonly align?: 'left' | 'right' | 'center';
+  readonly nullish?: boolean;
+}
+
+/**
+ * Type guard to check if a cell renderer result is a CellRenderResult object.
+ */
+export function isCellRenderResult(
+  result: m.Children | CellRenderResult,
+): result is CellRenderResult {
+  return (
+    result !== null &&
+    typeof result === 'object' &&
+    !Array.isArray(result) &&
+    'content' in result
+  );
+}
+
+export type CellRenderer = (
+  value: SqlValue,
+  row: Row,
+) => m.Children | CellRenderResult;
 export type CellFormatter = (value: SqlValue, row: Row) => string;
 
 /**
@@ -43,6 +70,10 @@ export type ColumnSchema = {
 // - 'identifier': numeric comparisons (=, !=, <, <=, >, >=) with distinct value picker, no text filters
 export type ColumnType = 'text' | 'quantitative' | 'identifier';
 
+// Cell alignment options. If not specified, alignment is inferred from the
+// cell value type (numbers right-aligned, text left-aligned).
+export type CellAlignment = 'left' | 'right' | 'center';
+
 /**
  * A leaf column definition with rendering configuration.
  * This replaces the old ColumnDefinition type.
@@ -65,6 +96,13 @@ export interface ColumnDef {
 
   // Optional value formatter for this column, used when exporting data.
   readonly cellFormatter?: CellFormatter;
+
+  // Additional fields this column depends on for rendering.
+  // These fields will be included in queries and made available in the row
+  // parameter passed to cellRenderer, even if they're not visible columns.
+  // Use this for lineage tracking or other metadata fields.
+  // Example: id column depending on __groupid and __partition for clickable links
+  readonly dependsOn?: readonly string[];
 }
 
 /**
@@ -99,6 +137,9 @@ export interface ParameterizedColumnDef {
   readonly cellRenderer?: CellRenderer;
   readonly cellFormatter?: CellFormatter;
   readonly distinctValues?: boolean;
+
+  // Additional fields this column depends on for rendering.
+  readonly dependsOn?: readonly string[];
 }
 
 /**
@@ -171,6 +212,7 @@ export interface ColumnInfo {
   readonly columnType?: ColumnType;
   readonly cellRenderer?: CellRenderer;
   readonly cellFormatter?: CellFormatter;
+  readonly dependsOn?: readonly string[];
 }
 
 /**
@@ -242,6 +284,7 @@ export function getColumnInfo(
         columnType: entry.filterType,
         cellRenderer: entry.cellRenderer,
         cellFormatter: entry.cellFormatter,
+        dependsOn: entry.dependsOn,
       };
     } else if (isColumnDef(entry)) {
       // Leaf column - should be the last part of the path
@@ -253,6 +296,7 @@ export function getColumnInfo(
           columnType: entry.columnType,
           cellRenderer: entry.cellRenderer,
           cellFormatter: entry.cellFormatter,
+          dependsOn: entry.dependsOn,
         };
       }
       // Trying to navigate deeper into a leaf column - invalid

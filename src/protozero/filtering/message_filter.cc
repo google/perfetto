@@ -79,8 +79,10 @@ MessageFilter::MessageFilter() : MessageFilter(Config()) {}
 MessageFilter::~MessageFilter() = default;
 
 bool MessageFilter::Config::LoadFilterBytecode(const void* filter_data,
-                                               size_t len) {
-  return filter_.Load(filter_data, len);
+                                               size_t len,
+                                               const void* overlay_data,
+                                               size_t overlay_len) {
+  return filter_.Load(filter_data, len, overlay_data, overlay_len);
 }
 
 bool MessageFilter::Config::SetFilterRoot(

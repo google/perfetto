@@ -192,12 +192,9 @@ export function renderDataGrid(app: App): m.Children {
         });
       },
       initialOpts: {
-        enableSortControls: true,
-        enableFilterControls: true,
-        enablePivotControls: true,
-        showRowCount: true,
         showExportButton: false,
         structuredQueryCompatMode: false,
+        enablePivotControls: true,
       },
       noPadding: true,
     }),
