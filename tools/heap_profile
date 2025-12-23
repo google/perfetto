@@ -527,6 +527,11 @@ def main(argv):
       "callstack",
       action="store_true")
   parser.add_argument(
+      "--stream-allocations",
+      action="store_true",
+      help="Emit individual allocation and free events rather than aggregated dumps. Requires Android 12."
+  )
+  parser.add_argument(
       "--dump-at-max",
       help="Dump the maximum memory usage "
       "rather than at the time of the dump.",
@@ -606,6 +611,8 @@ def main(argv):
     target_cfg += CFG_INDENT + "disable_fork_teardown: true\n"
   if args.all_heaps:
     target_cfg += CFG_INDENT + "all_heaps: true\n"
+  if args.stream_allocations:
+    target_cfg += CFG_INDENT + "stream_allocations: true\n"
   if args.pid:
     for pid in args.pid.split(','):
       try:

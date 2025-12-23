@@ -67,6 +67,7 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber);
   RegisterForField(TracePacket::kPerfSampleFieldNumber);
   RegisterForField(TracePacket::kProfilePacketFieldNumber);
+  RegisterForField(TracePacket::kStreamingAllocationFieldNumber);
   RegisterForField(TracePacket::kModuleSymbolsFieldNumber);
   RegisterForField(TracePacket::kSmapsPacketFieldNumber);
 }
@@ -102,7 +103,10 @@ void ProfileModule::ParseTracePacketData(
       return;
     case TracePacket::kProfilePacketFieldNumber:
       ParseProfilePacket(ts, data.sequence_state.get(),
-                         decoder.profile_packet());
+                         decoder.profile_packet(), decoder);
+      return;
+    case TracePacket::kStreamingAllocationFieldNumber:
+      ParseStreamingAllocation(ts, data.sequence_state.get(), decoder);
       return;
     case TracePacket::kModuleSymbolsFieldNumber:
       ParseModuleSymbols(decoder.module_symbols());
@@ -304,7 +308,8 @@ void ProfileModule::ParsePerfSample(
 void ProfileModule::ParseProfilePacket(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
-    ConstBytes blob) {
+    ConstBytes blob,
+    const protos::pbzero::TracePacket::Decoder& /*decoder*/) {
   ProfilePacketSequenceState& profile_packet_sequence_state =
       *sequence_state->GetCustomState<ProfilePacketSequenceState>();
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
@@ -427,9 +432,132 @@ void ProfileModule::ParseProfilePacket(
       profile_packet_sequence_state.StoreAllocation(src_allocation);
     }
   }
+
+  // For streaming allocations mode, the allocations are stored in HeapSamples
+  // with callstack_id matching the sequence_number from StreamingAllocation
+  // We need to match pending StreamingAllocations with the HeapSamples
+  for (auto it = packet.process_dumps(); it; ++it) {
+    protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(*it);
+
+    // Get pid for this process dump
+    uint32_t pid = static_cast<uint32_t>(entry.pid());
+
+    for (auto sample_it = entry.samples(); sample_it; ++sample_it) {
+      protos::pbzero::ProfilePacket::HeapSample::Decoder sample(*sample_it);
+      uint64_t callstack_id = sample.callstack_id();
+
+      // Check if this matches a pending streaming allocation
+      auto pending_it = pending_streaming_allocs_.find(callstack_id);
+      if (pending_it != pending_streaming_allocs_.end()) {
+        const auto& pending = pending_it->second;
+
+        // Get the actual callsite from the profile packet sequence state
+        StackProfileSequenceState& stack_profile_sequence_state =
+            *sequence_state->GetCustomState<StackProfileSequenceState>();
+        auto cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
+            pending.upid, callstack_id);
+
+        if (cs_id) {
+          // Get or create a thread for this process
+          // We use pid as tid to represent the main thread
+          UniqueTid utid = context_->process_tracker->UpdateThread(pid, pid);
+
+          // Insert into heap_profile_sample table for timeline visualization
+          tables::HeapProfileSampleTable::Row sample_row{
+              pending.timestamp, *cs_id, utid,
+              static_cast<int64_t>(pending.size)};
+          context_->storage->mutable_heap_profile_sample_table()->Insert(
+              sample_row);
+
+          PERFETTO_DLOG(
+              "Matched streaming allocation seq=%llu with heap sample, "
+              "ts=%lld, size=%llu",
+              static_cast<unsigned long long>(callstack_id),
+              static_cast<long long>(pending.timestamp),
+              static_cast<unsigned long long>(pending.size));
+        }
+
+        pending_streaming_allocs_.erase(pending_it);
+      }
+    }
+  }
+
   if (!packet.continued()) {
     profile_packet_sequence_state.FinalizeProfile();
   }
+}
+
+void ProfileModule::ParseStreamingAllocation(
+    int64_t /*ts*/,
+    PacketSequenceStateGeneration* /*sequence_state*/,
+    const protos::pbzero::TracePacket::Decoder& decoder) {
+  protos::pbzero::StreamingAllocation::Decoder alloc(
+      decoder.streaming_allocation().data, decoder.streaming_allocation().size);
+
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(decoder.trusted_pid()));
+
+  // StreamingAllocation has repeated fields, iterate through them
+  auto address_it = alloc.address();
+  auto size_it = alloc.size();
+  auto sample_size_it = alloc.sample_size();
+  auto timestamp_it = alloc.clock_monotonic_coarse_timestamp();
+  auto heap_id_it = alloc.heap_id();
+  auto sequence_number_it = alloc.sequence_number();
+
+  size_t count = 0;
+  while (address_it && size_it && sample_size_it && timestamp_it &&
+         heap_id_it && sequence_number_it) {
+    uint64_t address = *address_it;
+    uint64_t size = *size_it;
+    uint64_t sample_size = *sample_size_it;
+    uint64_t clock_monotonic_coarse_timestamp = *timestamp_it;
+    uint32_t heap_id = *heap_id_it;
+    uint64_t sequence_number = *sequence_number_it;
+
+    // Convert timestamp to trace time
+    std::optional<int64_t> maybe_timestamp =
+        context_->clock_tracker->ToTraceTime(
+            protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
+            static_cast<int64_t>(clock_monotonic_coarse_timestamp));
+
+    if (!maybe_timestamp) {
+      PERFETTO_ELOG(
+          "Failed to convert timestamp for streaming allocation seq=%llu",
+          static_cast<unsigned long long>(sequence_number));
+      ++address_it;
+      ++size_it;
+      ++sample_size_it;
+      ++timestamp_it;
+      ++heap_id_it;
+      ++sequence_number_it;
+      continue;
+    }
+
+    int64_t timestamp = *maybe_timestamp;
+
+    // Store pending allocation waiting for callstack
+    PendingStreamingAlloc pending;
+    pending.timestamp = timestamp;
+    pending.address = address;
+    pending.size = size;
+    pending.sample_size = sample_size;
+    pending.heap_id = heap_id;
+    pending.upid = upid;
+    pending_streaming_allocs_[sequence_number] = pending;
+    count++;
+
+    ++address_it;
+    ++size_it;
+    ++sample_size_it;
+    ++timestamp_it;
+    ++heap_id_it;
+    ++sequence_number_it;
+  }
+
+  PERFETTO_DLOG(
+      "ParseStreamingAllocation: stored %zu allocations, total pending: %zu",
+      count, pending_streaming_allocs_.size());
 }
 
 void ProfileModule::ParseModuleSymbols(ConstBytes blob) {

@@ -1051,8 +1051,11 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord* alloc_rec) {
   }
 
   if (ds.config.stream_allocations()) {
-    auto packet = ds.trace_writer->NewTracePacket();
-    auto* streaming_alloc = packet->set_streaming_allocation();
+    // For streaming mode, just emit the StreamingAllocation packet
+    // The callstack will be added to the HeapTracker and emitted in dumps
+    // This allows the trace processor to handle it normally
+    auto alloc_packet = ds.trace_writer->NewTracePacket();
+    auto* streaming_alloc = alloc_packet->set_streaming_allocation();
     streaming_alloc->add_address(alloc_metadata.alloc_address);
     streaming_alloc->add_size(alloc_metadata.alloc_size);
     streaming_alloc->add_sample_size(alloc_metadata.sample_size);
@@ -1060,7 +1063,9 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord* alloc_rec) {
         alloc_metadata.clock_monotonic_coarse_timestamp);
     streaming_alloc->add_heap_id(alloc_metadata.heap_id);
     streaming_alloc->add_sequence_number(alloc_metadata.sequence_number);
-    return;
+    alloc_packet->Finalize();
+
+    // Don't return - continue to add to HeapTracker so it gets dumped normally
   }
 
   const auto& prefixes = ds.config.skip_symbol_prefix();

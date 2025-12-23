@@ -18,12 +18,14 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_
 
 #include <cstdint>
+#include <map>
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -70,12 +72,26 @@ class ProfileModule : public ProtoImporterModule {
   // heap profiling:
   void ParseProfilePacket(int64_t ts,
                           PacketSequenceStateGeneration*,
-                          protozero::ConstBytes);
+                          protozero::ConstBytes,
+                          const protos::pbzero::TracePacket::Decoder& decoder);
+  void ParseStreamingAllocation(
+      int64_t ts,
+      PacketSequenceStateGeneration* sequence_state,
+      const protos::pbzero::TracePacket::Decoder& decoder);
   void ParseModuleSymbols(protozero::ConstBytes);
   void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   PerfSampleTracker perf_sample_tracker_;
+  struct PendingStreamingAlloc {
+    int64_t timestamp;
+    uint64_t address;
+    uint64_t size;
+    uint64_t sample_size;
+    uint32_t heap_id;
+    UniquePid upid;
+  };
+  std::map<uint64_t, PendingStreamingAlloc> pending_streaming_allocs_;
 };
 
 }  // namespace perfetto::trace_processor

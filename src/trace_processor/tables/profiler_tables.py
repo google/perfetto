@@ -693,6 +693,50 @@ HEAP_PROFILE_ALLOCATION_TABLE = Table(
                 ''''''
         }))
 
+HEAP_PROFILE_SAMPLE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapProfileSampleTable',
+    sql_name='heap_profile_sample',
+    columns=[
+        C(
+            'ts',
+            CppInt64(),
+            flags=ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'callsite_id',
+            CppTableId(STACK_PROFILE_CALLSITE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'utid',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'size',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Individual heap allocation samples from streaming mode heapprofd.
+          This is generated when stream_allocations is enabled in heapprofd config.
+        ''',
+        group='Callstack profilers',
+        columns={
+            'ts': '''Timestamp of the allocation.''',
+            'callsite_id': '''Callstack where the allocation occurred.''',
+            'utid': '''Thread that made the allocation.''',
+            'size': '''Size of the allocation in bytes.''',
+        }))
+
 EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
     python_module=__file__,
     class_name='ExperimentalFlamegraphTable',
@@ -1151,6 +1195,7 @@ ALL_TABLES = [
     HEAP_GRAPH_OBJECT_TABLE,
     HEAP_GRAPH_REFERENCE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
+    HEAP_PROFILE_SAMPLE_TABLE,
     INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,
     PERF_SAMPLE_TABLE,

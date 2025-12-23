@@ -560,6 +560,13 @@ class TraceStorage {
     return &heap_profile_allocation_table_;
   }
 
+  const tables::HeapProfileSampleTable& heap_profile_sample_table() const {
+    return heap_profile_sample_table_;
+  }
+  tables::HeapProfileSampleTable* mutable_heap_profile_sample_table() {
+    return &heap_profile_sample_table_;
+  }
+
   const tables::PackageListTable& package_list_table() const {
     return package_list_table_;
   }
@@ -1214,6 +1221,7 @@ class TraceStorage {
       &string_pool_};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
       &string_pool_};
+  tables::HeapProfileSampleTable heap_profile_sample_table_{&string_pool_};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_};
   tables::PerfSessionTable perf_session_table_{&string_pool_};
