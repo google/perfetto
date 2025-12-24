@@ -36,23 +36,8 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ProcessSummary';
   static readonly dependencies = [ThreadPlugin];
 
-  private trackUrisToResolve = new Map<string, GroupSummaryTrack>();
-
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
-
-    // We need to do this because for slice tracks, other plugins might be
-    // adding tracks in onTraceLoad which we won't see here. So we wait for
-    // traceready to bind the tracks.
-    ctx.onTraceReady.addListener(async () => {
-      for (const [uri, track] of this.trackUrisToResolve) {
-        const node = ctx.defaultWorkspace.tracks.getTrackByUri(uri);
-        if (!node) {
-          continue;
-        }
-        track.fetchDatasetsFromSliceTracks(node);
-      }
-    });
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
@@ -202,9 +187,6 @@ export default class implements PerfettoPlugin {
         renderer: track,
         subtitle,
       });
-      if (!hasSched) {
-        this.trackUrisToResolve.set(uri, track);
-      }
     }
   }
 }

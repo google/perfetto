@@ -24,7 +24,11 @@ import {checkerboardExcept} from '../../components/checkerboard';
 import {TrackRenderer} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
-import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
+import {
+  TrackContext,
+  TrackMouseEvent,
+  TrackRenderContext,
+} from '../../public/track';
 import {Point2D} from '../../base/geom';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
@@ -82,11 +86,11 @@ export class GroupSummaryTrack implements TrackRenderer {
     this.mode = hasSched ? 'sched' : 'slices';
   }
 
-  async onCreate(): Promise<void> {
+  async onCreate(ctx: TrackContext): Promise<void> {
     if (this.mode === 'sched') {
       await this.createSchedMipmap();
     } else {
-      await this.createSlicesMipmap();
+      await this.createSlicesMipmap(ctx.trackNode);
     }
   }
 
@@ -160,7 +164,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     this.maxLanes = this.cpuCount;
   }
 
-  fetchDatasetsFromSliceTracks(node: TrackNode) {
+  private fetchDatasetsFromSliceTracks(node: TrackNode) {
     assertTrue(
       this.mode === 'slices',
       'Can only collect slice tracks in slice mode',
@@ -195,7 +199,10 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  private async createSlicesMipmap(): Promise<void> {
+  private async createSlicesMipmap(node: TrackNode): Promise<void> {
+    // Fetch datasets from child tracks
+    this.fetchDatasetsFromSliceTracks(node);
+
     if (this.sliceTracks.length === 0) {
       // No valid slice tracks found - create empty table
       await createVirtualTable({

@@ -74,8 +74,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   private parentTrackNodes = new Map<string, TrackNode>();
   private store?: Store<TrackEventPluginState>;
 
-  private trackUrisToResolve = new Map<string, GroupSummaryTrack>();
-
   private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
     const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
     return result.data ?? {};
@@ -294,7 +292,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           },
           renderer: track,
         });
-        this.trackUrisToResolve.set(uri, track);
       }
       const parent = this.findParentTrackNode(
         ctx,
@@ -319,15 +316,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionTab(
       this.createTrackEventCallstackFlamegraphTab(ctx),
     );
-
-    // Now that all the tracks have been added, we can fetch the datasets.
-    for (const [uri, track] of this.trackUrisToResolve) {
-      const node = ctx.defaultWorkspace.tracks.getTrackByUri(uri);
-      if (!node) {
-        continue;
-      }
-      track.fetchDatasetsFromSliceTracks(node);
-    }
   }
 
   private createTrackEventCallstackFlamegraphTab(trace: Trace) {
