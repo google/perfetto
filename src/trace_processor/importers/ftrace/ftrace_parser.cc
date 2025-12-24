@@ -4406,10 +4406,8 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
   };
   constexpr auto kF2fsCheckpointBlueprint = tracks::SliceBlueprint(
       "f2fs_write_checkpoint",
-      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("pid")),
-      tracks::FnNameBlueprint([](uint32_t pid) {
-        return base::StackString<255>("f2fs_ckpt-%u", pid);
-      }));
+      tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
+      tracks::DynamicNameBlueprint());
 
   protos::pbzero::F2fsWriteCheckpointFtraceEvent::Decoder evt(blob);
 
@@ -4417,9 +4415,13 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
   if (phase == kF2fsCpPhaseFinishBlockOps) {
     return;
   }
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+  base::StackString<255> track_name("f2fs_ckpt %u", pid);
+  StringId track_name_id =
+      context_->storage->InternString(track_name.string_view());
 
   TrackId track_id = context_->track_tracker->InternTrack(
-      kF2fsCheckpointBlueprint, tracks::Dimensions(pid));
+      kF2fsCheckpointBlueprint, tracks::Dimensions(upid), track_name_id);
 
   if (phase == kF2fsCpPhaseStart) {
     int32_t reason_int = evt.reason();
