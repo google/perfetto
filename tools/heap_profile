@@ -312,6 +312,28 @@ PACKAGES_LIST_CFG = '''data_sources {
 }
 '''
 
+THREAD_NAMES_CFG = '''data_sources {
+  config {
+    name: "linux.process_stats"
+    process_stats_config {
+      scan_all_processes_on_start: true
+      record_thread_names: true
+    }
+  }
+}
+'''
+
+PROCESS_STATS_CFG = '''data_sources {
+  config {
+    name: "linux.process_stats"
+    target_buffer: 0
+    process_stats_config {
+      proc_stats_poll_ms: 60000
+    }
+  }
+}
+'''
+
 CFG_INDENT = '      '
 CFG = '''buffers {{
   size_kb: 63488
@@ -643,6 +665,9 @@ def main(argv):
       shmem_size=args.shmem_size)
   if not args.no_versions:
     cfg += PACKAGES_LIST_CFG
+  if args.stream_allocations:
+    cfg += THREAD_NAMES_CFG
+    cfg += PROCESS_STATS_CFG
 
   if args.print_config:
     print(cfg)

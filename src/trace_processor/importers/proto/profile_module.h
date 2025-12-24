@@ -89,6 +89,7 @@ class ProfileModule : public ProtoImporterModule {
     uint64_t size;
     uint64_t sample_size;
     uint32_t heap_id;
+    uint32_t tid;
     UniquePid upid;
   };
   std::map<uint64_t, PendingStreamingAlloc> pending_streaming_allocs_;

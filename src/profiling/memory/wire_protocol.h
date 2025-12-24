@@ -106,6 +106,8 @@ struct alignas(8) AllocMetadata {
   // unwindstack::AsmGetRegs assumes this is aligned.
   alignas(8) char register_data[kMaxRegisterDataSize];
   PERFETTO_CROSS_ABI_ALIGNED(uint32_t) heap_id;
+  // Thread ID of the thread that made the allocation.
+  PERFETTO_CROSS_ABI_ALIGNED(uint32_t) tid;
   // CPU architecture of the client.
   PERFETTO_CROSS_ABI_ALIGNED(unwindstack::ArchEnum) arch;
 };
@@ -123,7 +125,7 @@ struct HeapName {
 };
 
 // Make sure the sizes do not change on different architectures.
-static_assert(sizeof(AllocMetadata) == 328,
+static_assert(sizeof(AllocMetadata) == 336,
               "AllocMetadata needs to be the same size across ABIs.");
 static_assert(sizeof(FreeEntry) == 24,
               "FreeEntry needs to be the same size across ABIs.");

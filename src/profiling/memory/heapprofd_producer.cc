@@ -1063,6 +1063,7 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord* alloc_rec) {
         alloc_metadata.clock_monotonic_coarse_timestamp);
     streaming_alloc->add_heap_id(alloc_metadata.heap_id);
     streaming_alloc->add_sequence_number(alloc_metadata.sequence_number);
+    streaming_alloc->add_tid(alloc_metadata.tid);
     alloc_packet->Finalize();
 
     // Don't return - continue to add to HeapTracker so it gets dumped normally
