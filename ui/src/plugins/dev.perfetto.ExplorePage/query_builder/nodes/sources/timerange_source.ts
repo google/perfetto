@@ -18,9 +18,12 @@ import {
   QueryNodeState,
   NodeType,
   nextNodeId,
-  createFinalColumns,
 } from '../../../query_node';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
+import {
+  ColumnInfo,
+  columnInfoFromSqlColumn,
+  newColumnInfoList,
+} from '../../column_info';
 import {time, TimeSpan, Time} from '../../../../../base/time';
 import {PerfettoSqlTypes} from '../../../../../trace_processor/perfetto_sql_type';
 import {Trace} from '../../../../../public/trace';
@@ -34,6 +37,7 @@ import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
 import {loadNodeDoc} from '../../node_doc_loader';
+import {NodeTitle} from '../../node_styling_widgets';
 
 // Poll interval for dynamic mode selection updates (in milliseconds)
 const SELECTION_POLL_INTERVAL_MS = 200;
@@ -68,11 +72,14 @@ export class TimeRangeSourceNode implements QueryNode {
     };
 
     // Initialize columns: id, ts, dur
-    this.finalCols = createFinalColumns([
-      columnInfoFromSqlColumn({name: 'id', type: PerfettoSqlTypes.INT}),
-      columnInfoFromSqlColumn({name: 'ts', type: PerfettoSqlTypes.TIMESTAMP}),
-      columnInfoFromSqlColumn({name: 'dur', type: PerfettoSqlTypes.DURATION}),
-    ]);
+    this.finalCols = newColumnInfoList(
+      [
+        columnInfoFromSqlColumn({name: 'id', type: PerfettoSqlTypes.INT}),
+        columnInfoFromSqlColumn({name: 'ts', type: PerfettoSqlTypes.TIMESTAMP}),
+        columnInfoFromSqlColumn({name: 'dur', type: PerfettoSqlTypes.DURATION}),
+      ],
+      true,
+    );
 
     // If dynamic mode is enabled, subscribe to selection changes and
     // immediately populate from current selection
@@ -127,7 +134,7 @@ export class TimeRangeSourceNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: m('.pf-exp-node-title', this.getTitle()),
+      content: NodeTitle(this.getTitle()),
     };
   }
 

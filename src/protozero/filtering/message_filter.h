@@ -55,7 +55,14 @@ class MessageFilter {
  public:
   class Config {
    public:
-    bool LoadFilterBytecode(const void* filter_data, size_t len);
+    // Loads filter bytecode. If a filter is already loaded, it is replaced.
+    // Optionally accepts an overlay (pass nullptr/0 if not needed).
+    // See FilterBytecodeParser::Load() for overlay format details.
+    bool LoadFilterBytecode(const void* filter_data,
+                            size_t len,
+                            const void* overlay_data = nullptr,
+                            size_t overlay_len = 0);
+
     bool SetFilterRoot(std::initializer_list<uint32_t> field_ids);
 
     const FilterBytecodeParser& filter() const { return filter_; }
@@ -90,8 +97,13 @@ class MessageFilter {
   // message. Must be called before the first call to FilterMessage*().
   // |filter_data| must point to a byte buffer for a proto-encoded ProtoFilter
   // message (see proto_filter.proto).
-  bool LoadFilterBytecode(const void* filter_data, size_t len) {
-    return config_.LoadFilterBytecode(filter_data, len);
+  // Optionally accepts an overlay (pass nullptr/0 if not needed).
+  bool LoadFilterBytecode(const void* filter_data,
+                          size_t len,
+                          const void* overlay_data = nullptr,
+                          size_t overlay_len = 0) {
+    return config_.LoadFilterBytecode(filter_data, len, overlay_data,
+                                      overlay_len);
   }
 
   // This affects the filter starting point of the subsequent FilterMessage*()

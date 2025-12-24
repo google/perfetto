@@ -119,16 +119,23 @@ TEST(TracingSdkForJniTest, mySimpleTest) {
 
   // In this test we generate a named slice with an additional payload
 
-  sdk_for_jni::DebugArg<int64_t> player_number_extra("player_number");
-  player_number_extra.set_value(42);
-  sdk_for_jni::DebugArg<bool> player_alive_extra("player_alive");
-  player_alive_extra.set_value(true);
+  sdk_for_jni::DebugArg player_number_extra("player_number");
+  player_number_extra.get()->arg_int64.header.type =
+      PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64;
+  player_number_extra.get()->arg_int64.name = player_number_extra.name();
+  player_number_extra.get()->arg_int64.value = 42;
+
+  sdk_for_jni::DebugArg player_alive_extra("player_alive");
+  player_alive_extra.get()->arg_bool.header.type =
+      PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL;
+  player_alive_extra.get()->arg_bool.name = player_alive_extra.name();
+  player_alive_extra.get()->arg_bool.value = true;
 
   sdk_for_jni::Extra extra;
   extra.push_extra(reinterpret_cast<PerfettoTeHlExtra*>(
-      const_cast<PerfettoTeHlExtraDebugArgInt64*>(player_number_extra.get())));
+      &player_number_extra.get()->arg_int64));
   extra.push_extra(reinterpret_cast<PerfettoTeHlExtra*>(
-      const_cast<PerfettoTeHlExtraDebugArgBool*>(player_alive_extra.get())));
+      &player_alive_extra.get()->arg_bool));
   trace_event(PERFETTO_TE_TYPE_SLICE_BEGIN, category.get(), "DrawPlayer",
               &extra);
 

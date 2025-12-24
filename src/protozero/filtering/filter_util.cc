@@ -350,7 +350,7 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
   }
 }
 
-std::string FilterUtil::GenerateFilterBytecode() {
+FilterBytecodeGenerator::SerializeResult FilterUtil::GenerateFilterBytecode() {
   protozero::FilterBytecodeGenerator bytecode_gen;
 
   // Assign indexes to descriptors, simply by counting them in order;

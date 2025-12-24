@@ -19,8 +19,8 @@ import {
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
-  getSecondaryInput,
 } from '../../query_node';
+import {getSecondaryInput} from '../graph_utils';
 import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Callout} from '../../../../widgets/callout';

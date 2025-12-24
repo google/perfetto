@@ -61,6 +61,7 @@ export class AddColumnsConfigurationModal
     } = attrs;
 
     const noColumnsSelected = selectedColumns.length === 0;
+    const missingJoinColumns = !leftColumn || !rightColumn;
 
     // Create rightCols with checked state based on selectedColumns
     const rightColsWithChecked = rightCols.map((col) => ({
@@ -71,6 +72,12 @@ export class AddColumnsConfigurationModal
 
     return m(
       Form,
+      missingJoinColumns &&
+        m(
+          Callout,
+          {icon: 'warning'},
+          'Select join columns from both sources to enable the join.',
+        ),
       noColumnsSelected &&
         m(
           Callout,

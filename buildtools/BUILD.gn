@@ -1449,7 +1449,7 @@ if (use_custom_libcxx) {
       "libcxx/src/vector.cpp",
       "libcxx/src/verbose_abort.cpp",
     ]
-    if (!using_sanitizer) {
+    if (!using_sanitizer || is_ubsan) {
       # In {a,t,m}san configurations, operator new and operator delete will be
       # provided by the sanitizer runtime library.  Since libc++ defines these
       # symbols with weak linkage, and the *san runtime uses strong linkage, it
@@ -1459,6 +1459,8 @@ if (use_custom_libcxx) {
       # perfetto, when cross-compiling, we build only targets with sanitizers,
       # but not host artifacts, and using_sanitizer is only true for the
       # target toolchain, while is_asan is globally true on all toolchains.
+      # However, ubsan standalone does not provide operator new/delete, so we
+      # need to include new.cpp for ubsan builds.
       sources += [ "libcxx/src/new.cpp" ]
     }
 

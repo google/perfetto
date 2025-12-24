@@ -76,6 +76,9 @@ export interface AddColumnsNodeState extends QueryNodeState {
   // Map from column name to its alias for suggestion mode (before applying)
   suggestionAliases?: Map<string, string>;
 
+  // Map from column name to its type (for type casting added columns)
+  columnTypes?: Map<string, string>;
+
   // Track if connection was made through guided suggestion
   isGuidedConnection?: boolean;
 

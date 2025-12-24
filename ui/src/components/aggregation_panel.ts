@@ -58,8 +58,10 @@ export class AggregationPanel
           title: c.title,
           titleString: c.title,
           columnType: filterTypeForColumnDef(c.formatHint),
-          cellRenderer: getCellRenderer(c.formatHint, c.columnId),
+          cellRenderer:
+            c.cellRenderer ?? getCellRenderer(c.formatHint, c.columnId),
           cellFormatter: getValueFormatter(c.formatHint),
+          dependsOn: c.dependsOn,
         };
       }
       const schema: SchemaRegistry = {data: columnSchema};
@@ -83,8 +85,10 @@ export class AggregationPanel
           title: c.title,
           titleString: c.title,
           columnType: filterTypeForColumnDef(c.formatHint),
-          cellRenderer: getCellRenderer(c.formatHint, c.columnId),
+          cellRenderer:
+            c.cellRenderer ?? getCellRenderer(c.formatHint, c.columnId),
           cellFormatter: getValueFormatter(c.formatHint),
+          dependsOn: c.dependsOn,
         };
       }
       const schema: SchemaRegistry = {data: columnSchema};

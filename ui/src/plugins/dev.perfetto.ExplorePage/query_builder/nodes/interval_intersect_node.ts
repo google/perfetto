@@ -19,8 +19,8 @@ import {
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
-  notifyNextNodes,
 } from '../../query_node';
+import {notifyNextNodes} from '../graph_utils';
 import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';

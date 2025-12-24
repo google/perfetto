@@ -110,6 +110,7 @@ class TraceBuffer {
   virtual size_t used_size() const = 0;
   virtual OverwritePolicy overwrite_policy() const = 0;
   virtual bool has_data() const = 0;
+  virtual bool is_trace_buffer_v2() const = 0;
 
   // Exposed for test/fake_packet.{cc,h}.
   static inline constexpr size_t InlineChunkHeaderSize = 16;

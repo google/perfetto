@@ -110,6 +110,31 @@ export class StructuredQueryBuilder {
   }
 
   /**
+   * Applies column selection from a node's finalCols to a structured query.
+   * Mutates the query in place. If all columns are selected, does nothing
+   * (no explicit column selection needed).
+   *
+   * @param sq The structured query to modify
+   * @param node The node whose finalCols define the column selection
+   */
+  static applyNodeColumnSelection(
+    sq: protos.PerfettoSqlStructuredQuery,
+    node: QueryNode,
+  ): void {
+    // If all columns are selected, no explicit selection needed
+    if (node.finalCols.every((c) => c.checked)) return;
+
+    sq.selectColumns = node.finalCols
+      .filter((c) => c.checked !== false)
+      .map((c) => {
+        const col = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+        col.columnName = c.column.name;
+        if (c.alias) col.alias = c.alias;
+        return col;
+      });
+  }
+
+  /**
    * Creates a structured query with ORDER BY clause.
    * Wraps the inner query and adds the orderBy specification.
    *

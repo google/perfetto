@@ -506,7 +506,7 @@ export class SQLDataSource implements DataSource {
 
     // For pivot mode without drill-down, we build aggregates differently
     if (pivot && !pivot.drillDown) {
-      return this.buildPivotQuery(resolver, filters, pivot, options);
+      return this.buildPivotQuery(resolver, filters, pivot, options, columns);
     }
 
     // Normal mode or drill-down: select individual columns
@@ -612,6 +612,7 @@ ${joinClauses}`;
     filters: ReadonlyArray<Filter>,
     pivot: Pivot,
     options: {includeOrderBy: boolean},
+    dependencyColumns?: ReadonlyArray<Column>,
   ): string {
     const baseTable = resolver.getBaseTable();
     const baseAlias = resolver.getBaseAlias();
@@ -653,7 +654,35 @@ ${joinClauses}`;
       return `${agg.function}(${colExpr}) AS ${alias}`;
     });
 
-    const selectClauses = [...groupByExprs, ...aggregateExprs];
+    // Build dependency column expressions (columns needed for rendering but not
+    // part of groupBy or aggregates). Use ANY (MIN) to get a representative value.
+    const dependencyExprs: string[] = [];
+    if (dependencyColumns) {
+      // Get all fields already in groupBy or aggregates
+      const existingFields = new Set([
+        ...groupByFields,
+        ...aggregates
+          .filter((a) => 'field' in a)
+          .map((a) => (a as {field: string}).field),
+      ]);
+
+      for (const col of dependencyColumns) {
+        if (!existingFields.has(col.field)) {
+          const sqlExpr = resolver.resolveColumnPath(col.field);
+          if (sqlExpr) {
+            const alias = this.pathToAlias(col.field);
+            // Use MIN as a proxy for ANY to get a value from the group
+            dependencyExprs.push(`MIN(${sqlExpr}) AS ${alias}`);
+          }
+        }
+      }
+    }
+
+    const selectClauses = [
+      ...groupByExprs,
+      ...aggregateExprs,
+      ...dependencyExprs,
+    ];
     const joinClauses = resolver.buildJoinClauses();
 
     let query = `

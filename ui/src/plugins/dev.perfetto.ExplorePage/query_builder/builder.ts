@@ -66,15 +66,15 @@
 
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
-import {Button, ButtonVariant} from '../../../widgets/button';
+import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
-import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {Card} from '../../../widgets/card';
 import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
+import {QueryNode, Query} from '../query_node';
+import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
@@ -89,7 +89,7 @@ import {addQueryResultsTab} from '../../../components/query_table/query_result_t
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
-import {DataExplorerEmptyState} from './widgets';
+import {DataExplorerEmptyState, RoundActionButton} from './widgets';
 import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
@@ -100,6 +100,46 @@ import {DataSource} from '../../../components/widgets/datagrid/data_source';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
+
+// Helper function for keyboard-accessible card interactions
+function createKeyboardHandler(callback: () => void) {
+  return (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      callback();
+    }
+  };
+}
+
+// Helper function to render template cards with consistent structure
+interface TemplateCardAttrs {
+  readonly icon: string;
+  readonly title: string;
+  readonly description: string;
+  readonly ariaLabel: string;
+  readonly onClick: () => void;
+}
+
+function renderTemplateCard(attrs: TemplateCardAttrs): m.Children {
+  return m(
+    Card,
+    {
+      'interactive': true,
+      'onclick': attrs.onClick,
+      'tabindex': 0,
+      'role': 'button',
+      'aria-label': attrs.ariaLabel,
+      'className': 'pf-template-card',
+      'onkeydown': createKeyboardHandler(attrs.onClick),
+    },
+    m(
+      '.pf-source-card-clickable',
+      m(Icon, {icon: attrs.icon}),
+      m('h3', attrs.title),
+    ),
+    m('p', attrs.description),
+  );
+}
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -162,8 +202,16 @@ export interface BuilderAttrs {
 
   readonly onLoadExample: () => void;
 
+  // Starting templates (when page is empty)
+  readonly onLoadEmptyTemplate?: () => void;
+  readonly onLoadLearningTemplate?: () => void;
+  readonly onLoadExploreTemplate?: () => void;
+
   // Node state change callback
   readonly onNodeStateChange?: () => void;
+
+  // Graph recenter callback
+  readonly onRecenterReady?: (recenter: () => void) => void;
 
   // Undo / Redo
   readonly onUndo?: () => void;
@@ -214,6 +262,47 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   }
 
   private renderSourceCards(attrs: BuilderAttrs): m.Children {
+    const results: m.Children[] = [];
+
+    // Show template buttons when nothing is selected
+    if (!attrs.selectedNode) {
+      results.push(
+        m('h4.pf-starting-section-title', 'Templates:'),
+        m(
+          '.pf-template-grid',
+          renderTemplateCard({
+            icon: 'school',
+            title: 'Learning',
+            description: 'Educational example',
+            ariaLabel: 'Start with learning template',
+            onClick: () => attrs.onLoadLearningTemplate?.(),
+          }),
+          renderTemplateCard({
+            icon: 'explore',
+            title: 'Explore Trace Data',
+            description: 'Slices and high-frequency tables',
+            ariaLabel: 'Explore trace data',
+            onClick: () => attrs.onLoadExploreTemplate?.(),
+          }),
+          renderTemplateCard({
+            icon: 'auto_stories',
+            title: 'Examples',
+            description: 'Load an example graph',
+            ariaLabel: 'Load example graph',
+            onClick: () => attrs.onLoadExample(),
+          }),
+          renderTemplateCard({
+            icon: 'delete_sweep',
+            title: 'Clear Graph',
+            description: 'Start with empty canvas',
+            ariaLabel: 'Clear graph',
+            onClick: () => attrs.onLoadEmptyTemplate?.(),
+          }),
+        ),
+        m('h4.pf-starting-section-title', 'Add sources:'),
+      );
+    }
+
     const sourceNodes = nodeRegistry
       .list()
       .filter(([_id, node]) => node.showOnLandingPage === true)
@@ -235,12 +324,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             'role': 'button',
             'aria-label': `Add ${name} source`,
             'className': 'pf-source-card',
-            'onkeydown': (e: KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                attrs.onAddSourceNode(id);
-              }
-            },
+            'onkeydown': createKeyboardHandler(() => attrs.onAddSourceNode(id)),
           },
           m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', name)),
           m('p', description),
@@ -248,36 +332,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         );
       });
 
-    // Add Examples card at the end
-    const examplesCard = m(
-      Card,
-      {
-        'interactive': true,
-        'onclick': () => attrs.onLoadExample(),
-        'tabindex': 0,
-        'role': 'button',
-        'aria-label': 'Load example graph',
-        'className': 'pf-source-card',
-        'onkeydown': (e: KeyboardEvent) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            attrs.onLoadExample();
-          }
-        },
-      },
-      m(
-        '.pf-source-card-clickable',
-        m(Icon, {icon: 'auto_stories'}),
-        m('h3', 'Examples'),
-      ),
-      m('p', 'Load an example graph'),
+    // Wrap source cards in horizontal container
+    const sourceCardsContainer = m(
+      '.pf-source-cards-horizontal',
+      ...sourceNodes,
     );
 
-    if (sourceNodes.length === 0) {
-      return [examplesCard];
-    }
-
-    return [examplesCard, ...sourceNodes];
+    return [...results, sourceCardsContainer];
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -411,6 +472,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               },
               onExecute: async () => {
                 if (!selectedNode.validate()) {
+                  console.warn(
+                    `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
+                  );
                   return;
                 }
 
@@ -454,6 +518,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,
           onExport: attrs.onExport,
+          onRecenterReady: attrs.onRecenterReady,
         }),
         selectedNode &&
           m(
@@ -483,26 +548,18 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         m(
           '.pf-qb-floating-controls-bottom',
           attrs.onUndo &&
-            m(Button, {
+            RoundActionButton({
               icon: Icons.Undo,
               title: 'Undo (Ctrl+Z)',
               onclick: attrs.onUndo,
               disabled: !attrs.canUndo,
-              variant: ButtonVariant.Filled,
-              rounded: true,
-              iconFilled: true,
-              intent: Intent.Primary,
             }),
           attrs.onRedo &&
-            m(Button, {
+            RoundActionButton({
               icon: Icons.Redo,
               title: 'Redo (Ctrl+Shift+Z)',
               onclick: attrs.onRedo,
               disabled: !attrs.canRedo,
-              variant: ButtonVariant.Filled,
-              rounded: true,
-              iconFilled: true,
-              intent: Intent.Primary,
             }),
         ),
       ),

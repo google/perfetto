@@ -347,6 +347,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           initialColumns: attrs.response.columns.map((col) => ({field: col})),
           fillHeight: true,
           data: attrs.dataSource,
+          enablePivotControls: false,
           structuredQueryCompatMode: true,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty

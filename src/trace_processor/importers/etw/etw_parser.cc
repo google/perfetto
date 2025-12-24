@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/etw/file_io_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -84,6 +85,26 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
 
   if (decoder.has_mem_info()) {
     ParseMemInfo(ts, decoder.mem_info());
+  }
+
+  const auto& file_io_tracker = context_->file_io_tracker;
+  if (decoder.has_file_io_create()) {
+    file_io_tracker->ParseFileIoCreate(ts, decoder.file_io_create());
+  }
+  if (decoder.has_file_io_dir_enum()) {
+    file_io_tracker->ParseFileIoDirEnum(ts, decoder.file_io_dir_enum());
+  }
+  if (decoder.has_file_io_info()) {
+    file_io_tracker->ParseFileIoInfo(ts, decoder.file_io_info());
+  }
+  if (decoder.has_file_io_read_write()) {
+    file_io_tracker->ParseFileIoReadWrite(ts, decoder.file_io_read_write());
+  }
+  if (decoder.has_file_io_simple_op()) {
+    file_io_tracker->ParseFileIoSimpleOp(ts, decoder.file_io_simple_op());
+  }
+  if (decoder.has_file_io_op_end()) {
+    file_io_tracker->ParseFileIoOpEnd(ts, decoder.file_io_op_end());
   }
 
   return base::OkStatus();

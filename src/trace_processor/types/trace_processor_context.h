@@ -39,6 +39,7 @@ class ClockSynchronizer;
 class CpuTracker;
 class DescriptorPool;
 class EventTracker;
+class FileIoTracker;
 class FlowTracker;
 class GlobalArgsTracker;
 class ImportLogsTracker;
@@ -202,6 +203,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<TrackTracker> track_tracker;
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;
+  PerTraceAndMachinePtr<FileIoTracker> file_io_tracker;
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
