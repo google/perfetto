@@ -102,12 +102,13 @@ export class GroupSummaryTrack implements TrackRenderer {
             s.id,
             s.ts,
             s.dur,
-            s.cpu,
+            c.cpu,
             s.utid
           from thread t
           cross join sched s using (utid)
+          cross join cpu c using (ucpu)
           where
-            not t.is_idle and
+            t.is_idle = 0 and
             t.upid = ${this.config.upid}
           order by ts
         `;
@@ -118,9 +119,10 @@ export class GroupSummaryTrack implements TrackRenderer {
           s.id,
           s.ts,
           s.dur,
-          s.cpu,
+          c.cpu,
           s.utid
         from sched s
+        cross join cpu c using (ucpu)
         where
           s.utid = ${this.config.utid}
       `;
