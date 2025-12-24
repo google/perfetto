@@ -74,6 +74,7 @@ export function createHeapProfileTrack(
   heapProfileIsIncomplete: boolean,
   detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  utid?: number,
 ) {
   return SliceTrack.create({
     trace,
@@ -85,7 +86,10 @@ export function createHeapProfileTrack(
         type: STR,
         id: NUM,
       },
-      filter: {
+      filter: utid !== undefined ? {
+        col: 'utid',
+        eq: utid,
+      } : {
         col: 'upid',
         eq: upid,
       },

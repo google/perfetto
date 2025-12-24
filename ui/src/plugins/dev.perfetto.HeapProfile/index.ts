@@ -14,7 +14,7 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {NUM} from '../../trace_processor/query_result';
+import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
@@ -46,6 +46,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   private readonly trackMap = new Map<number, Track>();
+  private readonly threadTrackMap = new Map<number, Track>();
   private store?: Store<HeapProfilePluginState>;
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
@@ -59,6 +60,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     );
     await this.createHeapProfileTable(trace);
     await this.addProcessTracks(trace);
+    await this.addThreadTracks(trace);
 
     trace.selection.registerAreaSelectionTab(
       this.createAreaSelectionTab(trace),
@@ -78,6 +80,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           MIN(id) as id,
           graph_sample_ts AS ts,
           upid,
+          NULL AS utid,
           0 AS dur,
           0 AS depth,
           'graph' AS type
@@ -90,6 +93,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           MIN(id) as id,
           ts,
           upid,
+          NULL AS utid,
           0 AS dur,
           0 AS depth,
           'heap_profile:' || GROUP_CONCAT(DISTINCT heap_name) AS type
@@ -102,6 +106,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           id,
           ts,
           (SELECT upid FROM thread WHERE utid = heap_profile_sample.utid) AS upid,
+          utid,
           0 AS dur,
           0 AS depth,
           'heap_profile_sample' AS type
@@ -154,6 +159,64 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         uri,
         name: 'Heap Profile',
         sortOrder: -30,
+      });
+      group?.addChildInOrder(trackNode);
+    }
+  }
+
+  private async addThreadTracks(trace: Trace) {
+    const trackGroupsPlugin = trace.plugins.getPlugin(
+      ProcessThreadGroupsPlugin,
+    );
+    const incomplete = await this.getIncomplete(trace);
+    
+    // Query for threads that have heap_profile_sample events
+    const result = await trace.engine.query(`
+      SELECT DISTINCT
+        utid,
+        (SELECT upid FROM thread WHERE thread.utid = heap_profile_sample.utid) AS upid,
+        (SELECT name FROM thread WHERE thread.utid = heap_profile_sample.utid) AS thread_name
+      FROM heap_profile_sample
+    `);
+    
+    for (const it = result.iter({utid: NUM, upid: NUM, thread_name: STR_NULL}); it.valid(); it.next()) {
+      const utid = it.utid;
+      const upid = it.upid;
+      const threadName = it.thread_name || `Thread ${utid}`;
+      const uri = `/process_${upid}/thread_${utid}/heap_profile_sample`;
+
+      const store = assertExists(this.store);
+      const track: Track = {
+        uri,
+        tags: {
+          kinds: [HEAP_PROFILE_SAMPLE_TRACK_KIND],
+          upid,
+          utid,
+        },
+        renderer: createHeapProfileTrack(
+          trace,
+          uri,
+          EVENT_TABLE_NAME,
+          upid,
+          incomplete,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
+          utid,
+        ),
+      };
+
+      trace.tracks.registerTrack(track);
+      this.threadTrackMap.set(utid, track);
+
+      const group = trackGroupsPlugin.getGroupForThread(utid);
+      const trackNode = new TrackNode({
+        uri,
+        name: `${threadName} (Heap Profile)`,
+        sortOrder: -29,
       });
       group?.addChildInOrder(trackNode);
     }
@@ -233,14 +296,31 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     selection: AreaSelection,
   ): QueryFlamegraphWithMetrics | undefined {
     const upids = [];
+    const utids = [];
     for (const trackInfo of selection.tracks) {
       if (trackInfo?.tags?.kinds?.includes(HEAP_PROFILE_SAMPLE_TRACK_KIND)) {
-        upids.push(trackInfo.tags?.upid);
+        if (trackInfo.tags?.utid !== undefined) {
+          utids.push(trackInfo.tags.utid);
+        }
+        if (trackInfo.tags?.upid !== undefined) {
+          upids.push(trackInfo.tags.upid);
+        }
       }
     }
-    if (upids.length === 0) {
+    if (upids.length === 0 && utids.length === 0) {
       return undefined;
     }
+    
+    // Build WHERE clause based on what we have
+    let whereClause = '';
+    if (utids.length > 0 && upids.length > 0) {
+      whereClause = `(utid IN (${utids.join(',')}) OR (SELECT upid FROM thread WHERE utid = heap_profile_sample.utid) IN (${upids.join(',')}))`;
+    } else if (utids.length > 0) {
+      whereClause = `utid IN (${utids.join(',')})`;
+    } else {
+      whereClause = `(SELECT upid FROM thread WHERE utid = heap_profile_sample.utid) IN (${upids.join(',')})`;
+    }
+    
     const metrics = metricsFromTableOrSubquery(
       `
       (
@@ -249,7 +329,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           FROM heap_profile_sample
           WHERE ts >= ${selection.start}
             AND ts <= ${selection.end}
-            AND (SELECT upid FROM thread WHERE utid = heap_profile_sample.utid) IN (${upids.join(',')})
+            AND ${whereClause}
           GROUP BY callsite_id
         )
         SELECT

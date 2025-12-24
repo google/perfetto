@@ -458,9 +458,9 @@ void ProfileModule::ParseProfilePacket(
             pending.upid, callstack_id);
 
         if (cs_id) {
-          // Get or create a thread for this process
-          // We use pid as tid to represent the main thread
-          UniqueTid utid = context_->process_tracker->UpdateThread(pid, pid);
+          // Get or create a thread using the tid from the allocation
+          UniqueTid utid = context_->process_tracker->UpdateThread(
+              pending.tid, pid);
 
           // Insert into heap_profile_sample table for timeline visualization
           tables::HeapProfileSampleTable::Row sample_row{
@@ -471,9 +471,10 @@ void ProfileModule::ParseProfilePacket(
 
           PERFETTO_DLOG(
               "Matched streaming allocation seq=%llu with heap sample, "
-              "ts=%lld, size=%llu",
+              "ts=%lld, tid=%u, size=%llu",
               static_cast<unsigned long long>(callstack_id),
               static_cast<long long>(pending.timestamp),
+              pending.tid,
               static_cast<unsigned long long>(pending.size));
         }
 
@@ -494,8 +495,8 @@ void ProfileModule::ParseStreamingAllocation(
   protos::pbzero::StreamingAllocation::Decoder alloc(
       decoder.streaming_allocation().data, decoder.streaming_allocation().size);
 
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(decoder.trusted_pid()));
+  uint32_t pid = static_cast<uint32_t>(decoder.trusted_pid());
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
 
   // StreamingAllocation has repeated fields, iterate through them
   auto address_it = alloc.address();
@@ -504,6 +505,7 @@ void ProfileModule::ParseStreamingAllocation(
   auto timestamp_it = alloc.clock_monotonic_coarse_timestamp();
   auto heap_id_it = alloc.heap_id();
   auto sequence_number_it = alloc.sequence_number();
+  auto tid_it = alloc.tid();
 
   size_t count = 0;
   while (address_it && size_it && sample_size_it && timestamp_it &&
@@ -514,6 +516,8 @@ void ProfileModule::ParseStreamingAllocation(
     uint64_t clock_monotonic_coarse_timestamp = *timestamp_it;
     uint32_t heap_id = *heap_id_it;
     uint64_t sequence_number = *sequence_number_it;
+    // If tid is not present, fall back to pid
+    uint32_t tid = tid_it ? *tid_it : pid;
 
     // Convert timestamp to trace time
     std::optional<int64_t> maybe_timestamp =
@@ -531,6 +535,7 @@ void ProfileModule::ParseStreamingAllocation(
       ++timestamp_it;
       ++heap_id_it;
       ++sequence_number_it;
+      if (tid_it) ++tid_it;
       continue;
     }
 
@@ -543,6 +548,7 @@ void ProfileModule::ParseStreamingAllocation(
     pending.size = size;
     pending.sample_size = sample_size;
     pending.heap_id = heap_id;
+    pending.tid = tid;
     pending.upid = upid;
     pending_streaming_allocs_[sequence_number] = pending;
     count++;
@@ -553,6 +559,7 @@ void ProfileModule::ParseStreamingAllocation(
     ++timestamp_it;
     ++heap_id_it;
     ++sequence_number_it;
+    if (tid_it) ++tid_it;
   }
 
   PERFETTO_DLOG(
