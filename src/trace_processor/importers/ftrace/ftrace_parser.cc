@@ -4441,8 +4441,12 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
           } else {
             for (size_t i = 0; i < f2fs_checkpoint_reason_ids_.size(); ++i) {
               if (reason_int & (1 << i)) {
+                size_t array_index =
+                    inserter->GetNextArrayEntryIndex(f2fs_reason_str_arg_id_);
+                StringId key = context_->storage->InternString(
+                    "reason_str[" + std::to_string(array_index) + "]");
                 inserter->AddArg(
-                    f2fs_reason_str_arg_id_, f2fs_reason_str_arg_id_,
+                    f2fs_reason_str_arg_id_, key,
                     Variadic::String(f2fs_checkpoint_reason_ids_[i]));
                 inserter->IncrementArrayEntryIndex(f2fs_reason_str_arg_id_);
               }
