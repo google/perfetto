@@ -487,11 +487,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       const activeCpuTypeCountTitle = `Active CPU count: ${cpuType}`;
       ctx.tracks.registerTrack({
         uri: activeCpuTypeCountUri,
-        renderer: new ActiveCPUCountTrack(
-          activeCpuTypeCountUri,
-          ctx,
-          cpuType,
-        ),
+        renderer: new ActiveCPUCountTrack(activeCpuTypeCountUri, ctx, cpuType),
       });
       const activeCpuTypeCountTrackNode = new TrackNode({
         name: activeCpuTypeCountTitle,
