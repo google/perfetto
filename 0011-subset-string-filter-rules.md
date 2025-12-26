@@ -124,6 +124,53 @@ FilterStringWithType with the appropriate semantic type. Overlays apply
 to base; they don't stack. Fields needing overlay cannot be coalesced
 into ranges.
 
+### Overlay format
+
+The standard bytecode format uses **implicit message indices**: message
+boundaries are marked by `kFilterOpcode_EndOfMessage`, and you count these
+markers to determine which message a field belongs to. This is efficient
+for the full bytecode (which typically defines fields for most messages)
+but terrible for overlays.
+
+Consider updating field 5 in message 100: with implicit indices, you'd
+need to emit 100 `EndOfMessage` markers just to "reach" message 100. This
+defeats the purpose of overlays (avoiding duplication).
+
+Instead, the overlay uses **explicit message indices** with the same opcode
+encoding as the base bytecode:
+
+```
+[msg_index_0] [(field_id_0 << 3) | opcode_0] [extra_args_0...]
+[msg_index_1] [(field_id_1 << 3) | opcode_1] [extra_args_1...]
+...
+[checksum]
+```
+
+Each entry consists of:
+- `msg_index`: The message index (varint, as used in base bytecode)
+- `field_word`: `(field_id << 3) | opcode` (varint, same format as base)
+- Extra arguments depend on the opcode (same as base bytecode)
+
+Entry sizes depend on the opcode:
+- `SimpleField` (1): 2 words (msg_index + field_word)
+- `FilterString` (4): 2 words (msg_index + field_word)
+- `FilterStringWithType` (5): 3 words (msg_index + field_word + semantic_type)
+
+**Important**: Overlays only support simple field types (SimpleField, FilterString,
+FilterStringWithType). Nested fields (NestedField) and ranges (SimpleFieldRange)
+are not supported in overlays - these require changes to the base bytecode.
+
+Both the base bytecode and overlay must be sorted: base by implicit message
+order (as it naturally is), overlay by (msg_index, field_id). The parser
+processes both simultaneously using a two-pointer merge: as it parses each
+field from the base, it checks if the overlay has an entry for that
+(msg_index, field_id). If so, the overlay entry takes precedence (upgrading
+or adding the field).
+
+This single-pass approach is more efficient than parsing the base first and
+then patching it. The overlay can both upgrade existing fields (e.g., from
+SimpleField to FilterString) and add new fields that don't exist in the base.
+
 ### Backwards compatibility
 
 Old Perfetto ignores the overlay and v54 fields; fields with semantic
@@ -133,12 +180,23 @@ overlay and applies semantic type filtering.
 ## Implementation
 
 The [generator](/src/protozero/filtering/filter_bytecode_generator.h)
-prevents coalescing fields with semantic types and emits both base
-(denied) and overlay (FilterStringWithType + semantic type).
+returns a `SerializeResult` struct containing both `bytecode` and
+`v54_overlay`. For backwards-incompatible opcodes (like FilterStringWithType),
+the generator writes the compatible version to the base bytecode and the
+full version to the overlay. Fields are processed in sorted order, so
+overlay entries are naturally sorted by (msg_index, field_id).
 
-The [parser](/src/protozero/filtering/filter_bytecode_parser.h) loads
-base bytecode, then applies the highest known overlay by updating
-directly indexed/range fields.
+The [parser](/src/protozero/filtering/filter_bytecode_parser.h) accepts
+both base bytecode and optional overlay in a single `Load()` call. It
+pre-parses the overlay into a vector, then processes the base bytecode
+while simultaneously advancing through the overlay using a two-pointer
+merge. For each field encountered, it checks if the overlay has an entry
+for the current (msg_index, field_id). If so, the overlay entry takes
+precedence. Both base and overlay have separate FNV checksums.
+
+The [proto_filter](/src/tools/proto_filter/proto_filter.cc) CLI tool
+supports `--overlay_v54_out` and `--overlay_v54_oct_out` options to write
+the overlay bytecode to a file (binary or octal-escaped for .pbtx).
 
 ## Alternatives considered
 
