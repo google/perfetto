@@ -60,8 +60,6 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
     });
   }
 
-  base::Status NotifyEndOfFile() override { return base::OkStatus(); }
-
  private:
   static constexpr uint8_t kTracePacketTag =
       protozero::proto_utils::MakeTagLengthDelimited(
@@ -99,7 +97,9 @@ base::Status DecompressTrace(const uint8_t* data,
         new SerializingProtoTraceReader(output));
     GzipTraceParser parser(std::move(reader));
     RETURN_IF_ERROR(parser.ParseUnowned(data, size));
-    return parser.NotifyEndOfFile();
+    RETURN_IF_ERROR(parser.OnPushDataToSorter());
+    parser.OnEventsFullyExtracted();
+    return base::OkStatus();
   }
 
   PERFETTO_CHECK(type == TraceType::kProtoTraceType);

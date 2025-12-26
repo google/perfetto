@@ -64,8 +64,14 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Push deferred packets to sorter
+  base::Status OnPushDataToSorter() override;
+
+  // NEW: Phase 3 - Notify modules for post-extraction cleanup
+  void OnEventsFullyExtracted() override;
+
+  // LEGACY: Calls new phase methods for backward compatibility
   using SyncClockSnapshots = base::FlatHashMap<
       int64_t,
       std::pair</*host ts*/ uint64_t, /*client ts*/ uint64_t>>;

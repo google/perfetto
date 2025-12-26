@@ -65,7 +65,7 @@ class PerfTracker {
                                UniquePid upid,
                                CreateMappingParams params);
 
-  base::Status NotifyEndOfFile();
+  base::Status OnEventsFullyExtracted();
 
  private:
   void AddMapping(int64_t trace_ts,

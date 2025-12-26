@@ -35,8 +35,11 @@ class PprofTraceReader : public ChunkedTraceReader {
   ~PprofTraceReader() override;
 
   base::Status Parse(TraceBlobView blob) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Parse profile and write to storage
+  base::Status OnPushDataToSorter() override;
+
+  // LEGACY: Calls new phase method for backward compatibility
  private:
   base::Status ParseProfile();
 

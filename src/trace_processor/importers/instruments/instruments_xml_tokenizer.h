@@ -35,7 +35,7 @@ class InstrumentsXmlTokenizer : public ChunkedTraceReader {
 
   base::Status Parse(TraceBlobView) override;
 
-  [[nodiscard]] base::Status NotifyEndOfFile() override;
+  [[nodiscard]] base::Status OnPushDataToSorter() override;
 
  private:
   class Impl;

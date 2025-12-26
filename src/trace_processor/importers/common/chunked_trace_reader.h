@@ -20,6 +20,7 @@
 #include <cstddef>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 
 namespace perfetto::trace_processor {
 
@@ -36,8 +37,19 @@ class ChunkedTraceReader {
   // The buffer size is guaranteed to be > 0.
   virtual base::Status Parse(TraceBlobView) = 0;
 
-  // Called after the last Parse() call.
-  [[nodiscard]] virtual base::Status NotifyEndOfFile() = 0;
+  // Phase 1: Push accumulated data to sorter or storage.
+  // For proto traces, this pushes deferred packets to the sorter.
+  // For other trace formats, this may write directly to storage tables.
+  [[nodiscard]] virtual base::Status OnPushDataToSorter() {
+    // Default: no-op
+    return base::OkStatus();
+  }
+
+  // Phase 3: Called after events are extracted from sorter.
+  // Parsers do post-extraction processing and cleanup here.
+  virtual void OnEventsFullyExtracted() {
+    // Default: no-op
+  }
 };
 
 }  // namespace perfetto::trace_processor

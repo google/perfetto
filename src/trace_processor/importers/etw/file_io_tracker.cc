@@ -443,8 +443,8 @@ void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp, ConstBytes blob) {
       timestamp, std::move(args));
 }
 
-void FileIoTracker::NotifyEndOfFile() {
-  // Record each unmatched event one at a time.
+void FileIoTracker::OnEventsFullyExtracted() {
+  // Phase 3: Record each unmatched event one at a time
   while (!started_events_.empty()) {
     // `EndUnmatchedStart()` removes the recorded event, so retrieve the first
     // event each loop.

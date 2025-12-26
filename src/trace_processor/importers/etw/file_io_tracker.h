@@ -153,7 +153,7 @@ class FileIoTracker {
   void ParseFileIoSimpleOp(int64_t timestamp, protozero::ConstBytes);
   void ParseFileIoOpEnd(int64_t timestamp, protozero::ConstBytes);
 
-  void NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
  private:
   struct StartedEvent {

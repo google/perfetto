@@ -48,8 +48,11 @@ class NinjaLogParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Sort jobs and write slices to storage
+  base::Status OnPushDataToSorter() override;
+
+  // LEGACY: Calls new phase method for backward compatibility
  private:
   struct Job {
     Job(int64_t s, int64_t e, uint64_t h, const std::string& n)

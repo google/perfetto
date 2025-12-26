@@ -37,8 +37,6 @@ class DeobfuscationModule : public ProtoImporterModule {
                             const TracePacketData& data,
                             uint32_t field_id) override;
 
-  void NotifyEndOfFile() override;
-
  private:
   void StoreDeobfuscationMapping(protozero::ConstBytes);
   void BuildMappingTableIncremental(

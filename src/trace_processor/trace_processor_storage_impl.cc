@@ -107,6 +107,17 @@ void TraceProcessorStorageImpl::Flush() {
   if (unrecoverable_parse_error_) {
     return;
   }
+
+  // Phase 1: Push accumulated data to sorter
+  if (parser_) {
+    auto status = parser_->OnPushDataToSorter();
+    if (!status.ok()) {
+      unrecoverable_parse_error_ = true;
+      return;
+    }
+  }
+
+  // Phase 2: Extract events from sorter
   if (context()->sorter) {
     context()->sorter->ExtractEventsForced();
   }
@@ -119,29 +130,40 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   if (unrecoverable_parse_error_) {
     return base::ErrStatus("Unrecoverable parsing error already occurred");
   }
+
   eof_ = true;
+
+  // Phase 1 & 2: Push to sorter and extract (idempotent, safe to call multiple
+  // times)
   Flush();
-  RETURN_IF_ERROR(parser_->NotifyEndOfFile());
-  // NotifyEndOfFile might have pushed packets to the sorter.
-  Flush();
+
+  if (unrecoverable_parse_error_) {
+    return base::ErrStatus("Unrecoverable parsing error occurred during flush");
+  }
+
+  // Phase 3: Notify all components for cleanup
+  parser_->OnEventsFullyExtracted();
 
   auto& traces = context()->forked_context_state->trace_to_context;
   for (auto it = traces.GetIterator(); it; ++it) {
     if (it.value()->content_analyzer) {
-      PacketAnalyzer::Get(it.value())->NotifyEndOfFile();
+      PacketAnalyzer::Get(it.value())->OnEventsFullyExtracted();
     }
   }
+
   auto& machines = context()->forked_context_state->machine_to_context;
   for (auto it = machines.GetIterator(); it; ++it) {
-    it.value()->symbol_tracker->NotifyEndOfFile();
+    it.value()->symbol_tracker->OnEventsFullyExtracted();
   }
+
   auto& all = context()->forked_context_state->trace_and_machine_to_context;
   for (auto it = all.GetIterator(); it; ++it) {
-    it.value()->file_io_tracker->NotifyEndOfFile();
+    it.value()->file_io_tracker->OnEventsFullyExtracted();
     it.value()->event_tracker->FlushPendingEvents();
     it.value()->slice_tracker->FlushPendingSlices();
-    it.value()->process_tracker->NotifyEndOfFile();
+    it.value()->process_tracker->OnEventsFullyExtracted();
   }
+
   return base::OkStatus();
 }
 

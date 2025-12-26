@@ -45,8 +45,11 @@ class ArtHprofParser : public ChunkedTraceReader {
   explicit ArtHprofParser(TraceProcessorContext* context);
   ~ArtHprofParser() override;
   base::Status Parse(TraceBlobView blob) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Build heap graph and write to storage
+  base::Status OnPushDataToSorter() override;
+
+  // LEGACY: Calls new phase method for backward compatibility
  private:
   void PopulateClasses(const HeapGraph& graph);
   void PopulateObjects(const HeapGraph& graph, int64_t ts, UniquePid upid);
