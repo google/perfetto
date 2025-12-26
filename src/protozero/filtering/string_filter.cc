@@ -16,13 +16,16 @@
 
 #include "src/protozero/filtering/string_filter.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <regex>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 
 namespace protozero {
@@ -30,8 +33,8 @@ namespace {
 
 using Matches = std::match_results<char*>;
 
-static constexpr std::string_view kRedacted = "P60REDACTED";
-static constexpr char kRedactedDash = '-';
+constexpr std::string_view kRedacted = "P60REDACTED";
+constexpr char kRedactedDash = '-';
 
 // Returns a pointer to the first character after the tgid pipe character in
 // the atrace string given by [ptr, end). Returns null if no such character
@@ -81,7 +84,7 @@ void RedactMatches(const Matches& matches) {
     // Overwrite the match with characters from |kRedacted|. If match is
     // smaller, we will not use all of |kRedacted| but that's fine (i.e. we
     // will overwrite with a truncated |kRedacted|).
-    size_t match_len = static_cast<size_t>(match.second - match.first);
+    auto match_len = static_cast<size_t>(match.second - match.first);
     size_t redacted_len = std::min(match_len, kRedacted.size());
     memcpy(match.first, kRedacted.data(), redacted_len);
 
@@ -90,23 +93,54 @@ void RedactMatches(const Matches& matches) {
   }
 }
 
+// Checks if a semantic type matches the given rule's semantic type mask.
+constexpr bool DoesRuleMatchSemanticType(
+    const StringFilter::SemanticTypeMask& mask,
+    uint32_t semantic_type) {
+  // If beyond supported range (>= 128), apply rule (safe default).
+  if (PERFETTO_UNLIKELY(semantic_type >= StringFilter::kSemanticTypeLimit)) {
+    return true;
+  }
+  uint32_t word_index = semantic_type / 64;
+  uint32_t bit_index = semantic_type % 64;
+  return (mask[word_index] & (1ULL << bit_index)) != 0;
+}
+
 }  // namespace
 
 void StringFilter::AddRule(Policy policy,
                            std::string_view pattern_str,
-                           std::string atrace_payload_starts_with) {
-  rules_.emplace_back(StringFilter::Rule{
+                           std::string atrace_payload_starts_with,
+                           std::string name,
+                           SemanticTypeMask semantic_type_mask) {
+  Rule new_rule{
       policy,
       std::regex(pattern_str.begin(), pattern_str.end(),
                  std::regex::ECMAScript | std::regex_constants::optimize),
-      std::move(atrace_payload_starts_with)});
+      std::move(atrace_payload_starts_with), std::move(name),
+      semantic_type_mask};
+  // If name is non-empty, look for existing rule with same name and replace.
+  if (!new_rule.name.empty()) {
+    for (Rule& existing : rules_) {
+      if (existing.name == new_rule.name) {
+        existing = std::move(new_rule);
+        return;
+      }
+    }
+  }
+  rules_.push_back(std::move(new_rule));
 }
 
-bool StringFilter::MaybeFilterInternal(char* ptr, size_t len) const {
+bool StringFilter::MaybeFilterInternal(char* ptr,
+                                       size_t len,
+                                       uint32_t semantic_type) const {
   std::match_results<char*> matches;
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
   for (const Rule& rule : rules_) {
+    if (!DoesRuleMatchSemanticType(rule.semantic_type_mask, semantic_type)) {
+      continue;
+    }
     switch (rule.policy) {
       case Policy::kMatchRedactGroups:
       case Policy::kMatchBreak:

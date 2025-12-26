@@ -84,15 +84,20 @@ struct OverlayEntry {
   uint32_t msg_index;
   uint32_t field_id;
   uint32_t message_id;
-  uint32_t argument;
 };
 
-uint32_t GetOverlayMessageIdForOpcode(uint32_t opcode) {
+// Returns the message_id for an overlay entry based on opcode and argument.
+// Returns 0 if the opcode is invalid.
+uint32_t GetMessageIdForOverlay(uint32_t opcode, uint32_t argument) {
   switch (opcode) {
     case kFilterOpcode_SimpleField:
       return FilterBytecodeParser::kSimpleField;
     case kFilterOpcode_FilterString:
       return FilterBytecodeParser::kFilterStringField;
+    case kFilterOpcode_FilterStringWithType:
+      // For FilterStringWithType, incorporate semantic type into message_id.
+      return FilterBytecodeParser::kFilterStringFieldWithType |
+             (argument & FilterBytecodeParser::kSemanticTypeMask);
     default:
       return 0;  // Invalid opcode
   }
@@ -152,7 +157,8 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
       overlay.emplace_back();
 
       uint32_t opcode = overlay_words[i + 1] & kOpcodeMask;
-      uint32_t message_id = GetOverlayMessageIdForOpcode(opcode);
+      uint32_t message_id =
+          GetMessageIdForOverlay(opcode, overlay_words[i + 2]);
       if (message_id == 0) {
         PERFETTO_DLOG("overlay error: invalid opcode %u at index %zu", opcode,
                       i + 1);
@@ -163,7 +169,6 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
       entry.msg_index = overlay_words[i];
       entry.field_id = overlay_words[i + 1] >> kOpcodeShift;
       entry.message_id = message_id;
-      entry.argument = overlay_words[i + 2];
 
       if (overlay.size() == 1) {
         continue;
@@ -269,18 +274,31 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
 
     if (opcode == kFilterOpcode_SimpleField ||
         opcode == kFilterOpcode_NestedField ||
-        opcode == kFilterOpcode_FilterString) {
+        opcode == kFilterOpcode_FilterString ||
+        opcode == kFilterOpcode_FilterStringWithType) {
       // Field words are organized as follow:
       // MSB: 1 if allowed, 0 if not allowed.
       // Remaining bits:
       //   Message index in the case of nested (non-simple) messages.
-      //   0x7f..e in the case of string fields which need filtering.
-      //   0x7f..f in the case of simple fields.
+      //   0x7fff0000-0x7ffffffe for string fields with semantic type.
+      //   0x7ffffffe in the case of string fields which need filtering.
+      //   0x7fffffff in the case of simple fields.
       uint32_t msg_id;
       if (opcode == kFilterOpcode_SimpleField) {
         msg_id = kSimpleField;
       } else if (opcode == kFilterOpcode_FilterString) {
         msg_id = kFilterStringField;
+      } else if (opcode == kFilterOpcode_FilterStringWithType) {
+        // The next word in the bytecode contains the semantic type.
+        if (!has_next_word) {
+          PERFETTO_DLOG(
+              "bytecode error @ word %zu: unterminated filter string with type",
+              i);
+          return false;
+        }
+        uint32_t semantic_type = words[++i];
+        msg_id =
+            kFilterStringFieldWithType | (semantic_type & kSemanticTypeMask);
       } else {  // FILTER_OPCODE_NESTED_FIELD
         // The next word in the bytecode contains the message index.
         if (!has_next_word) {
@@ -401,7 +419,7 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
 FilterBytecodeParser::QueryResult FilterBytecodeParser::Query(
     uint32_t msg_index,
     uint32_t field_id) const {
-  FilterBytecodeParser::QueryResult res{false, 0u};
+  FilterBytecodeParser::QueryResult res{false, 0u, 0u};
   if (static_cast<uint64_t>(msg_index) + 1 >=
       static_cast<uint64_t>(message_offset_.size())) {
     return res;
@@ -436,6 +454,13 @@ FilterBytecodeParser::QueryResult FilterBytecodeParser::Query(
 
   res.allowed = (field_state & kAllowed) != 0;
   res.nested_msg_index = field_state & ~kAllowed;
+  // Extract semantic type if this is a FilterStringFieldWithType.
+  // Exclude kFilterStringField (0x7ffffffe) which doesn't have semantic type.
+  if ((res.nested_msg_index & kFilterStringFieldWithTypeMask) ==
+          kFilterStringFieldWithType &&
+      res.nested_msg_index != kFilterStringField) {
+    res.semantic_type = res.nested_msg_index & kSemanticTypeMask;
+  }
   PERFETTO_DCHECK(!res.nested_msg_field() ||
                   res.nested_msg_index < message_offset_.size() - 1);
   return res;

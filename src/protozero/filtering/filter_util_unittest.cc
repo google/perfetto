@@ -14,14 +14,24 @@
  * limitations under the License.
  */
 
-#include "test/gtest_and_gmock.h"
-
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/temp_file.h"
-#include "src/protozero/filtering/filter_bytecode_parser.h"
 #include "src/protozero/filtering/filter_util.h"
 
+#include <cstdint>
+#include <cstring>
+#include <map>
+#include <optional>
 #include <regex>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "src/protozero/filtering/filter_bytecode_generator.h"
+#include "src/protozero/filtering/filter_bytecode_parser.h"
+#include "test/gtest_and_gmock.h"
 
 namespace protozero {
 
@@ -35,7 +45,7 @@ perfetto::base::TempFile MkTemp(const char* str) {
 }
 
 std::string FilterToText(FilterUtil& filter,
-                         std::optional<std::string> bytecode = {}) {
+                         const std::optional<std::string>& bytecode = {}) {
   std::string tmp_path = perfetto::base::TempFile::Create().path();
   {
     perfetto::base::ScopedFstream tmp_stream(
@@ -376,6 +386,110 @@ TraceConfig 1 string f1 # FILTER STRING
   // If we generate bytecode from the schema itself, all fields are allowed and
   // the result is identical to the unfiltered output.
   EXPECT_EQ(FilterToText(filter), FilterToText(filter, bytecode));
+}
+
+TEST(SchemaParserTest, FilterStringWithSemanticType) {
+  auto schema = MkTemp(R"(
+  syntax = "proto2";
+  message Root {
+    optional int32 i32 = 13;
+    optional TracePacket packet = 7;
+  }
+  message TracePacket {
+    optional string name = 3;
+    optional string category = 4;
+  }
+  )");
+
+  FilterUtil filter;
+  std::set<std::string> filter_string{"TracePacket:name",
+                                      "TracePacket:category"};
+  std::map<std::string, uint32_t> semantic_types{
+      {"TracePacket:name", 1},      // SEMANTIC_TYPE_ATRACE
+      {"TracePacket:category", 2},  // SEMANTIC_TYPE_JOB
+  };
+  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", "", {},
+                                           filter_string, semantic_types));
+
+  // Generate bytecode with v54 (should use AddFilterStringFieldWithType)
+  auto result_v54 = filter.GenerateFilterBytecode(
+      FilterBytecodeGenerator::BytecodeVersion::kV54);
+  EXPECT_GT(result_v54.bytecode.size(), 0u);
+  EXPECT_EQ(result_v54.v54_overlay.size(), 0u);  // No overlay needed for v54
+
+  // Parse the bytecode and verify semantic types are present
+  FilterBytecodeParser parser;
+  ASSERT_TRUE(
+      parser.Load(result_v54.bytecode.data(), result_v54.bytecode.size()));
+
+  // Query the TracePacket message (index 1) for field 3 (name)
+  auto query_name = parser.Query(1, 3);
+  EXPECT_TRUE(query_name.allowed);
+  EXPECT_TRUE(query_name.filter_string_field());
+  EXPECT_EQ(query_name.semantic_type, 1u);
+
+  // Query field 4 (category)
+  auto query_category = parser.Query(1, 4);
+  EXPECT_TRUE(query_category.allowed);
+  EXPECT_TRUE(query_category.filter_string_field());
+  EXPECT_EQ(query_category.semantic_type, 2u);
+}
+
+TEST(SchemaParserTest, FilterStringWithSemanticTypeV2) {
+  auto schema = MkTemp(R"(
+  syntax = "proto2";
+  message Root {
+    optional TracePacket packet = 1;
+  }
+  message TracePacket {
+    optional string name = 2;
+  }
+  )");
+
+  FilterUtil filter;
+  std::set<std::string> filter_string{"TracePacket:name"};
+  std::map<std::string, uint32_t> semantic_types{{"TracePacket:name", 1}};
+  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", "", {},
+                                           filter_string, semantic_types));
+
+  // Generate bytecode targeting v2 parsers (should generate overlay)
+  auto result_v2 = filter.GenerateFilterBytecode(
+      FilterBytecodeGenerator::BytecodeVersion::kV2);
+  EXPECT_GT(result_v2.bytecode.size(), 0u);
+  EXPECT_GT(result_v2.v54_overlay.size(), 0u);  // Overlay should be present
+
+  // Verify base bytecode denies the field (v2 doesn't support semantic types)
+  FilterBytecodeParser parser_base;
+  ASSERT_TRUE(
+      parser_base.Load(result_v2.bytecode.data(), result_v2.bytecode.size()));
+  auto query_base = parser_base.Query(1, 2);
+  EXPECT_FALSE(query_base.allowed);  // Field is denied in v2
+  EXPECT_FALSE(query_base.filter_string_field());
+
+  // Verify overlay provides the semantic type
+  FilterBytecodeParser parser_overlay;
+  ASSERT_TRUE(parser_overlay.Load(
+      result_v2.bytecode.data(), result_v2.bytecode.size(),
+      result_v2.v54_overlay.data(), result_v2.v54_overlay.size()));
+  auto query_overlay = parser_overlay.Query(1, 2);
+  EXPECT_TRUE(query_overlay.allowed);
+  EXPECT_TRUE(query_overlay.filter_string_field());
+  EXPECT_EQ(query_overlay.semantic_type, 1u);  // Semantic type from overlay
+}
+
+TEST(SchemaParserTest, SemanticTypeValidation) {
+  auto schema = MkTemp(R"(
+  syntax = "proto2";
+  message Root {
+    optional string field = 1;
+  }
+  )");
+
+  FilterUtil filter;
+  // Semantic type without filter_string should fail
+  std::map<std::string, uint32_t> semantic_types{{"Root:field", 1}};
+  EXPECT_FALSE(filter.LoadMessageDefinition(schema.path(), "Root", "", {}, {},
+                                            semantic_types));
 }
 
 }  // namespace
