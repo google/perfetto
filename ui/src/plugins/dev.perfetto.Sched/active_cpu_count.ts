@@ -17,7 +17,6 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../components/tracks/base_counter_track';
-import {TrackContext} from '../../public/track';
 import {Trace} from '../../public/trace';
 
 export enum CPUType {
@@ -29,8 +28,8 @@ export enum CPUType {
 export class ActiveCPUCountTrack extends BaseCounterTrack {
   private readonly cpuType?: CPUType;
 
-  constructor(ctx: TrackContext, trace: Trace, cpuType?: CPUType) {
-    super(trace, ctx.trackUri);
+  constructor(trackUri: string, trace: Trace, cpuType?: CPUType) {
+    super(trace, trackUri);
     this.cpuType = cpuType;
   }
 
