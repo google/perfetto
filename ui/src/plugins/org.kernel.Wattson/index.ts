@@ -20,7 +20,7 @@ import {
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TABLE_TRACK, SLICE_TRACK} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {Engine} from '../../trace_processor/engine';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -183,7 +183,7 @@ async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     tags: {
-      kinds: [SLICE_TRACK_KIND],
+      kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
     },
     renderer: track,
   });
