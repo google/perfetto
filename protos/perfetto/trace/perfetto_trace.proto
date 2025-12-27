@@ -4319,6 +4319,11 @@ message TraceConfig {
 
       // Use TraceBufferV2.
       TRACE_BUFFER_V2 = 1;
+
+      // Use both V1 and V2 in shadow mode. Data is written to both buffers,
+      // but only V1 data is returned. Comparison stats are reported to
+      // validate V2 returns equivalent data.
+      TRACE_BUFFER_V2_SHADOW_MODE = 2;
     }
     optional ExperimentalMode experimental_mode = 8;
   }
@@ -5155,7 +5160,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 21.
+  // Next id: 22.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -5249,6 +5254,32 @@ message TraceStats {
     // indicating this loss to the service -- packets lost for other reasons are
     // not reflected in this stat.
     optional uint64 trace_writer_packet_loss = 19;
+
+    // Statistics for TRACE_BUFFER_V2_SHADOW_MODE comparison.
+    // Only populated when the buffer is configured with shadow mode.
+    message ShadowBufferStats {
+      // Total num. packets read. This is not affected by capping of the hasher
+      // to 32K elements.
+      optional uint64 packets_seen = 1;
+
+      // The stats below are keps only for 32k packets. After reading 32K
+      // packets hashes are randomly evicted and that might lead to slightly
+      // inconsistent results.
+
+      // Num. packets found in both V1 and V2 buffers (matched by content hash).
+      optional uint64 packets_in_both = 2;
+      // Num. packets found only in V1 buffer but not in V2.
+      optional uint64 packets_only_v1 = 3;
+      // Num. packets found only in V2 buffer but not in V1.
+      optional uint64 packets_only_v2 = 4;
+      // Num. patch operations attempted.
+      optional uint64 patches_attempted = 5;
+      // Num. patches that succeeded on V1 buffer.
+      optional uint64 v1_patches_succeeded = 6;
+      // Num. patches that succeeded on V2 buffer.
+      optional uint64 v2_patches_succeeded = 7;
+    }
+    optional ShadowBufferStats shadow_buffer_stats = 21;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.
