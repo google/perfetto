@@ -14902,6 +14902,7 @@ message TrackEvent {
     // events in the trace and loss of unfinished events at the end of a trace.
     TYPE_SLICE_BEGIN = 1;
     TYPE_SLICE_END = 2;
+    TYPE_SLICE_UPDATE = 5;
 
     // Instant events are nestable events without duration. They can be children
     // of slice events on the same track.
