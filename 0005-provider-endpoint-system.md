@@ -157,8 +157,7 @@ The `manifest.json` file contains server metadata and module list:
 ```json
 {
   "name": "Google Internal Extensions",
-  "modules": ["default", "android", "chrome"],
-  "csp_allow": ["https://symbolserver.corp.google.com"]
+  "modules": ["default", "android", "chrome"]
 }
 ```
 
@@ -166,8 +165,6 @@ The `manifest.json` file contains server metadata and module list:
 - `name` (required): Human-readable server name shown in Settings
 - `modules` (required): List of available modules. Use `["default"]` for
   single-module servers.
-- `csp_allow` (optional): URLs to add to Content Security Policy for
-  symbolization/deobfuscation endpoints
 
 ### Request Strategy
 
@@ -225,17 +222,12 @@ noise. Modules let users choose which sets of extensions they want.
 
 - Server's `manifest.json` lists available modules:
   `{"name": "...", "modules": ["default", "android", "chrome"]}`
-- When adding server, UI fetches manifest and shows module checkboxes in
-  Settings
-- Users explicitly select which modules to load (none selected by default except
-  for installation-configured servers)
+- When adding server, UI fetches manifest and shows module selection in Settings
+- The `default` module (if available) is automatically selected when manifest is
+  fetched. Other modules remain unselected so users can opt in explicitly.
 - UI loads extensions only from selected modules
 - Each module's extensions in separate paths: `/modules/android/macros`,
   `/modules/chrome/macros`, etc.
-
-**Default bootstrap behavior:** when an installation-configured server (like
-Google's internal server) is auto-added, the UI selects the `default` module
-automatically. Other modules remain unchecked so users can opt in explicitly.
 
 **Implementation notes:**
 
