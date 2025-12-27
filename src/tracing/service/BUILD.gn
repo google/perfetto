@@ -84,6 +84,21 @@ if (enable_perfetto_zlib) {
   }
 }
 
+if (enable_perfetto_zstd) {
+  source_set("zstd_compressor") {
+    deps = [
+      "../../../gn:default_deps",
+      "../../../gn:zstd",
+      "../../../include/perfetto/tracing",
+      "../core",
+    ]
+    sources = [
+      "zstd_compressor.cc",
+      "zstd_compressor.h",
+    ]
+  }
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
@@ -133,13 +148,28 @@ if (enable_perfetto_benchmarks) {
       ":service",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../../protos/perfetto/trace:cpp",
       "../../../protos/perfetto/trace:zero",
       "../../../protos/perfetto/trace/ftrace:zero",
+      "../../base",
       "../../protozero",
       "../core",
       "../test:test_support",
     ]
+    if (enable_perfetto_zlib) {
+      deps += [
+        ":zlib_compressor",
+        "../../../gn:zlib",
+      ]
+    }
+    if (enable_perfetto_zstd) {
+      deps += [
+        ":zstd_compressor",
+        "../../../gn:zstd",
+      ]
+    }
     sources = [
+      "compression_benchmark.cc",
       "packet_stream_validator_benchmark.cc",
       "trace_buffer_benchmark.cc",
     ]
