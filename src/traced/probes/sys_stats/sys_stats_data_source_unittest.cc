@@ -221,6 +221,61 @@ const char kMockAMDGpuFreq[] = R"(
 1: 400Mhz *
 2: 2000Mhz 
 )";
+
+const char kMockCgroupCpuStat[] = R"(usage_usec 123456789
+user_usec 87654321
+system_usec 35802468
+nr_periods 1000
+nr_throttled 50
+throttled_usec 123456)";
+
+const char kMockCgroupMemoryStat[] = R"(anon 1048576
+file 2097152
+kernel_stack 32768
+pagetables 65536
+percpu 16384
+sock 8192
+shmem 524288
+file_mapped 1572864
+file_dirty 131072
+file_writeback 65536
+swapcached 0
+anon_thp 0
+file_thp 0
+shmem_thp 0
+inactive_anon 524288
+active_anon 524288
+inactive_file 1048576
+active_file 1048576
+unevictable 0
+slab_reclaimable 262144
+slab_unreclaimable 131072
+slab 393216
+workingset_refault_anon 0
+workingset_refault_file 100
+workingset_activate_anon 0
+workingset_activate_file 50
+workingset_restore_anon 0
+workingset_restore_file 25
+workingset_nodereclaim 0
+pgfault 10000
+pgmajfault 100
+pgrefill 500
+pgscan 1000
+pgsteal 750
+pgactivate 250
+pgdeactivate 200
+pglazyfree 10
+pglazyfreed 5
+thp_fault_alloc 0
+thp_collapse_alloc 0)";
+
+const char kMockCgroupMemoryCurrent[] = "104857600";
+const char kMockCgroupMemoryMax[] = "268435456";
+
+const char kMockCgroupIoStat[] = R"(8:0 rbytes=1048576 wbytes=524288 rios=100 wios=50 dbytes=0 dios=0
+8:16 rbytes=2097152 wbytes=1048576 rios=200 wios=100 dbytes=0 dios=0)";
+
 // clang-format on
 class TestSysStatsDataSource : public SysStatsDataSource {
  public:
@@ -272,6 +327,37 @@ base::ScopedFile MockOpenReadOnly(const char* path) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockDiskStat, strlen(kMockDiskStat), 0), 0);
   } else if (base::StartsWith(path, "/proc/pressure/")) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockPsi, strlen(kMockPsi), 0), 0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/cpu/top-app/cpu.stat")) {
+    EXPECT_GT(
+        pwrite(tmp_.fd(), kMockCgroupCpuStat, strlen(kMockCgroupCpuStat), 0),
+        0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/memory/top-app/memory.stat")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockCgroupMemoryStat,
+                     strlen(kMockCgroupMemoryStat), 0),
+              0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/memory/top-app/memory.current")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockCgroupMemoryCurrent,
+                     strlen(kMockCgroupMemoryCurrent), 0),
+              0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/memory/top-app/memory.max")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockCgroupMemoryMax,
+                     strlen(kMockCgroupMemoryMax), 0),
+              0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/cpu/top-app/io.stat")) {
+    EXPECT_GT(
+        pwrite(tmp_.fd(), kMockCgroupIoStat, strlen(kMockCgroupIoStat), 0), 0);
+  } else if (!strcmp(path,
+                     "/sys/fs/cgroup/memory/top-app/memory.swap.current")) {
+    EXPECT_GT(pwrite(tmp_.fd(), "0", 1, 0), 0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/memory/top-app/memory.swap.max")) {
+    EXPECT_GT(pwrite(tmp_.fd(), "max", 3, 0), 0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/memory/top-app/io.stat")) {
+    EXPECT_GT(
+        pwrite(tmp_.fd(), kMockCgroupIoStat, strlen(kMockCgroupIoStat), 0), 0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/cpu/top-app/cpu.stat")) {
+    EXPECT_GT(
+        pwrite(tmp_.fd(), kMockCgroupCpuStat, strlen(kMockCgroupCpuStat), 0),
+        0);
   } else {
     PERFETTO_FATAL("Unexpected file opened %s", path);
   }
@@ -885,6 +971,72 @@ TEST_F(SysStatsDataSourceTest, Psi) {
   EXPECT_EQ(sys_stats.psi()[4].total_ns(), 417963000u);
   EXPECT_EQ(sys_stats.psi()[5].resource(), PsiSample::PSI_RESOURCE_MEMORY_FULL);
   EXPECT_EQ(sys_stats.psi()[5].total_ns(), 205933000U);
+}
+
+TEST_F(SysStatsDataSourceTest, CgroupStatsWork) {
+  protos::gen::DataSourceConfig cfg;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_cgroup_period_ms(1);
+  sys_cfg.add_cgroup_paths("/sys/fs/cgroup/cpu/top-app");
+  sys_cfg.add_cgroup_paths("/sys/fs/cgroup/memory/top-app");
+
+  // Add basic cgroup counters to monitor
+  sys_cfg.add_cgroup_counters(
+      protos::gen::CgroupCounters::CGROUP_CPU_USAGE_USEC);
+  sys_cfg.add_cgroup_counters(
+      protos::gen::CgroupCounters::CGROUP_CPU_USER_USEC);
+  sys_cfg.add_cgroup_counters(protos::gen::CgroupCounters::CGROUP_MEMORY_ANON);
+  sys_cfg.add_cgroup_counters(protos::gen::CgroupCounters::CGROUP_MEMORY_FILE);
+
+  cfg.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+
+  auto data_source = GetSysStatsDataSource(cfg);
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+
+  const auto& sys_stats = packet.sys_stats();
+  ASSERT_GT(sys_stats.cgroup_size(), 0);
+
+  // Check basic cgroup stats
+  bool found_cpu_usage = false;
+  bool found_cpu_user = false;
+  bool found_memory_anon = false;
+  bool found_memory_file = false;
+
+  for (const auto& cgroup_value : sys_stats.cgroup()) {
+    EXPECT_TRUE(cgroup_value.has_cgroup_path());
+
+    // Check each cgroup counter type
+
+    if (cgroup_value.key() ==
+        protos::gen::CgroupCounters::CGROUP_CPU_USAGE_USEC) {
+      EXPECT_EQ(cgroup_value.value(), 123456789UL);
+      EXPECT_TRUE(
+          base::StartsWith(cgroup_value.cgroup_path(), "/sys/fs/cgroup/cpu/"));
+      found_cpu_usage = true;
+    } else if (cgroup_value.key() ==
+               protos::gen::CgroupCounters::CGROUP_CPU_USER_USEC) {
+      EXPECT_EQ(cgroup_value.value(), 87654321UL);
+      found_cpu_user = true;
+    } else if (cgroup_value.key() ==
+               protos::gen::CgroupCounters::CGROUP_MEMORY_ANON) {
+      EXPECT_EQ(cgroup_value.value(), 1048576UL);
+      EXPECT_TRUE(base::StartsWith(cgroup_value.cgroup_path(),
+                                   "/sys/fs/cgroup/memory/"));
+      found_memory_anon = true;
+    } else if (cgroup_value.key() ==
+               protos::gen::CgroupCounters::CGROUP_MEMORY_FILE) {
+      EXPECT_EQ(cgroup_value.value(), 2097152UL);
+      found_memory_file = true;
+    }
+  }
+
+  EXPECT_TRUE(found_cpu_usage);
+  EXPECT_TRUE(found_cpu_user);
+  EXPECT_TRUE(found_memory_anon);
+  EXPECT_TRUE(found_memory_file);
 }
 
 }  // namespace
