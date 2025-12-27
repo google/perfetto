@@ -106,6 +106,13 @@ export class AppImpl implements App {
   // Promise which is resolved when extra loading is completed.
   extrasLoadingDeferred = defer<undefined>();
 
+  // Deferred objects for extension server resources. These are resolved when
+  // extension loading completes. Consumers should await these promises to ensure
+  // the corresponding extra* arrays are populated before using them.
+  extensionMacrosDeferred = defer<void>();
+  extensionSqlModulesDeferred = defer<void>();
+  extensionProtoDescriptorsDeferred = defer<void>();
+
   // Initializes the singleton instance - must be called only once and before
   // AppImpl.instance is used.
   static initialize(initArgs: AppInitArgs): AppImpl {

@@ -241,9 +241,10 @@ export default class CoreCommands implements PerfettoPlugin {
     // Register the macros from extras at onTraceReady (the latest time
     // possible).
     ctx.onTraceReady.addListener(async (_) => {
-      // Await the promise: we've tried to be async as long as possible but
+      // Await the promises: we've tried to be async as long as possible but
       // now we need the extras to be loaded.
       await app.extraLoadingPromise;
+      await app.extensionMacrosDeferred;
       registerMacros(
         ctx,
         app.extraMacros.reduce((acc, macro) => ({...acc, ...macro}), {}),
