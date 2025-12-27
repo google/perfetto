@@ -37,6 +37,7 @@ class GzipTraceParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
+  base::Status ProcessEndOfFileDeferredPackets() override;
   base::Status NotifyEndOfFile() override;
 
   base::Status ParseUnowned(const uint8_t*, size_t);

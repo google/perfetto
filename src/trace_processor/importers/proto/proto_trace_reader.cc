@@ -378,17 +378,20 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
         converted_clock_id =
             ClockTracker::SequenceToGlobalClock(seq_id, timestamp_clock_id);
       }
-      auto trace_ts = context_->clock_tracker->ToTraceTime(
-          converted_clock_id, timestamp, packet.offset());
-      if (!trace_ts) {
-        // We need to switch to full sorting mode to ensure that packets with
-        // missing timestamp are handled correctly. Don't save the packet unless
-        // switching to full sorting mode succeeded.
-        if (!received_eof_ && context_->sorter->SetSortingMode(
-                                  TraceSorter::SortingMode::kFullSort)) {
+
+      // If full sorting mode is enabled then allow packets with missing
+      // timestamps to be deferred to EOF.
+      if (context_->sorter->sorting_mode() ==
+          TraceSorter::SortingMode::kFullSort) {
+        if (!received_eof_ &&
+            !context_->clock_tracker->HasPathToTraceTime(converted_clock_id)) {
           eof_deferred_packets_.push_back(std::move(packet));
           return base::OkStatus();
         }
+      }
+      auto trace_ts = context_->clock_tracker->ToTraceTime(
+          converted_clock_id, timestamp, packet.offset());
+      if (!trace_ts) {
         // We don't return an error here as it will cause the trace to stop
         // parsing. Instead, we rely on the stat increment (which happened
         // automatically in ToTraceTime) to inform the user about the error.
@@ -925,11 +928,15 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   }
 }
 
-base::Status ProtoTraceReader::NotifyEndOfFile() {
+base::Status ProtoTraceReader::ProcessEndOfFileDeferredPackets() {
   received_eof_ = true;
   for (auto& packet : eof_deferred_packets_) {
     RETURN_IF_ERROR(TimestampTokenizeAndPushToSorter(std::move(packet)));
   }
+  return base::OkStatus();
+}
+
+base::Status ProtoTraceReader::NotifyEndOfFile() {
   for (auto& module : module_context_.modules) {
     module->NotifyEndOfFile();
   }

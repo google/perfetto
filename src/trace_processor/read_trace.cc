@@ -79,6 +79,7 @@ base::Status ReadTrace(
     const std::function<void(uint64_t parsed_size)>& progress_callback,
     bool call_notify_end_of_file) {
   RETURN_IF_ERROR(ReadTraceUnfinalized(tp, filename, progress_callback));
+  RETURN_IF_ERROR(tp->ProcessEndOfFileDeferredPackets());
   if (call_notify_end_of_file) {
     return tp->NotifyEndOfFile();
   }
@@ -99,6 +100,7 @@ base::Status DecompressTrace(const uint8_t* data,
         new SerializingProtoTraceReader(output));
     GzipTraceParser parser(std::move(reader));
     RETURN_IF_ERROR(parser.ParseUnowned(data, size));
+    RETURN_IF_ERROR(parser.ProcessEndOfFileDeferredPackets());
     return parser.NotifyEndOfFile();
   }
 
