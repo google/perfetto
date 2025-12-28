@@ -229,6 +229,7 @@ message FileIoDirEnumEtwEvent {
   optional uint32 info_class = 6;
   optional uint32 file_index = 7;
   optional string file_name = 8;
+  optional uint32 opcode = 9;
 }
 
 // Proto definition based on the `FileIo_Info` class definition.
@@ -239,6 +240,7 @@ message FileIoInfoEtwEvent {
   optional uint64 extra_info = 4;
   optional uint32 ttid = 5;
   optional uint32 info_class = 6;
+  optional uint32 opcode = 7;
 }
 
 // Proto definition based on the `FileIo_ReadWrite` class definition.
@@ -250,6 +252,7 @@ message FileIoReadWriteEtwEvent {
   optional uint32 ttid = 5;
   optional uint32 io_size = 6;
   optional uint32 io_flags = 7;
+  optional uint32 opcode = 8;
 }
 
 // Proto definition based on the `FileIo_SimpleOp` class definition.
@@ -258,6 +261,7 @@ message FileIoSimpleOpEtwEvent {
   optional uint64 file_object = 2;
   optional uint64 file_key = 3;
   optional uint32 ttid = 4;
+  optional uint32 opcode = 5;
 }
 
 // Proto definition based on the `FileIo_OpEnd` class definition.

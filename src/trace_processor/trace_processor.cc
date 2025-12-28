@@ -16,9 +16,14 @@
 
 #include "perfetto/trace_processor/trace_processor.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <utility>
 
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_processor_storage.h"
 #include "src/trace_processor/trace_processor_impl.h"
 
 namespace perfetto::trace_processor {
@@ -32,5 +37,10 @@ std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(
 }
 
 TraceProcessor::~TraceProcessor() = default;
+
+base::Status TraceProcessor::Parse(std::unique_ptr<uint8_t[]> buf,
+                                   size_t size) {
+  return TraceProcessorStorage::Parse(std::move(buf), size);
+}
 
 }  // namespace perfetto::trace_processor

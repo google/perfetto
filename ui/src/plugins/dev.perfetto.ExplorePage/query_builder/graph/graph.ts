@@ -36,6 +36,7 @@ import m from 'mithril';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
+import {uuidv4} from '../../../../base/uuid';
 import {
   MenuItem,
   MenuDivider,
@@ -44,25 +45,24 @@ import {
 } from '../../../../widgets/menu';
 import {
   Connection,
+  Label,
   Node,
   NodeGraph,
   NodeGraphApi,
   NodeGraphAttrs,
   NodePort,
 } from '../../../../widgets/nodegraph';
+import {createEditableTextLabels} from './text_label';
+import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
+import {NodeBox} from './node_box';
+import {buildMenuItems} from './menu_utils';
 import {
-  QueryNode,
-  singleNodeOperation,
-  SourceNode,
-  MultiSourceNode,
-  ModificationNode,
-  NodeType,
+  getAllNodes,
+  findNodeById,
   addConnection,
   removeConnection,
-} from '../../query_node';
-import {EmptyGraph} from '../empty_graph';
-import {nodeRegistry} from '../node_registry';
-import {NodeBox} from './node_box';
+} from '../graph_utils';
+import {RoundActionButton} from '../widgets';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -77,27 +77,18 @@ type LayoutMap = Map<string, Position>;
 const LAYOUT_CONSTANTS = {
   INITIAL_X: 100,
   INITIAL_Y: 100,
+  BATCH_NODE_HORIZONTAL_OFFSET: 250,
 };
 
 // ========================================
 // TYPE GUARDS
 // ========================================
 
-function isSourceNode(node: QueryNode): node is SourceNode {
-  return (
-    node.type === NodeType.kTable ||
-    node.type === NodeType.kSimpleSlices ||
-    node.type === NodeType.kSqlSource
-  );
-}
-
-// Multi-input nodes (have prevNodes array, cannot be docked)
-function isMultiSourceNode(node: QueryNode): node is MultiSourceNode {
-  return (
-    node.type === NodeType.kIntervalIntersect ||
-    node.type === NodeType.kUnion ||
-    node.type === NodeType.kMerge
-  );
+// Check if a node should show a top port based on its type (capabilities)
+// rather than its current connection state
+function shouldShowTopPort(node: QueryNode): boolean {
+  // Single-input operation nodes always have a top port, even when disconnected
+  return singleNodeOperation(node.type);
 }
 
 // ========================================
@@ -108,62 +99,32 @@ export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: LayoutMap;
+  readonly labels?: ReadonlyArray<TextLabelData>;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: Position) => void;
+  readonly onLabelsChange?: (labels: TextLabelData[]) => void;
   readonly onAddSourceNode: (id: string) => void;
   readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
+  readonly onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void;
   readonly onImport: () => void;
-  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly devMode?: boolean;
-  readonly onDevModeChange?: (enabled: boolean) => void;
+  readonly onRecenterReady?: (recenter: () => void) => void;
 }
 
 // ========================================
 // UTILITY FUNCTIONS
 // ========================================
 
-// Traverses the graph using BFS with cycle detection (visited set prevents infinite loops)
-export function getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
-  const allNodes: QueryNode[] = [];
-  const visited = new Set<string>();
-
-  for (const root of rootNodes) {
-    const queue: QueryNode[] = [root];
-
-    while (queue.length > 0) {
-      const curr = queue.shift();
-      if (!curr) continue;
-
-      if (visited.has(curr.nodeId)) {
-        continue;
-      }
-
-      visited.add(curr.nodeId);
-      allNodes.push(curr);
-
-      for (const child of curr.nextNodes) {
-        if (child !== undefined && !visited.has(child.nodeId)) {
-          queue.push(child);
-        }
-      }
-    }
-  }
-  return allNodes;
-}
-
-function findQueryNode(
-  nodeId: string,
-  rootNodes: QueryNode[],
-): QueryNode | undefined {
-  const allNodes = getAllNodes(rootNodes);
-  return allNodes.find((n) => n.nodeId === nodeId);
-}
+// Alias for consistency with existing code in this file
+const findQueryNode = findNodeById;
 
 // A node is "docked" if it has no layout (rendered as part of parent's chain via 'next' property)
 function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
@@ -174,112 +135,93 @@ function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
 // NODE PORT AND MENU UTILITIES
 // ========================================
 
+// Calculate the number of ports to display for secondary inputs.
+// Shows one extra empty port for adding new connections, but respects max limit.
+function calculateNumPorts(
+  currentConnections: number,
+  max: number | 'unbounded',
+): number {
+  return max === 'unbounded'
+    ? currentConnections + 1
+    : Math.min(currentConnections + 1, max);
+}
+
 function getInputLabels(node: QueryNode): NodePort[] {
-  if (isSourceNode(node)) {
-    return [];
-  }
-
-  if (isMultiSourceNode(node)) {
-    const multiSourceNode = node as MultiSourceNode;
-
-    // Check if node has custom input labels
-    if (
-      'getInputLabels' in multiSourceNode &&
-      typeof multiSourceNode.getInputLabels === 'function'
-    ) {
-      return (
-        multiSourceNode as MultiSourceNode & {getInputLabels: () => string[]}
-      )
-        .getInputLabels()
-        .map((label) => ({content: label, direction: 'left'}));
-    }
-
-    // Always show one extra empty port for adding new connections
-    const numPorts = multiSourceNode.prevNodes.length + 1;
+  // Single-input operation nodes always have a top port (even when disconnected)
+  if (singleNodeOperation(node.type)) {
     const labels: NodePort[] = [];
-    for (let i = 0; i < numPorts; i++) {
-      labels.push({content: `Input ${i + 1}`, direction: 'left'});
+    labels.push({content: 'Input', direction: 'top'});
+
+    // Check if node also has secondaryInputs (like AddColumnsNode or FilterDuring)
+    if (node.secondaryInputs) {
+      // Show side ports using the node's custom port names
+      const portNames = node.secondaryInputs.portNames;
+      const currentConnections = node.secondaryInputs.connections.size ?? 0;
+      const numPorts = calculateNumPorts(
+        currentConnections,
+        node.secondaryInputs.max,
+      );
+
+      for (let i = 0; i < numPorts; i++) {
+        const portName = getPortName(portNames, i);
+        labels.push({content: portName, direction: 'left'});
+      }
     }
     return labels;
   }
 
-  // Check if ModificationNode has inputNodes (additional left-side inputs)
-  if ('inputNodes' in node) {
-    const modNode = node as ModificationNode;
-    if (modNode.inputNodes !== undefined && Array.isArray(modNode.inputNodes)) {
-      // Check if node has custom input labels
-      if (
-        'getInputLabels' in modNode &&
-        typeof modNode.getInputLabels === 'function'
-      ) {
-        return modNode.getInputLabels();
-      }
+  // Multi-source nodes (IntervalIntersect, Join, Union) - no primaryInput
+  if (node.secondaryInputs) {
+    const portNames = node.secondaryInputs.portNames;
+    const currentConnections = node.secondaryInputs.connections.size ?? 0;
+    const numPorts = calculateNumPorts(
+      currentConnections,
+      node.secondaryInputs.max,
+    );
+    const labels: NodePort[] = [];
 
-      const labels: NodePort[] = [];
-
-      // Add top port for prevNode (main data flow)
-      labels.push({content: 'Input', direction: 'top'});
-
-      // For AddColumnsNode, show exactly one left-side port
-      // (it only supports connecting one table to add columns from)
-      if ('type' in modNode && modNode.type === NodeType.kAddColumns) {
-        labels.push({content: 'Table', direction: 'left'});
-        return labels;
-      }
-
-      // For other nodes with inputNodes, dynamically show ports
-      const numConnected = modNode.inputNodes.filter(
-        (it: QueryNode | undefined) => it,
-      ).length;
-      // Always show one extra empty port for adding new connections
-      const numLeftPorts = numConnected + 1;
-
-      // Add left-side ports for inputNodes (additional table inputs)
-      for (let i = 0; i < numLeftPorts; i++) {
-        labels.push({content: `Table ${i + 1}`, direction: 'left'});
-      }
-      return labels;
+    for (let i = 0; i < numPorts; i++) {
+      const portName = getPortName(portNames, i);
+      labels.push({content: portName, direction: 'left'});
     }
+    return labels;
   }
 
-  return [{content: 'Input', direction: 'top'}];
+  // Source nodes have no inputs
+  return [];
 }
 
-function buildMenuItems(
-  nodeType: 'source' | 'multisource' | 'modification',
-  devMode: boolean | undefined,
-  onAddNode: (id: string) => void,
-): m.Children[] {
-  return nodeRegistry
-    .list()
-    .filter(([_id, descriptor]) => descriptor.type === nodeType)
-    .map(([id, descriptor]) => {
-      if (descriptor.devOnly && !devMode) {
-        return null;
-      }
-      return m(MenuItem, {
-        label: descriptor.name,
-        onclick: () => onAddNode(id),
-      });
-    });
+// Helper function to get port name from either an array or a function
+function getPortName(
+  portNames: string[] | ((portIndex: number) => string),
+  portIndex: number,
+): string {
+  if (typeof portNames === 'function') {
+    return portNames(portIndex);
+  }
+
+  // Array of names - use the index or fallback if out of bounds
+  return portNames[portIndex] ?? `Input ${portIndex}`;
 }
 
 function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const modificationItems = buildMenuItems('modification', undefined, (id) =>
+  const multisourceItems = buildMenuItems('multisource', (id) =>
     onAddOperationNode(id, targetNode),
   );
-  const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
+  const modificationItems = buildMenuItems('modification', (id) =>
     onAddOperationNode(id, targetNode),
   );
 
-  // Add a divider between modification and multisource nodes if both exist
-  if (modificationItems.length > 0 && multisourceItems.length > 0) {
-    return [...modificationItems, m(MenuDivider), ...multisourceItems];
-  }
-  return [...modificationItems, ...multisourceItems];
+  return [
+    m(MenuTitle, {label: 'Modification nodes'}),
+    ...modificationItems,
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Operations'}),
+    ...multisourceItems,
+  ];
 }
 
 // ========================================
@@ -295,13 +237,13 @@ function getRootNodes(
 
   // A node is docked (not a root) if:
   // 1. It's a single-node operation (modification node)
-  // 2. It has a prevNode (parent in the primary flow)
+  // 2. It has a primaryInput (parent in the primary flow)
   // 3. It doesn't have a layout position (purely visual property)
   for (const node of allNodes) {
     if (
       singleNodeOperation(node.type) &&
-      'prevNode' in node &&
-      node.prevNode !== undefined &&
+      'primaryInput' in node &&
+      node.primaryInput !== undefined &&
       isChildDocked(node, nodeLayouts)
     ) {
       dockedNodes.add(node);
@@ -316,46 +258,40 @@ function ensureNodeLayouts(
   attrs: GraphAttrs,
   nodeGraphApi: NodeGraphApi | null,
 ): void {
-  // Assign layouts to new nodes using smart placement
+  if (!nodeGraphApi) return;
+
+  let lastPlacement: Position | undefined;
+
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
       let placement: Position;
 
-      // Use NodeGraph API to find optimal non-overlapping placement
-      if (nodeGraphApi) {
-        // Create a simple node config without 'next' to get accurate placement
-        // The 'next' property would include docked children and affect size calculation
-        const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+      if (!lastPlacement) {
+        // First node - use API placement
+        const canDockTop = shouldShowTopPort(qnode);
         const nodeTemplate: Omit<Node, 'x' | 'y'> = {
           id: qnode.nodeId,
           inputs: getInputLabels(qnode),
-          outputs: [
-            {
-              content: 'Output',
-              direction: 'bottom',
-            },
-          ],
+          outputs: [{content: 'Output', direction: 'bottom'}],
           canDockBottom: true,
-          canDockTop: !noTopPort,
+          canDockTop,
           hue: getNodeHue(qnode),
           accentBar: true,
           content: m(NodeBox, {
             node: qnode,
-            onDuplicateNode: attrs.onDuplicateNode,
-            onDeleteNode: attrs.onDeleteNode,
             onAddOperationNode: attrs.onAddOperationNode,
           }),
-          // Don't include 'next' here - we want placement for just this node
         };
         placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
       } else {
-        // Fallback to default position if API not ready yet
+        // Subsequent nodes - place to the right of previous
         placement = {
-          x: LAYOUT_CONSTANTS.INITIAL_X,
-          y: LAYOUT_CONSTANTS.INITIAL_Y,
+          x: lastPlacement.x + LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
+          y: lastPlacement.y,
         };
       }
 
+      lastPlacement = placement;
       attrs.onNodeLayoutChange(qnode.nodeId, placement);
     }
   }
@@ -374,20 +310,30 @@ function getNodeHue(node: QueryNode): number {
       return 122; // Green (#c8e6c9)
     case NodeType.kSqlSource:
       return 199; // Cyan/Light Blue (#b3e5fc)
+    case NodeType.kTimeRangeSource:
+      return 33; // Orange (#ffe0b2)
     case NodeType.kAggregation:
       return 339; // Pink (#f8bbd0)
     case NodeType.kModifyColumns:
       return 261; // Purple (#d1c4e9)
     case NodeType.kAddColumns:
       return 232; // Indigo (#c5cae9)
+    case NodeType.kFilterDuring:
+      return 88; // Light Green (#dcedc8)
     case NodeType.kLimitAndOffset:
       return 175; // Teal (#b2dfdb)
     case NodeType.kSort:
       return 54; // Yellow (#fff9c4)
+    case NodeType.kFilter:
+      return 207; // Blue (#bbdefb)
     case NodeType.kIntervalIntersect:
       return 45; // Amber/Orange (#ffecb3)
     case NodeType.kUnion:
       return 187; // Cyan (#b2ebf2)
+    case NodeType.kJoin:
+      return 14; // Deep Orange (#ffccbc)
+    case NodeType.kCreateSlices:
+      return 100; // Green (#c8e6c9)
     default:
       return 65; // Lime (#f0f4c3)
   }
@@ -406,19 +352,35 @@ function getNextDockedNode(
   ) {
     const child = qnode.nextNodes[0];
     // Only dock the child if it's part of the primary flow chain
-    // (i.e., the child's prevNode points back to this parent)
-    if ('prevNode' in child && child.prevNode === qnode) {
+    // (i.e., the child's primaryInput points back to this parent)
+    if ('primaryInput' in child && child.primaryInput === qnode) {
       return renderChildNode(child, attrs);
     }
   }
   return undefined;
 }
 
+function buildNodeContextMenuItems(
+  qnode: QueryNode,
+  attrs: GraphAttrs,
+): m.Children {
+  return [
+    m(MenuItem, {
+      label: 'Duplicate',
+      onclick: () => attrs.onDuplicateNode(qnode),
+    }),
+    m(MenuItem, {
+      label: 'Delete',
+      onclick: () => attrs.onDeleteNode(qnode),
+    }),
+  ];
+}
+
 function createNodeConfig(
   qnode: QueryNode,
   attrs: GraphAttrs,
 ): Omit<Node, 'x' | 'y'> {
-  const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+  const canDockTop = shouldShowTopPort(qnode);
 
   return {
     id: qnode.nodeId,
@@ -431,16 +393,16 @@ function createNodeConfig(
       },
     ],
     canDockBottom: true,
-    canDockTop: !noTopPort,
+    canDockTop,
     hue: getNodeHue(qnode),
     accentBar: true,
+    contextMenuItems: buildNodeContextMenuItems(qnode, attrs),
     content: m(NodeBox, {
       node: qnode,
-      onDuplicateNode: attrs.onDuplicateNode,
-      onDeleteNode: attrs.onDeleteNode,
       onAddOperationNode: attrs.onAddOperationNode,
     }),
     next: getNextDockedNode(qnode, attrs),
+    invalid: !qnode.validate(),
   };
 }
 
@@ -490,30 +452,36 @@ function renderNodes(
 // CONNECTION HANDLING
 // ========================================
 
-// For multi-source nodes, finds which input port (0-indexed) the parent is connected to
-function calculateInputPort(child: QueryNode, parent: QueryNode): number {
-  if (isMultiSourceNode(child)) {
-    const index = child.prevNodes.indexOf(parent);
-    return index !== -1 ? index : 0;
-  }
+// Single-input nodes use port 0 for primaryInput, multi-source nodes don't have primaryInput
+function hasPrimaryInputPort(node: QueryNode): boolean {
+  return singleNodeOperation(node.type);
+}
 
-  // Check if modification node has inputNodes (additional left-side inputs)
-  if ('inputNodes' in child && 'prevNode' in child) {
-    const modNode = child as ModificationNode;
-    if (modNode.inputNodes !== undefined && Array.isArray(modNode.inputNodes)) {
-      // Check if parent is the main prevNode (port 0)
-      if (modNode.prevNode === parent) {
-        return 0;
-      }
-      // Check if parent is in inputNodes array (ports 1+)
-      const index = modNode.inputNodes.indexOf(parent);
-      if (index !== -1) {
-        return index + 1; // Port 1 = inputNodes[0], Port 2 = inputNodes[1], etc.
+// Find which visual port a parent node is connected to
+function getInputPort(child: QueryNode, parent: QueryNode): number {
+  if (child.primaryInput === parent) {
+    return 0;
+  }
+  if (child.secondaryInputs) {
+    const offset = hasPrimaryInputPort(child) ? 1 : 0;
+    for (const [index, node] of child.secondaryInputs.connections) {
+      if (node === parent) {
+        return index + offset;
       }
     }
   }
-
   return 0;
+}
+
+// Convert visual port to secondary input index (undefined means primary input)
+function toSecondaryIndex(
+  node: QueryNode,
+  visualPort: number,
+): number | undefined {
+  if (hasPrimaryInputPort(node)) {
+    return visualPort === 0 ? undefined : visualPort - 1;
+  }
+  return visualPort;
 }
 
 // Builds visual connections between nodes (skips docked chains since they use 'next' property)
@@ -529,13 +497,13 @@ function buildConnections(
       if (child === undefined) continue;
 
       // Skip docked children - they're rendered via 'next' property, not as connections
-      // But only skip if it's part of the primary flow chain (child's prevNode points back)
+      // But only skip if it's part of the primary flow chain (child's primaryInput points back)
       if (
         qnode.nextNodes.length === 1 &&
         singleNodeOperation(child.type) &&
         isChildDocked(child, nodeLayouts) &&
-        'prevNode' in child &&
-        child.prevNode === qnode
+        'primaryInput' in child &&
+        child.primaryInput === qnode
       ) {
         continue;
       }
@@ -544,7 +512,7 @@ function buildConnections(
         fromNode: qnode.nodeId,
         fromPort: 0,
         toNode: child.nodeId,
-        toPort: calculateInputPort(child, qnode),
+        toPort: getInputPort(child, qnode),
       });
     }
   }
@@ -558,18 +526,14 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
   const toNode = findQueryNode(conn.toNode, rootNodes);
 
   if (!fromNode || !toNode) {
+    console.warn(
+      `Cannot create connection: node not found (from: ${conn.fromNode}, to: ${conn.toNode})`,
+    );
     return;
   }
 
-  // For multisource nodes, all ports are left-side and 0-indexed (port 0 = prevNodes[0])
-  // For modification nodes, port 0 is top (prevNode), ports 1+ are left-side (inputNodes[0], inputNodes[1], ...)
-  let portIndex: number | undefined;
-  if (isMultiSourceNode(toNode)) {
-    portIndex = conn.toPort;
-  } else {
-    portIndex = conn.toPort > 0 ? conn.toPort - 1 : undefined;
-  }
-  addConnection(fromNode, toNode, portIndex);
+  const secondaryIndex = toSecondaryIndex(toNode, conn.toPort);
+  addConnection(fromNode, toNode, secondaryIndex);
 
   m.redraw();
 }
@@ -578,20 +542,56 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
 function handleConnectionRemove(
   conn: Connection,
   rootNodes: QueryNode[],
-  onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void,
+  onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void,
 ): void {
   const fromNode = findQueryNode(conn.fromNode, rootNodes);
   const toNode = findQueryNode(conn.toNode, rootNodes);
 
   if (!fromNode || !toNode) {
+    console.warn(
+      `Cannot remove connection: node not found (from: ${conn.fromNode}, to: ${conn.toNode})`,
+    );
     return;
+  }
+
+  // Check BEFORE removal if this is a secondary input connection
+  let isSecondaryInput = false;
+  if (toNode.secondaryInputs?.connections) {
+    for (const node of toNode.secondaryInputs.connections.values()) {
+      if (node === fromNode) {
+        isSecondaryInput = true;
+        break;
+      }
+    }
   }
 
   // Use the helper function to cleanly remove the connection
   removeConnection(fromNode, toNode);
 
   // Call the parent callback for any additional cleanup (e.g., state management)
-  onConnectionRemove(fromNode, toNode);
+  onConnectionRemove(fromNode, toNode, isSecondaryInput);
+}
+
+// ========================================
+// TEXT LABEL SERIALIZATION
+// ========================================
+
+/**
+ * Serializable representation of a text label.
+ * This interface contains only plain data types that can be safely
+ * serialized to/from JSON, unlike the Label interface which includes
+ * Mithril vnodes in the content field.
+ */
+export interface TextLabelData {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly text: string;
 }
 
 // ========================================
@@ -601,33 +601,101 @@ function handleConnectionRemove(
 export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
+  private hasPerformedInitialRecenter: boolean = false;
+  private recenterRequired: boolean = false;
+  private labels: Label[] = [];
+  private labelTexts: Map<string, string> = new Map();
+  private editingLabels: Set<string> = new Set();
 
-  private renderEmptyNodeGraph(attrs: GraphAttrs) {
-    return m(EmptyGraph, {
-      onAddSourceNode: attrs.onAddSourceNode,
-      onImport: attrs.onImport,
-      onImportWithStatement: attrs.onImportWithStatement,
-      devMode: attrs.devMode,
-      onDevModeChange: attrs.onDevModeChange,
+  oninit(vnode: m.Vnode<GraphAttrs>) {
+    // Load initial labels from attrs if provided
+    if (vnode.attrs.labels) {
+      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
+    }
+  }
+
+  onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
+    // Only update labels if the reference changed (indicating external state update)
+    if (vnode.attrs.labels !== old.attrs.labels && vnode.attrs.labels) {
+      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
+    }
+    return true;
+  }
+
+  /**
+   * Notifies parent component that labels have changed.
+   * Called after any label modification (add, move, resize, delete).
+   */
+  private notifyLabelsChanged(attrs: GraphAttrs) {
+    if (attrs.onLabelsChange) {
+      attrs.onLabelsChange(this.serializeLabels());
+    }
+  }
+
+  private addLabel(attrs: GraphAttrs) {
+    const id = uuidv4();
+    // Offset from the last label if one exists, otherwise use default position
+    const lastLabel = this.labels[this.labels.length - 1];
+    const x = lastLabel !== undefined ? lastLabel.x + 30 : 100;
+    const y = lastLabel !== undefined ? lastLabel.y + 30 : 100;
+    this.labels.push({
+      id,
+      x,
+      y,
+      width: 200,
+      content: undefined, // Will be set in view
     });
+    this.labelTexts.set(id, 'New label');
+    this.notifyLabelsChanged(attrs);
+    m.redraw();
+  }
+
+  /**
+   * Serializes the current text labels to a JSON-compatible format.
+   * Returns an array of TextLabelData that can be stored or transmitted.
+   */
+  serializeLabels(): TextLabelData[] {
+    return this.labels.map((label) => ({
+      id: label.id,
+      x: label.x,
+      y: label.y,
+      width: label.width,
+      text: this.labelTexts.get(label.id) ?? '',
+    }));
+  }
+
+  /**
+   * Deserializes text labels from a JSON-compatible format.
+   * Replaces the current labels with the deserialized data.
+   */
+  deserializeLabels(data: TextLabelData[]): void {
+    this.labels = data.map((labelData) => ({
+      id: labelData.id,
+      x: labelData.x,
+      y: labelData.y,
+      width: labelData.width,
+      content: undefined, // Will be set in view
+    }));
+
+    this.labelTexts.clear();
+    for (const labelData of data) {
+      this.labelTexts.set(labelData.id, labelData.text);
+    }
+
+    this.editingLabels.clear();
+    m.redraw();
   }
 
   private renderControls(attrs: GraphAttrs) {
-    const sourceMenuItems = buildMenuItems(
-      'source',
-      attrs.devMode,
-      attrs.onAddSourceNode,
-    );
+    const sourceMenuItems = buildMenuItems('source', attrs.onAddSourceNode);
 
     const modificationMenuItems = buildMenuItems(
       'modification',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
     const operationMenuItems = buildMenuItems(
       'multisource',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
@@ -637,16 +705,25 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       m(MenuDivider),
       m(MenuTitle, {label: 'Operations'}),
       ...operationMenuItems,
-      m(MenuDivider),
       m(MenuTitle, {label: 'Modification nodes'}),
       ...modificationMenuItems,
+      m(MenuDivider),
+      m(MenuItem, {
+        label: 'Label',
+        onclick: () => this.addLabel(attrs),
+      }),
     ];
 
     const moreMenuItems = [
       m(MenuItem, {
-        label: 'Export',
+        label: 'Export to JSON',
         icon: Icons.Download,
         onclick: attrs.onExport,
+      }),
+      m(MenuItem, {
+        label: 'Import from JSON',
+        icon: 'file_upload',
+        onclick: attrs.onImport,
       }),
       m(MenuItem, {
         label: 'Clear All Nodes',
@@ -661,21 +738,30 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       m(
         PopupMenu,
         {
-          trigger: m(Button, {
-            label: 'Add Node',
+          trigger: RoundActionButton({
             icon: Icons.Add,
-            variant: ButtonVariant.Filled,
+            title: 'Add Node',
+            onclick: () => {},
           }),
         },
         addNodeMenuItems,
       ),
+      m(Button, {
+        icon: 'center_focus_strong',
+        variant: ButtonVariant.Minimal,
+        title: 'Center Graph',
+        onclick: () => {
+          if (this.nodeGraphApi) {
+            this.nodeGraphApi.recenter();
+          }
+        },
+      }),
       m(
         PopupMenu,
         {
           trigger: m(Button, {
             icon: Icons.ContextMenuAlt,
             variant: ButtonVariant.Minimal,
-            style: {marginLeft: '8px'},
           }),
         },
         moreMenuItems,
@@ -685,22 +771,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
   view({attrs}: m.CVnode<GraphAttrs>) {
     const {rootNodes, selectedNode} = attrs;
-    const allNodes = getAllNodes(rootNodes);
-
-    if (allNodes.length === 0) {
-      return m(
-        '.pf-exp-node-graph',
-        {
-          tabindex: 0,
-          onclick: (e: MouseEvent) => {
-            if (e.target === e.currentTarget) {
-              attrs.onDeselect();
-            }
-          },
-        },
-        this.renderEmptyNodeGraph(attrs),
-      );
-    }
 
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
@@ -713,14 +783,21 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       nodes.length > 0
     ) {
       this.hasPerformedInitialLayout = true;
-      // Defer autoLayout to next tick to ensure DOM nodes are fully rendered
-      setTimeout(() => {
-        if (this.nodeGraphApi) {
-          // Call autoLayout to arrange nodes hierarchically
-          // autoLayout will call onNodeMove for each node it repositions
-          this.nodeGraphApi.autoLayout();
-        }
-      }, 0);
+      this.hasPerformedInitialRecenter = true;
+      // Call autoLayout to arrange nodes hierarchically
+      // autoLayout will call onNodeMove for each node it repositions
+      this.nodeGraphApi.autoLayout();
+      // Recenter will happen in the onReady callback after the next render
+      this.recenterRequired = true;
+    } else if (
+      !this.hasPerformedInitialRecenter &&
+      this.nodeGraphApi &&
+      nodes.length > 0
+    ) {
+      // Recenter on first render even if auto-layout didn't run
+      // (e.g., when loading from localStorage with existing positions)
+      this.hasPerformedInitialRecenter = true;
+      this.recenterRequired = true;
     }
 
     return m(
@@ -736,8 +813,22 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             selectedNode?.nodeId ? [selectedNode.nodeId] : [],
           ),
           hideControls: true,
+          fillHeight: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
+
+            // Check if recenter is required and execute it after render
+            if (this.recenterRequired) {
+              this.nodeGraphApi.recenter();
+              this.recenterRequired = false;
+            }
+
+            // Expose recenter function to parent component
+            attrs.onRecenterReady?.(() => {
+              if (this.nodeGraphApi) {
+                this.nodeGraphApi.recenter();
+              }
+            });
           },
           multiselect: false,
           onNodeSelect: (nodeId: string) => {
@@ -779,18 +870,74 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             m.redraw();
           },
           onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
-            // Remove coordinates so node becomes "docked" (renders via parent's 'next')
-            attrs.nodeLayouts.delete(childNode.id);
-
-            // Create the connection between parent and child
             const parentNode = findQueryNode(targetId, rootNodes);
             const childQueryNode = findQueryNode(childNode.id, rootNodes);
 
-            if (parentNode && childQueryNode) {
-              // Add connection (this will update both nextNodes and prevNode/prevNodes)
-              addConnection(parentNode, childQueryNode);
+            if (!parentNode || !childQueryNode) {
+              console.warn('Cannot dock: parent or child node not found');
+              m.redraw();
+              return;
             }
 
+            const existingChildren = parentNode.nextNodes;
+
+            // Only allow docking if:
+            // 1. Parent has no children, OR
+            // 2. Parent has exactly one child and it's the child being docked (re-docking)
+            const canDock =
+              existingChildren.length === 0 ||
+              (existingChildren.length === 1 &&
+                existingChildren[0] === childQueryNode);
+
+            if (!canDock) {
+              console.warn('Cannot dock: parent already has children');
+              m.redraw();
+              return;
+            }
+
+            // Check if child can be docked (single-node operation)
+            if (!singleNodeOperation(childQueryNode.type)) {
+              console.warn(
+                'Cannot dock: only single-node operations can be docked',
+              );
+              m.redraw();
+              return;
+            }
+
+            // Dock the child
+            attrs.nodeLayouts.delete(childNode.id);
+            addConnection(parentNode, childQueryNode);
+            m.redraw();
+          },
+          contextMenuOnHover: true,
+          labels: createEditableTextLabels(
+            this.labels,
+            this.labelTexts,
+            this.editingLabels,
+            () => this.notifyLabelsChanged(attrs),
+          ),
+          onLabelMove: (labelId: string, x: number, y: number) => {
+            const label = this.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.x = x;
+              label.y = y;
+              this.notifyLabelsChanged(attrs);
+            }
+          },
+          onLabelResize: (labelId: string, width: number) => {
+            const label = this.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.width = width;
+              this.notifyLabelsChanged(attrs);
+            }
+          },
+          onLabelRemove: (labelId: string) => {
+            const labelIndex = this.labels.findIndex((l) => l.id === labelId);
+            if (labelIndex !== -1) {
+              this.labels.splice(labelIndex, 1);
+            }
+            this.labelTexts.delete(labelId);
+            this.notifyLabelsChanged(attrs);
             m.redraw();
           },
         } satisfies NodeGraphAttrs),

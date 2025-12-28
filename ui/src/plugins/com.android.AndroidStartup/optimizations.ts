@@ -19,9 +19,6 @@ import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {DebugSliceTrackDetailsPanel} from '../../components/tracks/debug_slice_track_details_panel';
 
-// The log tag
-const tag = 'DexOptInsights';
-
 /**
  * Returns a track node that contains optimization status
  * for the packages that started up in a trace.
@@ -37,7 +34,6 @@ export async function optimizationsTrack(
       INCLUDE PERFETTO MODULE android.startup.startups;
       SELECT startup_id as id, package FROM android_startups;
     `,
-    tag,
   );
 
   // Nothing interesting to report.
@@ -103,7 +99,6 @@ export async function optimizationsTrack(
       FROM android_startups s
       LEFT JOIN _startup_filter_extraction(s.startup_id) f
     `,
-    tag,
   );
 
   const uri = '/android_startups_optimization_status';

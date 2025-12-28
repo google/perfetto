@@ -21,6 +21,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 -- Gapless time slices of GPU freq from trace_start() to trace_end()
 CREATE PERFETTO TABLE _gapless_gpu_freq AS
 WITH

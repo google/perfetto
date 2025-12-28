@@ -261,6 +261,7 @@ class TraceBufferV1 : public TraceBuffer {
     return overwrite_policy_;
   }
   bool has_data() const override { return has_data_; }
+  bool is_trace_buffer_v2() const override { return false; }
 
  private:
   friend class TraceBufferTest;

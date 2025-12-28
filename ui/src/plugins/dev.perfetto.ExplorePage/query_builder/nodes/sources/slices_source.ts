@@ -17,14 +17,19 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
-  createFinalColumns,
-  SourceNode,
   nextNodeId,
 } from '../../../query_node';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
+import {
+  ColumnInfo,
+  columnInfoFromSqlColumn,
+  newColumnInfoList,
+} from '../../column_info';
 import protos from '../../../../../protos';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
+import {NodeDetailsAttrs} from '../../node_explorer_types';
+import {loadNodeDoc} from '../../node_doc_loader';
+import {NodeTitle} from '../../node_styling_widgets';
 
 export interface SlicesSourceSerializedState {
   comment?: string;
@@ -34,7 +39,7 @@ export interface SlicesSourceState extends QueryNodeState {
   onchange?: () => void;
 }
 
-export class SlicesSourceNode implements SourceNode {
+export class SlicesSourceNode implements QueryNode {
   readonly nodeId: string;
   readonly state: SlicesSourceState;
   readonly finalCols: ColumnInfo[];
@@ -44,7 +49,7 @@ export class SlicesSourceNode implements SourceNode {
     this.nodeId = nextNodeId();
     this.state = attrs;
     this.state.onchange = attrs.onchange;
-    this.finalCols = createFinalColumns(slicesSourceNodeColumns(true));
+    this.finalCols = newColumnInfoList(slicesSourceNodeColumns(true), true);
     this.nextNodes = [];
   }
 
@@ -67,10 +72,14 @@ export class SlicesSourceNode implements SourceNode {
     return 'Slices with details';
   }
 
-  serializeState(): SlicesSourceSerializedState {
+  nodeDetails(): NodeDetailsAttrs {
     return {
-      comment: this.state.comment,
+      content: NodeTitle(this.getTitle()),
     };
+  }
+
+  serializeState(): SlicesSourceSerializedState {
+    return {};
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -83,15 +92,7 @@ export class SlicesSourceNode implements SourceNode {
       this.nodeId,
     );
 
-    // Manually create selectColumns for the specific columns we want
-    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
-    for (const col of this.finalCols) {
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnName = col.column.name;
-      selectColumns.push(selectColumn);
-    }
-    sq.selectColumns = selectColumns;
-
+    StructuredQueryBuilder.applyNodeColumnSelection(sq, this);
     return sq;
   }
 
@@ -100,21 +101,7 @@ export class SlicesSourceNode implements SourceNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Provides slice data from your trace. Slices represent time intervals with start time (',
-        m('code', 'ts'),
-        ') and duration (',
-        m('code', 'dur'),
-        '), tracking spans of execution like function calls, scheduling periods, or GPU work.',
-      ),
-      m(
-        'p',
-        'Includes context like process and thread information, making it easy to analyze execution patterns.',
-      ),
-    );
+    return loadNodeDoc('slices_source');
   }
 }
 
@@ -204,6 +191,18 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
           table: 'slice',
           column: 'id',
         },
+      },
+    },
+    {
+      name: 'category',
+      type: {
+        kind: 'string',
+      },
+    },
+    {
+      name: 'arg_set_id',
+      type: {
+        kind: 'arg_set_id',
       },
     },
   ];

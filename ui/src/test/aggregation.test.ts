@@ -39,11 +39,10 @@ test('sched', async () => {
   await pth.waitForIdleAndScreenshot('cpu-by-process.png');
 
   // Now test sorting.
-
-  const hdr = page.getByRole('columnheader', {
-    name: 'avg_dur',
-    exact: true,
-  });
+  const hdr = page
+    .getByRole('columnheader')
+    .filter({has: page.getByText('Wall Duration', {exact: true})})
+    .filter({has: page.getByText('AVG', {exact: true})});
   await hdr.hover();
 
   // Press the sort button to sort ascending.
@@ -54,10 +53,9 @@ test('sched', async () => {
   await hdr.getByRole('button', {name: 'Sort column'}).click();
   await pth.waitForIdleAndScreenshot('sort-by-wall-duration-desc.png');
 
-  const hdrCount = page.getByRole('columnheader', {
-    name: 'occurrences',
-    exact: true,
-  });
+  const hdrCount = page
+    .getByRole('columnheader')
+    .filter({has: page.getByText('Count', {exact: true})});
   await hdrCount.hover();
 
   // Press the sort button to sort ascending on this column.

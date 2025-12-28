@@ -20,6 +20,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -45,6 +46,7 @@ UserListDataSource::UserListDataSource(const DataSourceConfig& ds_config,
                                        std::unique_ptr<TraceWriter> writer)
     : ProbesDataSource(session_id, &descriptor), writer_(std::move(writer)) {
   AndroidUserListConfig::Decoder cfg(ds_config.user_list_config_raw());
+
   for (auto type = cfg.user_type_filter(); type; ++type) {
     user_type_filter_.emplace((*type).ToStdString());
   }
@@ -129,17 +131,25 @@ int ParseUserListStream(protos::pbzero::AndroidUserList* user_list_packet,
                         const base::ScopedFstream& fs,
                         const std::set<std::string>& user_type_filter) {
   char line[2048];
+  const std::string filtered_type = "android.os.usertype.FILTERED";
+
   while (fgets(line, sizeof(line), *fs) != nullptr) {
     User usr_struct;
     if (ReadUserListLine(line, &usr_struct) < 0) {
       return -1;  // Return on first line parse error
     }
+
+    auto* user = user_list_packet->add_users();
+
+    // Check if the filter is active and if the type is NOT in the filter.
     if (!user_type_filter.empty() &&
         user_type_filter.count(usr_struct.type) == 0) {
-      continue;
+      // Type is not in the filter, set to android.os.usertype.FILTERED.
+      user->set_type(filtered_type.c_str(), filtered_type.size());
+    } else {
+      // Type is in the filter or the filter is empty, use the original type.
+      user->set_type(usr_struct.type.c_str(), usr_struct.type.size());
     }
-    auto* user = user_list_packet->add_users();
-    user->set_type(usr_struct.type.c_str(), usr_struct.type.size());
     user->set_uid(usr_struct.uid);
   }
   return 0;  // Success

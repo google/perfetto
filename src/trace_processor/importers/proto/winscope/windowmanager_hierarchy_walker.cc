@@ -47,8 +47,7 @@ WindowManagerHierarchyWalker::WindowManagerHierarchyWalker(StringPool* pool)
       kWindowStateId(pool_->InternString("WindowState")),
       kWindowContainerId(pool_->InternString("WindowContainer")) {}
 
-base::StatusOr<
-    std::vector<WindowManagerHierarchyWalker::ExtractedWindowContainer>>
+WindowManagerHierarchyWalker::ExtractResult
 WindowManagerHierarchyWalker::ExtractWindowContainers(
     const protos::pbzero::WindowManagerTraceEntry::Decoder& entry) {
   protos::pbzero::WindowManagerServiceDumpProto::Decoder service(
@@ -57,10 +56,9 @@ WindowManagerHierarchyWalker::ExtractWindowContainers(
       service.root_window_container());
 
   std::vector<ExtractedWindowContainer> result;
+  auto status = ParseRootWindowContainer(root, &result);
 
-  RETURN_IF_ERROR(ParseRootWindowContainer(root, &result));
-
-  return base::StatusOr(std::move(result));
+  return ExtractResult{std::move(result), !status.ok()};
 }
 
 base::Status WindowManagerHierarchyWalker::ParseRootWindowContainer(
@@ -95,12 +93,19 @@ base::Status WindowManagerHierarchyWalker::ParseWindowContainerChildren(
     const protos::pbzero::WindowContainerProto::Decoder& window_container,
     int32_t parent_token,
     std::vector<ExtractedWindowContainer>* result) {
+  bool has_parse_error = false;
   uint32_t index = 0;
   for (auto it = window_container.children(); it; ++it) {
     protos::pbzero::WindowContainerChildProto::Decoder child(*it);
-    RETURN_IF_ERROR(
-        ParseWindowContainerChildProto(child, parent_token, index, result));
+    auto status =
+        ParseWindowContainerChildProto(child, parent_token, index, result);
+    if (!status.ok()) {
+      has_parse_error = true;
+    }
     ++index;
+  }
+  if (has_parse_error) {
+    return base::ErrStatus(kErrorMessageMissingField);
   }
   return base::OkStatus();
 }

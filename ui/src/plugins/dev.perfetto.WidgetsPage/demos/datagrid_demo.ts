@@ -13,36 +13,151 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  DataGrid,
-  DataGridAttrs,
-} from '../../../components/widgets/data_grid/data_grid';
-import {SQLDataSource} from '../../../components/widgets/data_grid/sql_data_source';
-import {Engine} from '../../../trace_processor/engine';
+import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
+import {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import {Row} from '../../../trace_processor/query_result';
+import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
+import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
-import {languages} from '../sample_data';
-import {MenuItem} from '../../../widgets/menu';
 import {Anchor} from '../../../widgets/anchor';
-import {Button, ButtonVariant} from '../../../widgets/button';
-import {EmptyState} from '../../../widgets/empty_state';
 
-type QueryDataGridAttrs = Omit<DataGridAttrs, 'data'> & {
-  readonly query: string;
-  readonly engine: Engine;
+// Cache for the SQL data source - created once when page is first opened with a trace
+let cachedSliceDataSource: SQLDataSource | undefined;
+
+// SQL schema for slice table with track join
+const SLICE_SQL_SCHEMA: SQLSchemaRegistry = {
+  slice: {
+    table: 'slice',
+    columns: {
+      id: {},
+      ts: {},
+      dur: {},
+      track_id: {},
+      track: {
+        ref: 'track',
+        foreignKey: 'track_id',
+      },
+      parent: {
+        ref: 'slice',
+        foreignKey: 'parent_id',
+      },
+      args: {
+        expression: (alias, key) =>
+          `extract_arg(${alias}.arg_set_id, '${key}')`,
+        parameterized: true,
+        parameterKeysQuery: (baseTable) => `
+          SELECT DISTINCT args.key
+          FROM ${baseTable}
+          JOIN args ON args.arg_set_id = ${baseTable}.arg_set_id
+          WHERE args.key IS NOT NULL
+          ORDER BY args.key
+          LIMIT 1000
+        `,
+      },
+      all_args: {
+        expression: (alias) =>
+          `__intrinsic_arg_set_to_json(${alias}.arg_set_id)`,
+      },
+    },
+  },
+  track: {
+    table: 'track',
+    columns: {
+      id: {},
+      name: {},
+    },
+  },
 };
 
-function QueryDataGrid(vnode: m.Vnode<QueryDataGridAttrs>) {
-  const dataSource = new SQLDataSource(vnode.attrs.engine, vnode.attrs.query);
-
-  return {
-    view({attrs}: m.Vnode<QueryDataGridAttrs>) {
-      return m(DataGrid, {...attrs, data: dataSource});
+// UI schema for slice table (defines how columns are displayed)
+const SLICE_UI_SCHEMA: SchemaRegistry = {
+  slice: {
+    id: {
+      title: 'ID',
+      columnType: 'identifier',
     },
-  };
-}
+    ts: {
+      title: 'Timestamp',
+      columnType: 'quantitative',
+    },
+    dur: {
+      title: 'Duration',
+      columnType: 'quantitative',
+    },
+    name: {
+      title: 'Name',
+      columnType: 'text',
+    },
+    track_id: {
+      title: 'Track ID',
+      columnType: 'quantitative',
+    },
+    track: {
+      ref: 'track',
+      title: 'Track',
+    },
+    parent: {
+      ref: 'slice',
+      title: 'Parent',
+    },
+    args: {
+      parameterized: true,
+      title: 'Arg',
+    },
+    all_args: {
+      title: 'All Args',
+      columnType: 'text',
+      cellRenderer: (value) => {
+        if (value === null || value === undefined) {
+          return m('span.pf-null-value', 'NULL');
+        }
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          if (typeof parsed !== 'object' || parsed === null) {
+            return String(value);
+          }
+          const entries = Object.entries(parsed);
+          if (entries.length === 0) {
+            return m('span.pf-empty-value', '{}');
+          }
+          return m(
+            'span.pf-args-list',
+            entries.map(([key, val], i) => [
+              i > 0 ? ', ' : '',
+              m('b', key),
+              ': ',
+              String(val),
+            ]),
+          );
+        } catch {
+          return String(value);
+        }
+      },
+    },
+  },
+  track: {
+    id: {
+      title: 'ID',
+      columnType: 'quantitative',
+    },
+    name: {
+      title: 'Name',
+      columnType: 'text',
+    },
+  },
+};
 
 export function renderDataGrid(app: App): m.Children {
+  // Create the SQL data source once when the page is first opened with a trace
+  if (app.trace && !cachedSliceDataSource) {
+    cachedSliceDataSource = new SQLDataSource({
+      engine: app.trace.engine,
+      sqlSchema: SLICE_SQL_SCHEMA,
+      rootSchemaName: 'slice',
+    });
+  }
+
   return [
     m(
       '.pf-widget-intro',
@@ -51,147 +166,364 @@ export function renderDataGrid(app: App): m.Children {
         'DataGrid is an opinionated data table and analysis tool designed for exploring ',
         'and analyzing SQL-like data with built-in sorting, filtering, and aggregation features. It is based on ',
         m(Anchor, {href: '#!/widgets/grid'}, 'Grid'),
-        ' but unlike the grid component is specifically opinionated about the types of data it can receive',
+        ' but unlike the grid component is specifically opinionated about the types of data it can receive.',
+      ]),
+      m('p', [
+        'This example demonstrates a schema with multiple related tables: ',
+        'employees, departments, and projects. It shows self-referential schemas ',
+        '(manager -> employee), cross-references between tables, and parameterized ',
+        'columns (skills).',
+      ]),
+      m('p', [
+        'Try using the "Add column..." menu to explore nested relationships like ',
+        '"manager.manager.name" or "department.head.name". For parameterized columns ',
+        'like "skills", you can type any key name (e.g., "typescript", "python").',
       ]),
     ),
 
     renderWidgetShowcase({
-      renderWidget: ({
-        readonlyFilters,
-        readonlySorting,
-        aggregation,
-        demoToolbarItems,
-        ...rest
-      }) =>
-        m(DataGrid, {
+      renderWidget: ({...rest}) => {
+        return m(DataGrid, {
           ...rest,
-          toolbarItemsLeft: demoToolbarItems
-            ? m(Button, {
-                label: 'Left Action',
-                variant: ButtonVariant.Filled,
-              })
-            : undefined,
-          toolbarItemsRight: demoToolbarItems
-            ? m(Button, {
-                label: 'Right Action',
-                variant: ButtonVariant.Filled,
-              })
-            : undefined,
           fillHeight: true,
-          filters: readonlyFilters ? [] : undefined,
-          sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
-          columns: [
-            {
-              name: 'id',
-              title: 'ID',
-              aggregation: aggregation ? 'COUNT' : undefined,
-              headerMenuItems: m(MenuItem, {
-                label: 'Log column name',
-                icon: 'info',
-                onclick: () => console.log('Column: id'),
-              }),
-            },
-            {
-              name: 'lang',
-              title: 'Language',
-            },
-            {
-              name: 'year',
-              title: 'Year',
-            },
-            {
-              name: 'creator',
-              title: 'Creator',
-            },
-            {
-              name: 'typing',
-              title: 'Typing',
-            },
-          ],
-          data: languages,
-        }),
+          schema: EMPLOYEE_SCHEMA,
+          rootSchema: 'employee',
+          data: EMPLOYEE_DATA,
+        });
+      },
       initialOpts: {
-        showFiltersInToolbar: true,
-        readonlyFilters: false,
-        readonlySorting: false,
-        aggregation: false,
-        showResetButton: false,
-        demoToolbarItems: false,
+        showExportButton: false,
+        structuredQueryCompatMode: false,
+        enablePivotControls: true,
       },
       noPadding: true,
     }),
 
-    renderDocSection('DataGrid + SqlDataSource', [
+    renderDocSection('Schema-Based Column Definition', [
       m(
         'p',
-        'A DataGrid example using a data source that fetches data dynamically from trace processor.',
+        'DataGrid uses a schema-based approach for column definitions. ' +
+          'The schema defines the shape of available data, supporting nested ' +
+          'relationships via named schema references.',
+      ),
+      m('p', 'Example schema structure:'),
+      m(
+        'pre',
+        `const schema: SchemaRegistry = {
+  slice: {
+    id: { filterType: 'quantitative' },
+    name: { title: 'Slice Name', filterType: 'text' },
+    parent: { ref: 'slice' },  // Self-referential
+    thread: { ref: 'thread' },
+    args: { parameterized: true },  // Dynamic keys
+  },
+  thread: {
+    name: { title: 'Thread Name' },
+    process: { ref: 'process' },
+  },
+  process: {
+    name: { title: 'Process Name' },
+    pid: { filterType: 'quantitative' },
+  },
+};`,
       ),
     ]),
 
-    renderWidgetShowcase({
-      renderWidget: ({
-        readonlyFilters,
-        readonlySorting,
-        aggregation,
-        ...rest
-      }) => {
-        const trace = app.trace;
-        if (trace) {
-          return m(QueryDataGrid, {
-            ...rest,
-            engine: trace.engine,
-            query: `
-              SELECT
-                ts.id as id,
-                dur,
-                state,
-                thread.name as thread_name,
-                dur,
-                io_wait,
-                ucpu
-              FROM thread_state ts
-              JOIN thread USING(utid)
-            `,
-            fillHeight: true,
-            filters: readonlyFilters ? [] : undefined,
-            sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
-            columns: [
-              {
-                name: 'id',
-                title: 'ID',
-                aggregation: aggregation ? 'COUNT' : undefined,
-              },
-              {
-                name: 'dur',
-                title: 'Duration',
-                aggregation: aggregation ? 'SUM' : undefined,
-              },
-              {name: 'state', title: 'State'},
-              {name: 'thread_name', title: 'Thread'},
-              {name: 'ucpu', title: 'CPU'},
-              {name: 'io_wait', title: 'IO Wait'},
-            ],
-          });
-        } else {
-          return m(
-            EmptyState,
-            {
-              style: {
-                height: '100%',
-              },
-              icon: 'search_off',
+    renderDocSection('SQL Data Source with Schema', [
+      m(
+        'p',
+        'SQLDataSource (with schema) generates optimized SQL queries with JOINs based on ' +
+          'column paths. This example queries the slice table and can join to the ' +
+          'track table via "track.name".',
+      ),
+      cachedSliceDataSource
+        ? renderWidgetShowcase({
+            renderWidget: ({...rest}) => {
+              return m(DataGrid, {
+                ...rest,
+                fillHeight: true,
+                schema: SLICE_UI_SCHEMA,
+                rootSchema: 'slice',
+                data: cachedSliceDataSource!,
+                initialColumns: [
+                  {field: 'id'},
+                  {field: 'ts'},
+                  {field: 'dur'},
+                  {field: 'track.name'},
+                ],
+              });
             },
-            'Load a trace to start',
-          );
-        }
-      },
-      initialOpts: {
-        showFiltersInToolbar: true,
-        readonlyFilters: false,
-        readonlySorting: false,
-        aggregation: false,
-      },
-      noPadding: true,
-    }),
+            initialOpts: {
+              enableSortControls: true,
+              enableFilterControls: true,
+              enablePivotControls: false,
+              showRowCount: true,
+            },
+            noPadding: true,
+          })
+        : m('.pf-empty-state', 'Load a trace to see the SQL DataGrid example'),
+    ]),
   ];
 }
+
+// Complex multi-table schema demonstrating relationships
+const EMPLOYEE_SCHEMA: SchemaRegistry = {
+  employee: {
+    id: {
+      title: 'ID',
+      columnType: 'quantitative',
+    },
+    name: {
+      title: 'Name',
+      columnType: 'text',
+    },
+    title: {
+      title: 'Job Title',
+      columnType: 'text',
+    },
+    email: {
+      title: 'Email',
+      columnType: 'text',
+    },
+    salary: {
+      title: 'Salary',
+      columnType: 'quantitative',
+    },
+    hireDate: {
+      title: 'Hire Date',
+      columnType: 'text',
+    },
+    // Self-referential: manager is also an employee
+    manager: {
+      ref: 'employee',
+      title: 'Manager',
+    },
+    // Cross-reference to department
+    department: {
+      ref: 'department',
+      title: 'Department',
+    },
+    // Cross-reference to current project
+    project: {
+      ref: 'project',
+      title: 'Current Project',
+    },
+    // Parameterized column for dynamic skill ratings
+    skills: {
+      parameterized: true,
+      title: 'Skills',
+      columnType: 'quantitative',
+    },
+  },
+  department: {
+    id: {
+      title: 'Dept ID',
+      columnType: 'quantitative',
+    },
+    name: {
+      title: 'Name',
+      columnType: 'text',
+    },
+    budget: {
+      title: 'Budget',
+      columnType: 'quantitative',
+    },
+    location: {
+      title: 'Location',
+      columnType: 'text',
+    },
+    // Head of department is an employee
+    head: {
+      ref: 'employee',
+      title: 'Department Head',
+    },
+  },
+  project: {
+    id: {
+      title: 'Project ID',
+      columnType: 'quantitative',
+    },
+    name: {
+      title: 'Project Name',
+      columnType: 'text',
+    },
+    status: {
+      title: 'Status',
+      columnType: 'text',
+      distinctValues: true,
+    },
+    deadline: {
+      title: 'Deadline',
+      columnType: 'text',
+    },
+    // Project lead is an employee
+    lead: {
+      ref: 'employee',
+      title: 'Project Lead',
+    },
+    // Project belongs to a department
+    department: {
+      ref: 'department',
+      title: 'Owning Department',
+    },
+  },
+};
+
+// Sample data with flattened relationships using dot notation
+const EMPLOYEE_DATA: Row[] = [
+  {
+    'id': 1,
+    'name': 'Alice Chen',
+    'title': 'CEO',
+    'email': 'alice@example.com',
+    'salary': 250000,
+    'hireDate': '2015-01-15',
+    'manager.id': null,
+    'manager.name': null,
+    'department.id': 1,
+    'department.name': 'Executive',
+    'department.budget': 5000000,
+    'project.id': null,
+    'project.name': null,
+    'skills.leadership': 10,
+    'skills.strategy': 9,
+    'skills.communication': 9,
+  },
+  {
+    'id': 2,
+    'name': 'Bob Martinez',
+    'title': 'VP Engineering',
+    'email': 'bob@example.com',
+    'salary': 180000,
+    'hireDate': '2016-03-20',
+    'manager.id': 1,
+    'manager.name': 'Alice Chen',
+    'manager.title': 'CEO',
+    'department.id': 2,
+    'department.name': 'Engineering',
+    'department.budget': 2000000,
+    'project.id': 1,
+    'project.name': 'Platform Rewrite',
+    'skills.leadership': 8,
+    'skills.architecture': 9,
+    'skills.python': 7,
+    'skills.typescript': 8,
+  },
+  {
+    'id': 3,
+    'name': 'Carol Williams',
+    'title': 'Senior Engineer',
+    'email': 'carol@example.com',
+    'salary': 150000,
+    'hireDate': '2018-07-10',
+    'manager.id': 2,
+    'manager.name': 'Bob Martinez',
+    'manager.title': 'VP Engineering',
+    'manager.manager.name': 'Alice Chen',
+    'department.id': 2,
+    'department.name': 'Engineering',
+    'department.budget': 2000000,
+    'project.id': 1,
+    'project.name': 'Platform Rewrite',
+    'project.status': 'In Progress',
+    'skills.typescript': 9,
+    'skills.react': 8,
+    'skills.sql': 7,
+  },
+  {
+    'id': 4,
+    'name': 'David Kim',
+    'title': 'Engineer',
+    'email': 'david@example.com',
+    'salary': 120000,
+    'hireDate': '2020-02-01',
+    'manager.id': 3,
+    'manager.name': 'Carol Williams',
+    'manager.title': 'Senior Engineer',
+    'manager.manager.name': 'Bob Martinez',
+    'manager.manager.manager.name': 'Alice Chen',
+    'department.id': 2,
+    'department.name': 'Engineering',
+    'project.id': 2,
+    'project.name': 'Mobile App',
+    'project.status': 'Planning',
+    'skills.kotlin': 8,
+    'skills.swift': 7,
+    'skills.react': 6,
+  },
+  {
+    'id': 5,
+    'name': 'Eva Johnson',
+    'title': 'VP Product',
+    'email': 'eva@example.com',
+    'salary': 175000,
+    'hireDate': '2017-05-15',
+    'manager.id': 1,
+    'manager.name': 'Alice Chen',
+    'department.id': 3,
+    'department.name': 'Product',
+    'department.budget': 1500000,
+    'project.id': null,
+    'project.name': null,
+    'skills.leadership': 8,
+    'skills.strategy': 8,
+    'skills.ux': 7,
+  },
+  {
+    'id': 6,
+    'name': 'Frank Lee',
+    'title': 'Product Manager',
+    'email': 'frank@example.com',
+    'salary': 130000,
+    'hireDate': '2019-09-01',
+    'manager.id': 5,
+    'manager.name': 'Eva Johnson',
+    'manager.title': 'VP Product',
+    'manager.manager.name': 'Alice Chen',
+    'department.id': 3,
+    'department.name': 'Product',
+    'project.id': 1,
+    'project.name': 'Platform Rewrite',
+    'project.status': 'In Progress',
+    'skills.communication': 8,
+    'skills.ux': 6,
+    'skills.sql': 5,
+  },
+  {
+    'id': 7,
+    'name': 'Grace Park',
+    'title': 'Engineer',
+    'email': 'grace@example.com',
+    'salary': 115000,
+    'hireDate': '2021-01-10',
+    'manager.id': 3,
+    'manager.name': 'Carol Williams',
+    'manager.manager.name': 'Bob Martinez',
+    'department.id': 2,
+    'department.name': 'Engineering',
+    'project.id': 1,
+    'project.name': 'Platform Rewrite',
+    'project.status': 'In Progress',
+    'skills.typescript': 7,
+    'skills.python': 8,
+    'skills.sql': 8,
+  },
+  {
+    'id': 8,
+    'name': 'Henry Wu',
+    'title': 'Designer',
+    'email': 'henry@example.com',
+    'salary': 110000,
+    'hireDate': '2020-06-15',
+    'manager.id': 5,
+    'manager.name': 'Eva Johnson',
+    'department.id': 3,
+    'department.name': 'Product',
+    'project.id': 2,
+    'project.name': 'Mobile App',
+    'project.status': 'Planning',
+    'skills.figma': 9,
+    'skills.ux': 8,
+    'skills.css': 7,
+  },
+];

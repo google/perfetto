@@ -15,7 +15,6 @@
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {time} from '../base/time';
 import {ScrollToArgs} from '../public/scroll_helper';
-import {TraceInfo} from '../public/trace_info';
 import {WorkspaceManager} from '../public/workspace';
 import {raf} from './raf_scheduler';
 import {TimelineImpl} from './timeline';
@@ -26,7 +25,6 @@ import {TrackManagerImpl} from './track_manager';
 // responsibility belongs to SelectionManager (which uses this).
 export class ScrollHelper {
   constructor(
-    private traceInfo: TraceInfo,
     private timeline: TimelineImpl,
     private workspace: WorkspaceManager,
     private trackManager: TrackManagerImpl,
@@ -38,16 +36,25 @@ export class ScrollHelper {
     raf.scheduleCanvasRedraw();
 
     if (time !== undefined) {
-      if (time.end === undefined || time.start === time.end) {
-        this.timeline.panToTimestamp(time.start);
-      } else if (time.viewPercentage !== undefined) {
+      const end = time.end ?? time.start;
+      const behavior = time.behavior ?? 'pan'; // Default to pan
+
+      if (typeof behavior === 'object' && 'viewPercentage' in behavior) {
+        // Explicit zoom percentage
         this.focusHorizontalRangePercentage(
           time.start,
-          time.end,
-          time.viewPercentage,
+          end,
+          behavior.viewPercentage,
         );
+      } else if (behavior === 'focus') {
+        // Smart focus: zoom and pan to center the event
+        this.focusHorizontalRange(time.start, end);
       } else {
-        this.focusHorizontalRange(time.start, time.end);
+        // Pan: just move the viewport without changing zoom
+        this.timeline.panSpanIntoView(time.start, end, {
+          align: 'nearest',
+          margin: 0.1,
+        });
       }
     }
 
@@ -63,6 +70,12 @@ export class ScrollHelper {
   ): void {
     const aoi = HighPrecisionTimeSpan.fromTime(start, end);
 
+    // For instant events (duration = 0), just pan to center without zoom
+    if (aoi.duration === 0) {
+      this.timeline.panSpanIntoView(start, end, {align: 'center'});
+      return;
+    }
+
     if (viewPercentage <= 0.0 || viewPercentage > 1.0) {
       console.warn(
         'Invalid value for [viewPercentage]. ' +
@@ -71,43 +84,29 @@ export class ScrollHelper {
       // Default to 50%.
       viewPercentage = 0.5;
     }
-    const paddingPercentage = 1.0 - viewPercentage;
-    const halfPaddingTime = (aoi.duration * paddingPercentage) / 2;
-    this.timeline.updateVisibleTimeHP(aoi.pad(halfPaddingTime));
+
+    this.timeline.panSpanIntoView(start, end, {
+      align: 'zoom',
+      margin: (1.0 - viewPercentage) / 2,
+    });
   }
 
   private focusHorizontalRange(start: time, end: time): void {
-    const visible = this.timeline.visibleWindow;
-    const aoi = HighPrecisionTimeSpan.fromTime(start, end);
-    const fillRatio = 5; // Default amount to make the AOI fill the viewport
-    const padRatio = (fillRatio - 1) / 2;
-
-    // If the area of interest already fills more than half the viewport, zoom
-    // out so that the AOI fills 20% of the viewport
-    if (aoi.duration * 2 > visible.duration) {
-      const padded = aoi.pad(aoi.duration * padRatio);
-      this.timeline.updateVisibleTimeHP(padded);
+    // Handle instant events (duration = 0) specially
+    if (start === end) {
+      // For instant events, zoom in by 99.8% (new duration = 0.2% of current)
+      // This value (0.002) was chosen based on heuristic testing.
+      // TODO(lalitm): This should ideally use the actual viewport width in
+      // pixels to calculate a precise zoom level (e.g., make 1px at current
+      // scale fill 80% of viewport), but plumbing viewport width through to
+      // ScrollHelper is architecturally difficult right now.
+      this.timeline.panIntoView(start, {
+        align: 'zoom',
+        zoomWidth: 0.002 * this.timeline.visibleWindow.duration,
+      });
     } else {
-      // Center visible window on the middle of the AOI, preserving zoom level.
-      const newStart = aoi.midpoint.subNumber(visible.duration / 2);
-
-      // Adjust the new visible window if it intersects with the trace boundaries.
-      // It's needed to make the "update the zoom level if visible window doesn't
-      // change" logic reliable.
-      const newVisibleWindow = new HighPrecisionTimeSpan(
-        newStart,
-        visible.duration,
-      ).fitWithin(this.traceInfo.start, this.traceInfo.end);
-
-      // If preserving the zoom doesn't change the visible window, consider this
-      // to be the "second" hotkey press, so just make the AOI fill 20% of the
-      // viewport
-      if (newVisibleWindow.equals(visible)) {
-        const padded = aoi.pad(aoi.duration * padRatio);
-        this.timeline.updateVisibleTimeHP(padded);
-      } else {
-        this.timeline.updateVisibleTimeHP(newVisibleWindow);
-      }
+      // 10% padding on each side means the range fills 80% of the viewport
+      this.timeline.panSpanIntoView(start, end, {align: 'zoom', margin: 0.1});
     }
   }
 

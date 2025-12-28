@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {exists} from '../../base/utils';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 import {Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -98,26 +98,32 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
       {
         title: 'PID',
         columnId: 'pid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Active power (estimated mW)',
         columnId: 'active_mw',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Active energy (estimated mWs)',
         columnId: 'active_mws',
         sum: true,
+        formatHint: 'NUMERIC',
+        sort: 'DESC',
       },
       {
         title: 'Idle transitions overhead (estimated mWs)',
         columnId: 'idle_cost_mws',
         sum: false,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Total energy (estimated mWs)',
         columnId: 'total_mws',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: '% of total energy',
@@ -130,9 +136,5 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Wattson by process';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'active_mws', direction: 'DESC'};
   }
 }

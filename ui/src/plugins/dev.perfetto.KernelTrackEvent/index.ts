@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertExists} from '../../base/logging';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -27,16 +28,6 @@ import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
-
-export function assertExists<A>(
-  value: A | null | undefined,
-  optMsg?: string,
-): A {
-  if (value === null || value === undefined) {
-    throw new Error(optMsg ?? "Value doesn't exist");
-  }
-  return value;
-}
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.KernelTrackEvent';

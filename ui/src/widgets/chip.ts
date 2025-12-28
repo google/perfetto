@@ -20,7 +20,7 @@ import {Button} from './button';
 
 export interface ChipAttrs extends HTMLAttrs {
   // Chips require a label.
-  readonly label: string;
+  readonly label: m.Children;
   // Chips can have an optional icon.
   readonly icon?: string;
   // Use minimal padding, reducing the overall size of the chip by a few px.
@@ -44,6 +44,8 @@ export interface ChipAttrs extends HTMLAttrs {
   // Called when the little cross is pressed (only applicable when removable is
   // true).
   readonly onRemove?: () => void;
+  // Title for the remove button (only applicable when removable is true).
+  readonly removeButtonTitle?: string;
 }
 
 export class Chip implements m.ClassComponent<ChipAttrs> {
@@ -58,6 +60,7 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       removable,
       onRemove,
       label,
+      removeButtonTitle,
       ...htmlAttrs
     } = attrs;
 
@@ -86,6 +89,7 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
           compact: true,
           rounded,
           icon: 'close',
+          title: removeButtonTitle ?? 'Remove',
           onclick: () => onRemove?.(),
         }),
     );

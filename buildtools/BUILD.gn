@@ -128,6 +128,688 @@ source_set("gmock") {
   deps = [ "//gn:default_deps" ]
 }
 
+# Abseil-cpp configuration and source_set.
+# Required by protobuf v22+.
+config("abseil_config") {
+  visibility = _buildtools_visibility
+  include_dirs = [ "abseil-cpp" ]
+  cflags = []
+  if (is_clang) {
+    cflags += [
+      "-Wno-deprecated-builtins",
+      "-Wno-deprecated-pragma",
+      "-Wno-unknown-warning-option",
+    ]
+  }
+  if (is_gcc) {
+    cflags += [
+      "-Wno-stringop-overflow",
+      "-Wno-ignored-attributes",
+    ]
+  }
+}
+
+source_set("abseil_cpp") {
+  visibility = _buildtools_visibility
+  sources = [
+    # base
+    "abseil-cpp/absl/base/attributes.h",
+    "abseil-cpp/absl/base/call_once.h",
+    "abseil-cpp/absl/base/casts.h",
+    "abseil-cpp/absl/base/config.h",
+    "abseil-cpp/absl/base/const_init.h",
+    "abseil-cpp/absl/base/dynamic_annotations.h",
+    "abseil-cpp/absl/base/internal/cycleclock.cc",
+    "abseil-cpp/absl/base/internal/cycleclock.h",
+    "abseil-cpp/absl/base/internal/low_level_alloc.cc",
+    "abseil-cpp/absl/base/internal/low_level_alloc.h",
+    "abseil-cpp/absl/base/internal/raw_logging.cc",
+    "abseil-cpp/absl/base/internal/raw_logging.h",
+    "abseil-cpp/absl/base/internal/spinlock.cc",
+    "abseil-cpp/absl/base/internal/spinlock.h",
+    "abseil-cpp/absl/base/internal/spinlock_wait.cc",
+    "abseil-cpp/absl/base/internal/spinlock_wait.h",
+    "abseil-cpp/absl/base/internal/strerror.cc",
+    "abseil-cpp/absl/base/internal/sysinfo.cc",
+    "abseil-cpp/absl/base/internal/sysinfo.h",
+    "abseil-cpp/absl/base/internal/thread_identity.cc",
+    "abseil-cpp/absl/base/internal/thread_identity.h",
+    "abseil-cpp/absl/base/internal/throw_delegate.cc",
+    "abseil-cpp/absl/base/internal/throw_delegate.h",
+    "abseil-cpp/absl/base/internal/tracing.cc",
+    "abseil-cpp/absl/base/internal/tracing.h",
+    "abseil-cpp/absl/base/internal/unscaledcycleclock.cc",
+    "abseil-cpp/absl/base/internal/unscaledcycleclock.h",
+    "abseil-cpp/absl/base/log_severity.cc",
+    "abseil-cpp/absl/base/log_severity.h",
+    "abseil-cpp/absl/base/macros.h",
+    "abseil-cpp/absl/base/no_destructor.h",
+    "abseil-cpp/absl/base/nullability.h",
+    "abseil-cpp/absl/base/optimization.h",
+    "abseil-cpp/absl/base/options.h",
+    "abseil-cpp/absl/base/policy_checks.h",
+    "abseil-cpp/absl/base/port.h",
+    "abseil-cpp/absl/base/prefetch.h",
+    "abseil-cpp/absl/base/thread_annotations.h",
+
+    # container
+    "abseil-cpp/absl/container/btree_map.h",
+    "abseil-cpp/absl/container/btree_set.h",
+    "abseil-cpp/absl/container/fixed_array.h",
+    "abseil-cpp/absl/container/flat_hash_map.h",
+    "abseil-cpp/absl/container/flat_hash_set.h",
+    "abseil-cpp/absl/container/inlined_vector.h",
+    "abseil-cpp/absl/container/internal/compressed_tuple.h",
+    "abseil-cpp/absl/container/internal/container_memory.h",
+    "abseil-cpp/absl/container/internal/hash_function_defaults.h",
+    "abseil-cpp/absl/container/internal/hashtablez_sampler.cc",
+    "abseil-cpp/absl/container/internal/hashtablez_sampler.h",
+    "abseil-cpp/absl/container/internal/hashtablez_sampler_force_weak_definition.cc",
+    "abseil-cpp/absl/container/internal/raw_hash_map.h",
+    "abseil-cpp/absl/container/internal/raw_hash_set.cc",
+    "abseil-cpp/absl/container/internal/raw_hash_set.h",
+    "abseil-cpp/absl/container/node_hash_map.h",
+    "abseil-cpp/absl/container/node_hash_set.h",
+
+    # crc (needed by strings/cord)
+    "abseil-cpp/absl/crc/crc32c.cc",
+    "abseil-cpp/absl/crc/crc32c.h",
+    "abseil-cpp/absl/crc/internal/cpu_detect.cc",
+    "abseil-cpp/absl/crc/internal/crc.cc",
+    "abseil-cpp/absl/crc/internal/crc.h",
+    "abseil-cpp/absl/crc/internal/crc_cord_state.cc",
+    "abseil-cpp/absl/crc/internal/crc_cord_state.h",
+    "abseil-cpp/absl/crc/internal/crc_memcpy_fallback.cc",
+    "abseil-cpp/absl/crc/internal/crc_memcpy_x86_arm_combined.cc",
+    "abseil-cpp/absl/crc/internal/crc_non_temporal_memcpy.cc",
+    "abseil-cpp/absl/crc/internal/crc_x86_arm_combined.cc",
+
+    # debugging (needed by log)
+    "abseil-cpp/absl/debugging/failure_signal_handler.cc",
+    "abseil-cpp/absl/debugging/failure_signal_handler.h",
+    "abseil-cpp/absl/debugging/internal/address_is_readable.cc",
+    "abseil-cpp/absl/debugging/internal/address_is_readable.h",
+    "abseil-cpp/absl/debugging/internal/decode_rust_punycode.cc",
+    "abseil-cpp/absl/debugging/internal/demangle.cc",
+    "abseil-cpp/absl/debugging/internal/demangle.h",
+    "abseil-cpp/absl/debugging/internal/demangle_rust.cc",
+    "abseil-cpp/absl/debugging/internal/elf_mem_image.cc",
+    "abseil-cpp/absl/debugging/internal/elf_mem_image.h",
+    "abseil-cpp/absl/debugging/internal/examine_stack.cc",
+    "abseil-cpp/absl/debugging/internal/examine_stack.h",
+    "abseil-cpp/absl/debugging/internal/stack_consumption.cc",
+    "abseil-cpp/absl/debugging/internal/utf8_for_code_point.cc",
+    "abseil-cpp/absl/debugging/internal/vdso_support.cc",
+    "abseil-cpp/absl/debugging/internal/vdso_support.h",
+    "abseil-cpp/absl/debugging/leak_check.cc",
+    "abseil-cpp/absl/debugging/leak_check.h",
+    "abseil-cpp/absl/debugging/stacktrace.cc",
+    "abseil-cpp/absl/debugging/stacktrace.h",
+    "abseil-cpp/absl/debugging/symbolize.cc",
+    "abseil-cpp/absl/debugging/symbolize.h",
+
+    # flags (needed by log)
+    "abseil-cpp/absl/flags/commandlineflag.cc",
+    "abseil-cpp/absl/flags/commandlineflag.h",
+    "abseil-cpp/absl/flags/config.h",
+    "abseil-cpp/absl/flags/declare.h",
+    "abseil-cpp/absl/flags/flag.h",
+    "abseil-cpp/absl/flags/internal/commandlineflag.cc",
+    "abseil-cpp/absl/flags/internal/commandlineflag.h",
+    "abseil-cpp/absl/flags/internal/flag.cc",
+    "abseil-cpp/absl/flags/internal/flag.h",
+    "abseil-cpp/absl/flags/internal/private_handle_accessor.cc",
+    "abseil-cpp/absl/flags/internal/private_handle_accessor.h",
+    "abseil-cpp/absl/flags/internal/program_name.cc",
+    "abseil-cpp/absl/flags/internal/program_name.h",
+    "abseil-cpp/absl/flags/internal/usage.cc",
+    "abseil-cpp/absl/flags/internal/usage.h",
+    "abseil-cpp/absl/flags/marshalling.cc",
+    "abseil-cpp/absl/flags/marshalling.h",
+    "abseil-cpp/absl/flags/parse.cc",
+    "abseil-cpp/absl/flags/parse.h",
+    "abseil-cpp/absl/flags/reflection.cc",
+    "abseil-cpp/absl/flags/reflection.h",
+    "abseil-cpp/absl/flags/usage.cc",
+    "abseil-cpp/absl/flags/usage.h",
+    "abseil-cpp/absl/flags/usage_config.cc",
+    "abseil-cpp/absl/flags/usage_config.h",
+
+    # hash
+    "abseil-cpp/absl/hash/hash.h",
+    "abseil-cpp/absl/hash/internal/city.cc",
+    "abseil-cpp/absl/hash/internal/city.h",
+    "abseil-cpp/absl/hash/internal/hash.cc",
+    "abseil-cpp/absl/hash/internal/hash.h",
+    "abseil-cpp/absl/hash/internal/low_level_hash.cc",
+    "abseil-cpp/absl/hash/internal/low_level_hash.h",
+
+    # log
+    "abseil-cpp/absl/log/absl_check.h",
+    "abseil-cpp/absl/log/absl_log.h",
+    "abseil-cpp/absl/log/check.h",
+    "abseil-cpp/absl/log/die_if_null.cc",
+    "abseil-cpp/absl/log/die_if_null.h",
+
+    # Note: flags.cc is excluded because it defines FLAGS_v which conflicts
+    # with Google Benchmark's FLAGS_v.
+    # "abseil-cpp/absl/log/flags.cc",
+    "abseil-cpp/absl/log/globals.cc",
+    "abseil-cpp/absl/log/globals.h",
+    "abseil-cpp/absl/log/initialize.cc",
+    "abseil-cpp/absl/log/initialize.h",
+    "abseil-cpp/absl/log/internal/check_op.cc",
+    "abseil-cpp/absl/log/internal/check_op.h",
+    "abseil-cpp/absl/log/internal/conditions.cc",
+    "abseil-cpp/absl/log/internal/conditions.h",
+    "abseil-cpp/absl/log/internal/fnmatch.cc",
+    "abseil-cpp/absl/log/internal/globals.cc",
+    "abseil-cpp/absl/log/internal/globals.h",
+    "abseil-cpp/absl/log/internal/log_format.cc",
+    "abseil-cpp/absl/log/internal/log_format.h",
+    "abseil-cpp/absl/log/internal/log_message.cc",
+    "abseil-cpp/absl/log/internal/log_message.h",
+    "abseil-cpp/absl/log/internal/log_sink_set.cc",
+    "abseil-cpp/absl/log/internal/log_sink_set.h",
+    "abseil-cpp/absl/log/internal/nullguard.cc",
+    "abseil-cpp/absl/log/internal/nullguard.h",
+    "abseil-cpp/absl/log/internal/proto.cc",
+    "abseil-cpp/absl/log/internal/proto.h",
+    "abseil-cpp/absl/log/internal/structured.h",
+    "abseil-cpp/absl/log/internal/structured_proto.cc",
+    "abseil-cpp/absl/log/internal/structured_proto.h",
+    "abseil-cpp/absl/log/internal/vlog_config.cc",
+    "abseil-cpp/absl/log/internal/vlog_config.h",
+    "abseil-cpp/absl/log/log.h",
+    "abseil-cpp/absl/log/log_entry.h",
+    "abseil-cpp/absl/log/log_sink.cc",
+    "abseil-cpp/absl/log/log_sink.h",
+    "abseil-cpp/absl/log/log_sink_registry.h",
+
+    # numeric
+    "abseil-cpp/absl/numeric/bits.h",
+    "abseil-cpp/absl/numeric/int128.cc",
+    "abseil-cpp/absl/numeric/int128.h",
+
+    # profiling (needed by container)
+    "abseil-cpp/absl/profiling/internal/exponential_biased.cc",
+    "abseil-cpp/absl/profiling/internal/exponential_biased.h",
+    "abseil-cpp/absl/profiling/internal/periodic_sampler.cc",
+    "abseil-cpp/absl/profiling/internal/periodic_sampler.h",
+
+    # random (needed by various components)
+    "abseil-cpp/absl/random/bernoulli_distribution.h",
+    "abseil-cpp/absl/random/discrete_distribution.cc",
+    "abseil-cpp/absl/random/discrete_distribution.h",
+    "abseil-cpp/absl/random/distributions.h",
+    "abseil-cpp/absl/random/gaussian_distribution.cc",
+    "abseil-cpp/absl/random/gaussian_distribution.h",
+    "abseil-cpp/absl/random/internal/entropy_pool.cc",
+    "abseil-cpp/absl/random/internal/entropy_pool.h",
+    "abseil-cpp/absl/random/internal/randen.cc",
+    "abseil-cpp/absl/random/internal/randen.h",
+    "abseil-cpp/absl/random/internal/randen_detect.cc",
+    "abseil-cpp/absl/random/internal/randen_detect.h",
+    "abseil-cpp/absl/random/internal/randen_hwaes.cc",
+    "abseil-cpp/absl/random/internal/randen_hwaes.h",
+    "abseil-cpp/absl/random/internal/randen_round_keys.cc",
+    "abseil-cpp/absl/random/internal/randen_slow.cc",
+    "abseil-cpp/absl/random/internal/randen_slow.h",
+    "abseil-cpp/absl/random/internal/seed_material.cc",
+    "abseil-cpp/absl/random/internal/seed_material.h",
+    "abseil-cpp/absl/random/random.h",
+    "abseil-cpp/absl/random/seed_gen_exception.cc",
+    "abseil-cpp/absl/random/seed_sequences.cc",
+    "abseil-cpp/absl/random/seed_sequences.h",
+
+    # status
+    "abseil-cpp/absl/status/internal/status_internal.cc",
+    "abseil-cpp/absl/status/internal/status_internal.h",
+    "abseil-cpp/absl/status/status.cc",
+    "abseil-cpp/absl/status/status.h",
+    "abseil-cpp/absl/status/status_payload_printer.cc",
+    "abseil-cpp/absl/status/statusor.cc",
+    "abseil-cpp/absl/status/statusor.h",
+
+    # strings
+    "abseil-cpp/absl/strings/ascii.cc",
+    "abseil-cpp/absl/strings/ascii.h",
+    "abseil-cpp/absl/strings/charconv.cc",
+    "abseil-cpp/absl/strings/charconv.h",
+    "abseil-cpp/absl/strings/cord.cc",
+    "abseil-cpp/absl/strings/cord.h",
+    "abseil-cpp/absl/strings/cord_analysis.cc",
+    "abseil-cpp/absl/strings/cord_buffer.h",
+    "abseil-cpp/absl/strings/escaping.cc",
+    "abseil-cpp/absl/strings/escaping.h",
+    "abseil-cpp/absl/strings/internal/charconv_bigint.cc",
+    "abseil-cpp/absl/strings/internal/charconv_bigint.h",
+    "abseil-cpp/absl/strings/internal/charconv_parse.cc",
+    "abseil-cpp/absl/strings/internal/charconv_parse.h",
+    "abseil-cpp/absl/strings/internal/cord_internal.cc",
+    "abseil-cpp/absl/strings/internal/cord_internal.h",
+    "abseil-cpp/absl/strings/internal/cord_rep_btree.cc",
+    "abseil-cpp/absl/strings/internal/cord_rep_btree.h",
+    "abseil-cpp/absl/strings/internal/cord_rep_btree_navigator.cc",
+    "abseil-cpp/absl/strings/internal/cord_rep_btree_navigator.h",
+    "abseil-cpp/absl/strings/internal/cord_rep_btree_reader.cc",
+    "abseil-cpp/absl/strings/internal/cord_rep_btree_reader.h",
+    "abseil-cpp/absl/strings/internal/cord_rep_consume.cc",
+    "abseil-cpp/absl/strings/internal/cord_rep_crc.cc",
+    "abseil-cpp/absl/strings/internal/cord_rep_crc.h",
+    "abseil-cpp/absl/strings/internal/cord_rep_flat.h",
+    "abseil-cpp/absl/strings/internal/cordz_functions.cc",
+    "abseil-cpp/absl/strings/internal/cordz_functions.h",
+    "abseil-cpp/absl/strings/internal/cordz_handle.cc",
+    "abseil-cpp/absl/strings/internal/cordz_handle.h",
+    "abseil-cpp/absl/strings/internal/cordz_info.cc",
+    "abseil-cpp/absl/strings/internal/cordz_info.h",
+    "abseil-cpp/absl/strings/internal/cordz_sample_token.cc",
+    "abseil-cpp/absl/strings/internal/cordz_sample_token.h",
+    "abseil-cpp/absl/strings/internal/damerau_levenshtein_distance.cc",
+    "abseil-cpp/absl/strings/internal/escaping.cc",
+    "abseil-cpp/absl/strings/internal/escaping.h",
+    "abseil-cpp/absl/strings/internal/memutil.cc",
+    "abseil-cpp/absl/strings/internal/memutil.h",
+    "abseil-cpp/absl/strings/internal/ostringstream.cc",
+    "abseil-cpp/absl/strings/internal/ostringstream.h",
+    "abseil-cpp/absl/strings/internal/resize_uninitialized.h",
+    "abseil-cpp/absl/strings/internal/stl_type_traits.h",
+    "abseil-cpp/absl/strings/internal/str_format/arg.cc",
+    "abseil-cpp/absl/strings/internal/str_format/arg.h",
+    "abseil-cpp/absl/strings/internal/str_format/bind.cc",
+    "abseil-cpp/absl/strings/internal/str_format/bind.h",
+    "abseil-cpp/absl/strings/internal/str_format/checker.h",
+    "abseil-cpp/absl/strings/internal/str_format/constexpr_parser.h",
+    "abseil-cpp/absl/strings/internal/str_format/extension.cc",
+    "abseil-cpp/absl/strings/internal/str_format/extension.h",
+    "abseil-cpp/absl/strings/internal/str_format/float_conversion.cc",
+    "abseil-cpp/absl/strings/internal/str_format/float_conversion.h",
+    "abseil-cpp/absl/strings/internal/str_format/output.cc",
+    "abseil-cpp/absl/strings/internal/str_format/output.h",
+    "abseil-cpp/absl/strings/internal/str_format/parser.cc",
+    "abseil-cpp/absl/strings/internal/str_format/parser.h",
+    "abseil-cpp/absl/strings/internal/str_join_internal.h",
+    "abseil-cpp/absl/strings/internal/str_split_internal.h",
+    "abseil-cpp/absl/strings/internal/stringify_sink.cc",
+    "abseil-cpp/absl/strings/internal/stringify_sink.h",
+    "abseil-cpp/absl/strings/internal/utf8.cc",
+    "abseil-cpp/absl/strings/internal/utf8.h",
+    "abseil-cpp/absl/strings/match.cc",
+    "abseil-cpp/absl/strings/match.h",
+    "abseil-cpp/absl/strings/numbers.cc",
+    "abseil-cpp/absl/strings/numbers.h",
+    "abseil-cpp/absl/strings/str_cat.cc",
+    "abseil-cpp/absl/strings/str_cat.h",
+    "abseil-cpp/absl/strings/str_format.h",
+    "abseil-cpp/absl/strings/str_join.h",
+    "abseil-cpp/absl/strings/str_replace.cc",
+    "abseil-cpp/absl/strings/str_replace.h",
+    "abseil-cpp/absl/strings/str_split.cc",
+    "abseil-cpp/absl/strings/str_split.h",
+    "abseil-cpp/absl/strings/string_view.cc",
+    "abseil-cpp/absl/strings/string_view.h",
+    "abseil-cpp/absl/strings/strip.h",
+    "abseil-cpp/absl/strings/substitute.cc",
+    "abseil-cpp/absl/strings/substitute.h",
+
+    # synchronization
+    "abseil-cpp/absl/synchronization/barrier.cc",
+    "abseil-cpp/absl/synchronization/barrier.h",
+    "abseil-cpp/absl/synchronization/blocking_counter.cc",
+    "abseil-cpp/absl/synchronization/blocking_counter.h",
+    "abseil-cpp/absl/synchronization/internal/create_thread_identity.cc",
+    "abseil-cpp/absl/synchronization/internal/create_thread_identity.h",
+    "abseil-cpp/absl/synchronization/internal/futex.h",
+    "abseil-cpp/absl/synchronization/internal/futex_waiter.cc",
+    "abseil-cpp/absl/synchronization/internal/graphcycles.cc",
+    "abseil-cpp/absl/synchronization/internal/graphcycles.h",
+    "abseil-cpp/absl/synchronization/internal/kernel_timeout.cc",
+    "abseil-cpp/absl/synchronization/internal/kernel_timeout.h",
+    "abseil-cpp/absl/synchronization/internal/per_thread_sem.cc",
+    "abseil-cpp/absl/synchronization/internal/per_thread_sem.h",
+    "abseil-cpp/absl/synchronization/internal/pthread_waiter.cc",
+    "abseil-cpp/absl/synchronization/internal/sem_waiter.cc",
+    "abseil-cpp/absl/synchronization/internal/stdcpp_waiter.cc",
+    "abseil-cpp/absl/synchronization/internal/waiter.h",
+    "abseil-cpp/absl/synchronization/internal/waiter_base.cc",
+    "abseil-cpp/absl/synchronization/internal/win32_waiter.cc",
+    "abseil-cpp/absl/synchronization/mutex.cc",
+    "abseil-cpp/absl/synchronization/mutex.h",
+    "abseil-cpp/absl/synchronization/notification.cc",
+    "abseil-cpp/absl/synchronization/notification.h",
+
+    # time
+    "abseil-cpp/absl/time/civil_time.cc",
+    "abseil-cpp/absl/time/civil_time.h",
+    "abseil-cpp/absl/time/clock.cc",
+    "abseil-cpp/absl/time/clock.h",
+    "abseil-cpp/absl/time/duration.cc",
+    "abseil-cpp/absl/time/format.cc",
+    "abseil-cpp/absl/time/internal/cctz/include/cctz/civil_time.h",
+    "abseil-cpp/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+    "abseil-cpp/absl/time/internal/cctz/include/cctz/time_zone.h",
+    "abseil-cpp/absl/time/internal/cctz/include/cctz/zone_info_source.h",
+    "abseil-cpp/absl/time/internal/cctz/src/civil_time_detail.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/time_zone_fixed.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/time_zone_format.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/time_zone_if.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/time_zone_impl.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/time_zone_info.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/time_zone_libc.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/time_zone_lookup.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/time_zone_posix.cc",
+    "abseil-cpp/absl/time/internal/cctz/src/zone_info_source.cc",
+    "abseil-cpp/absl/time/time.cc",
+    "abseil-cpp/absl/time/time.h",
+
+    # types
+    "abseil-cpp/absl/types/compare.h",
+    "abseil-cpp/absl/types/optional.h",
+    "abseil-cpp/absl/types/span.h",
+    "abseil-cpp/absl/types/variant.h",
+
+    # utility
+    "abseil-cpp/absl/utility/utility.h",
+
+    # functional
+    "abseil-cpp/absl/functional/any_invocable.h",
+    "abseil-cpp/absl/functional/bind_front.h",
+    "abseil-cpp/absl/functional/function_ref.h",
+
+    # memory
+    "abseil-cpp/absl/memory/memory.h",
+
+    # meta
+    "abseil-cpp/absl/meta/type_traits.h",
+
+    # cleanup
+    "abseil-cpp/absl/cleanup/cleanup.h",
+
+    # algorithm
+    "abseil-cpp/absl/algorithm/algorithm.h",
+    "abseil-cpp/absl/algorithm/container.h",
+  ]
+
+  if (is_win) {
+    sources += [ "abseil-cpp/absl/base/internal/spinlock_win32.inc" ]
+  } else if (is_linux || is_android) {
+    sources += [ "abseil-cpp/absl/base/internal/spinlock_linux.inc" ]
+  } else {
+    sources += [ "abseil-cpp/absl/base/internal/spinlock_posix.inc" ]
+  }
+
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  configs += [ ":abseil_config" ]
+  public_configs = [ ":abseil_config" ]
+  deps = [ "//gn:default_deps" ]
+}
+
+# Configuration for utf8_range (required by protobuf v22+).
+config("utf8_range_config") {
+  visibility = _buildtools_visibility
+  include_dirs = [ "protobuf/third_party/utf8_range" ]
+}
+
+# UTF-8 validation library required by protobuf v22+.
+source_set("utf8_range") {
+  visibility = _buildtools_visibility
+  sources = [ "protobuf/third_party/utf8_range/utf8_range.c" ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  configs += [ ":abseil_config" ]
+  public_configs = [ ":utf8_range_config" ]
+  public_deps = [ ":abseil_cpp" ]
+  deps = [ "//gn:default_deps" ]
+}
+
+# Configuration for upb (micro protobuf, required by protobuf v31+).
+config("upb_config") {
+  visibility = _buildtools_visibility
+  include_dirs = [
+    "protobuf",
+    "protobuf/upb/reflection/stage0",  # For pre-generated descriptor.upb.h
+    "protobuf/third_party/utf8_range",  # For utf8_range.h
+  ]
+  defines = [ "UPB_BOOTSTRAP_STAGE=0" ]  # Use stage0 minitable functions
+}
+
+# upb (micro protobuf) library required by protobuf v31+.
+source_set("upb") {
+  visibility = _buildtools_visibility
+  sources = [
+    # base
+    "protobuf/upb/base/descriptor_constants.h",
+    "protobuf/upb/base/internal/endian.h",
+    "protobuf/upb/base/internal/log2.h",
+    "protobuf/upb/base/status.c",
+    "protobuf/upb/base/status.h",
+    "protobuf/upb/base/string_view.h",
+    "protobuf/upb/base/upcast.h",
+
+    # generated_code_support
+    "protobuf/upb/generated_code_support.h",
+
+    # hash
+    "protobuf/upb/hash/common.c",
+    "protobuf/upb/hash/common.h",
+    "protobuf/upb/hash/int_table.h",
+    "protobuf/upb/hash/str_table.h",
+
+    # lex
+    "protobuf/upb/lex/atoi.c",
+    "protobuf/upb/lex/atoi.h",
+    "protobuf/upb/lex/round_trip.c",
+    "protobuf/upb/lex/round_trip.h",
+    "protobuf/upb/lex/strtod.c",
+    "protobuf/upb/lex/strtod.h",
+    "protobuf/upb/lex/unicode.c",
+    "protobuf/upb/lex/unicode.h",
+
+    # mem
+    "protobuf/upb/mem/alloc.c",
+    "protobuf/upb/mem/alloc.h",
+    "protobuf/upb/mem/arena.c",
+    "protobuf/upb/mem/arena.h",
+    "protobuf/upb/mem/internal/arena.h",
+
+    # message
+    "protobuf/upb/message/accessors.c",
+    "protobuf/upb/message/accessors.h",
+    "protobuf/upb/message/accessors_split64.h",
+    "protobuf/upb/message/array.c",
+    "protobuf/upb/message/array.h",
+    "protobuf/upb/message/compare.c",
+    "protobuf/upb/message/compare.h",
+    "protobuf/upb/message/compat.c",
+    "protobuf/upb/message/compat.h",
+    "protobuf/upb/message/copy.c",
+    "protobuf/upb/message/copy.h",
+    "protobuf/upb/message/internal/accessors.h",
+    "protobuf/upb/message/internal/array.h",
+    "protobuf/upb/message/internal/compare_unknown.c",
+    "protobuf/upb/message/internal/compare_unknown.h",
+    "protobuf/upb/message/internal/extension.c",
+    "protobuf/upb/message/internal/extension.h",
+    "protobuf/upb/message/internal/iterator.c",
+    "protobuf/upb/message/internal/iterator.h",
+    "protobuf/upb/message/internal/map.h",
+    "protobuf/upb/message/internal/map_entry.h",
+    "protobuf/upb/message/internal/map_sorter.h",
+    "protobuf/upb/message/internal/message.c",
+    "protobuf/upb/message/internal/message.h",
+    "protobuf/upb/message/internal/tagged_ptr.h",
+    "protobuf/upb/message/internal/types.h",
+    "protobuf/upb/message/map.c",
+    "protobuf/upb/message/map.h",
+    "protobuf/upb/message/map_gencode_util.h",
+    "protobuf/upb/message/map_sorter.c",
+    "protobuf/upb/message/merge.c",
+    "protobuf/upb/message/merge.h",
+    "protobuf/upb/message/message.c",
+    "protobuf/upb/message/message.h",
+    "protobuf/upb/message/promote.c",
+    "protobuf/upb/message/promote.h",
+    "protobuf/upb/message/tagged_ptr.h",
+    "protobuf/upb/message/value.h",
+
+    # mini_descriptor
+    "protobuf/upb/mini_descriptor/build_enum.c",
+    "protobuf/upb/mini_descriptor/build_enum.h",
+    "protobuf/upb/mini_descriptor/decode.c",
+    "protobuf/upb/mini_descriptor/decode.h",
+    "protobuf/upb/mini_descriptor/internal/base92.c",
+    "protobuf/upb/mini_descriptor/internal/base92.h",
+    "protobuf/upb/mini_descriptor/internal/decoder.h",
+    "protobuf/upb/mini_descriptor/internal/encode.c",
+    "protobuf/upb/mini_descriptor/internal/encode.h",
+    "protobuf/upb/mini_descriptor/internal/modifiers.h",
+    "protobuf/upb/mini_descriptor/internal/wire_constants.h",
+    "protobuf/upb/mini_descriptor/link.c",
+    "protobuf/upb/mini_descriptor/link.h",
+
+    # mini_table
+    "protobuf/upb/mini_table/compat.c",
+    "protobuf/upb/mini_table/compat.h",
+    "protobuf/upb/mini_table/enum.h",
+    "protobuf/upb/mini_table/extension.h",
+    "protobuf/upb/mini_table/extension_registry.c",
+    "protobuf/upb/mini_table/extension_registry.h",
+    "protobuf/upb/mini_table/field.h",
+    "protobuf/upb/mini_table/file.h",
+    "protobuf/upb/mini_table/internal/enum.h",
+    "protobuf/upb/mini_table/internal/extension.h",
+    "protobuf/upb/mini_table/internal/field.h",
+    "protobuf/upb/mini_table/internal/file.h",
+    "protobuf/upb/mini_table/internal/message.c",
+    "protobuf/upb/mini_table/internal/message.h",
+    "protobuf/upb/mini_table/internal/size_log2.h",
+    "protobuf/upb/mini_table/internal/sub.h",
+    "protobuf/upb/mini_table/message.c",
+    "protobuf/upb/mini_table/message.h",
+    "protobuf/upb/mini_table/sub.h",
+
+    # port
+    "protobuf/upb/port/atomic.h",
+    "protobuf/upb/port/vsnprintf_compat.h",
+
+    # reflection
+    "protobuf/upb/reflection/common.h",
+    "protobuf/upb/reflection/def.h",
+    "protobuf/upb/reflection/def_pool.c",
+    "protobuf/upb/reflection/def_pool.h",
+    "protobuf/upb/reflection/def_type.c",
+    "protobuf/upb/reflection/def_type.h",
+    "protobuf/upb/reflection/desc_state.c",
+    "protobuf/upb/reflection/descriptor_bootstrap.h",
+    "protobuf/upb/reflection/enum_def.c",
+    "protobuf/upb/reflection/enum_def.h",
+    "protobuf/upb/reflection/enum_reserved_range.c",
+    "protobuf/upb/reflection/enum_reserved_range.h",
+    "protobuf/upb/reflection/enum_value_def.c",
+    "protobuf/upb/reflection/enum_value_def.h",
+    "protobuf/upb/reflection/extension_range.c",
+    "protobuf/upb/reflection/extension_range.h",
+    "protobuf/upb/reflection/field_def.c",
+    "protobuf/upb/reflection/field_def.h",
+    "protobuf/upb/reflection/file_def.c",
+    "protobuf/upb/reflection/file_def.h",
+    "protobuf/upb/reflection/internal/def_builder.c",
+    "protobuf/upb/reflection/internal/def_builder.h",
+    "protobuf/upb/reflection/internal/def_pool.h",
+    "protobuf/upb/reflection/internal/desc_state.h",
+    "protobuf/upb/reflection/internal/enum_def.h",
+    "protobuf/upb/reflection/internal/enum_reserved_range.h",
+    "protobuf/upb/reflection/internal/enum_value_def.h",
+    "protobuf/upb/reflection/internal/extension_range.h",
+    "protobuf/upb/reflection/internal/field_def.h",
+    "protobuf/upb/reflection/internal/file_def.h",
+    "protobuf/upb/reflection/internal/message_def.h",
+    "protobuf/upb/reflection/internal/message_reserved_range.h",
+    "protobuf/upb/reflection/internal/method_def.h",
+    "protobuf/upb/reflection/internal/oneof_def.h",
+    "protobuf/upb/reflection/internal/service_def.h",
+    "protobuf/upb/reflection/internal/strdup2.c",
+    "protobuf/upb/reflection/message.c",
+    "protobuf/upb/reflection/message_def.c",
+    "protobuf/upb/reflection/message_def.h",
+    "protobuf/upb/reflection/message_reserved_range.c",
+    "protobuf/upb/reflection/message_reserved_range.h",
+    "protobuf/upb/reflection/method_def.c",
+    "protobuf/upb/reflection/method_def.h",
+    "protobuf/upb/reflection/oneof_def.c",
+    "protobuf/upb/reflection/oneof_def.h",
+    "protobuf/upb/reflection/service_def.c",
+    "protobuf/upb/reflection/service_def.h",
+    "protobuf/upb/reflection/stage0/google/protobuf/descriptor.upb.c",
+    "protobuf/upb/reflection/stage0/google/protobuf/descriptor.upb.h",
+
+    # text
+    "protobuf/upb/text/encode.c",
+    "protobuf/upb/text/encode.h",
+    "protobuf/upb/text/internal/encode.c",
+
+    # wire
+    "protobuf/upb/wire/byte_size.c",
+    "protobuf/upb/wire/decode.c",
+    "protobuf/upb/wire/decode.h",
+    "protobuf/upb/wire/encode.c",
+    "protobuf/upb/wire/encode.h",
+    "protobuf/upb/wire/eps_copy_input_stream.c",
+    "protobuf/upb/wire/eps_copy_input_stream.h",
+    "protobuf/upb/wire/internal/decode_fast.c",
+    "protobuf/upb/wire/reader.c",
+    "protobuf/upb/wire/reader.h",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  public_configs = [ ":upb_config" ]
+  deps = [ "//gn:default_deps" ]
+
+  if (is_gcc) {
+    cflags = [ "-Wno-attributes" ]
+  }
+  if (is_clang) {
+    cflags = [ "-Wno-unknown-attributes" ]
+  }
+}
+
+# upb_generator library (code generators for upb, used by protoc).
+# This depends on protobuf_full for compiler APIs and abseil for containers.
+source_set("upb_generator") {
+  visibility = _buildtools_visibility
+  sources = [
+    "protobuf/upb_generator/common.cc",
+    "protobuf/upb_generator/common.h",
+    "protobuf/upb_generator/common/names.cc",
+    "protobuf/upb_generator/common/names.h",
+    "protobuf/upb_generator/file_layout.cc",
+    "protobuf/upb_generator/file_layout.h",
+    "protobuf/upb_generator/minitable/fasttable.cc",
+    "protobuf/upb_generator/minitable/fasttable.h",
+    "protobuf/upb_generator/minitable/generator.cc",
+    "protobuf/upb_generator/minitable/generator.h",
+    "protobuf/upb_generator/minitable/names.cc",
+    "protobuf/upb_generator/minitable/names.h",
+    "protobuf/upb_generator/minitable/names_internal.cc",
+    "protobuf/upb_generator/minitable/names_internal.h",
+    "protobuf/upb_generator/plugin.cc",
+    "protobuf/upb_generator/plugin.h",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  configs += [
+    ":protobuf_config",
+    ":upb_config",
+  ]
+
+  # Export upb_config so dependents can include upb_generator headers.
+  public_configs = [ ":upb_config" ]
+  deps = [
+    ":abseil_cpp",
+    ":protobuf_full",
+    ":upb",
+    "//gn:default_deps",
+  ]
+}
+
 # Configuration used to build libprotobuf_* and the protoc compiler.
 config("protobuf_config") {
   visibility = _buildtools_visibility
@@ -145,7 +827,11 @@ config("protobuf_config") {
     cflags += [ "-Wno-deprecated-declarations" ]
   }
   if (is_gcc) {
-    cflags += [ "-Wno-stringop-overread" ]
+    cflags += [
+      "-Wno-stringop-overread",
+      "-Wno-attributes",
+      "-Wno-nonnull",
+    ]
   }
   if (is_win) {
     cflags += [ "/W0" ]
@@ -168,22 +854,24 @@ _protobuf_headers = [
   "protobuf/src/google/protobuf/any.h",
   "protobuf/src/google/protobuf/any.pb.h",
   "protobuf/src/google/protobuf/api.pb.h",
-  "protobuf/src/google/protobuf/arena_impl.h",
   "protobuf/src/google/protobuf/arena.h",
+  "protobuf/src/google/protobuf/arena_align.h",
+  "protobuf/src/google/protobuf/arena_allocation_policy.h",
+  "protobuf/src/google/protobuf/arena_cleanup.h",
   "protobuf/src/google/protobuf/arenastring.h",
   "protobuf/src/google/protobuf/arenaz_sampler.h",
   "protobuf/src/google/protobuf/compiler/importer.h",
   "protobuf/src/google/protobuf/compiler/parser.h",
-  "protobuf/src/google/protobuf/descriptor_database.h",
   "protobuf/src/google/protobuf/descriptor.h",
   "protobuf/src/google/protobuf/descriptor.pb.h",
+  "protobuf/src/google/protobuf/descriptor_database.h",
   "protobuf/src/google/protobuf/duration.pb.h",
   "protobuf/src/google/protobuf/dynamic_message.h",
   "protobuf/src/google/protobuf/empty.pb.h",
   "protobuf/src/google/protobuf/endian.h",
   "protobuf/src/google/protobuf/explicitly_constructed.h",
-  "protobuf/src/google/protobuf/extension_set_inl.h",
   "protobuf/src/google/protobuf/extension_set.h",
+  "protobuf/src/google/protobuf/extension_set_inl.h",
   "protobuf/src/google/protobuf/field_access_listener.h",
   "protobuf/src/google/protobuf/field_mask.pb.h",
   "protobuf/src/google/protobuf/generated_enum_reflection.h",
@@ -191,60 +879,51 @@ _protobuf_headers = [
   "protobuf/src/google/protobuf/generated_message_bases.h",
   "protobuf/src/google/protobuf/generated_message_reflection.h",
   "protobuf/src/google/protobuf/generated_message_tctable_decl.h",
+  "protobuf/src/google/protobuf/generated_message_tctable_gen.h",
   "protobuf/src/google/protobuf/generated_message_tctable_impl.h",
   "protobuf/src/google/protobuf/generated_message_util.h",
   "protobuf/src/google/protobuf/has_bits.h",
   "protobuf/src/google/protobuf/implicit_weak_message.h",
   "protobuf/src/google/protobuf/inlined_string_field.h",
   "protobuf/src/google/protobuf/io/coded_stream.h",
+  "protobuf/src/google/protobuf/io/gzip_stream.h",
   "protobuf/src/google/protobuf/io/io_win32.h",
   "protobuf/src/google/protobuf/io/printer.h",
   "protobuf/src/google/protobuf/io/strtod.h",
   "protobuf/src/google/protobuf/io/tokenizer.h",
-  "protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.h",
-  "protobuf/src/google/protobuf/io/zero_copy_stream_impl.h",
+  "protobuf/src/google/protobuf/io/zero_copy_sink.h",
   "protobuf/src/google/protobuf/io/zero_copy_stream.h",
-  "protobuf/src/google/protobuf/map_entry_lite.h",
-  "protobuf/src/google/protobuf/map_entry.h",
-  "protobuf/src/google/protobuf/map_field_inl.h",
-  "protobuf/src/google/protobuf/map_field_lite.h",
-  "protobuf/src/google/protobuf/map_field.h",
-  "protobuf/src/google/protobuf/map_type_handler.h",
+  "protobuf/src/google/protobuf/io/zero_copy_stream_impl.h",
+  "protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.h",
+  "protobuf/src/google/protobuf/json/json.h",
   "protobuf/src/google/protobuf/map.h",
-  "protobuf/src/google/protobuf/message_lite.h",
+  "protobuf/src/google/protobuf/map_entry.h",
+  "protobuf/src/google/protobuf/map_field.h",
+  "protobuf/src/google/protobuf/map_field_lite.h",
+  "protobuf/src/google/protobuf/map_type_handler.h",
   "protobuf/src/google/protobuf/message.h",
-  "protobuf/src/google/protobuf/metadata_lite.h",
+  "protobuf/src/google/protobuf/message_lite.h",
   "protobuf/src/google/protobuf/metadata.h",
+  "protobuf/src/google/protobuf/metadata_lite.h",
   "protobuf/src/google/protobuf/parse_context.h",
-  "protobuf/src/google/protobuf/port_def.inc",
-  "protobuf/src/google/protobuf/port_undef.inc",
   "protobuf/src/google/protobuf/port.h",
+  "protobuf/src/google/protobuf/reflection.h",
   "protobuf/src/google/protobuf/reflection_internal.h",
   "protobuf/src/google/protobuf/reflection_ops.h",
-  "protobuf/src/google/protobuf/reflection.h",
   "protobuf/src/google/protobuf/repeated_field.h",
   "protobuf/src/google/protobuf/repeated_ptr_field.h",
+  "protobuf/src/google/protobuf/serial_arena.h",
   "protobuf/src/google/protobuf/service.h",
   "protobuf/src/google/protobuf/source_context.pb.h",
+  "protobuf/src/google/protobuf/string_block.h",
   "protobuf/src/google/protobuf/struct.pb.h",
-  "protobuf/src/google/protobuf/stubs/bytestream.h",
   "protobuf/src/google/protobuf/stubs/callback.h",
-  "protobuf/src/google/protobuf/stubs/casts.h",
   "protobuf/src/google/protobuf/stubs/common.h",
-  "protobuf/src/google/protobuf/stubs/hash.h",
-  "protobuf/src/google/protobuf/stubs/logging.h",
-  "protobuf/src/google/protobuf/stubs/macros.h",
-  "protobuf/src/google/protobuf/stubs/map_util.h",
-  "protobuf/src/google/protobuf/stubs/mutex.h",
-  "protobuf/src/google/protobuf/stubs/once.h",
   "protobuf/src/google/protobuf/stubs/platform_macros.h",
   "protobuf/src/google/protobuf/stubs/port.h",
-  "protobuf/src/google/protobuf/stubs/status.h",
-  "protobuf/src/google/protobuf/stubs/stl_util.h",
-  "protobuf/src/google/protobuf/stubs/stringpiece.h",
-  "protobuf/src/google/protobuf/stubs/strutil.h",
-  "protobuf/src/google/protobuf/stubs/template_util.h",
+  "protobuf/src/google/protobuf/stubs/status_macros.h",
   "protobuf/src/google/protobuf/text_format.h",
+  "protobuf/src/google/protobuf/thread_safe_arena.h",
   "protobuf/src/google/protobuf/timestamp.pb.h",
   "protobuf/src/google/protobuf/type.pb.h",
   "protobuf/src/google/protobuf/unknown_field_set.h",
@@ -254,10 +933,10 @@ _protobuf_headers = [
   "protobuf/src/google/protobuf/util/json_util.h",
   "protobuf/src/google/protobuf/util/message_differencer.h",
   "protobuf/src/google/protobuf/util/time_util.h",
-  "protobuf/src/google/protobuf/util/type_resolver_util.h",
   "protobuf/src/google/protobuf/util/type_resolver.h",
-  "protobuf/src/google/protobuf/wire_format_lite.h",
+  "protobuf/src/google/protobuf/util/type_resolver_util.h",
   "protobuf/src/google/protobuf/wire_format.h",
+  "protobuf/src/google/protobuf/wire_format_lite.h",
   "protobuf/src/google/protobuf/wrappers.pb.h",
 ]
 
@@ -266,6 +945,7 @@ source_set("protobuf_lite") {
   sources = [
     "protobuf/src/google/protobuf/any_lite.cc",
     "protobuf/src/google/protobuf/arena.cc",
+    "protobuf/src/google/protobuf/arena_align.cc",
     "protobuf/src/google/protobuf/arenastring.cc",
     "protobuf/src/google/protobuf/arenaz_sampler.cc",
     "protobuf/src/google/protobuf/extension_set.cc",
@@ -277,31 +957,19 @@ source_set("protobuf_lite") {
     "protobuf/src/google/protobuf/io/coded_stream.cc",
     "protobuf/src/google/protobuf/io/io_win32.cc",
     "protobuf/src/google/protobuf/io/strtod.cc",
+    "protobuf/src/google/protobuf/io/zero_copy_sink.cc",
     "protobuf/src/google/protobuf/io/zero_copy_stream.cc",
     "protobuf/src/google/protobuf/io/zero_copy_stream_impl.cc",
     "protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.cc",
     "protobuf/src/google/protobuf/map.cc",
     "protobuf/src/google/protobuf/message_lite.cc",
+    "protobuf/src/google/protobuf/micro_string.cc",
     "protobuf/src/google/protobuf/parse_context.cc",
+    "protobuf/src/google/protobuf/port.cc",
+    "protobuf/src/google/protobuf/raw_ptr.cc",
     "protobuf/src/google/protobuf/repeated_field.cc",
     "protobuf/src/google/protobuf/repeated_ptr_field.cc",
-    "protobuf/src/google/protobuf/string_member_robber.h",
-    "protobuf/src/google/protobuf/stubs/bytestream.cc",
     "protobuf/src/google/protobuf/stubs/common.cc",
-    "protobuf/src/google/protobuf/stubs/int128.cc",
-    "protobuf/src/google/protobuf/stubs/int128.h",
-    "protobuf/src/google/protobuf/stubs/mathutil.h",
-    "protobuf/src/google/protobuf/stubs/status.cc",
-    "protobuf/src/google/protobuf/stubs/status_macros.h",
-    "protobuf/src/google/protobuf/stubs/statusor.cc",
-    "protobuf/src/google/protobuf/stubs/statusor.h",
-    "protobuf/src/google/protobuf/stubs/stringpiece.cc",
-    "protobuf/src/google/protobuf/stubs/stringprintf.cc",
-    "protobuf/src/google/protobuf/stubs/stringprintf.h",
-    "protobuf/src/google/protobuf/stubs/structurally_valid.cc",
-    "protobuf/src/google/protobuf/stubs/strutil.cc",
-    "protobuf/src/google/protobuf/stubs/time.cc",
-    "protobuf/src/google/protobuf/stubs/time.h",
     "protobuf/src/google/protobuf/wire_format_lite.cc",
   ]
   sources += _protobuf_headers
@@ -312,21 +980,24 @@ source_set("protobuf_lite") {
   }
   configs += [ ":protobuf_config" ]
   public_configs = [ "//gn:protobuf_gen_config" ]
+  public_deps = [
+    ":abseil_cpp",
+    ":utf8_range",
+  ]
   deps = [ "//gn:default_deps" ]
 }
 
 source_set("protobuf_full") {
   visibility = _buildtools_visibility
-  deps = [
-    ":protobuf_lite",
-    "//gn:default_deps",
-  ]
+  public_deps = [ ":protobuf_lite" ]
+  deps = [ "//gn:default_deps" ]
   sources = [
     "protobuf/src/google/protobuf/any.cc",
     "protobuf/src/google/protobuf/any.pb.cc",
     "protobuf/src/google/protobuf/api.pb.cc",
     "protobuf/src/google/protobuf/compiler/importer.cc",
     "protobuf/src/google/protobuf/compiler/parser.cc",
+    "protobuf/src/google/protobuf/cpp_features.pb.cc",
     "protobuf/src/google/protobuf/descriptor.cc",
     "protobuf/src/google/protobuf/descriptor.pb.cc",
     "protobuf/src/google/protobuf/descriptor_database.cc",
@@ -334,21 +1005,31 @@ source_set("protobuf_full") {
     "protobuf/src/google/protobuf/dynamic_message.cc",
     "protobuf/src/google/protobuf/empty.pb.cc",
     "protobuf/src/google/protobuf/extension_set_heavy.cc",
+    "protobuf/src/google/protobuf/feature_resolver.cc",
     "protobuf/src/google/protobuf/field_mask.pb.cc",
     "protobuf/src/google/protobuf/generated_message_bases.cc",
     "protobuf/src/google/protobuf/generated_message_reflection.cc",
     "protobuf/src/google/protobuf/generated_message_tctable_full.cc",
+    "protobuf/src/google/protobuf/generated_message_tctable_gen.cc",
+    "protobuf/src/google/protobuf/internal_feature_helper.cc",
     "protobuf/src/google/protobuf/io/gzip_stream.cc",
     "protobuf/src/google/protobuf/io/printer.cc",
     "protobuf/src/google/protobuf/io/tokenizer.cc",
+    "protobuf/src/google/protobuf/json/internal/lexer.cc",
+    "protobuf/src/google/protobuf/json/internal/message_path.cc",
+    "protobuf/src/google/protobuf/json/internal/parser.cc",
+    "protobuf/src/google/protobuf/json/internal/unparser.cc",
+    "protobuf/src/google/protobuf/json/internal/untyped_message.cc",
+    "protobuf/src/google/protobuf/json/internal/writer.cc",
+    "protobuf/src/google/protobuf/json/internal/zero_copy_buffered_stream.cc",
+    "protobuf/src/google/protobuf/json/json.cc",
     "protobuf/src/google/protobuf/map_field.cc",
     "protobuf/src/google/protobuf/message.cc",
+    "protobuf/src/google/protobuf/reflection_mode.cc",
     "protobuf/src/google/protobuf/reflection_ops.cc",
     "protobuf/src/google/protobuf/service.cc",
     "protobuf/src/google/protobuf/source_context.pb.cc",
     "protobuf/src/google/protobuf/struct.pb.cc",
-    "protobuf/src/google/protobuf/stubs/substitute.cc",
-    "protobuf/src/google/protobuf/stubs/substitute.h",
     "protobuf/src/google/protobuf/text_format.cc",
     "protobuf/src/google/protobuf/timestamp.pb.cc",
     "protobuf/src/google/protobuf/type.pb.cc",
@@ -356,41 +1037,6 @@ source_set("protobuf_full") {
     "protobuf/src/google/protobuf/util/delimited_message_util.cc",
     "protobuf/src/google/protobuf/util/field_comparator.cc",
     "protobuf/src/google/protobuf/util/field_mask_util.cc",
-    "protobuf/src/google/protobuf/util/internal/constants.h",
-    "protobuf/src/google/protobuf/util/internal/datapiece.cc",
-    "protobuf/src/google/protobuf/util/internal/datapiece.h",
-    "protobuf/src/google/protobuf/util/internal/default_value_objectwriter.cc",
-    "protobuf/src/google/protobuf/util/internal/default_value_objectwriter.h",
-    "protobuf/src/google/protobuf/util/internal/error_listener.cc",
-    "protobuf/src/google/protobuf/util/internal/error_listener.h",
-    "protobuf/src/google/protobuf/util/internal/expecting_objectwriter.h",
-    "protobuf/src/google/protobuf/util/internal/field_mask_utility.cc",
-    "protobuf/src/google/protobuf/util/internal/field_mask_utility.h",
-    "protobuf/src/google/protobuf/util/internal/json_escaping.cc",
-    "protobuf/src/google/protobuf/util/internal/json_escaping.h",
-    "protobuf/src/google/protobuf/util/internal/json_objectwriter.cc",
-    "protobuf/src/google/protobuf/util/internal/json_objectwriter.h",
-    "protobuf/src/google/protobuf/util/internal/json_stream_parser.cc",
-    "protobuf/src/google/protobuf/util/internal/json_stream_parser.h",
-    "protobuf/src/google/protobuf/util/internal/location_tracker.h",
-    "protobuf/src/google/protobuf/util/internal/mock_error_listener.h",
-    "protobuf/src/google/protobuf/util/internal/object_location_tracker.h",
-    "protobuf/src/google/protobuf/util/internal/object_source.h",
-    "protobuf/src/google/protobuf/util/internal/object_writer.cc",
-    "protobuf/src/google/protobuf/util/internal/object_writer.h",
-    "protobuf/src/google/protobuf/util/internal/proto_writer.cc",
-    "protobuf/src/google/protobuf/util/internal/proto_writer.h",
-    "protobuf/src/google/protobuf/util/internal/protostream_objectsource.cc",
-    "protobuf/src/google/protobuf/util/internal/protostream_objectsource.h",
-    "protobuf/src/google/protobuf/util/internal/protostream_objectwriter.cc",
-    "protobuf/src/google/protobuf/util/internal/protostream_objectwriter.h",
-    "protobuf/src/google/protobuf/util/internal/structured_objectwriter.h",
-    "protobuf/src/google/protobuf/util/internal/type_info.cc",
-    "protobuf/src/google/protobuf/util/internal/type_info.h",
-    "protobuf/src/google/protobuf/util/internal/type_info_test_helper.h",
-    "protobuf/src/google/protobuf/util/internal/utility.cc",
-    "protobuf/src/google/protobuf/util/internal/utility.h",
-    "protobuf/src/google/protobuf/util/json_util.cc",
     "protobuf/src/google/protobuf/util/message_differencer.cc",
     "protobuf/src/google/protobuf/util/time_util.cc",
     "protobuf/src/google/protobuf/util/type_resolver_util.cc",
@@ -412,189 +1058,143 @@ source_set("protobuf_full") {
 
 source_set("protoc_lib") {
   visibility = _buildtools_visibility
-  deps = [
+  public_deps = [
     ":protobuf_full",
-    "//gn:default_deps",
+    ":upb_generator",
   ]
+  deps = [ "//gn:default_deps" ]
   sources = [
     "protobuf/src/google/protobuf/compiler/code_generator.cc",
-    "protobuf/src/google/protobuf/compiler/code_generator.h",
+    "protobuf/src/google/protobuf/compiler/code_generator_lite.cc",
     "protobuf/src/google/protobuf/compiler/command_line_interface.cc",
-    "protobuf/src/google/protobuf/compiler/command_line_interface.h",
-    "protobuf/src/google/protobuf/compiler/cpp/cpp_generator.h",
     "protobuf/src/google/protobuf/compiler/cpp/enum.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/enum.h",
-    "protobuf/src/google/protobuf/compiler/cpp/enum_field.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/enum_field.h",
     "protobuf/src/google/protobuf/compiler/cpp/extension.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/extension.h",
     "protobuf/src/google/protobuf/compiler/cpp/field.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/field.h",
+    "protobuf/src/google/protobuf/compiler/cpp/field_chunk.cc",
+    "protobuf/src/google/protobuf/compiler/cpp/field_generators/cord_field.cc",
+    "protobuf/src/google/protobuf/compiler/cpp/field_generators/enum_field.cc",
+    "protobuf/src/google/protobuf/compiler/cpp/field_generators/map_field.cc",
+    "protobuf/src/google/protobuf/compiler/cpp/field_generators/message_field.cc",
+    "protobuf/src/google/protobuf/compiler/cpp/field_generators/primitive_field.cc",
+    "protobuf/src/google/protobuf/compiler/cpp/field_generators/string_field.cc",
+    "protobuf/src/google/protobuf/compiler/cpp/field_generators/string_view_field.cc",
     "protobuf/src/google/protobuf/compiler/cpp/file.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/file.h",
     "protobuf/src/google/protobuf/compiler/cpp/generator.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/generator.h",
     "protobuf/src/google/protobuf/compiler/cpp/helpers.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/helpers.h",
-    "protobuf/src/google/protobuf/compiler/cpp/map_field.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/map_field.h",
+    "protobuf/src/google/protobuf/compiler/cpp/ifndef_guard.cc",
     "protobuf/src/google/protobuf/compiler/cpp/message.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/message.h",
-    "protobuf/src/google/protobuf/compiler/cpp/message_field.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/message_field.h",
-    "protobuf/src/google/protobuf/compiler/cpp/message_layout_helper.h",
-    "protobuf/src/google/protobuf/compiler/cpp/names.h",
-    "protobuf/src/google/protobuf/compiler/cpp/options.h",
-    "protobuf/src/google/protobuf/compiler/cpp/padding_optimizer.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/padding_optimizer.h",
+    "protobuf/src/google/protobuf/compiler/cpp/message_layout_helper.cc",
+    "protobuf/src/google/protobuf/compiler/cpp/namespace_printer.cc",
     "protobuf/src/google/protobuf/compiler/cpp/parse_function_generator.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/parse_function_generator.h",
-    "protobuf/src/google/protobuf/compiler/cpp/primitive_field.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/primitive_field.h",
     "protobuf/src/google/protobuf/compiler/cpp/service.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/service.h",
-    "protobuf/src/google/protobuf/compiler/cpp/string_field.cc",
-    "protobuf/src/google/protobuf/compiler/cpp/string_field.h",
+    "protobuf/src/google/protobuf/compiler/cpp/tracker.cc",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_doc_comment.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_doc_comment.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_enum.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_enum.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_enum_field.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_enum_field.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_field_base.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_field_base.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_generator.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_generator.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_helpers.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_helpers.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_map_field.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_map_field.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_message.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_message.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_message_field.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_message_field.h",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_names.h",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_options.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_primitive_field.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_primitive_field.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_reflection_class.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_reflection_class.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_repeated_enum_field.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_repeated_enum_field.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_repeated_message_field.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_repeated_message_field.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_repeated_primitive_field.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_repeated_primitive_field.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_source_generator_base.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_source_generator_base.h",
     "protobuf/src/google/protobuf/compiler/csharp/csharp_wrapper_field.cc",
-    "protobuf/src/google/protobuf/compiler/csharp/csharp_wrapper_field.h",
+    "protobuf/src/google/protobuf/compiler/csharp/names.cc",
     "protobuf/src/google/protobuf/compiler/java/context.cc",
-    "protobuf/src/google/protobuf/compiler/java/context.h",
     "protobuf/src/google/protobuf/compiler/java/doc_comment.cc",
-    "protobuf/src/google/protobuf/compiler/java/doc_comment.h",
-    "protobuf/src/google/protobuf/compiler/java/enum.cc",
-    "protobuf/src/google/protobuf/compiler/java/enum.h",
-    "protobuf/src/google/protobuf/compiler/java/enum_field.cc",
-    "protobuf/src/google/protobuf/compiler/java/enum_field.h",
-    "protobuf/src/google/protobuf/compiler/java/enum_field_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/enum_field_lite.h",
-    "protobuf/src/google/protobuf/compiler/java/enum_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/enum_lite.h",
-    "protobuf/src/google/protobuf/compiler/java/extension.cc",
-    "protobuf/src/google/protobuf/compiler/java/extension.h",
-    "protobuf/src/google/protobuf/compiler/java/extension_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/extension_lite.h",
-    "protobuf/src/google/protobuf/compiler/java/field.cc",
-    "protobuf/src/google/protobuf/compiler/java/field.h",
+    "protobuf/src/google/protobuf/compiler/java/field_common.cc",
     "protobuf/src/google/protobuf/compiler/java/file.cc",
-    "protobuf/src/google/protobuf/compiler/java/file.h",
+    "protobuf/src/google/protobuf/compiler/java/full/enum.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/enum_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/extension.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/generator_factory.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/make_field_gens.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/map_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/message.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/message_builder.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/message_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/primitive_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/service.cc",
+    "protobuf/src/google/protobuf/compiler/java/full/string_field.cc",
     "protobuf/src/google/protobuf/compiler/java/generator.cc",
-    "protobuf/src/google/protobuf/compiler/java/generator.h",
-    "protobuf/src/google/protobuf/compiler/java/generator_factory.cc",
-    "protobuf/src/google/protobuf/compiler/java/generator_factory.h",
     "protobuf/src/google/protobuf/compiler/java/helpers.cc",
-    "protobuf/src/google/protobuf/compiler/java/helpers.h",
-    "protobuf/src/google/protobuf/compiler/java/java_generator.h",
-    "protobuf/src/google/protobuf/compiler/java/kotlin_generator.cc",
-    "protobuf/src/google/protobuf/compiler/java/kotlin_generator.h",
-    "protobuf/src/google/protobuf/compiler/java/map_field.cc",
-    "protobuf/src/google/protobuf/compiler/java/map_field.h",
-    "protobuf/src/google/protobuf/compiler/java/map_field_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/map_field_lite.h",
-    "protobuf/src/google/protobuf/compiler/java/message.cc",
-    "protobuf/src/google/protobuf/compiler/java/message.h",
-    "protobuf/src/google/protobuf/compiler/java/message_builder.cc",
-    "protobuf/src/google/protobuf/compiler/java/message_builder.h",
-    "protobuf/src/google/protobuf/compiler/java/message_builder_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/message_builder_lite.h",
-    "protobuf/src/google/protobuf/compiler/java/message_field.cc",
-    "protobuf/src/google/protobuf/compiler/java/message_field.h",
-    "protobuf/src/google/protobuf/compiler/java/message_field_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/message_field_lite.h",
-    "protobuf/src/google/protobuf/compiler/java/message_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/message_lite.h",
+    "protobuf/src/google/protobuf/compiler/java/internal_helpers.cc",
+    "protobuf/src/google/protobuf/compiler/java/java_features.pb.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/enum.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/enum_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/extension.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/generator_factory.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/make_field_gens.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/map_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/message.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/message_builder.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/message_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/primitive_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/lite/string_field.cc",
+    "protobuf/src/google/protobuf/compiler/java/message_serialization.cc",
     "protobuf/src/google/protobuf/compiler/java/name_resolver.cc",
-    "protobuf/src/google/protobuf/compiler/java/name_resolver.h",
-    "protobuf/src/google/protobuf/compiler/java/names.h",
-    "protobuf/src/google/protobuf/compiler/java/options.h",
-    "protobuf/src/google/protobuf/compiler/java/primitive_field.cc",
-    "protobuf/src/google/protobuf/compiler/java/primitive_field.h",
-    "protobuf/src/google/protobuf/compiler/java/primitive_field_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/primitive_field_lite.h",
-    "protobuf/src/google/protobuf/compiler/java/service.cc",
-    "protobuf/src/google/protobuf/compiler/java/service.h",
+    "protobuf/src/google/protobuf/compiler/java/names.cc",
     "protobuf/src/google/protobuf/compiler/java/shared_code_generator.cc",
-    "protobuf/src/google/protobuf/compiler/java/shared_code_generator.h",
-    "protobuf/src/google/protobuf/compiler/java/string_field.cc",
-    "protobuf/src/google/protobuf/compiler/java/string_field.h",
-    "protobuf/src/google/protobuf/compiler/java/string_field_lite.cc",
-    "protobuf/src/google/protobuf/compiler/java/string_field_lite.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_enum.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_enum.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_enum_field.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_enum_field.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_extension.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_extension.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_field.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_field.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_file.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_file.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_generator.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_generator.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_helpers.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_helpers.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_map_field.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_map_field.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_message.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_message.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_message_field.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_message_field.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_nsobject_methods.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_oneof.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_oneof.h",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_primitive_field.cc",
-    "protobuf/src/google/protobuf/compiler/objectivec/objectivec_primitive_field.h",
+    "protobuf/src/google/protobuf/compiler/kotlin/field.cc",
+    "protobuf/src/google/protobuf/compiler/kotlin/file.cc",
+    "protobuf/src/google/protobuf/compiler/kotlin/generator.cc",
+    "protobuf/src/google/protobuf/compiler/kotlin/message.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/enum.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/enum_field.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/extension.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/field.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/file.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/generator.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/helpers.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/import_writer.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/line_consumer.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/map_field.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/message.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/message_field.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/names.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/oneof.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/primitive_field.cc",
+    "protobuf/src/google/protobuf/compiler/objectivec/tf_decode_data.cc",
+    "protobuf/src/google/protobuf/compiler/php/names.cc",
     "protobuf/src/google/protobuf/compiler/php/php_generator.cc",
-    "protobuf/src/google/protobuf/compiler/php/php_generator.h",
     "protobuf/src/google/protobuf/compiler/plugin.cc",
-    "protobuf/src/google/protobuf/compiler/plugin.h",
     "protobuf/src/google/protobuf/compiler/plugin.pb.cc",
-    "protobuf/src/google/protobuf/compiler/plugin.pb.h",
     "protobuf/src/google/protobuf/compiler/python/generator.cc",
-    "protobuf/src/google/protobuf/compiler/python/generator.h",
     "protobuf/src/google/protobuf/compiler/python/helpers.cc",
-    "protobuf/src/google/protobuf/compiler/python/helpers.h",
     "protobuf/src/google/protobuf/compiler/python/pyi_generator.cc",
-    "protobuf/src/google/protobuf/compiler/python/pyi_generator.h",
-    "protobuf/src/google/protobuf/compiler/python/python_generator.h",
+    "protobuf/src/google/protobuf/compiler/retention.cc",
     "protobuf/src/google/protobuf/compiler/ruby/ruby_generator.cc",
-    "protobuf/src/google/protobuf/compiler/ruby/ruby_generator.h",
-    "protobuf/src/google/protobuf/compiler/scc.h",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/accessor_case.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/accessors.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/default_value.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/map.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/repeated_field.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/singular_cord.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/singular_message.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/singular_scalar.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/singular_string.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/unsupported_field.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/with_presence.cc",
+    "protobuf/src/google/protobuf/compiler/rust/context.cc",
+    "protobuf/src/google/protobuf/compiler/rust/crate_mapping.cc",
+    "protobuf/src/google/protobuf/compiler/rust/enum.cc",
+    "protobuf/src/google/protobuf/compiler/rust/generator.cc",
+    "protobuf/src/google/protobuf/compiler/rust/message.cc",
+    "protobuf/src/google/protobuf/compiler/rust/naming.cc",
+    "protobuf/src/google/protobuf/compiler/rust/oneof.cc",
+    "protobuf/src/google/protobuf/compiler/rust/relative_path.cc",
+    "protobuf/src/google/protobuf/compiler/rust/rust_field_type.cc",
+    "protobuf/src/google/protobuf/compiler/rust/rust_keywords.cc",
+    "protobuf/src/google/protobuf/compiler/rust/upb_helpers.cc",
     "protobuf/src/google/protobuf/compiler/subprocess.cc",
-    "protobuf/src/google/protobuf/compiler/subprocess.h",
+    "protobuf/src/google/protobuf/compiler/versions.cc",
     "protobuf/src/google/protobuf/compiler/zip_writer.cc",
-    "protobuf/src/google/protobuf/compiler/zip_writer.h",
+    "protobuf/src/google/protobuf/testing/file.cc",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
   if (is_win) {
@@ -620,6 +1220,12 @@ if (current_toolchain == host_toolchain) {
     if (is_win) {
       # Protobuf does has its own #define WIN32_LEAN_AND_MEAN.
       configs -= [ "//gn/standalone:win32_lean_and_mean" ]
+    }
+    if (is_mac) {
+      ldflags = [
+        "-framework",
+        "CoreFoundation",
+      ]
     }
   }
 }  # host_toolchain
@@ -843,7 +1449,7 @@ if (use_custom_libcxx) {
       "libcxx/src/vector.cpp",
       "libcxx/src/verbose_abort.cpp",
     ]
-    if (!using_sanitizer) {
+    if (!using_sanitizer || is_ubsan) {
       # In {a,t,m}san configurations, operator new and operator delete will be
       # provided by the sanitizer runtime library.  Since libc++ defines these
       # symbols with weak linkage, and the *san runtime uses strong linkage, it
@@ -853,6 +1459,8 @@ if (use_custom_libcxx) {
       # perfetto, when cross-compiling, we build only targets with sanitizers,
       # but not host artifacts, and using_sanitizer is only true for the
       # target toolchain, while is_asan is globally true on all toolchains.
+      # However, ubsan standalone does not provide operator new/delete, so we
+      # need to include new.cpp for ubsan builds.
       sources += [ "libcxx/src/new.cpp" ]
     }
 
@@ -1530,15 +2138,6 @@ source_set("llvm_demangle") {
 }
 
 if (enable_perfetto_grpc) {
-  config("grpc_absl_config") {
-    visibility = _buildtools_visibility
-    include_dirs = [ "grpc/src/third_party/abseil-cpp" ]
-    cflags = [
-      "-Wno-deprecated-builtins",
-      "-Wno-deprecated-pragma",
-    ]
-  }
-
   config("grpc_boringssl_config") {
     visibility = _buildtools_visibility
     include_dirs = [ "grpc/src/third_party/boringssl-with-bazel/src/include" ]
@@ -1564,12 +2163,10 @@ if (enable_perfetto_grpc) {
   config("grpc_internal_config") {
     visibility = _buildtools_visibility
     include_dirs = [
-      "grpc/protobuf_include",
       "grpc/src",
       "grpc/src/include",
       "grpc/src/src/core/ext/upb-gen",
       "grpc/src/src/core/ext/upbdefs-gen",
-      "grpc/src/third_party/abseil-cpp",
       "grpc/src/third_party/address_sorting/include",
       "grpc/src/third_party/re2",
       "grpc/src/third_party/upb",
@@ -1581,6 +2178,7 @@ if (enable_perfetto_grpc) {
       cflags += [
         "-Wno-attributes",
         "-Wno-return-type",
+        "-Wno-trigraphs",
       ]
     }
   }

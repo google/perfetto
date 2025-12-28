@@ -109,9 +109,10 @@ function showModalErrorThreadStateRequired() {
 // if any. If it's defined, looks up the info about that specific utid.
 async function getThreadInfoForUtidOrSelection(
   trace: Trace,
-  utid?: Utid,
+  utidArg: unknown,
 ): Promise<ThreadInfo | undefined> {
-  const resolvedUtid = utid ?? (await getUtid(trace));
+  const resolvedUtid =
+    typeof utidArg === 'number' ? (utidArg as Utid) : await getUtid(trace);
   if (resolvedUtid === undefined) return undefined;
   return await getThreadInfo(trace.engine, resolvedUtid);
 }
@@ -162,8 +163,8 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: CRITICAL_PATH_LITE_CMD,
       name: 'Critical path lite (selected thread state slice)',
-      callback: async (utid?: Utid) => {
-        const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utid);
+      callback: async (utidArg) => {
+        const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utidArg);
         if (thdInfo === undefined) {
           return showModalErrorThreadStateRequired();
         }
@@ -204,8 +205,8 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: CRITICAL_PATH_CMD,
       name: 'Critical path (selected thread state slice)',
-      callback: async (utid?: Utid) => {
-        const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utid);
+      callback: async (utidArg) => {
+        const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utidArg);
         if (thdInfo === undefined) {
           return showModalErrorThreadStateRequired();
         }

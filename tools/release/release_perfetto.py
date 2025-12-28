@@ -169,36 +169,12 @@ def create_minor_release(version, major_version):
 
 
 def build_and_tag_release(version, major_version):
-  info(f"--- Building and tagging the release: {version} ---")
+  info(f"--- Tagging the release: {version} ---")
 
   confirm("Have all changes for the release been merged into the release "
           "branch?")
 
-  info("Generating and committing amalgamated source files...")
-  run_cmd('tools/gen_amalgamated', '--output', 'sdk/perfetto')
-  run_cmd('git', 'add', 'sdk/perfetto.cc', 'sdk/perfetto.h')
-  # Only commit if there are any changes.
-  if subprocess.run(['git', 'diff', '--cached', '--quiet']).returncode == 1:
-    run_cmd('git', 'commit', '-m', f'Amalgamated source for {version}')
-  else:
-    warn("No changes in amalgamated source to commit.")
-
-  info("Checking that the SDK example code works...")
-  original_dir = os.getcwd()
-  try:
-    os.chdir('examples/sdk')
-    run_cmd('cmake', '-B', 'build')
-    run_cmd('cmake', '--build', 'build')
-  finally:
-    os.chdir(original_dir)
-  info("SDK example build successful.")
-
-  prompt("Please upload the new release for review (e.g., by running "
-         "'gh pr create').")
-  prompt("Once the release CL has been reviewed and landed, press Enter to "
-         "continue.")
-
-  info("Tagging the release...")
+  info("Pulling latest changes...")
   run_cmd('git', 'pull')
 
   info("Checking git status...")
@@ -220,16 +196,19 @@ def build_and_tag_release(version, major_version):
 
 
 def create_github_release(version):
-  info(f"--- Creating GitHub release with prebuilts: {version} ---")
+  info(
+      f"--- Creating GitHub release with prebuilts and SDK sources: {version} ---"
+  )
 
   prompt("Wait for LUCI builds to complete successfully: "
          "https://luci-scheduler.appspot.com/jobs/perfetto")
 
-  info("Packaging prebuilts for GitHub release...")
-  run_cmd('tools/release/package-prebuilts-for-github-release', version)
+  info("Packaging prebuilts and SDK sources for GitHub release...")
+  run_cmd('tools/release/package-github-release-artifacts', version)
 
-  prompt(f"Please check that all 10 prebuilt zips are present in "
-         f"'/tmp/perfetto-prebuilts-{version}'.")
+  prompt(f"Please check that all 12 artifact zips are present in "
+         f"'/tmp/perfetto-{version}-github-release/' "
+         f"(10 prebuilt binaries + 2 SDK source zips).")
 
   prompt(f"""
     Please create a new GitHub release:
@@ -237,7 +216,8 @@ def create_github_release(version):
     2. Choose Tag: {version}
     3. Release title: Perfetto {version}
     4. Describe release: Copy the CHANGELOG, wrapping it in triple backticks.
-    5. Attach binaries: Attach the ten .zip files from the previous step.
+    5. Attach binaries: Attach all twelve .zip files from the previous step
+       (10 prebuilt binaries + 2 SDK source zips).
     """)
 
   info("Rolling prebuilts...")

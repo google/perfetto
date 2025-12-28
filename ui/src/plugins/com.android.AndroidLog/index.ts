@@ -34,6 +34,7 @@ const DEFAULT_STATE: AndroidLogPluginState = {
     // The first two log priorities are ignored.
     minimumLevel: 2,
     tags: [],
+    isTagRegex: false,
     textEntry: '',
     hideNonMatching: true,
     machineExcludeList: [],
@@ -151,6 +152,7 @@ export default class implements PerfettoPlugin {
       async getSearchFilter(searchTerm) {
         return {
           where: `msg GLOB ${escapeSearchQuery(searchTerm)}`,
+          columns: {msg: STR_NULL},
         };
       },
     });

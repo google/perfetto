@@ -13,13 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.device_cpu_1d;
+INCLUDE PERFETTO MODULE wattson.curves.cpu_1d;
 
-INCLUDE PERFETTO MODULE wattson.curves.device_cpu_2d;
+INCLUDE PERFETTO MODULE wattson.curves.cpu_2d;
 
-INCLUDE PERFETTO MODULE wattson.curves.device_gpu;
+INCLUDE PERFETTO MODULE wattson.curves.gpu;
 
-INCLUDE PERFETTO MODULE wattson.curves.device_l3;
+INCLUDE PERFETTO MODULE wattson.curves.l3;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
