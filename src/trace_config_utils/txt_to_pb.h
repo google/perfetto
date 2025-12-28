@@ -28,7 +28,8 @@ namespace perfetto {
 
 base::StatusOr<std::vector<uint8_t>> TraceConfigTxtToPb(
     const std::string& input,
-    const std::string& file_name = "-");
+    const std::string& file_name = "-",
+    bool allow_unknown_fields = false);
 
 }  // namespace perfetto
 
