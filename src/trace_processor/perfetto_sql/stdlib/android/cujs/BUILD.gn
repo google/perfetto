@@ -17,6 +17,7 @@ import("../../../../../../gn/perfetto_sql.gni")
 perfetto_sql_source_set("cujs") {
   sources = [
     "base.sql",
+    "boundaries.sql",
     "cuj_frame_counters.sql",
     "slices.sql",
     "sysui_cujs.sql",
