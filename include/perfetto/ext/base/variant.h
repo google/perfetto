@@ -31,8 +31,8 @@ constexpr size_t npos = static_cast<size_t>(-1);
 constexpr size_t ambiguous = static_cast<size_t>(-2);
 
 template <class T, class... Ts>
-constexpr std::size_t find_index() {
-  constexpr bool matches[] = {std::is_same<T, Ts>::value...};
+constexpr size_t find_index() {
+  constexpr bool matches[] = {std::is_same_v<T, Ts>...};
   size_t result = npos;
   for (size_t i = 0; i < sizeof...(Ts); ++i) {
     if (matches[i]) {
@@ -49,7 +49,7 @@ struct variant_index_impl;
 
 template <class T, class... Ts>
 struct variant_index_impl<std::variant<Ts...>, T> {
-  static constexpr std::size_t value = find_index<T, Ts...>();
+  static constexpr size_t value = find_index<T, Ts...>();
 };
 
 }  // namespace variant_internal
@@ -67,9 +67,6 @@ constexpr size_t variant_index() {
 
 template <typename T, typename VariantType>
 constexpr T& unchecked_get(VariantType& variant) {
-  constexpr size_t idx = variant_index<VariantType, T>();
-  using TX = std::variant_alternative_t<idx, VariantType>;
-  static_assert(std::is_same_v<T, TX>, "Type mismatch in unchecked_get");
   PERFETTO_DCHECK(std::holds_alternative<T>(variant));
   auto* v = std::get_if<T>(&variant);
   PERFETTO_ASSUME(v != nullptr);
@@ -78,9 +75,6 @@ constexpr T& unchecked_get(VariantType& variant) {
 
 template <typename T, typename VariantType>
 constexpr const T& unchecked_get(const VariantType& variant) {
-  constexpr size_t idx = variant_index<VariantType, T>();
-  using TX = std::variant_alternative_t<idx, VariantType>;
-  static_assert(std::is_same_v<T, TX>, "Type mismatch in unchecked_get");
   PERFETTO_DCHECK(std::holds_alternative<T>(variant));
   const auto* v = std::get_if<T>(&variant);
   PERFETTO_ASSUME(v != nullptr);
