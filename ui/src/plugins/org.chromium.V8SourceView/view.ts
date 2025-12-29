@@ -88,8 +88,8 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
     };
 
     return m(
-        '.v8-source-view',
-        m('.script-list-pane',
+        '.pf-v8-source-view',
+        m('.pf-script-list-pane',
           m(TextInput, {
             oninput: (e: Event) => {
               const searchTerm = (e.target as HTMLInputElement).value;
@@ -106,7 +106,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
               {field: 'name'},
             ],
           })),
-        m('.source-view',
+        m('.pf-source-view',
           m(Editor, {text: this.selectedScriptSource, readonly: true}),
         ));
   }

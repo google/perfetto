@@ -13,24 +13,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import '../../assets/common';
+// @import '../../assets/common';
 
-.v8-source-view {
+.pf-v8-source-view {
   display: flex;
   height: 100%;
 
-  .script-list-pane {
+  .pf-script-list-pane {
     width: 400px;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--primary-border-color);
+    // border-right: 1px solid var(--primary-border-color);
 
     .pf-datagrid {
       flex-grow: 1;
     }
   }
 
-  .source-view {
+  .pf-source-view {
     flex-grow: 1;
   }
 }
