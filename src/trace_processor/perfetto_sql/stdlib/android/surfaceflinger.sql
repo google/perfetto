@@ -164,6 +164,20 @@ SELECT
   *
 FROM _find_android_jank_cuj_sf_main_thread_slice('onMessageInvalidate *');
 
+-- Combine output of commit, composite and onMessageInvalidate slices into one table.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_root_slice AS
+SELECT
+  *
+FROM _android_jank_cuj_sf_commit_slice
+UNION ALL
+SELECT
+  *
+FROM _android_jank_cuj_sf_composite_slice
+UNION ALL
+SELECT
+  *
+FROM _android_jank_cuj_sf_on_message_invalidate_slice;
+
 -- Calculates the frame boundaries based on when we *expected* the work to
 -- start and we use the end of the `composite` slice as the end of the work
 -- on the frame.

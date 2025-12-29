@@ -145,14 +145,6 @@ DROP TABLE IF EXISTS android_jank_cuj_sf_on_message_invalidate_slice;
 CREATE PERFETTO TABLE android_jank_cuj_sf_on_message_invalidate_slice AS
 SELECT * FROM _android_jank_cuj_sf_on_message_invalidate_slice;
 
-DROP VIEW IF EXISTS android_jank_cuj_sf_root_slice;
-CREATE PERFETTO VIEW android_jank_cuj_sf_root_slice AS
-SELECT * FROM android_jank_cuj_sf_commit_slice
-UNION ALL
-SELECT * FROM android_jank_cuj_sf_composite_slice
-UNION ALL
-SELECT * FROM android_jank_cuj_sf_on_message_invalidate_slice;
-
 -- Find descendants of SF main thread slices which contain the GPU completion fence ID that
 -- is used for signaling that the GPU finished drawing.
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_fence;
@@ -162,7 +154,7 @@ SELECT
   vsync,
   sf_root_slice.id AS sf_root_slice_id,
   _gpu_completion_fence_id_from_name(fence.name) AS fence_idx
-FROM android_jank_cuj_sf_root_slice sf_root_slice
+FROM _android_jank_cuj_sf_root_slice sf_root_slice
 JOIN descendant_slice(sf_root_slice.id) fence
   ON fence.name GLOB '*GPU completion fence*';
 
@@ -198,7 +190,7 @@ WITH compose_surfaces AS (
     sf_root_slice.id AS sf_root_slice_id,
     compose_surfaces.ts,
     compose_surfaces.ts + compose_surfaces.dur AS ts_end
-  FROM android_jank_cuj_sf_root_slice sf_root_slice
+  FROM _android_jank_cuj_sf_root_slice sf_root_slice
   JOIN descendant_slice(sf_root_slice.id) compose_surfaces
     ON compose_surfaces.name = 'composeSurfaces'
 )
