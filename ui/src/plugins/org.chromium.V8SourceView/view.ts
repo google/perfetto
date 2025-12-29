@@ -4,7 +4,7 @@ import {
   CellRenderResult,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
-import {Filter, Model} from '../../components/widgets/datagrid/model';
+import {Filter} from '../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {Trace} from '../../public/trace';
@@ -17,7 +17,7 @@ const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
   [V8_JS_SCRIPT_SCHEMA_NAME]: {
     table: 'v8_js_script',
     columns: {
-      v8_js_script_id: {},
+      id: {column: 'v8_js_script_id'},
       name: {},
     },
   },
@@ -28,10 +28,6 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
   private selectedScriptSource: string|undefined = undefined;
   private trace!: Trace;
   private dataSource!: SQLDataSource;
-  private model: Model = {
-    filters: [],
-    columns: [], // DataGrid expects columns to be defined in the model.
-  };
 
   oninit(vnode: m.Vnode<{trace: Trace}>) {
     this.trace = vnode.attrs.trace;
@@ -40,7 +36,6 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
       sqlSchema: V8_JS_SCRIPT_SCHEMA,
       rootSchemaName: V8_JS_SCRIPT_SCHEMA_NAME,
     });
-    this.dataSource.notify(this.model);
   }
 
   private async showSourceForScript(id: number) {
@@ -53,10 +48,23 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
     m.redraw();
   }
 
+  filterScript(searchTerm: string) {
+    const filters: Filter[] = [];
+    if (searchTerm) {
+      filters.push({
+        field: 'name',
+        op: 'glob',
+        value: `*${searchTerm}*`,
+      });
+    }
+    this.dataSource.notify({filters});
+    m.redraw();
+  }
+
   view() {
     const v8JsScriptUiSchema: SchemaRegistry = {
       v8JsScript: {
-        v8_js_script_id: {
+        id: {
           title: 'ID',
         },
         name: {
@@ -67,7 +75,10 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
                   'a',
                   {
                     href: '#',
-                    onclick: () => this.showSourceForScript(row.v8_js_script_id as number),
+                    onclick: (e: Event) => {
+                      e.preventDefault();
+                      this.showSourceForScript(row.id as number);
+                    },
                   },
                   renderCell(value, 'name')),
             };
@@ -82,16 +93,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
           m(TextInput, {
             oninput: (e: Event) => {
               const searchTerm = (e.target as HTMLInputElement).value;
-              const filters: Filter[] = [];
-              if (searchTerm) {
-                filters.push({
-                  field: 'name',
-                  op: 'glob',
-                  value: `*${searchTerm}*`,
-                });
-              }
-              this.model = {...this.model, filters};
-              this.dataSource.notify(this.model);
+              this.filterScript(searchTerm);
             },
             placeholder: 'Search scripts',
           }),
@@ -100,7 +102,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
             schema: v8JsScriptUiSchema,
             rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
             initialColumns: [
-              {field: 'v8_js_script_id'},
+              {field: 'id'},
               {field: 'name'},
             ],
           })),
