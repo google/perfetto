@@ -24,6 +24,7 @@ export interface CellRenderResult {
   readonly content: m.Children;
   readonly align?: 'left' | 'right' | 'center';
   readonly nullish?: boolean;
+  readonly className?: string;
 }
 
 /**

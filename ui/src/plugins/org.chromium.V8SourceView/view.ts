@@ -26,6 +26,7 @@ const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
 
 export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
   private selectedScriptSource: string|undefined = undefined;
+  private selectedScriptId: number|undefined = undefined;
   private trace!: Trace;
   private dataSource!: SQLDataSource;
 
@@ -39,6 +40,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
   }
 
   private async showSourceForScript(id: number) {
+    this.selectedScriptId = id;
     const queryResult = await this.trace.engine.query(
         `select source from v8_js_script where v8_js_script_id = ${id}`);
     const it = queryResult.iter({source: 'str'});
@@ -66,6 +68,12 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
       v8JsScript: {
         id: {
           title: 'ID',
+          cellRenderer: (value, row: Row): CellRenderResult => {
+            return {
+              content: renderCell(value, 'id'),
+              className: row.id === this.selectedScriptId ? 'pf-highlight-row' : undefined,
+            };
+          },
         },
         name: {
           title: 'Name',
@@ -81,6 +89,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
                     },
                   },
                   renderCell(value, 'name')),
+              className: row.id === this.selectedScriptId ? 'pf-highlight-row' : undefined,
             };
           },
         },

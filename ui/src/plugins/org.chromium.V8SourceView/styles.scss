@@ -14,10 +14,15 @@
 // limitations under the License.
 
 // @import '../../assets/common';
+@import "../../assets/theme";
 
 .pf-v8-source-view {
   display: flex;
   height: 100%;
+
+  .pf-highlight-row {
+    background-color: color-active-surface(transparent, var(--pf-color-interactive-base));
+  }
 
   .pf-script-list-pane {
     width: 400px;
