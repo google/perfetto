@@ -51,6 +51,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/args_utils.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -120,7 +121,8 @@ class NetworkTraceModuleTest : public testing::Test {
     for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
       if (cursor.key() == key_id) {
         EXPECT_EQ(cursor.flat_key(), key_id);
-        if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
+        if (GetArgValue(*storage_, cursor.ToRowNumber().row_number()) ==
+            value) {
           found = true;
           break;
         }

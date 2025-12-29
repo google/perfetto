@@ -336,6 +336,7 @@ source_set("unittests") {
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:args_utils",
     "../../util:build_id",
     "../../util:descriptors",
     "../../util:profiler_util",

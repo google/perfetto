@@ -17,16 +17,15 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
@@ -139,7 +138,7 @@ void WriteArgNode(const ArgNode& node,
 }  // namespace
 
 // static
-void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+void ExtractArgFunction::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   sqlite::Type arg_set_value = sqlite::value::Type(argv[0]);
   sqlite::Type key_value = sqlite::value::Type(argv[1]);
 
@@ -158,11 +157,12 @@ void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
                                  "EXTRACT_ARG: 2nd argument should be key");
   }
 
-  uint32_t arg_set_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
-  const char* key = reinterpret_cast<const char*>(sqlite::value::Text(argv[1]));
+  auto arg_set_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+  const char* key = sqlite::value::Text(argv[1]);
 
-  auto* storage = GetUserData(ctx);
-  uint32_t row = storage->ExtractArgRowFast(arg_set_id, key);
+  auto* user_data = GetUserData(ctx);
+  auto* storage = user_data->storage;
+  uint32_t row = user_data->args_cursor.Get(arg_set_id, key);
   if (row == std::numeric_limits<uint32_t>::max()) {
     return;
   }
@@ -180,7 +180,7 @@ void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
         sqlite::result::Null(ctx);
         return;
       }
-      NullTermStringView value = storage->GetString(*opt_string_id);
+      NullTermStringView value = storage->GetString(opt_string_id);
       return sqlite::result::StaticString(ctx, value.c_str());
     }
     case Variadic::Type::kReal:
@@ -200,39 +200,37 @@ void ArgSetToJson::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     return sqlite::result::Error(
         ctx, "PRINT_ARGS: 1st argument should be arg set id");
   }
-  uint32_t arg_set_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+  auto arg_set_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
 
   auto* user_data = GetUserData(ctx);
   auto* storage = user_data->storage;
-  const auto& arg_table = storage->arg_table();
+  auto& args_cursor = user_data->arg_cursor;
+  auto& arg_set = user_data->arg_set;
+  auto& json_writer = user_data->json_writer;
 
-  // Reuse cursor - just update the filter value
-  user_data->arg_cursor.SetFilterValueUnchecked(0, arg_set_id);
+  // Set filter value and execute cursor
+  args_cursor.SetFilterValueUnchecked(0, arg_set_id);
+  args_cursor.Execute();
 
   // Reuse arg_set - clear but retain capacity
-  user_data->arg_set.Clear();
-  for (user_data->arg_cursor.Execute(); !user_data->arg_cursor.Eof();
-       user_data->arg_cursor.Next()) {
-    const auto row_number = user_data->arg_cursor.ToRowNumber();
-    const auto row = row_number.ToRowReference(arg_table);
-
-    const auto result = user_data->arg_set.AppendArg(
-        storage->GetString(row.key()),
-        storage->GetArgValue(row_number.row_number()));
+  arg_set.Clear();
+  for (; !args_cursor.Eof(); args_cursor.Next()) {
+    const auto result = arg_set.AppendArg(storage->GetString(args_cursor.key()),
+                                          GetArgValue(*storage, args_cursor));
     if (!result.ok()) {
       return sqlite::result::Error(ctx, result.c_message());
     }
   }
 
   // Reuse json_writer - clear but retain capacity
-  user_data->json_writer.Clear();
-  json::JsonValueWriter(user_data->json_writer)
+  json_writer.Clear();
+  json::JsonValueWriter(json_writer)
       .WriteDict([&](json::JsonDictWriter& writer) {
-        for (const auto& [key, value] : user_data->arg_set.root().GetDict()) {
+        for (const auto& [key, value] : arg_set.root().GetDict()) {
           WriteArgNode(value, storage, writer, key);
         }
       });
-  auto json_sv = user_data->json_writer.GetStringView();
+  auto json_sv = json_writer.GetStringView();
   return sqlite::result::TransientString(ctx, json_sv.data(),
                                          static_cast<int>(json_sv.size()));
 }

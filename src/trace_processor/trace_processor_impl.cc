@@ -45,6 +45,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
@@ -130,7 +131,9 @@
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/trace_reader_registry.h"
@@ -1278,7 +1281,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<Demangle>(engine.get());
   RegisterFunction<TablePtrBind>(engine.get());
   RegisterFunction<ExportJson>(engine.get(), storage);
-  RegisterFunction<ExtractArg>(engine.get(), storage);
+  RegisterFunction<ExtractArgFunction>(
+      engine.get(), std::make_unique<ExtractArgFunction::Context>(storage));
   RegisterFunction<ArgSetToJson>(
       engine.get(), std::make_unique<ArgSetToJson::Context>(storage));
   RegisterFunction<AbsTimeStr>(engine.get(), context->clock_converter.get());

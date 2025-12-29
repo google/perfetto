@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.join(ROOT_DIR))
 
 #pylint: disable=wrong-import-position
 from python.generators.trace_processor_table.serialize import serialize_header
+from python.generators.trace_processor_table.serialize import serialize_fwd_header
 from python.generators.trace_processor_table.util import find_table_deps
 from python.generators.trace_processor_table.util import ParsedTable
 from python.generators.trace_processor_table.util import parse_tables_from_modules
@@ -35,6 +36,7 @@ from python.generators.trace_processor_table.util import parse_tables_from_modul
 
 # Suffix which replaces the .py extension for all input modules.
 OUT_HEADER_SUFFIX = '_py.h'
+OUT_FWD_HEADER_SUFFIX = '_fwd.h'
 
 
 @dataclass
@@ -85,6 +87,10 @@ def main():
     header.tables.append(table)
     headers[input_path] = header
 
+  # Collect all tables and fwd header paths for generating all_tables_fwd.h
+  all_tables: List[ParsedTable] = []
+  all_fwd_header_paths: List[str] = []
+
   for in_path, header in headers.items():
     out_path = get_out_path(in_path)
     relout_path = get_relout_path(in_path)
@@ -99,12 +105,85 @@ def main():
       ])
     header_relout_deps.discard(relout_path)
 
+    ifdef_guard = re.sub(r'[^a-zA-Z0-9_-]', '_', relout_path).upper() + '_'
+
+    # Compute forward header path
+    fwd_out_path = out_path.replace(OUT_HEADER_SUFFIX, OUT_FWD_HEADER_SUFFIX)
+    fwd_relout_path = relout_path.replace(OUT_HEADER_SUFFIX,
+                                          OUT_FWD_HEADER_SUFFIX)
+    fwd_header_path = get_header_path(in_path).replace(OUT_HEADER_SUFFIX,
+                                                       OUT_FWD_HEADER_SUFFIX)
+    fwd_ifdef_guard = re.sub(r'[^a-zA-Z0-9_-]', '_',
+                             fwd_relout_path).upper() + '_'
+
+    # Collect for all_tables header
+    all_tables.extend(header.tables)
+    all_fwd_header_paths.append(fwd_header_path)
+
+    # For fwd header, only need includes of other fwd headers
+    fwd_deps = [
+        p.replace(OUT_HEADER_SUFFIX, OUT_FWD_HEADER_SUFFIX)
+        for p in sorted(header_relout_deps)
+    ]
+
+    # Generate the forward declaration header first
+    with open(fwd_out_path, 'w', encoding='utf8') as out:
+      out.write(serialize_fwd_header(fwd_ifdef_guard, header.tables, fwd_deps))
+      out.write('\n')
+
+    # Generate the full header (includes the fwd header)
     with open(out_path, 'w', encoding='utf8') as out:
-      ifdef_guard = re.sub(r'[^a-zA-Z0-9_-]', '_', relout_path).upper() + '_'
       out.write(
           serialize_header(ifdef_guard, header.tables,
-                           sorted(header_relout_deps)))
+                           sorted(header_relout_deps), fwd_header_path))
       out.write('\n')
+
+  # Generate the combined all_tables_fwd.h header
+  if all_fwd_header_paths:
+    first_fwd_path = all_fwd_header_paths[0]
+    out_dir = os.path.dirname(first_fwd_path)
+    generate_all_tables_header(args, all_tables, all_fwd_header_paths, out_dir)
+
+
+def generate_all_tables_header(args, all_tables: List[ParsedTable],
+                               fwd_header_paths: List[str], out_dir: str):
+  """Generates an all_tables_fwd.h header with variant and count only."""
+  rel_path = os.path.join(out_dir, 'all_tables_fwd.h')
+  out_path = os.path.join(args.gen_dir, rel_path)
+  ifdef_guard = re.sub(r'[^a-zA-Z0-9_-]', '_', rel_path).upper() + '_'
+
+  includes = '\n'.join([
+      f'#include "{p}"  // IWYU pragma: export'
+      for p in sorted(fwd_header_paths)
+  ])
+  variant_entries = ', '.join([t.table.class_name for t in all_tables])
+
+  content = f'''\
+#ifndef {ifdef_guard}
+#define {ifdef_guard}
+
+#include <cstddef>
+#include <variant>
+
+#include "perfetto/ext/base/variant.h"
+
+{includes}
+
+namespace perfetto::trace_processor::tables {{
+
+// Variant of all table types (use base::variant_index<AllTables, T>() to get index)
+using AllTables = std::variant<{variant_entries}>;
+
+// Count of all tables
+inline constexpr size_t kTableCount = std::variant_size_v<AllTables>;
+
+}}  // namespace perfetto::trace_processor::tables
+
+#endif  // {ifdef_guard}
+'''
+
+  with open(out_path, 'w', encoding='utf8') as out:
+    out.write(content)
 
 
 if __name__ == '__main__':

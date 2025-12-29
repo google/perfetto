@@ -43,6 +43,7 @@
 #include "src/trace_processor/types/task_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/args_utils.h"
 
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cgroup.pbzero.h"
@@ -102,12 +103,12 @@ class ArgsSerializer {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
-    WriteArg(key, storage_->GetArgValue(*row), writer);
+    WriteArg(key, GetArgValue(*storage_, *row), writer);
   }
   void WriteArgAtRow(uint32_t arg_row, const ValueWriter& writer) {
     const auto& args = storage_->arg_table();
     const auto& key = storage_->GetString(args[arg_row].key());
-    WriteArg(key, storage_->GetArgValue(arg_row), writer);
+    WriteArg(key, GetArgValue(*storage_, arg_row), writer);
   }
   void WriteArg(base::StringView key,
                 Variadic value,
@@ -118,7 +119,7 @@ class ArgsSerializer {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
-    writer(storage_->GetArgValue(*row));
+    writer(GetArgValue(*storage_, *row));
   }
   void WriteKernelFnValue(const Variadic& value) {
     if (value.type == Variadic::Type::kUint) {
