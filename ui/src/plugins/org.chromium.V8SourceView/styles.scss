@@ -25,7 +25,8 @@
   }
 
   .pf-script-list-pane {
-    width: 400px;
+    width: 30%;
+    min-width: 400px;
     display: flex;
     flex-direction: column;
     // border-right: 1px solid var(--primary-border-color);

@@ -19,6 +19,9 @@ const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
     columns: {
       id: {column: 'v8_js_script_id'},
       name: {},
+      size: {
+        expression: (alias) => `LENGTH(${alias}.source)`,
+      },
     },
   },
 };
@@ -63,6 +66,10 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
     m.redraw();
   }
 
+  scriptHighlightClass(rowId) {
+    return rowId === this.selectedScriptId ? 'pf-highlight-row' : undefined;
+  }
+
   view() {
     const v8JsScriptUiSchema: SchemaRegistry = {
       v8JsScript: {
@@ -71,7 +78,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
           cellRenderer: (value, row: Row): CellRenderResult => {
             return {
               content: renderCell(value, 'id'),
-              className: row.id === this.selectedScriptId ? 'pf-highlight-row' : undefined,
+              className: this.scriptHighlightClass(row.id),
             };
           },
         },
@@ -89,7 +96,18 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
                     },
                   },
                   renderCell(value, 'name')),
-              className: row.id === this.selectedScriptId ? 'pf-highlight-row' : undefined,
+              className: this.scriptHighlightClass(row.id),
+            };
+          },
+        },
+        size: {
+          title: 'Size (KiB)',
+          cellRenderer: (value, row: Row): CellRenderResult => {
+            const sizeInKiB = Number(value) / 1024;
+            return {
+              content: renderCell(sizeInKiB.toFixed(2), 'size'),
+              className: this.scriptHighlightClass(row.id),
+              align: 'right',
             };
           },
         },
@@ -113,6 +131,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
             initialColumns: [
               {field: 'id'},
               {field: 'name'},
+              {field: 'size'},
             ],
           })),
         m('.pf-source-view',
