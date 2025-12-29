@@ -17,9 +17,12 @@ const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
   [V8_JS_SCRIPT_SCHEMA_NAME]: {
     table: 'v8_js_script',
     columns: {
-      id: {column: 'v8_js_script_id'},
+      v8_js_script_id: {},
       name: {},
-      size: {
+      script_type: { },
+      source: {},
+      v8_isolate_id: { },
+      script_size: {
         expression: (alias) => `LENGTH(${alias}.source)`,
       },
     },
@@ -32,6 +35,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
   private selectedScriptId: number|undefined = undefined;
   private trace!: Trace;
   private dataSource!: SQLDataSource;
+  private filters: Filter[] = [];
 
   oninit(vnode: m.Vnode<{trace: Trace}>) {
     this.trace = vnode.attrs.trace;
@@ -54,31 +58,31 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
   }
 
   filterScript(searchTerm: string) {
-    const filters: Filter[] = [];
     if (searchTerm) {
-      filters.push({
+      this.filters = [{
         field: 'name',
         op: 'glob',
         value: `*${searchTerm}*`,
-      });
+      }];
+    } else {
+      this.filters = [];
     }
-    this.dataSource.notify({filters});
     m.redraw();
   }
 
-  scriptHighlightClass(rowId) {
+  scriptHighlightClass(rowId:number) {
     return rowId === this.selectedScriptId ? 'pf-highlight-row' : undefined;
   }
 
   view() {
     const v8JsScriptUiSchema: SchemaRegistry = {
       v8JsScript: {
-        id: {
+        v8_js_script_id: {
           title: 'ID',
           cellRenderer: (value, row: Row): CellRenderResult => {
             return {
-              content: renderCell(value, 'id'),
-              className: this.scriptHighlightClass(row.id),
+              content: renderCell(value, 'v8_js_script_id'),
+              className: this.scriptHighlightClass(row.v8_js_script_id as number),
             };
           },
         },
@@ -92,21 +96,30 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
                     href: '#',
                     onclick: (e: Event) => {
                       e.preventDefault();
-                      this.showSourceForScript(row.id as number);
+                      this.showSourceForScript(row.v8_js_script_id as number);
                     },
                   },
                   renderCell(value, 'name')),
-              className: this.scriptHighlightClass(row.id),
+              className: this.scriptHighlightClass(row.v8_js_script_id as number),
             };
           },
         },
-        size: {
+        source: {
+          title: 'Source',
+        },
+        script_type: {
+          title: 'Type',
+        },
+        v8_isolate_id: {
+          title: 'Isolate',
+        },
+        script_size: {
           title: 'Size (KiB)',
           cellRenderer: (value, row: Row): CellRenderResult => {
             const sizeInKiB = Number(value) / 1024;
             return {
-              content: renderCell(sizeInKiB.toFixed(2), 'size'),
-              className: this.scriptHighlightClass(row.id),
+              content: renderCell(sizeInKiB.toFixed(2), 'script_size'),
+              className: this.scriptHighlightClass(row.v8_js_script_id as number),
               align: 'right',
             };
           },
@@ -128,14 +141,22 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
             data: this.dataSource,
             schema: v8JsScriptUiSchema,
             rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
+            filters: this.filters,
+            onFiltersChanged: (filters) => {
+              this.filters = filters;
+            },
             initialColumns: [
-              {field: 'id'},
+              {field: 'v8_js_script_id'},
               {field: 'name'},
-              {field: 'size'},
+              {field: 'script_size'},
             ],
           })),
         m('.pf-source-view',
-          m(Editor, {text: this.selectedScriptSource, readonly: true}),
+          m(Editor, {
+            text: this.selectedScriptSource,
+            language: 'javascript',
+            readonly: true,
+          }),
         ));
   }
 }

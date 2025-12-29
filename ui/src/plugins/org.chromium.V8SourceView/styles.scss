@@ -33,10 +33,12 @@
 
     .pf-datagrid {
       flex-grow: 1;
+      overflow-x: auto;
     }
   }
 
   .pf-source-view {
     flex-grow: 1;
+    overflow-x: auto;
   }
 }
