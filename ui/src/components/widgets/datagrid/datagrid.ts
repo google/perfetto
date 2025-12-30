@@ -1219,7 +1219,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               nullish: isRich
                 ? rendered.nullish ?? value === null
                 : value === null,
-              className: isRich ? rendered.className : undefined,
               menuItems: [
                 m(CellFilterMenu, {
                   value,
@@ -1508,10 +1507,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 nullish: isRich
                   ? rendered.nullish ?? value === null
                   : value === null,
-                className: classNames(
-                  'pf-data-grid__groupby-column',
-                  isRich ? rendered.className : undefined,
-                ),
+                className: 'pf-data-grid__groupby-column',
                 menuItems: [
                   enablePivotControls && [
                     m(MenuItem, {
@@ -1578,7 +1574,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 nullish: isRich
                   ? rendered.nullish ?? value === null
                   : value === null,
-                className: isRich ? rendered.className : undefined,
               },
               isRich ? rendered.content : rendered ?? String(value ?? ''),
             ),

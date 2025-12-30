@@ -1,7 +1,6 @@
 import m from 'mithril';
-import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
+import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {
-  CellRenderResult,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
 import {Filter} from '../../components/widgets/datagrid/model';
@@ -10,7 +9,12 @@ import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {Trace} from '../../public/trace';
 import {Editor} from '../../widgets/editor';
 import {TextInput} from '../../widgets/text_input';
-import {Row} from '../../trace_processor/query_result';
+import {Tree, TreeNode} from '../../widgets/tree';
+import {TabStrip} from '../../widgets/tabs';
+import {Row, SqlValue} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
+import {CopyableLink} from '../../widgets/copyable_link';
+import {Anchor} from '../../widgets/anchor';
 
 const V8_JS_SCRIPT_SCHEMA_NAME = 'v8JsScript';
 const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
@@ -29,13 +33,30 @@ const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
   },
 };
 
+function formatByteValue(value: SqlValue): string {
+  if (typeof value !== 'number') {
+    return String(value);
+  }
+  let converted = value;
+  let unitIndex = 0;
+  const UNIT_SIZE = 1024;
+  const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
+  while (converted >= UNIT_SIZE && unitIndex < UNITS.length - 1) {
+    converted /= UNIT_SIZE;
+    unitIndex++;
+  }
+  return `${converted.toFixed(2)} ${UNITS[unitIndex]}`;
+}
+
+
 
 export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
+  private currentTab = 'source';
   private selectedScriptSource: string|undefined = undefined;
-  private selectedScriptId: number|undefined = undefined;
+  private selectedScriptDetails: Object|undefined = undefined;
   private trace!: Trace;
   private dataSource!: SQLDataSource;
-  private filters: Filter[] = [];
+  private filters: readonly Filter[] = [];
 
   oninit(vnode: m.Vnode<{trace: Trace}>) {
     this.trace = vnode.attrs.trace;
@@ -47,12 +68,19 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
   }
 
   private async showSourceForScript(id: number) {
-    this.selectedScriptId = id;
     const queryResult = await this.trace.engine.query(
-        `select source from v8_js_script where v8_js_script_id = ${id}`);
-    const it = queryResult.iter({source: 'str'});
+        `select *, LENGTH(source) AS script_size FROM v8_js_script WHERE v8_js_script_id = ${id}`);
+    const it = queryResult.iter({
+       v8_js_script_id: NUM,
+        name: STR,
+        script_type: STR,
+        source: STR,
+        v8_isolate_id: NUM,
+        script_size: NUM,
+    });
     if (it.valid()) {
-      this.selectedScriptSource = it.source;
+      this.selectedScriptSource = it.source as string;
+      this.selectedScriptDetails = {...it};
     }
     m.redraw();
   }
@@ -70,8 +98,27 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
     m.redraw();
   }
 
-  scriptHighlightClass(rowId:number) {
-    return rowId === this.selectedScriptId ? 'pf-highlight-row' : undefined;
+
+  private renderTabContent() {
+    if (this.currentTab === 'source') {
+      return m(Editor, {
+        text: this.selectedScriptSource,
+        language: 'javascript',
+        readonly: true,
+      });
+    }
+
+    const scriptProperties = [];
+    if (this.selectedScriptDetails) {
+      for (const [key, value] of Object.entries(this.selectedScriptDetails)) {
+        if (key === 'source') continue;
+        scriptProperties.push(m(TreeNode, {
+          left: key,
+          right: String(value),
+        }));
+      }
+    }
+   return m(Tree, scriptProperties);
   }
 
   view() {
@@ -79,29 +126,32 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
       v8JsScript: {
         v8_js_script_id: {
           title: 'ID',
-          cellRenderer: (value, row: Row): CellRenderResult => {
-            return {
-              content: renderCell(value, 'v8_js_script_id'),
-              className: this.scriptHighlightClass(row.v8_js_script_id as number),
-            };
-          },
-        },
-        name: {
-          title: 'Name',
-          cellRenderer: (value, row: Row): CellRenderResult => {
-            return {
-              content: m(
-                  'a',
+          cellRenderer: (value : unknown, row: Row) => {
+            return m(
+                  Anchor,
                   {
-                    href: '#',
                     onclick: (e: Event) => {
                       e.preventDefault();
                       this.showSourceForScript(row.v8_js_script_id as number);
                     },
                   },
-                  renderCell(value, 'name')),
-              className: this.scriptHighlightClass(row.v8_js_script_id as number),
-            };
+                String(value));
+          },
+        },
+        name: {
+          title: 'Name',
+          cellRenderer: (value : unknown, row: Row) => {
+            if (typeof value !== "string") {
+              return undefined;
+            }
+            if (!value.startsWith("http")) {
+              return String(value);
+            }
+            return m(
+              CopyableLink,
+              {
+                url: String(row.name),
+              });
           },
         },
         source: {
@@ -114,15 +164,8 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
           title: 'Isolate',
         },
         script_size: {
-          title: 'Size (KiB)',
-          cellRenderer: (value, row: Row): CellRenderResult => {
-            const sizeInKiB = Number(value) / 1024;
-            return {
-              content: renderCell(sizeInKiB.toFixed(2), 'script_size'),
-              className: this.scriptHighlightClass(row.v8_js_script_id as number),
-              align: 'right',
-            };
-          },
+          title: 'Size',
+          cellFormatter: formatByteValue,
         },
       },
     };
@@ -142,21 +185,30 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
             schema: v8JsScriptUiSchema,
             rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
             filters: this.filters,
-            onFiltersChanged: (filters) => {
+            onFiltersChanged: (filters: readonly Filter[]) => {
               this.filters = filters;
+              m.redraw();
             },
             initialColumns: [
               {field: 'v8_js_script_id'},
-              {field: 'name'},
               {field: 'script_size'},
+              {field: 'name'},
             ],
           })),
-        m('.pf-source-view',
-          m(Editor, {
-            text: this.selectedScriptSource,
-            language: 'javascript',
-            readonly: true,
-          }),
-        ));
+        m('.pf-v8-source-script-details',
+            m(TabStrip, {
+              tabs: [
+                {key: 'source', title: 'Source'},
+                {key: 'details', title: 'Details'},
+              ],
+              currentTabKey: this.currentTab,
+              onTabChange: (key) => {
+                this.currentTab = key;
+                m.redraw();
+              },
+            }),
+            m('.pf-tab-page', this.renderTabContent()),
+          ),
+    );
   }
 }
