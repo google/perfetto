@@ -1058,6 +1058,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/fixed_string_writer.h",
         "include/perfetto/ext/base/flags.h",
         "include/perfetto/ext/base/flat_hash_map.h",
+        "include/perfetto/ext/base/flat_hash_map_v1.h",
         "include/perfetto/ext/base/fnv_hash.h",
         "include/perfetto/ext/base/getopt.h",
         "include/perfetto/ext/base/getopt_compat.h",

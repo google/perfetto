@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,12 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 #define INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/flags.h"
-#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/bits.h"
+#include "perfetto/ext/base/flat_hash_map_v1.h"
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 
@@ -28,67 +30,40 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
-namespace perfetto {
-namespace base {
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+#include <immintrin.h>
+#endif
 
-// An open-addressing hashmap implementation.
-// Pointers are not stable, neither for keys nor values.
-// Has similar performances of a RobinHood hash (without the complications)
-// and 2x an unordered map.
-// Doc: http://go/perfetto-hashtables .
+namespace perfetto::base {
+
+// A Swiss Table-style open-addressing hashmap implementation.
+// Inspired by absl::flat_hash_map, this uses a metadata array of control bytes
+// to enable fast SIMD-accelerated probing.
 //
-// When used to implement a string pool in TraceProcessor, the performance
-// characteristics obtained by replaying the set of strings seeen in a 4GB trace
-// (226M strings, 1M unique) are the following (see flat_hash_map_benchmark.cc):
-// This(Linear+AppendOnly)    879,383,676 ns    258.013M insertions/s
-// This(LinearProbe):         909,206,047 ns    249.546M insertions/s
-// This(QuadraticProbe):    1,083,844,388 ns    209.363M insertions/s
-// std::unordered_map:      6,203,351,870 ns    36.5811M insertions/s
-// tsl::robin_map:            931,403,397 ns    243.622M insertions/s
-// absl::flat_hash_map:       998,013,459 ns    227.379M insertions/s
-// FollyF14FastMap:         1,181,480,602 ns    192.074M insertions/s
+// Key design choices:
+// - Control bytes: Each slot has a 1-byte tag (7-bit H2 hash or special marker)
+//   stored in a separate array, enabling fast group-based matching.
+// - SIMD acceleration: On x64, uses SSE instructions to match 16 control bytes
+//   in parallel. Falls back to SWAR (SIMD Within A Register) on other platforms
+//   matching 8 bytes at a time.
+// - Triangular probing: Uses the sequence 0, 16, 48, 96, ... (like Absl) to
+//   probe groups of slots, ensuring good cache behavior.
+// - Pointers are NOT stable: Neither keys nor values have stable addresses
+//   across insertions that trigger rehashing.
 //
-// The structs below define the probing algorithm used to probe slots upon a
-// collision. They are guaranteed to visit all slots as our table size is always
-// a power of two (see https://en.wikipedia.org/wiki/Quadratic_probing).
+// See also: FlatHashMapV1 in flat_hash_map_v1.h for the older implementation
+// using traditional open-addressing with configurable probing strategies.
 
-// Linear probing can be faster if the hashing is well distributed and the load
-// is not high. For TraceProcessor's StringPool this is the fastest. It can
-// degenerate badly if the hashing doesn't spread (e.g., if using directly pids
-// as keys, with a no-op hashing function).
-struct LinearProbe {
-  static inline size_t Calc(size_t key_hash, size_t step, size_t capacity) {
-    return (key_hash + step) & (capacity - 1);  // Linear probe
-  }
-};
-
-// Generates the sequence: 0, 3, 10, 21, 36, 55, ...
-// Can be a bit (~5%) slower than LinearProbe because it's less cache hot, but
-// avoids degenerating badly if the hash function is bad and causes clusters.
-// A good default choice unless benchmarks prove otherwise.
-struct QuadraticProbe {
-  static inline size_t Calc(size_t key_hash, size_t step, size_t capacity) {
-    return (key_hash + 2 * step * step + step) & (capacity - 1);
-  }
-};
-
-// Tends to perform in the middle between linear and quadratic.
-// It's a bit more cache-effective than the QuadraticProbe but can create more
-// clustering if the hash function doesn't spread well.
-// Generates the sequence: 0, 1, 3, 6, 10, 15, 21, ...
-struct QuadraticHalfProbe {
-  static inline size_t Calc(size_t key_hash, size_t step, size_t capacity) {
-    return (key_hash + (step * step + step) / 2) & (capacity - 1);
-  }
-};
-
-// Non-templated base class to hold helpers for FlatHashMap.
-struct FlatHashMapBase {
+// Non-templated base class to hold helpers for FlatHashMapV2.
+struct FlatHashMapV2Base {
  public:
   // Helper to detect if a hasher has is_transparent defined.
   template <typename, typename = void>
@@ -97,6 +72,30 @@ struct FlatHashMapBase {
   template <typename H>
   struct HasIsTransparent<H, std::void_t<typename H::is_transparent>>
       : std::true_type {};
+
+  // Equality comparator trait.
+  template <typename T>
+  struct HashEq : public std::equal_to<T> {};
+
+  // Specialization for std::string to compare via std::string_view.
+  //
+  // This exists because after benchmarking, it turns out libc++ has an
+  // "optimization" for std::string equality that does something byte by
+  // byte comparision for short strings but this is slower than just memcmp.
+  //
+  // This helps close the gap to absl::flat_hash_map for string keys.
+  template <>
+  struct HashEq<std::string> {
+    bool operator()(const std::string& a, const std::string& b) const {
+      return std::string_view(a) == std::string_view(b);
+    }
+    bool operator()(const std::string& a, const std::string_view& b) const {
+      return std::string_view(a) == b;
+    }
+    bool operator()(const std::string& a, base::StringView b) const {
+      return base::StringView(a) == b;
+    }
+  };
 
   // Helper to check if a lookup key type K is allowed.
   // Returns true if:
@@ -116,212 +115,159 @@ struct FlatHashMapBase {
       return false;
     }
   }
+
+ protected:
+  // Swiss Table control byte encoding:
+  // - Empty:   0x80 (10000000) - MSB set, easy to detect with sign bit
+  // - Deleted: 0xFE (11111110) - MSB set
+  // - Full:    0x00-0x7F - MSB clear, stores 7-bit H2 hash
+  enum ReservedTags : uint8_t {
+    kFreeSlot = 0x80,  // Empty slot
+    kTombstone = 0xFE  // Deleted slot
+  };
+
+  // The default load limit percent before growing the table.
+  static constexpr int kDefaultLoadLimitPct = 75;
 };
 
 template <typename Key,
           typename Value,
           typename Hasher = base::MurmurHash<Key>,
-          typename Probe = QuadraticProbe,
-          bool AppendOnly = false>
-class FlatHashMap : protected FlatHashMapBase {
+          typename Eq = FlatHashMapV2Base::HashEq<Key>>
+class FlatHashMapV2 : protected FlatHashMapV2Base {
+ private:
+  // Slot structure holds both key and value
+  struct Slot {
+    Key key;
+    Value value;
+  };
+
  public:
   class Iterator {
    public:
-    explicit Iterator(const FlatHashMap* map) : map_(map) { FindNextNonFree(); }
+    explicit Iterator(const uint8_t* ctrl, const uint8_t* ctrl_end, Slot* slots)
+        : ctrl_(ctrl), ctrl_end_(ctrl_end), slots_(slots) {
+      FindNextNonFree();
+    }
     ~Iterator() = default;
     Iterator(const Iterator&) = default;
     Iterator& operator=(const Iterator&) = default;
     Iterator(Iterator&&) noexcept = default;
     Iterator& operator=(Iterator&&) noexcept = default;
 
-    Key& key() { return map_->keys_[idx_]; }
-    Value& value() { return map_->values_[idx_]; }
-    const Key& key() const { return map_->keys_[idx_]; }
-    const Value& value() const { return map_->values_[idx_]; }
+    Key& key() { return slots_->key; }
+    Value& value() { return slots_->value; }
+    const Key& key() const { return slots_->key; }
+    const Value& value() const { return slots_->value; }
 
-    explicit operator bool() const { return idx_ != kEnd; }
+    explicit operator bool() const { return ctrl_ != ctrl_end_; }
     Iterator& operator++() {
-      PERFETTO_DCHECK(idx_ < map_->capacity_);
-      ++idx_;
+      PERFETTO_DCHECK(ctrl_ != ctrl_end_);
+      ++ctrl_;
+      ++slots_;
       FindNextNonFree();
       return *this;
     }
 
    private:
-    static constexpr size_t kEnd = std::numeric_limits<size_t>::max();
-
     void FindNextNonFree() {
-      const auto& tags = map_->tags_;
-      for (; idx_ < map_->capacity_; idx_++) {
-        if (tags[idx_] != kFreeSlot && (AppendOnly || tags[idx_] != kTombstone))
+      for (; ctrl_ != ctrl_end_; ++ctrl_, ++slots_) {
+        if (*ctrl_ != kFreeSlot && *ctrl_ != kTombstone)
           return;
       }
-      idx_ = kEnd;
     }
-
-    const FlatHashMap* map_ = nullptr;
-    size_t idx_ = 0;
+    const uint8_t* ctrl_ = nullptr;
+    const uint8_t* ctrl_end_ = nullptr;
+    Slot* slots_ = nullptr;
   };  // Iterator
-  static constexpr int kDefaultLoadLimitPct = 75;
-  explicit FlatHashMap(size_t initial_capacity = 0,
-                       int load_limit_pct = kDefaultLoadLimitPct)
+
+  explicit FlatHashMapV2(size_t initial_capacity = 0,
+                         int load_limit_pct = kDefaultLoadLimitPct)
       : load_limit_percent_(load_limit_pct) {
-    if (initial_capacity > 0)
+    if (initial_capacity > 0) {
       Reset(initial_capacity, true);
+    }
   }
 
   // We are calling Clear() so that the destructors for the inserted entries are
   // called (unless they are trivial, in which case it will be a no-op).
-  ~FlatHashMap() { Clear(); }
+  ~FlatHashMapV2() { Clear(); }
 
-  FlatHashMap(FlatHashMap&& other) noexcept {
-    tags_ = std::move(other.tags_);
-    keys_ = std::move(other.keys_);
-    values_ = std::move(other.values_);
-    capacity_ = other.capacity_;
-    size_ = other.size_;
-    tombstones_ = other.tombstones_;
-    max_probe_length_ = other.max_probe_length_;
-    load_limit_ = other.load_limit_;
-    load_limit_percent_ = other.load_limit_percent_;
-
-    new (&other) FlatHashMap();
+  FlatHashMapV2(FlatHashMapV2&& other) noexcept
+      : storage_(std::move(other.storage_)),
+        capacity_(other.capacity_),
+        size_(other.size_),
+        growth_info_(other.growth_info_),
+        load_limit_percent_(other.load_limit_percent_),
+        ctrl_(other.ctrl_),
+        slots_(other.slots_) {
+    new (&other) FlatHashMapV2();
   }
 
-  FlatHashMap& operator=(FlatHashMap&& other) noexcept {
-    this->~FlatHashMap();
-    new (this) FlatHashMap(std::move(other));
+  FlatHashMapV2& operator=(FlatHashMapV2&& other) noexcept {
+    this->~FlatHashMapV2();
+    new (this) FlatHashMapV2(std::move(other));
     return *this;
   }
 
-  FlatHashMap(const FlatHashMap&) = delete;
-  FlatHashMap& operator=(const FlatHashMap&) = delete;
-
-  std::pair<Value*, bool> Insert(Key key, Value value) {
-    const size_t key_hash = Hasher{}(key);
-    const uint8_t tag = HashToTag(key_hash);
-    static constexpr size_t kSlotNotFound = std::numeric_limits<size_t>::max();
-
-    // This for loop does in reality at most two attempts:
-    // The first iteration either:
-    //  - Early-returns, because the key exists already,
-    //  - Finds an insertion slot and proceeds because the load is < limit.
-    // The second iteration is only hit in the unlikely case of this insertion
-    // bringing the table beyond the target |load_limit_| (or the edge case
-    // of the HT being full, if |load_limit_pct_| = 100).
-    // We cannot simply pre-grow the table before insertion, because we must
-    // guarantee that calling Insert() with a key that already exists doesn't
-    // invalidate iterators.
-    size_t insertion_slot;
-    size_t probe_len;
-    for (;;) {
-      PERFETTO_DCHECK((capacity_ & (capacity_ - 1)) == 0);  // Must be a pow2.
-      insertion_slot = kSlotNotFound;
-      // Start the iteration at the desired slot (key_hash % capacity_)
-      // searching either for a free slot or a tombstone. In the worst case we
-      // might end up scanning the whole array of slots. The Probe functions are
-      // guaranteed to visit all the slots within |capacity_| steps. If we find
-      // a free slot, we can stop the search immediately (a free slot acts as an
-      // "end of chain for entries having the same hash". If we find a
-      // tombstones (a deleted slot) we remember its position, but have to keep
-      // searching until a free slot to make sure we don't insert a duplicate
-      // key.
-      for (probe_len = 0; probe_len < capacity_;) {
-        const size_t idx = Probe::Calc(key_hash, probe_len, capacity_);
-        PERFETTO_DCHECK(idx < capacity_);
-        const uint8_t tag_idx = tags_[idx];
-        ++probe_len;
-        if (tag_idx == kFreeSlot) {
-          // Rationale for "insertion_slot == kSlotNotFound": if we encountered
-          // a tombstone while iterating we should reuse that rather than
-          // taking another slot.
-          if (AppendOnly || insertion_slot == kSlotNotFound)
-            insertion_slot = idx;
-          break;
-        }
-        // We should never encounter tombstones in AppendOnly mode.
-        PERFETTO_DCHECK(!(tag_idx == kTombstone && AppendOnly));
-        if (!AppendOnly && tag_idx == kTombstone) {
-          insertion_slot = idx;
-          continue;
-        }
-        if (tag_idx == tag && keys_[idx] == key) {
-          // The key is already in the map.
-          return std::make_pair(&values_[idx], false);
-        }
-      }  // for (idx)
-
-      // If we got to this point the key does not exist (otherwise we would have
-      // hit the return above) and we are going to insert a new entry.
-      // Before doing so, ensure we stay under the target load limit.
-      if (PERFETTO_UNLIKELY(size_ >= load_limit_)) {
-        MaybeGrowAndRehash(/*grow=*/true);
-        continue;
-      }
-      // If there are too many tombstones, it's worth doing a rehash to
-      // clean them up. This is to avoid the case where we have a table full
-      // of tombstones which would cause lookups to be very slow.
-      bool is_many_tombstones = tombstones_ > size_ && size_ > 128;
-      bool is_tombstones_plus_size_too_high = tombstones_ + size_ > load_limit_;
-      if (PERFETTO_UNLIKELY(is_many_tombstones ||
-                            is_tombstones_plus_size_too_high)) {
-        MaybeGrowAndRehash(/*grow=*/false);
-        continue;
-      }
-      PERFETTO_DCHECK(insertion_slot != kSlotNotFound);
-      break;
-    }  // for (attempt)
-
-    PERFETTO_CHECK(insertion_slot < capacity_);
-
-    // We found a free slot (or a tombstone). Proceed with the insertion.
-    if (tags_[insertion_slot] == kTombstone) {
-      PERFETTO_DCHECK(tombstones_ > 0);
-      tombstones_--;
-    }
-    Value* value_idx = &values_[insertion_slot];
-    new (&keys_[insertion_slot]) Key(std::move(key));
-    new (value_idx) Value(std::move(value));
-    tags_[insertion_slot] = tag;
-    PERFETTO_DCHECK(probe_len > 0 && probe_len <= capacity_);
-    max_probe_length_ = std::max(max_probe_length_, probe_len);
-    size_++;
-
-    return std::make_pair(value_idx, true);
-  }
+  FlatHashMapV2(const FlatHashMapV2&) = delete;
+  FlatHashMapV2& operator=(const FlatHashMapV2&) = delete;
 
   template <typename K = Key>
-  Value* Find(const K& key) const {
-    const size_t idx = FindInternal(key);
-    if (idx == kNotFound)
+  PERFETTO_ALWAYS_INLINE Value* Find(const K& key) const {
+    size_t key_hash = Hasher{}(key);
+    uint8_t h2 = H2(key_hash);
+    FindResult res = FindInternal<false>(key, key_hash, h2);
+    if (PERFETTO_UNLIKELY(res.needs_insert)) {
       return nullptr;
-    return &values_[idx];
+    }
+    return &slots_[res.idx].value;
   }
 
   template <typename K = Key>
   bool Erase(const K& key) {
-    if (AppendOnly)
-      PERFETTO_FATAL("Erase() not supported because AppendOnly=true");
-    size_t idx = FindInternal(key);
-    if (idx == kNotFound)
+    size_t key_hash = Hasher{}(key);
+    uint8_t h2 = H2(key_hash);
+    FindResult res = FindInternal<false>(key, key_hash, h2);
+    if (PERFETTO_UNLIKELY(res.needs_insert)) {
       return false;
-    EraseInternal(idx);
+    }
+    PERFETTO_DCHECK(size_ > 0);
+    SetCtrl(res.idx, kTombstone);
+    slots_[res.idx].key.~Key();
+    slots_[res.idx].value.~Value();
+    size_--;
+    growth_info_.has_tombstones = 1;
     return true;
   }
 
-  void Clear() {
-    // Avoid trivial heap operations on zero-capacity std::move()-d objects.
-    if (PERFETTO_UNLIKELY(capacity_ == 0))
-      return;
-
-    for (size_t i = 0; i < capacity_; ++i) {
-      const uint8_t tag = tags_[i];
-      if (tag != kFreeSlot && (AppendOnly || tag != kTombstone)) {
-        keys_[i].~Key();
-        values_[i].~Value();
-      }
+  PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> Insert(Key key, Value value) {
+    if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
+      GrowAndRehash();
     }
-    Reset(capacity_, false);
+
+    size_t key_hash = Hasher{}(key);
+    uint8_t h2 = H2(key_hash);
+    FindResult res = FindInternal<true>(key, key_hash, h2);
+    PERFETTO_DCHECK(res.idx != kNotFound);
+
+    if (PERFETTO_UNLIKELY(res.needs_insert)) {
+      size_t insert_idx = res.idx;
+      bool is_freeslot = true;
+      if (PERFETTO_UNLIKELY(growth_info_.has_tombstones)) {
+        insert_idx = FindFirstNonFull(key_hash);
+        is_freeslot = ctrl_[insert_idx] != kTombstone;
+      }
+      new (&slots_[insert_idx].key) Key(std::move(key));
+      new (&slots_[insert_idx].value) Value(std::move(value));
+      SetCtrl(insert_idx, h2);
+      size_++;
+      if (is_freeslot) {
+        growth_info_.growth_left--;
+      }
+      return {&slots_[insert_idx].value, true};
+    }
+    return {&slots_[res.idx].value, false};
   }
 
   Value& operator[](Key key) {
@@ -329,140 +275,326 @@ class FlatHashMap : protected FlatHashMapBase {
     return *it_and_inserted.first;
   }
 
-  Iterator GetIterator() { return Iterator(this); }
-  const Iterator GetIterator() const { return Iterator(this); }
+  void Clear() {
+    if (PERFETTO_UNLIKELY(capacity_ == 0)) {
+      return;
+    }
+    for (size_t i = 0; i < capacity_; ++i) {
+      const uint8_t tag = ctrl_[i];
+      if (tag == kFreeSlot || tag == kTombstone) {
+        continue;
+      }
+      slots_[i].key.~Key();
+      slots_[i].value.~Value();
+    }
+    Reset(capacity_, false);
+  }
+
+  Iterator GetIterator() { return Iterator(ctrl_, ctrl_ + capacity_, slots_); }
+  Iterator GetIterator() const {
+    return Iterator(ctrl_, ctrl_ + capacity_, slots_);
+  }
 
   size_t size() const { return size_; }
   size_t capacity() const { return capacity_; }
 
-  // "protected" here is only for the flat_hash_map_benchmark.cc. Everything
-  // below is by all means private.
- protected:
-  enum ReservedTags : uint8_t { kFreeSlot = 0, kTombstone = 1 };
-  static constexpr size_t kNotFound = std::numeric_limits<size_t>::max();
+ private:
+  // Result struct for FindOrPrepareInsert - avoids bit manipulation overhead
+  struct FindResult {
+    uint64_t idx : 63;
+    uint64_t needs_insert : 1;
+  };
 
-  template <typename K = Key>
-  size_t FindInternal(const K& key) const {
+  // Tracks growth capacity and whether any deletions have occurred.
+  // Using bitfields like absl's GrowthInfo to avoid manual bit manipulation.
+  struct GrowthInfo {
+    uint64_t growth_left : 63;
+    uint64_t has_tombstones : 1;
+  };
+
+  // Not found sentinel for FindInternal (must fit in 63-bit FindResult.idx)
+  static constexpr size_t kNotFound = std::numeric_limits<size_t>::max() >> 1;
+
+  // Abstraction over group of control bytes.
+  // Provides SIMD-accelerated matching functions or a SWAR fallback.
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+  struct Group {
+   public:
+    // Group size 16 for x64 SSE
+    static constexpr size_t kSize = 16;
+
+    struct Iterator {
+     public:
+      PERFETTO_ALWAYS_INLINE Iterator(uint16_t mask) : mask_(mask) {}
+      PERFETTO_ALWAYS_INLINE explicit operator bool() const { return mask_; }
+
+      PERFETTO_ALWAYS_INLINE size_t Next() {
+        auto idx = static_cast<size_t>(CountTrailZeros(mask_));
+        mask_ &= static_cast<uint16_t>(mask_ - 1);
+        return idx;
+      }
+
+     private:
+      uint16_t mask_;
+    };
+
+    PERFETTO_ALWAYS_INLINE explicit Group(const uint8_t* pos) {
+      ctrl_ = _mm_loadu_si128(reinterpret_cast<const __m128i*>(pos));
+    }
+
+    PERFETTO_ALWAYS_INLINE Iterator Match(uint8_t h2) const {
+      auto match = _mm_cmpeq_epi8(ctrl_, _mm_set1_epi8(static_cast<char>(h2)));
+      return {static_cast<uint16_t>(_mm_movemask_epi8(match))};
+    }
+
+    PERFETTO_ALWAYS_INLINE Iterator MatchEmpty() const {
+      return {static_cast<uint16_t>(
+          _mm_movemask_epi8(_mm_sign_epi8(ctrl_, ctrl_)))};
+    }
+
+    PERFETTO_ALWAYS_INLINE Iterator MatchEmptyOrDeleted() const {
+      return {static_cast<uint16_t>(_mm_movemask_epi8(ctrl_))};
+    }
+
+   private:
+    __m128i ctrl_;
+  };
+#else
+  // Group size 8: uses single 64-bit word (SWAR)
+  struct Group {
+   public:
+    // Group size 8 for ARM and other platforms
+    static constexpr size_t kSize = 8;
+
+    // Iterator for sparse 64-bit mask
+    struct Iterator {
+     public:
+      PERFETTO_ALWAYS_INLINE Iterator(uint64_t mask) : mask_(mask) {}
+      PERFETTO_ALWAYS_INLINE explicit operator bool() const { return mask_; }
+      PERFETTO_ALWAYS_INLINE size_t Next() {
+        // Count zeros and divide by 8 (shift 3)
+        // 0x80 (Byte 0) -> CTZ 7  -> 7>>3 = 0
+        // 0x8000 (Byte 1) -> CTZ 15 -> 15>>3 = 1
+        size_t idx = static_cast<size_t>(CountTrailZeros(mask_) >> 3);
+        mask_ &= mask_ - 1;  // Clear lowest set bit
+        return idx;
+      }
+
+     private:
+      uint64_t mask_;
+    };
+
+    PERFETTO_ALWAYS_INLINE explicit Group(const uint8_t* pos) {
+      memcpy(&ctrl_, pos, sizeof(ctrl_));
+    }
+
+    PERFETTO_ALWAYS_INLINE Iterator Match(uint8_t h2) const {
+      uint64_t x = ctrl_ ^ (kLsbs * h2);
+      return {(x - kLsbs) & ~x & kMsbs};
+    }
+
+    PERFETTO_ALWAYS_INLINE Iterator MatchEmpty() const {
+      // 0x80 check (Empty)
+      return {(ctrl_ & ~(ctrl_ << 6)) & kMsbs};
+    }
+
+    PERFETTO_ALWAYS_INLINE Iterator MatchEmptyOrDeleted() const {
+      // 0x80 or 0xFE check (Empty or Deleted)
+      return {(ctrl_ & ~(ctrl_ << 7)) & kMsbs};
+    }
+
+   private:
+    static constexpr uint64_t kLsbs = 0x0101010101010101ULL;
+    static constexpr uint64_t kMsbs = 0x8080808080808080ULL;
+
+    uint64_t ctrl_;
+  };
+#endif
+
+  // The number of cloned control bytes after the main control byte array.
+  static constexpr size_t kNumClones = Group::kSize - 1;
+
+  // Returns FindResult with idx and whether the key needs to be inserted.
+  // If key is found: {idx, false} where idx is the slot containing the key.
+  // If key not found and ForInsert=true: {empty_idx, true} for insertion.
+  // If key not found and ForInsert=false: {kNotFound, true} (skips empty idx
+  // calc).
+  template <bool ForInsert, typename K = Key>
+  PERFETTO_ALWAYS_INLINE FindResult FindInternal(const K& key,
+                                                 size_t key_hash,
+                                                 uint8_t h2) const {
     static_assert(
         IsLookupKeyAllowed<K, Key, Hasher>(),
         "Heterogeneous lookup requires Hasher to define is_transparent and "
         "support hashing the lookup key type. For same-type lookup, Key and K "
         "must match exactly.");
-    const size_t key_hash = Hasher{}(key);
-    const uint8_t tag = HashToTag(key_hash);
-    PERFETTO_DCHECK((capacity_ & (capacity_ - 1)) == 0);  // Must be a pow2.
-    PERFETTO_DCHECK(max_probe_length_ <= capacity_);
-    for (size_t i = 0; i < max_probe_length_; ++i) {
-      const size_t idx = Probe::Calc(key_hash, i, capacity_);
-      const uint8_t tag_idx = tags_[idx];
 
-      if (tag_idx == kFreeSlot)
-        return kNotFound;
-      // HashToTag() never returns kTombstone, so the tag-check below cannot
-      // possibly match. Also we just want to skip tombstones.
-      if (tag_idx == tag && keys_[idx] == key) {
-        PERFETTO_DCHECK(tag_idx > kTombstone);
-        return idx;
+    if (PERFETTO_UNLIKELY(ctrl_ == nullptr)) {
+      return {kNotFound, true};
+    }
+
+    const size_t cap_mask = capacity_ - 1;
+    size_t offset = H1(key_hash) & cap_mask;
+    size_t probe_index = 0;
+    const uint8_t* ctrl = ctrl_;
+
+    // Prefetch control bytes (like Absl's prefetch_heap_block).
+    // Use locality hint 3 (high temporal locality) for better L1 cache usage.
+    __builtin_prefetch(ctrl_ + offset, 0, 3);
+
+    while (true) {
+      // Prefetch slots at current probe offset (like Absl).
+      __builtin_prefetch(slots_ + offset, 0, 3);
+
+      Group group(ctrl + offset);
+
+      // Match H2 tags. Use uint16_t to match Absl's BitMask<uint16_t> type.
+      // This avoids zero-extension and enables 16-bit lea/and instead of blsr.
+      for (auto it = group.Match(h2); PERFETTO_LIKELY(it);) {
+        // Must mask because offset + CountTrailZeros can exceed capacity when
+        // group straddles the table boundary (using cloned control bytes).
+        size_t idx = (offset + it.Next()) & cap_mask;
+        if (PERFETTO_LIKELY(Eq{}(slots_[idx].key, key))) {
+          return {idx, false};  // Found
+        }
       }
-    }  // for (idx)
-    return kNotFound;
+
+      // Check for empty slot. If we find one, the key is not present.
+      if (auto it = group.MatchEmpty(); PERFETTO_LIKELY(it)) {
+        if constexpr (ForInsert) {
+          size_t empty_idx = (offset + it.Next()) & cap_mask;
+          return {empty_idx, true};  // Not found - empty slot for insertion
+        } else {
+          return {kNotFound, true};  // Not found - no need to compute slot
+        }
+      }
+
+      // Triangular probing (like Absl): 0, 16, 48, 96, ...
+      probe_index += Group::kSize;
+      offset = (offset + probe_index) & cap_mask;
+
+      // Should never happen with load limit.
+      PERFETTO_DCHECK(probe_index <= capacity_);
+    }
   }
 
-  void EraseInternal(size_t idx) {
-    PERFETTO_DCHECK(tags_[idx] > kTombstone);
-    PERFETTO_DCHECK(size_ > 0);
-    tags_[idx] = kTombstone;
-    keys_[idx].~Key();
-    values_[idx].~Value();
-    size_--;
-    tombstones_++;
-    PERFETTO_DCHECK(size_ + tombstones_ <= capacity_);
+  // Find first empty OR deleted slot for insertion.
+  // Called only when has_deleted is set (slow path).
+  size_t FindFirstNonFull(size_t key_hash) const {
+    const size_t cap_mask = capacity_ - 1;
+    size_t offset = H1(key_hash) & cap_mask;
+    size_t probe_index = 0;
+    while (true) {
+      Group group(ctrl_ + offset);
+      if (auto it = group.MatchEmptyOrDeleted(); PERFETTO_LIKELY(it)) {
+        return (offset + it.Next()) & cap_mask;
+      }
+      probe_index += Group::kSize;
+      offset = (offset + probe_index) & cap_mask;
+    }
   }
 
-  PERFETTO_NO_INLINE void MaybeGrowAndRehash(bool grow) {
+  PERFETTO_NO_INLINE void GrowAndRehash() {
     PERFETTO_DCHECK(size_ <= capacity_);
-    const size_t old_capacity = capacity_;
 
-    // Grow quickly up to 1MB, then chill.
-    const size_t old_size_bytes = old_capacity * (sizeof(Key) + sizeof(Value));
-    const size_t grow_factor = old_size_bytes < (1024u * 1024u) ? 8 : 2;
-    const size_t new_capacity =
-        grow ? std::max(old_capacity * grow_factor, size_t(1024))
-             : old_capacity;
-
-    auto old_tags(std::move(tags_));
-    auto old_keys(std::move(keys_));
-    auto old_values(std::move(values_));
+    size_t old_capacity = capacity_;
     size_t old_size = size_;
+    uint8_t* old_ctrl = ctrl_;
+    Slot* old_slots = slots_;
+    std::unique_ptr<uint8_t[]> old_storage(std::move(storage_));
 
     // This must be a CHECK (i.e. not just a DCHECK) to prevent UAF attacks on
     // 32-bit archs that try to double the size of the table until wrapping.
+    size_t new_capacity = old_capacity * 2;
     PERFETTO_CHECK(new_capacity >= old_capacity);
     Reset(new_capacity, true);
 
-    size_t new_size = 0;  // Recompute the size.
+    size_t new_size = 0;
     for (size_t i = 0; i < old_capacity; ++i) {
-      const uint8_t old_tag = old_tags[i];
-      if (old_tag != kFreeSlot && old_tag != kTombstone) {
-        Insert(std::move(old_keys[i]), std::move(old_values[i]));
-        old_keys[i].~Key();  // Destroy the old objects.
-        old_values[i].~Value();
-        new_size++;
+      if (uint8_t t = old_ctrl[i]; t == kFreeSlot || t == kTombstone) {
+        continue;
       }
+      Insert(std::move(old_slots[i].key), std::move(old_slots[i].value));
+      old_slots[i].key.~Key();  // Destroy the old objects.
+      old_slots[i].value.~Value();
+      new_size++;
     }
     PERFETTO_DCHECK(new_size == old_size);
-    PERFETTO_DCHECK(tombstones_ == 0);
     size_ = new_size;
   }
 
   // Doesn't call destructors. Use Clear() for that.
   PERFETTO_NO_INLINE void Reset(size_t n, bool reallocate) {
-    PERFETTO_DCHECK((n & (n - 1)) == 0);  // Must be a pow2.
+    // Must be a pow2.
+    PERFETTO_CHECK((n & (n - 1)) == 0);
 
-    capacity_ = n;
-    max_probe_length_ = 0;
+    // Always ensure at least 128 capacity to avoid too frequent growths.
+    capacity_ = std::max<size_t>(n, 128u);
     size_ = 0;
-    tombstones_ = 0;
-    load_limit_ = n * static_cast<size_t>(load_limit_percent_) / 100;
-    load_limit_ = std::min(load_limit_, n);
+    growth_info_.growth_left =
+        (capacity_ * static_cast<size_t>(load_limit_percent_)) / 100;
+    growth_info_.has_tombstones = 0;
 
     if (reallocate) {
-      tags_.reset(new uint8_t[n]);
-      keys_ = AlignedAllocTyped<Key[]>(n);  // Deliberately not 0-initialized.
-      values_ =
-          AlignedAllocTyped<Value[]>(n);  // Deliberately not 0-initialized.
+      size_t slots_offset =
+          base::AlignUp(capacity_ + kNumClones, alignof(Slot));
+      storage_.reset(new uint8_t[slots_offset + (capacity_ * sizeof(Slot))]);
+      ctrl_ = storage_.get();
+      slots_ = reinterpret_cast<Slot*>(storage_.get() + slots_offset);
     }
-
-    // Only clear the tags if not nullptr.
-    if (tags_) {
-      memset(&tags_[0], 0, n);  // Clear all tags.
+    if (ctrl_) {
+      // Initialize all control bytes (including clones) to empty (kFreeSlot)
+      memset(ctrl_, kFreeSlot, capacity_ + kNumClones);
     }
   }
 
-  static inline uint8_t HashToTag(size_t full_hash) {
-    uint8_t tag = full_hash >> (sizeof(full_hash) * 8 - 8);
-    // Ensure the hash is always >= 2. We use 0, 1 for kFreeSlot and kTombstone.
-    tag += (tag <= kTombstone) << 1;
-    PERFETTO_DCHECK(tag > kTombstone);
-    return tag;
+  // Swiss Table hash splitting (matching absl):
+  // H1 = upper bits for bucket index
+  // H2 = lower 7 bits for tag
+  // This ensures H1 and H2 are independent, avoiding tag collisions within
+  // buckets. The seed XOR prevents clustering when hash values have patterns
+  // (e.g., sequential keys)
+  static constexpr size_t H1(size_t hash) { return (hash >> 7); }
+  static constexpr uint8_t H2(size_t hash) { return hash & 0x7F; }
+
+  // Set control byte and update clone if needed
+  PERFETTO_ALWAYS_INLINE void SetCtrl(size_t i, uint8_t h) {
+    ctrl_[i] = h;
+    // Update clone if this is one of the first kNumClones entries
+    if (i < kNumClones) {
+      ctrl_[capacity_ + i] = h;
+    }
   }
+
+  // Owns the actual memory: [ctrl[capacity]][clones[15]][slots[capacity]]
+  std::unique_ptr<uint8_t[]> storage_;
 
   size_t capacity_ = 0;
   size_t size_ = 0;
-  size_t tombstones_ = 0;
-  size_t max_probe_length_ = 0;
-  size_t load_limit_ = 0;  // Updated every time |capacity_| changes.
-  int load_limit_percent_ =
-      kDefaultLoadLimitPct;  // Load factor limit in % of |capacity_|.
 
-  // These arrays have always the |capacity_| elements.
-  // Note: AlignedUniquePtr just allocates memory, doesn't invoke any ctor/dtor.
-  std::unique_ptr<uint8_t[]> tags_;
-  AlignedUniquePtr<Key[]> keys_;
-  AlignedUniquePtr<Value[]> values_;
+  // Slots remaining + has_deleted flag
+  GrowthInfo growth_info_{0, 0};
+
+  // Load factor limit in % of |capacity_|.
+  int load_limit_percent_ = kDefaultLoadLimitPct;
+
+  // Cached pointers for fast access (like absl::flat_hash_map)
+  // These are updated whenever storage is allocated/reallocated.
+  uint8_t* ctrl_ = nullptr;  // Points to control bytes
+  Slot* slots_ = nullptr;    // Points to slot array
 };
 
-}  // namespace base
-}  // namespace perfetto
+// Alias FlatHashMap to FlatHashMapV1 for backward compatibility.
+//
+// TODO(lalitm): Once FlatHashMapV2 is fully tested and verified, switch this
+// to FlatHashMapV2.
+template <typename Key,
+          typename Value,
+          typename Hasher = MurmurHash<Key>,
+          typename Probe = QuadraticProbe,
+          bool AppendOnly = false>
+using FlatHashMap = FlatHashMapV1<Key, Value, Hasher, Probe, AppendOnly>;
+
+}  // namespace perfetto::base
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
