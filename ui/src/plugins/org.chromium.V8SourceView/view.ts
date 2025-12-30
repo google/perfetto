@@ -33,14 +33,15 @@ const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
   },
 };
 
+const UNIT_SIZE = 1024;
+const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
 function formatByteValue(value: SqlValue): string {
-  if (typeof value !== 'number') {
+  console.log(value);
+  if (typeof value !== 'bigint') {
     return String(value);
   }
-  let converted = value;
+  let converted = Number(value);
   let unitIndex = 0;
-  const UNIT_SIZE = 1024;
-  const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
   while (converted >= UNIT_SIZE && unitIndex < UNITS.length - 1) {
     converted /= UNIT_SIZE;
     unitIndex++;
@@ -165,7 +166,7 @@ export class V8SourceView implements m.ClassComponent<{trace: Trace}> {
         },
         script_size: {
           title: 'Size',
-          cellFormatter: formatByteValue,
+          cellRenderer: formatByteValue,
         },
       },
     };
