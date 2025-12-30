@@ -663,6 +663,22 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/inputmethod_config.proto
+
+// Custom configuration for the "android.inputmethod" data source.
+message InputMethodConfig {
+  // If true, enables tracing in the clients.
+  optional bool client = 1;
+
+  // If true, enables tracing in InputMethodService.
+  optional bool service = 2;
+
+  // If true, enables tracing in InputMethodManagerService.
+  optional bool manager_service = 3;
+}
+
+// End of protos/perfetto/config/android/inputmethod_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -4015,7 +4031,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 139
+// Next id: 140
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4235,6 +4251,9 @@ message DataSourceConfig {
 
   // Data source name: android.user_list
   optional AndroidUserListConfig user_list_config = 138 [lazy = true];
+
+  // Data source name: android.inputmethod
+  optional InputMethodConfig inputmethod_config = 139 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
