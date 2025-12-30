@@ -278,18 +278,21 @@ if (enable_perfetto_benchmarks) {
   declare_args() {
     perfetto_benchmark_3p_libs_prefix = ""
   }
-  source_set("benchmarks") {
-    # If you intend to reproduce the comparison with {Absl, Folly, Tessil}
-    # you need to manually install those libraries and then set the GN arg
-    # perfetto_benchmark_3p_libs_prefix = "/usr/local"
+
+  source_set("flat_hash_map_benchmark") {
     testonly = true
     deps = [
       ":base",
       "../../gn:benchmark",
       "../../gn:default_deps",
     ]
+    defines = []
+    if (perfetto_build_standalone && !is_perfetto_build_generator) {
+      defines += [ "PERFETTO_HASH_MAP_COMPARE_ABSL" ]
+      deps += [ "../../buildtools:abseil_cpp" ]
+    }
     if (perfetto_benchmark_3p_libs_prefix != "") {
-      defines = [ "PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS" ]
+      defines += [ "PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS" ]
       cflags = [ "-isystem${perfetto_benchmark_3p_libs_prefix}/include" ]
       libs = [
         "${perfetto_benchmark_3p_libs_prefix}/lib/libfolly.a",
@@ -297,8 +300,18 @@ if (enable_perfetto_benchmarks) {
         "${perfetto_benchmark_3p_libs_prefix}/lib/libabsl_hash.a",
       ]
     }
+    sources = [ "flat_hash_map_benchmark.cc" ]
+  }
+
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":base",
+      ":flat_hash_map_benchmark",
+      "../../gn:benchmark",
+      "../../gn:default_deps",
+    ]
     sources = [
-      "flat_hash_map_benchmark.cc",
       "flat_set_benchmark.cc",
       "rt_mutex_benchmark.cc",
       "task_runner_benchmark.cc",
