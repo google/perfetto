@@ -139,9 +139,7 @@ class OursV2 : public base::FlatHashMapV2<Key, Value, Hasher> {
     this->Insert(std::move(pair.first), std::move(pair.second));
   }
 
-  Iterator find(const Key& key) {
-    return Iterator(true, *this->Find(key));
-  }
+  Iterator find(const Key& key) { return Iterator(true, *this->Find(key)); }
 
   // Heterogeneous find
   template <typename K,
@@ -151,9 +149,7 @@ class OursV2 : public base::FlatHashMapV2<Key, Value, Hasher> {
     return Iterator(true, *this->Find(key));
   }
 
-  Iterator end() {
-    return Iterator(false, not_real_);
-  }
+  Iterator end() { return Iterator(false, not_real_); }
 
   void clear() { this->Clear(); }
 
