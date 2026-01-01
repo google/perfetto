@@ -155,6 +155,7 @@ class TraceProcessorImpl : public TraceProcessor,
       const DescriptorPool* metrics_descriptor_pool,
       std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
       TraceProcessor*,
+      bool notify_eof_called,
       std::pair<int64_t, int64_t> cached_trace_bounds);
 
   static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
