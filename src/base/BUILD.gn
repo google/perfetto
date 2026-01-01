@@ -293,7 +293,7 @@ if (enable_perfetto_benchmarks) {
 
       # Since we include an abseil header directly, we need to disable extra
       # warnings coming from there.
-      configs -= [ "//gn/standalone:extra_warnings" ]
+      configs -= [ "../../gn/standalone:extra_warnings" ]
     }
     if (perfetto_benchmark_3p_libs_prefix != "") {
       defines += [ "PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS" ]
