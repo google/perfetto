@@ -656,6 +656,9 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
 
   TraceProcessorStorageImpl::DestroyContext();
   context()->storage->ShrinkToFitTables();
+  for (const auto& table : GetStaticTables(context()->storage.get())) {
+    table.dataframe->Finalize();
+  }
 
   IncludeAfterEofPrelude(engine_.get());
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
