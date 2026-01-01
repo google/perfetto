@@ -131,7 +131,7 @@ class FlatHashMapV2Base {
   static constexpr int kDefaultLoadLimitPct = 75;
 };
 
-};  // namespace flat_hash_map_v2_internal
+}  // namespace flat_hash_map_v2_internal
 
 template <typename Key,
           typename Value,

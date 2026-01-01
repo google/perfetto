@@ -207,11 +207,14 @@ TYPED_TEST(FlatHashMapTest, AllTagsAreValid) {
   }
 }
 
-TYPED_TEST(FlatHashMapTest, FillWithTombstones) {
-  typename TestFixture::template Map<Key, Value, KeyHasher,
-                                     typename TestFixture::Probe>
-      fmap(
-          /*initial_capacity=*/0, /*load_limit_pct=*/100);
+// This test fills the table completely, then erases everything (creating
+// tombstones), then repeats. This is a pathological case that only works
+// with V1's probing strategy. V2 (Swiss Table) requires at least one empty
+// slot to terminate the probe loop, so 100% load + all tombstones is not
+// supported.
+TEST(FlatHashMapV1Test, FillWithTombstones) {
+  FlatHashMap<Key, Value, KeyHasher, LinearProbe> fmap(
+      /*initial_capacity=*/0, /*load_limit_pct=*/100);
 
   for (int rep = 0; rep < 3; rep++) {
     for (int i = 0; i < 1024; i++)
