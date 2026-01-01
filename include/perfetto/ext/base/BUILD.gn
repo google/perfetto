@@ -31,6 +31,7 @@ source_set("base") {
     "fixed_string_writer.h",
     "flags.h",
     "flat_hash_map.h",
+    "flat_hash_map_v1.h",
     "fnv_hash.h",
     "getopt.h",
     "getopt_compat.h",

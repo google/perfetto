@@ -17,7 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <functional>
+#include <optional>
 #include <random>
 #include <string>
 #include <string_view>
@@ -29,6 +29,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/flat_hash_map_v1.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -115,6 +116,44 @@ class Ours : public base::FlatHashMap<Key, Value, Hasher, Probe> {
   }
 
   void clear() { this->Clear(); }
+};
+
+// Wrapper for FlatHashMapV2 to make it STL-compatible for benchmarking.
+// FlatHashMapV2 uses Swiss Table probing (fixed), so Probe param is ignored.
+template <typename Key, typename Value, typename Hasher, typename /* Probe */>
+class OursV2 : public base::FlatHashMapV2<Key, Value, Hasher> {
+ public:
+  struct Iterator {
+    using value_type = std::pair<bool, Value&>;
+    Iterator(bool is_real, Value& v) : pair_{is_real, v} {}
+    value_type* operator->() { return &pair_; }
+    value_type& operator*() { return pair_; }
+    bool operator==(const Iterator& other) const {
+      return &pair_.first == &other.pair_.first;
+    }
+    bool operator!=(const Iterator& other) const { return !operator==(other); }
+    value_type pair_;
+  };
+
+  void insert(std::pair<Key, Value>&& pair) {
+    this->Insert(std::move(pair.first), std::move(pair.second));
+  }
+
+  Iterator find(const Key& key) { return Iterator(true, *this->Find(key)); }
+
+  // Heterogeneous find
+  template <typename K,
+            typename H = Hasher,
+            typename = typename H::is_transparent>
+  Iterator find(const K& key) {
+    return Iterator(true, *this->Find(key));
+  }
+
+  Iterator end() { return Iterator(false, not_real_); }
+
+  void clear() { this->Clear(); }
+
+  Value not_real_;
 };
 
 std::vector<uint64_t> LoadTraceStrings(benchmark::State& state) {
@@ -476,6 +515,8 @@ void BM_HashMap_LookupSequentialInts(benchmark::State& state) {
 // Each map uses its native/default hash function
 using Ours_Default =
     Ours<uint64_t, uint64_t, base::MurmurHash<uint64_t>, LinearProbe>;
+using OursV2_Default =
+    OursV2<uint64_t, uint64_t, base::MurmurHash<uint64_t>, LinearProbe>;
 using StdUnorderedMap_Default =
     std::unordered_map<uint64_t, uint64_t>;  // std::hash
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
@@ -494,6 +535,8 @@ using AbslFlatHashMap_Murmur =
 // Category 3: AlreadyHashed (pure map performance, no hash cost)
 using Ours_PreHashed =
     Ours<uint64_t, uint64_t, AlreadyHashed<uint64_t>, LinearProbe>;
+using OursV2_PreHashed =
+    OursV2<uint64_t, uint64_t, AlreadyHashed<uint64_t>, LinearProbe>;
 using StdUnorderedMap_PreHashed =
     std::unordered_map<uint64_t, uint64_t, AlreadyHashed<uint64_t>>;
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
@@ -520,6 +563,7 @@ using FollyF14_PreHashed =
 // =============================================================================
 BENCHMARK(BM_HashMap_InsertTraceStrings_AppendOnly);
 BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, Ours_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, OursV2_PreHashed);
 BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, StdUnorderedMap_PreHashed);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, AbslFlatHashMap_PreHashed);
@@ -533,6 +577,7 @@ BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, FollyF14_PreHashed);
 // TraceTids benchmark (uses MurmurHash - realistic workload)
 // =============================================================================
 using Ours_Tid = Ours<int, uint64_t, base::MurmurHash<int>, LinearProbe>;
+using OursV2_Tid = OursV2<int, uint64_t, base::MurmurHash<int>, LinearProbe>;
 using StdUnorderedMap_Tid =
     std::unordered_map<int, uint64_t, base::MurmurHash<int>>;
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
@@ -540,6 +585,7 @@ using AbslFlatHashMap_Tid =
     absl::flat_hash_map<int, uint64_t, base::MurmurHash<int>>;
 #endif
 BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, Ours_Tid);
+BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, OursV2_Tid);
 BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, StdUnorderedMap_Tid);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, AbslFlatHashMap_Tid);
@@ -556,6 +602,7 @@ BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, FollyF14_Tid);
 // =============================================================================
 // Default hash
 BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, OursV2_Default);
 BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, StdUnorderedMap_Default);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, AbslFlatHashMap_Default);
@@ -575,6 +622,7 @@ BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, FollyF14_Murmur);
 #endif
 // PreHashed
 BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, Ours_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, OursV2_PreHashed);
 BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, StdUnorderedMap_PreHashed);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, AbslFlatHashMap_PreHashed);
@@ -589,6 +637,7 @@ BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, FollyF14_PreHashed);
 // =============================================================================
 // Default hash
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, OursV2_Default);
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, StdUnorderedMap_Default);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, AbslFlatHashMap_Default);
@@ -608,6 +657,7 @@ BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14_Murmur);
 #endif
 // PreHashed
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, Ours_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, OursV2_PreHashed);
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, StdUnorderedMap_PreHashed);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, AbslFlatHashMap_PreHashed);
@@ -621,6 +671,7 @@ BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14_PreHashed);
 // InsertCollidingInts benchmarks (Default only - pathological case)
 // =============================================================================
 BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, OursV2_Default);
 BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, StdUnorderedMap_Default);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, AbslFlatHashMap_Default);
@@ -634,6 +685,7 @@ BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, FollyF14_Default);
 // InsertDupeInts benchmarks (Default only - realistic workload)
 // =============================================================================
 BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, OursV2_Default);
 BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, StdUnorderedMap_Default);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, AbslFlatHashMap_Default);
@@ -645,6 +697,7 @@ BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, FollyF14_Default);
 #endif
 
 BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, OursV2_Default);
 
 // Heterogeneous lookup benchmarks
 template <typename MapType>
@@ -715,6 +768,8 @@ void BM_HashMap_RegularLookup_String(benchmark::State& state) {
 // String benchmarks - each map uses its default hash function
 using Ours_String =
     Ours<std::string, uint64_t, base::MurmurHash<std::string>, LinearProbe>;
+using OursV2_String =
+    OursV2<std::string, uint64_t, base::MurmurHash<std::string>, LinearProbe>;
 using StdUnorderedMap_String =
     std::unordered_map<std::string, uint64_t>;  // std::hash
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
@@ -726,7 +781,9 @@ using AbslFlatHashMap_String_Murmur =
 #endif
 
 BENCHMARK_TEMPLATE(BM_HashMap_HeterogeneousLookup_String, Ours_String);
+BENCHMARK_TEMPLATE(BM_HashMap_HeterogeneousLookup_String, OursV2_String);
 BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, Ours_String);
+BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, OursV2_String);
 BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, StdUnorderedMap_String);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, AbslFlatHashMap_String);
@@ -739,6 +796,8 @@ BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String,
 // =============================================================================
 BENCHMARK_TEMPLATE(BM_HashMap_InsertVaryingSize, Ours_Default)
     ->Apply(VaryingSizeArgs);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertVaryingSize, OursV2_Default)
+    ->Apply(VaryingSizeArgs);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_InsertVaryingSize, AbslFlatHashMap_Default)
     ->Apply(VaryingSizeArgs);
@@ -749,6 +808,8 @@ BENCHMARK_TEMPLATE(BM_HashMap_InsertVaryingSize, AbslFlatHashMap_Default)
 // =============================================================================
 BENCHMARK_TEMPLATE(BM_HashMap_LookupWithMisses, Ours_Default)
     ->Apply(MissRateArgs);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupWithMisses, OursV2_Default)
+    ->Apply(MissRateArgs);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_LookupWithMisses, AbslFlatHashMap_Default)
     ->Apply(MissRateArgs);
@@ -758,12 +819,14 @@ BENCHMARK_TEMPLATE(BM_HashMap_LookupWithMisses, AbslFlatHashMap_Default)
 // Sequential key benchmarks (common pattern like row IDs)
 // =============================================================================
 BENCHMARK_TEMPLATE(BM_HashMap_InsertSequentialInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertSequentialInts, OursV2_Default);
 BENCHMARK_TEMPLATE(BM_HashMap_InsertSequentialInts, StdUnorderedMap_Default);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_InsertSequentialInts, AbslFlatHashMap_Default);
 #endif
 
 BENCHMARK_TEMPLATE(BM_HashMap_LookupSequentialInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupSequentialInts, OursV2_Default);
 BENCHMARK_TEMPLATE(BM_HashMap_LookupSequentialInts, StdUnorderedMap_Default);
 #if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
 BENCHMARK_TEMPLATE(BM_HashMap_LookupSequentialInts, AbslFlatHashMap_Default);
