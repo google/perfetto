@@ -290,6 +290,10 @@ if (enable_perfetto_benchmarks) {
     if (perfetto_build_standalone && !is_perfetto_build_generator) {
       defines += [ "PERFETTO_HASH_MAP_COMPARE_ABSL" ]
       deps += [ "../../buildtools:abseil_cpp" ]
+
+      # Since we include an abseil header directly, we need to disable extra
+      # warnings coming from there.
+      configs -= [ "../../gn/standalone:extra_warnings" ]
     }
     if (perfetto_benchmark_3p_libs_prefix != "") {
       defines += [ "PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS" ]
