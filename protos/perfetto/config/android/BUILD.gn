@@ -26,6 +26,7 @@ perfetto_proto_library("@TYPE@") {
     "android_system_property_config.proto",
     "app_wakelock_config.proto",
     "cpu_per_uid_config.proto",
+    "inputmethod_config.proto",
     "kernel_wakelocks_config.proto",
     "network_trace_config.proto",
     "packages_list_config.proto",
