@@ -80,7 +80,6 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
@@ -578,9 +577,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
 
   engine_ = InitPerfettoSqlEngine(
-      context(), context()->storage.get(), config_, &dataframe_shared_storage_,
-      registered_sql_packages_, sql_metrics_, &metrics_descriptor_pool_,
-      &proto_fn_name_to_path_, this, notify_eof_called_, cached_trace_bounds_);
+      context(), context()->storage.get(), config_, registered_sql_packages_,
+      sql_metrics_, &metrics_descriptor_pool_, &proto_fn_name_to_path_, this,
+      cached_trace_bounds_);
 
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -659,7 +658,6 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   TraceProcessorStorageImpl::DestroyContext();
   context()->storage->ShrinkToFitTables();
 
-  engine_->FinalizeAndShareAllStaticTables();
   IncludeAfterEofPrelude(engine_.get());
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -904,11 +902,11 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
   // Reset the engine to its initial state. Pass cached bounds to avoid
-  // iterating over finalized dataframes.
+  // recomputing them.
   engine_ = InitPerfettoSqlEngine(
-      context(), context()->storage.get(), config_, &dataframe_shared_storage_,
-      registered_sql_packages_, sql_metrics_, &metrics_descriptor_pool_,
-      &proto_fn_name_to_path_, this, notify_eof_called_, cached_trace_bounds_);
+      context(), context()->storage.get(), config_, registered_sql_packages_,
+      sql_metrics_, &metrics_descriptor_pool_, &proto_fn_name_to_path_, this,
+      cached_trace_bounds_);
 
   // The registered count should now be the same as it was in the constructor.
   uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
@@ -1037,9 +1035,9 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
   return metrics_descriptor_pool_.SerializeAsDescriptorSet();
 }
 
-std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
-TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
-  std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> tables;
+std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
+    TraceStorage* storage) {
+  std::vector<PerfettoSqlEngine::StaticTable> tables;
   AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_sample_table());
   AddUnfinalizedStaticTable(tables,
@@ -1226,44 +1224,20 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     TraceProcessorContext* context,
     TraceStorage* storage,
     const Config& config,
-    DataframeSharedStorage* dataframe_shared_storage,
     const std::vector<SqlPackage>& packages,
     std::vector<metrics::SqlMetricFile>& sql_metrics,
     const DescriptorPool* metrics_descriptor_pool,
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
     TraceProcessor* trace_processor,
-    bool notify_eof_called,
     std::pair<int64_t, int64_t> cached_trace_bounds) {
   auto engine = std::make_unique<PerfettoSqlEngine>(
-      storage->mutable_string_pool(), dataframe_shared_storage,
-      config.enable_extra_checks);
+      storage->mutable_string_pool(), config.enable_extra_checks);
 
   auto functions =
       CreateStaticTableFunctions(context, storage, config, engine.get());
 
-  std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> unfinalized =
-      GetUnfinalizedStaticTables(storage);
-  std::vector<PerfettoSqlEngine::FinalizedStaticTable> finalized;
-  if (notify_eof_called) {
-    // If EOF has already been called, all the unfinalized static tables
-    // should have finalized handles in the shared storage. Look those up.
-    for (auto& table : unfinalized) {
-      auto handle = dataframe_shared_storage->Find(
-          DataframeSharedStorage::MakeKeyForStaticTable(table.name));
-      if (!handle) {
-        PERFETTO_FATAL("Static table '%s' not found in shared storage.",
-                       table.name.c_str());
-      }
-      finalized.emplace_back<PerfettoSqlEngine::FinalizedStaticTable>({
-          std::move(*handle),
-          std::move(table.name),
-      });
-    }
-    // Clear the unfinalized tables as all of them have finalized counterparts.
-    unfinalized.clear();
-  }
-  engine->InitializeStaticTablesAndFunctions(unfinalized, std::move(finalized),
-                                             std::move(functions));
+  std::vector<PerfettoSqlEngine::StaticTable> tables = GetStaticTables(storage);
+  engine->InitializeStaticTablesAndFunctions(tables, std::move(functions));
 
   sqlite3* db = engine->sqlite_engine()->db();
   sqlite3_str_split_init(db);
