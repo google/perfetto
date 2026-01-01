@@ -242,16 +242,15 @@ class FlatHashMapV2 : protected FlatHashMapV2Base {
   }
 
   PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> Insert(Key key, Value value) {
-    if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
-      GrowAndRehash();
-    }
-
     size_t key_hash = Hasher{}(key);
     uint8_t h2 = H2(key_hash);
     FindResult res = FindInternal<true>(key, key_hash, h2);
-    PERFETTO_DCHECK(res.idx != kNotFound);
-
     if (PERFETTO_UNLIKELY(res.needs_insert)) {
+      if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
+        GrowAndRehash();
+        return Insert(std::move(key), std::move(value));
+      }
+      PERFETTO_DCHECK(res.idx != kNotFound);
       size_t insert_idx = res.idx;
       bool is_freeslot = true;
       if (PERFETTO_UNLIKELY(growth_info_.has_tombstones)) {
