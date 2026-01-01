@@ -63,60 +63,61 @@ namespace perfetto::base {
 // using traditional open-addressing with configurable probing strategies.
 
 // Non-templated base class to hold helpers for FlatHashMapV2.
-struct FlatHashMapV2Base {
- public:
-  // Helper to detect if a hasher has is_transparent defined.
-  template <typename, typename = void>
-  struct HasIsTransparent : std::false_type {};
+namespace flat_hash_map_v2_internal {
 
-  template <typename H>
-  struct HasIsTransparent<H, std::void_t<typename H::is_transparent>>
-      : std::true_type {};
+// Helper to detect if a hasher has is_transparent defined.
+template <typename, typename = void>
+struct HasIsTransparent : std::false_type {};
 
-  // Equality comparator trait.
-  template <typename T>
-  struct HashEq : public std::equal_to<T> {};
+template <typename H>
+struct HasIsTransparent<H, std::void_t<typename H::is_transparent>>
+    : std::true_type {};
 
-  // Specialization for std::string to compare via std::string_view.
-  //
-  // This exists because after benchmarking, it turns out libc++ has an
-  // "optimization" for std::string equality that does something byte by
-  // byte comparision for short strings but this is slower than just memcmp.
-  //
-  // This helps close the gap to absl::flat_hash_map for string keys.
-  template <>
-  struct HashEq<std::string> {
-    bool operator()(const std::string& a, const std::string& b) const {
-      return std::string_view(a) == std::string_view(b);
-    }
-    bool operator()(const std::string& a, const std::string_view& b) const {
-      return std::string_view(a) == b;
-    }
-    bool operator()(const std::string& a, base::StringView b) const {
-      return base::StringView(a) == b;
-    }
-  };
+// Equality comparator trait.
+template <typename T>
+struct HashEq : public std::equal_to<T> {};
 
-  // Helper to check if a lookup key type K is allowed.
-  // Returns true if:
-  // 1. K can be implicitly converted to Key, OR
-  // 2. Hasher has is_transparent AND Hasher is invocable with K AND Key and K
-  // are equality comparable
-  template <typename K, typename Key, typename Hasher>
-  static constexpr bool IsLookupKeyAllowed() {
-    if constexpr (HasIsTransparent<Hasher>::value) {
-      return std::is_invocable_v<Hasher, const K&> &&
-             std::is_same_v<decltype(std::declval<const Key&>() ==
-                                     std::declval<const K&>()),
-                            bool>;
-    } else if constexpr (std::is_convertible_v<K, Key>) {
-      return true;
-    } else {
-      return false;
-    }
+// Specialization for std::string to compare via std::string_view.
+//
+// This exists because after benchmarking, it turns out libc++ has an
+// "optimization" for std::string equality that does something byte by
+// byte comparision for short strings but this is slower than just memcmp.
+//
+// This helps close the gap to absl::flat_hash_map for string keys.
+template <>
+struct HashEq<std::string> {
+  bool operator()(const std::string& a, const std::string& b) const {
+    return std::string_view(a) == std::string_view(b);
   }
+  bool operator()(const std::string& a, const std::string_view& b) const {
+    return std::string_view(a) == b;
+  }
+  bool operator()(const std::string& a, base::StringView b) const {
+    return base::StringView(a) == b;
+  }
+};
 
- protected:
+// Helper to check if a lookup key type K is allowed.
+// Returns true if:
+// 1. K can be implicitly converted to Key, OR
+// 2. Hasher has is_transparent AND Hasher is invocable with K AND Key and K
+// are equality comparable
+template <typename K, typename Key, typename Hasher>
+static constexpr bool IsLookupKeyAllowed() {
+  if constexpr (HasIsTransparent<Hasher>::value) {
+    return std::is_invocable_v<Hasher, const K&> &&
+           std::is_same_v<decltype(std::declval<const Key&>() ==
+                                   std::declval<const K&>()),
+                          bool>;
+  } else if constexpr (std::is_convertible_v<K, Key>) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+class FlatHashMapV2Base {
+ public:
   // Swiss Table control byte encoding:
   // - Empty:   0x80 (10000000) - MSB set, easy to detect with sign bit
   // - Deleted: 0xFE (11111110) - MSB set
@@ -130,11 +131,13 @@ struct FlatHashMapV2Base {
   static constexpr int kDefaultLoadLimitPct = 75;
 };
 
+};  // namespace flat_hash_map_v2_internal
+
 template <typename Key,
           typename Value,
           typename Hasher = base::MurmurHash<Key>,
-          typename Eq = FlatHashMapV2Base::HashEq<Key>>
-class FlatHashMapV2 : protected FlatHashMapV2Base {
+          typename Eq = flat_hash_map_v2_internal::HashEq<Key>>
+class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
  private:
   // Slot structure holds both key and value
   struct Slot {
@@ -423,7 +426,7 @@ class FlatHashMapV2 : protected FlatHashMapV2Base {
                                                  size_t key_hash,
                                                  uint8_t h2) const {
     static_assert(
-        IsLookupKeyAllowed<K, Key, Hasher>(),
+        flat_hash_map_v2_internal::IsLookupKeyAllowed<K, Key, Hasher>(),
         "Heterogeneous lookup requires Hasher to define is_transparent and "
         "support hashing the lookup key type. For same-type lookup, Key and K "
         "must match exactly.");
