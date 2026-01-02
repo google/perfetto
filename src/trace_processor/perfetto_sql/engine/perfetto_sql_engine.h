@@ -23,7 +23,6 @@
 #include <optional>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -34,7 +33,6 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -66,27 +64,16 @@ class PerfettoSqlEngine {
     SqliteEngine::PreparedStatement stmt;
     ExecutionStats stats;
   };
-  struct UnfinalizedStaticTable {
+  struct StaticTable {
     dataframe::Dataframe* dataframe;
     std::string name;
   };
-  struct FinalizedStaticTable {
-    DataframeSharedStorage::DataframeHandle handle;
-    std::string name;
-  };
-  PerfettoSqlEngine(StringPool* pool,
-                    DataframeSharedStorage* storage,
-                    bool enable_extra_checks);
+  PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks);
 
   // Initializes the static tables and functions in the engine.
   base::Status InitializeStaticTablesAndFunctions(
-      const std::vector<UnfinalizedStaticTable>& unfinalized_tables,
-      std::vector<FinalizedStaticTable> finalized_tables,
+      const std::vector<StaticTable>& tables,
       std::vector<std::unique_ptr<StaticTableFunction>> functions);
-
-  // Finalizes all the static tables owned by this engine and makes them
-  // sharable in the `DataframeSharedStorage` passed in the constructor.
-  void FinalizeAndShareAllStaticTables();
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
   // object. The metadata will reference all the statements executed and the
@@ -281,11 +268,7 @@ class PerfettoSqlEngine {
                                              SqlSource sql);
 
  private:
-  using UnfinalizedOrFinalizedStaticTable =
-      std::variant<DataframeSharedStorage::DataframeHandle,
-                   dataframe::Dataframe*>;
-  void RegisterStaticTable(UnfinalizedOrFinalizedStaticTable,
-                           const std::string&);
+  void RegisterStaticTable(dataframe::Dataframe*, const std::string&);
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
 
   base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
@@ -362,19 +345,9 @@ class PerfettoSqlEngine {
 
   StringPool* pool_ = nullptr;
 
-  // Storage for shared Dataframe objects.
-  //
-  // Note that this class can be shared between multiple PerfettoSqlEngine
-  // instances which are operating on different threads.
-  DataframeSharedStorage* dataframe_shared_storage_;
-
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.
   const bool enable_extra_checks_;
-
-  // A stack which keeps track of the modules which are being included. Used to
-  // know when dataframes should be shared.
-  std::vector<std::string> module_include_stack_;
 
   uint64_t function_count_ = 0;
   uint64_t aggregate_function_count_ = 0;
