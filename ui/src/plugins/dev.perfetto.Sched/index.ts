@@ -261,6 +261,10 @@ export default class SchedPlugin implements PerfettoPlugin {
       );
     }
 
+    // Query for threads that have either CPU scheduling data (from sched table)
+    // or thread state data (from thread_state table). This allows thread state
+    // tracks to be created for traces that only contain thread_state entries
+    // (e.g., from Chrome JSON traces) without requiring sched data.
     const result = await engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.summary.threads;
@@ -274,7 +278,11 @@ export default class SchedPlugin implements PerfettoPlugin {
         is_main_thread as isMainThread,
         is_kernel_thread as isKernelThread
       from _threads_with_kernel_flag t
-      join _sched_summary using (utid)
+      where utid in (
+        select distinct utid from _sched_summary
+        union
+        select distinct utid from thread_state
+      )
     `);
 
     const it = result.iter({
@@ -417,8 +425,13 @@ export default class SchedPlugin implements PerfettoPlugin {
   }
 
   private async hasSched(engine: Engine): Promise<boolean> {
-    const result = await engine.query(`SELECT ts FROM sched LIMIT 1`);
-    return result.numRows() > 0;
+    const schedResult = await engine.query(`SELECT ts FROM sched LIMIT 1`);
+    if (schedResult.numRows() > 0) return true;
+
+    const threadStateResult = await engine.query(
+      `SELECT ts FROM thread_state LIMIT 1`,
+    );
+    return threadStateResult.numRows() > 0;
   }
 
   private addSchedulingSummaryTracks(ctx: Trace) {

@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
@@ -388,6 +389,73 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       } else {
         context_->storage->IncrementStats(stats::flow_invalid_id);
       }
+      break;
+    }
+    case 'T': {  // Thread state event.
+      if (event.dur == std::numeric_limits<int64_t>::max()) {
+        context_->storage->IncrementStats(stats::json_parser_failure);
+        return;
+      }
+
+      // Create thread state row
+      tables::ThreadStateTable::Row row;
+      row.ts = timestamp;
+      row.dur = event.dur;
+      row.utid = utid;
+      row.state = slice_name_id;  // Use event name as state
+
+      // Parse optional fields from args if present
+      if (event.args_size > 0) {
+        it_.Reset(event.args.get(), event.args.get() + event.args_size);
+        if (it_.ParseStart()) {
+          for (;;) {
+            switch (it_.ParseObjectFieldWithoutRecursing()) {
+              case json::ReturnCode::kEndOfScope:
+              case json::ReturnCode::kOk:
+                break;
+              case json::ReturnCode::kError:
+              case json::ReturnCode::kIncompleteInput:
+                continue;
+            }
+            if (it_.eof()) {
+              break;
+            }
+
+            std::string_view key = it_.key();
+            if (key == "io_wait") {
+              if (const auto* val = std::get_if<int64_t>(&it_.value())) {
+                row.io_wait = static_cast<uint32_t>(*val);
+              }
+            } else if (key == "blocked_function") {
+              std::string_view func = GetStringValue(it_.value());
+              if (!func.empty()) {
+                row.blocked_function = storage->InternString(func);
+              }
+            } else if (key == "waker_tid") {
+              if (const auto* val = std::get_if<int64_t>(&it_.value())) {
+                uint32_t waker_tid = static_cast<uint32_t>(*val);
+                uint32_t waker_pid = event.pid;  // Default to same process
+                UniqueTid waker_utid =
+                    procs->UpdateThread(waker_tid, waker_pid);
+                row.waker_utid = waker_utid;
+              }
+            } else if (key == "waker_pid") {
+              // Store for potential use with waker_tid
+            } else if (key == "cpu") {
+              if (const auto* val = std::get_if<int64_t>(&it_.value())) {
+                row.ucpu = context_->cpu_tracker->GetOrCreateCpu(
+                    static_cast<uint32_t>(*val));
+              }
+            } else if (key == "irq_context") {
+              if (const auto* val = std::get_if<int64_t>(&it_.value())) {
+                row.irq_context = static_cast<uint32_t>(*val);
+              }
+            }
+          }
+        }
+      }
+
+      storage->mutable_thread_state_table()->Insert(row);
       break;
     }
     case 'M': {  // Metadata events (process and thread names).
