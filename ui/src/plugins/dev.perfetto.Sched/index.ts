@@ -261,6 +261,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       );
     }
 
+    // Query for running threads from thread_state instead of sched table. See |hasSched|.
     const result = await engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.summary.threads;
@@ -274,7 +275,7 @@ export default class SchedPlugin implements PerfettoPlugin {
         is_main_thread as isMainThread,
         is_kernel_thread as isKernelThread
       from _threads_with_kernel_flag t
-      join _sched_summary using (utid)
+      where utid in (select distinct utid from thread_state WHERE state = 'Running')
     `);
 
     const it = result.iter({
@@ -416,8 +417,13 @@ export default class SchedPlugin implements PerfettoPlugin {
     });
   }
 
+  // Query for running threads from thread_state instead of sched table. This allows thread state
+  // tracks to be created for traces that only contain thread_state entries
+  // (e.g., from Chrome JSON traces) without requiring sched data.
   private async hasSched(engine: Engine): Promise<boolean> {
-    const result = await engine.query(`SELECT ts FROM sched LIMIT 1`);
+    const result = await engine.query(
+      `SELECT ts FROM thread_state WHERE state = 'Running' LIMIT 1`,
+    );
     return result.numRows() > 0;
   }
 

@@ -390,6 +390,42 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       }
       break;
     }
+    case 'T': {  // Thread state event.
+      if (event.dur == std::numeric_limits<int64_t>::max()) {
+        context_->storage->IncrementStats(stats::json_parser_failure);
+        return;
+      }
+
+      tables::ThreadStateTable::Row row;
+      row.ts = timestamp;
+      row.dur = event.dur;
+      row.utid = utid;
+      row.state = slice_name_id;
+
+      if (event.args_size > 0) {
+        it_.Reset(event.args.get(), event.args.get() + event.args_size);
+        if (!it_.ParseStart()) {
+          context_->storage->IncrementStats(stats::json_parser_failure);
+        } else {
+          json::ReturnCode ret;
+          while ((ret = it_.ParseObjectFieldWithoutRecursing()) ==
+                 json::ReturnCode::kOk) {
+            if (it_.key() == "io_wait") {
+              if (const auto* val = std::get_if<int64_t>(&it_.value()))
+                row.io_wait = static_cast<uint32_t>(*val);
+            } else if (it_.key() == "blocked_function") {
+              if (const auto* val = std::get_if<std::string_view>(&it_.value()))
+                row.blocked_function = storage->InternString(*val);
+            }
+          }
+          if (ret != json::ReturnCode::kEndOfScope)
+            context_->storage->IncrementStats(stats::json_parser_failure);
+        }
+      }
+
+      storage->mutable_thread_state_table()->Insert(row);
+      break;
+    }
     case 'M': {  // Metadata events (process and thread names).
       if (event.args_size == 0) {
         break;
