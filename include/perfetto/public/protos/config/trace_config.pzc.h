@@ -373,6 +373,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
                   perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
                   string_filter_chain,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
+                  STRING,
+                  const char*,
+                  bytecode_overlay_v54,
+                  4);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_TraceFilter_StringFilterChain);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
