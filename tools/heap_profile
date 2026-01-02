@@ -312,6 +312,28 @@ PACKAGES_LIST_CFG = '''data_sources {
 }
 '''
 
+THREAD_NAMES_CFG = '''data_sources {
+  config {
+    name: "linux.process_stats"
+    process_stats_config {
+      scan_all_processes_on_start: true
+      record_thread_names: true
+    }
+  }
+}
+'''
+
+PROCESS_STATS_CFG = '''data_sources {
+  config {
+    name: "linux.process_stats"
+    target_buffer: 0
+    process_stats_config {
+      proc_stats_poll_ms: 1000
+    }
+  }
+}
+'''
+
 CFG_INDENT = '      '
 CFG = '''buffers {{
   size_kb: 63488
@@ -474,6 +496,10 @@ def main(argv):
       action="store_true",
       help="Collect allocations from all heaps registered by target.")
   parser.add_argument(
+      "--all",
+      action="store_true",
+      help="Capture all processes.")
+  parser.add_argument(
       "--no-android-tree-symbolization",
       action="store_true",
       help="Do not symbolize using currently lunched target in the "
@@ -527,6 +553,11 @@ def main(argv):
       "callstack",
       action="store_true")
   parser.add_argument(
+      "--stream-allocations",
+      action="store_true",
+      help="Emit individual allocation and free events rather than aggregated dumps. Requires Android 12."
+  )
+  parser.add_argument(
       "--dump-at-max",
       help="Dump the maximum memory usage "
       "rather than at the time of the dump.",
@@ -570,8 +601,11 @@ def main(argv):
     print(
         "FATAL: Both block-client and no-block-client given.", file=sys.stderr)
     fail = True
-  if args.pid is None and args.name is None:
-    print("FATAL: Neither PID nor NAME given.", file=sys.stderr)
+  if args.pid is None and args.name is None and not args.all:
+    print("FATAL: Neither PID nor NAME given, and --all not specified.", file=sys.stderr)
+    fail = True
+  if args.all and (args.pid is not None or args.name is not None):
+    print("FATAL: --all cannot be used with --pid or --name.", file=sys.stderr)
     fail = True
   if args.duration is None:
     print("FATAL: No duration given.", file=sys.stderr)
@@ -606,6 +640,10 @@ def main(argv):
     target_cfg += CFG_INDENT + "disable_fork_teardown: true\n"
   if args.all_heaps:
     target_cfg += CFG_INDENT + "all_heaps: true\n"
+  if args.all:
+    target_cfg += CFG_INDENT + "all: true\n"
+  if args.stream_allocations:
+    target_cfg += CFG_INDENT + "stream_allocations: true\n"
   if args.pid:
     for pid in args.pid.split(','):
       try:
@@ -636,6 +674,9 @@ def main(argv):
       shmem_size=args.shmem_size)
   if not args.no_versions:
     cfg += PACKAGES_LIST_CFG
+  if args.stream_allocations:
+    cfg += THREAD_NAMES_CFG
+    cfg += PROCESS_STATS_CFG
 
   if args.print_config:
     print(cfg)

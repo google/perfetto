@@ -221,6 +221,7 @@ message StreamingAllocation {
   repeated uint64 clock_monotonic_coarse_timestamp = 4;
   repeated uint32 heap_id = 5;
   repeated uint64 sequence_number = 6;
+  repeated uint32 tid = 7;
 };
 
 // Packet emitted by heapprofd when stream_allocations = true. Only for local

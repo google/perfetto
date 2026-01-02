@@ -410,8 +410,9 @@ void UnwindingWorker::HandleBuffer(UnwindingWorker* self,
     rec->pid = peer_pid;
     rec->data_source_instance_id = data_source_instance_id;
     auto start_time_us = base::GetWallTimeNs() / 1000;
-    if (!client_data->stream_allocations)
-      DoUnwind(&msg, unwinding_metadata, rec.get());
+    // Always unwind, even in streaming mode, so we can match allocations with
+    // callstacks
+    DoUnwind(&msg, unwinding_metadata, rec.get());
     rec->unwinding_time_us = static_cast<uint64_t>(
         ((base::GetWallTimeNs() / 1000) - start_time_us).count());
     delegate->PostAllocRecord(self, std::move(rec));

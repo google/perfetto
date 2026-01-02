@@ -14,21 +14,29 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {NUM} from '../../trace_processor/query_result';
+import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {Track} from '../../public/track';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 import {assertExists} from '../../base/logging';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+  QueryFlamegraphWithMetrics,
+} from '../../components/query_flamegraph';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
+const HEAP_PROFILE_SAMPLE_TRACK_KIND = 'HeapProfileSampleTrack';
 
 const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.object({
   detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
 
 type HeapProfilePluginState = z.infer<typeof HEAP_PROFILE_PLUGIN_STATE_SCHEMA>;
@@ -38,6 +46,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   private readonly trackMap = new Map<number, Track>();
+  private readonly threadTrackMap = new Map<number, Track>();
   private store?: Store<HeapProfilePluginState>;
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
@@ -51,6 +60,11 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     );
     await this.createHeapProfileTable(trace);
     await this.addProcessTracks(trace);
+    await this.addThreadTracks(trace);
+
+    trace.selection.registerAreaSelectionTab(
+      this.createAreaSelectionTab(trace),
+    );
 
     trace.onTraceReady.addListener(async () => {
       await this.selectFirstHeapProfile(trace);
@@ -66,6 +80,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           MIN(id) as id,
           graph_sample_ts AS ts,
           upid,
+          NULL AS utid,
           0 AS dur,
           0 AS depth,
           'graph' AS type
@@ -78,11 +93,24 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           MIN(id) as id,
           ts,
           upid,
+          NULL AS utid,
           0 AS dur,
           0 AS depth,
           'heap_profile:' || GROUP_CONCAT(DISTINCT heap_name) AS type
         FROM heap_profile_allocation
         GROUP BY ts, upid
+
+        UNION ALL
+
+        SELECT
+          id,
+          ts,
+          (SELECT upid FROM thread WHERE utid = heap_profile_sample.utid) AS upid,
+          utid,
+          0 AS dur,
+          0 AS depth,
+          'heap_profile_sample' AS type
+        FROM heap_profile_sample
       `,
     });
   }
@@ -105,6 +133,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       const track: Track = {
         uri,
         tags: {
+          kinds: [HEAP_PROFILE_SAMPLE_TRACK_KIND],
           upid,
         },
         renderer: createHeapProfileTrack(
@@ -130,6 +159,64 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         uri,
         name: 'Heap Profile',
         sortOrder: -30,
+      });
+      group?.addChildInOrder(trackNode);
+    }
+  }
+
+  private async addThreadTracks(trace: Trace) {
+    const trackGroupsPlugin = trace.plugins.getPlugin(
+      ProcessThreadGroupsPlugin,
+    );
+    const incomplete = await this.getIncomplete(trace);
+    
+    // Query for threads that have heap_profile_sample events
+    const result = await trace.engine.query(`
+      SELECT DISTINCT
+        utid,
+        (SELECT upid FROM thread WHERE thread.utid = heap_profile_sample.utid) AS upid,
+        (SELECT name FROM thread WHERE thread.utid = heap_profile_sample.utid) AS thread_name
+      FROM heap_profile_sample
+    `);
+    
+    for (const it = result.iter({utid: NUM, upid: NUM, thread_name: STR_NULL}); it.valid(); it.next()) {
+      const utid = it.utid;
+      const upid = it.upid;
+      const threadName = it.thread_name || `Thread ${utid}`;
+      const uri = `/process_${upid}/thread_${utid}/heap_profile_sample`;
+
+      const store = assertExists(this.store);
+      const track: Track = {
+        uri,
+        tags: {
+          kinds: [HEAP_PROFILE_SAMPLE_TRACK_KIND],
+          upid,
+          utid,
+        },
+        renderer: createHeapProfileTrack(
+          trace,
+          uri,
+          EVENT_TABLE_NAME,
+          upid,
+          incomplete,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
+          utid,
+        ),
+      };
+
+      trace.tracks.registerTrack(track);
+      this.threadTrackMap.set(utid, track);
+
+      const group = trackGroupsPlugin.getGroupForThread(utid);
+      const trackNode = new TrackNode({
+        uri,
+        name: `${threadName} (Heap Profile)`,
+        sortOrder: -29,
       });
       group?.addChildInOrder(trackNode);
     }
@@ -163,5 +250,126 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     if (!track) return;
 
     ctx.selection.selectTrackEvent(track.uri, iter.id);
+  }
+
+  private createAreaSelectionTab(trace: Trace) {
+    let previousSelection: AreaSelection | undefined;
+    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
+
+    return {
+      id: 'heap_profile_sample_flamegraph',
+      name: 'Heap Profile Sample Flamegraph',
+      render: (selection: AreaSelection) => {
+        const changed =
+          previousSelection === undefined ||
+          !areaSelectionsEqual(previousSelection, selection);
+        if (changed) {
+          flamegraphWithMetrics = this.computeHeapProfileSampleFlamegraph(
+            trace,
+            selection,
+          );
+          previousSelection = selection;
+        }
+        if (flamegraphWithMetrics === undefined) {
+          return undefined;
+        }
+        const {flamegraph, metrics} = flamegraphWithMetrics;
+        const store = assertExists(this.store);
+        return {
+          isLoading: false,
+          content: flamegraph.render({
+            metrics,
+            state: store.state.areaSelectionFlamegraphState,
+            onStateChange: (state) => {
+              store.edit((draft) => {
+                draft.areaSelectionFlamegraphState = state;
+              });
+            },
+          }),
+        };
+      },
+    };
+  }
+
+  private computeHeapProfileSampleFlamegraph(
+    trace: Trace,
+    selection: AreaSelection,
+  ): QueryFlamegraphWithMetrics | undefined {
+    const upids = [];
+    const utids = [];
+    for (const trackInfo of selection.tracks) {
+      if (trackInfo?.tags?.kinds?.includes(HEAP_PROFILE_SAMPLE_TRACK_KIND)) {
+        if (trackInfo.tags?.utid !== undefined) {
+          utids.push(trackInfo.tags.utid);
+        }
+        if (trackInfo.tags?.upid !== undefined) {
+          upids.push(trackInfo.tags.upid);
+        }
+      }
+    }
+    if (upids.length === 0 && utids.length === 0) {
+      return undefined;
+    }
+    
+    // Build WHERE clause based on what we have
+    let whereClause = '';
+    if (utids.length > 0 && upids.length > 0) {
+      whereClause = `(utid IN (${utids.join(',')}) OR (SELECT upid FROM thread WHERE utid = heap_profile_sample.utid) IN (${upids.join(',')}))`;
+    } else if (utids.length > 0) {
+      whereClause = `utid IN (${utids.join(',')})`;
+    } else {
+      whereClause = `(SELECT upid FROM thread WHERE utid = heap_profile_sample.utid) IN (${upids.join(',')})`;
+    }
+    
+    const metrics = metricsFromTableOrSubquery(
+      `
+      (
+        WITH profile_samples AS MATERIALIZED (
+          SELECT callsite_id, sum(size) as sample_size
+          FROM heap_profile_sample
+          WHERE ts >= ${selection.start}
+            AND ts <= ${selection.end}
+            AND ${whereClause}
+          GROUP BY callsite_id
+        )
+        SELECT
+          c.id,
+          c.parent_id as parentId,
+          c.name,
+          c.mapping_name,
+          c.source_file || ':' || c.line_number as source_location,
+          CASE WHEN c.is_leaf_function_in_callsite_frame
+            THEN coalesce(m.sample_size, 0)
+            ELSE 0
+          END AS self_size
+        FROM _callstacks_for_stack_profile_samples!(profile_samples) AS c
+        LEFT JOIN profile_samples AS m USING (callsite_id)
+      )
+    `,
+      [
+        {
+          name: 'Heap Allocation Size',
+          unit: 'B',
+          columnName: 'self_size',
+        },
+      ],
+      'include perfetto module callstacks.stack_profile',
+      [{name: 'mapping_name', displayName: 'Mapping'}],
+      [
+        {
+          name: 'source_location',
+          displayName: 'Source Location',
+          mergeAggregation: 'ONE_OR_SUMMARY',
+        },
+      ],
+    );
+    const store = assertExists(this.store);
+    store.edit((draft) => {
+      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+        draft.areaSelectionFlamegraphState,
+        metrics,
+      );
+    });
+    return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 }

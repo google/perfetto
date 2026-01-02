@@ -444,6 +444,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
   metadata.sequence_number =
       1 + sequence_number_[heap_id].fetch_add(1, std::memory_order_acq_rel);
   metadata.heap_id = heap_id;
+  metadata.tid = static_cast<uint32_t>(base::GetThreadId());
 
   struct timespec ts;
   if (clock_gettime(CLOCK_MONOTONIC_COARSE, &ts) == 0) {

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time} from '../../base/time';
+import m from 'mithril';
+import {Time, time} from '../../base/time';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -21,7 +22,49 @@ import {FlamegraphState} from '../../widgets/flamegraph';
 import {
   HeapProfileFlamegraphDetailsPanel,
   profileType,
+  ProfileType,
 } from './heap_profile_details_panel';
+import {HeapProfileSampleFlamegraphDetailsPanel} from './heap_profile_sample_details_panel';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {Spinner} from '../../widgets/spinner';
+
+class HeapProfileSampleDetailsLoader implements TrackEventDetailsPanel {
+  private panel?: HeapProfileSampleFlamegraphDetailsPanel;
+
+  constructor(
+    private readonly trace: Trace,
+    private readonly ts: time,
+    private readonly detailsPanelState: FlamegraphState | undefined,
+    private readonly onDetailsPanelStateChange: (
+      state: FlamegraphState,
+    ) => void,
+  ) {}
+
+  async load() {
+    const result = await this.trace.engine.query(`
+      SELECT utid FROM heap_profile_sample WHERE ts = ${this.ts} LIMIT 1
+    `);
+    if (result.numRows() === 0) {
+      return;
+    }
+    const utid = result.firstRow({utid: NUM}).utid;
+    this.panel = new HeapProfileSampleFlamegraphDetailsPanel(
+      this.trace,
+      this.ts,
+      utid,
+      this.detailsPanelState,
+      this.onDetailsPanelStateChange,
+    );
+    await this.panel.load();
+  }
+
+  render() {
+    if (!this.panel) {
+      return m(Spinner);
+    }
+    return this.panel.render();
+  }
+}
 
 export function createHeapProfileTrack(
   trace: Trace,
@@ -31,6 +74,7 @@ export function createHeapProfileTrack(
   heapProfileIsIncomplete: boolean,
   detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  utid?: number,
 ) {
   return SliceTrack.create({
     trace,
@@ -42,7 +86,10 @@ export function createHeapProfileTrack(
         type: STR,
         id: NUM,
       },
-      filter: {
+      filter: utid !== undefined ? {
+        col: 'utid',
+        eq: utid,
+      } : {
         col: 'upid',
         eq: upid,
       },
@@ -50,6 +97,18 @@ export function createHeapProfileTrack(
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
       const type = profileType(row.type);
+
+      // For individual heap profile samples, use the sample-specific details panel
+      if (type === ProfileType.HEAP_PROFILE_SAMPLE) {
+        return new HeapProfileSampleDetailsLoader(
+          trace,
+          ts,
+          detailsPanelState,
+          onDetailsPanelStateChange,
+        );
+      }
+
+      // For snapshot-based profiles, use the original details panel
       return new HeapProfileFlamegraphDetailsPanel(
         trace,
         heapProfileIsIncomplete,
