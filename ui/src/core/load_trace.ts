@@ -144,6 +144,10 @@ async function createEngine(
   if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
     useRpc = (await HttpRpcEngine.checkConnection()).connected;
   }
+
+  // Wait for extension proto descriptors to load before using them
+  await app.extensionProtoDescriptorsDeferred;
+
   const descriptorBlobs: Uint8Array[] = [];
   if (app.extraParsingDescriptors.length > 0) {
     for (const b64Str of app.extraParsingDescriptors) {
@@ -225,6 +229,10 @@ async function loadTraceIntoEngine(
     assertTrue(engine instanceof HttpRpcEngine);
     await engine.restoreInitialTables();
   }
+
+  // Wait for extension SQL modules to load before registering
+  await app.extensionSqlModulesDeferred;
+
   for (const p of app.extraSqlPackages) {
     await engine.registerSqlPackages(p);
   }

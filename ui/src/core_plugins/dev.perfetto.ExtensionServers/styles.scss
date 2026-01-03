@@ -1,0 +1,122 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "theme";
+
+// Inline settings renderer
+.pf-extension-servers-settings {
+  &__header {
+    margin-bottom: 12px;
+  }
+
+  &__empty {
+    padding: 20px;
+    text-align: center;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: var(--pf-minimal-background);
+    border: 1px solid var(--pf-border);
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--pf-minimal-hover-background);
+    }
+  }
+
+  &__item-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__item-url {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__item-info {
+    font-size: 12px;
+    color: var(--pf-text-secondary);
+    margin-top: 4px;
+  }
+
+  &__item-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: 12px;
+  }
+}
+
+// Add/Edit modal
+.pf-add-extension-server-modal {
+  max-width: min(500px, 90vw);
+  width: 100%;
+
+  .pf-card {
+    margin-bottom: 12px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .pf-form__label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    font-size: 13px;
+
+    &:not(:first-child) {
+      margin-top: 12px;
+    }
+  }
+
+  .pf-text-input {
+    width: 100%;
+  }
+
+  &__fetch-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .pf-help-icon {
+      color: var(--pf-text-secondary);
+      cursor: help;
+    }
+  }
+
+  &__error {
+    margin: 12px 0;
+
+    .pf-callout {
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      white-space: normal;
+    }
+  }
+}
