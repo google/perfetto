@@ -66,6 +66,10 @@
         border-color: var(--pf-color-track-summary-expanded);
       }
     }
+
+    &--clickable {
+      cursor: pointer;
+    }
   }
 
   &__shell {
@@ -120,6 +124,11 @@
     grid-area: canvas;
     overflow: hidden; // Keeps subtitle width contained
     border-bottom: solid 1px var(--pf-color-border-secondary);
+    cursor: default;
+
+    &--clickable {
+      cursor: pointer;
+    }
 
     &--error {
       // Necessary trig because we have 45deg stripes

@@ -162,7 +162,13 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             summary && 'pf-track__header--summary',
             expanded && 'pf-track__header--expanded',
             summary && expanded && 'pf-track__header--expanded--summary',
+            collapsible && !collapsed && 'pf-track__header--clickable',
           ),
+          onclick: (e: MouseEvent) => {
+            if (e.target === e.currentTarget && collapsible && !collapsed) {
+              attrs.onCollapsedChanged?.(true);
+            }
+          },
         },
         this.renderShell(attrs),
         !lite && this.renderContent(attrs),
@@ -371,7 +377,10 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     return m(
       '.pf-track__canvas',
       {
-        className: classNames(error && 'pf-track__canvas--error'),
+        className: classNames(
+          error && 'pf-track__canvas--error',
+          attrs.collapsible && attrs.collapsed && 'pf-track__canvas--clickable',
+        ),
         onmousemove: (e: MithrilEvent<MouseEvent>) => {
           e.redraw = false;
           onTrackContentMouseMove?.(
@@ -400,6 +409,11 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           // if a selection occurred.
           if (this.selectionOccurred) {
             this.selectionOccurred = false;
+            return;
+          }
+
+          if (attrs.collapsible && attrs.collapsed) {
+            attrs.onCollapsedChanged?.(false);
             return;
           }
 
