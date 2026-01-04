@@ -112,6 +112,8 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_BufferConfig,
                                   MODE_UNSPECIFIED) = 0,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
                                   TRACE_BUFFER_V2) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
+                                  TRACE_BUFFER_V2_SHADOW_MODE) = 2,
 };
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig);
@@ -373,6 +375,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
                   perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
                   string_filter_chain,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
+                  STRING,
+                  const char*,
+                  bytecode_overlay_v54,
+                  4);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_TraceFilter_StringFilterChain);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,

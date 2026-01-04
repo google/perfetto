@@ -4478,8 +4478,10 @@ class TraceConfig(_message.Message):
             __slots__ = ()
             MODE_UNSPECIFIED: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
             TRACE_BUFFER_V2: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
+            TRACE_BUFFER_V2_SHADOW_MODE: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
         MODE_UNSPECIFIED: TraceConfig.BufferConfig.ExperimentalMode
         TRACE_BUFFER_V2: TraceConfig.BufferConfig.ExperimentalMode
+        TRACE_BUFFER_V2_SHADOW_MODE: TraceConfig.BufferConfig.ExperimentalMode
         SIZE_KB_FIELD_NUMBER: _ClassVar[int]
         FILL_POLICY_FIELD_NUMBER: _ClassVar[int]
         TRANSFER_ON_CLONE_FIELD_NUMBER: _ClassVar[int]
@@ -4603,7 +4605,7 @@ class TraceConfig(_message.Message):
         skip_dropbox: bool
         def __init__(self, destination_package: _Optional[str] = ..., destination_class: _Optional[str] = ..., privacy_level: _Optional[int] = ..., skip_incidentd: bool = ..., skip_dropbox: bool = ...) -> None: ...
     class TraceFilter(_message.Message):
-        __slots__ = ("bytecode", "bytecode_v2", "string_filter_chain")
+        __slots__ = ("bytecode", "bytecode_v2", "string_filter_chain", "bytecode_overlay_v54")
         class StringFilterPolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
             __slots__ = ()
             SFP_UNSPECIFIED: _ClassVar[TraceConfig.TraceFilter.StringFilterPolicy]
@@ -4635,10 +4637,12 @@ class TraceConfig(_message.Message):
         BYTECODE_FIELD_NUMBER: _ClassVar[int]
         BYTECODE_V2_FIELD_NUMBER: _ClassVar[int]
         STRING_FILTER_CHAIN_FIELD_NUMBER: _ClassVar[int]
+        BYTECODE_OVERLAY_V54_FIELD_NUMBER: _ClassVar[int]
         bytecode: bytes
         bytecode_v2: bytes
         string_filter_chain: TraceConfig.TraceFilter.StringFilterChain
-        def __init__(self, bytecode: _Optional[bytes] = ..., bytecode_v2: _Optional[bytes] = ..., string_filter_chain: _Optional[_Union[TraceConfig.TraceFilter.StringFilterChain, _Mapping]] = ...) -> None: ...
+        bytecode_overlay_v54: bytes
+        def __init__(self, bytecode: _Optional[bytes] = ..., bytecode_v2: _Optional[bytes] = ..., string_filter_chain: _Optional[_Union[TraceConfig.TraceFilter.StringFilterChain, _Mapping]] = ..., bytecode_overlay_v54: _Optional[bytes] = ...) -> None: ...
     class AndroidReportConfig(_message.Message):
         __slots__ = ("reporter_service_package", "reporter_service_class", "skip_report", "use_pipe_in_framework_for_testing")
         REPORTER_SERVICE_PACKAGE_FIELD_NUMBER: _ClassVar[int]
@@ -4801,7 +4805,24 @@ class TraceStats(_message.Message):
     FINAL_FLUSH_SUCCEEDED: TraceStats.FinalFlushOutcome
     FINAL_FLUSH_FAILED: TraceStats.FinalFlushOutcome
     class BufferStats(_message.Message):
-        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss")
+        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss", "shadow_buffer_stats")
+        class ShadowBufferStats(_message.Message):
+            __slots__ = ("packets_seen", "packets_in_both", "packets_only_v1", "packets_only_v2", "patches_attempted", "v1_patches_succeeded", "v2_patches_succeeded")
+            PACKETS_SEEN_FIELD_NUMBER: _ClassVar[int]
+            PACKETS_IN_BOTH_FIELD_NUMBER: _ClassVar[int]
+            PACKETS_ONLY_V1_FIELD_NUMBER: _ClassVar[int]
+            PACKETS_ONLY_V2_FIELD_NUMBER: _ClassVar[int]
+            PATCHES_ATTEMPTED_FIELD_NUMBER: _ClassVar[int]
+            V1_PATCHES_SUCCEEDED_FIELD_NUMBER: _ClassVar[int]
+            V2_PATCHES_SUCCEEDED_FIELD_NUMBER: _ClassVar[int]
+            packets_seen: int
+            packets_in_both: int
+            packets_only_v1: int
+            packets_only_v2: int
+            patches_attempted: int
+            v1_patches_succeeded: int
+            v2_patches_succeeded: int
+            def __init__(self, packets_seen: _Optional[int] = ..., packets_in_both: _Optional[int] = ..., packets_only_v1: _Optional[int] = ..., packets_only_v2: _Optional[int] = ..., patches_attempted: _Optional[int] = ..., v1_patches_succeeded: _Optional[int] = ..., v2_patches_succeeded: _Optional[int] = ...) -> None: ...
         BUFFER_SIZE_FIELD_NUMBER: _ClassVar[int]
         BYTES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
         BYTES_OVERWRITTEN_FIELD_NUMBER: _ClassVar[int]
@@ -4821,6 +4842,7 @@ class TraceStats(_message.Message):
         READAHEADS_FAILED_FIELD_NUMBER: _ClassVar[int]
         ABI_VIOLATIONS_FIELD_NUMBER: _ClassVar[int]
         TRACE_WRITER_PACKET_LOSS_FIELD_NUMBER: _ClassVar[int]
+        SHADOW_BUFFER_STATS_FIELD_NUMBER: _ClassVar[int]
         buffer_size: int
         bytes_written: int
         bytes_overwritten: int
@@ -4840,7 +4862,8 @@ class TraceStats(_message.Message):
         readaheads_failed: int
         abi_violations: int
         trace_writer_packet_loss: int
-        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ...) -> None: ...
+        shadow_buffer_stats: TraceStats.BufferStats.ShadowBufferStats
+        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ..., shadow_buffer_stats: _Optional[_Union[TraceStats.BufferStats.ShadowBufferStats, _Mapping]] = ...) -> None: ...
     class WriterStats(_message.Message):
         __slots__ = ("sequence_id", "buffer", "chunk_payload_histogram_counts", "chunk_payload_histogram_sum")
         SEQUENCE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -18057,7 +18080,7 @@ class EventName(_message.Message):
     def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ...) -> None: ...
 
 class InternedData(_message.Message):
-    __slots__ = ("event_categories", "event_names", "debug_annotation_names", "debug_annotation_value_type_names", "source_locations", "unsymbolized_source_locations", "log_message_body", "histogram_names", "build_ids", "mapping_paths", "source_paths", "function_names", "mappings", "frames", "callstacks", "vulkan_memory_keys", "graphics_contexts", "gpu_specifications", "kernel_symbols", "debug_annotation_string_values", "packet_context", "v8_js_function_name", "v8_js_function", "v8_js_script", "v8_wasm_script", "v8_isolate", "protolog_string_args", "protolog_stacktrace", "viewcapture_package_name", "viewcapture_window_name", "viewcapture_view_id", "viewcapture_class_name", "app_wakelock_info", "correlation_id_str")
+    __slots__ = ("event_categories", "event_names", "debug_annotation_names", "debug_annotation_value_type_names", "source_locations", "unsymbolized_source_locations", "log_message_body", "histogram_names", "build_ids", "mapping_paths", "source_paths", "function_names", "mappings", "frames", "callstacks", "vulkan_memory_keys", "graphics_contexts", "gpu_specifications", "kernel_symbols", "debug_annotation_string_values", "packet_context", "v8_js_function_name", "v8_js_function", "v8_js_script", "v8_wasm_script", "v8_isolate", "protolog_string_args", "protolog_stacktrace", "viewcapture_package_name", "viewcapture_window_name", "viewcapture_view_id", "viewcapture_class_name", "app_wakelock_info", "correlation_id_str", "android_job_name")
     EVENT_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     EVENT_NAMES_FIELD_NUMBER: _ClassVar[int]
     DEBUG_ANNOTATION_NAMES_FIELD_NUMBER: _ClassVar[int]
@@ -18092,6 +18115,7 @@ class InternedData(_message.Message):
     VIEWCAPTURE_CLASS_NAME_FIELD_NUMBER: _ClassVar[int]
     APP_WAKELOCK_INFO_FIELD_NUMBER: _ClassVar[int]
     CORRELATION_ID_STR_FIELD_NUMBER: _ClassVar[int]
+    ANDROID_JOB_NAME_FIELD_NUMBER: _ClassVar[int]
     event_categories: _containers.RepeatedCompositeFieldContainer[EventCategory]
     event_names: _containers.RepeatedCompositeFieldContainer[EventName]
     debug_annotation_names: _containers.RepeatedCompositeFieldContainer[DebugAnnotationName]
@@ -18126,7 +18150,16 @@ class InternedData(_message.Message):
     viewcapture_class_name: _containers.RepeatedCompositeFieldContainer[InternedString]
     app_wakelock_info: _containers.RepeatedCompositeFieldContainer[AppWakelockInfo]
     correlation_id_str: _containers.RepeatedCompositeFieldContainer[InternedString]
-    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., packet_context: _Optional[_Iterable[_Union[NetworkPacketContext, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ..., protolog_string_args: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., protolog_stacktrace: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_package_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_window_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_view_id: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_class_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., app_wakelock_info: _Optional[_Iterable[_Union[AppWakelockInfo, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ...) -> None: ...
+    android_job_name: _containers.RepeatedCompositeFieldContainer[AndroidJobName]
+    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., packet_context: _Optional[_Iterable[_Union[NetworkPacketContext, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ..., protolog_string_args: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., protolog_stacktrace: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_package_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_window_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_view_id: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_class_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., app_wakelock_info: _Optional[_Iterable[_Union[AppWakelockInfo, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., android_job_name: _Optional[_Iterable[_Union[AndroidJobName, _Mapping]]] = ...) -> None: ...
+
+class AndroidJobName(_message.Message):
+    __slots__ = ("iid", "name")
+    IID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    iid: int
+    name: str
+    def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ...) -> None: ...
 
 class MemoryTrackerSnapshot(_message.Message):
     __slots__ = ("global_dump_id", "level_of_detail", "process_memory_dumps")
