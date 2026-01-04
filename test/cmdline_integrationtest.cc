@@ -1294,6 +1294,61 @@ TEST_F(PerfettoCmdlineTest, DoNotDeleteNotEmptyWriteIntoFileTraceOnError) {
 }
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+TEST_F(PerfettoCmdlineTest,
+       DeleteEmptyWriteIntoFileWithTraceOutputTraceOnError) {
+  // We call `test_helper().RestartService()` to simulate `traced` dropping
+  // the connection to the `perfetto_cmd`, so we run this test only in
+  // `PERFETTO_START_DAEMONS` mode.
+  TraceConfig trace_config;
+  trace_config.set_unique_session_name("my_write_into_file_session");
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10000);  // 10 seconds, should never hit
+
+  const std::string write_into_file_path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(write_into_file_path);
+
+  trace_config.set_output_path(write_into_file_path);
+
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  std::string perfetto_cmd_stderr;
+  std::thread background_trace([&perfetto_proc, &perfetto_cmd_stderr]() {
+    EXPECT_EQ(0, perfetto_proc.Run(&perfetto_cmd_stderr))
+        << perfetto_cmd_stderr;
+  });
+
+  // Wait until the trace file is created.
+  for (int i = 0; i < 100 && !base::FileExists(write_into_file_path); i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_TRUE(base::FileExists(write_into_file_path));
+  // Trace file should be empty.
+  ASSERT_EQ(base::GetFileSize(write_into_file_path).value(), 0ul);
+
+  // Tracing session is still running, now simulate `traced` dropping the
+  // connection to the `perfetto_cmd`
+  test_helper().RestartService();
+
+  background_trace.join();
+  // Assert perfetto_cmd disconnected with an error.
+  EXPECT_THAT(
+      perfetto_cmd_stderr,
+      HasSubstr("Service error: EnableTracing IPC request rejected. This is "
+                "likely due to a loss of the traced connection"));
+  // Assert trace was deleted.
+  EXPECT_FALSE(base::FileExists(write_into_file_path));
+}
+#endif
+
 // Tests that SaveTraceForBugreport() works also if the trace has triggers
 // defined and those triggers have not been hit. This is a regression test for
 // b/188008375 .
