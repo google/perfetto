@@ -89,6 +89,15 @@ std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
 
     perfetto_protos_TraceConfig_end_data_sources(&cfg, &data_sources);
   }
+
+  if (clear_period_ms_ > 0) {
+    struct perfetto_protos_TraceConfig_IncrementalStateConfig is_cfg;
+    perfetto_protos_TraceConfig_begin_incremental_state_config(&cfg, &is_cfg);
+    perfetto_protos_TraceConfig_IncrementalStateConfig_set_clear_period_ms(
+        &is_cfg, clear_period_ms_);
+    perfetto_protos_TraceConfig_end_incremental_state_config(&cfg, &is_cfg);
+  }
+
   size_t cfg_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
   std::vector<uint8_t> cfg_buf(cfg_size);
   PerfettoHeapBufferCopyInto(hb, &writer.writer, cfg_buf.data(), cfg_size);

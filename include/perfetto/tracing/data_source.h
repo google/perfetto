@@ -21,21 +21,27 @@
 // override in order to create a custom data source that gets tracing Start/Stop
 // notifications and emits tracing data.
 
-#include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
-
 #include <array>
 #include <atomic>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <type_traits>
+#include <utility>
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/export.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/public/compiler.h"
+#include "perfetto/tracing/backend_type.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
-#include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
 #include "perfetto/tracing/internal/data_source_type.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
@@ -222,6 +228,13 @@ struct DefaultDataSourceTraits {
     // static_state.
     return ds_tls;
   }
+
+  // Allows clearing incremental state without destroying and recreating it.
+  // This is useful for data sources that use large data structures (e.g., hash
+  // maps) which are expensive to reallocate. Return true if clearing was
+  // successful. If the method is not defined or returns false, the incremental
+  // state will be destroyed and recreated.
+  static bool ClearIncrementalState(IncrementalStateType*) { return false; }
 };
 
 // Holds the type for a DataSource. Accessed by the static Trace() method
@@ -495,6 +508,9 @@ class DataSource : public DataSourceBase {
         GetCreateIncrementalStateFn(
             static_cast<typename DataSourceTraits::IncrementalStateType*>(
                 nullptr)),
+        GetClearIncrementalStateFn(
+            static_cast<typename DataSourceTraits::IncrementalStateType*>(
+                nullptr)),
         nullptr);
   }
 
@@ -546,6 +562,44 @@ class DataSource : public DataSourceBase {
 
   static internal::DataSourceType::CreateIncrementalStateFn
   GetCreateIncrementalStateFn(const void*) {
+    return nullptr;
+  }
+
+  // Detection idiom for checking if DataSourceTraits::ClearIncrementalState(T*)
+  // exists. Supports traits that don't inherit from DefaultDataSourceTraits.
+  template <typename Traits, typename T, typename = void>
+  struct HasClearIncrementalState : std::false_type {};
+
+  template <typename Traits, typename T>
+  struct HasClearIncrementalState<
+      Traits,
+      T,
+      std::void_t<decltype(Traits::ClearIncrementalState(std::declval<T*>()))>>
+      : std::true_type {};
+
+  // Wrapper that calls DataSourceTraits::ClearIncrementalState if it exists.
+  // Returns false if the method is not defined in the traits.
+  template <typename T>
+  static bool ClearIncrementalStateWrapper(void* incremental_state, void*) {
+    if constexpr (HasClearIncrementalState<DataSourceTraits, T>::value) {
+      return DataSourceTraits::ClearIncrementalState(
+          reinterpret_cast<T*>(incremental_state));
+    } else {
+      base::ignore_result(incremental_state);
+      return false;
+    }
+  }
+
+  // The second parameter here is used to specialize the case where there is no
+  // incremental state type.
+  template <typename T>
+  static internal::DataSourceType::ClearIncrementalStateFn
+  GetClearIncrementalStateFn(const T*) {
+    return &ClearIncrementalStateWrapper<T>;
+  }
+
+  static internal::DataSourceType::ClearIncrementalStateFn
+  GetClearIncrementalStateFn(const void*) {
     return nullptr;
   }
 
