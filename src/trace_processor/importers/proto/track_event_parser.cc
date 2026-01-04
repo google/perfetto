@@ -452,8 +452,9 @@ DummyMemoryMapping* TrackEventParser::GetOrCreateInlineCallstackDummyMapping() {
   return inline_callstack_dummy_mapping_;
 }
 
-void TrackEventParser::NotifyEndOfFile() {
-  active_chrome_processes_tracker_.NotifyEndOfFile();
+void TrackEventParser::OnEventsFullyExtracted() {
+  // Phase 3: Flush active chrome processes tracker
+  active_chrome_processes_tracker_.OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor

@@ -33,7 +33,7 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
   ~GeckoTraceTokenizer() override;
 
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
 
  private:
   TraceProcessorContext* const context_;

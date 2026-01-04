@@ -249,7 +249,8 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
   }
 }
 
-void HeapGraphModule::NotifyEndOfFile() {
+void HeapGraphModule::OnEventsFullyExtracted() {
+  // Phase 3: Finalize all heap profiles
   auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   heap_graph_tracker->FinalizeAllProfiles();
 }

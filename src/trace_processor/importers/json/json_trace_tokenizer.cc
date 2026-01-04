@@ -987,7 +987,8 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
   return SetOutAndReturn(next, out);
 }
 
-base::Status JsonTraceTokenizer::NotifyEndOfFile() {
+base::Status JsonTraceTokenizer::OnPushDataToSorter() {
+  // Phase 1: Validate trace is complete
   return position_ == TracePosition::kEof ||
                  (position_ == TracePosition::kInsideTraceEventsArray &&
                   format_ == TraceFormat::kOnlyTraceEvents)

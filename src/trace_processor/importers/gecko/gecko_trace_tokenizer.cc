@@ -62,7 +62,8 @@ base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
+base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
+  // Phase 1: Parse pending JSON and push events to sorter
   std::optional<Json::Value> opt_value =
       json::ParseJsonString(base::StringView(pending_json_));
   if (!opt_value) {

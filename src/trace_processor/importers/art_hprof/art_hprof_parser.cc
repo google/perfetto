@@ -65,7 +65,13 @@ base::Status ArtHprofParser::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status ArtHprofParser::NotifyEndOfFile() {
+base::Status ArtHprofParser::OnPushDataToSorter() {
+  // Idempotency: if parser is null, we've already pushed
+  if (!parser_) {
+    return base::OkStatus();
+  }
+
+  // Phase 1: Build heap graph and write to storage
   const HeapGraph graph = parser_->BuildGraph();
 
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(0);
@@ -82,6 +88,13 @@ base::Status ArtHprofParser::NotifyEndOfFile() {
 
   // Finally process references
   PopulateReferences(graph);
+
+  // Clear state for idempotency - subsequent calls will be no-ops
+  class_map_.Clear();
+  class_object_map_.Clear();
+  object_map_.Clear();
+  class_name_map_.Clear();
+  parser_->Clear();
 
   return base::OkStatus();
 }

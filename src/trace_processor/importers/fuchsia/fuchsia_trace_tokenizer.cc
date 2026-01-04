@@ -676,9 +676,14 @@ void FuchsiaTraceTokenizer::RegisterProvider(uint32_t provider_id,
   providers_[provider_id] = std::move(provider);
 }
 
-base::Status FuchsiaTraceTokenizer::NotifyEndOfFile() {
-  RETURN_IF_ERROR(proto_trace_reader_.NotifyEndOfFile());
-  return base::OkStatus();
+base::Status FuchsiaTraceTokenizer::OnPushDataToSorter() {
+  // Phase 1: Delegate to proto trace reader to push deferred packets
+  return proto_trace_reader_.OnPushDataToSorter();
+}
+
+void FuchsiaTraceTokenizer::OnEventsFullyExtracted() {
+  // Phase 3: Delegate to proto trace reader for cleanup
+  proto_trace_reader_.OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor

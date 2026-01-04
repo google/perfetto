@@ -236,7 +236,8 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
   }
 }
 
-void WinscopeModule::NotifyEndOfFile() {
+void WinscopeModule::OnEventsFullyExtracted() {
+  // Phase 3: Flush shell transitions tracker
   context_.shell_transitions_tracker_.Flush();
 }
 

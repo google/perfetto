@@ -34,7 +34,7 @@ class MemoryTrackerSnapshotParser {
   explicit MemoryTrackerSnapshotParser(TraceProcessorContext* context);
   void ParseMemoryTrackerSnapshot(int64_t ts, protozero::ConstBytes blob);
 
-  void NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
  private:
   using RawMemoryNodeMap =

@@ -191,7 +191,13 @@ base::Status TarTraceReader::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status TarTraceReader::NotifyEndOfFile() {
+base::Status TarTraceReader::OnPushDataToSorter() {
+  // Idempotency: if parsers already created, we've already pushed
+  if (!parsers_.empty()) {
+    return base::OkStatus();
+  }
+
+  // Phase 1: Validate TAR stream + create parsers and push data to sorter
   if (state_ != State::kDone) {
     return base::ErrStatus("Premature end of TAR file");
   }
@@ -205,13 +211,20 @@ base::Status TarTraceReader::NotifyEndOfFile() {
     for (auto& data : file.second.data) {
       RETURN_IF_ERROR(parser.Parse(std::move(data)));
     }
-    RETURN_IF_ERROR(parser.NotifyEndOfFile());
+    RETURN_IF_ERROR(parser.OnPushDataToSorter());
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.
     PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
   }
 
   return base::OkStatus();
+}
+
+void TarTraceReader::OnEventsFullyExtracted() {
+  // Phase 3: Delegate to inner parsers (in reverse order for LIFO stack)
+  for (auto it = parsers_.rbegin(); it != parsers_.rend(); ++it) {
+    (*it)->OnEventsFullyExtracted();
+  }
 }
 
 base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {

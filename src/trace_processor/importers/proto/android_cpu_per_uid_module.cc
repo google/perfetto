@@ -140,7 +140,8 @@ void AndroidCpuPerUidModule::ParseTracePacketData(
   }
 }
 
-void AndroidCpuPerUidModule::NotifyEndOfFile() {
+void AndroidCpuPerUidModule::OnEventsFullyExtracted() {
+  // Phase 3: Populate android_cpu_per_uid_track_table with cumulative data
   for (auto it = cumulative_.GetIterator(); it; ++it) {
     tables::AndroidCpuPerUidTrackTable::Row row;
     row.uid = it.key() >> 32;

@@ -85,6 +85,4 @@ void DeobfuscationModule::BuildMappingTableIncremental(
   }
 }
 
-void DeobfuscationModule::NotifyEndOfFile() {}
-
 }  // namespace perfetto::trace_processor
