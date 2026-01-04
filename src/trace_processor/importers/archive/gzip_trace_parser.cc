@@ -125,6 +125,10 @@ base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
   }
 }
 
+base::Status GzipTraceParser::ProcessEndOfFileDeferredPackets() {
+  return inner_ ? inner_->ProcessEndOfFileDeferredPackets() : base::OkStatus();
+}
+
 base::Status GzipTraceParser::NotifyEndOfFile() {
   if (output_state_ != kStreamBoundary || decompressor_.AvailIn() > 0) {
     return base::ErrStatus("GZIP stream incomplete, trace is likely corrupt");

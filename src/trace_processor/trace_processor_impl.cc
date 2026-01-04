@@ -625,6 +625,10 @@ void TraceProcessorImpl::FlushInternal(bool should_build_bounds_table) {
   }
 }
 
+base::Status TraceProcessorImpl::ProcessEndOfFileDeferredPackets() {
+  return TraceProcessorStorageImpl::ProcessEndOfFileDeferredPackets();
+}
+
 base::Status TraceProcessorImpl::NotifyEndOfFile() {
   if (notify_eof_called_) {
     const char kMessage[] =

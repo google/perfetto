@@ -439,6 +439,15 @@ base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   return trace_processor_->Parse(std::move(data_copy), len);
 }
 
+base::Status Rpc::ProcessEndOfFileDeferredPackets() {
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE,
+                    "RPC_PROCESS_END_OF_FILE_DEFERRED_PACKETS");
+
+  RETURN_IF_ERROR(trace_processor_->ProcessEndOfFileDeferredPackets());
+  MaybePrintProgress();
+  return base::OkStatus();
+}
+
 base::Status Rpc::NotifyEndOfFile() {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE,
                     "RPC_NOTIFY_END_OF_FILE");

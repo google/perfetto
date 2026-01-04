@@ -194,6 +194,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   if (req.uri == "/notify_eof") {
+    global_trace_processor_rpc_.ProcessEndOfFileDeferredPackets();
     global_trace_processor_rpc_.NotifyEndOfFile();
     return conn.SendResponse("200 OK", default_headers);
   }

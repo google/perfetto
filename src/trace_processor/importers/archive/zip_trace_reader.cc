@@ -82,6 +82,7 @@ base::Status ZipTraceReader::NotifyEndOfFile() {
 
     RETURN_IF_ERROR(parser.Parse(std::move(file.second.data)));
     RETURN_IF_ERROR(parser.NotifyEndOfFile());
+    RETURN_IF_ERROR(parser.ProcessEndOfFileDeferredPackets());
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.
     PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
