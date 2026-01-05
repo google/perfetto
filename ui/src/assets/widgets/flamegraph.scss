@@ -27,16 +27,32 @@
   .filter-bar {
     margin: 6px 8px;
     display: flex;
-    column-gap: 8px;
-    align-items: start;
-
-    .pf-tag-input {
-      flex-grow: 1;
-    }
+    gap: 6px;
+    align-items: center;
 
     .pf-select {
       flex-shrink: 0;
     }
+  }
+
+  .pf-flamegraph-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+
+    .pf-chip {
+      max-width: 200px;
+      min-width: auto;
+    }
+  }
+
+  .pf-flamegraph-filter-label {
+    font-weight: 500;
+  }
+
+  .pf-flamegraph-filter-spacer {
+    flex-grow: 1;
   }
 
   .popup-anchor {
@@ -58,12 +74,6 @@
   .pf-virtual-canvas {
     height: 100%;
   }
-}
-
-.pf-flamegraph-filter-bar-popup-content {
-  white-space: pre-line;
-  width: 100%;
-  word-wrap: break-word;
 }
 
 .pf-flamegraph-tooltip-popup {
@@ -98,5 +108,55 @@
     font-style: italic;
     color: var(--pf-color-text-muted);
     padding-bottom: 4px; // Extra gap between marker and function name
+  }
+}
+
+.pf-filter-builder {
+  &.pf-popup {
+    min-width: 280px;
+    > .pf-popup-content {
+      padding: 12px;
+    }
+  }
+  &__divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: smaller;
+    color: var(--pf-color-text-muted);
+    margin: 8px 0;
+    &::before,
+    &::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--pf-color-border);
+    }
+  }
+  &__quick-add.pf-stack {
+    align-items: center;
+  }
+  &__help-icon {
+    margin-left: 4px;
+    margin-bottom: 8px;
+  }
+  &__desc,
+  &__warn {
+    font-size: smaller;
+    margin-bottom: 8px;
+  }
+  &__desc {
+    color: var(--pf-color-text-muted);
+  }
+  &__warn {
+    color: var(--pf-color-warning);
+  }
+  &__help {
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 4px;
+  }
+  &__help-row {
+    padding: 2px 0;
   }
 }
