@@ -31,6 +31,9 @@
 #define YYNOERRORRECOVERY 1
 #define YYPARSEFREENEVERNULL 1
 /**************** End of %include directives **********************************/
+
+namespace perfetto::trace_processor {
+
 /* These constants specify the various numeric values for terminal symbols.
 ***************** Begin token definitions *************************************/
 #ifndef PPTK_SEMI
@@ -559,7 +562,7 @@ static void yy_destructor(
 /********* Begin destructor definitions ***************************************/
     case 17: /* applylist */
 {
- OnPreprocessorFreeApplyList(state, (yypminor->yy2)); 
+ delete (yypminor->yy2); 
 }
       break;
 /********* End destructor definitions *****************************************/
@@ -974,19 +977,21 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 3: /* applylist ::= applylist COMMA tokenlist */
 {
-  yylhsminor.yy2 = OnPreprocessorAppendApplyList(yymsp[-2].minor.yy2, &yymsp[0].minor.yy32);
+  yymsp[-2].minor.yy2->args.push_back(yymsp[0].minor.yy32);
+  yylhsminor.yy2 = yymsp[-2].minor.yy2;
 }
   yymsp[-2].minor.yy2 = yylhsminor.yy2;
         break;
       case 4: /* applylist ::= tokenlist */
 {
-  yylhsminor.yy2 = OnPreprocessorAppendApplyList(OnPreprocessorCreateApplyList(), &yymsp[0].minor.yy32);
+  yylhsminor.yy2 = new PreprocessorGrammarApplyList();
+  yylhsminor.yy2->args.push_back(yymsp[0].minor.yy32);
 }
   yymsp[0].minor.yy2 = yylhsminor.yy2;
         break;
       case 5: /* applylist ::= */
 {
-  yymsp[1].minor.yy2 = OnPreprocessorCreateApplyList();
+  yymsp[1].minor.yy2 = new PreprocessorGrammarApplyList();
 }
         break;
       case 6: /* commalesssqltoken ::= OPAQUE */
@@ -1386,3 +1391,5 @@ int PreprocessorGrammarParseFallback(int iToken){
   return 0;
 #endif
 }
+
+}  // namespace perfetto::trace_processor

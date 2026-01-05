@@ -226,7 +226,7 @@ Files: src/trace_processor/perfetto_sql/stdlib/chromium/*, protos/third_party/ch
 
 ------------------
 
-Files: src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.{c, h}
+Files: src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.{cc, h}
 
 The author disclaims copyright to this source code. In place of a legal notice, here is a blessing:
 

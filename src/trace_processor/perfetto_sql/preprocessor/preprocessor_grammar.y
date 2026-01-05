@@ -48,15 +48,17 @@ apply ::= APPLY COMMA|AND(J) TRUE|FALSE(P) ID(X) LP applylist(Y) RP LP applylist
 }
 
 %type applylist {struct PreprocessorGrammarApplyList*}
-%destructor applylist { OnPreprocessorFreeApplyList(state, $$); }
+%destructor applylist { delete $$; }
 applylist(A) ::= applylist(F) COMMA tokenlist(X). {
-  A = OnPreprocessorAppendApplyList(F, &X);
+  F->args.push_back(X);
+  A = F;
 }
 applylist(A) ::= tokenlist(F). {
-  A = OnPreprocessorAppendApplyList(OnPreprocessorCreateApplyList(), &F);
+  A = new PreprocessorGrammarApplyList();
+  A->args.push_back(F);
 }
 applylist(A) ::=. {
-  A = OnPreprocessorCreateApplyList();
+  A = new PreprocessorGrammarApplyList();
 }
 
 sql ::= sql sqltoken.

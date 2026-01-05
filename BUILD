@@ -3085,7 +3085,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_grammar_grammar",
     srcs = [
-        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.c",
+        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.cc",
         "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h",
         "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h",
         "src/trace_processor/perfetto_sql/grammar/perfettosql_keywordhash.h",
@@ -3263,7 +3263,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_preprocessor_grammar",
     srcs = [
-        "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.c",
+        "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.cc",
         "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.h",
         "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar_interface.h",
     ],

@@ -28,11 +28,25 @@
 /************ Begin %include sections from the grammar ************************/
 #include <stdio.h>
 #include <stddef.h>
+#include <string>
+#include <vector>
+#include <memory>
+#include <utility>
+#include <optional>
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h"
+#include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/perfetto_sql/grammar/perfettosql_parser_state.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/util/sql_argument.h"
 
 #define YYNOERRORRECOVERY 1
 #define YYPARSEFREENEVERNULL 1
 /**************** End of %include directives **********************************/
+
+namespace perfetto::trace_processor {
+
 /* These constants specify the various numeric values for terminal symbols.
 ***************** Begin token definitions *************************************/
 #ifndef TK_CREATE
@@ -2254,23 +2268,23 @@ static void yy_destructor(
     case 180: /* sql_argument_list_nonempty */
     case 182: /* table_schema */
 {
- OnPerfettoSqlFreeArgumentList(state, (yypminor->yy24)); 
+ delete (yypminor->yy24); 
 }
       break;
     case 185: /* return_type */
 {
- OnPerfettoSqlFnFreeReturnType(state, (yypminor->yy535)); 
+ delete (yypminor->yy535); 
 }
       break;
     case 188: /* indexed_column_list */
 {
- OnPerfettoSqlFreeIndexedColumnList(state, (yypminor->yy20)); 
+ delete (yypminor->yy20); 
 }
       break;
     case 189: /* macro_argument_list */
     case 191: /* macro_argument_list_nonempty */
 {
- OnPerfettoSqlFreeMacroArgumentList(state, (yypminor->yy366)); 
+ delete (yypminor->yy366); 
 }
       break;
 /********* End destructor definitions *****************************************/
@@ -3524,13 +3538,28 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 5: /* sql_argument_list_nonempty ::= sql_argument_list_nonempty COMMA ID sql_argument_type */
 {
-  yylhsminor.yy24 = OnPerfettoSqlCreateOrAppendArgument(state, yymsp[-3].minor.yy24, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  auto parsed = OnPerfettoSqlParseType(yymsp[0].minor.yy0);
+  if (!parsed) {
+    OnPerfettoSqlError(state, "Failed to parse type", yymsp[0].minor.yy0);
+    delete yymsp[-3].minor.yy24;
+    yylhsminor.yy24 = nullptr;
+  } else {
+    yymsp[-3].minor.yy24->inner.emplace_back("$" + std::string(yymsp[-1].minor.yy0.ptr, yymsp[-1].minor.yy0.n), *parsed);
+    yylhsminor.yy24 = yymsp[-3].minor.yy24;
+  }
 }
   yymsp[-3].minor.yy24 = yylhsminor.yy24;
         break;
       case 6: /* sql_argument_list_nonempty ::= ID sql_argument_type */
 {
-  yylhsminor.yy24 = OnPerfettoSqlCreateOrAppendArgument(state, 0, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  auto parsed = OnPerfettoSqlParseType(yymsp[0].minor.yy0);
+  if (!parsed) {
+    OnPerfettoSqlError(state, "Failed to parse type", yymsp[0].minor.yy0);
+    yylhsminor.yy24 = nullptr;
+  } else {
+    yylhsminor.yy24 = new PerfettoSqlArgumentList();
+    yylhsminor.yy24->inner.emplace_back("$" + std::string(yymsp[-1].minor.yy0.ptr, yymsp[-1].minor.yy0.n), *parsed);
+  }
 }
   yymsp[-1].minor.yy24 = yylhsminor.yy24;
         break;
@@ -3545,23 +3574,81 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 11: /* cmd ::= CREATE or_replace PERFETTO FUNCTION ID LP sql_argument_list RP RETURNS return_type AS select pscantok */
 {
-  OnPerfettoSqlCreateFunction(state, yymsp[-11].minor.yy320, &yymsp[-8].minor.yy0, yymsp[-6].minor.yy24, yymsp[-3].minor.yy535, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(yymsp[-6].minor.yy24);
+  std::unique_ptr<PerfettoSqlFnReturnType> returns_deleter(yymsp[-3].minor.yy535);
+
+  PerfettoSqlParser::CreateFunction::Returns returns_res;
+  returns_res.is_table = yymsp[-3].minor.yy535->is_table;
+  if (yymsp[-3].minor.yy535->is_table) {
+    returns_res.table_columns = std::move(yymsp[-3].minor.yy535->table_columns);
+  } else {
+    returns_res.scalar_type = yymsp[-3].minor.yy535->scalar_type;
+  }
+
+  state->current_statement = PerfettoSqlParser::CreateFunction{
+      yymsp[-11].minor.yy320 != 0,
+      FunctionPrototype{
+          std::string(yymsp[-8].minor.yy0.ptr, yymsp[-8].minor.yy0.n),
+          yymsp[-6].minor.yy24 ? std::move(yymsp[-6].minor.yy24->inner)
+               : std::vector<sql_argument::ArgumentDefinition>{},
+      },
+      std::move(returns_res),
+      OnPerfettoSqlSubstr(state, yymsp[-1].minor.yy0, yymsp[0].minor.yy0),
+      "",
+      std::nullopt,
+  };
 }
         break;
       case 12: /* cmd ::= CREATE or_replace PERFETTO FUNCTION ID LP sql_argument_list RP RETURNS return_type DELEGATES TO ID pscantok */
 {
-  OnPerfettoSqlCreateDelegatingFunction(state, yymsp[-12].minor.yy320, &yymsp[-9].minor.yy0, yymsp[-7].minor.yy24, yymsp[-4].minor.yy535, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(yymsp[-7].minor.yy24);
+  std::unique_ptr<PerfettoSqlFnReturnType> returns_deleter(yymsp[-4].minor.yy535);
+
+  if (yymsp[-1].minor.yy0.n != 0) {
+    PerfettoSqlParser::CreateFunction::Returns returns_res;
+    returns_res.is_table = yymsp[-4].minor.yy535->is_table;
+    if (yymsp[-4].minor.yy535->is_table) {
+      returns_res.table_columns = std::move(yymsp[-4].minor.yy535->table_columns);
+    } else {
+      returns_res.scalar_type = yymsp[-4].minor.yy535->scalar_type;
+    }
+
+    state->current_statement = PerfettoSqlParser::CreateFunction{
+        yymsp[-12].minor.yy320 != 0,
+        FunctionPrototype{
+            std::string(yymsp[-9].minor.yy0.ptr, yymsp[-9].minor.yy0.n),
+            yymsp[-7].minor.yy24 ? std::move(yymsp[-7].minor.yy24->inner)
+                 : std::vector<sql_argument::ArgumentDefinition>{},
+        },
+        std::move(returns_res),
+        SqlSource::FromTraceProcessorImplementation(""),
+        "",
+        std::string(yymsp[-1].minor.yy0.ptr, yymsp[-1].minor.yy0.n),
+    };
+  } else {
+    OnPerfettoSqlError(state, "Target function name cannot be empty", yymsp[-1].minor.yy0);
+  }
 }
         break;
       case 13: /* return_type ::= ID */
 {
-  yylhsminor.yy535 = OnPerfettoSqlCreateScalarReturnType(&yymsp[0].minor.yy0);
+  auto parsed = OnPerfettoSqlParseType(yymsp[0].minor.yy0);
+  if (!parsed) {
+    yylhsminor.yy535 = nullptr;
+  } else {
+    yylhsminor.yy535 = new PerfettoSqlFnReturnType();
+    yylhsminor.yy535->is_table = false;
+    yylhsminor.yy535->scalar_type = *parsed;
+  }
 }
   yymsp[0].minor.yy535 = yylhsminor.yy535;
         break;
       case 14: /* return_type ::= TABLE LP sql_argument_list_nonempty RP */
 {
-  yymsp[-3].minor.yy535 = OnPerfettoSqlCreateTableReturnType(yymsp[-1].minor.yy24);
+  yymsp[-3].minor.yy535 = new PerfettoSqlFnReturnType();
+  yymsp[-3].minor.yy535->is_table = true;
+  yymsp[-3].minor.yy535->table_columns = std::move(yymsp[-1].minor.yy24->inner);
+  delete yymsp[-1].minor.yy24;
 }
         break;
       case 15: /* table_impl ::= */
@@ -3576,45 +3663,90 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 17: /* cmd ::= CREATE or_replace PERFETTO TABLE ID table_impl table_schema AS select pscantok */
 {
-  OnPerfettoSqlCreateTable(state, yymsp[-8].minor.yy320, &yymsp[-5].minor.yy0, &yymsp[-4].minor.yy0, yymsp[-3].minor.yy24, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(yymsp[-3].minor.yy24);
+  if (yymsp[-4].minor.yy0.n == 0 ||
+      base::CaseInsensitiveEqual(std::string(yymsp[-4].minor.yy0.ptr, yymsp[-4].minor.yy0.n), "dataframe")) {
+    state->current_statement = PerfettoSqlParser::CreateTable{
+        yymsp[-8].minor.yy320 != 0,
+        std::string(yymsp[-5].minor.yy0.ptr, yymsp[-5].minor.yy0.n),
+        yymsp[-3].minor.yy24 ? std::move(yymsp[-3].minor.yy24->inner)
+             : std::vector<sql_argument::ArgumentDefinition>{},
+        OnPerfettoSqlSubstrDefault(state, yymsp[-1].minor.yy0, yymsp[0].minor.yy0),
+    };
+  } else {
+    OnPerfettoSqlError(state, "Invalid table implementation", yymsp[-4].minor.yy0);
+  }
 }
         break;
       case 18: /* cmd ::= CREATE or_replace PERFETTO VIEW ID table_schema AS select pscantok */
 {
-  OnPerfettoSqlCreateView(state, yymsp[-7].minor.yy320, &yymsp[-8].minor.yy0, &yymsp[-4].minor.yy0, yymsp[-3].minor.yy24, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(yymsp[-3].minor.yy24);
+
+  state->current_statement = PerfettoSqlParser::CreateView{
+      yymsp[-7].minor.yy320 != 0,
+      std::string(yymsp[-4].minor.yy0.ptr, yymsp[-4].minor.yy0.n),
+      yymsp[-3].minor.yy24 ? std::move(yymsp[-3].minor.yy24->inner)
+           : std::vector<sql_argument::ArgumentDefinition>(),
+      OnPerfettoSqlSubstrDefault(state, yymsp[-1].minor.yy0, yymsp[0].minor.yy0),
+      OnPerfettoSqlRewriteView(state, yymsp[-8].minor.yy0, yymsp[-4].minor.yy0, yymsp[-1].minor.yy0),
+  };
 }
         break;
       case 19: /* cmd ::= CREATE or_replace PERFETTO INDEX ID ON ID LP indexed_column_list RP */
 {
-  OnPerfettoSqlCreateIndex(state, yymsp[-8].minor.yy320, &yymsp[-9].minor.yy0, &yymsp[-5].minor.yy0, &yymsp[-3].minor.yy0, yymsp[-1].minor.yy20);
+  std::unique_ptr<PerfettoSqlIndexedColumnList> cols_deleter(yymsp[-1].minor.yy20);
+
+  state->current_statement = PerfettoSqlParser::CreateIndex{
+      yymsp[-8].minor.yy320 != 0,
+      std::string(yymsp[-5].minor.yy0.ptr, yymsp[-5].minor.yy0.n),
+      std::string(yymsp[-3].minor.yy0.ptr, yymsp[-3].minor.yy0.n),
+      std::move(yymsp[-1].minor.yy20->cols),
+  };
 }
         break;
       case 20: /* indexed_column_list ::= indexed_column_list COMMA ID */
 {
-  yylhsminor.yy20 = OnPerfettoSqlCreateOrAppendIndexedColumn(yymsp[-2].minor.yy20, &yymsp[0].minor.yy0);
+  yymsp[-2].minor.yy20->cols.emplace_back(yymsp[0].minor.yy0.ptr, yymsp[0].minor.yy0.n);
+  yylhsminor.yy20 = yymsp[-2].minor.yy20;
 }
   yymsp[-2].minor.yy20 = yylhsminor.yy20;
         break;
       case 21: /* indexed_column_list ::= ID */
 {
-  yylhsminor.yy20 = OnPerfettoSqlCreateOrAppendIndexedColumn(0, &yymsp[0].minor.yy0);
+  yylhsminor.yy20 = new PerfettoSqlIndexedColumnList();
+  yylhsminor.yy20->cols.emplace_back(yymsp[0].minor.yy0.ptr, yymsp[0].minor.yy0.n);
 }
   yymsp[0].minor.yy20 = yylhsminor.yy20;
         break;
       case 22: /* cmd ::= CREATE or_replace PERFETTO MACRO ID LP macro_argument_list RP RETURNS ID AS macro_body pscantok */
 {
-  OnPerfettoSqlCreateMacro(state, yymsp[-11].minor.yy320, &yymsp[-8].minor.yy0, yymsp[-6].minor.yy366, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  std::unique_ptr<PerfettoSqlMacroArgumentList> args_deleter(yymsp[-6].minor.yy366);
+
+  state->current_statement = PerfettoSqlParser::CreateMacro{
+      yymsp[-11].minor.yy320 != 0,
+      OnPerfettoSqlExtractSource(state, yymsp[-8].minor.yy0),
+      yymsp[-6].minor.yy366 ? std::move(yymsp[-6].minor.yy366->args)
+           : std::vector<std::pair<SqlSource, SqlSource>>{},
+      OnPerfettoSqlExtractSource(state, yymsp[-3].minor.yy0),
+      OnPerfettoSqlSubstrDefault(state, yymsp[-1].minor.yy0, yymsp[0].minor.yy0),
+  };
 }
         break;
       case 23: /* macro_argument_list_nonempty ::= macro_argument_list_nonempty COMMA ID ID */
 {
-  yylhsminor.yy366 = OnPerfettoSqlCreateOrAppendMacroArgument(state, yymsp[-3].minor.yy366, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  yymsp[-3].minor.yy366->args.emplace_back(
+      OnPerfettoSqlExtractSource(state, yymsp[-1].minor.yy0),
+      OnPerfettoSqlExtractSource(state, yymsp[0].minor.yy0));
+  yylhsminor.yy366 = yymsp[-3].minor.yy366;
 }
   yymsp[-3].minor.yy366 = yylhsminor.yy366;
         break;
       case 24: /* macro_argument_list_nonempty ::= ID ID */
 {
-  yylhsminor.yy366 = OnPerfettoSqlCreateOrAppendMacroArgument(state, 0, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+  yylhsminor.yy366 = new PerfettoSqlMacroArgumentList();
+  yylhsminor.yy366->args.emplace_back(
+      OnPerfettoSqlExtractSource(state, yymsp[-1].minor.yy0),
+      OnPerfettoSqlExtractSource(state, yymsp[0].minor.yy0));
 }
   yymsp[-1].minor.yy366 = yylhsminor.yy366;
         break;
@@ -3627,7 +3759,8 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 27: /* cmd ::= INCLUDE PERFETTO MODULE module_name */
 {
-  OnPerfettoSqlInclude(state, &yymsp[0].minor.yy0);
+  state->current_statement =
+      PerfettoSqlParser::Include{std::string(yymsp[0].minor.yy0.ptr, yymsp[0].minor.yy0.n)};
 }
         break;
       case 28: /* module_name ::= ID|STAR|INTERSECT */
@@ -3638,13 +3771,16 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 29: /* module_name ::= module_name DOT ID|STAR|INTERSECT */
 {
-  yylhsminor.yy0 = (struct PerfettoSqlToken) {yymsp[-2].minor.yy0.ptr, yymsp[0].minor.yy0.ptr + yymsp[0].minor.yy0.n - yymsp[-2].minor.yy0.ptr};
+  yylhsminor.yy0 = (struct PerfettoSqlToken) {yymsp[-2].minor.yy0.ptr, static_cast<size_t>(yymsp[0].minor.yy0.ptr + yymsp[0].minor.yy0.n - yymsp[-2].minor.yy0.ptr)};
 }
   yymsp[-2].minor.yy0 = yylhsminor.yy0;
         break;
       case 30: /* cmd ::= DROP PERFETTO INDEX ID ON ID */
 {
-  OnPerfettoSqlDropIndex(state, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
+  state->current_statement = PerfettoSqlParser::DropIndex{
+      std::string(yymsp[-2].minor.yy0.ptr, yymsp[-2].minor.yy0.n),
+      std::string(yymsp[0].minor.yy0.ptr, yymsp[0].minor.yy0.n),
+  };
 }
         break;
       default:
@@ -4388,3 +4524,5 @@ int PerfettoSqlParseFallback(int iToken){
   return 0;
 #endif
 }
+
+}  // namespace perfetto::trace_processor

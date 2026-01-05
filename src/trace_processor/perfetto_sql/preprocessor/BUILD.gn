@@ -32,7 +32,7 @@ source_set("preprocessor") {
 
 source_set("grammar") {
   sources = [
-    "preprocessor_grammar.c",
+    "preprocessor_grammar.cc",
     "preprocessor_grammar.h",
     "preprocessor_grammar_interface.h",
   ]
@@ -41,7 +41,7 @@ source_set("grammar") {
   if (perfetto_build_standalone) {
     configs -= [ "//gn/standalone:extra_warnings" ]  # nogncheck
   } else {
-    cflags_c = [
+    cflags_cc = [
       "-Wno-unused-parameter",
       "-Wno-unreachable-code",
     ]

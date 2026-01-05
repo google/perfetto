@@ -17,20 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_GRAMMAR_PERFETTOSQL_GRAMMAR_INTERFACE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_GRAMMAR_PERFETTOSQL_GRAMMAR_INTERFACE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stddef.h>
 #include <stdio.h>
 
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/util/sql_argument.h"
 
 #undef NDEBUG
 
-#ifdef __cplusplus
 namespace perfetto::trace_processor {
-#endif
 
 // Basic token structure containing source information.
 struct PerfettoSqlToken {
@@ -42,113 +43,73 @@ struct PerfettoSqlToken {
 struct PerfettoSqlParserState;
 
 // List structure for arguments
-struct PerfettoSqlArgumentList;
+struct PerfettoSqlArgumentList {
+  std::vector<sql_argument::ArgumentDefinition> inner;
+};
 
 // List structure for indexed columns
-struct PerfettoSqlIndexedColumnList;
+struct PerfettoSqlIndexedColumnList {
+  std::vector<std::string> cols;
+};
 
 // List structure for macro arguments
-struct PerfettoSqlMacroArgumentList;
+struct PerfettoSqlMacroArgumentList {
+  std::vector<std::pair<SqlSource, SqlSource>> args;
+};
 
 // Return type for functions.
-struct PerfettoSqlFnReturnType;
+struct PerfettoSqlFnReturnType {
+  bool is_table;
+  sql_argument::Type scalar_type;
+  std::vector<sql_argument::ArgumentDefinition> table_columns;
+};
 
 // Parser allocation/deallocation functions
 void* PerfettoSqlParseAlloc(void* (*allocator)(size_t),
-                            struct PerfettoSqlParserState*);
-void PerfettoSqlParse(void* parser,
-                      int token_type,
-                      struct PerfettoSqlToken token);
+                            PerfettoSqlParserState*);
+void PerfettoSqlParse(void* parser, int token_type, PerfettoSqlToken token);
 void PerfettoSqlParseFree(void* parser, void (*free_fn)(void*));
 
 // Error handling
-void OnPerfettoSqlSyntaxError(struct PerfettoSqlParserState*,
-                              struct PerfettoSqlToken*);
+void OnPerfettoSqlSyntaxError(PerfettoSqlParserState*, PerfettoSqlToken*);
 
-// Statement callbacks
-void OnPerfettoSqlCreateFunction(struct PerfettoSqlParserState*,
-                                 int replace,
-                                 struct PerfettoSqlToken* name,
-                                 struct PerfettoSqlArgumentList* args,
-                                 struct PerfettoSqlFnReturnType* returns,
-                                 struct PerfettoSqlToken* body_start,
-                                 struct PerfettoSqlToken* body_end);
-void OnPerfettoSqlCreateDelegatingFunction(
-    struct PerfettoSqlParserState*,
-    int replace,
-    struct PerfettoSqlToken* name,
-    struct PerfettoSqlArgumentList* args,
-    struct PerfettoSqlFnReturnType* returns,
-    struct PerfettoSqlToken* target_function,
-    struct PerfettoSqlToken* stmt_end);
-void OnPerfettoSqlCreateTable(struct PerfettoSqlParserState*,
-                              int replace,
-                              struct PerfettoSqlToken* name,
-                              struct PerfettoSqlToken* table_impl,
-                              struct PerfettoSqlArgumentList* args,
-                              struct PerfettoSqlToken* body_start,
-                              struct PerfettoSqlToken* body_end);
-void OnPerfettoSqlCreateView(struct PerfettoSqlParserState*,
-                             int replace,
-                             struct PerfettoSqlToken* create_token,
-                             struct PerfettoSqlToken* name,
-                             struct PerfettoSqlArgumentList* args,
-                             struct PerfettoSqlToken* body_start,
-                             struct PerfettoSqlToken* body_end);
-void OnPerfettoSqlCreateMacro(struct PerfettoSqlParserState*,
-                              int replace,
-                              struct PerfettoSqlToken* name,
-                              struct PerfettoSqlMacroArgumentList* args,
-                              struct PerfettoSqlToken* returns,
-                              struct PerfettoSqlToken* body_start,
-                              struct PerfettoSqlToken* body_end);
-void OnPerfettoSqlCreateIndex(struct PerfettoSqlParserState*,
-                              int replace,
-                              struct PerfettoSqlToken* create_token,
-                              struct PerfettoSqlToken* name,
-                              struct PerfettoSqlToken* table_name,
-                              struct PerfettoSqlIndexedColumnList* cols);
-void OnPerfettoSqlInclude(struct PerfettoSqlParserState*,
-                          struct PerfettoSqlToken*);
-void OnPerfettoSqlDropIndex(struct PerfettoSqlParserState*,
-                            struct PerfettoSqlToken* name,
-                            struct PerfettoSqlToken* table_name);
+// Helper to extract SQL source from a token using the parser state's tokenizer
+SqlSource OnPerfettoSqlExtractSource(PerfettoSqlParserState* state,
+                                     const PerfettoSqlToken& token);
 
-struct PerfettoSqlArgumentList* OnPerfettoSqlCreateOrAppendArgument(
-    struct PerfettoSqlParserState* state,
-    struct PerfettoSqlArgumentList* list,
-    struct PerfettoSqlToken* name,
-    struct PerfettoSqlToken* type);
-void OnPerfettoSqlFreeArgumentList(struct PerfettoSqlParserState*,
-                                   struct PerfettoSqlArgumentList*);
+// Helper to parse SQL argument type from a token
+std::optional<sql_argument::Type> OnPerfettoSqlParseType(
+    const PerfettoSqlToken& token);
 
-struct PerfettoSqlIndexedColumnList* OnPerfettoSqlCreateOrAppendIndexedColumn(
-    struct PerfettoSqlIndexedColumnList* list,
-    struct PerfettoSqlToken* col);
-void OnPerfettoSqlFreeIndexedColumnList(struct PerfettoSqlParserState*,
-                                        struct PerfettoSqlIndexedColumnList*);
+// Helper to report error at a token position
+void OnPerfettoSqlError(PerfettoSqlParserState* state,
+                        const char* message,
+                        const PerfettoSqlToken& token);
 
-struct PerfettoSqlMacroArgumentList* OnPerfettoSqlCreateOrAppendMacroArgument(
-    struct PerfettoSqlParserState* state,
-    struct PerfettoSqlMacroArgumentList* list,
-    struct PerfettoSqlToken* name,
-    struct PerfettoSqlToken* type);
-void OnPerfettoSqlFreeMacroArgumentList(struct PerfettoSqlParserState*,
-                                        struct PerfettoSqlMacroArgumentList*);
+// Helper to extract substring between two tokens using tokenizer
+SqlSource OnPerfettoSqlSubstr(PerfettoSqlParserState* state,
+                              const PerfettoSqlToken& start,
+                              const PerfettoSqlToken& end);
 
-struct PerfettoSqlFnReturnType* OnPerfettoSqlCreateScalarReturnType(
-    struct PerfettoSqlToken* type);
-struct PerfettoSqlFnReturnType* OnPerfettoSqlCreateTableReturnType(
-    struct PerfettoSqlArgumentList* args);
-void OnPerfettoSqlFnFreeReturnType(struct PerfettoSqlParserState*,
-                                   struct PerfettoSqlFnReturnType* type);
+// Helper to extract substring with default end token behavior
+SqlSource OnPerfettoSqlSubstrDefault(PerfettoSqlParserState* state,
+                                     const PerfettoSqlToken& start,
+                                     const PerfettoSqlToken& end);
 
-#ifdef __cplusplus
+// Helper to get the preprocessor statement
+SqlSource OnPerfettoSqlGetPreprocessorStatement(PerfettoSqlParserState* state);
+
+// Helper to rewrite for CREATE VIEW
+SqlSource OnPerfettoSqlRewriteView(PerfettoSqlParserState* state,
+                                   const PerfettoSqlToken& create_token,
+                                   const PerfettoSqlToken& name,
+                                   const PerfettoSqlToken& body_start);
+
+// Helper to rewrite for CREATE INDEX
+SqlSource OnPerfettoSqlRewriteIndex(PerfettoSqlParserState* state,
+                                    const PerfettoSqlToken& create_token,
+                                    const PerfettoSqlToken& name);
+
 }  // namespace perfetto::trace_processor
-#endif
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_GRAMMAR_PERFETTOSQL_GRAMMAR_INTERFACE_H_

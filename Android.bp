@@ -15066,7 +15066,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_grammar_grammar",
     srcs: [
-        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.c",
+        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.cc",
     ],
 }
 
@@ -15277,7 +15277,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
     srcs: [
-        "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.c",
+        "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.cc",
     ],
 }
 

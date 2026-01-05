@@ -74,6 +74,39 @@ KEYWORD_END_REPLACE = '''
 };'''
 
 
+def convert_c_to_cpp(c_file: str,
+                     cc_file: str,
+                     header_include: str,
+                     namespace: str = "perfetto::trace_processor"):
+  """Convert Lemon-generated C code to C++ by wrapping in namespace."""
+  with open(c_file, 'r', encoding='utf-8') as fp:
+    content = fp.read()
+
+  # Find the end of the initial comment block and includes
+  include_section_end = content.find(
+      '/**************** End of %include directives')
+  if include_section_end == -1:
+    raise ValueError(
+        f"Could not find include directives end marker in {c_file}")
+
+  # Find the line after the marker
+  include_section_end = content.find('\n', include_section_end) + 1
+
+  # Split content into header and body
+  header = content[:include_section_end]
+  body = content[include_section_end:]
+
+  # Build the C++ version with namespace
+  cpp_content = header
+  cpp_content += f'\nnamespace {namespace} {{\n\n'
+  cpp_content += body
+  cpp_content += f'\n}}  // namespace {namespace}\n'
+
+  # Write to .cc file
+  with open(cc_file, 'w', encoding='utf-8') as fp:
+    fp.write(cpp_content)
+
+
 def copy_tokenizer(args: argparse.Namespace):
   shutil.copy(args.sqlite_tokenize, args.sqlite_tokenize_out)
 
@@ -149,6 +182,8 @@ def main():
   )
   args = parser.parse_args()
 
+  preprocessor_dir = os.path.dirname(args.preprocessor_grammar)
+
   with tempfile.TemporaryDirectory() as tmp:
     # Preprocessor grammar
     subprocess.check_call([
@@ -164,6 +199,15 @@ def main():
         '-l',
         '-s',
     ])
+
+    # Convert preprocessor grammar from C to C++
+    preprocessor_c = os.path.join(preprocessor_dir, "preprocessor_grammar.c")
+    preprocessor_cc = os.path.join(preprocessor_dir, "preprocessor_grammar.cc")
+    convert_c_to_cpp(
+        preprocessor_c, preprocessor_cc,
+        "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.h")
+    # Remove the .c file
+    os.remove(preprocessor_c)
 
     # PerfettoSQL keywords
     keywordhash_tmp = os.path.join(tmp, 'mkkeywordhash.c')
@@ -214,6 +258,15 @@ def main():
         '-l',
         '-s',
     ])
+
+    # Convert perfettosql grammar from C to C++
+    perfettosql_c = os.path.join(args.grammar_out, "perfettosql_grammar.c")
+    perfettosql_cc = os.path.join(args.grammar_out, "perfettosql_grammar.cc")
+    convert_c_to_cpp(
+        perfettosql_c, perfettosql_cc,
+        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h")
+    # Remove the .c file
+    os.remove(perfettosql_c)
 
   copy_tokenizer(args)
 

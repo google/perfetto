@@ -40,13 +40,18 @@
 #include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor {
-namespace {
 
-using State = PreprocessorGrammarState;
+struct ErrorToken {
+  SqliteTokenizer::Token token;
+  std::string message;
+};
+
+// Forward declaration
+struct PreprocessorGrammarState;
 
 struct Preprocessor {
  public:
-  explicit Preprocessor(State* state)
+  explicit Preprocessor(PreprocessorGrammarState* state)
       : parser_(PreprocessorGrammarParseAlloc(malloc, state)) {}
   ~Preprocessor() { PreprocessorGrammarParseFree(parser_, free); }
 
@@ -58,19 +63,21 @@ struct Preprocessor {
   void* parser_;
 };
 
-struct Stringify {
-  bool ignore_table;
-};
-struct Apply {
-  int join_token;
-  int prefix_token;
-};
-using MacroImpl =
-    std::variant<PerfettoSqlPreprocessor::Macro*, Stringify, Apply>;
-
-// Synthetic "stackframe" representing the processing of a single piece of SQL.
 struct Frame {
   struct Root {};
+
+  struct Stringify {
+    bool ignore_table;
+  };
+
+  struct Apply {
+    int join_token;
+    int prefix_token;
+  };
+
+  using MacroImpl =
+      std::variant<PerfettoSqlPreprocessor::Macro*, Stringify, Apply>;
+
   struct Rewrite {
     SqliteTokenizer& tokenizer;
     SqlSource::Rewriter& rewriter;
@@ -93,7 +100,7 @@ struct Frame {
 
   explicit Frame(Type _type,
                  VariableHandling _var_handling,
-                 State* s,
+                 PreprocessorGrammarState* s,
                  const SqlSource& source)
       : type(_type),
         var_handling(_var_handling),
@@ -121,26 +128,22 @@ struct Frame {
   base::FlatHashMap<std::string, SqlSource>* substitutions;
 };
 
-struct ErrorToken {
-  SqliteTokenizer::Token token;
-  std::string message;
-};
-
-extern "C" struct PreprocessorGrammarState {
+struct PreprocessorGrammarState {
   std::list<Frame> stack;
   const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>& macros;
   std::optional<ErrorToken> error;
 };
 
-extern "C" struct PreprocessorGrammarApplyList {
-  std::vector<PreprocessorGrammarTokenBounds> args;
-};
-
-SqliteTokenizer::Token GrammarTokenToTokenizerToken(
+// Helper function for converting grammar tokens
+static SqliteTokenizer::Token GrammarTokenToTokenizerToken(
     const PreprocessorGrammarToken& token) {
   return SqliteTokenizer::Token{std::string_view(token.ptr, token.n),
                                 TK_ILLEGAL};
 }
+
+namespace {
+
+using State = PreprocessorGrammarState;
 
 base::Status ErrorAtToken(const SqliteTokenizer& tokenizer,
                           const SqliteTokenizer::Token& token,
@@ -207,7 +210,7 @@ void ExecuteStringify(State* state,
                       Frame::ActiveMacro& macro,
                       SqliteTokenizer::Token name,
                       SqliteTokenizer::Token rp) {
-  auto& stringify = std::get<Stringify>(macro.impl);
+  auto& stringify = std::get<Frame::Stringify>(macro.impl);
   if (macro.args.size() != 1) {
     state->error = ErrorToken{
         name,
@@ -245,7 +248,7 @@ void ExecuteApply(State* state,
                   Frame::ActiveMacro& macro,
                   SqliteTokenizer::Token name,
                   SqliteTokenizer::Token rp) {
-  auto& apply = std::get<Apply>(macro.impl);
+  auto& apply = std::get<Frame::Apply>(macro.impl);
   if (!macro.seen_variables.empty()) {
     RewriteIntrinsicMacro(frame, name, rp);
     return;
@@ -288,18 +291,20 @@ void ExecuteApply(State* state,
   expansion_frame.ignore_rewrite = true;
 }
 
-extern "C" void OnPreprocessorSyntaxError(State* state,
-                                          PreprocessorGrammarToken* token) {
+}  // namespace
+
+void OnPreprocessorSyntaxError(PreprocessorGrammarState* state,
+                               PreprocessorGrammarToken* token) {
   state->error = {GrammarTokenToTokenizerToken(*token),
                   "preprocessor syntax error"};
 }
 
-extern "C" void OnPreprocessorApply(PreprocessorGrammarState* state,
-                                    PreprocessorGrammarToken* name,
-                                    PreprocessorGrammarToken* join,
-                                    PreprocessorGrammarToken* prefix,
-                                    PreprocessorGrammarApplyList* raw_a,
-                                    PreprocessorGrammarApplyList* raw_b) {
+void OnPreprocessorApply(PreprocessorGrammarState* state,
+                         PreprocessorGrammarToken* name,
+                         PreprocessorGrammarToken* join,
+                         PreprocessorGrammarToken* prefix,
+                         PreprocessorGrammarApplyList* raw_a,
+                         PreprocessorGrammarApplyList* raw_b) {
   std::unique_ptr<PreprocessorGrammarApplyList> a(raw_a);
   std::unique_ptr<PreprocessorGrammarApplyList> b(raw_b);
   auto& frame = state->stack.back();
@@ -330,8 +335,8 @@ extern "C" void OnPreprocessorApply(PreprocessorGrammarState* state,
       SqlSource::FromTraceProcessorImplementation(std::move(res)));
 }
 
-extern "C" void OnPreprocessorVariable(State* state,
-                                       PreprocessorGrammarToken* var) {
+void OnPreprocessorVariable(PreprocessorGrammarState* state,
+                            PreprocessorGrammarToken* var) {
   if (var->n == 0 || var->ptr[0] != '$') {
     state->error = {GrammarTokenToTokenizerToken(*var),
                     "variable must start with '$'"};
@@ -368,27 +373,27 @@ extern "C" void OnPreprocessorVariable(State* state,
   }
 }
 
-extern "C" void OnPreprocessorMacroId(State* state,
-                                      PreprocessorGrammarToken* name_tok) {
+void OnPreprocessorMacroId(PreprocessorGrammarState* state,
+                           PreprocessorGrammarToken* name_tok) {
   auto& invocation = state->stack.back();
   if (invocation.active_macro) {
     invocation.active_macro->nested_macro_count++;
     return;
   }
   std::string name(name_tok->ptr, name_tok->n);
-  MacroImpl impl;
+  Frame::MacroImpl impl;
   if (name == "__intrinsic_stringify") {
-    impl = Stringify();
+    impl = Frame::Stringify();
   } else if (name == "__intrinsic_stringify_ignore_table") {
-    impl = Stringify{true};
+    impl = Frame::Stringify{true};
   } else if (name == "__intrinsic_token_apply") {
-    impl = Apply{PPTK_COMMA, PPTK_FALSE};
+    impl = Frame::Apply{PPTK_COMMA, PPTK_FALSE};
   } else if (name == "__intrinsic_token_apply_prefix") {
-    impl = Apply{PPTK_COMMA, PPTK_TRUE};
+    impl = Frame::Apply{PPTK_COMMA, PPTK_TRUE};
   } else if (name == "__intrinsic_token_apply_and") {
-    impl = Apply{PPTK_AND, PPTK_FALSE};
+    impl = Frame::Apply{PPTK_AND, PPTK_FALSE};
   } else if (name == "__intrinsic_token_apply_and_prefix") {
-    impl = Apply{PPTK_AND, PPTK_TRUE};
+    impl = Frame::Apply{PPTK_AND, PPTK_TRUE};
   } else {
     auto* sql_macro = state->macros.Find(name);
     if (!sql_macro) {
@@ -402,8 +407,8 @@ extern "C" void OnPreprocessorMacroId(State* state,
       Frame::ActiveMacro{std::move(name), impl, {}, 0, {}, {}};
 }
 
-extern "C" void OnPreprocessorMacroArg(State* state,
-                                       PreprocessorGrammarTokenBounds* arg) {
+void OnPreprocessorMacroArg(PreprocessorGrammarState* state,
+                            PreprocessorGrammarTokenBounds* arg) {
   auto& frame = state->stack.back();
   auto& macro = *frame.active_macro;
   if (macro.nested_macro_count > 0) {
@@ -420,9 +425,9 @@ extern "C" void OnPreprocessorMacroArg(State* state,
   arg_frame.substitutions = frame.substitutions;
 }
 
-extern "C" void OnPreprocessorMacroEnd(State* state,
-                                       PreprocessorGrammarToken* name,
-                                       PreprocessorGrammarToken* rp) {
+void OnPreprocessorMacroEnd(PreprocessorGrammarState* state,
+                            PreprocessorGrammarToken* name,
+                            PreprocessorGrammarToken* rp) {
   auto& frame = state->stack.back();
   auto& macro = *frame.active_macro;
   if (macro.nested_macro_count > 0) {
@@ -430,15 +435,16 @@ extern "C" void OnPreprocessorMacroEnd(State* state,
     return;
   }
   switch (macro.impl.index()) {
-    case base::variant_index<MacroImpl, PerfettoSqlPreprocessor::Macro*>():
+    case base::variant_index<Frame::MacroImpl,
+                             PerfettoSqlPreprocessor::Macro*>():
       ExecuteSqlMacro(state, frame, macro, GrammarTokenToTokenizerToken(*name),
                       GrammarTokenToTokenizerToken(*rp));
       break;
-    case base::variant_index<MacroImpl, Stringify>():
+    case base::variant_index<Frame::MacroImpl, Frame::Stringify>():
       ExecuteStringify(state, frame, macro, GrammarTokenToTokenizerToken(*name),
                        GrammarTokenToTokenizerToken(*rp));
       break;
-    case base::variant_index<MacroImpl, Apply>():
+    case base::variant_index<Frame::MacroImpl, Frame::Apply>():
       ExecuteApply(state, frame, macro, GrammarTokenToTokenizerToken(*name),
                    GrammarTokenToTokenizerToken(*rp));
       break;
@@ -448,7 +454,7 @@ extern "C" void OnPreprocessorMacroEnd(State* state,
   frame.active_macro = std::nullopt;
 }
 
-extern "C" void OnPreprocessorEnd(State* state) {
+void OnPreprocessorEnd(PreprocessorGrammarState* state) {
   auto& frame = state->stack.back();
   PERFETTO_CHECK(!frame.active_macro);
 
@@ -474,8 +480,6 @@ extern "C" void OnPreprocessorEnd(State* state) {
       PERFETTO_FATAL("Unknown frame type");
   }
 }
-
-}  // namespace
 
 PerfettoSqlPreprocessor::PerfettoSqlPreprocessor(
     SqlSource source,
@@ -550,23 +554,6 @@ bool PerfettoSqlPreprocessor::NextStatement() {
       frame = &s.stack.back();
     }
   }
-}
-
-extern "C" PreprocessorGrammarApplyList* OnPreprocessorCreateApplyList() {
-  return std::make_unique<PreprocessorGrammarApplyList>().release();
-}
-
-extern "C" PreprocessorGrammarApplyList* OnPreprocessorAppendApplyList(
-    PreprocessorGrammarApplyList* list,
-    PreprocessorGrammarTokenBounds* bounds) {
-  list->args.push_back(*bounds);
-  return list;
-}
-
-extern "C" void OnPreprocessorFreeApplyList(
-    PreprocessorGrammarState*,
-    PreprocessorGrammarApplyList* list) {
-  std::unique_ptr<PreprocessorGrammarApplyList> l(list);
 }
 
 }  // namespace perfetto::trace_processor

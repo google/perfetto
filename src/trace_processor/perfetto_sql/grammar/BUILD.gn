@@ -18,7 +18,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("grammar") {
   sources = [
-    "perfettosql_grammar.c",
+    "perfettosql_grammar.cc",
     "perfettosql_grammar.h",
     "perfettosql_grammar_interface.h",
     "perfettosql_keywordhash.h",
@@ -27,6 +27,8 @@ source_set("grammar") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../sqlite",
+    "../../util:sql_argument",
   ]
   visibility = [
     "../parser",
@@ -36,7 +38,7 @@ source_set("grammar") {
   if (perfetto_build_standalone) {
     configs -= [ "//gn/standalone:extra_warnings" ]  # nogncheck
   } else {
-    cflags_c = [
+    cflags_cc = [
       "-Wno-unused-parameter",
       "-Wno-unreachable-code",
     ]

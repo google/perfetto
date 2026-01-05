@@ -17,23 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PREPROCESSOR_PREPROCESSOR_GRAMMAR_INTERFACE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PREPROCESSOR_PREPROCESSOR_GRAMMAR_INTERFACE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stddef.h>
 #include <stdio.h>
+
+#include <vector>
 
 #include "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.h"
 
 #undef NDEBUG
 
-#ifdef __cplusplus
 namespace perfetto::trace_processor {
-namespace {
-#endif
-
-struct PreprocessorGrammarState;
 
 struct PreprocessorGrammarToken {
   const char* ptr;
@@ -42,50 +35,42 @@ struct PreprocessorGrammarToken {
 };
 
 struct PreprocessorGrammarTokenBounds {
-  struct PreprocessorGrammarToken start;
-  struct PreprocessorGrammarToken end;
+  PreprocessorGrammarToken start;
+  PreprocessorGrammarToken end;
 };
 
-struct PreprocessorGrammarApplyList;
+// Forward declarations - full definitions in perfetto_sql_preprocessor.cc
+struct PreprocessorGrammarState;
+
+struct PreprocessorGrammarApplyList {
+  std::vector<PreprocessorGrammarTokenBounds> args;
+};
 
 void* PreprocessorGrammarParseAlloc(void* (*)(size_t),
-                                    struct PreprocessorGrammarState*);
-void PreprocessorGrammarParse(void* parser,
-                              int,
-                              struct PreprocessorGrammarToken);
+                                    PreprocessorGrammarState*);
+void PreprocessorGrammarParse(void* parser, int, PreprocessorGrammarToken);
 void PreprocessorGrammarParseFree(void* parser, void (*)(void*));
 void PreprocessorGrammarParseTrace(FILE*, char*);
 
-void OnPreprocessorSyntaxError(struct PreprocessorGrammarState*,
-                               struct PreprocessorGrammarToken*);
-void OnPreprocessorApply(struct PreprocessorGrammarState*,
-                         struct PreprocessorGrammarToken* name,
-                         struct PreprocessorGrammarToken* join,
-                         struct PreprocessorGrammarToken* prefix,
-                         struct PreprocessorGrammarApplyList*,
-                         struct PreprocessorGrammarApplyList*);
-void OnPreprocessorVariable(struct PreprocessorGrammarState*,
-                            struct PreprocessorGrammarToken* var);
-void OnPreprocessorMacroId(struct PreprocessorGrammarState*,
-                           struct PreprocessorGrammarToken* name);
-void OnPreprocessorMacroArg(struct PreprocessorGrammarState*,
-                            struct PreprocessorGrammarTokenBounds*);
-void OnPreprocessorMacroEnd(struct PreprocessorGrammarState*,
-                            struct PreprocessorGrammarToken* name,
-                            struct PreprocessorGrammarToken* rp);
-void OnPreprocessorEnd(struct PreprocessorGrammarState*);
+void OnPreprocessorSyntaxError(PreprocessorGrammarState*,
+                               PreprocessorGrammarToken*);
+void OnPreprocessorApply(PreprocessorGrammarState*,
+                         PreprocessorGrammarToken* name,
+                         PreprocessorGrammarToken* join,
+                         PreprocessorGrammarToken* prefix,
+                         PreprocessorGrammarApplyList*,
+                         PreprocessorGrammarApplyList*);
+void OnPreprocessorVariable(PreprocessorGrammarState*,
+                            PreprocessorGrammarToken* var);
+void OnPreprocessorMacroId(PreprocessorGrammarState*,
+                           PreprocessorGrammarToken* name);
+void OnPreprocessorMacroArg(PreprocessorGrammarState*,
+                            PreprocessorGrammarTokenBounds*);
+void OnPreprocessorMacroEnd(PreprocessorGrammarState*,
+                            PreprocessorGrammarToken* name,
+                            PreprocessorGrammarToken* rp);
+void OnPreprocessorEnd(PreprocessorGrammarState*);
 
-struct PreprocessorGrammarApplyList* OnPreprocessorCreateApplyList();
-struct PreprocessorGrammarApplyList* OnPreprocessorAppendApplyList(
-    struct PreprocessorGrammarApplyList*,
-    struct PreprocessorGrammarTokenBounds*);
-void OnPreprocessorFreeApplyList(struct PreprocessorGrammarState*,
-                                 struct PreprocessorGrammarApplyList*);
-
-#ifdef __cplusplus
-}
-}
-}
-#endif
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PREPROCESSOR_PREPROCESSOR_GRAMMAR_INTERFACE_H_
