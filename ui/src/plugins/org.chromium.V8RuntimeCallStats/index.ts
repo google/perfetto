@@ -21,6 +21,13 @@ export default class implements PerfettoPlugin {
   static readonly description = 'V8 Runtime Call Stats';
 
   async onTraceLoad(trace: Trace) {
-    trace.selection.registerAreaSelectionTab(new V8RuntimeCallStatsTab(trace));
+    const result = await trace.engine.query(
+      `SELECT 1 FROM args WHERE key GLOB 'debug.runtime-call-stats.*' LIMIT 1`,
+    );
+    if (result.numRows() > 0) {
+      trace.selection.registerAreaSelectionTab(
+        new V8RuntimeCallStatsTab(trace),
+      );
+    }
   }
 }
