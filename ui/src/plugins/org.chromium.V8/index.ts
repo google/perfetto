@@ -16,21 +16,28 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {V8RuntimeCallStatsTab} from './v8_runtime_call_stats_tab';
 
+const RCS_TAB_URI = 'org.chromium.V8#V8RuntimeCallStatsTab';
+
+
 export default class implements PerfettoPlugin {
-  static readonly id = 'org.chromium.V8RuntimeCallStats';
-  static readonly description = 'V8 Runtime Call Stats';
+  static readonly id = 'org.chromium.V8';
+  static readonly description = 'V8 Plugin';
 
   async onTraceLoad(trace: Trace) {
-    const result = await trace.engine.query(
+    const hasRCSData = await trace.engine.query(
       `SELECT 1 FROM args WHERE key GLOB 'debug.runtime-call-stats.*' LIMIT 1`,
     );
-    if (result.numRows() > 0) {
-      trace.tabs.registerTab({
-        uri: 'org.chromium.V8RuntimeCallStats#V8RuntimeCallStatsTab',
-        content: new V8RuntimeCallStatsTab(trace),
-        isEphemeral: false,
-      });
-      trace.tabs.addDefaultTab( 'org.chromium.V8RuntimeCallStats#V8RuntimeCallStatsTab');
+    if (hasRCSData.numRows() > 0) {
+      this.enableRCS(trace);
     }
+  }
+
+  private enableRCS(trace: Trace) {
+    trace.tabs.registerTab({
+      uri: RCS_TAB_URI,
+      content: new V8RuntimeCallStatsTab(trace),
+      isEphemeral: false,
+    });
+    trace.tabs.addDefaultTab(RCS_TAB_URI);
   }
 }
