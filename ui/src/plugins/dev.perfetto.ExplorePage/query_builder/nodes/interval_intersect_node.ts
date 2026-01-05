@@ -37,7 +37,7 @@ import {
   MultiSelectDiff,
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {NodeTitle} from '../node_styling_widgets';
+import {NodeTitle, ColumnName} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 
 export interface IntervalIntersectSerializedState {
@@ -325,7 +325,7 @@ export class IntervalIntersectNode implements QueryNode {
     return loadNodeDoc('interval_intersect');
   }
 
-  private renderPartitionSelector(compact: boolean = false): m.Child {
+  private renderPartitionSelector(): m.Child {
     // Initialize partition columns if needed
     if (!this.state.partitionColumns) {
       this.state.partitionColumns = [];
@@ -366,7 +366,6 @@ export class IntervalIntersectNode implements QueryNode {
         label,
         options: partitionOptions,
         showNumSelected: false,
-        compact,
         onChange: (diffs: MultiSelectDiff[]) => {
           if (!this.state.partitionColumns) {
             this.state.partitionColumns = [];
@@ -392,8 +391,24 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
+    const details: m.Child[] = [NodeTitle(this.getTitle())];
+
+    // Display partition columns (read-only)
+    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
+      details.push(
+        m(
+          'div',
+          'Partition by: ',
+          this.state.partitionColumns.map((col, index) => [
+            ColumnName(col),
+            index < this.state.partitionColumns!.length - 1 ? ', ' : '',
+          ]),
+        ),
+      );
+    }
+
     return {
-      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
+      content: details,
     };
   }
 
@@ -567,7 +582,7 @@ export class IntervalIntersectNode implements QueryNode {
     }
 
     // Add partition selector
-    const partitionSelector = this.renderPartitionSelector(false);
+    const partitionSelector = this.renderPartitionSelector();
     if (partitionSelector !== null) {
       sections.push({
         content: partitionSelector,
