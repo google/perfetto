@@ -25,44 +25,60 @@
 
 namespace perfetto::base {
 
+namespace variant_internal {
+
+constexpr size_t npos = static_cast<size_t>(-1);
+constexpr size_t ambiguous = static_cast<size_t>(-2);
+
+template <class T, class... Ts>
+constexpr size_t find_index() {
+  constexpr bool matches[] = {std::is_same_v<T, Ts>...};
+  size_t result = npos;
+  for (size_t i = 0; i < sizeof...(Ts); ++i) {
+    if (matches[i]) {
+      if (result != npos)
+        return ambiguous;  // found more than once
+      result = i;
+    }
+  }
+  return result;
+}
+
+template <class Variant, class T>
+struct variant_index_impl;
+
+template <class T, class... Ts>
+struct variant_index_impl<std::variant<Ts...>, T> {
+  static constexpr size_t value = find_index<T, Ts...>();
+};
+
+}  // namespace variant_internal
+
 // Given a std::variant and a type T, returns the index of the T in the variant.
-template <typename VariantType, typename T, size_t i = 0>
+template <typename VariantType, typename T>
 constexpr size_t variant_index() {
-  static_assert(i < std::variant_size_v<VariantType>,
-                "Type not found in variant");
-  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
-    return i;
-  } else {
-    return variant_index<VariantType, T, i + 1>();
-  }
+  constexpr size_t idx =
+      variant_internal::variant_index_impl<VariantType, T>::value;
+  static_assert(idx != variant_internal::npos, "Type not found in variant");
+  static_assert(idx != variant_internal::ambiguous,
+                "Type appears more than once in variant");
+  return idx;
 }
 
-template <typename T, typename VariantType, size_t i = 0>
+template <typename T, typename VariantType>
 constexpr T& unchecked_get(VariantType& variant) {
-  static_assert(i < std::variant_size_v<VariantType>,
-                "Type not found in variant");
-  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
-    PERFETTO_DCHECK(std::holds_alternative<T>(variant));
-    auto* v = std::get_if<T>(&variant);
-    PERFETTO_ASSUME(v);
-    return *v;
-  } else {
-    return unchecked_get<T, VariantType, i + 1>(variant);
-  }
+  PERFETTO_DCHECK(std::holds_alternative<T>(variant));
+  auto* v = std::get_if<T>(&variant);
+  PERFETTO_ASSUME(v != nullptr);
+  return *v;
 }
 
-template <typename T, typename VariantType, size_t i = 0>
+template <typename T, typename VariantType>
 constexpr const T& unchecked_get(const VariantType& variant) {
-  static_assert(i < std::variant_size_v<VariantType>,
-                "Type not found in variant");
-  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
-    PERFETTO_DCHECK(std::holds_alternative<T>(variant));
-    const auto* v = std::get_if<T>(&variant);
-    PERFETTO_ASSUME(v != nullptr);
-    return *v;
-  } else {
-    return unchecked_get<T, VariantType, i + 1>(variant);
-  }
+  PERFETTO_DCHECK(std::holds_alternative<T>(variant));
+  const auto* v = std::get_if<T>(&variant);
+  PERFETTO_ASSUME(v != nullptr);
+  return *v;
 }
 
 }  // namespace perfetto::base
