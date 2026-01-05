@@ -77,7 +77,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     }
 
     if (this.loading) {
-      return m('div.pf-loading-container', m(Spinner));
+      return m('div.pf-v8-loading-container', m(Spinner));
     }
 
     if (!this.state) {
