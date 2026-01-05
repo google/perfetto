@@ -1,0 +1,29 @@
+.pf-v8-rcs-percentage-cell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  .bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    height: 100%;
+  }
+
+  .value {
+    position: relative;
+    margin-right: 4px;
+    z-index: 1;
+  }
+}
+
+.pf-loading-container {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
