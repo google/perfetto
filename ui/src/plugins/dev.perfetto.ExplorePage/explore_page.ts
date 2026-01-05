@@ -427,7 +427,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       }
       const json = await response.text();
       const newState = deserializeState(json, attrs.trace, sqlModules);
-      attrs.onStateUpdate(newState);
+
+      // Only apply the loaded state if the user hasn't added nodes or cleared
+      // while we were fetching. This prevents a race condition where clearing
+      // nodes immediately after page load would be overwritten by this async load.
+      if (attrs.state.rootNodes.length === 0) {
+        attrs.onStateUpdate(newState);
+      }
     } catch (error) {
       console.error('Failed to load base page state:', error);
       // Silently fail - leave the page empty if JSON can't be loaded
