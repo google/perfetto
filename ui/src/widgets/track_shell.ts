@@ -165,8 +165,8 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             collapsible && !collapsed && 'pf-track__header--clickable',
           ),
           onclick: (e: MouseEvent) => {
-            if (e.target === e.currentTarget && collapsible && !collapsed) {
-              attrs.onCollapsedChanged?.(true);
+            if (e.target === e.currentTarget && collapsible) {
+              attrs.onCollapsedChanged?.(!collapsed);
             }
           },
         },
