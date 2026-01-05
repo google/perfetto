@@ -112,7 +112,8 @@ export class V8RuntimeCallStatsTab implements Tab {
     if (selection.kind === 'track_event') {
       const prev = this.previousSelection as TrackEventSelection;
       return (
-        prev.eventId !== selection.eventId || prev.trackUri !== selection.trackUri
+        prev.eventId !== selection.eventId ||
+        prev.trackUri !== selection.trackUri
       );
     }
 
