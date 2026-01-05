@@ -147,6 +147,8 @@ config("abseil_config") {
     cflags += [
       "-Wno-stringop-overflow",
       "-Wno-ignored-attributes",
+      "-Wno-pedantic",
+      "-Wno-overflow",
     ]
   }
 }
