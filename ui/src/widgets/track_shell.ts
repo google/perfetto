@@ -379,7 +379,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       {
         className: classNames(
           error && 'pf-track__canvas--error',
-          attrs.collapsible && attrs.collapsed && 'pf-track__canvas--clickable',
+          attrs.collapsible && 'pf-track__canvas--clickable',
         ),
         onmousemove: (e: MithrilEvent<MouseEvent>) => {
           e.redraw = false;
@@ -412,8 +412,8 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             return;
           }
 
-          if (attrs.collapsible && attrs.collapsed) {
-            attrs.onCollapsedChanged?.(false);
+          if (attrs.collapsible) {
+            attrs.onCollapsedChanged?.(!attrs.collapsed);
             return;
           }
 
