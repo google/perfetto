@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.helpers;
 
+INCLUDE PERFETTO MODULE graphs.scan;
+
 INCLUDE PERFETTO MODULE graphs.search;
 
 -- Converts the heap graph into a tree by performing a BFS on the graph from
@@ -43,6 +45,41 @@ FROM graph_reachable_bfs!(
     ORDER BY c.name, o.id
   )
 )
+ORDER BY
+  id;
+
+CREATE PERFETTO TABLE _heap_graph_object_tree_aggregation AS
+SELECT
+  id,
+  cumulative_size,
+  cumulative_native_size,
+  cumulative_count
+FROM _graph_aggregating_scan!(
+      (
+        SELECT id AS source_node_id, parent_id AS dest_node_id
+        FROM _heap_graph_object_min_depth_tree
+        WHERE parent_id IS NOT NULL
+      ),
+      (
+        SELECT
+          id,
+          self_size AS cumulative_size,
+          native_size AS cumulative_native_size,
+          1 AS cumulative_count
+        FROM heap_graph_object
+      ),
+      (cumulative_size, cumulative_native_size, cumulative_count),
+      (
+        SELECT
+          t.id,
+          SUM(t.cumulative_size) AS cumulative_size,
+          SUM(t.cumulative_native_size) AS cumulative_native_size,
+          SUM(t.cumulative_count) AS cumulative_count
+        FROM $table t
+        JOIN heap_graph_object o
+          ON t.id = o.id
+        GROUP BY t.id
+      ))
 ORDER BY
   id;
 
@@ -79,10 +116,16 @@ RETURNS TableOrSubquery AS
     path_hash,
     coalesce(c.deobfuscated_name, c.name) AS class_name,
     count(r.owned_id) AS outgoing_reference_count,
+    cumulative_native_size + cumulative_size AS total_cumulative_size,
+    cumulative_size,
+    cumulative_native_size,
+    cumulative_count,
     o.*
   FROM _path_hashes AS h
   JOIN heap_graph_object AS o
     ON h.id = o.id
+  JOIN _heap_graph_object_tree_aggregation AS a
+    ON h.id = a.id
   JOIN heap_graph_class AS c
     ON o.type_id = c.id
   JOIN heap_graph_reference AS r
@@ -90,7 +133,7 @@ RETURNS TableOrSubquery AS
   GROUP BY
     o.id
   ORDER BY
-    outgoing_reference_count DESC
+    total_cumulative_size DESC
 );
 
 CREATE PERFETTO MACRO _heap_graph_incoming_references_agg(
