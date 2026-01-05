@@ -82,9 +82,10 @@ export class ProcessSchedulingTrack implements TrackRenderer {
             s.id,
             s.ts,
             s.dur,
-            s.cpu
+            c.cpu
           from thread t
           cross join sched s using (utid)
+          cross join cpu c using (ucpu)
           where
             not t.is_idle and
             t.upid = ${this.config.upid}
@@ -97,8 +98,9 @@ export class ProcessSchedulingTrack implements TrackRenderer {
           s.id,
           s.ts,
           s.dur,
-          s.cpu
+          c.cpu
         from sched s
+        cross join cpu c using (ucpu)
         where
           s.utid = ${this.config.utid}
       `;
