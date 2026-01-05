@@ -26,6 +26,7 @@ CREATE PERFETTO FUNCTION slice_is_ancestor(
 RETURNS BOOL AS
 SELECT
   ancestor.track_id = descendant.track_id
+  AND ancestor.depth < descendant.depth
   AND ancestor.ts <= descendant.ts
   AND (
     ancestor.dur = -1 OR ancestor.ts + ancestor.dur >= descendant.ts + descendant.dur
