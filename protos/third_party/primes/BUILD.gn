@@ -1,0 +1,9 @@
+import("../../../gn/proto_library.gni")
+
+perfetto_proto_library("@TYPE@") {
+    sources = ["primes_tracing.proto"]
+    import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+    generate_descriptor = "primes_tracing.descriptor"
+    descriptor_root_source = "primes_tracing.proto"
+    deps = []
+}
