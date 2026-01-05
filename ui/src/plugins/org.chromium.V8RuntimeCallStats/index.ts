@@ -25,9 +25,12 @@ export default class implements PerfettoPlugin {
       `SELECT 1 FROM args WHERE key GLOB 'debug.runtime-call-stats.*' LIMIT 1`,
     );
     if (result.numRows() > 0) {
-      trace.selection.registerAreaSelectionTab(
-        new V8RuntimeCallStatsTab(trace),
-      );
+      trace.tabs.registerTab({
+        uri: 'org.chromium.V8RuntimeCallStats#V8RuntimeCallStatsTab',
+        content: new V8RuntimeCallStatsTab(trace),
+        isEphemeral: false,
+      });
+      trace.tabs.addDefaultTab( 'org.chromium.V8RuntimeCallStats#V8RuntimeCallStatsTab');
     }
   }
 }

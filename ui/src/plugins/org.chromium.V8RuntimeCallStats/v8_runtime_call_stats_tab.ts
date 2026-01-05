@@ -19,7 +19,9 @@ import {PivotTableState} from '../../components/widgets/sql/pivot_table/pivot_ta
 import {
   AreaSelection,
   areaSelectionsEqual,
-  AreaSelectionTab,
+  Selection,
+  TrackEventSelection,
+  TrackSelection,
 } from '../../public/selection';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
@@ -28,6 +30,7 @@ import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {resolveTableDefinition} from '../../components/widgets/sql/table/columns';
 import {Spinner} from '../../widgets/spinner';
 import {Aggregation} from '../../components/widgets/sql/pivot_table/aggregations';
+import {Tab} from '../../public/tab';
 
 const V8_RUNTIME_CALL_STATS_VIEW: SqlTableDefinition = {
   name: 'v8_rcs_view',
@@ -42,53 +45,152 @@ const V8_RUNTIME_CALL_STATS_VIEW: SqlTableDefinition = {
   ],
 };
 
-export class V8RuntimeCallStatsTab implements AreaSelectionTab {
-  readonly id = 'v8_runtime_call_stats';
-  readonly name = 'V8 Runtime Call Stats';
-
+export class V8RuntimeCallStatsTab implements Tab {
   private state?: PivotTableState;
-  private previousSelection?: AreaSelection;
-  private trackIds: number[] = [];
+  private previousSelection?: Selection;
+  private loading = false;
 
   constructor(private readonly trace: Trace) {}
 
-  render(selection: AreaSelection) {
-    const selectionChanged =
-      this.previousSelection === undefined ||
-      !areaSelectionsEqual(this.previousSelection, selection);
+  getTitle(): string {
+    return 'V8 Runtime Call Stats';
+  }
+
+  render(): m.Children {
+    const selection = this.trace.selection.selection;
+    if (
+      selection.kind !== 'area' &&
+      selection.kind !== 'track_event' &&
+      selection.kind !== 'track' &&
+      selection.kind !== 'empty'
+    ) {
+      return this.renderEmptyState();
+    }
+
+    const selectionChanged = this.hasSelectionChanged(selection);
+
     if (selectionChanged) {
       this.previousSelection = selection;
-      this.trackIds = selection.tracks
+      this.state = undefined;
+      this.loading = true;
+      this.loadData(selection);
+    }
+
+    if (this.loading) {
+      return m('div.pf-loading-container', m(Spinner));
+    }
+
+    if (!this.state) {
+      return this.renderEmptyState();
+    }
+
+    return m(PivotTable, {
+      state: this.state,
+      getSelectableColumns: () => this.state!.table.columns,
+    });
+  }
+
+  private renderEmptyState(): m.Children {
+    return m(
+      'div',
+      {style: {padding: '10px'}},
+      'Select an area, a slice, or a track to view specific V8 Runtime Call Stats, or clear selection to view all.',
+    );
+  }
+
+  private hasSelectionChanged(selection: Selection): boolean {
+    if (this.previousSelection === undefined) return true;
+    if (this.previousSelection.kind !== selection.kind) return true;
+
+    if (selection.kind === 'area') {
+      return !areaSelectionsEqual(
+        this.previousSelection as AreaSelection,
+        selection,
+      );
+    }
+
+    if (selection.kind === 'track_event') {
+      const prev = this.previousSelection as TrackEventSelection;
+      return (
+        prev.eventId !== selection.eventId || prev.trackUri !== selection.trackUri
+      );
+    }
+
+    if (selection.kind === 'track') {
+      const prev = this.previousSelection as TrackSelection;
+      return prev.trackUri !== selection.trackUri;
+    }
+
+    return false;
+  }
+
+  private async loadData(selection: Selection) {
+    let shouldLoad = false;
+    let trackIds: number[] = [];
+
+    if (selection.kind === 'area') {
+      trackIds = selection.tracks
         .filter((track) => track.tags?.kinds?.includes(SLICE_TRACK_KIND))
         .flatMap((track) => track.tags?.trackIds ?? []);
+      shouldLoad = trackIds.length > 0;
+    } else if (selection.kind === 'track') {
+      const track = this.trace.tracks.getTrack(selection.trackUri);
+      trackIds = (track?.tags?.trackIds ?? []) as number[];
+      shouldLoad = trackIds.length > 0;
+    } else if (selection.kind === 'track_event') {
+      const result = await this.trace.engine.query(`
+          SELECT 1 FROM args
+          JOIN slice ON slice.arg_set_id = args.arg_set_id
+          WHERE slice.id = ${selection.eventId}
+          AND args.key GLOB 'debug.runtime-call-stats.*'
+          LIMIT 1
+        `);
+      shouldLoad = result.numRows() > 0;
+    } else if (selection.kind === 'empty') {
+      shouldLoad = true;
+    }
 
-      this.state = undefined;
-      if (this.trackIds.length > 0) {
-        this.updateSqlView(selection).then(() => {
-          this.state = this.createState();
-        });
+    if (shouldLoad && this.previousSelection === selection) {
+      await this.updateSqlView(selection, trackIds);
+      if (this.previousSelection === selection) {
+        this.state = this.createState();
       }
     }
 
-    if (this.trackIds.length === 0) return undefined;
-    const state = this.state;
-    if (state?.getData() === undefined) {
-      return {
-        isLoading: true,
-        content: m('div.pf-loading-container', m(Spinner)),
-      };
+    if (this.previousSelection === selection) {
+      this.loading = false;
+      this.trace.raf.scheduleFullRedraw();
     }
-
-    return {
-      isLoading: false,
-      content: m(PivotTable, {
-        state,
-        getSelectableColumns: () => state.table.columns,
-      }),
-    };
   }
 
-  private async updateSqlView(selection: AreaSelection) {
+  private async updateSqlView(selection: Selection, trackIds: number[]) {
+    let start: bigint;
+    let end: bigint;
+    let whereClause: string;
+
+    if (selection.kind === 'area') {
+      start = selection.start;
+      end = selection.end;
+      whereClause = `
+          s.track_id IN (${trackIds.join(',')}) AND
+          s.ts < ${end} AND s.ts + s.dur > ${start}
+      `;
+    } else if (selection.kind === 'track') {
+      start = this.trace.traceInfo.start;
+      end = this.trace.traceInfo.end;
+      whereClause = `s.track_id IN (${trackIds.join(',')})`;
+    } else if (selection.kind === 'track_event') {
+      const prev = selection as TrackEventSelection;
+      start = prev.ts;
+      end = prev.ts + (prev.dur ?? 0n);
+      whereClause = `s.id = ${prev.eventId}`;
+    } else {
+      // Empty selection - all data
+      start = this.trace.traceInfo.start;
+      end = this.trace.traceInfo.end;
+      whereClause = '1 = 1';
+    }
+
     await this.trace.engine.query(`
       CREATE OR REPLACE PERFETTO VIEW v8_rcs_view AS
       WITH rcs_entries AS (
@@ -103,16 +205,15 @@ export class V8RuntimeCallStatsTab implements AreaSelectionTab {
             WHEN s.dur = 0 THEN 1.0
             ELSE
               MAX(0.0, (
-                  MIN(s.ts + s.dur, ${selection.end}) -
-                  MAX(s.ts, ${selection.start}))
+                  MIN(s.ts + s.dur, ${end}) -
+                  MAX(s.ts, ${start}))
               ) / CAST(s.dur AS DOUBLE)
           END AS ratio
         FROM slice s
         JOIN args a ON s.arg_set_id = a.arg_set_id
         WHERE
           a.key GLOB 'debug.runtime-call-stats.*' AND
-          s.track_id IN (${this.trackIds.join(',')}) AND
-          s.ts < ${selection.end} AND s.ts + s.dur > ${selection.start}
+          ${whereClause}
       )
       SELECT
         ts,
