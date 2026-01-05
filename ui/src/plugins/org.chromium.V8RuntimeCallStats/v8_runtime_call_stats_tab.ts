@@ -202,6 +202,8 @@ export class V8RuntimeCallStatsTab implements AreaSelectionTab {
         },
       ],
     });
+    // Remove the default 'count' aggregation added by PivotTableState.
+    this.state.removeAggregation(this.state.getAggregations().length - 1);
     this.state.sortByAggregation(durAggregation, 'DESC');
     return this.state;
   }
