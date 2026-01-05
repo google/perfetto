@@ -29,7 +29,7 @@ import {resolveTableDefinition} from '../../components/widgets/sql/table/columns
 import {Spinner} from '../../widgets/spinner';
 import {Aggregation} from '../../components/widgets/sql/pivot_table/aggregations';
 
-const V8_RUNTIME_CALL_STATS_TABLE: SqlTableDefinition = {
+const V8_RUNTIME_CALL_STATS_VIEW: SqlTableDefinition = {
   name: 'v8_rcs_view',
   columns: [
     {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
@@ -49,47 +49,38 @@ export class V8RuntimeCallStatsTab implements AreaSelectionTab {
   private state?: PivotTableState;
   private previousSelection?: AreaSelection;
   private trackIds: number[] = [];
-  private sqlViewCreated = false;
 
   constructor(private readonly trace: Trace) {}
 
   render(selection: AreaSelection) {
-    const changed =
+    const selectionChanged =
       this.previousSelection === undefined ||
       !areaSelectionsEqual(this.previousSelection, selection);
-    if (changed) {
+    if (selectionChanged) {
       this.previousSelection = selection;
       this.trackIds = selection.tracks
         .filter((track) => track.tags?.kinds?.includes(SLICE_TRACK_KIND))
         .flatMap((track) => track.tags?.trackIds ?? []);
-      this.state = undefined;
 
-      this.sqlViewCreated = false;
+      this.state = undefined;
       if (this.trackIds.length > 0) {
         this.updateSqlView(selection).then(() => {
-          this.sqlViewCreated = true;
-          this.trace.raf.scheduleFullRedraw();
+          this.state = this.createState();
         });
       }
     }
 
     if (this.trackIds.length === 0) return undefined;
-    if (!this.sqlViewCreated) {
+    const state = this.state;
+    if (state?.getData() === undefined) {
       return {
         isLoading: true,
         content: m('div.pf-loading-container', m(Spinner)),
       };
     }
 
-    const state = this.getOrCreateState();
-    if (state.filters.get().length === 0) {
-      this.updateFilters(selection);
-    }
-
-    const root = state.getData();
-
     return {
-      isLoading: root === undefined,
+      isLoading: false,
       content: m(PivotTable, {
         state,
         getSelectableColumns: () => state.table.columns,
@@ -179,34 +170,20 @@ export class V8RuntimeCallStatsTab implements AreaSelectionTab {
     `);
   }
 
-  private updateFilters(_selection: AreaSelection) {
-    this.getOrCreateState().filters.setFilters([
-      {
-        op: (cols) => `${cols[0]} in (${this.trackIds.join(', ')})`,
-        columns: ['track_id'],
-      },
-    ]);
-  }
-
-  private getOrCreateState(): PivotTableState {
-    if (this.state !== undefined) return this.state;
+  private createState(): PivotTableState {
     const tableDef = resolveTableDefinition(
       this.trace,
-      V8_RUNTIME_CALL_STATS_TABLE,
+      V8_RUNTIME_CALL_STATS_VIEW,
     );
 
-    const v8RcsName = assertExists(
-      tableDef.columns.find((c) => c.column === 'v8_rcs_name'),
-    );
-    const v8RcsGroup = assertExists(
-      tableDef.columns.find((c) => c.column === 'v8_rcs_group'),
-    );
-    const v8RcsDur = assertExists(
-      tableDef.columns.find((c) => c.column === 'v8_rcs_dur'),
-    );
-    const v8RcsCount = assertExists(
-      tableDef.columns.find((c) => c.column === 'v8_rcs_count'),
-    );
+    const findColumn = (name: string) => {
+      return assertExists(tableDef.columns.find((c) => c.column === name));
+    };
+
+    const v8RcsName = findColumn('v8_rcs_name');
+    const v8RcsGroup = findColumn('v8_rcs_group');
+    const v8RcsDur = findColumn('v8_rcs_dur');
+    const v8RcsCount = findColumn('v8_rcs_count');
 
     const durAggregation: Aggregation = {
       column: v8RcsDur,
