@@ -35,6 +35,7 @@ import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
 import {MiddleEllipsis} from './middle_ellipsis';
 import {Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
+import {Icons} from '../base/semantic_icons';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -835,7 +836,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         {
           trigger: m(Button, {
             label: hasFilters ? undefined : 'Add',
-            icon: 'add',
+            icon: Icons.Add,
             compact: true,
             active: this.showFilterBuilder,
             onclick: () => {
