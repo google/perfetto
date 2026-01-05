@@ -121,8 +121,7 @@ export class V8RuntimeCallStatsTab implements AreaSelectionTab {
         WHERE
           a.key GLOB 'debug.runtime-call-stats.*' AND
           s.track_id IN (${this.trackIds.join(',')}) AND
-          s.ts < ${selection.end} AND s.ts + s.dur > ${selection.start} AND
-          a.key NOT LIKE '%Total%'
+          s.ts < ${selection.end} AND s.ts + s.dur > ${selection.start}
       )
       SELECT
         ts,
