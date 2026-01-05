@@ -165,30 +165,33 @@ export class V8RuntimeCallStatsTab implements Tab {
   }
 
   private async updateSqlView(selection: Selection, trackIds: number[]) {
-    let start: bigint;
-    let end: bigint;
     let whereClause: string;
+    let ratioExpression: string = '1.0';
 
     if (selection.kind === 'area') {
-      start = selection.start;
-      end = selection.end;
+      const start = selection.start;
+      const end = selection.end;
       whereClause = `
           s.track_id IN (${trackIds.join(',')}) AND
           s.ts < ${end} AND s.ts + s.dur > ${start}
       `;
+      ratioExpression = `
+          CASE
+            WHEN s.dur = 0 THEN 1.0
+            ELSE
+              MAX(0.0, (
+                  MIN(s.ts + s.dur, ${end}) -
+                  MAX(s.ts, ${start}))
+              ) / CAST(s.dur AS DOUBLE)
+          END
+      `;
     } else if (selection.kind === 'track') {
-      start = this.trace.traceInfo.start;
-      end = this.trace.traceInfo.end;
       whereClause = `s.track_id IN (${trackIds.join(',')})`;
     } else if (selection.kind === 'track_event') {
       const prev = selection as TrackEventSelection;
-      start = prev.ts;
-      end = prev.ts + (prev.dur ?? 0n);
       whereClause = `s.id = ${prev.eventId}`;
     } else {
       // Empty selection - all data
-      start = this.trace.traceInfo.start;
-      end = this.trace.traceInfo.end;
       whereClause = '1 = 1';
     }
 
@@ -202,14 +205,7 @@ export class V8RuntimeCallStatsTab implements Tab {
           SUBSTR(a.key, 26, LENGTH(a.key) - 28) AS name,
           SUBSTR(a.key, -3) AS suffix,
           a.int_value,
-          CASE
-            WHEN s.dur = 0 THEN 1.0
-            ELSE
-              MAX(0.0, (
-                  MIN(s.ts + s.dur, ${end}) -
-                  MAX(s.ts, ${start}))
-              ) / CAST(s.dur AS DOUBLE)
-          END AS ratio
+          ${ratioExpression} AS ratio
         FROM slice s
         JOIN args a ON s.arg_set_id = a.arg_set_id
         WHERE
