@@ -659,42 +659,46 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
 
     PERFETTO_DCHECK(cur_stmt->sqlite_stmt());
 
-    // Re-fetch frame reference for the rest of statement processing
-    auto& current_frame = execution_stack_[frame_idx];
-
-    // Finish previous statement if needed
-    if (current_frame.current_stmt && !current_frame.current_stmt->IsDone()) {
+    // Finish previous statement if needed.
+    // IMPORTANT: Use index-based access, not references, because Step() can
+    // trigger re-entrant Execute() calls that reallocate execution_stack_.
+    if (execution_stack_[frame_idx].current_stmt &&
+        !execution_stack_[frame_idx].current_stmt->IsDone()) {
       PERFETTO_TP_TRACE(
           metatrace::Category::QUERY_TIMELINE, "STMT_STEP_UNTIL_DONE",
-          [&current_frame](metatrace::Record* record) {
-            record->AddArg("Original SQL",
-                           current_frame.current_stmt->original_sql());
-            record->AddArg("Executed SQL", current_frame.current_stmt->sql());
+          [&](metatrace::Record* record) {
+            record->AddArg(
+                "Original SQL",
+                execution_stack_[frame_idx].current_stmt->original_sql());
+            record->AddArg("Executed SQL",
+                           execution_stack_[frame_idx].current_stmt->sql());
           });
-      while (current_frame.current_stmt->Step()) {
+      while (execution_stack_[frame_idx].current_stmt->Step()) {
       }
-      RETURN_IF_ERROR(current_frame.current_stmt->status());
+      RETURN_IF_ERROR(execution_stack_[frame_idx].current_stmt->status());
     }
 
     // Set as current statement
-    current_frame.current_stmt = std::move(cur_stmt);
+    execution_stack_[frame_idx].current_stmt = std::move(cur_stmt);
 
     // Step once
     {
       PERFETTO_TP_TRACE(
           metatrace::Category::QUERY_TIMELINE, "STMT_FIRST_STEP",
-          [&current_frame](metatrace::Record* record) {
-            record->AddArg("Original SQL",
-                           current_frame.current_stmt->original_sql());
-            record->AddArg("Executed SQL", current_frame.current_stmt->sql());
+          [&](metatrace::Record* record) {
+            record->AddArg(
+                "Original SQL",
+                execution_stack_[frame_idx].current_stmt->original_sql());
+            record->AddArg("Executed SQL",
+                           execution_stack_[frame_idx].current_stmt->sql());
           });
-      current_frame.current_stmt->Step();
-      RETURN_IF_ERROR(current_frame.current_stmt->status());
+      execution_stack_[frame_idx].current_stmt->Step();
+      RETURN_IF_ERROR(execution_stack_[frame_idx].current_stmt->status());
     }
 
     // Update stats
-    IncrementCountForStmt(*current_frame.current_stmt,
-                          &current_frame.accumulated_stats);
+    IncrementCountForStmt(*execution_stack_[frame_idx].current_stmt,
+                          &execution_stack_[frame_idx].accumulated_stats);
     return FrameResult::kContinue;
   }
 
@@ -774,7 +778,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
         ExecutionResult res{std::move(*frame.current_stmt),
                             frame.accumulated_stats};
         execution_stack_.pop_back();
-        return res;
+        return std::move(res);
       }
     }
   }
