@@ -318,6 +318,51 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   return base::OkStatus();
 }
 
+void QueryPlanBuilder::GroupBy(const std::vector<GroupBySpec>& group_by_specs) {
+  if (group_by_specs.empty()) {
+    return;
+  }
+
+  // Optimization: Check if single column is already sorted
+  // If so, rows with same values are already adjacent - no work needed!
+  if (group_by_specs.size() == 1) {
+    const Column& col = GetColumn(group_by_specs[0].col);
+    if (col.null_storage.nullability().Is<NonNull>() &&
+        (col.sort_state.Is<Sorted>() || col.sort_state.Is<IdSorted>() ||
+         col.sort_state.Is<SetIdSorted>())) {
+      // Already grouped! Groups are adjacent, no need for hash grouping.
+      return;
+    }
+  }
+
+  // Use hash-based grouping for O(n) performance
+  std::vector<RowLayoutParams> row_layout_params;
+  row_layout_params.reserve(group_by_specs.size());
+  for (const auto& spec : group_by_specs) {
+    row_layout_params.push_back({spec.col, false});
+  }
+
+  uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
+  bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
+  auto buffer_reg =
+      CopyToRowLayout(total_row_stride, indices, {}, row_layout_params);
+
+  // Allocate scratch space for HashGroup to avoid overwriting data
+  auto scratch = GetOrCreateScratchSpanRegister(plan_.params.max_row_count);
+
+  // Emit HashGroup bytecode to group rows by key columns
+  {
+    using B = bytecode::HashGroup;
+    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    bc.arg<B::buffer_register>() = buffer_reg;
+    bc.arg<B::total_row_stride>() = total_row_stride;
+    bc.arg<B::indices_register>() = indices;
+    bc.arg<B::scratch_register>() = scratch;
+  }
+
+  MaybeReleaseScratchSpanRegister();
+}
+
 void QueryPlanBuilder::Distinct(
     const std::vector<DistinctSpec>& distinct_specs) {
   if (distinct_specs.empty()) {

@@ -36,7 +36,7 @@ void TypedCursor::ExecuteUnchecked() {
 }
 
 void TypedCursor::PrepareCursorInternal() {
-  auto plan = dataframe_->PlanQuery(filter_specs_, {}, sort_specs_, {}, 0);
+  auto plan = dataframe_->PlanQuery(filter_specs_, {}, {}, sort_specs_, {}, 0);
   PERFETTO_CHECK(plan.ok());
   dataframe_->PrepareCursor(*plan, cursor_);
   last_execution_mutation_count_ = GetMutations();

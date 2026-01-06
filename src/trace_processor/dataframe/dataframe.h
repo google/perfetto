@@ -141,6 +141,7 @@ class Dataframe {
   //
   // Parameters:
   //   filter_specs:     Filter predicates to apply to the data.
+  //   group_by_specs:   Group-by specifications to group rows by columns.
   //   distinct_specs:   Distinct specifications to remove duplicate rows.
   //   sort_specs:       Sort specifications defining the desired row order.
   //   limit_spec:       Optional struct specifying LIMIT and OFFSET values.
@@ -151,6 +152,7 @@ class Dataframe {
   //   A StatusOr containing the QueryPlan or an error status.
   base::StatusOr<QueryPlan> PlanQuery(
       std::vector<FilterSpec>& filter_specs,
+      const std::vector<GroupBySpec>& group_by_specs,
       const std::vector<DistinctSpec>& distinct_specs,
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,

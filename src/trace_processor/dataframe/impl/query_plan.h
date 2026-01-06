@@ -170,12 +170,14 @@ class QueryPlanBuilder {
       const std::vector<std::shared_ptr<Column>>& columns,
       const std::vector<Index>& indexes,
       std::vector<FilterSpec>& specs,
+      const std::vector<GroupBySpec>& group_by,
       const std::vector<DistinctSpec>& distinct,
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,
       uint64_t cols_used) {
     QueryPlanBuilder builder(row_count, columns, indexes);
     RETURN_IF_ERROR(builder.Filter(specs));
+    builder.GroupBy(group_by);
     builder.Distinct(distinct);
     if (builder.CanUseMinMaxOptimization(sort_specs, limit_spec)) {
       builder.MinMax(sort_specs[0]);
@@ -238,6 +240,11 @@ class QueryPlanBuilder {
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
   base::Status Filter(std::vector<FilterSpec>& specs);
+
+  // Adds group-by operations to the query plan based on group-by
+  // specifications. Groups rows with same values together (makes them adjacent)
+  // without requiring full sorting. Uses O(n) hash-based grouping.
+  void GroupBy(const std::vector<GroupBySpec>& group_by_specs);
 
   // Adds distinct operations to the query plan based on distinct
   // specifications. Distinct are applied after filters, in reverse order of

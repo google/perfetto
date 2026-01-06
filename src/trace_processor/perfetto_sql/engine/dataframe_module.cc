@@ -274,14 +274,26 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   }
 
   bool should_sort_using_order_by = true;
+  std::vector<dataframe::GroupBySpec> group_by_specs;
   std::vector<dataframe::DistinctSpec> distinct_specs;
   if (info->nOrderBy > 0) {
     int vtab_distinct = sqlite3_vtab_distinct(info);
     switch (vtab_distinct) {
       case 0: /* normal sorting */
-      // TODO(lalitm): add special handling for group by.
-      case 1: /* group by */
         break;
+      case 1: /* group by */ {
+        // For GROUP BY: aOrderBy contains the GROUP BY columns.
+        // We need to make rows with same values adjacent (not necessarily
+        // sorted). Use hash-based grouping for O(n) performance instead of O(n
+        // log n) sorting.
+        for (int i = 0; i < info->nOrderBy; ++i) {
+          group_by_specs.push_back(dataframe::GroupBySpec{
+              static_cast<uint32_t>(info->aOrderBy[i].iColumn)});
+        }
+        // Don't sort by these columns - we'll group instead.
+        should_sort_using_order_by = false;
+        break;
+      }
       case 2: /* distinct */
       case 3: /* distinct + order by */ {
         uint64_t cols_used_it = info->colUsed;
@@ -313,8 +325,8 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
 
   SQLITE_ASSIGN_OR_RETURN(
       tab, auto plan,
-      s->dataframe->PlanQuery(filter_specs, distinct_specs, sort_specs,
-                              limit_spec, info->colUsed));
+      s->dataframe->PlanQuery(filter_specs, group_by_specs, distinct_specs,
+                              sort_specs, limit_spec, info->colUsed));
   int max_argv = 0;
   for (const auto& c : filter_specs) {
     if (auto value_index = c.value_index; value_index) {

@@ -907,6 +907,50 @@ class InterpreterImpl {
     indices.e = write_ptr;
   }
 
+  PERFETTO_ALWAYS_INLINE void HashGroup(const bytecode::HashGroup& bytecode) {
+    using B = bytecode::HashGroup;
+    auto& indices = ReadFromRegister(bytecode.arg<B::indices_register>());
+    if (indices.empty()) {
+      return;
+    }
+    const auto& buffer = ReadFromRegister(bytecode.arg<B::buffer_register>());
+    uint32_t stride = bytecode.arg<B::total_row_stride>();
+    auto& scratch = ReadFromRegister(bytecode.arg<B::scratch_register>());
+
+    // Pass 1: Count items per group
+    base::FlatHashMap<std::string_view, uint32_t> group_info;
+    const uint8_t* row_ptr = buffer.data();
+    for (const uint32_t* it = indices.b; it != indices.e;
+         ++it, row_ptr += stride) {
+      std::string_view row_view(reinterpret_cast<const char*>(row_ptr), stride);
+      auto [group_count_it, _] = group_info.Insert(row_view, 0);
+      ++*group_count_it;
+    }
+
+    // Transform counts to write positions (running sum)
+    uint32_t write_pos = 0;
+    for (auto it = group_info.GetIterator(); it; ++it) {
+      uint32_t count = it.value();
+      it.value() = write_pos;
+      write_pos += count;
+    }
+
+    // Pass 2: Write indices to scratch space (avoids overwriting data we're
+    // reading)
+    row_ptr = buffer.data();
+    for (const uint32_t* it = indices.b; it != indices.e;
+         ++it, row_ptr += stride) {
+      std::string_view row_view(reinterpret_cast<const char*>(row_ptr), stride);
+      auto* pos = group_info.Find(row_view);
+      PERFETTO_DCHECK(pos);
+      scratch.b[(*pos)++] = *it;
+    }
+
+    // Copy results back to indices array
+    auto num_indices = static_cast<size_t>(indices.e - indices.b);
+    std::memcpy(indices.b, scratch.b, num_indices * sizeof(uint32_t));
+  }
+
   PERFETTO_ALWAYS_INLINE void LimitOffsetIndices(
       const bytecode::LimitOffsetIndices& bytecode) {
     using B = bytecode::LimitOffsetIndices;

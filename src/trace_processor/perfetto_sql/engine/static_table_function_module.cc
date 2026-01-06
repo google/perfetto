@@ -190,7 +190,7 @@ int StaticTableFunctionModule::Filter(sqlite3_vtab_cursor* cur,
   }
   SQLITE_ASSIGN_OR_RETURN(
       cur->pVtab, auto plan,
-      c->cursor->dataframe()->PlanQuery(c->filters, {}, {}, {},
+      c->cursor->dataframe()->PlanQuery(c->filters, {}, {}, {}, {},
                                         std::numeric_limits<uint64_t>::max()));
   c->cursor->dataframe()->PrepareCursor(plan, c->df_cursor);
   DataframeModule::SqliteValueFetcher fetcher{{}, {}, nullptr};

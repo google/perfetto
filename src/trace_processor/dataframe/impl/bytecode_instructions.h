@@ -414,6 +414,26 @@ struct Distinct : Bytecode {
                                      indices_register);
 };
 
+// Performs group-by operation on row layout buffer using hash-based grouping.
+// Groups rows with same key values together (makes them adjacent) without
+// requiring full sorting. This is O(n) instead of O(n log n) sorting.
+// Unlike Distinct, this keeps ALL rows (no deduplication).
+struct HashGroup : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{7};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(reg::ReadHandle<Slab<uint8_t>>,
+                                     buffer_register,
+                                     uint32_t,
+                                     total_row_stride,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     indices_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     scratch_register);
+};
+
 // Applies an offset to the indices span and limits the rows.
 // Modifies the span referenced by `update_register` in place.
 //
@@ -726,6 +746,7 @@ struct Reverse : Bytecode {
   X(CopyToRowLayout<String, SparseNull>)     \
   X(CopyToRowLayout<String, DenseNull>)      \
   X(Distinct)                                \
+  X(HashGroup)                               \
   X(LimitOffsetIndices)                      \
   X(FindMinMaxIndex<Id, MinOp>)              \
   X(FindMinMaxIndex<Id, MaxOp>)              \

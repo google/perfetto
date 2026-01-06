@@ -130,7 +130,7 @@ class DataframeBytecodeTest : public ::testing::Test {
         cols_used & ((1ull << df.column_names().size()) - 1ull);
 
     ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
-                         df.PlanQuery(filters, distinct_specs, sort_specs,
+                         df.PlanQuery(filters, {}, distinct_specs, sort_specs,
                                       limit_spec, sanitized_cols_used));
     EXPECT_THAT(FormatBytecode(plan),
                 EqualsIgnoringWhitespace(expected_bytecode));
@@ -1648,7 +1648,7 @@ TEST(DataframeTest,
   LimitSpec limit_spec;
 
   ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
-                       df.PlanQuery(filters, {}, {}, limit_spec, 1u));
+                       df.PlanQuery(filters, {}, {}, {}, limit_spec, 1u));
 
   // Assert that the estimated_row_count and max_row_count are 1.
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 1u);
@@ -1670,7 +1670,7 @@ TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfOne) {
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, int64_t{20}}};
   ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
-                       df.PlanQuery(filters, {}, {}, {}, 1u));
+                       df.PlanQuery(filters, {}, {}, {}, {}, 1u));
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 1u);
 }
 
@@ -1685,7 +1685,7 @@ TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfZero) {
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, int64_t{20}}};
   ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
-                       df.PlanQuery(filters, {}, {}, {}, 1u));
+                       df.PlanQuery(filters, {}, {}, {}, {}, 1u));
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 0u);
 }
 

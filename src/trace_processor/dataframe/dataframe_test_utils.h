@@ -112,7 +112,7 @@ inline void VerifyData(
   auto num_cols_selected =
       static_cast<uint32_t>(PERFETTO_POPCOUNT(cols_bitmap));
   ASSERT_OK_AND_ASSIGN(auto plan,
-                       df.PlanQuery(filter_specs, {}, {}, {}, cols_bitmap));
+                       df.PlanQuery(filter_specs, {}, {}, {}, {}, cols_bitmap));
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.

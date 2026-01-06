@@ -68,14 +68,15 @@ Dataframe::Dataframe(bool finalized,
 
 base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     std::vector<FilterSpec>& filter_specs,
+    const std::vector<GroupBySpec>& group_by_specs,
     const std::vector<DistinctSpec>& distinct_specs,
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
-  ASSIGN_OR_RETURN(auto plan,
-                   impl::QueryPlanBuilder::Build(
-                       row_count_, columns_, indexes_, filter_specs,
-                       distinct_specs, sort_specs, limit_spec, cols_used));
+  ASSIGN_OR_RETURN(auto plan, impl::QueryPlanBuilder::Build(
+                                  row_count_, columns_, indexes_, filter_specs,
+                                  group_by_specs, distinct_specs, sort_specs,
+                                  limit_spec, cols_used));
   return QueryPlan(std::move(plan));
 }
 

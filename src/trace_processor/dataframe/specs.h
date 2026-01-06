@@ -191,6 +191,19 @@ struct DistinctSpec {
 };
 
 // -----------------------------------------------------------------------------
+// Group By Specifications
+// -----------------------------------------------------------------------------
+
+// Specifies a group-by operation to be applied to the dataframe rows.
+// Unlike sorting, group-by only requires rows with same values to be adjacent,
+// not in any particular sorted order. This allows for O(n) hash-based grouping
+// instead of O(n log n) sorting.
+struct GroupBySpec {
+  // Index of the column in the dataframe to group by.
+  uint32_t col;
+};
+
+// -----------------------------------------------------------------------------
 // Sort Specifications
 // -----------------------------------------------------------------------------
 

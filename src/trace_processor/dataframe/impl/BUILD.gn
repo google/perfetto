@@ -84,6 +84,23 @@ if (enable_perfetto_benchmarks) {
       "../../../base",
       "../../containers",
     ]
+
+    # Add absl include path for flat_hash_map comparison
+    # We can access absl headers since we have a transitive dependency through protoc
+    include_dirs = [ "../../../../buildtools/abseil-cpp" ]
+
+    # Disable check for abseil dependency (it's already transitive via protoc)
+    check_includes = false
+
+    # Suppress absl header warnings
+    if (is_clang) {
+      cflags = [
+        "-Wno-error",  # Don't treat warnings as errors for absl
+        "-Wno-gcc-compat",
+        "-Wno-language-extension-token",
+      ]
+    }
+
     sources = [
       "bytecode_interpreter_benchmark.cc",
       "sort_benchmark.cc",

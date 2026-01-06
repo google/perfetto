@@ -192,7 +192,7 @@ int TablePointerModule::Filter(sqlite3_vtab_cursor* cur,
   std::vector<dataframe::FilterSpec> specs;
   SQLITE_ASSIGN_OR_RETURN(
       c->pVtab, auto plan,
-      c->dataframe->PlanQuery(specs, {}, {}, {},
+      c->dataframe->PlanQuery(specs, {}, {}, {}, {},
                               std::numeric_limits<uint64_t>::max()));
   c->dataframe->PrepareCursor(plan, c->cursor);
 
