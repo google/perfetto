@@ -29,7 +29,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/perfetto_sql/parser/function_prototype.h"
 #include "src/trace_processor/perfetto_sql/grammar/perfettosql_parser_state.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"

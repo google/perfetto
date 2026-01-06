@@ -16,53 +16,14 @@
 
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 
+#include <sqlite3.h>
+#include <cstdint>
+#include <string>
+
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor {
-
-std::string FunctionPrototype::ToString() const {
-  return function_name + "(" + SerializeArguments(arguments) + ")";
-}
-
-base::Status ParseFunctionName(base::StringView raw, base::StringView& out) {
-  size_t function_name_end = raw.find('(');
-  if (function_name_end == base::StringView::npos)
-    return base::ErrStatus("unable to find bracket starting argument list");
-
-  base::StringView function_name = raw.substr(0, function_name_end);
-  if (!sql_argument::IsValidName(function_name)) {
-    return base::ErrStatus("function name %s is not alphanumeric",
-                           function_name.ToStdString().c_str());
-  }
-  out = function_name;
-  return base::OkStatus();
-}
-
-base::Status ParsePrototype(base::StringView raw, FunctionPrototype& out) {
-  // Examples of function prototypes:
-  // ANDROID_SDK_LEVEL()
-  // STARTUP_SLICE(dur_ns INT)
-  // FIND_NEXT_SLICE_WITH_NAME(ts INT, name STRING)
-
-  base::StringView function_name;
-  RETURN_IF_ERROR(ParseFunctionName(raw, function_name));
-
-  size_t function_name_end = function_name.size();
-  size_t args_start = function_name_end + 1;
-  size_t args_end = raw.find(')', args_start);
-  if (args_end == base::StringView::npos)
-    return base::ErrStatus("unable to find bracket ending argument list");
-
-  base::StringView args_str = raw.substr(args_start, args_end - args_start);
-  RETURN_IF_ERROR(sql_argument::ParseArgumentDefinitions(args_str.ToStdString(),
-                                                         out.arguments));
-
-  out.function_name = function_name.ToStdString();
-  return base::OkStatus();
-}
 
 base::Status SqliteRetToStatus(sqlite3* db,
                                const std::string& function_name,

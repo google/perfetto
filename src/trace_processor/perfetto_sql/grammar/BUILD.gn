@@ -29,6 +29,7 @@ source_set("grammar") {
     "../../../base",
     "../../sqlite",
     "../../util:sql_argument",
+    "../parser:function_prototype",
   ]
   visibility = [
     "../parser",

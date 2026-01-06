@@ -18,33 +18,13 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_FUNCTION_UTIL_H_
 
 #include <sqlite3.h>
-#include <optional>
+#include <cstdint>
 #include <string>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor {
-
-struct FunctionPrototype {
-  std::string function_name;
-  std::vector<sql_argument::ArgumentDefinition> arguments;
-
-  std::string ToString() const;
-
-  bool operator==(const FunctionPrototype& other) const {
-    return function_name == other.function_name && arguments == other.arguments;
-  }
-  bool operator!=(const FunctionPrototype& other) const {
-    return !(*this == other);
-  }
-};
-
-base::Status ParseFunctionName(base::StringView raw,
-                               base::StringView& function_name);
-
-base::Status ParsePrototype(base::StringView raw, FunctionPrototype& out);
 
 base::Status SqliteRetToStatus(sqlite3* db,
                                const std::string& function_name,

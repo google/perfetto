@@ -16,6 +16,18 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
+source_set("function_prototype") {
+  sources = [
+    "function_prototype.cc",
+    "function_prototype.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../util:sql_argument",
+  ]
+}
+
 source_set("parser") {
   sources = [
     "function_util.cc",
@@ -24,6 +36,7 @@ source_set("parser") {
     "perfetto_sql_parser.h",
   ]
   deps = [
+    ":function_prototype",
     "../..:metatrace",
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
