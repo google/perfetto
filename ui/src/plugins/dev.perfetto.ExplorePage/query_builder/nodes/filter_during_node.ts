@@ -88,8 +88,8 @@ import {
 } from '../widgets';
 import {Switch} from '../../../../widgets/switch';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {NodeTitle} from '../node_styling_widgets';
-import {notifyNextNodes} from '../../query_node';
+import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
+import {notifyNextNodes} from '../graph_utils';
 
 export interface FilterDuringNodeState extends QueryNodeState {
   filterNegativeDurPrimary?: boolean; // Filter negative durations in primary input
@@ -139,8 +139,32 @@ export class FilterDuringNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
+    const details: m.Child[] = [
+      this.state.clipToIntervals
+        ? NodeDetailsMessage(
+            'Filters time to intervals that occurred during input intervals.',
+          )
+        : NodeDetailsMessage(
+            'Filters rows to intervals that occurred during input intervals. Retains original timestamps and durations.',
+          ),
+    ];
+
+    // Display partition columns (read-only)
+    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
+      details.push(
+        m(
+          'div',
+          'Partition by: ',
+          this.state.partitionColumns.map((col, index) => [
+            ColumnName(col),
+            index < this.state.partitionColumns!.length - 1 ? ', ' : '',
+          ]),
+        ),
+      );
+    }
+
     return {
-      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
+      content: details,
     };
   }
 
@@ -203,7 +227,7 @@ export class FilterDuringNode implements QueryNode {
     }
   }
 
-  private renderPartitionSelector(compact: boolean = false): m.Child {
+  private renderPartitionSelector(): m.Child {
     // Initialize partition columns if needed
     if (!this.state.partitionColumns) {
       this.state.partitionColumns = [];
@@ -233,7 +257,6 @@ export class FilterDuringNode implements QueryNode {
         label,
         options: partitionOptions,
         showNumSelected: false,
-        compact,
         onChange: (diffs: MultiSelectDiff[]) => {
           if (!this.state.partitionColumns) {
             this.state.partitionColumns = [];
@@ -299,7 +322,7 @@ export class FilterDuringNode implements QueryNode {
     const clipToIntervals = this.state.clipToIntervals ?? true;
 
     // Add partition selector
-    const partitionSelector = this.renderPartitionSelector(false);
+    const partitionSelector = this.renderPartitionSelector();
     if (partitionSelector !== null) {
       sections.push({
         content: partitionSelector,

@@ -8041,7 +8041,7 @@ struct BackendTypeAsString {
       case perfetto::kUnspecifiedBackend:
         return "Unspec";
     }
-    return nullptr;
+    return "";
   }
 };
 

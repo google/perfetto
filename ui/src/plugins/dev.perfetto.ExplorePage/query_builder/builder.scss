@@ -117,17 +117,18 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
 
-    .pf-button {
-      width: 40px;
-      height: 40px;
-      font-size: 20px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  // Shared styling for all round action buttons (undo/redo/add node)
+  .pf-qb-round-action-button {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: box-shadow 0.2s ease;
 
-      &:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        transform: scale(1.05);
-      }
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
   }
 
@@ -188,11 +189,11 @@
 }
 
 .pf-source-cards-horizontal {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
   padding-bottom: 8px;
+  max-width: 380px;
 }
 
 .pf-template-grid {
@@ -200,6 +201,7 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 16px;
+  max-width: 510px;
 }
 
 .pf-template-card {
@@ -252,7 +254,6 @@
 }
 
 .pf-source-card {
-  width: 120px;
   display: flex;
   flex-direction: column;
   gap: 4px;

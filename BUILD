@@ -2216,6 +2216,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/etw/etw_module.cc",
         "src/trace_processor/importers/etw/etw_module.h",
+        "src/trace_processor/importers/etw/file_io_tracker.cc",
+        "src/trace_processor/importers/etw/file_io_tracker.h",
     ],
 )
 
@@ -3059,7 +3061,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/created_function.h",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.h",
-        "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
@@ -3310,6 +3311,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/base.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/cuj_frame_counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/threads.sql",
     ],
 )
 
@@ -5722,6 +5724,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_system_property_config.proto",
         "protos/perfetto/config/android/app_wakelock_config.proto",
         "protos/perfetto/config/android/cpu_per_uid_config.proto",
+        "protos/perfetto/config/android/inputmethod_config.proto",
         "protos/perfetto/config/android/kernel_wakelocks_config.proto",
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",

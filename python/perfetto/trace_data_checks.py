@@ -49,8 +49,6 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT EXISTS(SELECT 1 FROM process LIMIT 1) AS has_data',
     'android.screenshots':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'Screenshot\' AND category = \'android_screenshot\' LIMIT 1) AS has_data',
-    'android.suspend':
-        'SELECT EXISTS(SELECT 1 FROM track WHERE name IN (\'Suspend/Resume Minimal\', \'Suspend/Resume Latency\') LIMIT 1) AS has_data',
     'android.statsd':
         'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'Statsd Atoms\' LIMIT 1) AS has_data',
     'android.wakeups':
