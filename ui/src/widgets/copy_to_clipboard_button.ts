@@ -72,6 +72,8 @@ export interface CopyToClipboardButtonAttrs {
   readonly title?: string;
   readonly label?: string;
   readonly variant?: ButtonVariant;
+  readonly disabled?: boolean;
+  readonly compact?: boolean;
 }
 
 export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs> {
@@ -96,6 +98,8 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
         icon: helper.state === 'copied' ? Icons.Check : Icons.Copy,
         loading: helper.state === 'working',
         label,
+        disabled: attrs.disabled,
+        compact: attrs.compact,
         onclick: async () => {
           await helper.copy(attrs.textToCopy);
         },

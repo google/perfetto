@@ -18,21 +18,22 @@ import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {Chip} from './chip';
 import {Intent} from './common';
+import {CopyToClipboardButton} from './copy_to_clipboard_button';
 import {EmptyState} from './empty_state';
 import {Form, FormLabel} from './form';
 import {Icon} from './icon';
+import {MiddleEllipsis} from './middle_ellipsis';
 import {Popup, PopupPosition} from './popup';
 import {Select} from './select';
 import {Spinner} from './spinner';
 import {SegmentedButtons} from './segmented_buttons';
-import {Stack} from './stack';
+import {TagInput} from './tag_input';
 import {TextInput} from './text_input';
 import {Tooltip} from './tooltip';
 import {z} from 'zod';
 import {Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
 import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
-import {MiddleEllipsis} from './middle_ellipsis';
 import {Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
 import {Icons} from '../base/semantic_icons';
@@ -229,19 +230,17 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
 ];
 
 interface FilterBuilderAttrs {
-  onAdd: (type: FilterType, value: string) => void;
+  onAdd: (filters: Array<{type: FilterType; value: string}>) => void;
   hasPivot?: boolean;
 }
 
 class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
   private type: FilterType = 'SHOW_STACK';
-  private quickAdd = '';
   private filter = '';
 
   view({attrs}: m.CVnode<FilterBuilderAttrs>) {
     const {onAdd, hasPivot} = attrs;
     const opt = FILTER_TYPES.find((o) => o.value === this.type);
-    const value = this.quickAdd || this.filter;
 
     return m(
       Form,
@@ -249,73 +248,12 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
         submitLabel: 'Add',
         cancelLabel: 'Cancel',
         onSubmit: () => {
-          if (!value.trim()) return;
-          if (this.quickAdd) {
-            for (const part of this.splitFilters(this.quickAdd)) {
-              const {type, filter} = this.parse(part);
-              onAdd(type, filter);
-            }
-            this.quickAdd = '';
-          } else {
-            onAdd(this.type, this.filter.trim());
-            this.filter = '';
-          }
-        },
-        validation: () => value.trim() !== '',
-      },
-      m(
-        Stack,
-        {
-          orientation: 'horizontal',
-          spacing: 'small',
-          className: 'pf-filter-builder__quick-add',
-        },
-        m(FormLabel, 'Quick add'),
-        m(
-          Tooltip,
-          {
-            trigger: m(Icon, {
-              icon: 'help_outline',
-              className: 'pf-filter-builder__help-icon',
-            }),
-          },
-          m(
-            '.pf-filter-builder__help',
-            FILTER_TYPES.map((o) =>
-              m(
-                '.pf-filter-builder__help-row',
-                m('strong', `${o.shortLabel}:`),
-                ` ${o.label} - ${o.description.split('.')[0]}`,
-              ),
-            ),
-            m(
-              '.pf-filter-builder__help-row',
-              'Example: SS: main or HF: alloc.*',
-            ),
-            m(
-              '.pf-filter-builder__help-row',
-              'Multiple filters also supported. Use quotes for nested commas.',
-            ),
-            m(
-              '.pf-filter-builder__help-row',
-              'Example: SS: main, HF: "bar,baz"',
-            ),
-          ),
-        ),
-      ),
-      m(TextInput, {
-        autofocus: true,
-        placeholder: 'SS: main or HF: alloc.*',
-        title: FILTER_TYPES.map((o) => `${o.shortLabel}: ${o.label}`).join(
-          '\n',
-        ),
-        value: this.quickAdd,
-        onInput: (v) => {
-          this.quickAdd = v;
+          if (!this.filter.trim()) return;
+          onAdd([{type: this.type, value: this.filter.trim()}]);
           this.filter = '';
         },
-      }),
-      m('.pf-filter-builder__divider', 'or'),
+        validation: () => this.filter.trim() !== '',
+      },
       m(FormLabel, 'Type'),
       m(
         Select,
@@ -329,59 +267,39 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
       opt && m('.pf-filter-builder__desc', opt.description),
       m(FormLabel, 'Filter'),
       m(TextInput, {
+        autofocus: true,
         placeholder: 'e.g. main, alloc.*',
         value: this.filter,
         onInput: (v) => {
           this.filter = v;
-          this.quickAdd = '';
         },
       }),
       hasPivot &&
         this.type === 'PIVOT' &&
         m('.pf-filter-builder__warn', 'Replaces current pivot'),
+      m('.pf-filter-builder__separator'),
+      m(
+        '.pf-filter-builder__tip',
+        m(Icon, {icon: 'lightbulb_outline'}),
+        ' You can also type directly in the filter bar ',
+        m(
+          Tooltip,
+          {trigger: m(Icon, {icon: 'help_outline'})},
+          m(
+            '.pf-filter-builder__help',
+            m('.pf-filter-builder__help-title', 'Filter bar syntax:'),
+            FILTER_TYPES.map((o) =>
+              m(
+                '.pf-filter-builder__help-row',
+                m('strong', `${o.shortLabel}:`),
+                ` ${o.label}`,
+              ),
+            ),
+            m('.pf-filter-builder__help-row', 'Example: SS: main HF: alloc.*'),
+          ),
+        ),
+      ),
     );
-  }
-
-  // Split by comma, respecting quoted strings and backslash escapes
-  // e.g. 'SS: foo, HF: "bar,baz", SS: "qux\"quux"'
-  // -> ['SS: foo', 'HF: bar,baz', 'SS: qux"quux']
-  private splitFilters(text: string): string[] {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    let escape = false;
-    for (const char of text) {
-      if (escape) {
-        current += char;
-        escape = false;
-      } else if (char === '\\') {
-        escape = true;
-      } else if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        if (current.trim()) result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    if (current.trim()) result.push(current.trim());
-    return result;
-  }
-
-  private parse(text: string): {type: FilterType; filter: string} {
-    const i = text.indexOf(':');
-    if (i === -1) return {type: this.type, filter: text};
-    const prefix = text.substring(0, i).trim().toLowerCase();
-    const filter = text.substring(i + 1).trim();
-    const match = FILTER_TYPES.find(
-      (o) =>
-        o.shortLabel.toLowerCase() === prefix ||
-        o.label.toLowerCase() === prefix,
-    );
-    return match
-      ? {type: match.value, filter}
-      : {type: this.type, filter: text};
   }
 }
 
@@ -419,6 +337,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private attrs: FlamegraphAttrs;
 
   private showFilterBuilder: boolean = false;
+  private quickAddValue: string = '';
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
@@ -787,17 +706,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
     };
 
-    const addFilterFn = (type: FilterType, value: string) => {
-      if (type === 'PIVOT') {
-        this.attrs.onStateChange({
-          ...this.attrs.state,
-          view: {kind: 'PIVOT', pivot: value},
-        });
-      } else {
-        this.attrs.onStateChange(
-          addFilter(this.attrs.state, {kind: type, filter: value}),
-        );
+    const addFilterFn = (filters: Array<{type: FilterType; value: string}>) => {
+      let newState = this.attrs.state;
+      for (const {type, value} of filters) {
+        if (type === 'PIVOT') {
+          newState = {...newState, view: {kind: 'PIVOT', pivot: value}};
+        } else {
+          newState = addFilter(newState, {kind: type, filter: value});
+        }
       }
+      this.attrs.onStateChange(newState);
     };
 
     return m(
@@ -818,24 +736,42 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           return m('option', {value: x.name}, x.name);
         }),
       ),
+      m('.pf-flamegraph-filter-bar-separator'),
       m('span.pf-flamegraph-filter-label', 'Filters:'),
-      m(
-        '.pf-flamegraph-filter-chips',
-        tags.map((tag, index) =>
+      // Tag input: chips + text input combined
+      m(TagInput, {
+        tags,
+        value: this.quickAddValue,
+        onChange: (text) => {
+          this.quickAddValue = text;
+        },
+        onTagAdd: (text) => {
+          const filters = splitFilters(text).map((part) => parseFilter(part));
+          if (filters.length > 0) {
+            addFilterFn(filters);
+            this.quickAddValue = '';
+          }
+        },
+        onTagRemove: removeTag,
+        placeholder: hasFilters ? '' : 'e.g. SS: main HF: alloc.*',
+        renderTag: (text, onRemove) =>
           m(Chip, {
-            label: m(MiddleEllipsis, {text: tag}),
+            ondblclick: () => {
+              this.quickAddValue = text;
+              onRemove();
+            },
+            label: m(MiddleEllipsis, {text}),
             removable: true,
             compact: true,
             intent: Intent.Primary,
-            onRemove: () => removeTag(index),
+            onRemove,
           }),
-        ),
-      ),
+      }),
+      // [+] button opens guided form dialog
       m(
         Popup,
         {
           trigger: m(Button, {
-            label: hasFilters ? undefined : 'Add',
             icon: Icons.Add,
             compact: true,
             active: this.showFilterBuilder,
@@ -854,30 +790,27 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         },
         m(FilterBuilder, {onAdd: addFilterFn, hasPivot}),
       ),
-      hasFilters &&
-        m(Button, {
-          icon: 'content_copy',
-          compact: true,
-          onclick: () => {
-            navigator.clipboard.writeText(tags.join(', '));
-          },
-        }),
-      hasFilters &&
-        m(Button, {
-          icon: 'delete',
-          compact: true,
-          onclick: () => {
-            attrs.onStateChange({
-              ...this.attrs.state,
-              filters: [],
-              view:
-                this.attrs.state.view.kind === 'PIVOT'
-                  ? {kind: 'TOP_DOWN'}
-                  : this.attrs.state.view,
-            });
-          },
-        }),
-      m('.pf-flamegraph-filter-spacer'),
+      m(CopyToClipboardButton(), {
+        textToCopy: () => tags.join(' '),
+        compact: true,
+        disabled: !hasFilters,
+      }),
+      m(Button, {
+        icon: 'delete',
+        compact: true,
+        disabled: !hasFilters,
+        onclick: () => {
+          attrs.onStateChange({
+            ...this.attrs.state,
+            filters: [],
+            view:
+              this.attrs.state.view.kind === 'PIVOT'
+                ? {kind: 'TOP_DOWN'}
+                : this.attrs.state.view,
+          });
+        },
+      }),
+      m('.pf-flamegraph-filter-bar-separator'),
       m(SegmentedButtons, {
         options: [{label: 'Top Down'}, {label: 'Bottom Up'}],
         selectedOption: this.attrs.state.view.kind === 'TOP_DOWN' ? 0 : 1,
@@ -1369,6 +1302,67 @@ function addFilter(
     ...state,
     filters: state.filters.concat([filter]),
   };
+}
+
+// Split text into individual filters by finding filter type prefixes
+// e.g. 'Show Stack: main Hide Frame: alloc' -> ['Show Stack: main', 'Hide Frame: alloc']
+// e.g. 'SS: foo HF: bar' -> ['SS: foo', 'HF: bar']
+function splitFilters(text: string): string[] {
+  const lowerText = text.toLowerCase();
+
+  // Find all positions where a filter prefix starts (case insensitive)
+  const splitPositions: number[] = [];
+  for (const type of FILTER_TYPES) {
+    for (const prefix of [type.shortLabel, type.label]) {
+      const searchStr = prefix.toLowerCase() + ':';
+      let pos = 0;
+      while ((pos = lowerText.indexOf(searchStr, pos)) !== -1) {
+        // Only split if at start or preceded by whitespace
+        if (pos === 0 || /\s/.test(text[pos - 1])) {
+          splitPositions.push(pos);
+        }
+        pos += searchStr.length;
+      }
+    }
+  }
+
+  // Sort and deduplicate positions
+  splitPositions.sort((a, b) => a - b);
+
+  // If no prefixes found, return the whole text as one filter
+  if (splitPositions.length === 0) {
+    return text.trim() ? [text.trim()] : [];
+  }
+
+  // Split text at those positions
+  const result: string[] = [];
+  for (let i = 0; i < splitPositions.length; i++) {
+    const start = splitPositions[i];
+    const end = splitPositions[i + 1] ?? text.length;
+    const part = text.substring(start, end).trim();
+    if (part) {
+      result.push(part);
+    }
+  }
+  return result;
+}
+
+// Parse a filter string into type and value
+// e.g. 'SS: main' -> {type: 'SHOW_STACK', value: 'main'}
+// e.g. 'Show Stack: main' -> {type: 'SHOW_STACK', value: 'main'}
+function parseFilter(
+  text: string,
+  defaultType: FilterType = 'SHOW_STACK',
+): {type: FilterType; value: string} {
+  const i = text.indexOf(':');
+  if (i === -1) return {type: defaultType, value: text};
+  const prefix = text.substring(0, i).trim().toLowerCase();
+  const value = text.substring(i + 1).trim();
+  const match = FILTER_TYPES.find(
+    (o) =>
+      o.shortLabel.toLowerCase() === prefix || o.label.toLowerCase() === prefix,
+  );
+  return match ? {type: match.value, value} : {type: defaultType, value: text};
 }
 
 // Unfortunately, widgets *cannot* depend on components so we cannot use the
