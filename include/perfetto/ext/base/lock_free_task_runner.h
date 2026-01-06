@@ -22,7 +22,7 @@
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/event_fd.h"
-#include "perfetto/ext/base/flags.h"
+#include "perfetto/base/flags.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 

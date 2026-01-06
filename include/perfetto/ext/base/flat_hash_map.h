@@ -18,7 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/flags.h"
+#include "perfetto/base/flags.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/utils.h"

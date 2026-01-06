@@ -25,7 +25,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/flags.h"
+#include "perfetto/base/flags.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

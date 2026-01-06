@@ -20,6 +20,7 @@ source_set("base") {
     "compiler.h",
     "export.h",
     "flat_set.h",
+    "flags.h",
     "logging.h",
     "platform_handle.h",
     "proc_utils.h",

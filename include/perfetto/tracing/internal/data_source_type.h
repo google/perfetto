@@ -7,7 +7,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/flags.h"
+#include "perfetto/base/flags.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/basic_types.h"
