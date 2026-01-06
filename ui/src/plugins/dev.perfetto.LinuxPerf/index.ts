@@ -39,7 +39,6 @@ import {
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {createPerfCallsitesTrack} from './perf_samples_profile_track';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 import CpuProfilePlugin from '../dev.perfetto.CpuProfile';
