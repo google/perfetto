@@ -40,6 +40,8 @@ struct InterpreterState {
   base::SmallVector<reg::Value, 16> registers;
   // Pointer to the columns being processed
   const Column* const* columns;
+  // Cached storage data pointers for each column
+  base::SmallVector<Storage::DataPointer, 16> column_storage_data_ptrs;
   // Pointer to the indexes
   const dataframe::Index* indexes;
   // Pointer to the string pool (for string operations)
@@ -51,6 +53,7 @@ struct InterpreterState {
 
   void Initialize(const BytecodeVector& bytecode_,
                   uint32_t num_registers,
+                  uint32_t column_count,
                   const Column* const* columns_,
                   const dataframe::Index* indexes_,
                   const StringPool* string_pool_) {
@@ -60,6 +63,11 @@ struct InterpreterState {
       registers.emplace_back();
     }
     columns = columns_;
+    column_storage_data_ptrs.clear();
+    column_storage_data_ptrs.reserve(column_count);
+    for (uint32_t i = 0; i < column_count; ++i) {
+      column_storage_data_ptrs.push_back(columns_[i]->storage.data());
+    }
     indexes = indexes_;
     string_pool = string_pool_;
   }
@@ -108,6 +116,17 @@ struct InterpreterState {
   }
 
   const Column& GetColumn(uint32_t idx) const { return *columns[idx]; }
+
+  // Get cached storage data pointer for a specific column.
+  const Storage::DataPointer& GetColumnStorageDataPtr(uint32_t idx) const {
+    return column_storage_data_ptrs[idx];
+  }
+
+  // Get typed data pointer from cached storage for a specific column.
+  template <typename T>
+  const auto* GetColumnData(uint32_t idx) const {
+    return Storage::CastDataPtr<T>(column_storage_data_ptrs[idx]);
+  }
 };
 
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode
