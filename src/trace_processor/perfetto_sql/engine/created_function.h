@@ -23,7 +23,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/perfetto_sql/parser/function_prototype.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/types/destructible.h"

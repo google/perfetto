@@ -2765,6 +2765,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":perfetto_src_trace_processor_perfetto_sql_parser_function_prototype",
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
@@ -15251,6 +15252,14 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
 }
 
+// GN: //src/trace_processor/perfetto_sql/parser:function_prototype
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_parser_function_prototype",
+    srcs: [
+        "src/trace_processor/perfetto_sql/parser/function_prototype.cc",
+    ],
+}
+
 // GN: //src/trace_processor/perfetto_sql/parser:parser
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_parser_parser",
@@ -15850,6 +15859,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":perfetto_src_trace_processor_perfetto_sql_parser_function_prototype",
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
@@ -18123,6 +18133,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":perfetto_src_trace_processor_perfetto_sql_parser_function_prototype",
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_parser_test_utils",
         ":perfetto_src_trace_processor_perfetto_sql_parser_unittests",
@@ -18968,6 +18979,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":perfetto_src_trace_processor_perfetto_sql_parser_function_prototype",
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
@@ -19461,6 +19473,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":perfetto_src_trace_processor_perfetto_sql_parser_function_prototype",
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
