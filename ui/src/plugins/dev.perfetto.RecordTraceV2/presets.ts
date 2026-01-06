@@ -110,7 +110,7 @@ const CHROME_DEFAULT_PRESET: Preset = {
 const CHROME_V8_PRESET: Preset = {
   id: 'v8',
   title: 'V8',
-  subtitle: 'JavaScript, wasm',
+  subtitle: 'JavaScript, wasm & GC',
   icon: 'mode_fan',
   session: {
     mode: 'STOP_WHEN_FULL',
