@@ -356,20 +356,21 @@ std::optional<protozero::StringFilter::Policy> ConvertPolicy(
 
 using StringFilterRule =
     protos::gen::TraceConfig::TraceFilter::StringFilterRule;
+
 std::optional<protozero::StringFilter::SemanticTypeMask>
 ConvertSemanticTypeMask(const StringFilterRule& rule) {
   // If no semantic types are specified, match all semantic types.
   if (rule.semantic_type().empty()) {
-    return protozero::StringFilter::AllSemanticTypes();
+    return protozero::StringFilter::SemanticTypeMask::All();
   }
 
-  protozero::StringFilter::SemanticTypeMask mask = {};
+  protozero::StringFilter::SemanticTypeMask mask;
   for (const auto& type : rule.semantic_type()) {
     auto semantic_type = static_cast<uint32_t>(type);
-    if (semantic_type >= protozero::StringFilter::kSemanticTypeLimit) {
+    if (semantic_type >= protozero::StringFilter::SemanticTypeMask::kLimit) {
       return std::nullopt;
     }
-    mask[semantic_type / 64] |= 1ULL << (semantic_type % 64);
+    mask.Set(semantic_type);
   }
   return mask;
 }

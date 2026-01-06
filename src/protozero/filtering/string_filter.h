@@ -20,11 +20,13 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <regex>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 
 namespace protozero {
 
@@ -32,19 +34,50 @@ namespace protozero {
 // |TraceConfig.TraceFilter| for information on how this class works.
 class StringFilter {
  public:
-  // Bitmask for semantic types. Supports up to 128 semantic types (2 * 64).
-  // Bit i in mask[j] set means semantic type i + j*64 is enabled.
-  using SemanticTypeMask = std::array<uint64_t, 2>;
+  // Bitmask for semantic types. Supports up to 128 semantic types.
+  class SemanticTypeMask {
+   public:
+    using Word = uint64_t;
+    static constexpr size_t kBitsPerWord = sizeof(Word) * 8;
+    static constexpr size_t kLimit = 128;
 
-  // Maximum semantic type value supported.
-  static constexpr size_t kSemanticTypeLimit =
-      std::size(SemanticTypeMask()) * 64;
+    // Returns a SemanticTypeMask with all bits set (applies to all types).
+    static constexpr SemanticTypeMask All() {
+      return SemanticTypeMask(Word(-1), Word(-1));
+    }
 
-  // Returns a SemanticTypeMask with all bits set (applies to all types).
-  static constexpr SemanticTypeMask AllSemanticTypes() {
-    return {std::numeric_limits<uint64_t>::max(),
-            std::numeric_limits<uint64_t>::max()};
-  }
+    // Creates a SemanticTypeMask from raw word values (for testing).
+    static constexpr SemanticTypeMask FromWords(Word w0, Word w1) {
+      return SemanticTypeMask(w0, w1);
+    }
+
+    // Default constructor: no bits set.
+    constexpr SemanticTypeMask() = default;
+
+    // Sets the bit for |semantic_type|.
+    PERFETTO_ALWAYS_INLINE void Set(uint32_t semantic_type) {
+      PERFETTO_DCHECK(semantic_type < kLimit);
+      uint32_t word_index = semantic_type / kBitsPerWord;
+      uint32_t bit_index = semantic_type % kBitsPerWord;
+      words_[word_index] |= Word(1) << bit_index;
+    }
+
+    // Returns true if the bit for |semantic_type| is set.
+    PERFETTO_ALWAYS_INLINE bool IsSet(uint32_t semantic_type) const {
+      // If beyond supported range, return true (safe default: apply rule).
+      if (PERFETTO_UNLIKELY(semantic_type >= kLimit)) {
+        return true;
+      }
+      uint32_t word_index = semantic_type / kBitsPerWord;
+      uint32_t bit_index = semantic_type % kBitsPerWord;
+      return (words_[word_index] & (Word(1) << bit_index)) != 0;
+    }
+
+   private:
+    constexpr SemanticTypeMask(Word w0, Word w1) : words_{w0, w1} {}
+
+    std::array<Word, 2> words_ = {};
+  };
 
   enum class Policy : uint8_t {
     kMatchRedactGroups = 1,
@@ -65,7 +98,7 @@ class StringFilter {
                std::string_view pattern,
                std::string atrace_payload_starts_with,
                std::string name = {},
-               SemanticTypeMask semantic_type_mask = AllSemanticTypes());
+               SemanticTypeMask semantic_type_mask = SemanticTypeMask::All());
 
   // Tries to filter the given string. Returns true if the string was modified
   // in any way, false otherwise. Uses semantic_type=0 (unspecified).
@@ -90,7 +123,7 @@ class StringFilter {
     std::string atrace_payload_starts_with;
     std::string name;
     // Bitmask of semantic types this rule applies to.
-    SemanticTypeMask semantic_type_mask;
+    SemanticTypeMask semantic_type_mask = SemanticTypeMask::All();
   };
 
   bool MaybeFilterInternal(char* ptr, size_t len, uint32_t semantic_type) const;

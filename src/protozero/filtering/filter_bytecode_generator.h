@@ -39,6 +39,8 @@ class FilterBytecodeGenerator {
     std::string v54_overlay;
   };
 
+  // NOTE: When adding new versions, also update the default value of
+  // --min-bytecode-parser in src/tools/proto_filter/proto_filter.cc.
   enum class BytecodeVersion : uint8_t {
     // Initial version. Supported proto structural opcodes only, no string
     // filtering.
@@ -104,7 +106,7 @@ class FilterBytecodeGenerator {
   uint32_t last_field_id_ = 0;
   uint32_t max_msg_index_ = 0;
   bool endmessage_called_ = false;
-  BytecodeVersion min_version_;
+  BytecodeVersion min_version_ = BytecodeVersion::kLatest;
 
   std::vector<uint32_t> bytecode_;
 

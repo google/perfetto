@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "src/protozero/filtering/filter_util.h"
@@ -100,6 +101,8 @@ Example usage:
 )";
 
 using TraceFilter = protos::gen::TraceConfig::TraceFilter;
+using StringFilterRule = TraceFilter::StringFilterRule;
+
 std::optional<protozero::StringFilter::Policy> ConvertPolicy(
     TraceFilter::StringFilterPolicy policy) {
   switch (policy) {
@@ -117,6 +120,18 @@ std::optional<protozero::StringFilter::Policy> ConvertPolicy(
       return protozero::StringFilter::Policy::kAtraceRepeatedSearchRedactGroups;
   }
   return std::nullopt;
+}
+
+protozero::StringFilter::SemanticTypeMask ConvertSemanticTypes(
+    const StringFilterRule& rule) {
+  protozero::StringFilter::SemanticTypeMask mask;
+  for (const auto& type : rule.semantic_type()) {
+    auto semantic_type = static_cast<uint32_t>(type);
+    if (semantic_type < protozero::StringFilter::SemanticTypeMask::kLimit) {
+      mask.Set(semantic_type);
+    }
+  }
+  return mask;
 }
 
 // Writes binary data to a file. Returns true on success.
@@ -222,7 +237,7 @@ int Main(int argc, char** argv) {
   std::set<std::string> passthrough_fields;
   std::set<std::string> filter_string_fields;
   std::map<std::string, uint32_t> filter_string_semantic_types;
-  std::string min_bytecode_parser = "v54";  // Default to latest
+  std::string min_bytecode_parser = "v2";  // Default to v2 for compatibility
   bool dedupe = false;
 
   for (;;) {
@@ -309,24 +324,22 @@ int Main(int argc, char** argv) {
 
     if (option == 'S') {
       // Parse semantic type: "MessageName:field_name:type_value"
-      std::string arg = optarg;
-      size_t last_colon = arg.rfind(':');
-      if (last_colon == std::string::npos) {
+      std::vector<std::string> parts = base::SplitString(optarg, ":");
+      if (parts.size() != 3) {
         fprintf(stderr,
                 "Invalid semantic type syntax. Expected: "
                 "MessageName:field:type_value\n");
         exit(1);
       }
-      std::string field_name = arg.substr(0, last_colon);
-      std::string type_str = arg.substr(last_colon + 1);
-      char* endptr = nullptr;
-      uint32_t type_value =
-          static_cast<uint32_t>(strtoul(type_str.c_str(), &endptr, 10));
-      if (*endptr != '\0') {
+      std::string field_name = parts[0] + ":" + parts[1];
+      const std::string& type_str = parts[2];
+      std::optional<uint32_t> type_value =
+          base::CStringToUInt32(type_str.c_str());
+      if (!type_value.has_value()) {
         fprintf(stderr, "Invalid semantic type value: %s\n", type_str.c_str());
         exit(1);
       }
-      filter_string_semantic_types[field_name] = type_value;
+      filter_string_semantic_types[field_name] = *type_value;
       continue;
     }
 
@@ -407,21 +420,6 @@ int Main(int argc, char** argv) {
 
     const auto& trace_filter = config.trace_filter();
 
-    // Helper to convert semantic types from proto to SemanticTypeMask.
-    auto convert_semantic_types =
-        [](const auto& rule) -> protozero::StringFilter::SemanticTypeMask {
-      protozero::StringFilter::SemanticTypeMask mask = {};
-      for (const auto& type : rule.semantic_type()) {
-        uint32_t semantic_type = static_cast<uint32_t>(type);
-        uint32_t word_index = semantic_type / 64;
-        uint32_t bit_index = semantic_type % 64;
-        if (word_index < mask.size()) {
-          mask[word_index] |= (1ULL << bit_index);
-        }
-      }
-      return mask;
-    };
-
     // Load base string filter chain.
     for (const auto& rule : trace_filter.string_filter_chain().rules()) {
       auto opt_policy = ConvertPolicy(rule.policy());
@@ -431,7 +429,7 @@ int Main(int argc, char** argv) {
       }
       msg_filter.string_filter().AddRule(
           *opt_policy, rule.regex_pattern(), rule.atrace_payload_starts_with(),
-          rule.name(), convert_semantic_types(rule));
+          rule.name(), ConvertSemanticTypes(rule));
     }
 
     // Load v54 string filter chain. Rules with matching names will replace
@@ -444,7 +442,7 @@ int Main(int argc, char** argv) {
       }
       msg_filter.string_filter().AddRule(
           *opt_policy, rule.regex_pattern(), rule.atrace_payload_starts_with(),
-          rule.name(), convert_semantic_types(rule));
+          rule.name(), ConvertSemanticTypes(rule));
     }
 
     filter_data = trace_filter.bytecode_v2().empty()

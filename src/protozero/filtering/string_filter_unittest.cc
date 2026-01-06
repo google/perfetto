@@ -282,12 +282,12 @@ TEST(StringFilterTest, SemanticTypeBasicMatching) {
   StringFilter filter;
 
   // Add rule for semantic type 1 (ATRACE)
-  StringFilter::SemanticTypeMask mask_type1 = {{1ULL << 1, 0}};
+  auto mask_type1 = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(secret:(.*))", "",
                  "", mask_type1);
 
   // Add rule for semantic type 2 (JOB)
-  StringFilter::SemanticTypeMask mask_type2 = {{1ULL << 2, 0}};
+  auto mask_type2 = StringFilter::SemanticTypeMask::FromWords(1ULL << 2, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(password:(.*))",
                  "", "", mask_type2);
 
@@ -357,12 +357,12 @@ TEST(StringFilterTest, SemanticTypeMultipleRules) {
   StringFilter filter;
 
   // Add rule for type 1 only
-  StringFilter::SemanticTypeMask mask_type1 = {{1ULL << 1, 0}};
+  auto mask_type1 = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(foo:(.*))", "",
                  "", mask_type1);
 
   // Add rule for type 2 only
-  StringFilter::SemanticTypeMask mask_type2 = {{1ULL << 2, 0}};
+  auto mask_type2 = StringFilter::SemanticTypeMask::FromWords(1ULL << 2, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(bar:(.*))", "",
                  "", mask_type2);
 
@@ -400,7 +400,7 @@ TEST(StringFilterTest, SemanticTypeZero) {
   StringFilter filter;
 
   // Add rule for type 1 only
-  StringFilter::SemanticTypeMask mask_type1 = {{1ULL << 1, 0}};
+  auto mask_type1 = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(type1:(.*))", "",
                  "", mask_type1);
 
@@ -421,17 +421,17 @@ TEST(StringFilterTest, SemanticTypeEdgeCases) {
   StringFilter filter;
 
   // Test semantic type 63 (boundary of first word)
-  StringFilter::SemanticTypeMask mask_63 = {{1ULL << 63, 0}};
+  auto mask_63 = StringFilter::SemanticTypeMask::FromWords(1ULL << 63, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(t63:(.*))", "",
                  "", mask_63);
 
   // Test semantic type 64 (boundary of second word)
-  StringFilter::SemanticTypeMask mask_64 = {{0, 1ULL}};
+  auto mask_64 = StringFilter::SemanticTypeMask::FromWords(0, 1ULL);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(t64:(.*))", "",
                  "", mask_64);
 
   // Test semantic type 127 (maximum supported)
-  StringFilter::SemanticTypeMask mask_127 = {{0, 1ULL << 63}};
+  auto mask_127 = StringFilter::SemanticTypeMask::FromWords(0, 1ULL << 63);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(t127:(.*))", "",
                  "", mask_127);
 
@@ -472,7 +472,7 @@ TEST(StringFilterTest, SemanticTypeEdgeCases) {
 
 TEST(StringFilterTest, SemanticTypeWithPolicies) {
   StringFilter filter;
-  StringFilter::SemanticTypeMask mask_type1 = {{1ULL << 1, 0}};
+  auto mask_type1 = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
 
   // Test kMatchRedactGroups
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(match:(.*))", "",
@@ -583,27 +583,27 @@ TEST(StringFilterTest, SemanticTypeMaskConstruction) {
   StringFilter filter;
 
   // Mask with bit 0 set
-  StringFilter::SemanticTypeMask mask_0 = {{1, 0}};
+  auto mask_0 = StringFilter::SemanticTypeMask::FromWords(1, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(t0:(.*))", "", "",
                  mask_0);
 
   // Mask with bit 63 set
-  StringFilter::SemanticTypeMask mask_63 = {{1ULL << 63, 0}};
+  auto mask_63 = StringFilter::SemanticTypeMask::FromWords(1ULL << 63, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(t63:(.*))", "",
                  "", mask_63);
 
   // Mask with bit 64 set
-  StringFilter::SemanticTypeMask mask_64 = {{0, 1}};
+  auto mask_64 = StringFilter::SemanticTypeMask::FromWords(0, 1);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(t64:(.*))", "",
                  "", mask_64);
 
   // Mask with bit 127 set
-  StringFilter::SemanticTypeMask mask_127 = {{0, 1ULL << 63}};
+  auto mask_127 = StringFilter::SemanticTypeMask::FromWords(0, 1ULL << 63);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(t127:(.*))", "",
                  "", mask_127);
 
   // Mask with multiple bits: bits 0, 1, 64, 66
-  StringFilter::SemanticTypeMask mask_multi = {{0x3, 0x5}};
+  auto mask_multi = StringFilter::SemanticTypeMask::FromWords(0x3, 0x5);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(multi:(.*))", "",
                  "", mask_multi);
 

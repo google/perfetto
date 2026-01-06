@@ -195,9 +195,9 @@ static void BM_ProtozeroStringFilterSemanticTypeMatching(
       state,
       {{Policy::kAtraceMatchRedactGroups,
         R"(B\|\d+\|Lock contention on a monitor lock (.*))",
-        "Lock contention on a monitor lock", SemanticTypeMask{{1ULL << 1, 0}}},
+        "Lock contention on a monitor lock", SemanticTypeMask::FromWords(1ULL << 1, 0)},
        {Policy::kAtraceMatchRedactGroups, R"(B\|\d+\|foo (.*))", "foo",
-        SemanticTypeMask{{1ULL << 2, 0}}}},
+        SemanticTypeMask::FromWords(1ULL << 2, 0)}},
       1);  // Filter with semantic type 1
 }
 BENCHMARK(BM_ProtozeroStringFilterSemanticTypeMatching)
@@ -210,9 +210,9 @@ static void BM_ProtozeroStringFilterSemanticTypeNoMatch(
       state,
       {{Policy::kAtraceMatchRedactGroups,
         R"(B\|\d+\|Lock contention on a monitor lock (.*))",
-        "Lock contention on a monitor lock", SemanticTypeMask{{1ULL << 1, 0}}},
+        "Lock contention on a monitor lock", SemanticTypeMask::FromWords(1ULL << 1, 0)},
        {Policy::kAtraceMatchRedactGroups, R"(B\|\d+\|foo (.*))", "foo",
-        SemanticTypeMask{{1ULL << 1, 0}}}},
+        SemanticTypeMask::FromWords(1ULL << 1, 0)}},
       2);  // Filter with semantic type 2 (no rules match)
 }
 BENCHMARK(BM_ProtozeroStringFilterSemanticTypeNoMatch)

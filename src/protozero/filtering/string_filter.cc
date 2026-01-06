@@ -106,19 +106,6 @@ void RedactMatches(const Matches& matches) {
   }
 }
 
-// Checks if a semantic type matches the given rule's semantic type mask.
-constexpr bool DoesRuleMatchSemanticType(
-    const StringFilter::SemanticTypeMask& mask,
-    uint32_t semantic_type) {
-  // If beyond supported range (>= 128), apply rule (safe default).
-  if (PERFETTO_UNLIKELY(semantic_type >= StringFilter::kSemanticTypeLimit)) {
-    return true;
-  }
-  uint32_t word_index = semantic_type / 64;
-  uint32_t bit_index = semantic_type % 64;
-  return (mask[word_index] & (1ULL << bit_index)) != 0;
-}
-
 }  // namespace
 
 void StringFilter::AddRule(Policy policy,
@@ -151,7 +138,7 @@ bool StringFilter::MaybeFilterInternal(char* ptr,
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
   for (const Rule& rule : rules_) {
-    if (!DoesRuleMatchSemanticType(rule.semantic_type_mask, semantic_type)) {
+    if (!rule.semantic_type_mask.IsSet(semantic_type)) {
       continue;
     }
     switch (rule.policy) {
