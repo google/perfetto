@@ -248,10 +248,7 @@ export class TableSourceNode implements QueryNode {
         m(
           '.pf-table-source-selected',
           m('h2', 'Selected Table'),
-          m(
-            '.pf-details-box',
-            m(TableDescription, {table: this.state.sqlTable}),
-          ),
+          m(TableDescription, {table: this.state.sqlTable}),
         ),
       );
     }

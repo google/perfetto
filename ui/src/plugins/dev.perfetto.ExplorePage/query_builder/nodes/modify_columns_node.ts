@@ -89,7 +89,7 @@ export class ModifyColumnsNode implements QueryNode {
 
     const newSelectedColumns = newColumnInfoList(sourceCols);
 
-    // Preserve checked status and aliases for columns that still exist.
+    // Preserve checked status, aliases, and types for columns that still exist.
     for (const oldCol of this.state.selectedColumns) {
       const newCol = newSelectedColumns.find(
         (c) => c.column.name === oldCol.column.name,
@@ -97,6 +97,11 @@ export class ModifyColumnsNode implements QueryNode {
       if (newCol) {
         newCol.checked = oldCol.checked;
         newCol.alias = oldCol.alias;
+        newCol.type = oldCol.type;
+        newCol.column = {
+          ...newCol.column,
+          type: oldCol.column.type,
+        };
       }
     }
 
@@ -123,6 +128,7 @@ export class ModifyColumnsNode implements QueryNode {
 
   resolveColumns() {
     // Recover full column information from primaryInput
+    // Note: We preserve user-modified types and only recover the base column object
     if (this.primaryInput === undefined) {
       return;
     }
@@ -131,8 +137,14 @@ export class ModifyColumnsNode implements QueryNode {
     this.state.selectedColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
       if (sourceCol) {
-        c.column = sourceCol.column;
-        c.type = sourceCol.type;
+        // Only update the column reference, NOT the type
+        // The type may have been modified by the user and is preserved in serialization
+        c.column = {
+          ...sourceCol.column,
+          // Keep the user-modified type if it exists
+          type: c.column.type ?? sourceCol.column.type,
+        };
+        // Do NOT update c.type - it's already set from deserialization
       }
     });
   }

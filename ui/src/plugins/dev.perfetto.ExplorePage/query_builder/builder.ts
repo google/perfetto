@@ -267,7 +267,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     // Show template buttons when nothing is selected
     if (!attrs.selectedNode) {
       results.push(
-        m('h4.pf-starting-section-title', 'Templates:'),
+        m('h4.pf-starting-section-title', 'Load a graph'),
         m(
           '.pf-template-grid',
           renderTemplateCard({
@@ -279,16 +279,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           }),
           renderTemplateCard({
             icon: 'explore',
-            title: 'Explore Trace Data',
-            description: 'Slices and high-frequency tables',
-            ariaLabel: 'Explore trace data',
+            title: 'Preload useful tables',
+            description: 'Tailored for your trace data',
+            ariaLabel: 'Preload useful tables',
             onClick: () => attrs.onLoadExploreTemplate?.(),
           }),
           renderTemplateCard({
             icon: 'auto_stories',
-            title: 'Examples',
-            description: 'Load an example graph',
-            ariaLabel: 'Load example graph',
+            title: 'Graphs',
+            description: 'Load a predefined graph',
+            ariaLabel: 'Load predefined graph',
             onClick: () => attrs.onLoadExample(),
           }),
           renderTemplateCard({
@@ -299,7 +299,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             onClick: () => attrs.onLoadEmptyTemplate?.(),
           }),
         ),
-        m('h4.pf-starting-section-title', 'Add sources:'),
+        m('h4.pf-starting-section-title', 'Add source node'),
       );
     }
 

@@ -227,8 +227,10 @@ void BM_HashMap_TraceTids(benchmark::State& state) {
 template <typename MapType>
 void BM_HashMap_InsertRandInts(benchmark::State& state) {
   std::minstd_rand0 rng(0);
-  std::vector<size_t> keys(static_cast<size_t>(num_samples()));
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(rng());
   for (auto _ : state) {
     MapType mapz;
     for (const auto key : keys)
@@ -295,8 +297,10 @@ void BM_HashMap_InsertDupeInts(benchmark::State& state) {
 template <typename MapType>
 void BM_HashMap_LookupRandInts(benchmark::State& state) {
   std::minstd_rand0 rng(0);
-  std::vector<size_t> keys(static_cast<size_t>(num_samples()));
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(rng());
 
   MapType mapz;
   for (const size_t key : keys)
@@ -320,8 +324,10 @@ void BM_HashMap_LookupRandInts(benchmark::State& state) {
 template <typename MapType>
 void BM_HashMap_RandomIntsClear(benchmark::State& state) {
   std::minstd_rand0 rng(0);
-  std::vector<size_t> keys(static_cast<size_t>(num_samples()));
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(rng());
 
   MapType mapz;
   for (const size_t key : keys)

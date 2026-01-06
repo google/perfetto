@@ -16,33 +16,30 @@ import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
+import {Chip} from './chip';
+import {Intent} from './common';
 import {EmptyState} from './empty_state';
+import {Form, FormLabel} from './form';
+import {Icon} from './icon';
 import {Popup, PopupPosition} from './popup';
 import {Select} from './select';
 import {Spinner} from './spinner';
-import {TagInput} from './tag_input';
 import {SegmentedButtons} from './segmented_buttons';
+import {Stack} from './stack';
+import {TextInput} from './text_input';
+import {Tooltip} from './tooltip';
 import {z} from 'zod';
 import {Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
 import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
+import {MiddleEllipsis} from './middle_ellipsis';
 import {Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
+import {Icons} from '../base/semantic_icons';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
-const FILTER_COMMON_TEXT = `
-- "Show Stack: foo" or "SS: foo" or "foo" to show only stacks containing "foo"
-- "Hide Stack: foo" or "HS: foo" to hide all stacks containing "foo"
-- "Show From Frame: foo" or "SFF: foo" to show frames containing "foo" and all descendants
-- "Hide Frame: foo" or "HF: foo" to hide all frames containing "foo"
-- "Pivot: foo" or "P: foo" to pivot on frames containing "foo".
-Note: Pivot applies after all other filters and only one pivot can be active at a time.
-`;
-const FILTER_EMPTY_TEXT = `
-Available filters:${FILTER_COMMON_TEXT}
-`;
 const LABEL_PADDING_PX = 5;
 const LABEL_MIN_WIDTH_FOR_TEXT_PX = 5;
 const PADDING_NODE_COUNT = 8;
@@ -174,6 +171,220 @@ export interface FlamegraphAttrs {
   readonly onStateChange: (filters: FlamegraphState) => void;
 }
 
+type FilterType =
+  | 'SHOW_STACK'
+  | 'HIDE_STACK'
+  | 'SHOW_FROM_FRAME'
+  | 'HIDE_FRAME'
+  | 'PIVOT';
+
+interface FilterTypeOption {
+  readonly value: FilterType;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly description: string;
+}
+
+const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
+  {
+    value: 'SHOW_STACK',
+    label: 'Show Stack',
+    shortLabel: 'SS',
+    description:
+      'Keep only samples whose stack contains a matching frame. ' +
+      'Non-matching samples are removed entirely.',
+  },
+  {
+    value: 'HIDE_STACK',
+    label: 'Hide Stack',
+    shortLabel: 'HS',
+    description:
+      'Remove samples whose stack contains a matching frame. ' +
+      'Also called "Drop function" in other profilers.',
+  },
+  {
+    value: 'SHOW_FROM_FRAME',
+    label: 'Show From Frame',
+    shortLabel: 'SFF',
+    description:
+      'Keep only matching frames and their descendants, removing ancestors. ' +
+      'Also called "Focus on subtree" in other profilers.',
+  },
+  {
+    value: 'HIDE_FRAME',
+    label: 'Hide Frame',
+    shortLabel: 'HF',
+    description:
+      'Remove matching frames from all stacks, collapsing children into parent. ' +
+      'Also called "Merge function" in other profilers.',
+  },
+  {
+    value: 'PIVOT',
+    label: 'Pivot',
+    shortLabel: 'P',
+    description:
+      'Re-root the flamegraph at matching frames. ' +
+      'Shows callers above and callees below the pivot point.',
+  },
+];
+
+interface FilterBuilderAttrs {
+  onAdd: (type: FilterType, value: string) => void;
+  hasPivot?: boolean;
+}
+
+class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
+  private type: FilterType = 'SHOW_STACK';
+  private quickAdd = '';
+  private filter = '';
+
+  view({attrs}: m.CVnode<FilterBuilderAttrs>) {
+    const {onAdd, hasPivot} = attrs;
+    const opt = FILTER_TYPES.find((o) => o.value === this.type);
+    const value = this.quickAdd || this.filter;
+
+    return m(
+      Form,
+      {
+        submitLabel: 'Add',
+        cancelLabel: 'Cancel',
+        onSubmit: () => {
+          if (!value.trim()) return;
+          if (this.quickAdd) {
+            for (const part of this.splitFilters(this.quickAdd)) {
+              const {type, filter} = this.parse(part);
+              onAdd(type, filter);
+            }
+            this.quickAdd = '';
+          } else {
+            onAdd(this.type, this.filter.trim());
+            this.filter = '';
+          }
+        },
+        validation: () => value.trim() !== '',
+      },
+      m(
+        Stack,
+        {
+          orientation: 'horizontal',
+          spacing: 'small',
+          className: 'pf-filter-builder__quick-add',
+        },
+        m(FormLabel, 'Quick add'),
+        m(
+          Tooltip,
+          {
+            trigger: m(Icon, {
+              icon: 'help_outline',
+              className: 'pf-filter-builder__help-icon',
+            }),
+          },
+          m(
+            '.pf-filter-builder__help',
+            FILTER_TYPES.map((o) =>
+              m(
+                '.pf-filter-builder__help-row',
+                m('strong', `${o.shortLabel}:`),
+                ` ${o.label} - ${o.description.split('.')[0]}`,
+              ),
+            ),
+            m(
+              '.pf-filter-builder__help-row',
+              'Example: SS: main or HF: alloc.*',
+            ),
+            m(
+              '.pf-filter-builder__help-row',
+              'Multiple filters also supported. Use quotes for nested commas.',
+            ),
+            m(
+              '.pf-filter-builder__help-row',
+              'Example: SS: main, HF: "bar,baz"',
+            ),
+          ),
+        ),
+      ),
+      m(TextInput, {
+        autofocus: true,
+        placeholder: 'SS: main or HF: alloc.*',
+        title: FILTER_TYPES.map((o) => `${o.shortLabel}: ${o.label}`).join(
+          '\n',
+        ),
+        value: this.quickAdd,
+        onInput: (v) => {
+          this.quickAdd = v;
+          this.filter = '';
+        },
+      }),
+      m('.pf-filter-builder__divider', 'or'),
+      m(FormLabel, 'Type'),
+      m(
+        Select,
+        {
+          oninput: (e: Event) => {
+            this.type = (e.target as HTMLSelectElement).value as FilterType;
+          },
+        },
+        FILTER_TYPES.map((o) => m('option', {value: o.value}, o.label)),
+      ),
+      opt && m('.pf-filter-builder__desc', opt.description),
+      m(FormLabel, 'Filter'),
+      m(TextInput, {
+        placeholder: 'e.g. main, alloc.*',
+        value: this.filter,
+        onInput: (v) => {
+          this.filter = v;
+          this.quickAdd = '';
+        },
+      }),
+      hasPivot &&
+        this.type === 'PIVOT' &&
+        m('.pf-filter-builder__warn', 'Replaces current pivot'),
+    );
+  }
+
+  // Split by comma, respecting quoted strings and backslash escapes
+  // e.g. 'SS: foo, HF: "bar,baz", SS: "qux\"quux"'
+  // -> ['SS: foo', 'HF: bar,baz', 'SS: qux"quux']
+  private splitFilters(text: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    let escape = false;
+    for (const char of text) {
+      if (escape) {
+        current += char;
+        escape = false;
+      } else if (char === '\\') {
+        escape = true;
+      } else if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        if (current.trim()) result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    if (current.trim()) result.push(current.trim());
+    return result;
+  }
+
+  private parse(text: string): {type: FilterType; filter: string} {
+    const i = text.indexOf(':');
+    if (i === -1) return {type: this.type, filter: text};
+    const prefix = text.substring(0, i).trim().toLowerCase();
+    const filter = text.substring(i + 1).trim();
+    const match = FILTER_TYPES.find(
+      (o) =>
+        o.shortLabel.toLowerCase() === prefix ||
+        o.label.toLowerCase() === prefix,
+    );
+    return match
+      ? {type: match.value, filter}
+      : {type: this.type, filter: text};
+  }
+}
+
 /*
  * Widget for visualizing "tree-like" data structures using an interactive
  * flamegraph visualization.
@@ -207,8 +418,7 @@ export interface FlamegraphAttrs {
 export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private attrs: FlamegraphAttrs;
 
-  private rawFilterText: string = '';
-  private filterFocus: boolean = false;
+  private showFilterBuilder: boolean = false;
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
@@ -561,7 +771,35 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
-    const self = this;
+    const tags = toTags(this.attrs.state);
+    const hasPivot = this.attrs.state.view.kind === 'PIVOT';
+    const hasFilters = tags.length > 0;
+
+    const removeTag = (i: number) => {
+      if (i === this.attrs.state.filters.length) {
+        this.attrs.onStateChange({
+          ...this.attrs.state,
+          view: {kind: 'TOP_DOWN'},
+        });
+      } else {
+        const filters = this.attrs.state.filters.filter((_, j) => j !== i);
+        this.attrs.onStateChange({...this.attrs.state, filters});
+      }
+    };
+
+    const addFilterFn = (type: FilterType, value: string) => {
+      if (type === 'PIVOT') {
+        this.attrs.onStateChange({
+          ...this.attrs.state,
+          view: {kind: 'PIVOT', pivot: value},
+        });
+      } else {
+        this.attrs.onStateChange(
+          addFilter(this.attrs.state, {kind: type, filter: value}),
+        );
+      }
+    };
+
     return m(
       '.filter-bar',
       m(
@@ -571,7 +809,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
             attrs.onStateChange({
-              ...self.attrs.state,
+              ...this.attrs.state,
               selectedMetricName: el.value,
             });
           },
@@ -580,52 +818,71 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           return m('option', {value: x.name}, x.name);
         }),
       ),
+      m('span.pf-flamegraph-filter-label', 'Filters:'),
+      m(
+        '.pf-flamegraph-filter-chips',
+        tags.map((tag, index) =>
+          m(Chip, {
+            label: m(MiddleEllipsis, {text: tag}),
+            removable: true,
+            compact: true,
+            intent: Intent.Primary,
+            onRemove: () => removeTag(index),
+          }),
+        ),
+      ),
       m(
         Popup,
         {
-          trigger: m(TagInput, {
-            tags: toTags(self.attrs.state),
-            value: this.rawFilterText,
-            onChange: (value: string) => {
-              self.rawFilterText = value;
+          trigger: m(Button, {
+            label: hasFilters ? undefined : 'Add',
+            icon: Icons.Add,
+            compact: true,
+            active: this.showFilterBuilder,
+            onclick: () => {
+              this.showFilterBuilder = !this.showFilterBuilder;
             },
-            onTagAdd: (tag: string) => {
-              self.rawFilterText = '';
-              self.attrs.onStateChange(updateState(self.attrs.state, tag));
-            },
-            onTagRemove(index: number) {
-              if (index === self.attrs.state.filters.length) {
-                self.attrs.onStateChange({
-                  ...self.attrs.state,
-                  view: {kind: 'TOP_DOWN'},
-                });
-              } else {
-                const filters = Array.from(self.attrs.state.filters);
-                filters.splice(index, 1);
-                self.attrs.onStateChange({
-                  ...self.attrs.state,
-                  filters,
-                });
-              }
-            },
-            onfocus() {
-              self.filterFocus = true;
-            },
-            onblur() {
-              self.filterFocus = false;
-            },
-            placeholder: 'Add filter...',
           }),
-          isOpen: self.filterFocus && this.rawFilterText.length === 0,
-          position: PopupPosition.Bottom,
+          isOpen: this.showFilterBuilder,
+          onChange: (shouldOpen: boolean) => {
+            this.showFilterBuilder = shouldOpen;
+          },
+          position: PopupPosition.RightStart,
+          closeOnOutsideClick: true,
+          closeOnEscape: true,
+          className: 'pf-filter-builder',
         },
-        m('.pf-flamegraph-filter-bar-popup-content', FILTER_EMPTY_TEXT.trim()),
+        m(FilterBuilder, {onAdd: addFilterFn, hasPivot}),
       ),
+      hasFilters &&
+        m(Button, {
+          icon: 'content_copy',
+          compact: true,
+          onclick: () => {
+            navigator.clipboard.writeText(tags.join(', '));
+          },
+        }),
+      hasFilters &&
+        m(Button, {
+          icon: 'delete',
+          compact: true,
+          onclick: () => {
+            attrs.onStateChange({
+              ...this.attrs.state,
+              filters: [],
+              view:
+                this.attrs.state.view.kind === 'PIVOT'
+                  ? {kind: 'TOP_DOWN'}
+                  : this.attrs.state.view,
+            });
+          },
+        }),
+      m('.pf-flamegraph-filter-spacer'),
       m(SegmentedButtons, {
         options: [{label: 'Top Down'}, {label: 'Bottom Up'}],
         selectedOption: this.attrs.state.view.kind === 'TOP_DOWN' ? 0 : 1,
         onOptionSelected: (num) => {
-          self.attrs.onStateChange({
+          this.attrs.onStateChange({
             ...this.attrs.state,
             view: {kind: num === 0 ? 'TOP_DOWN' : 'BOTTOM_UP'},
           });
@@ -1081,41 +1338,6 @@ function displayPercentage(size: number, totalSize: number): string {
     return `[NULL]%`;
   }
   return `${((size / totalSize) * 100.0).toFixed(2)}%`;
-}
-
-function updateState(state: FlamegraphState, filter: string): FlamegraphState {
-  const lwr = filter.toLowerCase();
-  const splitFilterFn = (f: string) => f.substring(f.indexOf(':') + 1).trim();
-  if (lwr.startsWith('ss:') || lwr.startsWith('show stack:')) {
-    return addFilter(state, {
-      kind: 'SHOW_STACK',
-      filter: splitFilterFn(filter),
-    });
-  } else if (lwr.startsWith('hs:') || lwr.startsWith('hide stack:')) {
-    return addFilter(state, {
-      kind: 'HIDE_STACK',
-      filter: splitFilterFn(filter),
-    });
-  } else if (lwr.startsWith('sff:') || lwr.startsWith('show from frame:')) {
-    return addFilter(state, {
-      kind: 'SHOW_FROM_FRAME',
-      filter: splitFilterFn(filter),
-    });
-  } else if (lwr.startsWith('hf:') || lwr.startsWith('hide frame:')) {
-    return addFilter(state, {
-      kind: 'HIDE_FRAME',
-      filter: splitFilterFn(filter),
-    });
-  } else if (lwr.startsWith('p:') || lwr.startsWith('pivot:')) {
-    return {
-      ...state,
-      view: {kind: 'PIVOT', pivot: splitFilterFn(filter)},
-    };
-  }
-  return addFilter(state, {
-    kind: 'SHOW_STACK',
-    filter: filter.trim(),
-  });
 }
 
 function toTags(state: FlamegraphState): ReadonlyArray<string> {
