@@ -76,7 +76,7 @@
     .pf-button {
       width: 100%;
       height: 60px;
-      font-size: 20px;
+      font-size: var(--pf-font-size-xxl);
       box-shadow: none;
       border: none;
       border-radius: 0;
@@ -123,7 +123,7 @@
   .pf-qb-round-action-button {
     width: 40px;
     height: 40px;
-    font-size: 20px;
+    font-size: var(--pf-font-size-xxl);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     transition: box-shadow 0.2s ease;
 
@@ -224,7 +224,7 @@
 
     h3 {
       margin: 0;
-      font-size: 16px;
+      font-size: var(--pf-font-size-l);
       font-weight: 500;
       transition: color 0.1s ease;
     }
@@ -245,7 +245,7 @@
 
   p {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--pf-font-size-m);
     line-height: 1.4;
     color: var(--pf-color-text-muted);
     text-align: center;
@@ -268,14 +268,14 @@
     transition: transform 0.1s ease;
 
     .pf-icon {
-      font-size: 20px;
+      font-size: var(--pf-font-size-xxl);
       color: var(--pf-color-primary);
       transition: color 0.1s ease;
     }
 
     h3 {
       margin: 0;
-      font-size: 12px;
+      font-size: var(--pf-font-size-m);
       font-weight: 500;
       transition: color 0.1s ease;
       text-align: center;
@@ -297,7 +297,7 @@
 
   p {
     margin: 0;
-    font-size: 10px;
+    font-size: var(--pf-font-size-s);
     line-height: 1.3;
     color: var(--pf-color-text-muted);
     text-align: center;
@@ -341,7 +341,7 @@
 
     h3 {
       margin: 0;
-      font-size: 16px;
+      font-size: var(--pf-font-size-l);
       font-weight: 500;
       transition: color 0.1s ease;
     }
@@ -362,7 +362,7 @@
 
   p {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--pf-font-size-s);
     line-height: 1.4;
     color: var(--pf-color-text-muted);
     text-align: center;
@@ -375,7 +375,7 @@
   max-height: 400px;
   overflow-y: auto;
   padding: 12px;
-  font-size: 13px;
+  font-size: var(--pf-font-size-s);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;

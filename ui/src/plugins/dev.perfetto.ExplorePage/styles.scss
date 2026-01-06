@@ -16,10 +16,6 @@
 @import "./query_builder/data_explorer.scss";
 
 .pf-explore-page {
-  --pf-exp-font-size-sm: 0.9em;
-  --pf-exp-font-size-md: 1.1em;
-  --pf-exp-font-size-lg: 1.8em;
-
   height: 100%;
   position: relative;
   overflow: auto;
@@ -36,7 +32,7 @@
   line-height: 1.6;
 
   h1 {
-    font-size: 1.5em;
+    font-size: var(--pf-font-size-xl);
     font-weight: 600;
     margin-top: 0;
     margin-bottom: 1rem;
@@ -45,14 +41,14 @@
   }
 
   h2 {
-    font-size: 1.2em;
+    font-size: var(--pf-font-size-l);
     font-weight: 600;
     margin-top: 1.5rem;
     margin-bottom: 0.75rem;
   }
 
   h3 {
-    font-size: 1.1em;
+    font-size: var(--pf-font-size-m);
     font-weight: 600;
     margin-top: 1rem;
     margin-bottom: 0.5rem;
