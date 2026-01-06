@@ -1720,3 +1720,79 @@ class JsonParser(TestSuite):
         24000000,2000000,"R","[NULL]","[NULL]",101,100
         26000000,4000000,"Running","[NULL]","[NULL]",101,100
         """))
+
+  def test_json_thread_state_sched(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+            "traceEvents": [
+              {
+                "name": "process_name",
+                "ph": "M",
+                "pid": 100,
+                "args": {"name": "TestProcess"}
+              },
+              {
+                "name": "thread_name",
+                "ph": "M",
+                "pid": 100,
+                "tid": 101,
+                "args": {"name": "TestThread"}
+              },
+              {
+                "name": "Running",
+                "cat": "thread_state",
+                "ph": "T",
+                "ts": 1000,
+                "dur": 5000,
+                "pid": 100,
+                "tid": 101,
+                "args": {
+                  "cpu": 0
+                }
+              },
+              {
+                "name": "S",
+                "cat": "thread_state",
+                "ph": "T",
+                "ts": 6000,
+                "dur": 10000,
+                "pid": 100,
+                "tid": 101,
+                "args": {
+                  "io_wait": 0
+                }
+              },
+              {
+                "name": "Running",
+                "cat": "thread_state",
+                "ph": "T",
+                "ts": 26000,
+                "dur": 4000,
+                "pid": 100,
+                "tid": 101,
+                "args": {
+                  "cpu": 1
+                }
+              }
+            ]
+          }
+        '''),
+        query='''
+          SELECT
+            sched.ts,
+            sched.dur,
+            cpu.cpu,
+            thread.tid,
+            process.pid
+          FROM sched
+          JOIN thread USING (utid)
+          JOIN process USING (upid)
+          JOIN cpu USING (ucpu)
+          ORDER BY sched.ts
+        ''',
+        out=Csv("""
+        "ts","dur","cpu","tid","pid"
+        1000000,5000000,0,101,100
+        26000000,4000000,1,101,100
+        """))
