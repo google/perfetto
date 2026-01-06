@@ -561,6 +561,10 @@ function getHeapGraphIncomingReferencesView(
       {column: 'class_name', type: PerfettoSqlTypes.STRING},
       {column: 'field_name', type: PerfettoSqlTypes.STRING},
       {column: 'field_type_name', type: PerfettoSqlTypes.STRING},
+      {column: 'total_cumulative_size', type: PerfettoSqlTypes.INT},
+      {column: 'cumulative_size', type: PerfettoSqlTypes.INT},
+      {column: 'cumulative_native_size', type: PerfettoSqlTypes.INT},
+      {column: 'cumulative_count', type: PerfettoSqlTypes.INT},
       {column: 'self_size', type: PerfettoSqlTypes.INT},
       {column: 'native_size', type: PerfettoSqlTypes.INT},
       {column: 'heap_type', type: PerfettoSqlTypes.STRING},
@@ -580,6 +584,10 @@ function getHeapGraphOutgoingReferencesView(
       {column: 'class_name', type: PerfettoSqlTypes.STRING},
       {column: 'field_name', type: PerfettoSqlTypes.STRING},
       {column: 'field_type_name', type: PerfettoSqlTypes.STRING},
+      {column: 'total_cumulative_size', type: PerfettoSqlTypes.INT},
+      {column: 'cumulative_size', type: PerfettoSqlTypes.INT},
+      {column: 'cumulative_native_size', type: PerfettoSqlTypes.INT},
+      {column: 'cumulative_count', type: PerfettoSqlTypes.INT},
       {column: 'self_size', type: PerfettoSqlTypes.INT},
       {column: 'native_size', type: PerfettoSqlTypes.INT},
       {column: 'heap_type', type: PerfettoSqlTypes.STRING},
@@ -656,7 +664,6 @@ function getHeapGraphNodeOptionalActions(
             as: pathHashesToTableStatement(value),
           });
 
-          // Include the object_tree module for cumulative aggregations
           await trace.engine.query(
             'include perfetto module android.memory.heap_graph.object_tree;',
           );
@@ -693,6 +700,10 @@ function getHeapGraphNodeOptionalActions(
                 as: pathHashesToTableStatement(value),
               });
 
+              await trace.engine.query(
+                'include perfetto module android.memory.heap_graph.object_tree;',
+              );
+
               const tableName = `_heap_graph${tableModifier(isDominator)}incoming_references`;
               const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
               const macroExpr = `_heap_graph_incoming_references_agg!(${macroArgs})`;
@@ -718,6 +729,10 @@ function getHeapGraphNodeOptionalActions(
                 name: pathHashTableName,
                 as: pathHashesToTableStatement(value),
               });
+
+              await trace.engine.query(
+                'include perfetto module android.memory.heap_graph.object_tree;',
+              );
 
               const tableName = `_heap_graph${tableModifier(isDominator)}outgoing_references`;
               const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
