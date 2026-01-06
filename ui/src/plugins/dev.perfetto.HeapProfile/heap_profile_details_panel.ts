@@ -656,6 +656,11 @@ function getHeapGraphNodeOptionalActions(
             as: pathHashesToTableStatement(value),
           });
 
+          // Include the object_tree module for cumulative aggregations
+          await trace.engine.query(
+            'include perfetto module android.memory.heap_graph.object_tree;',
+          );
+
           const tableName = `_heap_graph${tableModifier(isDominator)}object_references`;
           const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
           const macroExpr = `_heap_graph_object_references_agg!(${macroArgs})`;
