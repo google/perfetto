@@ -80,6 +80,72 @@ const LOGCAT_DEFAULT = [
   protos.AndroidLogId.LID_EVENTS,
 ];
 
+// Chrome-specific presets
+const CHROME_DEFAULT_PRESET: Preset = {
+  id: 'default',
+  title: 'Default',
+  subtitle: 'Common Chrome trace events',
+  icon: 'public',
+  session: {
+    mode: 'STOP_WHEN_FULL',
+    bufSizeKb: 256 * 1024,
+    durationMs: 30_000,
+    maxFileSizeMb: 500,
+    fileWritePeriodMs: 2500,
+    compression: false,
+    probes: {
+      chrome_tracing: {
+        settings: {
+          'Task Scheduling': true,
+          'Javascript execution': true,
+          'Web content rendering, layout and compositing': true,
+          'UI rendering and surface compositing': true,
+          'Input events': true,
+          'Navigation and loading': true,
+        },
+      },
+    },
+  },
+};
+const CHROME_V8_PRESET: Preset = {
+  id: 'v8',
+  title: 'V8',
+  subtitle: 'JavaScript, wasm',
+  icon: 'mode_fan',
+  session: {
+    mode: 'STOP_WHEN_FULL',
+    bufSizeKb: 256 * 1024,
+    durationMs: 30_000,
+    maxFileSizeMb: 500,
+    fileWritePeriodMs: 2500,
+    compression: false,
+    probes: {
+      chrome_tracing: {
+        settings: {
+          'Task Scheduling': true,
+          'Javascript execution': true,
+          'Navigation and loading': true,
+          'categories': [
+            'v8',
+            'v8.execute',
+            'v8.wasm',
+            'v8.memory',
+            'blink.user_timing',
+            'disabled-by-default-v8.gc',
+            'disabled-by-default-v8.compile',
+            'disabled-by-default-v8.cpu_profiler',
+          ],
+        },
+      },
+    },
+  },
+};
+
+export const CHROME_PRESETS: Preset[] = [
+  CHROME_DEFAULT_PRESET,
+  CHROME_V8_PRESET,
+];
+
 // Android-specific presets
 export const ANDROID_PRESETS: Preset[] = [
   {
@@ -90,7 +156,7 @@ export const ANDROID_PRESETS: Preset[] = [
     session: {
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 10000,
+      durationMs: 10_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -122,7 +188,7 @@ export const ANDROID_PRESETS: Preset[] = [
     session: {
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 30000,
+      durationMs: 30_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -147,7 +213,7 @@ export const ANDROID_PRESETS: Preset[] = [
     session: {
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 30000,
+      durationMs: 30_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -167,6 +233,8 @@ export const ANDROID_PRESETS: Preset[] = [
       },
     },
   },
+  {...CHROME_DEFAULT_PRESET, id: 'chrome', title: 'Chrome'},
+  CHROME_V8_PRESET,
 ];
 
 // Linux-specific presets
@@ -179,7 +247,7 @@ export const LINUX_PRESETS: Preset[] = [
     session: {
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 10000,
+      durationMs: 10_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -200,7 +268,7 @@ export const LINUX_PRESETS: Preset[] = [
     session: {
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 10000,
+      durationMs: 10_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -224,7 +292,7 @@ export function getPresetsForPlatform(platform: string): Preset[] {
       return LINUX_PRESETS;
     case 'CHROME':
     case 'CHROME_OS':
-      return [];
+      return CHROME_PRESETS;
     default:
       return [];
   }
