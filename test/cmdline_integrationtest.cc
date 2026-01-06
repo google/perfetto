@@ -20,7 +20,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/flags.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"

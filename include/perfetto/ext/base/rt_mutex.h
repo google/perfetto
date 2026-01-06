@@ -31,7 +31,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/thread_annotations.h"
-#include "perfetto/base/flags.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/public/compiler.h"
 
 #define _PERFETTO_MUTEX_MODE_STD 0

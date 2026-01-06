@@ -54,7 +54,7 @@
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/base/flags.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"

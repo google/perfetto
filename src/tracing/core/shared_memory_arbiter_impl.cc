@@ -23,7 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
-#include "perfetto/base/flags.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"

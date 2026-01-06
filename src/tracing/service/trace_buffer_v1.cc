@@ -19,7 +19,7 @@
 #include <limits>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/flags.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"

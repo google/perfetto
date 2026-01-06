@@ -7,7 +7,6 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/flags.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/basic_types.h"
@@ -214,23 +213,7 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
             ->GetUnsafe(instance_index)
             ->incremental_state_generation.load(std::memory_order_relaxed);
     if (tls_inst->incremental_state_generation != actual_generation) {
-      if constexpr (
-          PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
-        // Try to clear the existing state if we have a clear function and the
-        // state exists. This allows reusing allocated memory instead of
-        // destroying and recreating the state object.
-        void* incremental_state = tls_inst->incremental_state.get();
-        if (clear_incremental_state_fn_ && incremental_state &&
-            clear_incremental_state_fn_(incremental_state, user_arg_)) {
-          tls_inst->incremental_state_generation = actual_generation;
-        } else {
-          tls_inst->incremental_state.reset();
-          CreateIncrementalState(tls_inst, instance_index);
-        }
-      } else {
-        tls_inst->incremental_state.reset();
-        CreateIncrementalState(tls_inst, instance_index);
-      }
+      ClearIncrementalState(tls_inst, instance_index, actual_generation);
     }
     return tls_inst->incremental_state.get();
   }
@@ -255,6 +238,10 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
   void PopulateTlsInst(DataSourceInstanceThreadLocalState* tls_inst,
                        DataSourceState* instance_state,
                        uint32_t instance_index);
+
+  void ClearIncrementalState(internal::DataSourceInstanceThreadLocalState*,
+                             uint32_t instance_index,
+                             uint32_t actual_generation);
 
   // Advances `*iterator` to the first active instance whose index is greater or
   // equal than `iterator->i`.
