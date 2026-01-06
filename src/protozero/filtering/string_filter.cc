@@ -44,7 +44,8 @@ constexpr char kRedactedDash = '-';
 // E|1024 -> nullptr
 // foobarbaz -> nullptr
 // B|1024|x -> pointer to x
-const char* FindAtracePayloadPtr(const char* ptr, const char* end) {
+PERFETTO_ALWAYS_INLINE const char* FindAtracePayloadPtr(const char* ptr,
+                                                        const char* end) {
   // Don't even bother checking any strings which are so short that they could
   // not contain a post-tgid section. This filters out strings like "E|" which
   // emitted by Bionic.
@@ -53,7 +54,7 @@ const char* FindAtracePayloadPtr(const char* ptr, const char* end) {
   // anything past the tgid: this removes >half of the strings for ~zero cost.
   static constexpr size_t kEarliestSecondPipeIndex = 2;
   const char* search_start = ptr + kEarliestSecondPipeIndex;
-  if (search_start >= end || *ptr == 'E') {
+  if (PERFETTO_UNLIKELY(search_start >= end || *ptr == 'E')) {
     return nullptr;
   }
 
@@ -65,14 +66,26 @@ const char* FindAtracePayloadPtr(const char* ptr, const char* end) {
   return pipe ? pipe + 1 : nullptr;
 }
 
-bool StartsWith(const char* ptr,
-                const char* end,
-                const std::string& starts_with) {
+PERFETTO_ALWAYS_INLINE bool StartsWith(const char* ptr,
+                                       const char* end,
+                                       const std::string& starts_with) {
   // Verify that the atrace string has enough characters to match against all
-  // the characters in the "starts with" string. If it does, memcmp to check if
-  // all the characters match and return true if they do.
-  return ptr + starts_with.size() <= end &&
-         memcmp(ptr, starts_with.data(), starts_with.size()) == 0;
+  // the characters in the "starts with" string.
+  size_t len = starts_with.size();
+  if (PERFETTO_UNLIKELY(ptr + len > end))
+    return false;
+
+  // Empty string matches everything.
+  if (PERFETTO_UNLIKELY(len == 0))
+    return true;
+
+  // Quick rejection: check first character before expensive memcmp.
+  // This is very effective since most strings don't match.
+  if (PERFETTO_LIKELY(*ptr != *starts_with.data()))
+    return false;
+
+  // If first char matches, do full memcmp for remaining characters.
+  return memcmp(ptr + 1, starts_with.data() + 1, len - 1) == 0;
 }
 
 void RedactMatches(const Matches& matches) {
@@ -144,7 +157,8 @@ bool StringFilter::MaybeFilterInternal(char* ptr,
     switch (rule.policy) {
       case Policy::kMatchRedactGroups:
       case Policy::kMatchBreak:
-        if (std::regex_match(ptr, ptr + len, matches, rule.pattern)) {
+        if (PERFETTO_UNLIKELY(
+                std::regex_match(ptr, ptr + len, matches, rule.pattern))) {
           if (rule.policy == Policy::kMatchBreak) {
             return false;
           }
