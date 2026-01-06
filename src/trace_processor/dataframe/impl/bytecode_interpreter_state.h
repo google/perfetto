@@ -64,9 +64,8 @@ struct InterpreterState {
     }
     columns = columns_;
     column_storage_data_ptrs.clear();
-    column_storage_data_ptrs.reserve(column_count);
     for (uint32_t i = 0; i < column_count; ++i) {
-      column_storage_data_ptrs.push_back(columns_[i]->storage.data());
+      column_storage_data_ptrs.emplace_back(columns_[i]->storage.data());
     }
     indexes = indexes_;
     string_pool = string_pool_;
@@ -117,12 +116,6 @@ struct InterpreterState {
 
   const Column& GetColumn(uint32_t idx) const { return *columns[idx]; }
 
-  // Get cached storage data pointer for a specific column.
-  const Storage::DataPointer& GetColumnStorageDataPtr(uint32_t idx) const {
-    return column_storage_data_ptrs[idx];
-  }
-
-  // Get typed data pointer from cached storage for a specific column.
   template <typename T>
   const auto* GetColumnData(uint32_t idx) const {
     return Storage::CastDataPtr<T>(column_storage_data_ptrs[idx]);
