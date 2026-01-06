@@ -98,9 +98,9 @@ void Benchmark(
 }  // namespace
 
 static void BM_ProtozeroStringRewriterRedactMissing(benchmark::State& state) {
-  Benchmark(state,
-            {{Policy::kMatchRedactGroups,
-              R"(S\|[^|]+\|\*job\*\/.*\/.*\/(.*)\n)", "", SemanticTypeMask::All()}});
+  Benchmark(state, {{Policy::kMatchRedactGroups,
+                     R"(S\|[^|]+\|\*job\*\/.*\/.*\/(.*)\n)", "",
+                     SemanticTypeMask::All()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterRedactMissing)
     ->Unit(benchmark::kMillisecond)
@@ -137,9 +137,9 @@ BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactRare)
 
 static void BM_ProtozeroStringRewriterAtraceSearchSingleRedactRare(
     benchmark::State& state) {
-  Benchmark(state,
-            {{Policy::kAtraceRepeatedSearchRedactGroups,
-              R"(VerifyClass (.*)\n)", "VerifyClass", SemanticTypeMask::All()}});
+  Benchmark(state, {{Policy::kAtraceRepeatedSearchRedactGroups,
+                     R"(VerifyClass (.*)\n)", "VerifyClass",
+                     SemanticTypeMask::All()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceSearchSingleRedactRare)
     ->Unit(benchmark::kMillisecond)
@@ -156,9 +156,10 @@ BENCHMARK(BM_ProtozeroStringRewriterRedactCommon)
 
 static void BM_ProtozeroStringRewriterAtraceRedactCommon(
     benchmark::State& state) {
-  Benchmark(state, {{Policy::kAtraceMatchRedactGroups,
-                     R"(B\|[^|]+\|Lock contention on a monitor lock (.*)\n)",
-                     "Lock contention on a monitor lock", SemanticTypeMask::All()}});
+  Benchmark(state,
+            {{Policy::kAtraceMatchRedactGroups,
+              R"(B\|[^|]+\|Lock contention on a monitor lock (.*)\n)",
+              "Lock contention on a monitor lock", SemanticTypeMask::All()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactCommon)
     ->Unit(benchmark::kMillisecond)
