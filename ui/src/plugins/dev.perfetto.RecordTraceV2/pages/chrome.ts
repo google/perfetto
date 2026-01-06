@@ -62,18 +62,22 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
     }),
     categories: new ChromeCategoriesWidget(chromeCategoryGetter),
   };
+  function getIncludedCategories(): Set<string> {
+    const cats = new Set<string>();
+    settings.categories.getEnabledCategories().forEach((c) => cats.add(c));
+    for (const [group, groupCats] of Object.entries(GROUPS)) {
+      if ((groupToggles[group] as Toggle).enabled) {
+        groupCats.forEach((c) => cats.add(c));
+      }
+    }
+    return cats;
+  }
   return {
     id: 'chrome_tracing',
     title: 'Chrome browser tracing',
     settings,
     genConfig: function (tc: TraceConfigBuilder) {
-      const cats = new Set<string>();
-      settings.categories.getEnabledCategories().forEach((c) => cats.add(c));
-      for (const [group, groupCats] of Object.entries(GROUPS)) {
-        if ((groupToggles[group] as Toggle).enabled) {
-          groupCats.forEach((c) => cats.add(c));
-        }
-      }
+      const cats = getIncludedCategories();
       const memoryInfra = cats.has('disabled-by-default-memory-infra');
       const jsonStruct = {
         record_mode:
@@ -145,7 +149,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
   };
 }
 
-const DISAB_PREFIX = 'disabled-by-default-';
+const DISABLED_PREFIX = 'disabled-by-default-';
 
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
@@ -171,7 +175,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     this.options = cats
       .map((cat) => ({
         id: cat,
-        name: cat.replace(DISAB_PREFIX, ''),
+        name: cat.replace(DISABLED_PREFIX, ''),
         checked: this.options.find((o) => o.id === cat)?.checked ?? false,
       }))
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
@@ -216,7 +220,9 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         Section,
         {title: 'Additional Categories'},
         m(MultiSelect, {
-          options: this.options.filter((o) => !o.id.startsWith(DISAB_PREFIX)),
+          options: this.options.filter(
+            (o) => !o.id.startsWith(DISABLED_PREFIX),
+          ),
           repeatCheckedItemsAtTop: false,
           fixedSize: false,
           onChange: (diffs: MultiSelectDiff[]) => {
@@ -228,7 +234,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         Section,
         {title: 'High Overhead Categories'},
         m(MultiSelect, {
-          options: this.options.filter((o) => o.id.startsWith(DISAB_PREFIX)),
+          options: this.options.filter((o) => o.id.startsWith(DISABLED_PREFIX)),
           repeatCheckedItemsAtTop: false,
           fixedSize: false,
           onChange: (diffs: MultiSelectDiff[]) => {

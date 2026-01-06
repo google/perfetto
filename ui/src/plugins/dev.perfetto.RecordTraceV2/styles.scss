@@ -235,10 +235,10 @@
     padding-left: var(--record-section-padding);
     padding-right: var(--record-section-padding);
     &:first-child {
-      padding-top: 20px;
+      padding-top: var(--record-section-padding);
     }
     &:last-child {
-      padding-bottom: 20px;
+      padding-bottom: var(--record-section-padding);
     }
   }
 
@@ -325,7 +325,6 @@
       @include transition(0.3s);
       opacity: 0;
       visibility: hidden;
-      margin: 10px 10px 0 0;
       max-height: 0;
     }
 
@@ -354,7 +353,7 @@
   }
 
   .pf-toggle {
-    padding-top: var(--record-section-padding);
+    padding-top: calc(var(--record-section-padding) / 2);
     display: flex;
     flex-direction: column;
 
@@ -596,8 +595,8 @@
   }
 
   .chrome-categories {
-    padding-top: 8px;
-    padding-bottom: 8px;
+    padding-top: calc(var(--record-section-padding) / 2);
+    padding-bottom: calc(var(--record-section-padding) / 2);
     display: flex;
     flex-direction: row;
     gap: 8px;

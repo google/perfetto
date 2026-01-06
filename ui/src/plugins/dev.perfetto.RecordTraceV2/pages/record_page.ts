@@ -220,7 +220,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
         if (!supportsPlatform(probe, this.recMgr.currentPlatform)) continue;
         ++availProbes;
         if (!this.recMgr.recordConfig.isProbeEnabled(probe.id)) continue;
-        ++enabledProbes;
+        enabledProbes++;
       }
       probeCountTxt = `${enabledProbes > 0 ? enabledProbes : ''}`;
     }
