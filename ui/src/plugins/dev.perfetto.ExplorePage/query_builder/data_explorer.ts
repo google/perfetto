@@ -37,6 +37,28 @@ import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {DataSource} from '../../../components/widgets/datagrid/data_source';
+import {
+  PerfettoSqlType,
+  isIdType,
+} from '../../../trace_processor/perfetto_sql_type';
+import {ColumnType} from '../../../components/widgets/datagrid/datagrid_schema';
+
+// Map PerfettoSqlType to DataGrid ColumnType
+function getColumnType(type: PerfettoSqlType): ColumnType {
+  // ID types (id, joinid, arg_set_id) should be treated as identifiers
+  // They're numeric but we want distinct value pickers
+  if (isIdType(type) || type.kind === 'arg_set_id' || type.kind === 'boolean') {
+    return 'identifier';
+  }
+
+  // String and bytes are text types
+  if (type.kind === 'string' || type.kind === 'bytes') {
+    return 'text';
+  }
+
+  // All other numeric types (int, double, timestamp, duration) are quantitative
+  return 'quantitative';
+}
 
 export interface DataExplorerAttrs {
   readonly trace: Trace;
@@ -321,10 +343,16 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       const columnSchema: ColumnSchema = {};
       for (const c of attrs.response.columns) {
         let cellRenderer: CellRenderer | undefined;
+        let columnType: ColumnType | undefined;
 
         // Get column type information from the node
         const columnInfo = getColumnInfo(attrs.node, c);
         if (columnInfo) {
+          // Set columnType based on the SQL type
+          if (columnInfo.column.type) {
+            columnType = getColumnType(columnInfo.column.type);
+          }
+
           // Check if this is a timestamp column
           if (columnInfo.type === 'TIMESTAMP') {
             cellRenderer = createTimestampCellRenderer(attrs.trace);
@@ -335,7 +363,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           }
         }
 
-        columnSchema[c] = {cellRenderer};
+        columnSchema[c] = {cellRenderer, columnType};
       }
       const schema: SchemaRegistry = {data: columnSchema};
 
