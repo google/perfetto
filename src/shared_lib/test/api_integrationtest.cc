@@ -14,15 +14,32 @@
  * limitations under the License.
  */
 
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <thread>
+#include <vector>
 
+#include "perfetto/base/time.h"
+#include "perfetto/ext/base/flags.h"
+#include "perfetto/public/abi/atomic.h"
+#include "perfetto/public/abi/backend_type.h"
 #include "perfetto/public/abi/data_source_abi.h"
 #include "perfetto/public/abi/heap_buffer.h"
 #include "perfetto/public/abi/pb_decoder_abi.h"
+#include "perfetto/public/abi/producer_abi.h"
 #include "perfetto/public/abi/tracing_session_abi.h"
 #include "perfetto/public/abi/track_event_abi.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/public/data_source.h"
 #include "perfetto/public/pb_decoder.h"
+#include "perfetto/public/pb_msg.h"
+#include "perfetto/public/pb_packed.h"
+#include "perfetto/public/pb_utils.h"
 #include "perfetto/public/producer.h"
 #include "perfetto/public/protos/config/trace_config.pzc.h"
 #include "perfetto/public/protos/trace/interned_data/interned_data.pzc.h"
@@ -33,8 +50,10 @@
 #include "perfetto/public/protos/trace/track_event/track_descriptor.pzc.h"
 #include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 #include "perfetto/public/protos/trace/trigger.pzc.h"
+#include "perfetto/public/stream_writer.h"
 #include "perfetto/public/te_category_macros.h"
 #include "perfetto/public/te_macros.h"
+#include "perfetto/public/tracing_session.h"
 #include "perfetto/public/track_event.h"
 
 #include "test/gtest_and_gmock.h"
@@ -134,6 +153,7 @@ class MockDs2Callbacks : testing::Mock {
                struct PerfettoDsTracerImpl* tracer,
                void* user_arg));
   MOCK_METHOD(void, OnDeleteIncr, (void*));
+  MOCK_METHOD(bool, OnClearIncr, (void*, void*));
 };
 
 TEST(SharedLibProtobufTest, PerfettoPbDecoderIteratorExample) {
@@ -686,6 +706,10 @@ class SharedLibDataSourceTest : public testing::Test {
       state->thiz->ds2_callbacks_.OnDeleteIncr(state->actual);
       delete state;
     };
+    params.on_clear_incr_cb = [](void* ptr, void* user_arg) -> bool {
+      auto* state = static_cast<Ds2CustomState*>(ptr);
+      return state->thiz->ds2_callbacks_.OnClearIncr(state->actual, user_arg);
+    };
     params.user_arg = this;
     PerfettoDsRegister(&data_source_2, kDataSourceName2, params);
   }
@@ -1005,6 +1029,159 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
   // The OnDelete callback will be called by
   // DestroyStoppedTraceWritersForCurrentThread(). One way to trigger that is to
   // trace with another data source.
+  TracingSession tracing_session_1 =
+      TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
+  PERFETTO_DS_TRACE(data_source_1, ctx) {}
+}
+
+TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
+  if constexpr (
+      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
+    GTEST_SKIP()
+        << "Test requires flag to be set:"
+           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
+  }
+  bool ignored = false;
+  void* const kIncrPtr = &ignored;
+  WaitableEvent clear_notification;
+
+  // Create tracing session with periodic incremental state clearing
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name(kDataSourceName2)
+                                       .set_clear_period_ms(10)
+                                       .Build();
+
+  EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillOnce(Return(kIncrPtr));
+
+  // Get incremental state - this should create it
+  void* tls_state = nullptr;
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    tls_state = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
+  }
+  EXPECT_EQ(Ds2ActualCustomState(tls_state), kIncrPtr);
+
+  // Set up expectation that clear will be called and will return true.
+  // It may be called multiple times since clear_period_ms keeps firing.
+  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr, _))
+      .WillRepeatedly([&clear_notification](void*, void*) {
+        clear_notification.Notify();
+        return true;
+      });
+
+  // OnDeleteIncr should NOT be called because clear succeeded
+  EXPECT_CALL(ds2_callbacks_, OnDeleteIncr).Times(0);
+
+  // Wait for at least one clear period to elapse, then access the incremental
+  // state which will trigger the clear callback.
+  perfetto::base::SleepMicroseconds(15 * 1000);  // 15ms = 1.5x clear_period_ms
+
+  // Access the incremental state multiple times to ensure clearing is triggered
+  constexpr size_t kMaxLoops = 10;
+  for (size_t i = 0; i < kMaxLoops && !clear_notification.IsNotified(); i++) {
+    PERFETTO_DS_TRACE(data_source_2, ctx) {
+      PerfettoDsGetIncrementalState(&data_source_2, &ctx);
+    }
+    perfetto::base::SleepMicroseconds(10 * 1000);
+  }
+
+  ASSERT_TRUE(clear_notification.IsNotified())
+      << "OnClearIncr was never called";
+
+  // The incremental state should be cleared (not recreated) so we should get
+  // the same pointer back
+  void* tls_state_after_clear = nullptr;
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    tls_state_after_clear = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
+  }
+  EXPECT_EQ(Ds2ActualCustomState(tls_state_after_clear), kIncrPtr);
+
+  tracing_session.StopBlocking();
+
+  // Cleanup: OnDeleteIncr should be called when we trace with another data
+  // source
+  EXPECT_CALL(ds2_callbacks_, OnDeleteIncr(kIncrPtr));
+  TracingSession tracing_session_1 =
+      TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
+  PERFETTO_DS_TRACE(data_source_1, ctx) {}
+}
+
+TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
+  if constexpr (
+      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
+    GTEST_SKIP()
+        << "Test requires flag to be set:"
+           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
+  }
+  bool ignored1 = false;
+  bool ignored2 = false;
+  void* const kIncrPtr1 = &ignored1;
+  void* const kIncrPtr2 = &ignored2;
+  WaitableEvent clear_notification;
+
+  // Create tracing session with periodic incremental state clearing
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name(kDataSourceName2)
+                                       .set_clear_period_ms(10)
+                                       .Build();
+
+  EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillOnce(Return(kIncrPtr1));
+
+  // Get incremental state - this should create it
+  void* tls_state = nullptr;
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    tls_state = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
+  }
+  EXPECT_EQ(Ds2ActualCustomState(tls_state), kIncrPtr1);
+
+  // Set up expectation that clear will be called but will return false.
+  // After the first call returns false, subsequent calls should recreate with
+  // a new pointer. We use WillOnce to return false once, then WillRepeatedly
+  // for subsequent attempts which should get the new pointer.
+  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr1, _))
+      .WillOnce([&clear_notification](void*, void*) {
+        clear_notification.Notify();
+        return false;  // Clear failed
+      });
+
+  // OnDeleteIncr SHOULD be called because clear returned false
+  EXPECT_CALL(ds2_callbacks_, OnDeleteIncr(kIncrPtr1));
+
+  // OnCreateIncr should be called again to recreate the state. It may be
+  // called multiple times if clear keeps firing.
+  EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillRepeatedly(Return(kIncrPtr2));
+
+  // OnClearIncr may be called again with the new pointer
+  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr2, _))
+      .WillRepeatedly(Return(true));
+
+  // Wait for at least one clear period to elapse, then access the incremental
+  // state which will trigger the clear callback.
+  perfetto::base::SleepMicroseconds(15 * 1000);  // 15ms = 1.5x clear_period_ms
+
+  // Access the incremental state multiple times to ensure clearing is triggered
+  constexpr size_t kMaxLoops = 10;
+  for (size_t i = 0; i < kMaxLoops && !clear_notification.IsNotified(); i++) {
+    PERFETTO_DS_TRACE(data_source_2, ctx) {
+      PerfettoDsGetIncrementalState(&data_source_2, &ctx);
+    }
+    perfetto::base::SleepMicroseconds(10 * 1000);
+  }
+
+  ASSERT_TRUE(clear_notification.IsNotified())
+      << "OnClearIncr was never called";
+
+  // The incremental state should be recreated, so we should get a new pointer
+  void* tls_state_after_clear = nullptr;
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    tls_state_after_clear = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
+  }
+  EXPECT_EQ(Ds2ActualCustomState(tls_state_after_clear), kIncrPtr2);
+  EXPECT_NE(kIncrPtr1, kIncrPtr2);
+
+  tracing_session.StopBlocking();
+
+  // Cleanup: OnDeleteIncr should be called for the recreated state
+  EXPECT_CALL(ds2_callbacks_, OnDeleteIncr(kIncrPtr2));
   TracingSession tracing_session_1 =
       TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
   PERFETTO_DS_TRACE(data_source_1, ctx) {}

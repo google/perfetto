@@ -83,8 +83,9 @@ class BytecodeInterpreterTest : public testing::Test {
     // Hardcode the register count to 128 for testing.
     static constexpr uint32_t kNumRegisters = 128;
     interpreter_ = std::make_unique<Interpreter<Fetcher>>();
-    interpreter_->Initialize(bytecode, kNumRegisters, column_ptrs_.data(),
-                             indexes_.data(), &spool_);
+    interpreter_->Initialize(bytecode, kNumRegisters,
+                             static_cast<uint32_t>(column_ptrs_.size()),
+                             column_ptrs_.data(), indexes_.data(), &spool_);
   }
 
   template <typename T>

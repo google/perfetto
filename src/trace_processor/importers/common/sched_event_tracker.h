@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 

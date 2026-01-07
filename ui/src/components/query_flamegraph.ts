@@ -573,10 +573,19 @@ async function computeFlamegraphTree(
 }
 
 function makeSqlFilter(x: string) {
-  if (x.startsWith('^') && x.endsWith('$')) {
-    return x.slice(1, -1);
+  const hasStart = x.startsWith('^');
+  const hasEnd = x.endsWith('$');
+  const pattern = x.slice(hasStart ? 1 : 0, hasEnd ? -1 : undefined);
+
+  if (hasStart && hasEnd) {
+    return pattern; // Exact match
+  } else if (hasStart) {
+    return `${pattern}%`; // Starts with
+  } else if (hasEnd) {
+    return `%${pattern}`; // Ends with
+  } else {
+    return `%${pattern}%`; // Contains
   }
-  return `%${x}%`;
 }
 
 function getPivotFilter(

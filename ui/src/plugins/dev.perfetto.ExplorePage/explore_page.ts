@@ -48,11 +48,11 @@ import {
   removeConnection,
   notifyNextNodes,
 } from './query_builder/graph_utils';
-import {showExamplesModal} from './examples_modal';
 import {
   showStateOverwriteWarning,
   showExportWarning,
 } from './query_builder/widgets';
+import {showExamplesModal} from './examples_modal';
 
 registerCoreNodes();
 

@@ -2970,13 +2970,14 @@ std::array<FtraceMessageDescriptor, 600> descriptors{{
     },
     {
         "f2fs_write_checkpoint",
-        4,
+        5,
         {
             {},
             {"dev", ProtoSchemaType::kUint64},
             {"is_umount", ProtoSchemaType::kUint32},
             {"msg", ProtoSchemaType::kString},
             {"reason", ProtoSchemaType::kInt32},
+            {"phase", ProtoSchemaType::kUint32},
         },
     },
     {

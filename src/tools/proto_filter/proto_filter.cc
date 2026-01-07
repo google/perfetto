@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "src/protozero/filtering/filter_util.h"
@@ -57,6 +58,11 @@ const char kUsage[] =
 -d --dedupe:         Minimize filter size by deduping leaf messages with same field ids.
 -x --passthrough:    Passthrough a nested message as an opaque bytes field.
 -g --filter_string:  Filter the string using separately specified rules before passing it through.
+-S --semantic_type:  Specify semantic type for a string filter field.
+                     Syntax: MessageName:field:type_value
+                     Example: -S perfetto.protos.TracePacket:name:1
+   --min-bytecode-parser: Minimum bytecode parser version to target (v1, v2, v54).
+                     Default: v54. Use v2 for compatibility with older parsers.
 
 Example usage:
 
@@ -95,6 +101,8 @@ Example usage:
 )";
 
 using TraceFilter = protos::gen::TraceConfig::TraceFilter;
+using StringFilterRule = TraceFilter::StringFilterRule;
+
 std::optional<protozero::StringFilter::Policy> ConvertPolicy(
     TraceFilter::StringFilterPolicy policy) {
   switch (policy) {
@@ -112,6 +120,18 @@ std::optional<protozero::StringFilter::Policy> ConvertPolicy(
       return protozero::StringFilter::Policy::kAtraceRepeatedSearchRedactGroups;
   }
   return std::nullopt;
+}
+
+protozero::StringFilter::SemanticTypeMask ConvertSemanticTypes(
+    const StringFilterRule& rule) {
+  protozero::StringFilter::SemanticTypeMask mask;
+  for (const auto& type : rule.semantic_type()) {
+    auto semantic_type = static_cast<uint32_t>(type);
+    if (semantic_type < protozero::StringFilter::SemanticTypeMask::kLimit) {
+      mask.Set(semantic_type);
+    }
+  }
+  return mask;
 }
 
 // Writes binary data to a file. Returns true on success.
@@ -163,9 +183,23 @@ bool WriteBytecodeOctal(const std::string& path,
 
 // Long-only options (no short code). Values must not conflict with ASCII chars.
 enum LongOnlyOption {
-  kOverlayV54Out = 256,
-  kOverlayV54OctOut,
+  kV54Out = 256,
+  kV54OctOut,
+  kMinBytecodeParser,
 };
+
+// Parses version string (v1, v2, v54) to BytecodeVersion enum.
+std::optional<protozero::FilterBytecodeGenerator::BytecodeVersion>
+ParseBytecodeVersion(const std::string& version_str) {
+  using BytecodeVersion = protozero::FilterBytecodeGenerator::BytecodeVersion;
+  if (version_str == "v1")
+    return BytecodeVersion::kV1;
+  if (version_str == "v2")
+    return BytecodeVersion::kV2;
+  if (version_str == "v54")
+    return BytecodeVersion::kV54;
+  return std::nullopt;
+}
 
 int Main(int argc, char** argv) {
   static const option long_options[] = {
@@ -181,10 +215,12 @@ int Main(int argc, char** argv) {
       {"filter_in", required_argument, nullptr, 'f'},
       {"filter_out", required_argument, nullptr, 'F'},
       {"filter_oct_out", required_argument, nullptr, 'T'},
-      {"overlay_v54_out", required_argument, nullptr, kOverlayV54Out},
-      {"overlay_v54_oct_out", required_argument, nullptr, kOverlayV54OctOut},
+      {"overlay_v54_out", required_argument, nullptr, kV54Out},
+      {"overlay_v54_oct_out", required_argument, nullptr, kV54OctOut},
+      {"min-bytecode-parser", required_argument, nullptr, kMinBytecodeParser},
       {"passthrough", required_argument, nullptr, 'x'},
       {"filter_string", required_argument, nullptr, 'g'},
+      {"semantic_type", required_argument, nullptr, 'S'},
       {nullptr, 0, nullptr, 0}};
 
   std::string msg_in;
@@ -200,11 +236,13 @@ int Main(int argc, char** argv) {
   std::string root_message_arg;
   std::set<std::string> passthrough_fields;
   std::set<std::string> filter_string_fields;
+  std::map<std::string, uint32_t> filter_string_semantic_types;
+  std::string min_bytecode_parser = "v2";  // Default to v2 for compatibility
   bool dedupe = false;
 
   for (;;) {
     int option = getopt_long(
-        argc, argv, "hvdI:s:r:i:o:f:F:T:x:g:c:", long_options, nullptr);
+        argc, argv, "hvdI:s:r:i:o:f:F:T:x:g:S:c:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -264,12 +302,12 @@ int Main(int argc, char** argv) {
       continue;
     }
 
-    if (option == kOverlayV54Out) {
+    if (option == kV54Out) {
       overlay_v54_out = optarg;
       continue;
     }
 
-    if (option == kOverlayV54OctOut) {
+    if (option == kV54OctOut) {
       overlay_v54_oct_out = optarg;
       continue;
     }
@@ -281,6 +319,32 @@ int Main(int argc, char** argv) {
 
     if (option == 'g') {
       filter_string_fields.insert(optarg);
+      continue;
+    }
+
+    if (option == 'S') {
+      // Parse semantic type: "MessageName:field_name:type_value"
+      std::vector<std::string> parts = base::SplitString(optarg, ":");
+      if (parts.size() != 3) {
+        fprintf(stderr,
+                "Invalid semantic type syntax. Expected: "
+                "MessageName:field:type_value\n");
+        exit(1);
+      }
+      std::string field_name = parts[0] + ":" + parts[1];
+      const std::string& type_str = parts[2];
+      std::optional<uint32_t> type_value =
+          base::CStringToUInt32(type_str.c_str());
+      if (!type_value.has_value()) {
+        fprintf(stderr, "Invalid semantic type value: %s\n", type_str.c_str());
+        exit(1);
+      }
+      filter_string_semantic_types[field_name] = *type_value;
+      continue;
+    }
+
+    if (option == kMinBytecodeParser) {
+      min_bytecode_parser = optarg;
       continue;
     }
 
@@ -316,8 +380,8 @@ int Main(int argc, char** argv) {
   if (!schema_in.empty()) {
     PERFETTO_LOG("Loading proto schema from %s", schema_in.c_str());
     if (!filter.LoadMessageDefinition(schema_in, root_message_arg, proto_path,
-                                      passthrough_fields,
-                                      filter_string_fields)) {
+                                      passthrough_fields, filter_string_fields,
+                                      filter_string_semantic_types)) {
       PERFETTO_ELOG("Failed to parse proto schema from %s", schema_in.c_str());
       return 1;
     }
@@ -355,15 +419,32 @@ int Main(int argc, char** argv) {
     config.ParseFromArray(config_bytes.data(), config_bytes.size());
 
     const auto& trace_filter = config.trace_filter();
+
+    // Load base string filter chain.
     for (const auto& rule : trace_filter.string_filter_chain().rules()) {
       auto opt_policy = ConvertPolicy(rule.policy());
       if (!opt_policy) {
         PERFETTO_ELOG("Unknown string filter policy %d", rule.policy());
         return 1;
       }
-      msg_filter.string_filter().AddRule(*opt_policy, rule.regex_pattern(),
-                                         rule.atrace_payload_starts_with());
+      msg_filter.string_filter().AddRule(
+          *opt_policy, rule.regex_pattern(), rule.atrace_payload_starts_with(),
+          rule.name(), ConvertSemanticTypes(rule));
     }
+
+    // Load v54 string filter chain. Rules with matching names will replace
+    // existing rules; others will be appended.
+    for (const auto& rule : trace_filter.string_filter_chain_v54().rules()) {
+      auto opt_policy = ConvertPolicy(rule.policy());
+      if (!opt_policy) {
+        PERFETTO_ELOG("Unknown string filter policy %d", rule.policy());
+        return 1;
+      }
+      msg_filter.string_filter().AddRule(
+          *opt_policy, rule.regex_pattern(), rule.atrace_payload_starts_with(),
+          rule.name(), ConvertSemanticTypes(rule));
+    }
+
     filter_data = trace_filter.bytecode_v2().empty()
                       ? trace_filter.bytecode()
                       : trace_filter.bytecode_v2();
@@ -374,7 +455,16 @@ int Main(int argc, char** argv) {
     }
   } else if (!schema_in.empty()) {
     PERFETTO_LOG("Generating filter bytecode from %s", schema_in.c_str());
-    auto result = filter.GenerateFilterBytecode();
+
+    // Parse the bytecode version.
+    auto bytecode_version = ParseBytecodeVersion(min_bytecode_parser);
+    if (!bytecode_version.has_value()) {
+      PERFETTO_ELOG("Invalid bytecode version: %s (expected v1, v2, or v54)",
+                    min_bytecode_parser.c_str());
+      return 1;
+    }
+
+    auto result = filter.GenerateFilterBytecode(*bytecode_version);
     filter_data = std::move(result.bytecode);
     overlay_data = std::move(result.v54_overlay);
     filter_data_src = schema_in;

@@ -16,8 +16,9 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/protozero/packed_repeated_fields.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
+#include <cstdint>
+#include <string>
+
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 
@@ -137,6 +138,59 @@ TEST(FilterBytecodeGeneratorTest, Nested) {
   EXPECT_EQ(parser.Query(3, 1).nested_msg_index, 0u);
   EXPECT_TRUE(parser.Query(3, 31).allowed);
   EXPECT_TRUE(parser.Query(3, 31).simple_field());
+}
+
+TEST(FilterBytecodeGeneratorTest, SemanticTypeOverlayV2) {
+  // Test that generating for v2 with semantic types creates an overlay
+  FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV2);
+  gen.AddFilterStringFieldWithType(1u, 42u);  // field_id=1, semantic_type=42
+  gen.EndMessage();
+
+  auto result = gen.Serialize();
+  EXPECT_GT(result.bytecode.size(), 0u);
+  EXPECT_GT(result.v54_overlay.size(), 0u);
+
+  // Verify base bytecode denies the field (v2 doesn't support semantic types)
+  FilterBytecodeParser parser_base;
+  ASSERT_TRUE(
+      parser_base.Load(reinterpret_cast<const uint8_t*>(result.bytecode.data()),
+                       result.bytecode.size()));
+  auto query_base = parser_base.Query(0, 1);
+  EXPECT_FALSE(query_base.allowed);  // Field is denied in v2
+  EXPECT_FALSE(query_base.filter_string_field());
+
+  // Verify overlay provides the semantic type
+  FilterBytecodeParser parser_overlay;
+  ASSERT_TRUE(parser_overlay.Load(
+      reinterpret_cast<const uint8_t*>(result.bytecode.data()),
+      result.bytecode.size(),
+      reinterpret_cast<const uint8_t*>(result.v54_overlay.data()),
+      result.v54_overlay.size()));
+  auto query_overlay = parser_overlay.Query(0, 1);
+  EXPECT_TRUE(query_overlay.allowed);
+  EXPECT_TRUE(query_overlay.filter_string_field());
+  EXPECT_EQ(query_overlay.semantic_type, 42u);  // Semantic type from overlay
+}
+
+TEST(FilterBytecodeGeneratorTest, SemanticTypeV54NoOverlay) {
+  // Test that generating for v54 with semantic types doesn't create an overlay
+  FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV54);
+  gen.AddFilterStringFieldWithType(1u, 42u);
+  gen.EndMessage();
+
+  auto result = gen.Serialize();
+  EXPECT_GT(result.bytecode.size(), 0u);
+  EXPECT_EQ(result.v54_overlay.size(), 0u);  // No overlay for v54
+
+  // Parse and verify the bytecode contains semantic type
+  FilterBytecodeParser parser;
+  ASSERT_TRUE(
+      parser.Load(reinterpret_cast<const uint8_t*>(result.bytecode.data()),
+                  result.bytecode.size()));
+  auto query = parser.Query(0, 1);
+  EXPECT_TRUE(query.allowed);
+  EXPECT_TRUE(query.filter_string_field());
+  EXPECT_EQ(query.semantic_type, 42u);
 }
 
 }  // namespace

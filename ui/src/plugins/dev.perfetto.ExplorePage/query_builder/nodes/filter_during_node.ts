@@ -22,22 +22,11 @@
  *
  * ## Architecture
  *
- * The node uses a multi-step SQL query generation approach:
- *
- * 1. **Wrap Secondary for Column Selection**:
- *    - Select only id, ts, dur columns from the filter intervals input
- *    - Avoids column name conflicts in the interval intersection
- *
- * 2. **Interval Intersection**:
- *    - Use StructuredQueryBuilder.withIntervalIntersect()
- *    - Computes overlaps between primary and filter intervals
- *    - Optionally filters out negative duration intervals (unfinished events)
- *
- * 3. **Column Reshaping**:
- *    - Maps the intersection output back to primary input's schema
- *    - id comes from id_0 (primary's id)
- *    - ts and dur are the intersected values
- *    - All other primary columns are preserved as-is
+ * The node uses ExperimentalFilterToIntervals which:
+ * - Automatically merges overlapping intervals in the filter set
+ * - Preserves the base query's output schema
+ * - Handles clip_to_intervals setting for ts/dur output
+ * - Optionally filters out negative duration intervals (unfinished events)
  *
  * ## Required Columns
  *
@@ -49,7 +38,6 @@
  * Filter intervals input must have:
  *   - ts: Timestamp (start time)
  *   - dur: Duration
- *   - id: (optional) If not present, a dummy id of 0 will be used
  *
  * ## Example Use Cases
  *
@@ -59,9 +47,10 @@
  *
  * ## Output Behavior
  *
- * If a primary interval overlaps with multiple interval rows from the filter
- * intervals input, multiple output rows will be produced (one for each overlap).
- * Each output row shows the actual overlap period (intersected ts/dur values).
+ * Overlapping intervals in the filter set are merged before filtering.
+ * If a primary interval overlaps with multiple non-overlapping intervals
+ * from the filter set, multiple output rows will be produced (one for each).
+ * Each output row shows the actual overlap period (when clipToIntervals is true).
  */
 
 import {
@@ -74,7 +63,7 @@ import {
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import m from 'mithril';
-import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
@@ -497,184 +486,44 @@ export class FilterDuringNode implements QueryNode {
     const secondaryInput = this.secondaryInputs.connections.get(0);
     if (secondaryInput === undefined) return undefined;
 
-    // Step 1: Get the secondary input's query
-    const secondaryQuery = secondaryInput.getStructuredQuery();
-    if (secondaryQuery === undefined) return undefined;
-
-    // Step 2: Wrap the secondary to select id, ts, dur, and partition columns
-    // This avoids column conflicts in the interval intersection while preserving partition columns
-    // If secondary input doesn't have an id column, add a dummy id of 0
-    const secondaryHasId = secondaryInput.finalCols.some(
-      (c) => c.name === 'id',
-    );
-    const secondaryColumnsOnly: ColumnSpec[] = [
-      secondaryHasId
-        ? {columnNameOrExpression: 'id'}
-        : {columnNameOrExpression: '0', alias: 'id'},
-      {columnNameOrExpression: 'ts'},
-      {columnNameOrExpression: 'dur'},
-      // Add partition columns so they're available for interval intersect
-      ...(this.state.partitionColumns ?? []).map((col) => ({
-        columnNameOrExpression: col,
-      })),
-    ];
-
-    // Create a temporary QueryNode wrapper for the secondary query
-    const secondaryNodeWrapper: QueryNode = {
-      nodeId: `${this.nodeId}_secondary`,
-      type: NodeType.kSqlSource,
-      nextNodes: [],
-      state: this.state,
-      finalCols: [
-        {
-          name: 'id',
-          type: 'NA',
-          checked: true,
-          column: {name: 'id'},
-        },
-        {
-          name: 'ts',
-          type: 'TIMESTAMP',
-          checked: true,
-          column: {name: 'ts'},
-        },
-        {
-          name: 'dur',
-          type: 'DURATION',
-          checked: true,
-          column: {name: 'dur'},
-        },
-      ],
-      getTitle: () => 'Filter Intervals',
-      validate: () => true,
-      clone: () => secondaryNodeWrapper,
-      getStructuredQuery: () => secondaryQuery,
-      nodeInfo: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeSpecificModify: () => ({sections: []}),
-      serializeState: () => ({}),
-    };
-
-    const wrappedSecondary = StructuredQueryBuilder.withSelectColumns(
-      secondaryNodeWrapper,
-      secondaryColumnsOnly,
-      undefined,
-      `${this.nodeId}_secondary_wrap`,
-    );
-
-    if (wrappedSecondary === undefined) return undefined;
-
-    // Create a temporary QueryNode wrapper for the wrapped secondary query
-    // This is needed because withIntervalIntersect expects QuerySource (QueryNode | undefined)
-    const wrappedSecondaryNode: QueryNode = {
-      nodeId: `${this.nodeId}_secondary_temp`,
-      type: NodeType.kSqlSource, // Doesn't matter, just needs to be a valid type
-      nextNodes: [],
-      state: this.state,
-      finalCols: [
-        {
-          name: 'id',
-          type: 'NA',
-          checked: true,
-          column: {name: 'id'},
-        },
-        {
-          name: 'ts',
-          type: 'TIMESTAMP',
-          checked: true,
-          column: {name: 'ts'},
-        },
-        {
-          name: 'dur',
-          type: 'DURATION',
-          checked: true,
-          column: {name: 'dur'},
-        },
-        // Add partition columns
-        ...(this.state.partitionColumns ?? []).map((col) => ({
-          name: col,
-          type: 'NA' as const,
-          checked: true,
-          column: {name: col},
-        })),
-      ],
-      getTitle: () => 'Wrapped Secondary',
-      validate: () => true,
-      clone: () => wrappedSecondaryNode,
-      getStructuredQuery: () => wrappedSecondary,
-      nodeInfo: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeSpecificModify: () => ({sections: []}),
-      serializeState: () => ({}),
-    };
-
-    // Step 3: Build interval intersect with filterNegativeDur and partition columns
     const filterNegativeDur = [
       this.state.filterNegativeDurPrimary ?? true,
       this.state.filterNegativeDurSecondary ?? true,
     ];
 
-    const intervalIntersectQuery = StructuredQueryBuilder.withIntervalIntersect(
-      this.primaryInput,
-      [wrappedSecondaryNode],
-      this.state.partitionColumns, // Partition columns from state
-      filterNegativeDur,
-      `${this.nodeId}_intersect`,
-    );
-
-    if (intervalIntersectQuery === undefined) return undefined;
-
-    // Step 4: Select columns to match primary input's schema
-    // IntervalIntersect returns: ts, dur (intersected), id_0, ts_0, dur_0, id_1, ts_1, dur_1, plus other primary columns
-    // Depending on clipToIntervals setting:
-    //   - true (default): Use intersected ts/dur
-    //   - false: Use original ts_0/dur_0 from primary
+    // Build selectColumns with proper ordering.
+    // When clip_to_intervals is true, we need ts and dur first so the C++ side
+    // can prepend clipped ts/dur and append original_ts/original_dur at the end.
+    // When clip_to_intervals is false, the order doesn't matter as much, but
+    // we still put ts and dur first for consistency.
     const clipToIntervals = this.state.clipToIntervals ?? true;
-    const selectColumns: ColumnSpec[] = this.primaryInput.finalCols.map(
-      (col) => {
-        if (col.name === 'id') {
-          // Use id_0 (from primary) and alias it back to 'id'
-          return {columnNameOrExpression: 'id_0', alias: 'id'};
-        } else if (col.name === 'ts') {
-          // Use intersected ts or original ts_0 based on clipToIntervals setting
-          return clipToIntervals
-            ? {columnNameOrExpression: 'ts'}
-            : {columnNameOrExpression: 'ts_0', alias: 'ts'};
-        } else if (col.name === 'dur') {
-          // Use intersected dur or original dur_0 based on clipToIntervals setting
-          return clipToIntervals
-            ? {columnNameOrExpression: 'dur'}
-            : {columnNameOrExpression: 'dur_0', alias: 'dur'};
-        } else {
-          // Use the column as-is (IntervalIntersect preserves unique columns from primary)
-          return {columnNameOrExpression: col.name};
-        }
-      },
-    );
+    const allColumns = this.primaryInput.finalCols.map((c) => c.name);
 
-    // Create a temporary QueryNode wrapper for the interval intersect query
-    const intervalIntersectNode: QueryNode = {
-      nodeId: `${this.nodeId}_intersect_temp`,
-      type: NodeType.kIntervalIntersect,
-      nextNodes: [],
-      state: this.state,
-      finalCols: [], // Not needed for this temporary node
-      getTitle: () => 'Interval Intersect',
-      validate: () => true,
-      clone: () => intervalIntersectNode,
-      getStructuredQuery: () => intervalIntersectQuery,
-      nodeInfo: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeSpecificModify: () => ({sections: []}),
-      serializeState: () => ({}),
-    };
+    let selectColumns: string[];
+    if (clipToIntervals) {
+      // When clipping: ts and dur must be first, then other columns
+      // C++ will output: ii.ts, ii.dur, <other cols>, original_ts, original_dur
+      const tsIndex = allColumns.indexOf('ts');
+      const durIndex = allColumns.indexOf('dur');
+      const otherCols = allColumns.filter((c) => c !== 'ts' && c !== 'dur');
 
-    // Step 5: Wrap with SELECT to reshape columns
-    return StructuredQueryBuilder.withSelectColumns(
-      intervalIntersectNode,
-      selectColumns,
-      undefined,
+      selectColumns = [];
+      if (tsIndex >= 0) selectColumns.push('ts');
+      if (durIndex >= 0) selectColumns.push('dur');
+      selectColumns.push(...otherCols);
+    } else {
+      // When not clipping: preserve original order (ts/dur will use base values)
+      selectColumns = allColumns;
+    }
+
+    return StructuredQueryBuilder.withFilterToIntervals(
+      this.primaryInput,
+      secondaryInput,
+      this.state.partitionColumns,
+      this.state.clipToIntervals ?? true,
+      filterNegativeDur,
       this.nodeId,
+      selectColumns,
     );
   }
 

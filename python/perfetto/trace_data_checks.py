@@ -33,8 +33,6 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'Choreographer#doFrame*\' OR name GLOB \'DrawFrame*\' LIMIT 1) AS has_data',
     'android.startup.startups':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name IN (\'bindApplication\', \'activityStart\', \'activityResume\') LIMIT 1) AS has_data',
-    'slices.with_context':
-        'SELECT EXISTS(SELECT 1 FROM slice JOIN thread_track ON slice.track_id = thread_track.id LIMIT 1) AS has_data',
 
     # MID IMPORTANCE TABLES
     'android.anrs':
@@ -45,6 +43,8 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'BatteryStatus\' LIMIT 1) AS has_data',
     'android.battery_stats':
         'SELECT EXISTS(SELECT 1 FROM counter_track WHERE name GLOB \'battery_stats.*\' LIMIT 1) AS has_data',
+    'android.power_rails':
+        'SELECT EXISTS(SELECT 1 FROM track WHERE type = \'power_rails\' LIMIT 1) AS has_data',
     'android.process_metadata':
         'SELECT EXISTS(SELECT 1 FROM process LIMIT 1) AS has_data',
     'android.screenshots':
@@ -79,6 +79,8 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_cpu_per_uid_track LIMIT 1) AS has_data',
     'android.input':
         'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_key_events LIMIT 1) AS has_data',
+    'android.kernel_wakelocks':
+        'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'android_kernel_wakelock\' LIMIT 1) AS has_data',
     'android.network_packets':
         'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_network_packets LIMIT 1) AS has_data',
     'android.user_list':

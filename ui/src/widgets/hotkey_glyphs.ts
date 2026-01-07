@@ -75,7 +75,7 @@ export class Keycap implements m.ClassComponent<KeycapAttrs> {
   view({attrs, children}: m.Vnode<KeycapAttrs>) {
     const {spacing = 'medium'} = attrs;
     return m(
-      'span.pf-keycap',
+      'kbd.pf-keycap',
       {className: classNames(classForSpacing(spacing)), ...attrs},
       children,
     );

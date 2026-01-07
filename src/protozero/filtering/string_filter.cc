@@ -16,13 +16,16 @@
 
 #include "src/protozero/filtering/string_filter.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <regex>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 
 namespace protozero {
@@ -30,8 +33,8 @@ namespace {
 
 using Matches = std::match_results<char*>;
 
-static constexpr std::string_view kRedacted = "P60REDACTED";
-static constexpr char kRedactedDash = '-';
+constexpr std::string_view kRedacted = "P60REDACTED";
+constexpr char kRedactedDash = '-';
 
 // Returns a pointer to the first character after the tgid pipe character in
 // the atrace string given by [ptr, end). Returns null if no such character
@@ -41,7 +44,8 @@ static constexpr char kRedactedDash = '-';
 // E|1024 -> nullptr
 // foobarbaz -> nullptr
 // B|1024|x -> pointer to x
-const char* FindAtracePayloadPtr(const char* ptr, const char* end) {
+PERFETTO_ALWAYS_INLINE const char* FindAtracePayloadPtr(const char* ptr,
+                                                        const char* end) {
   // Don't even bother checking any strings which are so short that they could
   // not contain a post-tgid section. This filters out strings like "E|" which
   // emitted by Bionic.
@@ -50,7 +54,7 @@ const char* FindAtracePayloadPtr(const char* ptr, const char* end) {
   // anything past the tgid: this removes >half of the strings for ~zero cost.
   static constexpr size_t kEarliestSecondPipeIndex = 2;
   const char* search_start = ptr + kEarliestSecondPipeIndex;
-  if (search_start >= end || *ptr == 'E') {
+  if (PERFETTO_UNLIKELY(search_start >= end || *ptr == 'E')) {
     return nullptr;
   }
 
@@ -62,14 +66,26 @@ const char* FindAtracePayloadPtr(const char* ptr, const char* end) {
   return pipe ? pipe + 1 : nullptr;
 }
 
-bool StartsWith(const char* ptr,
-                const char* end,
-                const std::string& starts_with) {
+PERFETTO_ALWAYS_INLINE bool StartsWith(const char* ptr,
+                                       const char* end,
+                                       const std::string& starts_with) {
   // Verify that the atrace string has enough characters to match against all
-  // the characters in the "starts with" string. If it does, memcmp to check if
-  // all the characters match and return true if they do.
-  return ptr + starts_with.size() <= end &&
-         memcmp(ptr, starts_with.data(), starts_with.size()) == 0;
+  // the characters in the "starts with" string.
+  size_t len = starts_with.size();
+  if (PERFETTO_UNLIKELY(ptr + len > end))
+    return false;
+
+  // Empty string matches everything.
+  if (PERFETTO_UNLIKELY(len == 0))
+    return true;
+
+  // Quick rejection: check first character before expensive memcmp.
+  // This is very effective since most strings don't match.
+  if (PERFETTO_LIKELY(*ptr != *starts_with.data()))
+    return false;
+
+  // If first char matches, do full memcmp for remaining characters.
+  return memcmp(ptr + 1, starts_with.data() + 1, len - 1) == 0;
 }
 
 void RedactMatches(const Matches& matches) {
@@ -81,7 +97,7 @@ void RedactMatches(const Matches& matches) {
     // Overwrite the match with characters from |kRedacted|. If match is
     // smaller, we will not use all of |kRedacted| but that's fine (i.e. we
     // will overwrite with a truncated |kRedacted|).
-    size_t match_len = static_cast<size_t>(match.second - match.first);
+    auto match_len = static_cast<size_t>(match.second - match.first);
     size_t redacted_len = std::min(match_len, kRedacted.size());
     memcpy(match.first, kRedacted.data(), redacted_len);
 
@@ -94,23 +110,42 @@ void RedactMatches(const Matches& matches) {
 
 void StringFilter::AddRule(Policy policy,
                            std::string_view pattern_str,
-                           std::string atrace_payload_starts_with) {
-  rules_.emplace_back(StringFilter::Rule{
+                           std::string atrace_payload_starts_with,
+                           std::string name,
+                           SemanticTypeMask semantic_type_mask) {
+  Rule new_rule{
       policy,
       std::regex(pattern_str.begin(), pattern_str.end(),
                  std::regex::ECMAScript | std::regex_constants::optimize),
-      std::move(atrace_payload_starts_with)});
+      std::move(atrace_payload_starts_with), std::move(name),
+      semantic_type_mask};
+  // If name is non-empty, look for existing rule with same name and replace.
+  if (!new_rule.name.empty()) {
+    for (Rule& existing : rules_) {
+      if (existing.name == new_rule.name) {
+        existing = std::move(new_rule);
+        return;
+      }
+    }
+  }
+  rules_.push_back(std::move(new_rule));
 }
 
-bool StringFilter::MaybeFilterInternal(char* ptr, size_t len) const {
+bool StringFilter::MaybeFilterInternal(char* ptr,
+                                       size_t len,
+                                       uint32_t semantic_type) const {
   std::match_results<char*> matches;
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
   for (const Rule& rule : rules_) {
+    if (!rule.semantic_type_mask.IsSet(semantic_type)) {
+      continue;
+    }
     switch (rule.policy) {
       case Policy::kMatchRedactGroups:
       case Policy::kMatchBreak:
-        if (std::regex_match(ptr, ptr + len, matches, rule.pattern)) {
+        if (PERFETTO_UNLIKELY(
+                std::regex_match(ptr, ptr + len, matches, rule.pattern))) {
           if (rule.policy == Policy::kMatchBreak) {
             return false;
           }

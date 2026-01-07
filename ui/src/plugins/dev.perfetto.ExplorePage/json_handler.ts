@@ -219,12 +219,16 @@ function createNodeInstance(
     case NodeType.kModifyColumns:
       return new ModifyColumnsNode(
         ModifyColumnsNode.deserializeState(
+          sqlModules,
           state as ModifyColumnsSerializedState,
         ),
       );
     case NodeType.kAddColumns:
       return new AddColumnsNode(
-        AddColumnsNode.deserializeState(state as AddColumnsNodeState),
+        AddColumnsNode.deserializeState(
+          sqlModules,
+          state as AddColumnsNodeState,
+        ),
       );
     case NodeType.kLimitAndOffset:
       return new LimitAndOffsetNode(

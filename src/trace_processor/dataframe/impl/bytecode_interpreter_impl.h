@@ -31,6 +31,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -348,13 +349,13 @@ class InterpreterImpl {
         StorageType::VariantTypeAtIndex<T,
                                         CastFilterValueListResult::ValueList>;
     const M& val = base::unchecked_get<M>(value.value_list);
-    const auto& col = GetColumn(f.arg<B::col>());
+    uint32_t col_idx = f.arg<B::col>();
 
     // Try to use a bitvector if the value is an Id or uint32_t.
     // This is a performance optimization to avoid iterating over the
     // FlexVector for large lists of values.
     if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
-      const auto* data = col.storage.template unchecked_data<T>();
+      const auto* data = GetColumnData<T>(col_idx);
       if (InBitVector<T>(val, data, source, update)) {
         return;
       }
@@ -375,7 +376,7 @@ class InterpreterImpl {
       update.e =
           IdentityFilter(source.b, source.e, update.b, val, Comparator());
     } else {
-      const auto* data = col.storage.template unchecked_data<T>();
+      const auto* data = GetColumnData<T>(col_idx);
       using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
       struct Comparator {
         bool operator()(D lhs, const FlexVector<D>& rhs) const {
@@ -476,8 +477,7 @@ class InterpreterImpl {
       }
     } else {
       BoundModifier bound_modifier = f.arg<B::write_result_to>();
-      const auto* data =
-          GetColumn(f.arg<B::col>()).storage.template unchecked_data<T>();
+      const auto* data = GetColumnData<T>(f.arg<B::col>());
       NonIdSortedFilter<RangeOp>(data, val, bound_modifier, update);
     }
   }
@@ -571,8 +571,7 @@ class InterpreterImpl {
     using ValueType =
         StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
     auto val = base::unchecked_get<ValueType>(cast_result.value);
-    const auto& col = GetColumn(bytecode.arg<B::col>());
-    const auto* storage = col.storage.template unchecked_data<Uint32>();
+    const auto* storage = GetColumnData<Uint32>(bytecode.arg<B::col>());
     const auto* start =
         std::clamp(storage + val, storage + update.b, storage + update.e);
 
@@ -632,8 +631,7 @@ class InterpreterImpl {
           base::unchecked_get<M>(value.value).value,
           comparators::IntegerOrDoubleComparator<uint32_t, Op>());
     } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
-      const auto* data =
-          GetColumn(nf.arg<B::col>()).storage.template unchecked_data<T>();
+      const auto* data = GetColumnData<T>(nf.arg<B::col>());
       update.e = Filter(data, source.b, source.e, update.b,
                         base::unchecked_get<M>(value.value),
                         comparators::IntegerOrDoubleComparator<M, Op>());
@@ -653,8 +651,7 @@ class InterpreterImpl {
     }
     const char* val = base::unchecked_get<const char*>(filter_value.value);
     const auto& source = ReadFromRegister(sf.arg<B::source_register>());
-    const StringPool::Id* ptr =
-        GetColumn(sf.arg<B::col>()).storage.template unchecked_data<String>();
+    const StringPool::Id* ptr = GetColumnData<String>(sf.arg<B::col>());
     update.e = FilterStringOp<Op>(ptr, source.b, source.e, update.b, val);
   }
 
@@ -776,7 +773,8 @@ class InterpreterImpl {
       const bytecode::CopyToRowLayoutBase& bytecode) {
     using B = bytecode::CopyToRowLayoutBase;
 
-    const auto& col = GetColumn(bytecode.arg<B::col>());
+    uint32_t col_idx = bytecode.arg<B::col>();
+    const auto& col = GetColumn(col_idx);
     const auto& source =
         ReadFromRegister(bytecode.arg<B::source_indices_register>());
     bool invert = bytecode.arg<B::invert_copied_bits>();
@@ -788,7 +786,7 @@ class InterpreterImpl {
 
     const Slab<uint32_t>* popcount_slab = MaybeReadFromRegister<Slab<uint32_t>>(
         bytecode.arg<B::popcount_register>());
-    const auto* data = col.storage.template unchecked_data<T>();
+    const auto* data = GetColumnData<T>(col_idx);
 
     // GCC complains that these variables are not used in the NonNull branches.
     [[maybe_unused]] const reg::StringIdToRankMap* rank_map_ptr =
@@ -947,8 +945,9 @@ class InterpreterImpl {
     }
     using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     const auto& value = base::unchecked_get<M>(filter_value.value);
-    const Column& column = GetColumn(bytecode.arg<B::col>());
-    const auto* data = column.storage.unchecked_data<T>();
+    uint32_t col_idx = bytecode.arg<B::col>();
+    const Column& column = GetColumn(col_idx);
+    const auto* data = GetColumnData<T>(col_idx);
     const Slab<uint32_t>* popcnt =
         MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
     update.b = std::lower_bound(
@@ -1017,10 +1016,11 @@ class InterpreterImpl {
     PERFETTO_DCHECK(rank_map_ptr);
     auto& rank_map = *rank_map_ptr;
 
-    const auto& column = GetColumn(bytecode.arg<B::col>());
+    uint32_t col_idx = bytecode.arg<B::col>();
+    const auto& column = GetColumn(col_idx);
     PERFETTO_DCHECK(column.storage.type().template Is<String>());
 
-    const auto* data = column.storage.template unchecked_data<String>();
+    const auto* data = GetColumnData<String>(col_idx);
     const auto& source = ReadFromRegister(bytecode.arg<B::source_register>());
     for (const uint32_t* it = source.b; it != source.e; ++it) {
       rank_map.Insert(data[*it], 0);
@@ -1165,7 +1165,7 @@ class InterpreterImpl {
       return;
     }
 
-    const auto* data = GetColumn(col).storage.template unchecked_data<T>();
+    const auto* data = GetColumnData<T>(col);
     auto get_value = [&](uint32_t idx) {
       if constexpr (std::is_same_v<T, Id>) {
         base::ignore_result(data);
@@ -1212,8 +1212,8 @@ class InterpreterImpl {
       return;
     }
 
-    const Column& column = GetColumn(leq.arg<B::col>());
-    const auto* data = column.storage.template unchecked_data<T>();
+    uint32_t col_idx = leq.arg<B::col>();
+    const auto* data = GetColumnData<T>(col_idx);
 
     using Compare = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
     using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
@@ -1714,6 +1714,12 @@ class InterpreterImpl {
   }
 
   const Column& GetColumn(uint32_t idx) const { return state_.GetColumn(idx); }
+
+  // Get typed data pointer from cached storage for a specific column.
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE const auto* GetColumnData(uint32_t idx) const {
+    return state_.GetColumnData<T>(idx);
+  }
 
   FilterValueFetcherImpl& fetcher_;
   InterpreterState& state_;

@@ -25,7 +25,6 @@ import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
@@ -198,31 +197,23 @@ export class UnionNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
+    let message: m.Child;
 
     if (selectedCols.length === 0) {
-      return {
-        content: [
-          NodeTitle(this.getTitle()),
-          NodeDetailsMessage('No common columns'),
-        ],
-      };
-    }
-
-    const cards: m.Child[] = [];
-    // If more than 3 columns, just show the count
-    if (selectedCols.length > 3) {
-      cards.push(m(Card, m('div', `${selectedCols.length} common columns`)));
+      message = NodeDetailsMessage('No common columns selected');
+    } else if (selectedCols.length > 3) {
+      // Show the count of common columns
+      message = m('div', `${selectedCols.length} common columns`);
     } else {
-      // Show individual column names for 3 or fewer
+      // Show individual column names
       const selectedItems = selectedCols.map((c) =>
         m('div', ColumnName(c.column.name)),
       );
-      cards.push(m(Card, ...selectedItems));
+      message = m('div', ...selectedItems);
     }
 
-    return {
-      content: [NodeTitle(this.getTitle()), m(CardStack, cards)],
-    };
+    const content = [NodeTitle(this.getTitle()), message];
+    return {content};
   }
 
   nodeSpecificModify(): NodeModifyAttrs {

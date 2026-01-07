@@ -216,6 +216,10 @@ void Dataframe::Finalize() {
         PERFETTO_FATAL("Invalid nullability type");
     }
   }
+  // Bump the mutation counter so that any cursors with cached pointers
+  // know to refresh them: shrink_to_fit() may have reallocated the internal
+  // storage.
+  ++non_column_mutations_;
 }
 
 dataframe::Dataframe Dataframe::CopyFinalized() const {

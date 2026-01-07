@@ -109,7 +109,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
     const recMgr = attrs.recMgr;
 
     return [
-      m('header', 'Select platform'),
+      m('header', 'Target platform'),
       m(SegmentedButtons, {
         className: 'platform-selector',
         options: TARGET_PLATFORMS.map((p) => ({label: p.name, icon: p.icon})),

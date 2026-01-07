@@ -732,4 +732,70 @@ export class StructuredQueryBuilder {
 
     return sq;
   }
+
+  /**
+   * Creates a structured query with filter-to-intervals operation.
+   * Filters the base query to only include rows that overlap with intervals
+   * from the intervals query. The output preserves the base query's schema.
+   *
+   * Key features:
+   * - Overlapping intervals in the filter set are automatically merged
+   * - Output schema matches the base query exactly
+   * - Supports optional clipping of ts/dur to interval boundaries
+   *
+   * @param baseQuery The base query containing intervals to filter
+   * @param intervalsQuery The query containing the time intervals to filter to
+   * @param partitionColumns Optional partition columns for the filtering
+   * @param clipToIntervals Whether to clip ts/dur to interval boundaries (default: true)
+   * @param filterNegativeDur Optional array [base, intervals] indicating which queries should filter dur >= 0
+   * @param nodeId The node id to assign
+   * @returns A new structured query with filter-to-intervals, or undefined if extraction fails
+   */
+  static withFilterToIntervals(
+    baseQuery: QuerySource,
+    intervalsQuery: QuerySource,
+    partitionColumns?: string[],
+    clipToIntervals?: boolean,
+    filterNegativeDur?: boolean[],
+    nodeId?: string,
+    selectColumns?: string[],
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    // Extract and optionally filter base query
+    let base = extractQuery(baseQuery);
+    if (!base) return undefined;
+    if (filterNegativeDur && filterNegativeDur[0]) {
+      base = this.applyDurFilter(base);
+    }
+
+    // Extract and optionally filter intervals query
+    let intervals = extractQuery(intervalsQuery);
+    if (!intervals) return undefined;
+    if (filterNegativeDur && filterNegativeDur[1]) {
+      intervals = this.applyDurFilter(intervals);
+    }
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = nodeId ?? nextNodeId();
+
+    const filterToIntervals =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalFilterToIntervals();
+    filterToIntervals.base = base;
+    filterToIntervals.intervals = intervals;
+
+    if (partitionColumns && partitionColumns.length > 0) {
+      filterToIntervals.partitionColumns = [...partitionColumns];
+    }
+
+    // clip_to_intervals defaults to true in the proto, so only set if false
+    if (clipToIntervals === false) {
+      filterToIntervals.clipToIntervals = false;
+    }
+
+    if (selectColumns && selectColumns.length > 0) {
+      filterToIntervals.selectColumns = [...selectColumns];
+    }
+
+    sq.experimentalFilterToIntervals = filterToIntervals;
+    return sq;
+  }
 }

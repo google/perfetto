@@ -171,6 +171,12 @@ typedef void* (*PerfettoDsOnCreateCustomState)(
 // Deletes the previously created custom state `obj`.
 typedef void (*PerfettoDsOnDeleteCustomState)(void* obj);
 
+// Clears the previously created custom incremental state `obj` without
+// destroying it. Returns true if clearing was successful, false otherwise.
+// If this returns false or is not set, the incremental state will be destroyed
+// and recreated.
+typedef bool (*PerfettoDsOnClearCustomState)(void* obj, void* user_arg);
+
 // Setters for callbacks: can not be called after PerfettoDsImplRegister().
 
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnSetupCallback(struct PerfettoDsImpl*,
@@ -209,6 +215,8 @@ PERFETTO_SDK_EXPORT void PerfettoDsSetOnCreateIncr(
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnDeleteIncr(
     struct PerfettoDsImpl*,
     PerfettoDsOnDeleteCustomState);
+PERFETTO_SDK_EXPORT void PerfettoDsSetOnClearIncr(struct PerfettoDsImpl*,
+                                                  PerfettoDsOnClearCustomState);
 
 // Stores the `user_arg` that's going to be passed later to the callbacks for
 // this data source type.

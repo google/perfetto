@@ -43,6 +43,7 @@ import {
 import {setValidationError} from '../node_issues';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
+import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
 import {Form, FormSection} from '../../../../widgets/form';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
@@ -1051,7 +1052,12 @@ export class AddColumnsNode implements QueryNode {
         placeholder: 'alias',
         value: alias ?? '',
       }),
-      renderTypeSelector(colInfo, index, handleTypeChange),
+      renderTypeSelector(
+        colInfo,
+        index,
+        this.state.sqlModules,
+        handleTypeChange,
+      ),
       m(Icon, {
         icon: 'close',
         className: 'pf-clickable',
@@ -1099,7 +1105,12 @@ export class AddColumnsNode implements QueryNode {
       ),
       m(
         '.pf-exp-list-item-actions',
-        renderTypeSelector(colInfo, index, handleTypeChange),
+        renderTypeSelector(
+          colInfo,
+          index,
+          this.state.sqlModules,
+          handleTypeChange,
+        ),
         m(Button, {
           label: 'Edit',
           icon: 'edit',
@@ -1570,10 +1581,12 @@ export class AddColumnsNode implements QueryNode {
   }
 
   static deserializeState(
+    sqlModules: SqlModules,
     serializedState: AddColumnsNodeState,
   ): AddColumnsNodeState {
     return {
       ...serializedState,
+      sqlModules,
       suggestionSelections:
         (serializedState.suggestionSelections as unknown as Record<
           string,

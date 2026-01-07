@@ -201,6 +201,95 @@ message PerfettoSqlStructuredQuery {
     repeated string partition_columns = 3;
   }
 
+  // Filters intervals from `base` to only those that overlap with intervals
+  // from `intervals`. Unlike IntervalIntersect which is more general-purpose
+  // and returns columns from all sources with suffixes, FilterToIntervals
+  // is specifically designed for the common use case of filtering intervals
+  // while preserving the original schema of base table.
+  //
+  // Examples:
+  //  1) Filter CPU slices to only those during app startup:
+  //    * `base` points to the CPU scheduling data.
+  //    * `intervals` points to the app startup boundaries.
+  //  2) Filter memory allocations during specific user interactions:
+  //    * `base` points to memory allocation events.
+  //    * `intervals` points to user interaction time windows.
+  //
+  // Schema:
+  //  1) The query in `base` must have `id`, `ts`, and `dur` columns.
+  //  2) The query in `intervals` must have `ts` and `dur` columns.
+  //
+  //
+  // Output Schema:
+  // The output preserves the exact same columns as `base`, but:
+  //  - Rows are filtered to only those that overlap with `intervals`
+  //  - If `clip_to_intervals` is true (default), `ts` and `dur` represent
+  //    the actual overlap period (clipped to the interval boundaries).
+  //    When using explicit select_columns that include "ts" or "dur", the
+  //    original values are also returned as `original_ts` and `original_dur`.
+  //  - If `clip_to_intervals` is false, `ts` and `dur` retain their original
+  //    values from `base`
+  //
+  // Interval merging:
+  // Overlapping intervals in the `intervals` set are automatically merged
+  // before filtering. This ensures that a base row spanning multiple
+  // overlapping filter intervals produces only one output row per merged
+  // interval, not multiple duplicate rows.
+  //
+  // Example in ASCII art - interval merging:
+  //   base:          [--A--]
+  //   intervals:   [----]
+  //                   [----]      (two intervals that overlap each other)
+  //   merged:      [-------]      (merged into one)
+  //   output:         [--A--]     (one row, not two)
+  //
+  // Multiple non-overlapping intervals:
+  // If a base row overlaps with multiple non-overlapping intervals (after
+  // merging), multiple output rows will be produced, one for each.
+  //
+  // Example in ASCII art (with clip_to_intervals = true):
+  //   base:       [-----------]     [--------]
+  //   intervals:           [-----------]
+  //   output:              [--]     [--]
+  //
+  // Example in ASCII art (with clip_to_intervals = false):
+  //   base:       [-----------]     [--------]
+  //   intervals:           [-----------]
+  //   output:     [-----------]     [--------]
+  //   (same ts/dur as base, but only rows that had overlap)
+  message ExperimentalFilterToIntervals {
+    // The base query containing intervals to filter. Must have `id`, `ts` and
+    // `dur` columns. Required.
+    optional PerfettoSqlStructuredQuery base = 1;
+
+    // The query containing the time intervals to filter to. Must have `ts` and
+    // `dur` columns. Required.
+    optional PerfettoSqlStructuredQuery intervals = 2;
+
+    // Optional list of partition columns to use for the interval filtering.
+    // These columns must exist in both queries (base and intervals).
+    // They cannot be "id", "ts", or "dur" as these are reserved.
+    // Note: When merging overlapping intervals, only the first partition
+    // column is used. Multiple partition columns are supported for the
+    // intersection operation but not for the merge step.
+    repeated string partition_columns = 3;
+
+    // When true (default), the output ts and dur represent the actual overlap
+    // period (clipped to interval boundaries). When false, the original ts
+    // and dur from base are preserved.
+    optional bool clip_to_intervals = 4;
+
+    // Optional list of columns to select from the base query in the result.
+    // If empty or not specified, all columns from base are selected.
+    // If specified, only the listed columns are selected from base.
+    // When clip_to_intervals is true, ts and dur are automatically prepended
+    // to represent the clipped interval. If select_columns explicitly includes
+    // "ts" or "dur", the original values from base are also returned as
+    // "original_ts" and "original_dur" to preserve access to the unclipped
+    // timestamps.
+    repeated string select_columns = 5;
+  }
+
   // DON'T USE. EXPERIMENTAL.
   // A single-row source representing a time range interval.
   //
@@ -473,6 +562,11 @@ message PerfettoSqlStructuredQuery {
 
     // DON'T USE. EXPERIMENTAL.
     ExperimentalTimeRange experimental_time_range = 105;
+
+    // DON'T USE. EXPERIMENTAL.
+    // Source is a filter-to-intervals operation. See
+    // ExperimentalFilterToIntervals documentation for more information.
+    ExperimentalFilterToIntervals experimental_filter_to_intervals = 106;
   }
 
   // Evaluation order of operations:

@@ -15,9 +15,13 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_PACKAGE_LOOKUP_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_PACKAGE_LOOKUP_H_
 
+#include <optional>
+
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto::trace_processor {
 

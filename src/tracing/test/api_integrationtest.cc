@@ -27,6 +27,7 @@
 #include <thread>
 #include <unordered_set>
 #include <vector>
+#include "perfetto/ext/base/flags.h"
 
 // We also want to test legacy trace events.
 #define PERFETTO_ENABLE_LEGACY_TRACE_EVENTS 1
@@ -434,6 +435,45 @@ class TestIncrementalDataSource
 
 std::function<void(const perfetto::DataSourceBase::ClearIncrementalStateArgs&)>*
     TestIncrementalDataSource::will_clear_incremental_state;
+
+// Traits for testing ClearIncrementalState that returns true (clear succeeds)
+struct ClearIncrementalStateSuccessTraits
+    : public perfetto::DefaultDataSourceTraits {
+  using IncrementalStateType = TestIncrementalState;
+
+  static bool ClearIncrementalState(TestIncrementalState* state) {
+    // Clear the state by resetting its fields
+    state->count = 100;
+    state->flag = false;
+    return true;  // Clearing succeeded, state should be reused
+  }
+};
+
+// Traits for testing ClearIncrementalState that returns false (clear fails)
+struct ClearIncrementalStateFailureTraits
+    : public perfetto::DefaultDataSourceTraits {
+  using IncrementalStateType = TestIncrementalState;
+};
+
+// Data source for testing successful clearing
+class TestClearSuccessDataSource
+    : public perfetto::DataSource<TestClearSuccessDataSource,
+                                  ClearIncrementalStateSuccessTraits> {
+ public:
+  void OnSetup(const SetupArgs&) override {}
+  void OnStart(const StartArgs&) override {}
+  void OnStop(const StopArgs&) override {}
+};
+
+// Data source for testing failed clearing
+class TestClearFailureDataSource
+    : public perfetto::DataSource<TestClearFailureDataSource,
+                                  ClearIncrementalStateFailureTraits> {
+ public:
+  void OnSetup(const SetupArgs&) override {}
+  void OnStart(const StartArgs&) override {}
+  void OnStop(const StopArgs&) override {}
+};
 
 // A convenience wrapper around TracingSession that allows to do block on
 //
@@ -1701,6 +1741,160 @@ TEST_P(PerfettoApiTest, ClearIncrementalStateMultipleInstances) {
 
   perfetto::test::TracingMuxerImplInternalsForTest::
       ClearDataSourceTlsStateOnReset<TestIncrementalDataSource>();
+}
+
+TEST_P(PerfettoApiTest, ClearIncrementalStateTraitSuccess) {
+  if constexpr (
+      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
+    GTEST_SKIP()
+        << "Test requires flag to be set:"
+           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
+  }
+
+  // Test that when the ClearIncrementalState trait method returns true,
+  // the state is cleared in place (not destroyed and recreated).
+
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("clear_success_data_source");
+  TestClearSuccessDataSource::Register(dsd);
+  perfetto::test::SyncProducers();
+
+  // Setup the trace config with an incremental state clearing period.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("clear_success_data_source");
+  auto* is_cfg = cfg.mutable_incremental_state_config();
+  is_cfg->set_clear_period_ms(10);
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+
+  // Reset the tracking variables
+  TestIncrementalState::constructed = false;
+  TestIncrementalState::destroyed = false;
+
+  tracing_session->get()->StartBlocking();
+
+  // Access the incremental state to create it
+  TestClearSuccessDataSource::Trace(
+      [&](TestClearSuccessDataSource::TraceContext ctx) {
+        auto* incr_state = ctx.GetIncrementalState();
+        EXPECT_TRUE(TestIncrementalState::constructed);
+        EXPECT_FALSE(TestIncrementalState::destroyed);
+        // Modify the state
+        incr_state->count = 42;
+        incr_state->flag = true;
+      });
+
+  // Wait for at least one clear period to elapse
+  std::this_thread::sleep_for(std::chrono::milliseconds(15));
+
+  // Reset destroyed flag before accessing state again
+  TestIncrementalState::destroyed = false;
+
+  // Access the incremental state again - this should trigger the clear
+  // Since ClearIncrementalState returns true, the state should be cleared
+  // in place (not destroyed)
+  constexpr size_t kMaxLoops = 20;
+  bool state_was_cleared = false;
+  for (size_t i = 0; i < kMaxLoops && !state_was_cleared; i++) {
+    TestClearSuccessDataSource::Trace(
+        [&](TestClearSuccessDataSource::TraceContext ctx) {
+          auto* incr_state = ctx.GetIncrementalState();
+          // Check if state was cleared (count reset to 100, flag reset to
+          // false)
+          if (incr_state->count == 100 && incr_state->flag == false) {
+            state_was_cleared = true;
+            // State should NOT have been destroyed and recreated
+            EXPECT_FALSE(TestIncrementalState::destroyed);
+          }
+        });
+    if (!state_was_cleared) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+  }
+
+  EXPECT_TRUE(state_was_cleared) << "State was not cleared after waiting";
+
+  tracing_session->get()->StopBlocking();
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<TestClearSuccessDataSource>();
+}
+
+TEST_P(PerfettoApiTest, ClearIncrementalStateTraitFailure) {
+  // Test that when the ClearIncrementalState trait method returns false,
+  // the state is destroyed and recreated.
+
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("clear_failure_data_source");
+  TestClearFailureDataSource::Register(dsd);
+  perfetto::test::SyncProducers();
+
+  // Setup the trace config with an incremental state clearing period.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("clear_failure_data_source");
+  auto* is_cfg = cfg.mutable_incremental_state_config();
+  is_cfg->set_clear_period_ms(10);
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+
+  // Reset the tracking variables
+  TestIncrementalState::constructed = false;
+  TestIncrementalState::destroyed = false;
+
+  tracing_session->get()->StartBlocking();
+
+  // Access the incremental state to create it
+  TestClearFailureDataSource::Trace(
+      [&](TestClearFailureDataSource::TraceContext ctx) {
+        auto* incr_state = ctx.GetIncrementalState();
+        EXPECT_TRUE(TestIncrementalState::constructed);
+        EXPECT_FALSE(TestIncrementalState::destroyed);
+        // Modify the state
+        incr_state->count = 42;
+        incr_state->flag = true;
+      });
+
+  // Wait for at least one clear period to elapse
+  std::this_thread::sleep_for(std::chrono::milliseconds(15));
+
+  // Reset tracking flags before accessing state again
+  TestIncrementalState::constructed = false;
+  TestIncrementalState::destroyed = false;
+
+  // Access the incremental state again - this should trigger the clear attempt
+  // Since ClearIncrementalState returns false, the state should be destroyed
+  // and recreated
+  constexpr size_t kMaxLoops = 20;
+  bool state_was_recreated = false;
+  for (size_t i = 0; i < kMaxLoops && !state_was_recreated; i++) {
+    TestClearFailureDataSource::Trace(
+        [&](TestClearFailureDataSource::TraceContext ctx) {
+          auto* incr_state = ctx.GetIncrementalState();
+          (void)incr_state;
+          // Check if state was destroyed and recreated
+          if (TestIncrementalState::destroyed &&
+              TestIncrementalState::constructed) {
+            state_was_recreated = true;
+          }
+        });
+    if (!state_was_recreated) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+  }
+
+  EXPECT_TRUE(state_was_recreated)
+      << "State was not destroyed and recreated after waiting";
+
+  tracing_session->get()->StopBlocking();
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<TestClearFailureDataSource>();
 }
 
 TEST_P(PerfettoApiTest, TrackEventRegistrationWithModule) {

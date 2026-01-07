@@ -218,6 +218,13 @@ struct TrackEventDataSourceTraits : public perfetto::DefaultDataSourceTraits {
                                                       TracingTLS* root_tls) {
     return &root_tls->track_event_tls;
   }
+
+  // Clear the incremental state without destroying and recreating it. This
+  // allows reusing allocated memory in hash maps.
+  static bool ClearIncrementalState(TrackEventIncrementalState* incr_state) {
+    incr_state->Clear();
+    return true;
+  }
 };
 
 // A generic track event data source.

@@ -40,8 +40,14 @@ enum FilterOpcode : uint32_t {
   // The immediate value is the id of the allowed field. The behaviour of this
   // opcode is the same as kFilterOpcode_SimpleField, with the further semantic
   // that the field is a string and needs to be processed using the string
-  // filtering fules.
+  // filtering rules.
   kFilterOpcode_FilterString = 4,
+
+  // The immediate value is the id of the allowed field. The next word (without
+  // any shifting) is the semantic type of the string field. The behaviour is
+  // similar to kFilterOpcode_FilterString, but carries semantic type info so
+  // that the string filter can apply type-specific rules.
+  kFilterOpcode_FilterStringWithType = 5,
 };
 
 // Constants for extracting opcode and field_id from bytecode words.

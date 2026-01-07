@@ -64,3 +64,10 @@ flag {
   bug: "445943111"
   is_fixed_read_only: true
 }
+flag {
+  name: "track_event_incremental_state_clear_not_destroy"
+  namespace: "perfetto"
+  description: "Instead of creating/destroying intern maps for TrackEvent's ClearIncrementalState callback, instead just clear the maps, preventing unnecessary memory allocs/frees."
+  bug: "473625429"
+  is_fixed_read_only: true
+}
