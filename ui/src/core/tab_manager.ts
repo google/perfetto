@@ -14,10 +14,7 @@
 
 import {DetailsPanel} from '../public/details_panel';
 import {TabDescriptor, TabManager} from '../public/tab';
-import {
-  DrawerPanelVisibility,
-  toggleVisibility,
-} from '../widgets/drawer_panel';
+import {DrawerPanelVisibility, toggleVisibility} from '../widgets/drawer_panel';
 
 export interface ResolvedTab {
   uri: string;
