@@ -17,6 +17,7 @@ import {DisposableStack} from '../base/disposable_stack';
 import {toHTMLElement} from '../base/dom_utils';
 import {DragGestureHandler} from '../base/drag_gesture_handler';
 import {assertExists, assertUnreachable} from '../base/logging';
+import {Gate} from '../base/mithril_utils';
 import {Button, ButtonBar} from './button';
 import {classNames} from '../base/classnames';
 import {HTMLAttrs} from './common';
@@ -57,6 +58,17 @@ export class Tab implements m.ClassComponent<TabAttrs> {
   }
 }
 
+export interface DrawerTab {
+  // Unique identifier for the tab.
+  readonly key: string;
+  // Content to display in the tab handle.
+  readonly title: m.Children;
+  // Content to display in the drawer when this tab is active.
+  readonly content: m.Children;
+  // Whether to show a close button on the tab.
+  readonly closable?: boolean;
+}
+
 export enum DrawerPanelVisibility {
   VISIBLE,
   FULLSCREEN,
@@ -70,12 +82,25 @@ export interface DrawerPanelAttrs {
   // Content to put to the left of the tabs on the handle.
   readonly leftHandleContent?: m.Children;
 
-  // Tabs to display on the handle.
-  readonly tabs?: m.Children;
-
+  // ===== Simple mode (no tab bar) =====
   // Content to display inside the drawer.
   readonly drawerContent?: m.Children;
 
+  // ===== Tabs mode (with tab bar) =====
+  // If provided, ignores drawerContent and renders tabs instead.
+  readonly tabs?: DrawerTab[];
+
+  // The currently active tab key (controlled mode).
+  // If not provided, the component manages its own state (uncontrolled mode).
+  readonly activeTabKey?: string;
+
+  // Called when a tab is clicked.
+  onTabChange?(key: string): void;
+
+  // Called when a tab's close button is clicked.
+  onTabClose?(key: string): void;
+
+  // ===== Common options =====
   // Whether the drawer is currently visible or not (when in controlled mode).
   readonly visibility?: DrawerPanelVisibility;
 
@@ -84,9 +109,6 @@ export interface DrawerPanelAttrs {
 
   // What height should the drawer be initially?
   readonly startingHeight?: number;
-
-  // Called when the active tab is changed.
-  onTabChange?(key: string): void;
 
   // Called when the drawer visibility is changed.
   onVisibilityChange?(visibility: DrawerPanelVisibility): void;
@@ -137,6 +159,9 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   // Current visibility state (if not controlled).
   private visibility = DrawerPanelVisibility.VISIBLE;
 
+  // Current active tab key (for uncontrolled mode).
+  private internalActiveTab?: string;
+
   constructor({attrs}: m.CVnode<DrawerPanelAttrs>) {
     this.resizableHeight = attrs.startingHeight ?? 100;
   }
@@ -146,10 +171,13 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
       mainContent,
       leftHandleContent,
       drawerContent,
+      tabs,
+      activeTabKey,
+      onTabChange,
+      onTabClose,
       visibility = this.visibility,
       className,
       onVisibilityChange,
-      tabs,
     } = attrs;
 
     switch (visibility) {
@@ -167,6 +195,22 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
         break;
     }
 
+    // Determine mode: tabs mode if tabs array is provided and non-empty
+    const isTabsMode = tabs !== undefined && tabs.length > 0;
+
+    // Get active tab key (controlled or uncontrolled)
+    const activeKey = isTabsMode
+      ? (activeTabKey ?? this.internalActiveTab ?? tabs[0].key)
+      : undefined;
+
+    // Render tabs UI and drawer content based on mode
+    const tabsUI = isTabsMode
+      ? this.renderTabs(tabs, activeKey!, onTabChange, onTabClose)
+      : undefined;
+    const drawer = isTabsMode
+      ? this.renderTabContent(tabs, activeKey!)
+      : drawerContent;
+
     return m(
       '.pf-drawer-panel',
       {
@@ -175,7 +219,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
       m('.pf-drawer-panel__main', mainContent),
       m('.pf-drawer-panel__handle', [
         leftHandleContent,
-        m('.pf-drawer-panel__tabs', tabs),
+        m('.pf-drawer-panel__tabs', tabsUI),
         this.renderTabResizeButtons(visibility, onVisibilityChange),
       ]),
       m(
@@ -183,8 +227,37 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
         {
           style: {height: `${this.height}px`},
         },
-        drawerContent,
+        drawer,
       ),
+    );
+  }
+
+  private renderTabs(
+    tabs: DrawerTab[],
+    activeKey: string,
+    onTabChange?: (key: string) => void,
+    onTabClose?: (key: string) => void,
+  ): m.Children {
+    return tabs.map((tab) =>
+      m(
+        Tab,
+        {
+          active: tab.key === activeKey,
+          hasCloseButton: tab.closable,
+          onclick: () => {
+            this.internalActiveTab = tab.key;
+            onTabChange?.(tab.key);
+          },
+          onClose: () => onTabClose?.(tab.key),
+        },
+        tab.title,
+      ),
+    );
+  }
+
+  private renderTabContent(tabs: DrawerTab[], activeKey: string): m.Children {
+    return tabs.map((tab) =>
+      m(Gate, {open: tab.key === activeKey}, tab.content),
     );
   }
 

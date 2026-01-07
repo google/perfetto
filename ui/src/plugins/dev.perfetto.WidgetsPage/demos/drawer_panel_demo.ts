@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Button} from '../../../widgets/button';
-import {DrawerPanel, Tab} from '../../../widgets/drawer_panel';
+import {DrawerPanel, DrawerTab} from '../../../widgets/drawer_panel';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
 export function renderDrawerPanel(): m.Children {
@@ -24,42 +24,95 @@ export function renderDrawerPanel(): m.Children {
       m('h1', 'DrawerPanel'),
       m(
         'p',
-        'A resizable split panel container for dividing content into adjustable sections with a draggable divider.',
+        'A container with a main content area and a collapsible drawer at the bottom. ',
+        'Supports two modes: simple (single drawer content) or tabs (multiple switchable tabs).',
       ),
     ),
+    m('h2', 'Simple Mode'),
+    m('p', 'Pass drawerContent for a simple drawer without tabs.'),
     renderWidgetShowcase({
       renderWidget: (opts) => {
         return m(
           '',
           {
             style: {
-              height: '400px',
+              height: '300px',
               width: '400px',
               border: 'solid 2px gray',
             },
           },
           m(DrawerPanel, {
-            leftHandleContent: [opts.leftContent && m(Button, {icon: 'Menu'})],
-            mainContent: 'Main Content',
-            drawerContent: 'Drawer Content',
-            tabs:
-              opts.tabs &&
-              m(
-                '.pf-drawer-panel__tabs',
-                m(
-                  Tab,
-                  {active: true, hasCloseButton: opts.showCloseButtons},
-                  'Foo',
-                ),
-                m(Tab, {hasCloseButton: opts.showCloseButtons}, 'Bar'),
-              ),
+            leftHandleContent: opts.leftContent && m(Button, {icon: 'Menu'}),
+            mainContent: m('div', {style: {padding: '16px'}}, 'Main Content'),
+            drawerContent: m(
+              'div',
+              {style: {padding: '16px'}},
+              'Drawer Content',
+            ),
           }),
         );
       },
       initialOpts: {
         leftContent: true,
-        tabs: true,
-        showCloseButtons: true,
+      },
+    }),
+    m('h2', 'Tabs Mode'),
+    m('p', 'Pass a tabs array for multiple switchable tabs with content.'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        const tabs: DrawerTab[] = [
+          {
+            key: 'tab1',
+            title: 'First Tab',
+            content: m(
+              'div',
+              {style: {padding: '16px'}},
+              'Content for the first tab',
+            ),
+          },
+          {
+            key: 'tab2',
+            title: 'Second Tab',
+            content: m(
+              'div',
+              {style: {padding: '16px'}},
+              'Content for the second tab',
+            ),
+            closable: opts.closable,
+          },
+          {
+            key: 'tab3',
+            title: 'Third Tab',
+            content: m(
+              'div',
+              {style: {padding: '16px'}},
+              'Content for the third tab',
+            ),
+            closable: opts.closable,
+          },
+        ];
+
+        return m(
+          '',
+          {
+            style: {
+              height: '300px',
+              width: '500px',
+              border: 'solid 2px gray',
+            },
+          },
+          m(DrawerPanel, {
+            leftHandleContent: opts.leftContent && m(Button, {icon: 'Menu'}),
+            mainContent: m('div', {style: {padding: '16px'}}, 'Main Content'),
+            tabs,
+            onTabChange: (key) => console.log('Tab changed to:', key),
+            onTabClose: (key) => console.log('Tab closed:', key),
+          }),
+        );
+      },
+      initialOpts: {
+        leftContent: true,
+        closable: true,
       },
     }),
   ];
