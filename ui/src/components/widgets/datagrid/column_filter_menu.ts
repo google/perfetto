@@ -419,34 +419,6 @@ function renderNumericEqualsFilterMenuItems(
 }
 
 /**
- * Renders text equals filter menu items (Equals, Not equals) for unknown column types.
- */
-function renderTextEqualsFilterMenuItems(
-  onFilterAdd: (filter: FilterOpAndValue) => void,
-): m.ChildArray {
-  return [
-    m(
-      MenuItem,
-      {label: 'Equals'},
-      m(TextFilterSubmenu, {
-        placeholder: 'Enter value...',
-        inputType: 'text',
-        onApply: (value) => onFilterAdd({op: '=', value}),
-      }),
-    ),
-    m(
-      MenuItem,
-      {label: 'Not equals'},
-      m(TextFilterSubmenu, {
-        placeholder: 'Enter value...',
-        inputType: 'text',
-        onApply: (value) => onFilterAdd({op: '!=', value}),
-      }),
-    ),
-  ];
-}
-
-/**
  * Renders null filter menu items (Is null, Is not null).
  */
 function renderNullFilterMenuItems(
@@ -614,16 +586,29 @@ function renderIdentifierFilterMenuItems(
 
 /**
  * Renders filter menu items when columnType is undefined.
- * Shows all filter options (text-based equals, numeric comparisons, contains, glob, null)
- * except distinct value picker.
+ * Shows all filter options (distinct value picker, text-based equals, numeric comparisons,
+ * contains, glob, null).
  */
 function renderUnknownTypeFilterMenuItems(
   config: FilterMenuAttrs,
 ): m.ChildArray {
-  const {structuredQueryCompatMode, onFilterAdd} = config;
+  const {
+    structuredQueryCompatMode,
+    distinctValues,
+    valueFormatter,
+    onFilterAdd,
+    onRequestDistinctValues,
+    onDismissDistinctValues,
+  } = config;
 
   return [
-    renderTextEqualsFilterMenuItems(onFilterAdd),
+    renderDistinctValueFilterMenuItems({
+      distinctValues,
+      valueFormatter,
+      onFilterAdd,
+      onRequestDistinctValues,
+      onDismissDistinctValues,
+    }),
     renderNumericComparisonMenuItems(onFilterAdd),
     m(MenuDivider),
     renderContainsFilterMenuItems(onFilterAdd, !structuredQueryCompatMode),
