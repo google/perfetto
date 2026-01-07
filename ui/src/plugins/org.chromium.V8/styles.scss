@@ -25,19 +25,16 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
 
-  .text {
+  .bar {
     position: relative;
-    z-index: 1;
-    margin-right: 4px;
+    height: 100%;
   }
 
-  .percent {
+  .value {
     position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    background-color: rgba(255, 0, 0, 0.3);
+    z-index: 1;
+    right: 0;
   }
 }

@@ -49,7 +49,6 @@ const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
   },
 };
 
-
 const GROUP_COLORS: {[key: string]: string} = {
   total: '#BBB',
   ic: '#3366CC',
@@ -164,7 +163,10 @@ export class V8RuntimeCallStatsTab implements Tab {
     };
   }
 
-  private renderPercentCell(value: SqlValue, row: Row): CellRenderResult | string {
+  private renderPercentCell(
+    value: SqlValue,
+    row: Row,
+  ): CellRenderResult | string {
     const val = value as number;
     const group = row['v8_rcs_group'] as string;
     const isHeaderRow = !group;
@@ -175,14 +177,14 @@ export class V8RuntimeCallStatsTab implements Tab {
     return {
       content: m(
         'div.pf-v8-percent-cell',
-        m('div.text', {
+        m('div.bar', {
           style: {
             width: `${val}%`,
             backgroundColor: color,
           },
         }),
-        m('div.percent', `${val.toFixed(2)}%`),
-      )
+        m('div.value', `${val.toFixed(2)}%`),
+      ),
     };
   }
 
@@ -289,9 +291,11 @@ export class V8RuntimeCallStatsTab implements Tab {
     } else if (selection.kind === 'track_event') {
       const prev = selection as TrackEventSelection;
       whereClause = `s.id = ${prev.eventId}`;
-    } else {
-      // Empty selection - all data
+    } else if (selection.kind === 'empty') {
+      // Select all.
       whereClause = '1 = 1';
+    } else {
+      throw new Error(`Unknown selection kind: ${selection.kind}`);
     }
 
     await this.trace.engine.query(`
