@@ -26,13 +26,13 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/descriptor.h>
 
-#include "absl/strings/string_view.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -49,18 +49,18 @@ class MultiFileErrorCollectorImpl
  public:
   ~MultiFileErrorCollectorImpl() override = default;
 #if GOOGLE_PROTOBUF_VERSION >= 4022000
-  void RecordError(absl::string_view filename,
+  void RecordError(std::string_view filename,
                    int line,
                    int column,
-                   absl::string_view message) override {
+                   std::string_view message) override {
     PERFETTO_ELOG("Error %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
                   filename.data(), line, column,
                   static_cast<int>(message.size()), message.data());
   }
-  void RecordWarning(absl::string_view filename,
+  void RecordWarning(std::string_view filename,
                      int line,
                      int column,
-                     absl::string_view message) override {
+                     std::string_view message) override {
     PERFETTO_ELOG("Warning %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
                   filename.data(), line, column,
                   static_cast<int>(message.size()), message.data());
