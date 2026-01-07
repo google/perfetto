@@ -1504,6 +1504,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseF2fsWriteCheckpoint(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kGpuPowerStateFieldNumber: {
+        ParseGpuPowerState(ts, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -4458,6 +4462,17 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
   } else if (phase == kF2fsCpPhaseFinish) {
     context_->slice_tracker->End(ts, track_id);
   }
+}
+
+void FtraceParser::ParseGpuPowerState(int64_t ts, protozero::ConstBytes blob) {
+  static constexpr auto kGpuPowerStateBlueprint = tracks::CounterBlueprint(
+      "gpu_power_state", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("gpu_power_state"));
+
+  protos::pbzero::GpuPowerStateFtraceEvent::Decoder event(blob);
+  TrackId track = context_->track_tracker->InternTrack(kGpuPowerStateBlueprint);
+  context_->event_tracker->PushCounter(ts, event.new_state(), track);
 }
 
 }  // namespace perfetto::trace_processor

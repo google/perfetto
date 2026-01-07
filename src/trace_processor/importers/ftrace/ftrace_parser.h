@@ -350,6 +350,7 @@ class FtraceParser {
   void ParseF2fsWriteCheckpoint(int64_t ts,
                                 uint32_t pid,
                                 protozero::ConstBytes blob);
+  void ParseGpuPowerState(int64_t ts, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   GenericFtraceTracker* generic_tracker_;
