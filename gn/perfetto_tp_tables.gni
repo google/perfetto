@@ -32,6 +32,7 @@ template("perfetto_tp_tables") {
 
     outputs = [ "$target_gen_dir/all_tables_fwd.h" ]
     foreach(table, invoker.sources) {
+      outputs += [ "$target_gen_dir/" + string_replace(table, ".py", "_fwd.h") ]
       outputs += [ "$target_gen_dir/" + string_replace(table, ".py", "_py.h") ]
     }
 
