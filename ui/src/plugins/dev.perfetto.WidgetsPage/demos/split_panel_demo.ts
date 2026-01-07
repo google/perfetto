@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from '../../../widgets/button';
-import {SplitPanel, Tab} from '../../../widgets/split_panel';
+import {SplitPanel} from '../../../widgets/split_panel';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
 export function renderSplitPanel(): m.Children {
@@ -24,7 +23,7 @@ export function renderSplitPanel(): m.Children {
       m('h1', 'SplitPanel'),
       m(
         'p',
-        'A resizable split panel container for dividing content into adjustable sections with a draggable divider.',
+        'A simple resizable split panel with a draggable handle. Supports both horizontal and vertical layouts, with percentage or fixed-pixel sizing modes.',
       ),
     ),
     renderWidgetShowcase({
@@ -33,38 +32,43 @@ export function renderSplitPanel(): m.Children {
           '',
           {
             style: {
-              height: '400px',
-              width: '400px',
-              border: 'solid 2px gray',
+              height: '300px',
+              width: '500px',
+              border: '1px solid var(--pf-color-border)',
             },
           },
-          m(
-            SplitPanel,
-            {
-              leftHandleContent: [
-                opts.leftContent && m(Button, {icon: 'Menu'}),
-              ],
-              drawerContent: 'Drawer Content',
-              tabs:
-                opts.tabs &&
-                m(
-                  '.pf-split-panel__tabs',
-                  m(
-                    Tab,
-                    {active: true, hasCloseButton: opts.showCloseButtons},
-                    'Foo',
-                  ),
-                  m(Tab, {hasCloseButton: opts.showCloseButtons}, 'Bar'),
-                ),
-            },
-            'Main Content',
-          ),
+          m(SplitPanel(), {
+            direction: opts.vertical ? 'vertical' : 'horizontal',
+            split: opts.fixed
+              ? {fixed: {panel: 'first', size: 150}}
+              : {percent: 50},
+            minSize: 50,
+            firstPanel: m(
+              '',
+              {
+                style: {
+                  padding: '8px',
+                  background: 'var(--pf-color-background)',
+                },
+              },
+              'First Panel',
+            ),
+            secondPanel: m(
+              '',
+              {
+                style: {
+                  padding: '8px',
+                  background: 'var(--pf-color-background-secondary)',
+                },
+              },
+              'Second Panel',
+            ),
+          }),
         );
       },
       initialOpts: {
-        leftContent: true,
-        tabs: true,
-        showCloseButtons: true,
+        vertical: false,
+        fixed: false,
       },
     }),
   ];

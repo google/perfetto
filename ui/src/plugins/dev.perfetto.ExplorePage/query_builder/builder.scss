@@ -36,34 +36,34 @@
 
   height: 100%;
 
-  // SplitPanel's main section needs to have the grid layout
-  .pf-split-panel__main {
-    display: grid;
-    grid-template-columns: 1fr auto auto auto;
-    overflow: hidden;
-  }
-
   .pf-qb-node-graph {
-    grid-column: 1;
     overflow: auto;
     position: relative;
+    height: 100%;
   }
 
-  // Position the resize handle in the grid, but let the widget handle its own styling
-  .pf-resize-handle {
-    grid-column: 2;
+  .pf-qb-results-panel {
+    overflow: auto;
+    height: 100%;
+  }
+
+  .pf-qb-sidebar {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    overflow: hidden;
   }
 
   .pf-qb-explorer {
-    grid-column: 3;
     overflow: hidden;
     height: 100%;
+    flex-shrink: 0;
     // Width is controlled by inline style for smooth resizing
   }
 
   .pf-qb-side-panel {
-    grid-column: 4;
     width: var(--pf-qb-side-panel-width);
+    flex-shrink: 0;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -156,10 +156,6 @@
   }
 
   &.explorer-collapsed {
-    .pf-resize-handle {
-      display: none;
-    }
-
     .pf-qb-explorer {
       border-left: none;
       overflow: hidden;

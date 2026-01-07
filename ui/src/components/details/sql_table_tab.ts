@@ -36,7 +36,7 @@ import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
 import {SqlHistogram, SqlHistogramState} from '../widgets/charts/sql_histogram';
 import {sqlColumnId} from '../widgets/sql/table/sql_column';
-import {TabOption, TabStrip} from '../../widgets/tabs';
+import {Tab as TabDef, Tabs} from '../../widgets/tabs';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
 
@@ -194,7 +194,7 @@ class SqlTableTab implements Tab {
   render() {
     const hasFilters = this.tableState.filters.get().length > 0;
 
-    const tabs: (TabOption & {content: m.Children})[] = [
+    const tabs: TabDef[] = [
       {
         key: this.tableState.uuid,
         title: 'Table',
@@ -298,7 +298,7 @@ class SqlTableTab implements Tab {
           m('.pf-sql-table__toolbar', [
             hasFilters && renderFilters(this.tableState.filters),
             tabs.length > 1 &&
-              m(TabStrip, {
+              m(Tabs, {
                 tabs,
                 currentTabKey: this.selectedTab,
                 onTabChange: (key) => (this.selectedTab = key),

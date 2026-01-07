@@ -12,19 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public/details_panel';
 import {TabDescriptor, TabManager} from '../public/tab';
-import {
-  SplitPanelDrawerVisibility,
-  toggleVisibility,
-} from '../widgets/split_panel';
 
 export interface ResolvedTab {
   uri: string;
   tab?: TabDescriptor;
 }
 
-export type TabPanelVisibility = 'COLLAPSED' | 'VISIBLE' | 'FULLSCREEN';
+export enum TabPanelVisibility {
+  VISIBLE,
+  FULLSCREEN,
+  COLLAPSED,
+}
+
+export function toggleTabPanelVisibility(
+  visibility: TabPanelVisibility,
+): TabPanelVisibility {
+  switch (visibility) {
+    case TabPanelVisibility.COLLAPSED:
+    case TabPanelVisibility.FULLSCREEN:
+      return TabPanelVisibility.VISIBLE;
+    case TabPanelVisibility.VISIBLE:
+      return TabPanelVisibility.COLLAPSED;
+    default:
+      assertUnreachable(visibility);
+  }
+}
 
 /**
  * Stores tab & current selection section registries.
@@ -37,7 +52,7 @@ export class TabManagerImpl implements TabManager, Disposable {
   private _instantiatedTabs = new Map<string, TabDescriptor>();
   private _openTabs: string[] = []; // URIs of the tabs open.
   private _currentTab: string = 'current_selection';
-  private _tabPanelVisibility = SplitPanelDrawerVisibility.COLLAPSED;
+  private _tabPanelVisibility = TabPanelVisibility.COLLAPSED;
   private _tabPanelVisibilityChanged = false;
 
   [Symbol.dispose]() {
@@ -86,9 +101,9 @@ export class TabManagerImpl implements TabManager, Disposable {
     // they are.
     if (
       !this._tabPanelVisibilityChanged &&
-      this._tabPanelVisibility === SplitPanelDrawerVisibility.COLLAPSED
+      this._tabPanelVisibility === TabPanelVisibility.COLLAPSED
     ) {
-      this.setTabPanelVisibility(SplitPanelDrawerVisibility.VISIBLE);
+      this.setTabPanelVisibility(TabPanelVisibility.VISIBLE);
     }
   }
 
@@ -191,13 +206,15 @@ export class TabManagerImpl implements TabManager, Disposable {
     return tabs;
   }
 
-  setTabPanelVisibility(visibility: SplitPanelDrawerVisibility): void {
+  setTabPanelVisibility(visibility: TabPanelVisibility): void {
     this._tabPanelVisibility = visibility;
     this._tabPanelVisibilityChanged = true;
   }
 
   toggleTabPanelVisibility(): void {
-    this.setTabPanelVisibility(toggleVisibility(this._tabPanelVisibility));
+    this.setTabPanelVisibility(
+      toggleTabPanelVisibility(this._tabPanelVisibility),
+    );
   }
 
   get tabPanelVisibility() {

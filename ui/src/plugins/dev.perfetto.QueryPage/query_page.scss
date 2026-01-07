@@ -17,21 +17,38 @@
   font-family: var(--pf-font-compact);
   position: relative;
 
+  &__editor-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+
+    .pf-editor {
+      flex: 1;
+      min-height: 0;
+      contain: strict; // See b/388579546
+    }
+  }
+
+  &__results-panel {
+    height: 100%;
+    overflow: auto;
+  }
+
   &__results {
-    max-height: 500px;
+    height: 100%;
   }
 
   &__results-summary {
+    display: inline-flex;
+    align-items: baseline;
     margin-left: 0.2em;
+    gap: 0.5em;
   }
 
   &__toolbar {
+    flex-shrink: 0;
     border-bottom: 1px solid var(--pf-color-border);
-  }
-
-  .pf-editor {
-    contain: strict; // See b/388579546
-    min-height: 3rem;
   }
 
   &__hotkeys {
@@ -49,5 +66,10 @@
     font-size: 12px;
     font-weight: 300;
     white-space: pre;
+  }
+
+  &__history {
+    height: 100%;
+    border-left: 1px solid var(--pf-color-border);
   }
 }

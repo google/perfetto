@@ -13,13 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {
+  TabPanelVisibility,
+  toggleTabPanelVisibility,
+} from '../../core/tab_manager';
 import {TraceImpl} from '../../core/trace_impl';
-import {Button} from '../../widgets/button';
+import {Button, ButtonBar} from '../../widgets/button';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {Tab, SplitPanel} from '../../widgets/split_panel';
+import {SplitPanel} from '../../widgets/split_panel';
+import {Tab, Tabs} from '../../widgets/tabs';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../css_constants';
 import {CurrentSelectionTab} from './current_selection_tab';
-import {Gate} from '../../base/mithril_utils';
 
 export interface TabPanelAttrs {
   readonly trace: TraceImpl;
@@ -27,82 +31,117 @@ export interface TabPanelAttrs {
 }
 
 export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
-  view({
-    attrs,
-    children,
-  }: m.Vnode<TabPanelAttrs, this>): m.Children | null | void {
-    const {tabs, drawerContent} = this.gatherTabs(attrs.trace);
+  private drawerHeight = DEFAULT_DETAILS_CONTENT_HEIGHT;
+  private containerHeight = 0;
 
-    return m(
-      SplitPanel,
-      {
-        className: attrs.className,
-        startingHeight: DEFAULT_DETAILS_CONTENT_HEIGHT,
-        leftHandleContent: this.renderDropdownMenu(attrs.trace),
-        tabs,
-        drawerContent,
-        visibility: attrs.trace.tabs.tabPanelVisibility,
-        onVisibilityChange: (visibility) =>
-          attrs.trace.tabs.setTabPanelVisibility(visibility),
+  view({attrs, children}: m.Vnode<TabPanelAttrs, this>): m.Children {
+    const trace = attrs.trace;
+    const visibility = trace.tabs.tabPanelVisibility;
+
+    // Calculate effective height based on visibility
+    let effectiveHeight: number;
+    switch (visibility) {
+      case TabPanelVisibility.COLLAPSED:
+        effectiveHeight = 0;
+        break;
+      case TabPanelVisibility.FULLSCREEN:
+        effectiveHeight = this.containerHeight;
+        break;
+      case TabPanelVisibility.VISIBLE:
+      default:
+        effectiveHeight = Math.min(
+          Math.max(this.drawerHeight, 0),
+          this.containerHeight,
+        );
+        break;
+    }
+
+    const tabs = this.buildTabs(trace);
+    const currentTabUri = trace.tabs.currentTabUri;
+
+    return m(SplitPanel, {
+      className: attrs.className,
+      direction: 'vertical',
+      split: {fixed: {panel: 'second', size: effectiveHeight}},
+      minSize: 0,
+      onResize: (size) => {
+        this.drawerHeight = size;
+        // When user resizes, switch to VISIBLE mode
+        if (visibility !== TabPanelVisibility.VISIBLE) {
+          trace.tabs.setTabPanelVisibility(TabPanelVisibility.VISIBLE);
+        }
       },
-      children,
-    );
+      firstPanel: children,
+      secondPanel: m(Tabs, {
+        tabs,
+        currentTabKey: currentTabUri,
+        onTabChange: (key) => trace.tabs.showTab(key),
+        leftContent: this.renderDropdownMenu(trace),
+        rightContent: this.renderVisibilityButtons(trace, visibility),
+        fillHeight: true,
+      }),
+    });
   }
 
-  private gatherTabs(trace: TraceImpl) {
+  oncreate(vnode: m.VnodeDOM<TabPanelAttrs, this>) {
+    this.setupResizeObserver(vnode);
+  }
+
+  onupdate(vnode: m.VnodeDOM<TabPanelAttrs, this>) {
+    // Re-measure container on update in case it changed
+    const container = vnode.dom as HTMLElement;
+    if (container.parentElement) {
+      this.containerHeight = container.parentElement.clientHeight;
+    }
+  }
+
+  private setupResizeObserver(vnode: m.VnodeDOM<TabPanelAttrs, this>) {
+    const container = vnode.dom as HTMLElement;
+    if (container.parentElement) {
+      this.containerHeight = container.parentElement.clientHeight;
+      const resizeObs = new ResizeObserver(() => {
+        this.containerHeight = container.parentElement!.clientHeight;
+        m.redraw();
+      });
+      resizeObs.observe(container.parentElement);
+    }
+  }
+
+  private buildTabs(trace: TraceImpl): Tab[] {
     const tabMan = trace.tabs;
     const tabList = trace.tabs.openTabsUri;
     const resolvedTabs = tabMan.resolveTabs(tabList);
     const currentTabUri = trace.tabs.currentTabUri;
 
-    const drawerContent: m.Child[] = [];
+    const tabs: Tab[] = [];
 
-    const tabs = resolvedTabs.map(({uri, tab: tabDesc}) => {
-      const active = uri === currentTabUri;
-      if (tabDesc) {
-        drawerContent.push(m(Gate, {open: active}, tabDesc.content.render()));
-        return m(
-          Tab,
-          {
-            active,
-            onclick: () => trace.tabs.showTab(uri),
-            hasCloseButton: true,
-            onClose: () => {
-              trace.tabs.hideTab(uri);
-            },
-          },
-          tabDesc.content.getTitle(),
-        );
-      } else {
-        return m(
-          Tab,
-          {
-            active,
-            onclick: () => trace.tabs.showTab(uri),
-          },
-          'Tab does not exist',
-        );
-      }
+    // Add the permanent current selection tab first
+    tabs.push({
+      key: 'current_selection',
+      title: 'Current Selection',
+      content: m(CurrentSelectionTab, {trace}),
     });
 
-    // Add the permanent current selection tab to the front of the list of tabs
-    const active = currentTabUri === 'current_selection';
-    drawerContent.unshift(
-      m(Gate, {open: active}, m(CurrentSelectionTab, {trace})),
-    );
+    // Add dynamic tabs
+    for (const {uri, tab: tabDesc} of resolvedTabs) {
+      if (tabDesc) {
+        tabs.push({
+          key: uri,
+          title: tabDesc.content.getTitle(),
+          content: currentTabUri === uri ? tabDesc.content.render() : undefined,
+          hasCloseButton: true,
+          onClose: () => trace.tabs.hideTab(uri),
+        });
+      } else {
+        tabs.push({
+          key: uri,
+          title: 'Tab does not exist',
+          content: undefined,
+        });
+      }
+    }
 
-    tabs.unshift(
-      m(
-        Tab,
-        {
-          active,
-          onclick: () => trace.tabs.showTab('current_selection'),
-        },
-        'Current Selection',
-      ),
-    );
-
-    return {tabs, drawerContent};
+    return tabs;
   }
 
   private renderDropdownMenu(trace: TraceImpl): m.Child {
@@ -133,6 +172,33 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
           onclick: () => entry.onClick(),
           icon: entry.checked ? 'check_box' : 'check_box_outline_blank',
         });
+      }),
+    );
+  }
+
+  private renderVisibilityButtons(
+    trace: TraceImpl,
+    visibility: TabPanelVisibility,
+  ): m.Child {
+    const isClosed = visibility === TabPanelVisibility.COLLAPSED;
+    return m(
+      ButtonBar,
+      m(Button, {
+        title: 'Open fullscreen',
+        disabled: visibility === TabPanelVisibility.FULLSCREEN,
+        icon: 'vertical_align_top',
+        onclick: () => {
+          trace.tabs.setTabPanelVisibility(TabPanelVisibility.FULLSCREEN);
+        },
+      }),
+      m(Button, {
+        onclick: () => {
+          trace.tabs.setTabPanelVisibility(
+            toggleTabPanelVisibility(visibility),
+          );
+        },
+        title: isClosed ? 'Show panel' : 'Hide panel',
+        icon: isClosed ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
       }),
     );
   }

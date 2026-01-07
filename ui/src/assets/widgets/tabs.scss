@@ -14,45 +14,74 @@
 
 .pf-tabs {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--pf-color-background);
+  font-family: var(--pf-font-compact);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--pf-color-border);
+    padding: 4px 4px 0;
+    flex-shrink: 0;
+  }
+
+  &__left-content {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
 
   &__tabs {
     display: flex;
-    overflow: hidden;
+    gap: 1px;
     flex: 1;
+    min-width: 0;
+  }
+
+  &__right-content {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
   }
 
   &__tab {
-    color: var(--pf-color-text-muted);
-    padding: 4px;
-    margin-top: 3px;
+    user-select: none;
+    display: inline-flex;
     align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    color: var(--pf-color-text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
     cursor: pointer;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    display: flex;
-    align-items: baseline;
-    gap: 2px;
 
     &:hover {
+      color: var(--pf-color-text);
       background-color: color_hover(transparent);
     }
 
     &[active] {
-      color: var(--pf-color-primary);
-      border-bottom: solid 2px var(--pf-color-primary);
+      color: var(--pf-color-text);
+      background-color: var(--pf-color-background-secondary);
+      border-color: var(--pf-color-border);
+      position: relative;
+      z-index: 1;
+      margin-bottom: -1px;
+      padding-bottom: 4px;
       cursor: default;
-    }
-
-    &:nth-child(1) {
-      margin-left: 3px;
     }
   }
 
   &__tab-title {
-    margin: 0px 4px;
     overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__tab-icon {
@@ -65,5 +94,12 @@
       margin-left: 4px;
       align-self: center;
     }
+  }
+
+  &__content {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+    background-color: var(--pf-color-background-secondary);
   }
 }

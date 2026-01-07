@@ -23,7 +23,7 @@ import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
 import {Spinner} from '../../widgets/spinner';
 import {Stack} from '../../widgets/stack';
-import {TabStrip, TabOption} from '../../widgets/tabs';
+import {Tab, Tabs} from '../../widgets/tabs';
 import {TextParagraph} from '../../widgets/text_paragraph';
 import {MultiTraceController} from './multi_trace_controller';
 import {TraceFile} from './multi_trace_types';
@@ -67,7 +67,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
   }
 
   private renderDescription() {
-    const tabs: TabOption[] = [
+    const tabs: Tab[] = [
       {key: 'synchronous', title: 'Synchronous Traces'},
       {key: 'cross-machine', title: 'Cross-Machine Traces'},
       {key: 'comparison', title: 'Trace Comparison'},
@@ -79,7 +79,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
         className: 'pf-multi-trace-modal__description-panel',
         orientation: 'vertical',
       },
-      m(TabStrip, {
+      m(Tabs, {
         className: 'pf-multi-trace-modal__tabs',
         tabs,
         currentTabKey: this.currentTab,

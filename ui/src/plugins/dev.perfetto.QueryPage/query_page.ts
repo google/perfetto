@@ -13,8 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
-import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
@@ -32,7 +30,6 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
-import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
@@ -41,6 +38,8 @@ import {DataSource} from '../../components/widgets/datagrid/data_source';
 import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
+import {SplitPanel} from '../../widgets/split_panel';
+import {Chip} from '../../widgets/chip';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -57,13 +56,6 @@ export interface QueryPageAttrs {
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private dataSource?: DataSource;
-  private editorHeight: number = 0;
-  private editorElement?: HTMLElement;
-
-  oncreate({dom}: m.VnodeDOM<QueryPageAttrs>) {
-    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
-    this.editorElement.style.height = '200px';
-  }
 
   onbeforeupdate(
     vnode: m.Vnode<QueryPageAttrs>,
@@ -80,8 +72,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
-    return m(
-      '.pf-query-page',
+    const editorPanel = m(
+      '.pf-query-page__editor-panel',
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {
@@ -169,33 +161,48 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           ),
         ),
       m(Editor, {
-        ref: 'editor',
+        className: 'pf-query-page__editor',
         language: 'perfetto-sql',
         text: attrs.editorText,
         onUpdate: attrs.onEditorContentUpdate,
         onExecute: attrs.onExecute,
       }),
-      m(ResizeHandle, {
-        onResize: (deltaPx: number) => {
-          this.editorHeight += deltaPx;
-          this.editorElement!.style.height = `${this.editorHeight}px`;
-        },
-        onResizeStart: () => {
-          this.editorHeight = this.editorElement!.clientHeight;
-        },
-      }),
+    );
+
+    const resultsPanel = m(
+      '.pf-query-page__results-panel',
       this.dataSource &&
         attrs.queryResult &&
         this.renderQueryResult(attrs.trace, attrs.queryResult, this.dataSource),
-      m(QueryHistoryComponent, {
-        className: 'pf-query-page__history',
-        trace: attrs.trace,
-        runQuery: (query: string) => {
-          attrs.onExecute?.(query);
-        },
-        setQuery: (query: string) => {
-          attrs.onEditorContentUpdate?.(query);
-        },
+    );
+
+    const historyPanel = m(QueryHistoryComponent, {
+      className: 'pf-query-page__history',
+      trace: attrs.trace,
+      runQuery: (query: string) => {
+        attrs.onExecute?.(query);
+      },
+      setQuery: (query: string) => {
+        attrs.onEditorContentUpdate?.(query);
+      },
+    });
+
+    const mainContent = m(SplitPanel, {
+      direction: 'vertical',
+      split: {percent: 40},
+      minSize: 100,
+      firstPanel: editorPanel,
+      secondPanel: resultsPanel,
+    });
+
+    return m(
+      '.pf-query-page',
+      m(SplitPanel, {
+        direction: 'horizontal',
+        split: {fixed: {panel: 'second', size: 300}},
+        minSize: 200,
+        firstPanel: mainContent,
+        secondPanel: historyPanel,
       }),
     );
   }
@@ -266,7 +273,13 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             showExportButton: true,
             toolbarItemsLeft: m(
               'span.pf-query-page__results-summary',
-              `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
+              m(
+                Chip,
+                {intent: Intent.Success},
+                queryResult.totalRowCount.toLocaleString(),
+                ' rows',
+              ),
+              m('span.pf-muted', queryTimeString),
             ),
             toolbarItemsRight: [
               m(

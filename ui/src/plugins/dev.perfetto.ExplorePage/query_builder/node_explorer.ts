@@ -22,7 +22,7 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
-import {TabStrip} from '../../../widgets/tabs';
+import {Tabs} from '../../../widgets/tabs';
 import {NodeModifyAttrs} from './node_explorer_types';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {DataExplorerEmptyState, InfoBox} from './widgets';
@@ -284,7 +284,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       selectedView === SelectedView.kModify && this.renderModifyView(node),
       selectedView === SelectedView.kResult &&
         m('.', [
-          m(TabStrip, {
+          m(Tabs, {
             tabs: [
               {key: 'sql', title: 'SQL'},
               {key: 'proto', title: 'Proto'},

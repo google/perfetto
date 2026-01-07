@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Trace} from '../../public/trace';
-import {TabStrip, TabOption} from '../../widgets/tabs';
+import {Tab, Tabs} from '../../widgets/tabs';
 import {EmptyState} from '../../widgets/empty_state';
 import type {TabKey} from './utils';
 import {isValidTabKey} from './utils';
@@ -87,67 +87,15 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
             'High-level summary of trace health, metrics, and system information',
           ),
         ),
-        m(TabStrip, {
-          tabs: this.getTabs(),
+        m(Tabs, {
+          tabs: this.getTabs(attrs.trace),
           currentTabKey: this.currentTab,
           onTabChange: (key: string) => {
             this.currentTab = isValidTabKey(key) ? key : 'overview';
           },
         }),
-        this.renderCurrentTab(attrs.trace, this.currentTab),
       ),
     );
-  }
-
-  private renderCurrentTab(trace: Trace, currentTab: TabKey): m.Children {
-    if (!this.tabData) {
-      return m(EmptyState, {
-        icon: 'hourglass_empty',
-        title: 'Loading trace info...',
-      });
-    }
-    switch (currentTab) {
-      case 'overview':
-        return m(OverviewTab, {
-          trace,
-          data: this.tabData.overview,
-          onTabChange: (key: TabKey) => {
-            this.currentTab = key;
-          },
-        });
-      case 'config':
-        return m(ConfigTab, {
-          data: this.tabData.config,
-        });
-      case 'android':
-        return m(AndroidTab, {
-          data: this.tabData.android,
-        });
-      case 'machines':
-        return m(MachinesTab, {
-          data: this.tabData.machines,
-        });
-      case 'import_errors':
-        return m(ImportErrorsTab, {
-          data: this.tabData.importErrors,
-        });
-      case 'trace_errors':
-        return m(TraceErrorsTab, {
-          data: this.tabData.traceErrors,
-        });
-      case 'data_losses':
-        return m(DataLossesTab, {
-          data: this.tabData.dataLosses,
-        });
-      case 'ui_loading_errors':
-        return m(UiLoadingErrorsTab, {
-          data: this.tabData.uiLoadingErrors,
-        });
-      case 'stats':
-        return m(StatsTab, {
-          data: this.tabData.stats,
-        });
-    }
   }
 
   private async loadAllData(trace: Trace): Promise<void> {
@@ -166,33 +114,92 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     m.redraw();
   }
 
-  private getTabs(): TabOption[] {
-    const tabs: TabOption[] = [{key: 'overview', title: 'Overview'}];
-    if (this.tabData?.config?.configText) {
-      tabs.push({key: 'config', title: 'Trace Config'});
+  private getTabs(trace: Trace): Tab[] {
+    if (!this.tabData) {
+      return [
+        {
+          key: 'overview',
+          title: 'Overview',
+          content: m(EmptyState, {
+            icon: 'hourglass_empty',
+            title: 'Loading trace info...',
+          }),
+        },
+      ];
     }
-    if ((this.tabData?.overview?.importErrors ?? 0) > 0) {
-      tabs.push({key: 'import_errors', title: 'Import Errors'});
+
+    const tabs: Tab[] = [
+      {
+        key: 'overview',
+        title: 'Overview',
+        content: m(OverviewTab, {
+          trace,
+          data: this.tabData.overview,
+          onTabChange: (key: TabKey) => {
+            this.currentTab = key;
+          },
+        }),
+      },
+    ];
+
+    if (this.tabData.config?.configText) {
+      tabs.push({
+        key: 'config',
+        title: 'Trace Config',
+        content: m(ConfigTab, {data: this.tabData.config}),
+      });
     }
-    if ((this.tabData?.traceErrors?.errors?.length ?? 0) > 0) {
-      tabs.push({key: 'trace_errors', title: 'Trace Errors'});
+    if ((this.tabData.overview?.importErrors ?? 0) > 0) {
+      tabs.push({
+        key: 'import_errors',
+        title: 'Import Errors',
+        content: m(ImportErrorsTab, {data: this.tabData.importErrors}),
+      });
     }
-    if ((this.tabData?.overview?.dataLosses ?? 0) > 0) {
-      tabs.push({key: 'data_losses', title: 'Data Losses'});
+    if ((this.tabData.traceErrors?.errors?.length ?? 0) > 0) {
+      tabs.push({
+        key: 'trace_errors',
+        title: 'Trace Errors',
+        content: m(TraceErrorsTab, {data: this.tabData.traceErrors}),
+      });
     }
-    if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
-      tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
+    if ((this.tabData.overview?.dataLosses ?? 0) > 0) {
+      tabs.push({
+        key: 'data_losses',
+        title: 'Data Losses',
+        content: m(DataLossesTab, {data: this.tabData.dataLosses}),
+      });
+    }
+    if ((this.tabData.overview?.uiLoadingErrorCount ?? 0) > 0) {
+      tabs.push({
+        key: 'ui_loading_errors',
+        title: 'UI Loading Errors',
+        content: m(UiLoadingErrorsTab, {data: this.tabData.uiLoadingErrors}),
+      });
     }
     const hasAndroid =
-      (this.tabData?.android?.packageList?.length ?? 0) > 0 ||
-      (this.tabData?.android?.gameInterventions?.length ?? 0) > 0;
+      (this.tabData.android?.packageList?.length ?? 0) > 0 ||
+      (this.tabData.android?.gameInterventions?.length ?? 0) > 0;
     if (hasAndroid) {
-      tabs.push({key: 'android', title: 'Android'});
+      tabs.push({
+        key: 'android',
+        title: 'Android',
+        content: m(AndroidTab, {data: this.tabData.android}),
+      });
     }
-    if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
-      tabs.push({key: 'machines', title: 'Machines'});
+    if ((this.tabData.machines?.machineCount ?? 0) > 1) {
+      tabs.push({
+        key: 'machines',
+        title: 'Machines',
+        content: m(MachinesTab, {data: this.tabData.machines}),
+      });
     }
-    tabs.push({key: 'stats', title: 'Info and Stats (advanced)'});
+    tabs.push({
+      key: 'stats',
+      title: 'Info and Stats (advanced)',
+      content: m(StatsTab, {data: this.tabData.stats}),
+    });
+
     return tabs;
   }
 }

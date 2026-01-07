@@ -13,61 +13,101 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../base/semantic_icons';
+import {Button} from './button';
 import {Icon} from './icon';
+import {isEmptyVnodes} from '../base/mithril_utils';
 
-export interface TabOption {
+export interface Tab {
   readonly key: string;
   readonly title: string;
+  readonly content?: m.Children;
   readonly leftIcon?: string | m.Children;
   readonly rightIcon?: string | m.Children;
+  readonly hasCloseButton?: boolean;
+  readonly onClose?: () => void;
 }
 
-export interface TabStripAttrs {
+export interface TabsAttrs {
   readonly className?: string;
-  readonly tabs: ReadonlyArray<TabOption>;
+  readonly tabs: ReadonlyArray<Tab>;
   readonly currentTabKey: string;
   onTabChange(key: string): void;
+  // Content to render to the left of the tabs
+  readonly leftContent?: m.Children;
+  // Content to render to the right of the tabs
+  readonly rightContent?: m.Children;
+  // If true, the tabs container will fill the available height (100%)
+  readonly fillHeight?: boolean;
 }
 
-export class TabStrip implements m.ClassComponent<TabStripAttrs> {
-  view({attrs}: m.CVnode<TabStripAttrs>) {
-    const {tabs, currentTabKey, onTabChange, className} = attrs;
+export class Tabs implements m.ClassComponent<TabsAttrs> {
+  view({attrs}: m.CVnode<TabsAttrs>) {
+    const {
+      tabs,
+      currentTabKey,
+      onTabChange,
+      className,
+      leftContent,
+      rightContent,
+      fillHeight,
+    } = attrs;
+    const currentTab = tabs.find((t) => t.key === currentTabKey);
+
     return m(
       '.pf-tabs',
-      {className},
+      {
+        className,
+        style: fillHeight ? {height: '100%'} : undefined,
+      },
       m(
-        '.pf-tabs__tabs',
-        tabs.map((tab) => {
-          const {key, title, leftIcon, rightIcon} = tab;
-          const renderIcon = (
-            icon: string | m.Children | undefined,
-            className: string,
-          ) => {
-            if (icon === undefined) {
-              return undefined;
-            }
-            if (typeof icon === 'string') {
-              return m(Icon, {icon, className});
-            }
-            return m('.pf-tabs__tab-icon', {className}, icon);
-          };
-          return m(
-            '.pf-tabs__tab',
-            {
-              active: currentTabKey === key,
-              key,
-              onclick: () => {
-                onTabChange(key);
+        '.pf-tabs__header',
+        !isEmptyVnodes(leftContent) && m('.pf-tabs__left-content', leftContent),
+        m(
+          '.pf-tabs__tabs',
+          tabs.map((tab) => {
+            const {key, title, leftIcon, rightIcon, hasCloseButton, onClose} =
+              tab;
+            const isActive = currentTabKey === key;
+            const renderIcon = (
+              icon: string | m.Children | undefined,
+              cls: string,
+            ) => {
+              if (icon === undefined) return undefined;
+              if (typeof icon === 'string') {
+                return m(Icon, {icon, className: cls});
+              }
+              return m('.pf-tabs__tab-icon', {className: cls}, icon);
+            };
+            return m(
+              '.pf-tabs__tab',
+              {
+                active: isActive,
+                key,
+                onclick: () => onTabChange(key),
+                onauxclick: () => onClose?.(),
               },
-            },
-            [
-              renderIcon(leftIcon, 'pf-tabs__tab-icon--left'),
-              m('span.pf-tabs__tab-title', title),
-              renderIcon(rightIcon, 'pf-tabs__tab-icon--right'),
-            ],
-          );
-        }),
+              [
+                renderIcon(leftIcon, 'pf-tabs__tab-icon--left'),
+                m('span.pf-tabs__tab-title', title),
+                renderIcon(rightIcon, 'pf-tabs__tab-icon--right'),
+                hasCloseButton &&
+                  m(Button, {
+                    compact: true,
+                    icon: Icons.Close,
+                    onclick: (e: Event) => {
+                      e.stopPropagation();
+                      onClose?.();
+                    },
+                  }),
+              ],
+            );
+          }),
+        ),
+        !isEmptyVnodes(rightContent) &&
+          m('.pf-tabs__right-content', rightContent),
       ),
+      m('.pf-tabs__content', currentTab?.content),
     );
   }
 }

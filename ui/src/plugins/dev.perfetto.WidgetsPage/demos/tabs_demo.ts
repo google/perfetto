@@ -13,28 +13,46 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TabStrip} from '../../../widgets/tabs';
+import {Tabs} from '../../../widgets/tabs';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
 let currentTab: string = 'foo';
 
-export function renderTabStrip(): m.Children {
+export function renderTabs(): m.Children {
   return [
     m(
       '.pf-widget-intro',
-      m('h1', 'TabStrip'),
+      m('h1', 'Tabs'),
       m(
         'p',
-        'A horizontal tab navigation component for switching between different views or sections.',
+        'A horizontal tab navigation component for switching between different views or sections. Can optionally contain tab content.',
       ),
     ),
+    m('h2', 'Basic Tabs'),
     renderWidgetShowcase({
       renderWidget: () => {
-        return m(TabStrip, {
+        return m(Tabs, {
           tabs: [
             {key: 'foo', title: 'Foo'},
             {key: 'bar', title: 'Bar'},
             {key: 'baz', title: 'Baz'},
+          ],
+          currentTabKey: currentTab,
+          onTabChange: (key) => {
+            currentTab = key;
+          },
+        });
+      },
+      initialOpts: {},
+    }),
+    m('h2', 'Tabs with Content'),
+    renderWidgetShowcase({
+      renderWidget: () => {
+        return m(Tabs, {
+          tabs: [
+            {key: 'foo', title: 'Foo', content: m('p', 'Content for Foo tab')},
+            {key: 'bar', title: 'Bar', content: m('p', 'Content for Bar tab')},
+            {key: 'baz', title: 'Baz', content: m('p', 'Content for Baz tab')},
           ],
           currentTabKey: currentTab,
           onTabChange: (key) => {

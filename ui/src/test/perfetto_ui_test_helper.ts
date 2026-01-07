@@ -174,7 +174,9 @@ export class PerfettoTestHelper {
   }
 
   async switchToTab(text: string | RegExp) {
-    await this.page.locator('.pf-split-panel__tab', {hasText: text}).click();
+    await this.page
+      .locator('.pf-collapsible-split-panel__tab', {hasText: text})
+      .click();
   }
 
   async scheduleFullRedraw(): Promise<void> {

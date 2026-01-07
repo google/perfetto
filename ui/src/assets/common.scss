@@ -33,6 +33,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.pf-muted {
+  color: var(--pf-color-text-muted);
+}
+
 html {
   font-size: 16px;
   font-family: var(--pf-font);

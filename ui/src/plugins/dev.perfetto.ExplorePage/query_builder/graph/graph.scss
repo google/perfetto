@@ -18,8 +18,7 @@
   position: relative;
   height: 100%;
   overflow: hidden;
-  border: 1px solid var(--pf-color-border);
-  background-color: var(--pf-color-background);
+  // background-color: var(--pf-color-background);
 
   // Ensure NodeGraph takes full height
   .pf-canvas {

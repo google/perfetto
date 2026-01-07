@@ -25,7 +25,7 @@ import {Button} from '../../widgets/button';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
-import {TabStrip} from '../../widgets/tabs';
+import {Tabs} from '../../widgets/tabs';
 import {Icon} from '../../widgets/icon';
 import {Flamegraph} from '../../widgets/flamegraph';
 import {PprofProfile, PprofPageState} from './types';
@@ -138,7 +138,7 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
     const showViewExplanation = this.shouldShowExplanation(
       HIDE_VIEW_EXPLANATION_KEY,
     );
-    return m(TabStrip, {
+    return m(Tabs, {
       className: 'pf-pprof-page__tabs',
       tabs: [
         {

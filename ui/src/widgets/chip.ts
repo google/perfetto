@@ -20,7 +20,7 @@ import {Button} from './button';
 
 export interface ChipAttrs extends HTMLAttrs {
   // Chips require a label.
-  readonly label: m.Children;
+  readonly label?: m.Children;
   // Chips can have an optional icon.
   readonly icon?: string;
   // Use minimal padding, reducing the overall size of the chip by a few px.
@@ -49,7 +49,7 @@ export interface ChipAttrs extends HTMLAttrs {
 }
 
 export class Chip implements m.ClassComponent<ChipAttrs> {
-  view({attrs}: m.CVnode<ChipAttrs>) {
+  view({attrs, children}: m.CVnode<ChipAttrs>) {
     const {
       icon,
       compact,
@@ -83,7 +83,7 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
           icon: icon,
           filled: iconFilled,
         }),
-      m('span.pf-chip__label', label),
+      m('span.pf-chip__label', label, children),
       removable &&
         m(Button, {
           compact: true,
