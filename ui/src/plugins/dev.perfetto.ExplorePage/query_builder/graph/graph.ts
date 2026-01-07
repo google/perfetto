@@ -457,22 +457,6 @@ function hasPrimaryInputPort(node: QueryNode): boolean {
   return singleNodeOperation(node.type);
 }
 
-// Find which visual port a parent node is connected to
-function getInputPort(child: QueryNode, parent: QueryNode): number {
-  if (child.primaryInput === parent) {
-    return 0;
-  }
-  if (child.secondaryInputs) {
-    const offset = hasPrimaryInputPort(child) ? 1 : 0;
-    for (const [index, node] of child.secondaryInputs.connections) {
-      if (node === parent) {
-        return index + offset;
-      }
-    }
-  }
-  return 0;
-}
-
 // Convert visual port to secondary input index (undefined means primary input)
 function toSecondaryIndex(
   node: QueryNode,
@@ -508,12 +492,34 @@ function buildConnections(
         continue;
       }
 
-      connections.push({
-        fromNode: qnode.nodeId,
-        fromPort: 0,
-        toNode: child.nodeId,
-        toPort: getInputPort(child, qnode),
-      });
+      // Check if this parent is connected to multiple ports on the child
+      // (e.g., Union node with same parent connected to Input 0 and Input 1)
+      const connectedPorts: number[] = [];
+
+      // Check primary input
+      if (child.primaryInput === qnode) {
+        connectedPorts.push(0);
+      }
+
+      // Check secondary inputs
+      if (child.secondaryInputs) {
+        const offset = hasPrimaryInputPort(child) ? 1 : 0;
+        for (const [index, node] of child.secondaryInputs.connections) {
+          if (node === qnode) {
+            connectedPorts.push(index + offset);
+          }
+        }
+      }
+
+      // Create a separate connection for each port
+      for (const toPort of connectedPorts) {
+        connections.push({
+          fromNode: qnode.nodeId,
+          fromPort: 0,
+          toNode: child.nodeId,
+          toPort: toPort,
+        });
+      }
     }
   }
 
@@ -569,8 +575,11 @@ function handleConnectionRemove(
     }
   }
 
+  // Convert visual port to secondary index for removal
+  const secondaryIndex = toSecondaryIndex(toNode, conn.toPort);
+
   // Use the helper function to cleanly remove the connection
-  removeConnection(fromNode, toNode);
+  removeConnection(fromNode, toNode, secondaryIndex);
 
   // Call the parent callback for any additional cleanup (e.g., state management)
   onConnectionRemove(fromNode, toNode, isSecondaryInput);

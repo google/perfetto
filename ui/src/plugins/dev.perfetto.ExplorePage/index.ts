@@ -109,6 +109,12 @@ export default class implements PerfettoPlugin {
       // Load saved state from localStorage (preserves work across page refreshes)
       this.state = savedState;
       this.hasAttemptedStateLoad = true;
+      // Only mark as auto-initialized if the saved state has nodes
+      // This allows base JSON to load after a reload when state is empty,
+      // but prevents it from loading after manual "Clear all nodes" in the same session
+      if (savedState.rootNodes.length > 0) {
+        this.hasAutoInitialized = true;
+      }
     } else if (
       trace.plugins.getPlugin(SqlModulesPlugin).getSqlModules() !== undefined
     ) {
