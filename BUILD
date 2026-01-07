@@ -3159,6 +3159,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables.py",
     ],
     outs = [
+        "src/trace_processor/perfetto_sql/intrinsics/functions/all_tables_fwd.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h",
     ],
 )
@@ -3230,6 +3231,7 @@ perfetto_cc_tp_tables(
         ":src_trace_processor_tables_tables_python",
     ],
     outs = [
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/all_tables_fwd.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h",
     ],
 )
@@ -3946,6 +3948,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/winscope_tables.py",
     ],
     outs = [
+        "src/trace_processor/tables/all_tables_fwd.h",
         "src/trace_processor/tables/android_tables_py.h",
         "src/trace_processor/tables/counter_tables_py.h",
         "src/trace_processor/tables/etm_tables_py.h",

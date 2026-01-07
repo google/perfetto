@@ -15117,6 +15117,7 @@ genrule {
     ],
     cmd: "$(location perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
     out: [
+        "src/trace_processor/perfetto_sql/intrinsics/functions/all_tables_fwd.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h",
     ],
 }
@@ -15201,6 +15202,7 @@ genrule {
     ],
     cmd: "$(location perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
     out: [
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/all_tables_fwd.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h",
     ],
 }
@@ -15656,6 +15658,7 @@ genrule {
     ],
     cmd: "$(location perfetto_src_trace_processor_tables_tables_python_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
     out: [
+        "src/trace_processor/tables/all_tables_fwd.h",
         "src/trace_processor/tables/android_tables_py.h",
         "src/trace_processor/tables/counter_tables_py.h",
         "src/trace_processor/tables/etm_tables_py.h",
