@@ -86,6 +86,13 @@ export class V8RuntimeCallStatsTab implements Tab {
       schema: this.getUiSchema(),
       rootSchema: 'v8_rcs',
       data: this.dataSource,
+      initialPivot: {
+        groupBy: [{field: 'v8_rcs_group'}],
+        aggregates: [
+          {function: 'SUM', field: 'v8_rcs_dur', sort: 'DESC'},
+          {function: 'SUM', field: 'v8_rcs_count'},
+        ],
+      },
     });
   }
 
