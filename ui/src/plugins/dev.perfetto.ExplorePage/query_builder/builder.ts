@@ -69,8 +69,6 @@ import {classNames} from '../../../base/classnames';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Icon} from '../../../widgets/icon';
-import {Card} from '../../../widgets/card';
-import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, Query} from '../query_node';
@@ -93,53 +91,13 @@ import {DataExplorerEmptyState, RoundActionButton} from './widgets';
 import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
-import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
 import {DataSource} from '../../../components/widgets/datagrid/data_source';
+import {NavigationSidePanel} from './navigation_sidepanel';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
-
-// Helper function for keyboard-accessible card interactions
-function createKeyboardHandler(callback: () => void) {
-  return (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      callback();
-    }
-  };
-}
-
-// Helper function to render template cards with consistent structure
-interface TemplateCardAttrs {
-  readonly icon: string;
-  readonly title: string;
-  readonly description: string;
-  readonly ariaLabel: string;
-  readonly onClick: () => void;
-}
-
-function renderTemplateCard(attrs: TemplateCardAttrs): m.Children {
-  return m(
-    Card,
-    {
-      'interactive': true,
-      'onclick': attrs.onClick,
-      'tabindex': 0,
-      'role': 'button',
-      'aria-label': attrs.ariaLabel,
-      'className': 'pf-template-card',
-      'onkeydown': createKeyboardHandler(attrs.onClick),
-    },
-    m(
-      '.pf-source-card-clickable',
-      m(Icon, {icon: attrs.icon}),
-      m('h3', attrs.title),
-    ),
-    m('p', attrs.description),
-  );
-}
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -261,86 +219,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     attrs.onSidebarWidthChange?.(newWidth);
   }
 
-  private renderSourceCards(attrs: BuilderAttrs): m.Children {
-    const results: m.Children[] = [];
-
-    // Show template buttons when nothing is selected
-    if (!attrs.selectedNode) {
-      results.push(
-        m('h4.pf-starting-section-title', 'Templates:'),
-        m(
-          '.pf-template-grid',
-          renderTemplateCard({
-            icon: 'school',
-            title: 'Learning',
-            description: 'Educational example',
-            ariaLabel: 'Start with learning template',
-            onClick: () => attrs.onLoadLearningTemplate?.(),
-          }),
-          renderTemplateCard({
-            icon: 'explore',
-            title: 'Explore Trace Data',
-            description: 'Slices and high-frequency tables',
-            ariaLabel: 'Explore trace data',
-            onClick: () => attrs.onLoadExploreTemplate?.(),
-          }),
-          renderTemplateCard({
-            icon: 'auto_stories',
-            title: 'Examples',
-            description: 'Load an example graph',
-            ariaLabel: 'Load example graph',
-            onClick: () => attrs.onLoadExample(),
-          }),
-          renderTemplateCard({
-            icon: 'delete_sweep',
-            title: 'Clear Graph',
-            description: 'Start with empty canvas',
-            ariaLabel: 'Clear graph',
-            onClick: () => attrs.onLoadEmptyTemplate?.(),
-          }),
-        ),
-        m('h4.pf-starting-section-title', 'Add sources:'),
-      );
-    }
-
-    const sourceNodes = nodeRegistry
-      .list()
-      .filter(([_id, node]) => node.showOnLandingPage === true)
-      .map(([id, node]) => {
-        const name = node.name ?? 'Unnamed Source';
-        const description = node.description ?? '';
-        const icon = node.icon ?? '';
-        const hotkey =
-          node.hotkey && typeof node.hotkey === 'string'
-            ? node.hotkey.toUpperCase()
-            : undefined;
-
-        return m(
-          Card,
-          {
-            'interactive': true,
-            'onclick': () => attrs.onAddSourceNode(id),
-            'tabindex': 0,
-            'role': 'button',
-            'aria-label': `Add ${name} source`,
-            'className': 'pf-source-card',
-            'onkeydown': createKeyboardHandler(() => attrs.onAddSourceNode(id)),
-          },
-          m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', name)),
-          m('p', description),
-          hotkey ? m('.pf-source-card-hotkey', m(Keycap, hotkey)) : null,
-        );
-      });
-
-    // Wrap source cards in horizontal container
-    const sourceCardsContainer = m(
-      '.pf-source-cards-horizontal',
-      ...sourceNodes,
-    );
-
-    return [...results, sourceCardsContainer];
-  }
-
   view({attrs}: m.CVnode<BuilderAttrs>) {
     const {trace, rootNodes, onNodeSelected, selectedNode, onClearAllNodes} =
       attrs;
@@ -432,7 +310,17 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             this.selectedView = view;
           },
         })
-      : m('.pf-unselected-explorer', this.renderSourceCards(attrs));
+      : m(
+          '.pf-unselected-explorer',
+          m(NavigationSidePanel, {
+            selectedNode: attrs.selectedNode,
+            onAddSourceNode: attrs.onAddSourceNode,
+            onLoadLearningTemplate: attrs.onLoadLearningTemplate,
+            onLoadExploreTemplate: attrs.onLoadExploreTemplate,
+            onLoadExample: attrs.onLoadExample,
+            onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
+          }),
+        );
 
     return m(
       SplitPanel,

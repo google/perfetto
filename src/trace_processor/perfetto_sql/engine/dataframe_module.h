@@ -30,7 +30,6 @@
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -48,16 +47,13 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static constexpr bool kDoesSupportTransactions = true;
 
   struct State {
-    explicit State(DataframeSharedStorage::DataframeHandle _handle)
-        : handle(std::move(_handle)), dataframe(&**handle) {}
     explicit State(dataframe::Dataframe* _dataframe) : dataframe(_dataframe) {}
-    struct NamedIndex {
-      std::string name;
-      DataframeSharedStorage::IndexHandle index;
-    };
-    std::optional<DataframeSharedStorage::DataframeHandle> handle;
+    explicit State(std::unique_ptr<dataframe::Dataframe> _owned_dataframe)
+        : owned_dataframe(std::move(_owned_dataframe)),
+          dataframe(owned_dataframe.get()) {}
+    std::unique_ptr<dataframe::Dataframe> owned_dataframe;
     dataframe::Dataframe* dataframe;
-    std::vector<NamedIndex> named_indexes;
+    std::vector<std::string> named_indexes;
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
     std::unique_ptr<State> temporary_create_state;
