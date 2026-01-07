@@ -126,10 +126,18 @@ static constexpr bool IsValidTimestamp() {
 template <typename...>
 using void_t = void;
 
-// Returns true iff `GetStaticString(T)` is defined OR T == DynamicString.
+// Returns true iff `T` is a valid event name type.
+// Valid types are:
+// - Types for which `GetStaticString(T)` is defined.
+// - Temporary `perfetto::DynamicString` objects. `DynamicString` uses a raw
+//   pointer, so to prevent dangling pointers, the underlying string must
+//   outlive the event. Requiring `DynamicString` to be a temporary ensures this
+//   for the duration of the TRACE_EVENT call.
 template <typename T, typename = void>
 struct IsValidEventNameType
-    : std::is_same<perfetto::DynamicString, typename std::decay<T>::type> {};
+    : std::bool_constant<std::is_same_v<perfetto::DynamicString,
+                                        typename std::decay<T>::type> &&
+                         !std::is_reference_v<T>> {};
 
 template <typename T>
 struct IsValidEventNameType<
