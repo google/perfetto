@@ -165,6 +165,44 @@ inline Variadic GetArgValue(const TraceStorage& storage,
   return v;
 }
 
+// Gets the Variadic value for an arg at the given row.
+inline Variadic GetArgValue(const TraceStorage& storage, uint32_t row_index) {
+  const auto& args = storage.arg_table();
+  auto rr = args[row_index];
+  Variadic v = Variadic::Null();
+  v.type = *storage.GetVariadicTypeForId(rr.value_type());
+  switch (v.type) {
+    case Variadic::Type::kBool:
+      v.bool_value = static_cast<bool>(*rr.int_value());
+      break;
+    case Variadic::Type::kInt:
+      v.int_value = *rr.int_value();
+      break;
+    case Variadic::Type::kUint:
+      v.uint_value = static_cast<uint64_t>(*rr.int_value());
+      break;
+    case Variadic::Type::kString: {
+      auto opt_value = rr.string_value();
+      v.string_value = opt_value ? *opt_value : kNullStringId;
+      break;
+    }
+    case Variadic::Type::kPointer:
+      v.pointer_value = static_cast<uint64_t>(*rr.int_value());
+      break;
+    case Variadic::Type::kReal:
+      v.real_value = *rr.real_value();
+      break;
+    case Variadic::Type::kJson: {
+      auto opt_value = rr.string_value();
+      v.json_value = opt_value ? *opt_value : kNullStringId;
+      break;
+    }
+    case Variadic::Type::kNull:
+      break;
+  }
+  return v;
+}
+
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_ARGS_UTILS_H_

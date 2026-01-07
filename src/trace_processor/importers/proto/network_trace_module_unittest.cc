@@ -121,8 +121,7 @@ class NetworkTraceModuleTest : public testing::Test {
     for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
       if (cursor.key() == key_id) {
         EXPECT_EQ(cursor.flat_key(), key_id);
-        if (GetArgValue(*storage_, cursor.ToRowNumber().row_number()) ==
-            value) {
+        if (GetArgValue(*storage_, cursor) == value) {
           found = true;
           break;
         }

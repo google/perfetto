@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -330,7 +331,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     bool found = false;
     for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
       EXPECT_EQ(cursor.flat_key(), key_id);
-      if (GetArgValue(*storage_, cursor.ToRowNumber().row_number()) == value) {
+      if (GetArgValue(*storage_, cursor) == value) {
         found = true;
         break;
       }
@@ -655,7 +656,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   ArgExtractor args_cursor(context_.storage->arg_table());
   uint32_t row = args_cursor.Get(*dim_set_id, "cpu");
   ASSERT_NE(row, std::numeric_limits<uint32_t>::max());
-  Variadic cpu = GetArgValue(*context_.storage, row);
+  Variadic cpu = GetArgValue(*context_.storage, args_cursor.cursor());
   EXPECT_EQ(cpu.int_value, 10u);
 }
 
@@ -682,14 +683,14 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
   uint32_t arg_row =
       args_cursor.Get(track_row->dimension_arg_set_id().value(), "cpu");
   ASSERT_NE(arg_row, std::numeric_limits<uint32_t>::max());
-  Variadic cpu = GetArgValue(*context_.storage, arg_row);
+  Variadic cpu = GetArgValue(*context_.storage, args_cursor.cursor());
   ASSERT_EQ(cpu.type, Variadic::Type::kInt);
   EXPECT_EQ(cpu.uint_value, 0u);
 
   track_row = context_.storage->track_table().FindById(TrackId(1));
   arg_row = args_cursor.Get(track_row->dimension_arg_set_id().value(), "cpu");
   ASSERT_NE(arg_row, std::numeric_limits<uint32_t>::max());
-  cpu = GetArgValue(*context_.storage, arg_row);
+  cpu = GetArgValue(*context_.storage, args_cursor.cursor());
   ASSERT_EQ(cpu.type, Variadic::Type::kInt);
   EXPECT_EQ(cpu.uint_value, 1u);
 }
@@ -3065,7 +3066,7 @@ TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
     ASSERT_TRUE(dim_set_id.has_value());
     uint32_t row = args_cursor.Get(*dim_set_id, "cpu");
     ASSERT_NE(row, std::numeric_limits<uint32_t>::max());
-    cpu = GetArgValue(*context_.storage, row);
+    cpu = GetArgValue(*context_.storage, args_cursor.cursor());
   };
   get_cpu(0);
   EXPECT_EQ(cpu.int_value, 0u);

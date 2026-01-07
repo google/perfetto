@@ -384,7 +384,7 @@ inline constexpr uint32_t k{self.table_name}ColumnCount = {col_count};
     Row({params_str}) {inits_str} {{}}
 
     bool operator==(const Row& other) const {{
-      return {' && '.join([f'{c_ser.name} == other.{c_ser.name}' for c_ser in self.column_serializers if not c_ser.is_implicit_id])};
+      return {' && '.join([f'std::equal_to<>()({c_ser.name}, other.{c_ser.name})' for c_ser in self.column_serializers if not c_ser.is_implicit_id])};
     }}
 
     {fields_str}
