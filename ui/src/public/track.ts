@@ -82,6 +82,10 @@ export interface TrackManager {
 export interface TrackContext {
   // This track's URI, used for making selections et al.
   readonly trackUri: string;
+
+  // The TrackNode associated with this track, providing access to the track
+  // hierarchy and children.
+  readonly trackNode: TrackNode;
 }
 
 /**
