@@ -106,10 +106,10 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
           language: 'Shell',
           text: this.cmdline,
         }),
-      m('p', 'Save the file below as: config.txtpb'),
       m(CodeSnippet, {
         language: 'textproto',
         text: this.configTxt,
+        downloadFileName: 'config.txtpb',
       }),
     ];
   }
