@@ -35,6 +35,7 @@ void __attribute__((visibility("default"))) StatsdLogUploadEvent(
 
 void __attribute__((visibility("default"))) StatsdLogTriggerEvent(
     PerfettoTriggerAtom atom,
+    int64_t uuid_lsb,
     const char* trigger_name);
 
 }  // extern "C"

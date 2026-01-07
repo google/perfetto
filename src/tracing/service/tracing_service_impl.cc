@@ -1880,7 +1880,7 @@ void TracingServiceImpl::ActivateTriggers(
     PERFETTO_DLOG("Received ActivateTriggers request for \"%s\"",
                   trigger_name.c_str());
     android_stats::MaybeLogTriggerEvent(PerfettoTriggerAtom::kTracedTrigger,
-                                        trigger_name);
+                                        /* trace_uuid_lsb */ 0, trigger_name);
 
     base::FnvHasher hash;
     hash.Update(trigger_name.c_str(), trigger_name.size());
@@ -1924,7 +1924,7 @@ void TracingServiceImpl::ActivateTriggers(
       double trigger_rnd = random_->GetValue();
       PERFETTO_DCHECK(trigger_rnd >= 0 && trigger_rnd < 1);
       if (trigger_rnd < iter->skip_probability()) {
-        MaybeLogTriggerEvent(tracing_session.config,
+        MaybeLogTriggerEvent(tracing_session.config, tracing_session.trace_uuid,
                              PerfettoTriggerAtom::kTracedLimitProbability,
                              trigger_name);
         continue;
@@ -1933,7 +1933,7 @@ void TracingServiceImpl::ActivateTriggers(
       // If we already triggered more times than the limit, silently ignore
       // this trigger.
       if (iter->max_per_24_h() > 0 && count_in_window >= iter->max_per_24_h()) {
-        MaybeLogTriggerEvent(tracing_session.config,
+        MaybeLogTriggerEvent(tracing_session.config, tracing_session.trace_uuid,
                              PerfettoTriggerAtom::kTracedLimitMaxPer24h,
                              trigger_name);
         continue;
@@ -4239,11 +4239,13 @@ void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
 }
 
 void TracingServiceImpl::MaybeLogTriggerEvent(const TraceConfig& cfg,
+                                              const base::Uuid& uuid,
                                               PerfettoTriggerAtom atom,
                                               const std::string& trigger_name) {
   if (!ShouldLogEvent(cfg))
     return;
-  android_stats::MaybeLogTriggerEvent(atom, trigger_name);
+  PERFETTO_DCHECK(uuid);  // The UUID must be set at this point.
+  android_stats::MaybeLogTriggerEvent(atom, uuid.lsb(), trigger_name);
 }
 
 size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
