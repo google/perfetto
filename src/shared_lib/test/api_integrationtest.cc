@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/backend_type.h"
 #include "perfetto/public/abi/data_source_abi.h"
@@ -1034,6 +1035,12 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
 }
 
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
+  if constexpr (
+      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
+    GTEST_SKIP()
+        << "Test requires flag to be set:"
+           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
+  }
   bool ignored = false;
   void* const kIncrPtr = &ignored;
   WaitableEvent clear_notification;
@@ -1099,6 +1106,12 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
 }
 
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
+  if constexpr (
+      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
+    GTEST_SKIP()
+        << "Test requires flag to be set:"
+           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
+  }
   bool ignored1 = false;
   bool ignored2 = false;
   void* const kIncrPtr1 = &ignored1;

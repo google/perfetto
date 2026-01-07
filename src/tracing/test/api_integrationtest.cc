@@ -27,6 +27,7 @@
 #include <thread>
 #include <unordered_set>
 #include <vector>
+#include "perfetto/ext/base/flags.h"
 
 // We also want to test legacy trace events.
 #define PERFETTO_ENABLE_LEGACY_TRACE_EVENTS 1
@@ -1743,6 +1744,13 @@ TEST_P(PerfettoApiTest, ClearIncrementalStateMultipleInstances) {
 }
 
 TEST_P(PerfettoApiTest, ClearIncrementalStateTraitSuccess) {
+  if constexpr (
+      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
+    GTEST_SKIP()
+        << "Test requires flag to be set:"
+           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
+  }
+
   // Test that when the ClearIncrementalState trait method returns true,
   // the state is cleared in place (not destroyed and recreated).
 
