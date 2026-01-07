@@ -65,3 +65,16 @@
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
 }
+
+// Menu label with hotkey
+.pf-exp-menu-label-with-hotkey {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+
+  .pf-keycap {
+    opacity: 0.7;
+  }
+}
