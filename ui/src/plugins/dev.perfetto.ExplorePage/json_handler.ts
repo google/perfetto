@@ -458,6 +458,21 @@ export function deserializeState(
     }
   }
 
+  // Fourth pass: call onPrevNodesUpdated on specific node types that need it
+  // JoinNode needs special handling because:
+  // 1. Its constructor calls updateColumnArrays() which needs connected nodes
+  // 2. During deserialization, connections don't exist yet (restored above in third pass)
+  // 3. So updateColumnArrays() runs with no connections, creating empty arrays
+  // 4. We need to call it again now that connections are restored
+  // We DON'T call this on all nodes because some nodes (like AddColumnsNode) have
+  // onPrevNodesUpdated() implementations that can reset/modify state inappropriately
+  // during deserialization (e.g., clearing selectedColumns).
+  for (const node of nodes.values()) {
+    if (node.type === NodeType.kJoin) {
+      (node as JoinNode).onPrevNodesUpdated();
+    }
+  }
+
   const rootNodes = serializedGraph.rootNodeIds.map((id) => {
     const rootNode = nodes.get(id)!;
     if (rootNode == null) {
