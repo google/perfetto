@@ -31,4 +31,4 @@ class PrimesTraceTokenizer : public ChunkedTraceReader {
 
 }  // namespace perfetto::trace_processor::primes
 
-#endif
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PRIMES_PRIMES_TRACE_TOKENIZER_H_
