@@ -593,3 +593,4 @@ fwtp_ftrace/fwtp_perfetto_counter
 scsi/scsi_dispatch_cmd_error
 scsi/scsi_dispatch_cmd_timeout
 scsi/scsi_eh_wakeup
+power/gpu_power_state

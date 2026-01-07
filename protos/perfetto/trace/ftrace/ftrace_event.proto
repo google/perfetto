@@ -751,5 +751,6 @@ message FtraceEvent {
     ScsiDispatchCmdErrorFtraceEvent scsi_dispatch_cmd_error = 597;
     ScsiDispatchCmdTimeoutFtraceEvent scsi_dispatch_cmd_timeout = 598;
     ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
+    GpuPowerStateFtraceEvent gpu_power_state = 600;
   }
 }
