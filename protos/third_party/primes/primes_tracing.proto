@@ -8,21 +8,17 @@ message Fixed128 {
   optional fixed64 low = 2;
 }
 
-// TODO(leemh): Should be using the import `google/protobuf/duration.proto` but cannot figure out
-// how to get that to compile atp.
 message Duration {
     optional int64 seconds = 1;
     optional int32 nanos = 2;
 }
 
-// TODO(leemh): Should be using the import `google/protobuf/timestamp.proto` but cannot figure out
-// how to get that to compile atp.
 message Timestamp {
     optional int64 seconds = 1;
     optional int32 nanos = 2;
 }
 
-// New experimental Primes tracing format (go/primes-ios-tracing-critical-path).
+// Fork of the Primes tracing format (go/primes-ios-tracing-critical-path).
 // Next ID: 13.
 message Trace {
   optional fixed64 id = 1;

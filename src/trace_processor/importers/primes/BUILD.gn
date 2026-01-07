@@ -10,7 +10,6 @@ source_set("primes") {
     deps = [
       "../../../../include/perfetto/base",
       "../../../../include/perfetto/protozero",
-      ":primes_trace_event",
       "../../../../gn:default_deps",
       "../../../../protos/perfetto/common:zero",
       "../../../../protos/third_party/primes:cpp",
