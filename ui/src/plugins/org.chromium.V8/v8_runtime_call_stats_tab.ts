@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../../base/logging';
-import {PivotTable} from '../../components/widgets/sql/pivot_table/pivot_table';
-import {PivotTableState} from '../../components/widgets/sql/pivot_table/pivot_table_state';
+import {duration} from '../../base/time';
+import {DataGrid} from '../../components/widgets/datagrid/datagrid';
+import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
+import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {
   AreaSelection,
   areaSelectionsEqual,
@@ -25,30 +27,26 @@ import {
 } from '../../public/selection';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
-import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
-import {resolveTableDefinition} from '../../components/widgets/sql/table/columns';
 import {Spinner} from '../../widgets/spinner';
-import {Aggregation} from '../../components/widgets/sql/pivot_table/aggregations';
 import {Tab} from '../../public/tab';
+import {formatDuration} from '../../components/time_utils';
 
-const V8_RUNTIME_CALL_STATS_VIEW: SqlTableDefinition = {
-  name: 'v8_rcs_view',
-  columns: [
-    {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
-    {column: 'dur', type: PerfettoSqlTypes.DURATION},
-    {column: 'track_id', type: PerfettoSqlTypes.INT},
-    {column: 'v8_rcs_name', type: PerfettoSqlTypes.STRING},
-    {column: 'v8_rcs_group', type: PerfettoSqlTypes.STRING},
-    {column: 'v8_rcs_count', type: PerfettoSqlTypes.INT},
-    {column: 'v8_rcs_dur', type: PerfettoSqlTypes.DURATION},
-  ],
+const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
+  v8_rcs: {
+    table: 'v8_rcs_view',
+    columns: {
+      v8_rcs_group: {},
+      v8_rcs_name: {},
+      v8_rcs_count: {},
+      v8_rcs_dur: {},
+    },
+  },
 };
 
 export class V8RuntimeCallStatsTab implements Tab {
-  private state?: PivotTableState;
   private previousSelection?: Selection;
   private loading = false;
+  private dataSource?: SQLDataSource;
 
   constructor(private readonly trace: Trace) {}
 
@@ -71,7 +69,7 @@ export class V8RuntimeCallStatsTab implements Tab {
 
     if (selectionChanged) {
       this.previousSelection = selection;
-      this.state = undefined;
+      this.dataSource = undefined;
       this.loading = true;
       this.loadData(selection);
     }
@@ -80,14 +78,41 @@ export class V8RuntimeCallStatsTab implements Tab {
       return m('div.pf-v8-loading-container', m(Spinner));
     }
 
-    if (!this.state) {
+    if (!this.dataSource) {
       return this.renderEmptyState();
     }
 
-    return m(PivotTable, {
-      state: this.state,
-      getSelectableColumns: () => this.state!.table.columns,
+    return m(DataGrid, {
+      schema: this.getUiSchema(),
+      rootSchema: 'v8_rcs',
+      data: this.dataSource,
     });
+  }
+
+  private getUiSchema(): SchemaRegistry {
+    return {
+      v8_rcs: {
+        v8_rcs_group: {
+          title: 'Group',
+          columnType: 'text',
+        },
+        v8_rcs_name: {
+          title: 'Name',
+          columnType: 'text',
+        },
+        v8_rcs_count: {
+          title: 'RCS Count',
+          columnType: 'quantitative',
+        },
+        v8_rcs_dur: {
+          title: 'RCS Duration',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            return formatDuration(this.trace, value as duration);
+          },
+        },
+      },
+    };
   }
 
   private renderEmptyState(): m.Children {
@@ -154,13 +179,16 @@ export class V8RuntimeCallStatsTab implements Tab {
     if (shouldLoad && this.previousSelection === selection) {
       await this.updateSqlView(selection, trackIds);
       if (this.previousSelection === selection) {
-        this.state = this.createState();
+        this.dataSource = new SQLDataSource({
+          engine: this.trace.engine,
+          sqlSchema: V8_RCS_SQL_SCHEMA,
+          rootSchemaName: 'v8_rcs',
+        });
       }
     }
 
     if (this.previousSelection === selection) {
       this.loading = false;
-      this.trace.raf.scheduleFullRedraw();
     }
   }
 
@@ -213,11 +241,7 @@ export class V8RuntimeCallStatsTab implements Tab {
           ${whereClause}
       )
       SELECT
-        ts,
-        dur,
-        track_id,
         name AS v8_rcs_name,
-        ratio,
         CASE
           WHEN name LIKE '%Total%' THEN 'total'
           WHEN name LIKE '%RegExp%' THEN 'regexp'
@@ -264,45 +288,7 @@ export class V8RuntimeCallStatsTab implements Tab {
           ELSE 0
           END) AS v8_rcs_dur
       FROM rcs_entries
-      GROUP BY ts, dur, track_id, name
+      GROUP BY name
     `);
-  }
-
-  private createState(): PivotTableState {
-    const tableDef = resolveTableDefinition(
-      this.trace,
-      V8_RUNTIME_CALL_STATS_VIEW,
-    );
-
-    const findColumn = (name: string) => {
-      return assertExists(tableDef.columns.find((c) => c.column === name));
-    };
-
-    const v8RcsName = findColumn('v8_rcs_name');
-    const v8RcsGroup = findColumn('v8_rcs_group');
-    const v8RcsDur = findColumn('v8_rcs_dur');
-    const v8RcsCount = findColumn('v8_rcs_count');
-
-    const durAggregation: Aggregation = {
-      column: v8RcsDur,
-      op: 'sum',
-    };
-
-    this.state = new PivotTableState({
-      trace: this.trace,
-      table: tableDef,
-      pivots: [v8RcsGroup, v8RcsName],
-      aggregations: [
-        durAggregation,
-        {
-          column: v8RcsCount,
-          op: 'sum',
-        },
-      ],
-    });
-    // Remove the default 'count' aggregation added by PivotTableState.
-    this.state.removeAggregation(this.state.getAggregations().length - 1);
-    this.state.sortByAggregation(durAggregation, 'DESC');
-    return this.state;
   }
 }
