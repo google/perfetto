@@ -45,7 +45,7 @@ import {renderResizeHandle} from './demos/resize_handle_demo';
 import {segmentedButtons} from './demos/segmented_buttons_demo';
 import {renderSelect} from './demos/select_demo';
 import {renderSpinner} from './demos/spinner_demo';
-import {renderSplitPanel} from './demos/split_panel_demo';
+import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderSwitch} from './demos/switch_demo';
 import {renderTabStrip} from './demos/tabstrip_demo';
 import {renderTagInput} from './demos/tag_input_demo';
@@ -95,7 +95,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'segmented-buttons', label: 'SegmentedButtons', view: segmentedButtons},
   {id: 'select', label: 'Select', view: renderSelect},
   {id: 'spinner', label: 'Spinner', view: renderSpinner},
-  {id: 'split-panel', label: 'Split Panel', view: renderSplitPanel},
+  {id: 'drawer-panel', label: 'Drawer Panel', view: renderDrawerPanel},
   {id: 'switch', label: 'Switch', view: renderSwitch},
   {id: 'tabstrip', label: 'TabStrip', view: renderTabStrip},
   {id: 'taginput', label: 'TagInput', view: renderTagInput},
