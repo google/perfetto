@@ -9,13 +9,13 @@ message Fixed128 {
 }
 
 message Duration {
-    optional int64 seconds = 1;
-    optional int32 nanos = 2;
+  optional int64 seconds = 1;
+  optional int32 nanos = 2;
 }
 
 message Timestamp {
-    optional int64 seconds = 1;
-    optional int32 nanos = 2;
+  optional int64 seconds = 1;
+  optional int32 nanos = 2;
 }
 
 // Fork of the Primes tracing format (go/primes-ios-tracing-critical-path).
@@ -33,7 +33,8 @@ message Trace {
   //   for the format.
   optional string name = 2;
 
-  // Fields from the Primes Trace proto that are not useful in the context of Perfetto.
+  // Fields from the Primes Trace proto that are not useful in the context of
+  // Perfetto.
   reserved 3, 5, 8, 9, 10;
 
   // When the trace started.

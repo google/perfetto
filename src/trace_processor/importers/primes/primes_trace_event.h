@@ -9,7 +9,8 @@
 namespace perfetto::trace_processor::primes {
 
 // Temporary struct for the primes trace event so we can compile.
-// TODO(leemh): Use the proto instead. Currently compiler can't find definitions...
+// TODO(leemh): Use the proto instead. Currently compiler can't find
+// definitions...
 struct alignas(8) PrimesTraceEvent {
   uint32_t tid;
   std::optional<StringPool::Id> comm;

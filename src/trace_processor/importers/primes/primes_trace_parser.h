@@ -5,13 +5,12 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "protos/third_party/primes/primes_tracing.pbzero.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
-#include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/importers/primes/primes_trace_event.h"
 #include "protos/third_party/primes/primes_tracing.gen.h"
+#include "protos/third_party/primes/primes_tracing.pbzero.h"
 #include "src/trace_processor/importers/primes/primes_trace_event.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::primes {
 namespace primespb = perfetto::third_party::primes::pbzero;
@@ -38,8 +37,9 @@ class PrimesTraceParser
   void HandleSliceBegin(int64_t ts, primespb::TraceEdge_Decoder& edge_decoder);
   void HandleSliceEnd(int64_t ts, primespb::TraceEdge_Decoder& edge_decoder);
   void HandleMark(int64_t ts, primespb::TraceEdge_Decoder& edge_decoder);
-  void HandleFlows(SliceId slice_id,
-                   const primespb::TraceEdge_TraceEntityDetails_Decoder& details);
+  void HandleFlows(
+      SliceId slice_id,
+      const primespb::TraceEdge_TraceEntityDetails_Decoder& details);
 
   /// Given an edge's ID, attempts to resolve the thread it belongs to, if one
   /// exists for it.

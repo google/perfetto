@@ -339,7 +339,8 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;
 
-  // TODO(leemh): This is not robust enough. Chat elkurdi@/lalitm@ to determine better way.
+  // TODO(leemh): This is not robust enough. Chat elkurdi@/lalitm@ to determine
+  // better way.
   if (base::StartsWith(start, "\x09"))
     return kPrimesTraceType;
 

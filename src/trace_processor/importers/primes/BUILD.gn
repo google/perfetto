@@ -1,25 +1,25 @@
 import("../../../../gn/test.gni")
 
 source_set("primes") {
-    sources = [
-      "primes_trace_parser.cc",
-      "primes_trace_parser.h",
-      "primes_trace_tokenizer.cc",
-      "primes_trace_tokenizer.h",
-    ]
-    deps = [
-      "../../../../include/perfetto/base",
-      "../../../../include/perfetto/protozero",
-      "../../../../gn:default_deps",
-      "../../../../protos/perfetto/common:zero",
-      "../../../../protos/third_party/primes:cpp",
-      "../../../../protos/third_party/primes:zero",
-      "../../../base",
-      "../../containers",
-      "../../importers/common",
-      "../../sorter",
-      "../../storage",
-      "../../types",
-      "../../util:trace_blob_view_reader",
-    ]
+  sources = [
+    "primes_trace_parser.cc",
+    "primes_trace_parser.h",
+    "primes_trace_tokenizer.cc",
+    "primes_trace_tokenizer.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/base",
+    "../../../../include/perfetto/protozero",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/third_party/primes:cpp",
+    "../../../../protos/third_party/primes:zero",
+    "../../../base",
+    "../../containers",
+    "../../importers/common",
+    "../../sorter",
+    "../../storage",
+    "../../types",
+    "../../util:trace_blob_view_reader",
+  ]
 }

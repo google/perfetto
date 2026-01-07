@@ -33,15 +33,17 @@ class TraceEdge_TraceEntityDetails;
 namespace perfetto_pbzero_enum_Trace_ExternalTraceReference {
 enum ExternalTraceType : int32_t;
 }  // namespace perfetto_pbzero_enum_Trace_ExternalTraceReference
-using Trace_ExternalTraceReference_ExternalTraceType = perfetto_pbzero_enum_Trace_ExternalTraceReference::ExternalTraceType;
+using Trace_ExternalTraceReference_ExternalTraceType =
+    perfetto_pbzero_enum_Trace_ExternalTraceReference::ExternalTraceType;
 namespace perfetto_pbzero_enum_TraceEdge_SliceBegin {
 enum ExecutorType : int32_t;
 }  // namespace perfetto_pbzero_enum_TraceEdge_SliceBegin
-using TraceEdge_SliceBegin_ExecutorType = perfetto_pbzero_enum_TraceEdge_SliceBegin::ExecutorType;
-} // Namespace pbzero.
-} // Namespace primes.
-} // Namespace third_party.
-} // Namespace perfetto.
+using TraceEdge_SliceBegin_ExecutorType =
+    perfetto_pbzero_enum_TraceEdge_SliceBegin::ExecutorType;
+}  // Namespace pbzero.
+}  // Namespace primes.
+}  // Namespace third_party.
+}  // Namespace perfetto.
 
 namespace perfetto {
 namespace third_party {
@@ -55,28 +57,37 @@ enum ExecutorType : int32_t {
   SERIAL = 2,
   CONCURRENT = 3,
 };
-} // namespace perfetto_pbzero_enum_TraceEdge_SliceBegin
-using TraceEdge_SliceBegin_ExecutorType = perfetto_pbzero_enum_TraceEdge_SliceBegin::ExecutorType;
+}  // namespace perfetto_pbzero_enum_TraceEdge_SliceBegin
+using TraceEdge_SliceBegin_ExecutorType =
+    perfetto_pbzero_enum_TraceEdge_SliceBegin::ExecutorType;
 
-
-constexpr TraceEdge_SliceBegin_ExecutorType TraceEdge_SliceBegin_ExecutorType_MIN = TraceEdge_SliceBegin_ExecutorType::UNKNOWN;
-constexpr TraceEdge_SliceBegin_ExecutorType TraceEdge_SliceBegin_ExecutorType_MAX = TraceEdge_SliceBegin_ExecutorType::CONCURRENT;
-
+constexpr TraceEdge_SliceBegin_ExecutorType
+    TraceEdge_SliceBegin_ExecutorType_MIN =
+        TraceEdge_SliceBegin_ExecutorType::UNKNOWN;
+constexpr TraceEdge_SliceBegin_ExecutorType
+    TraceEdge_SliceBegin_ExecutorType_MAX =
+        TraceEdge_SliceBegin_ExecutorType::CONCURRENT;
 
 PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
-const char* TraceEdge_SliceBegin_ExecutorType_Name(::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin_ExecutorType value) {
+const char* TraceEdge_SliceBegin_ExecutorType_Name(
+    ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin_ExecutorType
+        value) {
   switch (value) {
-  case ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin_ExecutorType::UNKNOWN:
-    return "UNKNOWN";
+    case ::perfetto::third_party::primes::pbzero::
+        TraceEdge_SliceBegin_ExecutorType::UNKNOWN:
+      return "UNKNOWN";
 
-  case ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin_ExecutorType::MAIN:
-    return "MAIN";
+    case ::perfetto::third_party::primes::pbzero::
+        TraceEdge_SliceBegin_ExecutorType::MAIN:
+      return "MAIN";
 
-  case ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin_ExecutorType::SERIAL:
-    return "SERIAL";
+    case ::perfetto::third_party::primes::pbzero::
+        TraceEdge_SliceBegin_ExecutorType::SERIAL:
+      return "SERIAL";
 
-  case ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin_ExecutorType::CONCURRENT:
-    return "CONCURRENT";
+    case ::perfetto::third_party::primes::pbzero::
+        TraceEdge_SliceBegin_ExecutorType::CONCURRENT:
+      return "CONCURRENT";
   }
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
@@ -87,34 +98,49 @@ enum ExternalTraceType : int32_t {
   PRIMES = 1,
   DAPPER = 2,
 };
-} // namespace perfetto_pbzero_enum_Trace_ExternalTraceReference
-using Trace_ExternalTraceReference_ExternalTraceType = perfetto_pbzero_enum_Trace_ExternalTraceReference::ExternalTraceType;
+}  // namespace perfetto_pbzero_enum_Trace_ExternalTraceReference
+using Trace_ExternalTraceReference_ExternalTraceType =
+    perfetto_pbzero_enum_Trace_ExternalTraceReference::ExternalTraceType;
 
-
-constexpr Trace_ExternalTraceReference_ExternalTraceType Trace_ExternalTraceReference_ExternalTraceType_MIN = Trace_ExternalTraceReference_ExternalTraceType::EXTERNAL_TRACE_TYPE_UNSPECIFIED;
-constexpr Trace_ExternalTraceReference_ExternalTraceType Trace_ExternalTraceReference_ExternalTraceType_MAX = Trace_ExternalTraceReference_ExternalTraceType::DAPPER;
-
+constexpr Trace_ExternalTraceReference_ExternalTraceType
+    Trace_ExternalTraceReference_ExternalTraceType_MIN =
+        Trace_ExternalTraceReference_ExternalTraceType::
+            EXTERNAL_TRACE_TYPE_UNSPECIFIED;
+constexpr Trace_ExternalTraceReference_ExternalTraceType
+    Trace_ExternalTraceReference_ExternalTraceType_MAX =
+        Trace_ExternalTraceReference_ExternalTraceType::DAPPER;
 
 PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
-const char* Trace_ExternalTraceReference_ExternalTraceType_Name(::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference_ExternalTraceType value) {
+const char* Trace_ExternalTraceReference_ExternalTraceType_Name(
+    ::perfetto::third_party::primes::pbzero::
+        Trace_ExternalTraceReference_ExternalTraceType value) {
   switch (value) {
-  case ::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference_ExternalTraceType::EXTERNAL_TRACE_TYPE_UNSPECIFIED:
-    return "EXTERNAL_TRACE_TYPE_UNSPECIFIED";
+    case ::perfetto::third_party::primes::pbzero::
+        Trace_ExternalTraceReference_ExternalTraceType::
+            EXTERNAL_TRACE_TYPE_UNSPECIFIED:
+      return "EXTERNAL_TRACE_TYPE_UNSPECIFIED";
 
-  case ::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference_ExternalTraceType::PRIMES:
-    return "PRIMES";
+    case ::perfetto::third_party::primes::pbzero::
+        Trace_ExternalTraceReference_ExternalTraceType::PRIMES:
+      return "PRIMES";
 
-  case ::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference_ExternalTraceType::DAPPER:
-    return "DAPPER";
+    case ::perfetto::third_party::primes::pbzero::
+        Trace_ExternalTraceReference_ExternalTraceType::DAPPER:
+      return "DAPPER";
   }
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class CallSite_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3> {
+class CallSite_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3> {
  public:
-  CallSite_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit CallSite_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit CallSite_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  CallSite_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit CallSite_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit CallSite_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_class_name() const { return at<1>().valid(); }
   ::protozero::ConstChars class_name() const { return at<1>().as_string(); }
   bool has_method_name() const { return at<2>().valid(); }
@@ -131,11 +157,11 @@ class CallSite : public ::protozero::Message {
     kMethodNameFieldNumber = 2,
     kLineNumberFieldNumber = 3,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.CallSite"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.CallSite";
+  }
 
-
-  using FieldMetadata_ClassName =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_ClassName = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kString,
@@ -154,12 +180,12 @@ class CallSite : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kString>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kString>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_MethodName =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_MethodName = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kString,
@@ -178,12 +204,12 @@ class CallSite : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kString>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kString>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_LineNumber =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_LineNumber = ::protozero::proto_utils::FieldMetadata<
       3,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kInt32,
@@ -196,20 +222,28 @@ class CallSite : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kInt32>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kInt32>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 };
 
-class TraceEdge_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5> {
+class TraceEdge_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5> {
  public:
-  TraceEdge_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceEdge_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceEdge_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  TraceEdge_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit TraceEdge_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit TraceEdge_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_id() const { return at<1>().valid(); }
   uint64_t id() const { return at<1>().as_uint64(); }
   bool has_trace_start_offset() const { return at<2>().valid(); }
-  ::protozero::ConstBytes trace_start_offset() const { return at<2>().as_bytes(); }
+  ::protozero::ConstBytes trace_start_offset() const {
+    return at<2>().as_bytes();
+  }
   bool has_slice_begin() const { return at<3>().valid(); }
   ::protozero::ConstBytes slice_begin() const { return at<3>().as_bytes(); }
   bool has_slice_end() const { return at<4>().valid(); }
@@ -228,15 +262,18 @@ class TraceEdge : public ::protozero::Message {
     kSliceEndFieldNumber = 4,
     kMarkFieldNumber = 5,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.TraceEdge"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.TraceEdge";
+  }
 
-  using TraceEntityDetails = ::perfetto::third_party::primes::pbzero::TraceEdge_TraceEntityDetails;
-  using SliceBegin = ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin;
+  using TraceEntityDetails =
+      ::perfetto::third_party::primes::pbzero::TraceEdge_TraceEntityDetails;
+  using SliceBegin =
+      ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin;
   using SliceEnd = ::perfetto::third_party::primes::pbzero::TraceEdge_SliceEnd;
   using Mark = ::perfetto::third_party::primes::pbzero::TraceEdge_Mark;
 
-  using FieldMetadata_Id =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Id = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kUint64,
@@ -249,26 +286,26 @@ class TraceEdge : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kUint64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kUint64>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
   using FieldMetadata_TraceStartOffset =
-    ::protozero::proto_utils::FieldMetadata<
-      2,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Duration,
-      TraceEdge>;
+      ::protozero::proto_utils::FieldMetadata<
+          2,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Duration,
+          TraceEdge>;
 
   static constexpr FieldMetadata_TraceStartOffset kTraceStartOffset{};
-  template <typename T = Duration> T* set_trace_start_offset() {
+  template <typename T = Duration>
+  T* set_trace_start_offset() {
     return BeginNestedMessage<T>(2);
   }
 
-
-  using FieldMetadata_SliceBegin =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_SliceBegin = ::protozero::proto_utils::FieldMetadata<
       3,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -276,13 +313,12 @@ class TraceEdge : public ::protozero::Message {
       TraceEdge>;
 
   static constexpr FieldMetadata_SliceBegin kSliceBegin{};
-  template <typename T = TraceEdge_SliceBegin> T* set_slice_begin() {
+  template <typename T = TraceEdge_SliceBegin>
+  T* set_slice_begin() {
     return BeginNestedMessage<T>(3);
   }
 
-
-  using FieldMetadata_SliceEnd =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_SliceEnd = ::protozero::proto_utils::FieldMetadata<
       4,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -290,13 +326,12 @@ class TraceEdge : public ::protozero::Message {
       TraceEdge>;
 
   static constexpr FieldMetadata_SliceEnd kSliceEnd{};
-  template <typename T = TraceEdge_SliceEnd> T* set_slice_end() {
+  template <typename T = TraceEdge_SliceEnd>
+  T* set_slice_end() {
     return BeginNestedMessage<T>(4);
   }
 
-
-  using FieldMetadata_Mark =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Mark = ::protozero::proto_utils::FieldMetadata<
       5,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -304,17 +339,22 @@ class TraceEdge : public ::protozero::Message {
       TraceEdge>;
 
   static constexpr FieldMetadata_Mark kMark{};
-  template <typename T = TraceEdge_Mark> T* set_mark() {
+  template <typename T = TraceEdge_Mark>
+  T* set_mark() {
     return BeginNestedMessage<T>(5);
   }
-
 };
 
-class TraceEdge_Mark_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/1> {
+class TraceEdge_Mark_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/1> {
  public:
-  TraceEdge_Mark_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceEdge_Mark_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceEdge_Mark_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  TraceEdge_Mark_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit TraceEdge_Mark_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit TraceEdge_Mark_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_entity_details() const { return at<1>().valid(); }
   ::protozero::ConstBytes entity_details() const { return at<1>().as_bytes(); }
 };
@@ -325,11 +365,11 @@ class TraceEdge_Mark : public ::protozero::Message {
   enum : int32_t {
     kEntityDetailsFieldNumber = 1,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.TraceEdge.Mark"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.TraceEdge.Mark";
+  }
 
-
-  using FieldMetadata_EntityDetails =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_EntityDetails = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -337,17 +377,22 @@ class TraceEdge_Mark : public ::protozero::Message {
       TraceEdge_Mark>;
 
   static constexpr FieldMetadata_EntityDetails kEntityDetails{};
-  template <typename T = TraceEdge_TraceEntityDetails> T* set_entity_details() {
+  template <typename T = TraceEdge_TraceEntityDetails>
+  T* set_entity_details() {
     return BeginNestedMessage<T>(1);
   }
-
 };
 
-class TraceEdge_SliceEnd_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4> {
+class TraceEdge_SliceEnd_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4> {
  public:
-  TraceEdge_SliceEnd_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceEdge_SliceEnd_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceEdge_SliceEnd_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  TraceEdge_SliceEnd_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit TraceEdge_SliceEnd_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit TraceEdge_SliceEnd_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_total_cpu_time() const { return at<3>().valid(); }
   ::protozero::ConstBytes total_cpu_time() const { return at<3>().as_bytes(); }
   bool has_user_cpu_time() const { return at<4>().valid(); }
@@ -361,11 +406,11 @@ class TraceEdge_SliceEnd : public ::protozero::Message {
     kTotalCpuTimeFieldNumber = 3,
     kUserCpuTimeFieldNumber = 4,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.TraceEdge.SliceEnd"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.TraceEdge.SliceEnd";
+  }
 
-
-  using FieldMetadata_TotalCpuTime =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_TotalCpuTime = ::protozero::proto_utils::FieldMetadata<
       3,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -373,13 +418,12 @@ class TraceEdge_SliceEnd : public ::protozero::Message {
       TraceEdge_SliceEnd>;
 
   static constexpr FieldMetadata_TotalCpuTime kTotalCpuTime{};
-  template <typename T = Duration> T* set_total_cpu_time() {
+  template <typename T = Duration>
+  T* set_total_cpu_time() {
     return BeginNestedMessage<T>(3);
   }
 
-
-  using FieldMetadata_UserCpuTime =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_UserCpuTime = ::protozero::proto_utils::FieldMetadata<
       4,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -387,17 +431,22 @@ class TraceEdge_SliceEnd : public ::protozero::Message {
       TraceEdge_SliceEnd>;
 
   static constexpr FieldMetadata_UserCpuTime kUserCpuTime{};
-  template <typename T = Duration> T* set_user_cpu_time() {
+  template <typename T = Duration>
+  T* set_user_cpu_time() {
     return BeginNestedMessage<T>(4);
   }
-
 };
 
-class TraceEdge_SliceBegin_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/8> {
+class TraceEdge_SliceBegin_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/8> {
  public:
-  TraceEdge_SliceBegin_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceEdge_SliceBegin_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceEdge_SliceBegin_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  TraceEdge_SliceBegin_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit TraceEdge_SliceBegin_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit TraceEdge_SliceBegin_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_entity_details() const { return at<1>().valid(); }
   ::protozero::ConstBytes entity_details() const { return at<1>().as_bytes(); }
   bool has_thread_id() const { return at<2>().valid(); }
@@ -429,20 +478,22 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
     kTotalCpuTimeFieldNumber = 3,
     kUserCpuTimeFieldNumber = 4,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.TraceEdge.SliceBegin"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.TraceEdge.SliceBegin";
+  }
 
-
-  using ExecutorType = ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin_ExecutorType;
+  using ExecutorType = ::perfetto::third_party::primes::pbzero::
+      TraceEdge_SliceBegin_ExecutorType;
   static inline const char* ExecutorType_Name(ExecutorType value) {
-    return ::perfetto::third_party::primes::pbzero::TraceEdge_SliceBegin_ExecutorType_Name(value);
+    return ::perfetto::third_party::primes::pbzero::
+        TraceEdge_SliceBegin_ExecutorType_Name(value);
   }
   static inline const ExecutorType UNKNOWN = ExecutorType::UNKNOWN;
   static inline const ExecutorType MAIN = ExecutorType::MAIN;
   static inline const ExecutorType SERIAL = ExecutorType::SERIAL;
   static inline const ExecutorType CONCURRENT = ExecutorType::CONCURRENT;
 
-  using FieldMetadata_EntityDetails =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_EntityDetails = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -450,13 +501,12 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
       TraceEdge_SliceBegin>;
 
   static constexpr FieldMetadata_EntityDetails kEntityDetails{};
-  template <typename T = TraceEdge_TraceEntityDetails> T* set_entity_details() {
+  template <typename T = TraceEdge_TraceEntityDetails>
+  T* set_entity_details() {
     return BeginNestedMessage<T>(1);
   }
 
-
-  using FieldMetadata_ThreadId =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_ThreadId = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kUint64,
@@ -469,12 +519,12 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kUint64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kUint64>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_ThreadName =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_ThreadName = ::protozero::proto_utils::FieldMetadata<
       5,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kString,
@@ -493,12 +543,12 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kString>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kString>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_ExecutorName =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_ExecutorName = ::protozero::proto_utils::FieldMetadata<
       6,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kString,
@@ -517,12 +567,12 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kString>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kString>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_ExecutorType =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_ExecutorType = ::protozero::proto_utils::FieldMetadata<
       7,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kEnum,
@@ -535,12 +585,12 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kEnum>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kEnum>::Append(*this,
+                                                                  field_id,
+                                                                  value);
   }
 
-  using FieldMetadata_ExecutorId =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_ExecutorId = ::protozero::proto_utils::FieldMetadata<
       8,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kUint64,
@@ -553,12 +603,12 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kUint64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kUint64>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_TotalCpuTime =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_TotalCpuTime = ::protozero::proto_utils::FieldMetadata<
       3,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -566,13 +616,12 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
       TraceEdge_SliceBegin>;
 
   static constexpr FieldMetadata_TotalCpuTime kTotalCpuTime{};
-  template <typename T = Duration> T* set_total_cpu_time() {
+  template <typename T = Duration>
+  T* set_total_cpu_time() {
     return BeginNestedMessage<T>(3);
   }
 
-
-  using FieldMetadata_UserCpuTime =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_UserCpuTime = ::protozero::proto_utils::FieldMetadata<
       4,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -580,25 +629,35 @@ class TraceEdge_SliceBegin : public ::protozero::Message {
       TraceEdge_SliceBegin>;
 
   static constexpr FieldMetadata_UserCpuTime kUserCpuTime{};
-  template <typename T = Duration> T* set_user_cpu_time() {
+  template <typename T = Duration>
+  T* set_user_cpu_time() {
     return BeginNestedMessage<T>(4);
   }
-
 };
 
-class TraceEdge_TraceEntityDetails_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5> {
+class TraceEdge_TraceEntityDetails_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5> {
  public:
-  TraceEdge_TraceEntityDetails_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceEdge_TraceEntityDetails_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceEdge_TraceEntityDetails_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  TraceEdge_TraceEntityDetails_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit TraceEdge_TraceEntityDetails_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit TraceEdge_TraceEntityDetails_Decoder(
+      const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_name() const { return at<1>().valid(); }
   ::protozero::ConstChars name() const { return at<1>().as_string(); }
   bool has_parent_id() const { return at<2>().valid(); }
   uint64_t parent_id() const { return at<2>().as_uint64(); }
   bool has_follows_from_ids() const { return at<3>().valid(); }
-  ::protozero::RepeatedFieldIterator<uint64_t> follows_from_ids() const { return GetRepeated<uint64_t>(3); }
+  ::protozero::RepeatedFieldIterator<uint64_t> follows_from_ids() const {
+    return GetRepeated<uint64_t>(3);
+  }
   bool has_flow_ids() const { return at<4>().valid(); }
-  ::protozero::RepeatedFieldIterator<uint64_t> flow_ids() const { return GetRepeated<uint64_t>(4); }
+  ::protozero::RepeatedFieldIterator<uint64_t> flow_ids() const {
+    return GetRepeated<uint64_t>(4);
+  }
   bool has_call_site() const { return at<5>().valid(); }
   ::protozero::ConstBytes call_site() const { return at<5>().as_bytes(); }
 };
@@ -613,11 +672,11 @@ class TraceEdge_TraceEntityDetails : public ::protozero::Message {
     kFlowIdsFieldNumber = 4,
     kCallSiteFieldNumber = 5,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.TraceEdge.TraceEntityDetails"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.TraceEdge.TraceEntityDetails";
+  }
 
-
-  using FieldMetadata_Name =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Name = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kString,
@@ -636,12 +695,12 @@ class TraceEdge_TraceEntityDetails : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kString>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kString>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_ParentId =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_ParentId = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kUint64,
@@ -654,12 +713,12 @@ class TraceEdge_TraceEntityDetails : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kUint64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kUint64>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_FollowsFromIds =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_FollowsFromIds = ::protozero::proto_utils::FieldMetadata<
       3,
       ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
       ::protozero::proto_utils::ProtoSchemaType::kUint64,
@@ -672,12 +731,12 @@ class TraceEdge_TraceEntityDetails : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kUint64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kUint64>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_FlowIds =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_FlowIds = ::protozero::proto_utils::FieldMetadata<
       4,
       ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
       ::protozero::proto_utils::ProtoSchemaType::kUint64,
@@ -690,12 +749,12 @@ class TraceEdge_TraceEntityDetails : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kUint64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kUint64>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_CallSite =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_CallSite = ::protozero::proto_utils::FieldMetadata<
       5,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -703,17 +762,22 @@ class TraceEdge_TraceEntityDetails : public ::protozero::Message {
       TraceEdge_TraceEntityDetails>;
 
   static constexpr FieldMetadata_CallSite kCallSite{};
-  template <typename T = CallSite> T* set_call_site() {
+  template <typename T = CallSite>
+  T* set_call_site() {
     return BeginNestedMessage<T>(5);
   }
-
 };
 
-class Trace_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/12> {
+class Trace_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/12> {
  public:
-  Trace_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Trace_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Trace_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Trace_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Trace_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Trace_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_id() const { return at<1>().valid(); }
   uint64_t id() const { return at<1>().as_uint64(); }
   bool has_name() const { return at<2>().valid(); }
@@ -721,9 +785,14 @@ class Trace_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/12>
   bool has_sampling() const { return at<10>().valid(); }
   ::protozero::ConstBytes sampling() const { return at<10>().as_bytes(); }
   bool has_external_trace_references() const { return at<8>().valid(); }
-  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> external_trace_references() const { return GetRepeated<::protozero::ConstBytes>(8); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes>
+  external_trace_references() const {
+    return GetRepeated<::protozero::ConstBytes>(8);
+  }
   bool has_tracing_overhead_metrics() const { return at<9>().valid(); }
-  ::protozero::ConstBytes tracing_overhead_metrics() const { return at<9>().as_bytes(); }
+  ::protozero::ConstBytes tracing_overhead_metrics() const {
+    return at<9>().as_bytes();
+  }
   bool has_start_time() const { return at<4>().valid(); }
   ::protozero::ConstBytes start_time() const { return at<4>().as_bytes(); }
   bool has_duration() const { return at<11>().valid(); }
@@ -733,7 +802,9 @@ class Trace_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/12>
   bool has_trace_failure() const { return at<6>().valid(); }
   ::protozero::ConstBytes trace_failure() const { return at<6>().as_bytes(); }
   bool has_edges() const { return at<7>().valid(); }
-  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> edges() const { return GetRepeated<::protozero::ConstBytes>(7); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> edges() const {
+    return GetRepeated<::protozero::ConstBytes>(7);
+  }
   bool has_root_call_site() const { return at<12>().valid(); }
   ::protozero::ConstBytes root_call_site() const { return at<12>().as_bytes(); }
 };
@@ -754,15 +825,19 @@ class Trace : public ::protozero::Message {
     kEdgesFieldNumber = 7,
     kRootCallSiteFieldNumber = 12,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Trace"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Trace";
+  }
 
   using Sampling = ::perfetto::third_party::primes::pbzero::Trace_Sampling;
-  using ExternalTraceReference = ::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference;
-  using TracingOverheadMetrics = ::perfetto::third_party::primes::pbzero::Trace_TracingOverheadMetrics;
-  using TraceFailure = ::perfetto::third_party::primes::pbzero::Trace_TraceFailure;
+  using ExternalTraceReference =
+      ::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference;
+  using TracingOverheadMetrics =
+      ::perfetto::third_party::primes::pbzero::Trace_TracingOverheadMetrics;
+  using TraceFailure =
+      ::perfetto::third_party::primes::pbzero::Trace_TraceFailure;
 
-  using FieldMetadata_Id =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Id = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kFixed64,
@@ -775,12 +850,12 @@ class Trace : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kFixed64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kFixed64>::Append(*this,
+                                                                     field_id,
+                                                                     value);
   }
 
-  using FieldMetadata_Name =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Name = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kString,
@@ -799,12 +874,12 @@ class Trace : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kString>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kString>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_Sampling =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Sampling = ::protozero::proto_utils::FieldMetadata<
       10,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -812,41 +887,42 @@ class Trace : public ::protozero::Message {
       Trace>;
 
   static constexpr FieldMetadata_Sampling kSampling{};
-  template <typename T = Trace_Sampling> T* set_sampling() {
+  template <typename T = Trace_Sampling>
+  T* set_sampling() {
     return BeginNestedMessage<T>(10);
   }
 
-
   using FieldMetadata_ExternalTraceReferences =
-    ::protozero::proto_utils::FieldMetadata<
-      8,
-      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Trace_ExternalTraceReference,
-      Trace>;
+      ::protozero::proto_utils::FieldMetadata<
+          8,
+          ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Trace_ExternalTraceReference,
+          Trace>;
 
-  static constexpr FieldMetadata_ExternalTraceReferences kExternalTraceReferences{};
-  template <typename T = Trace_ExternalTraceReference> T* add_external_trace_references() {
+  static constexpr FieldMetadata_ExternalTraceReferences
+      kExternalTraceReferences{};
+  template <typename T = Trace_ExternalTraceReference>
+  T* add_external_trace_references() {
     return BeginNestedMessage<T>(8);
   }
 
-
   using FieldMetadata_TracingOverheadMetrics =
-    ::protozero::proto_utils::FieldMetadata<
-      9,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Trace_TracingOverheadMetrics,
-      Trace>;
+      ::protozero::proto_utils::FieldMetadata<
+          9,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Trace_TracingOverheadMetrics,
+          Trace>;
 
-  static constexpr FieldMetadata_TracingOverheadMetrics kTracingOverheadMetrics{};
-  template <typename T = Trace_TracingOverheadMetrics> T* set_tracing_overhead_metrics() {
+  static constexpr FieldMetadata_TracingOverheadMetrics
+      kTracingOverheadMetrics{};
+  template <typename T = Trace_TracingOverheadMetrics>
+  T* set_tracing_overhead_metrics() {
     return BeginNestedMessage<T>(9);
   }
 
-
-  using FieldMetadata_StartTime =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_StartTime = ::protozero::proto_utils::FieldMetadata<
       4,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -854,13 +930,12 @@ class Trace : public ::protozero::Message {
       Trace>;
 
   static constexpr FieldMetadata_StartTime kStartTime{};
-  template <typename T = Timestamp> T* set_start_time() {
+  template <typename T = Timestamp>
+  T* set_start_time() {
     return BeginNestedMessage<T>(4);
   }
 
-
-  using FieldMetadata_Duration =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Duration = ::protozero::proto_utils::FieldMetadata<
       11,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -868,31 +943,32 @@ class Trace : public ::protozero::Message {
       Trace>;
 
   static constexpr FieldMetadata_Duration kDuration{};
-  template <typename T = Duration> T* set_duration() {
+  template <typename T = Duration>
+  T* set_duration() {
     return BeginNestedMessage<T>(11);
   }
 
-
   using FieldMetadata_NumDroppedEntities =
-    ::protozero::proto_utils::FieldMetadata<
-      5,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kInt32,
-      int32_t,
-      Trace>;
+      ::protozero::proto_utils::FieldMetadata<
+          5,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kInt32,
+          int32_t,
+          Trace>;
 
   static constexpr FieldMetadata_NumDroppedEntities kNumDroppedEntities{};
   void set_num_dropped_entities(int32_t value) {
-    static constexpr uint32_t field_id = FieldMetadata_NumDroppedEntities::kFieldId;
+    static constexpr uint32_t field_id =
+        FieldMetadata_NumDroppedEntities::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kInt32>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kInt32>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 
-  using FieldMetadata_TraceFailure =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_TraceFailure = ::protozero::proto_utils::FieldMetadata<
       6,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -900,13 +976,12 @@ class Trace : public ::protozero::Message {
       Trace>;
 
   static constexpr FieldMetadata_TraceFailure kTraceFailure{};
-  template <typename T = Trace_TraceFailure> T* set_trace_failure() {
+  template <typename T = Trace_TraceFailure>
+  T* set_trace_failure() {
     return BeginNestedMessage<T>(6);
   }
 
-
-  using FieldMetadata_Edges =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Edges = ::protozero::proto_utils::FieldMetadata<
       7,
       ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -914,13 +989,12 @@ class Trace : public ::protozero::Message {
       Trace>;
 
   static constexpr FieldMetadata_Edges kEdges{};
-  template <typename T = TraceEdge> T* add_edges() {
+  template <typename T = TraceEdge>
+  T* add_edges() {
     return BeginNestedMessage<T>(7);
   }
 
-
-  using FieldMetadata_RootCallSite =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_RootCallSite = ::protozero::proto_utils::FieldMetadata<
       12,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -928,17 +1002,22 @@ class Trace : public ::protozero::Message {
       Trace>;
 
   static constexpr FieldMetadata_RootCallSite kRootCallSite{};
-  template <typename T = CallSite> T* set_root_call_site() {
+  template <typename T = CallSite>
+  T* set_root_call_site() {
     return BeginNestedMessage<T>(12);
   }
-
 };
 
-class Trace_TraceFailure_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/1> {
+class Trace_TraceFailure_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/1> {
  public:
-  Trace_TraceFailure_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Trace_TraceFailure_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Trace_TraceFailure_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Trace_TraceFailure_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Trace_TraceFailure_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Trace_TraceFailure_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_timed_out_after() const { return at<1>().valid(); }
   ::protozero::ConstBytes timed_out_after() const { return at<1>().as_bytes(); }
 };
@@ -949,11 +1028,11 @@ class Trace_TraceFailure : public ::protozero::Message {
   enum : int32_t {
     kTimedOutAfterFieldNumber = 1,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Trace.TraceFailure"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Trace.TraceFailure";
+  }
 
-
-  using FieldMetadata_TimedOutAfter =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_TimedOutAfter = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -961,37 +1040,59 @@ class Trace_TraceFailure : public ::protozero::Message {
       Trace_TraceFailure>;
 
   static constexpr FieldMetadata_TimedOutAfter kTimedOutAfter{};
-  template <typename T = Duration> T* set_timed_out_after() {
+  template <typename T = Duration>
+  T* set_timed_out_after() {
     return BeginNestedMessage<T>(1);
   }
-
 };
 
-class Trace_TracingOverheadMetrics_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/12> {
+class Trace_TracingOverheadMetrics_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/12> {
  public:
-  Trace_TracingOverheadMetrics_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Trace_TracingOverheadMetrics_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Trace_TracingOverheadMetrics_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Trace_TracingOverheadMetrics_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Trace_TracingOverheadMetrics_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Trace_TracingOverheadMetrics_Decoder(
+      const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_capture_trace_context_avg() const { return at<1>().valid(); }
-  ::protozero::ConstBytes capture_trace_context_avg() const { return at<1>().as_bytes(); }
+  ::protozero::ConstBytes capture_trace_context_avg() const {
+    return at<1>().as_bytes();
+  }
   bool has_capture_trace_context_max() const { return at<2>().valid(); }
-  ::protozero::ConstBytes capture_trace_context_max() const { return at<2>().as_bytes(); }
+  ::protozero::ConstBytes capture_trace_context_max() const {
+    return at<2>().as_bytes();
+  }
   bool has_capture_trace_context_count() const { return at<3>().valid(); }
   int64_t capture_trace_context_count() const { return at<3>().as_int64(); }
   bool has_install_trace_context_avg() const { return at<4>().valid(); }
-  ::protozero::ConstBytes install_trace_context_avg() const { return at<4>().as_bytes(); }
+  ::protozero::ConstBytes install_trace_context_avg() const {
+    return at<4>().as_bytes();
+  }
   bool has_install_trace_context_max() const { return at<5>().valid(); }
-  ::protozero::ConstBytes install_trace_context_max() const { return at<5>().as_bytes(); }
+  ::protozero::ConstBytes install_trace_context_max() const {
+    return at<5>().as_bytes();
+  }
   bool has_install_trace_context_count() const { return at<6>().valid(); }
   int64_t install_trace_context_count() const { return at<6>().as_int64(); }
   bool has_add_slice_begin_avg() const { return at<7>().valid(); }
-  ::protozero::ConstBytes add_slice_begin_avg() const { return at<7>().as_bytes(); }
+  ::protozero::ConstBytes add_slice_begin_avg() const {
+    return at<7>().as_bytes();
+  }
   bool has_add_slice_begin_max() const { return at<8>().valid(); }
-  ::protozero::ConstBytes add_slice_begin_max() const { return at<8>().as_bytes(); }
+  ::protozero::ConstBytes add_slice_begin_max() const {
+    return at<8>().as_bytes();
+  }
   bool has_add_slice_end_avg() const { return at<9>().valid(); }
-  ::protozero::ConstBytes add_slice_end_avg() const { return at<9>().as_bytes(); }
+  ::protozero::ConstBytes add_slice_end_avg() const {
+    return at<9>().as_bytes();
+  }
   bool has_add_slice_end_max() const { return at<10>().valid(); }
-  ::protozero::ConstBytes add_slice_end_max() const { return at<10>().as_bytes(); }
+  ::protozero::ConstBytes add_slice_end_max() const {
+    return at<10>().as_bytes();
+  }
   bool has_add_mark_avg() const { return at<11>().valid(); }
   ::protozero::ConstBytes add_mark_avg() const { return at<11>().as_bytes(); }
   bool has_add_mark_max() const { return at<12>().valid(); }
@@ -1015,131 +1116,141 @@ class Trace_TracingOverheadMetrics : public ::protozero::Message {
     kAddMarkAvgFieldNumber = 11,
     kAddMarkMaxFieldNumber = 12,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Trace.TracingOverheadMetrics"; }
-
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Trace.TracingOverheadMetrics";
+  }
 
   using FieldMetadata_CaptureTraceContextAvg =
-    ::protozero::proto_utils::FieldMetadata<
-      1,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Duration,
-      Trace_TracingOverheadMetrics>;
+      ::protozero::proto_utils::FieldMetadata<
+          1,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Duration,
+          Trace_TracingOverheadMetrics>;
 
-  static constexpr FieldMetadata_CaptureTraceContextAvg kCaptureTraceContextAvg{};
-  template <typename T = Duration> T* set_capture_trace_context_avg() {
+  static constexpr FieldMetadata_CaptureTraceContextAvg
+      kCaptureTraceContextAvg{};
+  template <typename T = Duration>
+  T* set_capture_trace_context_avg() {
     return BeginNestedMessage<T>(1);
   }
 
-
   using FieldMetadata_CaptureTraceContextMax =
-    ::protozero::proto_utils::FieldMetadata<
-      2,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Duration,
-      Trace_TracingOverheadMetrics>;
+      ::protozero::proto_utils::FieldMetadata<
+          2,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Duration,
+          Trace_TracingOverheadMetrics>;
 
-  static constexpr FieldMetadata_CaptureTraceContextMax kCaptureTraceContextMax{};
-  template <typename T = Duration> T* set_capture_trace_context_max() {
+  static constexpr FieldMetadata_CaptureTraceContextMax
+      kCaptureTraceContextMax{};
+  template <typename T = Duration>
+  T* set_capture_trace_context_max() {
     return BeginNestedMessage<T>(2);
   }
 
-
   using FieldMetadata_CaptureTraceContextCount =
-    ::protozero::proto_utils::FieldMetadata<
-      3,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kInt64,
-      int64_t,
-      Trace_TracingOverheadMetrics>;
+      ::protozero::proto_utils::FieldMetadata<
+          3,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kInt64,
+          int64_t,
+          Trace_TracingOverheadMetrics>;
 
-  static constexpr FieldMetadata_CaptureTraceContextCount kCaptureTraceContextCount{};
+  static constexpr FieldMetadata_CaptureTraceContextCount
+      kCaptureTraceContextCount{};
   void set_capture_trace_context_count(int64_t value) {
-    static constexpr uint32_t field_id = FieldMetadata_CaptureTraceContextCount::kFieldId;
+    static constexpr uint32_t field_id =
+        FieldMetadata_CaptureTraceContextCount::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kInt64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kInt64>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 
   using FieldMetadata_InstallTraceContextAvg =
-    ::protozero::proto_utils::FieldMetadata<
-      4,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Duration,
-      Trace_TracingOverheadMetrics>;
+      ::protozero::proto_utils::FieldMetadata<
+          4,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Duration,
+          Trace_TracingOverheadMetrics>;
 
-  static constexpr FieldMetadata_InstallTraceContextAvg kInstallTraceContextAvg{};
-  template <typename T = Duration> T* set_install_trace_context_avg() {
+  static constexpr FieldMetadata_InstallTraceContextAvg
+      kInstallTraceContextAvg{};
+  template <typename T = Duration>
+  T* set_install_trace_context_avg() {
     return BeginNestedMessage<T>(4);
   }
 
-
   using FieldMetadata_InstallTraceContextMax =
-    ::protozero::proto_utils::FieldMetadata<
-      5,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Duration,
-      Trace_TracingOverheadMetrics>;
+      ::protozero::proto_utils::FieldMetadata<
+          5,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Duration,
+          Trace_TracingOverheadMetrics>;
 
-  static constexpr FieldMetadata_InstallTraceContextMax kInstallTraceContextMax{};
-  template <typename T = Duration> T* set_install_trace_context_max() {
+  static constexpr FieldMetadata_InstallTraceContextMax
+      kInstallTraceContextMax{};
+  template <typename T = Duration>
+  T* set_install_trace_context_max() {
     return BeginNestedMessage<T>(5);
   }
 
-
   using FieldMetadata_InstallTraceContextCount =
-    ::protozero::proto_utils::FieldMetadata<
-      6,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kInt64,
-      int64_t,
-      Trace_TracingOverheadMetrics>;
+      ::protozero::proto_utils::FieldMetadata<
+          6,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kInt64,
+          int64_t,
+          Trace_TracingOverheadMetrics>;
 
-  static constexpr FieldMetadata_InstallTraceContextCount kInstallTraceContextCount{};
+  static constexpr FieldMetadata_InstallTraceContextCount
+      kInstallTraceContextCount{};
   void set_install_trace_context_count(int64_t value) {
-    static constexpr uint32_t field_id = FieldMetadata_InstallTraceContextCount::kFieldId;
+    static constexpr uint32_t field_id =
+        FieldMetadata_InstallTraceContextCount::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kInt64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kInt64>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 
   using FieldMetadata_AddSliceBeginAvg =
-    ::protozero::proto_utils::FieldMetadata<
-      7,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Duration,
-      Trace_TracingOverheadMetrics>;
+      ::protozero::proto_utils::FieldMetadata<
+          7,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Duration,
+          Trace_TracingOverheadMetrics>;
 
   static constexpr FieldMetadata_AddSliceBeginAvg kAddSliceBeginAvg{};
-  template <typename T = Duration> T* set_add_slice_begin_avg() {
+  template <typename T = Duration>
+  T* set_add_slice_begin_avg() {
     return BeginNestedMessage<T>(7);
   }
 
-
   using FieldMetadata_AddSliceBeginMax =
-    ::protozero::proto_utils::FieldMetadata<
-      8,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Duration,
-      Trace_TracingOverheadMetrics>;
+      ::protozero::proto_utils::FieldMetadata<
+          8,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Duration,
+          Trace_TracingOverheadMetrics>;
 
   static constexpr FieldMetadata_AddSliceBeginMax kAddSliceBeginMax{};
-  template <typename T = Duration> T* set_add_slice_begin_max() {
+  template <typename T = Duration>
+  T* set_add_slice_begin_max() {
     return BeginNestedMessage<T>(8);
   }
 
-
-  using FieldMetadata_AddSliceEndAvg =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_AddSliceEndAvg = ::protozero::proto_utils::FieldMetadata<
       9,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -1147,13 +1258,12 @@ class Trace_TracingOverheadMetrics : public ::protozero::Message {
       Trace_TracingOverheadMetrics>;
 
   static constexpr FieldMetadata_AddSliceEndAvg kAddSliceEndAvg{};
-  template <typename T = Duration> T* set_add_slice_end_avg() {
+  template <typename T = Duration>
+  T* set_add_slice_end_avg() {
     return BeginNestedMessage<T>(9);
   }
 
-
-  using FieldMetadata_AddSliceEndMax =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_AddSliceEndMax = ::protozero::proto_utils::FieldMetadata<
       10,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -1161,13 +1271,12 @@ class Trace_TracingOverheadMetrics : public ::protozero::Message {
       Trace_TracingOverheadMetrics>;
 
   static constexpr FieldMetadata_AddSliceEndMax kAddSliceEndMax{};
-  template <typename T = Duration> T* set_add_slice_end_max() {
+  template <typename T = Duration>
+  T* set_add_slice_end_max() {
     return BeginNestedMessage<T>(10);
   }
 
-
-  using FieldMetadata_AddMarkAvg =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_AddMarkAvg = ::protozero::proto_utils::FieldMetadata<
       11,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -1175,13 +1284,12 @@ class Trace_TracingOverheadMetrics : public ::protozero::Message {
       Trace_TracingOverheadMetrics>;
 
   static constexpr FieldMetadata_AddMarkAvg kAddMarkAvg{};
-  template <typename T = Duration> T* set_add_mark_avg() {
+  template <typename T = Duration>
+  T* set_add_mark_avg() {
     return BeginNestedMessage<T>(11);
   }
 
-
-  using FieldMetadata_AddMarkMax =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_AddMarkMax = ::protozero::proto_utils::FieldMetadata<
       12,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -1189,17 +1297,23 @@ class Trace_TracingOverheadMetrics : public ::protozero::Message {
       Trace_TracingOverheadMetrics>;
 
   static constexpr FieldMetadata_AddMarkMax kAddMarkMax{};
-  template <typename T = Duration> T* set_add_mark_max() {
+  template <typename T = Duration>
+  T* set_add_mark_max() {
     return BeginNestedMessage<T>(12);
   }
-
 };
 
-class Trace_ExternalTraceReference_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4> {
+class Trace_ExternalTraceReference_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4> {
  public:
-  Trace_ExternalTraceReference_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Trace_ExternalTraceReference_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Trace_ExternalTraceReference_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Trace_ExternalTraceReference_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Trace_ExternalTraceReference_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Trace_ExternalTraceReference_Decoder(
+      const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_type() const { return at<1>().valid(); }
   int32_t type() const { return at<1>().as_int32(); }
   bool has_id() const { return at<2>().valid(); }
@@ -1207,7 +1321,10 @@ class Trace_ExternalTraceReference_Decoder : public ::protozero::TypedProtoDecod
   bool has_id_128() const { return at<3>().valid(); }
   ::protozero::ConstBytes id_128() const { return at<3>().as_bytes(); }
   bool has_entity_id_mappings() const { return at<4>().valid(); }
-  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> entity_id_mappings() const { return GetRepeated<::protozero::ConstBytes>(4); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes>
+  entity_id_mappings() const {
+    return GetRepeated<::protozero::ConstBytes>(4);
+  }
 };
 
 class Trace_ExternalTraceReference : public ::protozero::Message {
@@ -1219,20 +1336,25 @@ class Trace_ExternalTraceReference : public ::protozero::Message {
     kId128FieldNumber = 3,
     kEntityIdMappingsFieldNumber = 4,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Trace.ExternalTraceReference"; }
-
-  using EntityIdMapping = ::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference_EntityIdMapping;
-
-  using ExternalTraceType = ::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference_ExternalTraceType;
-  static inline const char* ExternalTraceType_Name(ExternalTraceType value) {
-    return ::perfetto::third_party::primes::pbzero::Trace_ExternalTraceReference_ExternalTraceType_Name(value);
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Trace.ExternalTraceReference";
   }
-  static inline const ExternalTraceType EXTERNAL_TRACE_TYPE_UNSPECIFIED = ExternalTraceType::EXTERNAL_TRACE_TYPE_UNSPECIFIED;
+
+  using EntityIdMapping = ::perfetto::third_party::primes::pbzero::
+      Trace_ExternalTraceReference_EntityIdMapping;
+
+  using ExternalTraceType = ::perfetto::third_party::primes::pbzero::
+      Trace_ExternalTraceReference_ExternalTraceType;
+  static inline const char* ExternalTraceType_Name(ExternalTraceType value) {
+    return ::perfetto::third_party::primes::pbzero::
+        Trace_ExternalTraceReference_ExternalTraceType_Name(value);
+  }
+  static inline const ExternalTraceType EXTERNAL_TRACE_TYPE_UNSPECIFIED =
+      ExternalTraceType::EXTERNAL_TRACE_TYPE_UNSPECIFIED;
   static inline const ExternalTraceType PRIMES = ExternalTraceType::PRIMES;
   static inline const ExternalTraceType DAPPER = ExternalTraceType::DAPPER;
 
-  using FieldMetadata_Type =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Type = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kEnum,
@@ -1245,12 +1367,12 @@ class Trace_ExternalTraceReference : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kEnum>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kEnum>::Append(*this,
+                                                                  field_id,
+                                                                  value);
   }
 
-  using FieldMetadata_Id =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Id = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kFixed64,
@@ -1263,12 +1385,12 @@ class Trace_ExternalTraceReference : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kFixed64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kFixed64>::Append(*this,
+                                                                     field_id,
+                                                                     value);
   }
 
-  using FieldMetadata_Id128 =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Id128 = ::protozero::proto_utils::FieldMetadata<
       3,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
@@ -1276,49 +1398,59 @@ class Trace_ExternalTraceReference : public ::protozero::Message {
       Trace_ExternalTraceReference>;
 
   static constexpr FieldMetadata_Id128 kId128{};
-  template <typename T = Fixed128> T* set_id_128() {
+  template <typename T = Fixed128>
+  T* set_id_128() {
     return BeginNestedMessage<T>(3);
   }
 
-
   using FieldMetadata_EntityIdMappings =
-    ::protozero::proto_utils::FieldMetadata<
-      4,
-      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      Trace_ExternalTraceReference_EntityIdMapping,
-      Trace_ExternalTraceReference>;
+      ::protozero::proto_utils::FieldMetadata<
+          4,
+          ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+          ::protozero::proto_utils::ProtoSchemaType::kMessage,
+          Trace_ExternalTraceReference_EntityIdMapping,
+          Trace_ExternalTraceReference>;
 
   static constexpr FieldMetadata_EntityIdMappings kEntityIdMappings{};
-  template <typename T = Trace_ExternalTraceReference_EntityIdMapping> T* add_entity_id_mappings() {
+  template <typename T = Trace_ExternalTraceReference_EntityIdMapping>
+  T* add_entity_id_mappings() {
     return BeginNestedMessage<T>(4);
   }
-
 };
 
-class Trace_ExternalTraceReference_EntityIdMapping_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
+class Trace_ExternalTraceReference_EntityIdMapping_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
  public:
-  Trace_ExternalTraceReference_EntityIdMapping_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Trace_ExternalTraceReference_EntityIdMapping_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Trace_ExternalTraceReference_EntityIdMapping_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Trace_ExternalTraceReference_EntityIdMapping_Decoder(const uint8_t* data,
+                                                       size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Trace_ExternalTraceReference_EntityIdMapping_Decoder(
+      const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Trace_ExternalTraceReference_EntityIdMapping_Decoder(
+      const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_from_entity_id() const { return at<1>().valid(); }
   uint64_t from_entity_id() const { return at<1>().as_uint64(); }
   bool has_to_entity_id() const { return at<2>().valid(); }
   uint64_t to_entity_id() const { return at<2>().as_uint64(); }
 };
 
-class Trace_ExternalTraceReference_EntityIdMapping : public ::protozero::Message {
+class Trace_ExternalTraceReference_EntityIdMapping
+    : public ::protozero::Message {
  public:
   using Decoder = Trace_ExternalTraceReference_EntityIdMapping_Decoder;
   enum : int32_t {
     kFromEntityIdFieldNumber = 1,
     kToEntityIdFieldNumber = 2,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Trace.ExternalTraceReference.EntityIdMapping"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Trace.ExternalTraceReference."
+           "EntityIdMapping";
+  }
 
-
-  using FieldMetadata_FromEntityId =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_FromEntityId = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kUint64,
@@ -1331,12 +1463,12 @@ class Trace_ExternalTraceReference_EntityIdMapping : public ::protozero::Message
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kUint64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kUint64>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 
-  using FieldMetadata_ToEntityId =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_ToEntityId = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kUint64,
@@ -1349,16 +1481,22 @@ class Trace_ExternalTraceReference_EntityIdMapping : public ::protozero::Message
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kUint64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kUint64>::Append(*this,
+                                                                    field_id,
+                                                                    value);
   }
 };
 
-class Trace_Sampling_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
+class Trace_Sampling_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
  public:
-  Trace_Sampling_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Trace_Sampling_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Trace_Sampling_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Trace_Sampling_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Trace_Sampling_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Trace_Sampling_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_process_sampling_probability() const { return at<1>().valid(); }
   float process_sampling_probability() const { return at<1>().as_float(); }
   bool has_trace_sampling_probability() const { return at<2>().valid(); }
@@ -1372,51 +1510,63 @@ class Trace_Sampling : public ::protozero::Message {
     kProcessSamplingProbabilityFieldNumber = 1,
     kTraceSamplingProbabilityFieldNumber = 2,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Trace.Sampling"; }
-
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Trace.Sampling";
+  }
 
   using FieldMetadata_ProcessSamplingProbability =
-    ::protozero::proto_utils::FieldMetadata<
-      1,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kFloat,
-      float,
-      Trace_Sampling>;
+      ::protozero::proto_utils::FieldMetadata<
+          1,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kFloat,
+          float,
+          Trace_Sampling>;
 
-  static constexpr FieldMetadata_ProcessSamplingProbability kProcessSamplingProbability{};
+  static constexpr FieldMetadata_ProcessSamplingProbability
+      kProcessSamplingProbability{};
   void set_process_sampling_probability(float value) {
-    static constexpr uint32_t field_id = FieldMetadata_ProcessSamplingProbability::kFieldId;
+    static constexpr uint32_t field_id =
+        FieldMetadata_ProcessSamplingProbability::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kFloat>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kFloat>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 
   using FieldMetadata_TraceSamplingProbability =
-    ::protozero::proto_utils::FieldMetadata<
-      2,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kFloat,
-      float,
-      Trace_Sampling>;
+      ::protozero::proto_utils::FieldMetadata<
+          2,
+          ::protozero::proto_utils::RepetitionType::kNotRepeated,
+          ::protozero::proto_utils::ProtoSchemaType::kFloat,
+          float,
+          Trace_Sampling>;
 
-  static constexpr FieldMetadata_TraceSamplingProbability kTraceSamplingProbability{};
+  static constexpr FieldMetadata_TraceSamplingProbability
+      kTraceSamplingProbability{};
   void set_trace_sampling_probability(float value) {
-    static constexpr uint32_t field_id = FieldMetadata_TraceSamplingProbability::kFieldId;
+    static constexpr uint32_t field_id =
+        FieldMetadata_TraceSamplingProbability::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kFloat>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kFloat>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 };
 
-class Timestamp_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
+class Timestamp_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
  public:
-  Timestamp_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Timestamp_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Timestamp_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Timestamp_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Timestamp_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Timestamp_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_seconds() const { return at<1>().valid(); }
   int64_t seconds() const { return at<1>().as_int64(); }
   bool has_nanos() const { return at<2>().valid(); }
@@ -1430,11 +1580,11 @@ class Timestamp : public ::protozero::Message {
     kSecondsFieldNumber = 1,
     kNanosFieldNumber = 2,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Timestamp"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Timestamp";
+  }
 
-
-  using FieldMetadata_Seconds =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Seconds = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kInt64,
@@ -1447,12 +1597,12 @@ class Timestamp : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kInt64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kInt64>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 
-  using FieldMetadata_Nanos =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Nanos = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kInt32,
@@ -1465,16 +1615,22 @@ class Timestamp : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kInt32>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kInt32>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 };
 
-class Duration_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
+class Duration_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
  public:
-  Duration_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Duration_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Duration_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Duration_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Duration_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Duration_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_seconds() const { return at<1>().valid(); }
   int64_t seconds() const { return at<1>().as_int64(); }
   bool has_nanos() const { return at<2>().valid(); }
@@ -1488,11 +1644,11 @@ class Duration : public ::protozero::Message {
     kSecondsFieldNumber = 1,
     kNanosFieldNumber = 2,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Duration"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Duration";
+  }
 
-
-  using FieldMetadata_Seconds =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Seconds = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kInt64,
@@ -1505,12 +1661,12 @@ class Duration : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kInt64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kInt64>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 
-  using FieldMetadata_Nanos =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Nanos = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kInt32,
@@ -1523,16 +1679,22 @@ class Duration : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kInt32>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kInt32>::Append(*this,
+                                                                   field_id,
+                                                                   value);
   }
 };
 
-class Fixed128_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
+class Fixed128_Decoder
+    : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2> {
  public:
-  Fixed128_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit Fixed128_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit Fixed128_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  Fixed128_Decoder(const uint8_t* data, size_t len)
+      : TypedProtoDecoder(data, len) {}
+  explicit Fixed128_Decoder(const std::string& raw)
+      : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()),
+                          raw.size()) {}
+  explicit Fixed128_Decoder(const ::protozero::ConstBytes& raw)
+      : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_high() const { return at<1>().valid(); }
   uint64_t high() const { return at<1>().as_uint64(); }
   bool has_low() const { return at<2>().valid(); }
@@ -1546,11 +1708,11 @@ class Fixed128 : public ::protozero::Message {
     kHighFieldNumber = 1,
     kLowFieldNumber = 2,
   };
-  static constexpr const char* GetName() { return ".perfetto.third_party.primes.Fixed128"; }
+  static constexpr const char* GetName() {
+    return ".perfetto.third_party.primes.Fixed128";
+  }
 
-
-  using FieldMetadata_High =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_High = ::protozero::proto_utils::FieldMetadata<
       1,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kFixed64,
@@ -1563,12 +1725,12 @@ class Fixed128 : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kFixed64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kFixed64>::Append(*this,
+                                                                     field_id,
+                                                                     value);
   }
 
-  using FieldMetadata_Low =
-    ::protozero::proto_utils::FieldMetadata<
+  using FieldMetadata_Low = ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kFixed64,
@@ -1581,13 +1743,14 @@ class Fixed128 : public ::protozero::Message {
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kFixed64>
-        ::Append(*this, field_id, value);
+        ::protozero::proto_utils::ProtoSchemaType::kFixed64>::Append(*this,
+                                                                     field_id,
+                                                                     value);
   }
 };
 
-} // Namespace.
-} // Namespace.
-} // Namespace.
-} // Namespace.
+}  // namespace pbzero
+}  // namespace primes
+}  // namespace third_party
+}  // namespace perfetto
 #endif  // Include guard.

@@ -527,9 +527,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           simpleperf_proto_importer::SimpleperfProtoTokenizer>(
           kSimpleperfProtoTraceType);
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
-    kTarTraceType);
+      kTarTraceType);
   context()->reader_registry->RegisterTraceReader<primes::PrimesTraceTokenizer>(
-    kPrimesTraceType);
+      kPrimesTraceType);
 
   // Force initialization of heap graph tracker.
   //
