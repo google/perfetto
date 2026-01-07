@@ -43,6 +43,7 @@
 @import "widgets/chip";
 @import "widgets/code_snippet";
 @import "widgets/details_shell";
+@import "widgets/drawer_panel";
 @import "widgets/editor";
 @import "widgets/empty_state";
 @import "widgets/error";
@@ -68,7 +69,7 @@
 @import "widgets/select";
 @import "widgets/settings_shell";
 @import "widgets/spinner";
-@import "widgets/drawer_panel";
+@import "widgets/split_panel.scss";
 @import "widgets/sql_table";
 @import "widgets/stack";
 @import "widgets/tabs";
