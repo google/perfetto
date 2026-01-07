@@ -15,7 +15,10 @@
 import m from 'mithril';
 import {duration} from '../../base/time';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {
+  CellRenderResult,
+  SchemaRegistry,
+} from '../../components/widgets/datagrid/datagrid_schema';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {
@@ -30,6 +33,7 @@ import {Trace} from '../../public/trace';
 import {Spinner} from '../../widgets/spinner';
 import {Tab} from '../../public/tab';
 import {formatDuration} from '../../components/time_utils';
+import {Row, SqlValue} from '../../trace_processor/query_result';
 
 const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
   v8_rcs: {
@@ -39,6 +43,8 @@ const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
       v8_rcs_name: {},
       v8_rcs_count: {},
       v8_rcs_dur: {},
+      v8_rcs_count_percent: {},
+      v8_rcs_dur_percent: {},
     },
   },
 };
@@ -90,7 +96,9 @@ export class V8RuntimeCallStatsTab implements Tab {
         groupBy: [{field: 'v8_rcs_group'}],
         aggregates: [
           {function: 'SUM', field: 'v8_rcs_dur', sort: 'DESC'},
+          {function: 'SUM', field: 'v8_rcs_dur_percent'},
           {function: 'SUM', field: 'v8_rcs_count'},
+          {function: 'SUM', field: 'v8_rcs_count_percent'},
         ],
       },
     });
@@ -107,10 +115,6 @@ export class V8RuntimeCallStatsTab implements Tab {
           title: 'Name',
           columnType: 'text',
         },
-        v8_rcs_count: {
-          title: 'RCS Count',
-          columnType: 'quantitative',
-        },
         v8_rcs_dur: {
           title: 'RCS Duration',
           columnType: 'quantitative',
@@ -118,7 +122,45 @@ export class V8RuntimeCallStatsTab implements Tab {
             return formatDuration(this.trace, value as duration);
           },
         },
+        v8_rcs_dur_percent: {
+          title: 'Duration %',
+          columnType: 'quantitative',
+          cellRenderer: (value, row) => this.renderPercentCell(value, row),
+        },
+        v8_rcs_count: {
+          title: 'RCS Count',
+          columnType: 'quantitative',
+        },
+        v8_rcs_count_percent: {
+          title: 'Count %',
+          columnType: 'quantitative',
+          cellRenderer: (value, row) => this.renderPercentCell(value, row),
+        },
       },
+    };
+  }
+
+  private renderPercentCell(value: SqlValue, row: Row): CellRenderResult {
+    const val = value as number;
+    // If the row is empty, it means we are rendering the header cell.
+    // In this case we just want to render the text.
+    if (Object.keys(row).length === 0) {
+      return {
+        content: `${val.toFixed(2)}%`,
+        align: 'right',
+      };
+    }
+    return {
+      content: m(
+        'div.pf-v8-bar-container',
+        m('div.pf-v8-bar', {
+          style: {
+            width: `${val}%`,
+          },
+        }),
+        m('div.pf-v8-bar-text', `${val.toFixed(2)}%`),
+      ),
+      align: 'right',
     };
   }
 
@@ -246,56 +288,63 @@ export class V8RuntimeCallStatsTab implements Tab {
         WHERE
           a.key GLOB 'debug.runtime-call-stats.*' AND
           ${whereClause}
+      ),
+      rcs_aggregated AS (
+        SELECT
+          CASE
+            WHEN name LIKE '%Total%' THEN 'total'
+            WHEN name LIKE '%RegExp%' THEN 'regexp'
+            WHEN name LIKE '%IC^_%' ESCAPE '^' THEN 'ic'
+            WHEN name LIKE '%IC%Miss' THEN 'ic'
+            WHEN name LIKE 'IC' THEN 'ic'
+            WHEN name LIKE 'Json%' THEN 'json'
+            WHEN name LIKE '%Optimize%Background%' THEN 'optimize_bg'
+            WHEN name LIKE '%Optimize%Concurrent%' THEN 'optimize_bg'
+            WHEN name LIKE 'StackGuard%' THEN 'optimize'
+            WHEN name LIKE 'Optimize%' THEN 'optimize'
+            WHEN name LIKE 'Deoptimize%' THEN 'optimize'
+            WHEN name LIKE 'Recompile%' THEN 'optimize'
+            WHEN name LIKE '%TierUp%' THEN 'optimize'
+            WHEN name LIKE '%BudgetInterrupt%' THEN 'optimize'
+            WHEN name LIKE 'Compile%Optimized%' THEN 'optimize'
+            WHEN name LIKE '%Compile%Background%' THEN 'compile_bg'
+            WHEN name LIKE 'Compile%' THEN 'compile'
+            WHEN name LIKE '%^_Compile%' ESCAPE '^' THEN 'compile'
+            WHEN name LIKE '%CompileLazy%' THEN 'compile'
+            WHEN name LIKE '%Parse%Background%' THEN 'parse_bg'
+            WHEN name LIKE 'Parse%' THEN 'parse'
+            WHEN name LIKE 'PreParse%' THEN 'parse'
+            WHEN name LIKE '%GetMoreDataCallback%' THEN 'network_data'
+            WHEN name LIKE '%Callback%' THEN 'callback'
+            WHEN name LIKE '%Blink C\+\+%' THEN 'callback'
+            WHEN name LIKE '%API%' THEN 'api'
+            WHEN name LIKE 'GC^_Custom^_%'  ESCAPE '^' THEN 'gc_custom'
+            WHEN name LIKE 'GC^_%BACKGROUND%' ESCAPE '^' THEN 'gc_bg'
+            WHEN name LIKE 'GC^_%Background%' ESCAPE '^' THEN 'gc_bg'
+            WHEN name LIKE 'GC^_%AllocateInTargetSpace' ESCAPE '^' THEN 'gc'
+            WHEN name LIKE 'GC_%' ESCAPE '^' THEN 'gc'
+            WHEN name LIKE 'JS^_Execution' ESCAPE '^' THEN 'javascript'
+            WHEN name LIKE 'JavaScript' THEN 'javascript'
+            WHEN name LIKE '%Blink^_%' ESCAPE '^' THEN 'blink'
+            ELSE 'runtime'
+          END AS v8_rcs_group,
+          name AS v8_rcs_name,
+          SUM(CASE WHEN suffix = '[1]'
+            THEN CAST(int_value * 1000 * ratio AS INT)
+            ELSE 0
+            END) AS v8_rcs_dur,
+          SUM(CASE WHEN suffix = '[0]'
+            THEN CAST(int_value * ratio AS INT)
+            ELSE 0
+            END) AS v8_rcs_count
+        FROM rcs_entries
+        GROUP BY name
       )
       SELECT
-        name AS v8_rcs_name,
-        CASE
-          WHEN name LIKE '%Total%' THEN 'total'
-          WHEN name LIKE '%RegExp%' THEN 'regexp'
-          WHEN name LIKE '%IC^_%' ESCAPE '^' THEN 'ic'
-          WHEN name LIKE '%IC%Miss' THEN 'ic'
-          WHEN name LIKE 'IC' THEN 'ic'
-          WHEN name LIKE 'Json%' THEN 'json'
-          WHEN name LIKE '%Optimize%Background%' THEN 'optimize_bg'
-          WHEN name LIKE '%Optimize%Concurrent%' THEN 'optimize_bg'
-          WHEN name LIKE 'StackGuard%' THEN 'optimize'
-          WHEN name LIKE 'Optimize%' THEN 'optimize'
-          WHEN name LIKE 'Deoptimize%' THEN 'optimize'
-          WHEN name LIKE 'Recompile%' THEN 'optimize'
-          WHEN name LIKE '%TierUp%' THEN 'optimize'
-          WHEN name LIKE '%BudgetInterrupt%' THEN 'optimize'
-          WHEN name LIKE 'Compile%Optimized%' THEN 'optimize'
-          WHEN name LIKE '%Compile%Background%' THEN 'compile_bg'
-          WHEN name LIKE 'Compile%' THEN 'compile'
-          WHEN name LIKE '%^_Compile%' ESCAPE '^' THEN 'compile'
-          WHEN name LIKE '%CompileLazy%' THEN 'compile'
-          WHEN name LIKE '%Parse%Background%' THEN 'parse_bg'
-          WHEN name LIKE 'Parse%' THEN 'parse'
-          WHEN name LIKE 'PreParse%' THEN 'parse'
-          WHEN name LIKE '%GetMoreDataCallback%' THEN 'network_data'
-          WHEN name LIKE '%Callback%' THEN 'callback'
-          WHEN name LIKE '%Blink C\+\+%' THEN 'callback'
-          WHEN name LIKE '%API%' THEN 'api'
-          WHEN name LIKE 'GC^_Custom^_%'  ESCAPE '^' THEN 'gc_custom'
-          WHEN name LIKE 'GC^_%BACKGROUND%' ESCAPE '^' THEN 'gc_bg'
-          WHEN name LIKE 'GC^_%Background%' ESCAPE '^' THEN 'gc_bg'
-          WHEN name LIKE 'GC^_%AllocateInTargetSpace' ESCAPE '^' THEN 'gc'
-          WHEN name LIKE 'GC_%' ESCAPE '^' THEN 'gc'
-          WHEN name LIKE 'JS^_Execution' ESCAPE '^' THEN 'javascript'
-          WHEN name LIKE 'JavaScript' THEN 'javascript'
-          WHEN name LIKE '%Blink^_%' ESCAPE '^' THEN 'blink'
-          ELSE 'runtime'
-        END AS v8_rcs_group,
-        SUM(CASE WHEN suffix = '[0]'
-          THEN CAST(int_value * ratio AS INT)
-          ELSE 0
-          END) AS v8_rcs_count,
-        SUM(CASE WHEN suffix = '[1]'
-          THEN CAST(int_value * 1000 * ratio AS INT)
-          ELSE 0
-          END) AS v8_rcs_dur
-      FROM rcs_entries
-      GROUP BY name
+        *,
+        v8_rcs_dur * 100.0 / SUM(v8_rcs_dur) OVER () AS v8_rcs_dur_percent,
+        v8_rcs_count * 100.0 / SUM(v8_rcs_count) OVER () AS v8_rcs_count_percent
+      FROM rcs_aggregated
     `);
   }
 }
