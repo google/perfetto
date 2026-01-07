@@ -65,6 +65,7 @@
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/args_utils.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -329,7 +330,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     bool found = false;
     for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
       EXPECT_EQ(cursor.flat_key(), key_id);
-      if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
+      if (GetArgValue(*storage_, cursor.ToRowNumber().row_number()) == value) {
         found = true;
         break;
       }
@@ -651,9 +652,11 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
 
   auto dim_set_id = context_.storage->track_table()[0].dimension_arg_set_id();
   ASSERT_TRUE(dim_set_id.has_value());
-  std::optional<Variadic> cpu;
-  ASSERT_OK(context_.storage->ExtractArg(*dim_set_id, "cpu", &cpu));
-  EXPECT_EQ(cpu->int_value, 10u);
+  ArgExtractor args_cursor(context_.storage->arg_table());
+  uint32_t row = args_cursor.Get(*dim_set_id, "cpu");
+  ASSERT_NE(row, std::numeric_limits<uint32_t>::max());
+  Variadic cpu = GetArgValue(*context_.storage, row);
+  EXPECT_EQ(cpu.int_value, 10u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
@@ -673,19 +676,22 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
 
   EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
 
-  auto row = context_.storage->track_table().FindById(TrackId(0));
-  EXPECT_EQ(context_.storage->GetString(row->name()), "cpufreq");
-  std::optional<Variadic> cpu;
-  ASSERT_OK(context_.storage->ExtractArg(row->dimension_arg_set_id().value(),
-                                         "cpu", &cpu));
-  ASSERT_EQ(cpu->type, Variadic::Type::kInt);
-  EXPECT_EQ(cpu->uint_value, 0u);
+  auto track_row = context_.storage->track_table().FindById(TrackId(0));
+  EXPECT_EQ(context_.storage->GetString(track_row->name()), "cpufreq");
+  ArgExtractor args_cursor(context_.storage->arg_table());
+  uint32_t arg_row =
+      args_cursor.Get(track_row->dimension_arg_set_id().value(), "cpu");
+  ASSERT_NE(arg_row, std::numeric_limits<uint32_t>::max());
+  Variadic cpu = GetArgValue(*context_.storage, arg_row);
+  ASSERT_EQ(cpu.type, Variadic::Type::kInt);
+  EXPECT_EQ(cpu.uint_value, 0u);
 
-  row = context_.storage->track_table().FindById(TrackId(1));
-  ASSERT_OK(context_.storage->ExtractArg(row->dimension_arg_set_id().value(),
-                                         "cpu", &cpu));
-  ASSERT_EQ(cpu->type, Variadic::Type::kInt);
-  EXPECT_EQ(cpu->uint_value, 1u);
+  track_row = context_.storage->track_table().FindById(TrackId(1));
+  arg_row = args_cursor.Get(track_row->dimension_arg_set_id().value(), "cpu");
+  ASSERT_NE(arg_row, std::numeric_limits<uint32_t>::max());
+  cpu = GetArgValue(*context_.storage, arg_row);
+  ASSERT_EQ(cpu.type, Variadic::Type::kInt);
+  EXPECT_EQ(cpu.uint_value, 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuIdleStats) {
@@ -3052,19 +3058,21 @@ TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
   EXPECT_EQ(tracks[1].name(), storage_->InternString("cycle-follower"));
   EXPECT_EQ(tracks[2].name(), storage_->InternString("cache-follower"));
 
-  std::optional<Variadic> cpu;
+  Variadic cpu = Variadic::Null();
+  ArgExtractor args_cursor(context_.storage->arg_table());
   auto get_cpu = [&, this](uint32_t i) {
     auto dim_set_id = tracks[i].dimension_arg_set_id();
     ASSERT_TRUE(dim_set_id.has_value());
-    ASSERT_OK(context_.storage->ExtractArg(*dim_set_id, "cpu", &cpu));
-    ASSERT_TRUE(cpu.has_value());
+    uint32_t row = args_cursor.Get(*dim_set_id, "cpu");
+    ASSERT_NE(row, std::numeric_limits<uint32_t>::max());
+    cpu = GetArgValue(*context_.storage, row);
   };
   get_cpu(0);
-  EXPECT_EQ(cpu->int_value, 0u);
+  EXPECT_EQ(cpu.int_value, 0u);
   get_cpu(1);
-  EXPECT_EQ(cpu->int_value, 0u);
+  EXPECT_EQ(cpu.int_value, 0u);
   get_cpu(2);
-  EXPECT_EQ(cpu->int_value, 0u);
+  EXPECT_EQ(cpu.int_value, 0u);
 }
 
 }  // namespace
