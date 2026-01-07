@@ -35,15 +35,15 @@ export class Tab implements m.ClassComponent<TabAttrs> {
   view({attrs, children}: m.CVnode<TabAttrs>): m.Children {
     const {active, hasCloseButton, ...rest} = attrs;
     return m(
-      '.pf-split-panel__tab',
+      '.pf-drawer-panel__tab',
       {
         ...rest,
-        className: classNames(active && 'pf-split-panel__tab--active'),
+        className: classNames(active && 'pf-drawer-panel__tab--active'),
         onauxclick: () => {
           attrs.onClose?.();
         },
       },
-      m('.pf-split-panel__tab-title', children),
+      m('.pf-drawer-panel__tab-title', children),
       hasCloseButton &&
         m(Button, {
           compact: true,
@@ -57,24 +57,27 @@ export class Tab implements m.ClassComponent<TabAttrs> {
   }
 }
 
-export enum SplitPanelDrawerVisibility {
+export enum DrawerPanelVisibility {
   VISIBLE,
   FULLSCREEN,
   COLLAPSED,
 }
 
-export interface TabbedSplitPanelAttrs {
-  // Content to put to the left of the tabs on the split handle.
+export interface DrawerPanelAttrs {
+  // Content to display in the main area (above the drawer).
+  readonly mainContent?: m.Children;
+
+  // Content to put to the left of the tabs on the handle.
   readonly leftHandleContent?: m.Children;
 
-  // Tabs to display on the split handle.
+  // Tabs to display on the handle.
   readonly tabs?: m.Children;
 
   // Content to display inside the drawer.
   readonly drawerContent?: m.Children;
 
   // Whether the drawer is currently visible or not (when in controlled mode).
-  readonly visibility?: SplitPanelDrawerVisibility;
+  readonly visibility?: DrawerPanelVisibility;
 
   // Extra classes applied to the root element.
   readonly className?: string;
@@ -86,14 +89,13 @@ export interface TabbedSplitPanelAttrs {
   onTabChange?(key: string): void;
 
   // Called when the drawer visibility is changed.
-  onVisibilityChange?(visibility: SplitPanelDrawerVisibility): void;
+  onVisibilityChange?(visibility: DrawerPanelVisibility): void;
 }
 
 /**
- * A container that fills its parent container, splitting into two adjustable
- * horizontal sections. The upper half is reserved for the main content and any
- * children are placed here, and the lower half should be considered a drawer,
- * the `drawerContent` attribute can be used to define what goes here.
+ * A container that fills its parent container, with a main content area and a
+ * collapsible drawer at the bottom. The main content is specified via the
+ * `mainContent` attribute, and the drawer content via `drawerContent`.
  *
  * The drawer features a handle that can be dragged to adjust the height of the
  * drawer, and also features buttons to maximize and minimise the drawer.
@@ -103,23 +105,23 @@ export interface TabbedSplitPanelAttrs {
  *
  * The layout looks like this:
  *
- * ┌──────────────────────────────────────────────────────────────────┐
- * │pf-split-panel                                                    │
- * │┌────────────────────────────────────────────────────────────────┐|
- * ││pf-split-panel__main                                            ││
- * |└────────────────────────────────────────────────────────────────┘|
- * │┌────────────────────────────────────────────────────────────────┐|
- * ││pf-split-panel__handle                                          ││
- * │|┌─────────────────┐┌─────────────────────┐┌────────────────────┐||
- * |||leftHandleContent||.pf-split-panel__tabs||.pf-button-bar      |||
- * ||└─────────────────┘└─────────────────────┘└────────────────────┘||
- * |└────────────────────────────────────────────────────────────────┘|
- * │┌────────────────────────────────────────────────────────────────┐|
- * ││pf-split-panel__drawer                                          ││
- * |└────────────────────────────────────────────────────────────────┘|
- * └──────────────────────────────────────────────────────────────────┘
+ * ┌───────────────────────────────────────────────────────────────────┐
+ * │pf-drawer-panel                                                    │
+ * │┌─────────────────────────────────────────────────────────────────┐|
+ * ││pf-drawer-panel__main                                            ││
+ * |└─────────────────────────────────────────────────────────────────┘|
+ * │┌─────────────────────────────────────────────────────────────────┐|
+ * ││pf-drawer-panel__handle                                          ││
+ * │|┌─────────────────┐┌──────────────────────┐┌────────────────────┐||
+ * |||leftHandleContent||.pf-drawer-panel__tabs||.pf-button-bar      |||
+ * ||└─────────────────┘└──────────────────────┘└────────────────────┘||
+ * |└─────────────────────────────────────────────────────────────────┘|
+ * │┌─────────────────────────────────────────────────────────────────┐|
+ * ││pf-drawer-panel__drawer                                          ││
+ * |└─────────────────────────────────────────────────────────────────┘|
+ * └───────────────────────────────────────────────────────────────────┘
  */
-export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
+export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   private readonly trash = new DisposableStack();
 
   // The actual height of the vdom node. It matches resizableHeight if VISIBLE,
@@ -133,14 +135,15 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
   private fullscreenHeight = 0;
 
   // Current visibility state (if not controlled).
-  private visibility = SplitPanelDrawerVisibility.VISIBLE;
+  private visibility = DrawerPanelVisibility.VISIBLE;
 
-  constructor({attrs}: m.CVnode<TabbedSplitPanelAttrs>) {
+  constructor({attrs}: m.CVnode<DrawerPanelAttrs>) {
     this.resizableHeight = attrs.startingHeight ?? 100;
   }
 
-  view({attrs, children}: m.CVnode<TabbedSplitPanelAttrs>) {
+  view({attrs}: m.CVnode<DrawerPanelAttrs>) {
     const {
+      mainContent,
       leftHandleContent,
       drawerContent,
       visibility = this.visibility,
@@ -150,33 +153,33 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
     } = attrs;
 
     switch (visibility) {
-      case SplitPanelDrawerVisibility.VISIBLE:
+      case DrawerPanelVisibility.VISIBLE:
         this.height = Math.min(
           Math.max(this.resizableHeight, 0),
           this.fullscreenHeight,
         );
         break;
-      case SplitPanelDrawerVisibility.FULLSCREEN:
+      case DrawerPanelVisibility.FULLSCREEN:
         this.height = this.fullscreenHeight;
         break;
-      case SplitPanelDrawerVisibility.COLLAPSED:
+      case DrawerPanelVisibility.COLLAPSED:
         this.height = 0;
         break;
     }
 
     return m(
-      '.pf-split-panel',
+      '.pf-drawer-panel',
       {
         className,
       },
-      m('.pf-split-panel__main', children),
-      m('.pf-split-panel__handle', [
+      m('.pf-drawer-panel__main', mainContent),
+      m('.pf-drawer-panel__handle', [
         leftHandleContent,
-        m('.pf-split-panel__tabs', tabs),
+        m('.pf-drawer-panel__tabs', tabs),
         this.renderTabResizeButtons(visibility, onVisibilityChange),
       ]),
       m(
-        '.pf-split-panel__drawer',
+        '.pf-drawer-panel__drawer',
         {
           style: {height: `${this.height}px`},
         },
@@ -185,12 +188,12 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<TabbedSplitPanelAttrs, this>) {
+  oncreate(vnode: m.VnodeDOM<DrawerPanelAttrs, this>) {
     let dragStartY = 0;
     let heightWhenDragStarted = 0;
 
     const handle = toHTMLElement(
-      assertExists(vnode.dom.querySelector('.pf-split-panel__handle')),
+      assertExists(vnode.dom.querySelector('.pf-drawer-panel__handle')),
     );
 
     this.trash.use(
@@ -206,7 +209,7 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
           heightWhenDragStarted = this.height;
           dragStartY = y;
           this.updatePanelVisibility(
-            SplitPanelDrawerVisibility.VISIBLE,
+            DrawerPanelVisibility.VISIBLE,
             vnode.attrs.onVisibilityChange,
           );
         },
@@ -229,19 +232,19 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
   }
 
   private renderTabResizeButtons(
-    visibility: SplitPanelDrawerVisibility,
-    setVisibility?: (visibility: SplitPanelDrawerVisibility) => void,
+    visibility: DrawerPanelVisibility,
+    setVisibility?: (visibility: DrawerPanelVisibility) => void,
   ): m.Child {
-    const isClosed = visibility === SplitPanelDrawerVisibility.COLLAPSED;
+    const isClosed = visibility === DrawerPanelVisibility.COLLAPSED;
     return m(
       ButtonBar,
       m(Button, {
         title: 'Open fullscreen',
-        disabled: visibility === SplitPanelDrawerVisibility.FULLSCREEN,
+        disabled: visibility === DrawerPanelVisibility.FULLSCREEN,
         icon: 'vertical_align_top',
         onclick: () => {
           this.updatePanelVisibility(
-            SplitPanelDrawerVisibility.FULLSCREEN,
+            DrawerPanelVisibility.FULLSCREEN,
             setVisibility,
           );
         },
@@ -260,21 +263,21 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
   }
 
   private updatePanelVisibility(
-    visibility: SplitPanelDrawerVisibility,
-    setVisibility?: (visibility: SplitPanelDrawerVisibility) => void,
+    visibility: DrawerPanelVisibility,
+    setVisibility?: (visibility: DrawerPanelVisibility) => void,
   ) {
     this.visibility = visibility;
     setVisibility?.(visibility);
   }
 }
 
-export function toggleVisibility(visibility: SplitPanelDrawerVisibility) {
+export function toggleVisibility(visibility: DrawerPanelVisibility) {
   switch (visibility) {
-    case SplitPanelDrawerVisibility.COLLAPSED:
-    case SplitPanelDrawerVisibility.FULLSCREEN:
-      return SplitPanelDrawerVisibility.VISIBLE;
-    case SplitPanelDrawerVisibility.VISIBLE:
-      return SplitPanelDrawerVisibility.COLLAPSED;
+    case DrawerPanelVisibility.COLLAPSED:
+    case DrawerPanelVisibility.FULLSCREEN:
+      return DrawerPanelVisibility.VISIBLE;
+    case DrawerPanelVisibility.VISIBLE:
+      return DrawerPanelVisibility.COLLAPSED;
     default:
       assertUnreachable(visibility);
   }

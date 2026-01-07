@@ -77,9 +77,9 @@ import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
 import {
-  SplitPanel,
-  SplitPanelDrawerVisibility,
-} from '../../../widgets/split_panel';
+  DrawerPanel,
+  DrawerPanelVisibility,
+} from '../../../widgets/drawer_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
@@ -194,7 +194,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private previousSelectedNode?: QueryNode;
   private response?: QueryResponse;
   private dataSource?: DataSource;
-  private drawerVisibility = SplitPanelDrawerVisibility.COLLAPSED;
+  private drawerVisibility = DrawerPanelVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
   private readonly MIN_SIDEBAR_WIDTH = 250;
   private readonly MAX_SIDEBAR_WIDTH = 800;
@@ -230,7 +230,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
       // Show drawer the first time any node is selected
       if (!this.hasEverSelectedNode) {
-        this.drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+        this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
         this.hasEverSelectedNode = true;
       }
 
@@ -322,72 +322,69 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           }),
         );
 
-    return m(
-      SplitPanel,
-      {
-        className: layoutClasses,
-        visibility: this.drawerVisibility,
-        onVisibilityChange: (v) => {
-          this.drawerVisibility = v;
-        },
-        startingHeight: 300,
-        drawerContent: selectedNode
-          ? m(DataExplorer, {
-              trace: this.trace,
-              query: this.query,
-              node: selectedNode,
-              response: this.response,
-              dataSource: this.dataSource,
-              isQueryRunning: this.isQueryRunning,
-              isAnalyzing: this.isAnalyzing,
-              onchange: () => {
-                attrs.onNodeStateChange?.();
-              },
-              onFilterAdd: (filter, filterOperator) => {
-                attrs.onFilterAdd(selectedNode, filter, filterOperator);
-              },
-              isFullScreen:
-                this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
-              onFullScreenToggle: () => {
-                if (
-                  this.drawerVisibility ===
-                  SplitPanelDrawerVisibility.FULLSCREEN
-                ) {
-                  this.drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
-                } else {
-                  this.drawerVisibility = SplitPanelDrawerVisibility.FULLSCREEN;
-                }
-              },
-              onExecute: async () => {
-                if (!selectedNode.validate()) {
-                  console.warn(
-                    `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
-                  );
-                  return;
-                }
-
-                // Use the centralized service with manual=true.
-                // The service handles both analysis and execution.
-                await this.queryExecutionService.processNode(
-                  selectedNode,
-                  this.trace.engine,
-                  {
-                    manual: true, // User explicitly clicked "Run Query"
-                    hasExistingResult: this.queryExecuted,
-                    ...this.createManualExecutionCallbacks(selectedNode),
-                  },
-                );
-              },
-              onExportToTimeline: () => {
-                this.exportToTimeline(selectedNode);
-              },
-            })
-          : m(DataExplorerEmptyState, {
-              icon: 'info',
-              title: 'Select a node to see the data',
-            }),
+    return m(DrawerPanel, {
+      className: layoutClasses,
+      visibility: this.drawerVisibility,
+      onVisibilityChange: (v) => {
+        this.drawerVisibility = v;
       },
-      m(
+      startingHeight: 300,
+      drawerContent: selectedNode
+        ? m(DataExplorer, {
+            trace: this.trace,
+            query: this.query,
+            node: selectedNode,
+            response: this.response,
+            dataSource: this.dataSource,
+            isQueryRunning: this.isQueryRunning,
+            isAnalyzing: this.isAnalyzing,
+            onchange: () => {
+              attrs.onNodeStateChange?.();
+            },
+            onFilterAdd: (filter, filterOperator) => {
+              attrs.onFilterAdd(selectedNode, filter, filterOperator);
+            },
+            isFullScreen:
+              this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
+            onFullScreenToggle: () => {
+              if (
+                this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
+              ) {
+                this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
+              } else {
+                this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
+              }
+            },
+            onExecute: async () => {
+              if (!selectedNode.validate()) {
+                console.warn(
+                  `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
+                );
+                return;
+              }
+
+              // Use the centralized service with manual=true.
+              // The service handles both analysis and execution.
+              await this.queryExecutionService.processNode(
+                selectedNode,
+                this.trace.engine,
+                {
+                  manual: true, // User explicitly clicked "Run Query"
+                  hasExistingResult: this.queryExecuted,
+                  ...this.createManualExecutionCallbacks(selectedNode),
+                },
+              );
+            },
+            onExportToTimeline: () => {
+              this.exportToTimeline(selectedNode);
+            },
+          })
+        : m(DataExplorerEmptyState, {
+            icon: 'info',
+            title: 'Select a node to see the data',
+          }),
+      mainContent: [
+        m(
         '.pf-qb-node-graph',
         m(Graph, {
           rootNodes,
@@ -529,7 +526,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             },
           }),
         ),
-    );
+      ],
+    });
   }
 
   private resolveNode(

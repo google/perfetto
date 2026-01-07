@@ -15,9 +15,9 @@
 import {DetailsPanel} from '../public/details_panel';
 import {TabDescriptor, TabManager} from '../public/tab';
 import {
-  SplitPanelDrawerVisibility,
+  DrawerPanelVisibility,
   toggleVisibility,
-} from '../widgets/split_panel';
+} from '../widgets/drawer_panel';
 
 export interface ResolvedTab {
   uri: string;
@@ -37,7 +37,7 @@ export class TabManagerImpl implements TabManager, Disposable {
   private _instantiatedTabs = new Map<string, TabDescriptor>();
   private _openTabs: string[] = []; // URIs of the tabs open.
   private _currentTab: string = 'current_selection';
-  private _tabPanelVisibility = SplitPanelDrawerVisibility.COLLAPSED;
+  private _tabPanelVisibility = DrawerPanelVisibility.COLLAPSED;
   private _tabPanelVisibilityChanged = false;
 
   [Symbol.dispose]() {
@@ -86,9 +86,9 @@ export class TabManagerImpl implements TabManager, Disposable {
     // they are.
     if (
       !this._tabPanelVisibilityChanged &&
-      this._tabPanelVisibility === SplitPanelDrawerVisibility.COLLAPSED
+      this._tabPanelVisibility === DrawerPanelVisibility.COLLAPSED
     ) {
-      this.setTabPanelVisibility(SplitPanelDrawerVisibility.VISIBLE);
+      this.setTabPanelVisibility(DrawerPanelVisibility.VISIBLE);
     }
   }
 
@@ -191,7 +191,7 @@ export class TabManagerImpl implements TabManager, Disposable {
     return tabs;
   }
 
-  setTabPanelVisibility(visibility: SplitPanelDrawerVisibility): void {
+  setTabPanelVisibility(visibility: DrawerPanelVisibility): void {
     this._tabPanelVisibility = visibility;
     this._tabPanelVisibilityChanged = true;
   }

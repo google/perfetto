@@ -16,7 +16,7 @@ import m from 'mithril';
 import {TraceImpl} from '../../core/trace_impl';
 import {Button} from '../../widgets/button';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {Tab, SplitPanel} from '../../widgets/split_panel';
+import {Tab, DrawerPanel} from '../../widgets/drawer_panel';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../css_constants';
 import {CurrentSelectionTab} from './current_selection_tab';
 import {Gate} from '../../base/mithril_utils';
@@ -33,20 +33,17 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
   }: m.Vnode<TabPanelAttrs, this>): m.Children | null | void {
     const {tabs, drawerContent} = this.gatherTabs(attrs.trace);
 
-    return m(
-      SplitPanel,
-      {
-        className: attrs.className,
-        startingHeight: DEFAULT_DETAILS_CONTENT_HEIGHT,
-        leftHandleContent: this.renderDropdownMenu(attrs.trace),
-        tabs,
-        drawerContent,
-        visibility: attrs.trace.tabs.tabPanelVisibility,
-        onVisibilityChange: (visibility) =>
-          attrs.trace.tabs.setTabPanelVisibility(visibility),
-      },
-      children,
-    );
+    return m(DrawerPanel, {
+      className: attrs.className,
+      startingHeight: DEFAULT_DETAILS_CONTENT_HEIGHT,
+      leftHandleContent: this.renderDropdownMenu(attrs.trace),
+      tabs,
+      mainContent: children,
+      drawerContent,
+      visibility: attrs.trace.tabs.tabPanelVisibility,
+      onVisibilityChange: (visibility) =>
+        attrs.trace.tabs.setTabPanelVisibility(visibility),
+    });
   }
 
   private gatherTabs(trace: TraceImpl) {

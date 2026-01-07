@@ -14,14 +14,14 @@
 
 import m from 'mithril';
 import {Button} from '../../../widgets/button';
-import {SplitPanel, Tab} from '../../../widgets/split_panel';
+import {DrawerPanel, Tab} from '../../../widgets/drawer_panel';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
-export function renderSplitPanel(): m.Children {
+export function renderDrawerPanel(): m.Children {
   return [
     m(
       '.pf-widget-intro',
-      m('h1', 'SplitPanel'),
+      m('h1', 'DrawerPanel'),
       m(
         'p',
         'A resizable split panel container for dividing content into adjustable sections with a draggable divider.',
@@ -38,27 +38,22 @@ export function renderSplitPanel(): m.Children {
               border: 'solid 2px gray',
             },
           },
-          m(
-            SplitPanel,
-            {
-              leftHandleContent: [
-                opts.leftContent && m(Button, {icon: 'Menu'}),
-              ],
-              drawerContent: 'Drawer Content',
-              tabs:
-                opts.tabs &&
+          m(DrawerPanel, {
+            leftHandleContent: [opts.leftContent && m(Button, {icon: 'Menu'})],
+            mainContent: 'Main Content',
+            drawerContent: 'Drawer Content',
+            tabs:
+              opts.tabs &&
+              m(
+                '.pf-drawer-panel__tabs',
                 m(
-                  '.pf-split-panel__tabs',
-                  m(
-                    Tab,
-                    {active: true, hasCloseButton: opts.showCloseButtons},
-                    'Foo',
-                  ),
-                  m(Tab, {hasCloseButton: opts.showCloseButtons}, 'Bar'),
+                  Tab,
+                  {active: true, hasCloseButton: opts.showCloseButtons},
+                  'Foo',
                 ),
-            },
-            'Main Content',
-          ),
+                m(Tab, {hasCloseButton: opts.showCloseButtons}, 'Bar'),
+              ),
+          }),
         );
       },
       initialOpts: {
