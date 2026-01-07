@@ -24,9 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
