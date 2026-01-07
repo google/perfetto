@@ -146,6 +146,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
       },
     },
     {
+      name: 'track_name',
+      type: {
+        kind: 'string',
+      },
+    },
+    {
       name: 'process_name',
       type: {
         kind: 'string',
@@ -162,6 +168,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
       },
     },
     {
+      name: 'pid',
+      type: {
+        kind: 'int',
+      },
+    },
+    {
       name: 'thread_name',
       type: {
         kind: 'string',
@@ -175,6 +187,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
           table: 'thread',
           column: 'id',
         },
+      },
+    },
+    {
+      name: 'tid',
+      type: {
+        kind: 'int',
       },
     },
     {

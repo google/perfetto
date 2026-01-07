@@ -11,35 +11,32 @@ captures traces across all open tabs.
 > `chrome://flags#enable-perfetto-system-tracing` to "Enabled" and restarting
 > Chrome.
 
-## Recording a trace
+## Recording a trace manually
 
-1.  Navigate to [ui.perfetto.dev](https://ui.perfetto.dev/) and select **"Record
-    new trace"** from the left menu.
+> NOTE: If you need automated trace collection follow the
+> [crossbench instructions](#recording-a-trace-with-crossbench-automation).
+
+1.  Navigate to [ui.perfetto.dev](https://ui.perfetto.dev/) and select [**"Record
+    new trace"**](https://ui.perfetto.dev/#!/record) from the left menu.
     > If you are using the Perfetto UI for the first time, you have to install
     > the
     > [Perfetto UI Chrome extension](https://chrome.google.com/webstore/detail/perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine).
-2.  Select **"Chrome"** as **"Target platform"** in the drop-down.
+2.  Select **"Chrome"** as **"Target platform"** in the [Overview settings](https://ui.perfetto.dev/#!/record/target).
 
-    On Chrome OS, you can also record system traces by selecting the "Chrome OS
-    (system trace)" target platform.
-
-3.  Сonfigure settings in **"Recording settings"**.
+3.  Сonfigure settings in [**"Recording settings"**](https://ui.perfetto.dev/#!/record/config).
 
     ![Record page of the Perfetto UI](/docs/images/record-trace-chrome.png)
-
-        >Note: "Long trace" mode is not yet available for Chrome desktop.
-
-        > Tips:
-        >
-        > - To save the current config settings and apply them later go to the "Saved configs" menu.
-        > - To share your config settings go to the "Recording command" menu.
-
+    > NOTE: "Long trace" mode is not yet available for Chrome desktop.
+    > Tips:
     >
+    > - To save the current config settings and apply them later go to the "Saved configs" menu.
+    > - To share your config settings go to the "Recording command" menu.
 
-4.  Select which categories (or top level tags) in the **Chrome** probe section
+4.  Select which categories (or top level tags) in the
+    [**Chrome browser**](https://ui.perfetto.dev/#!/record/chrome) probe section
     that you want.
 
-    > Note: The tags at the top enable groups of related categories, but there
+    > NOTE: The tags at the top enable groups of related categories, but there
     > is currently no direct way to see them when targeting Chrome. However, you
     > can switch the target to "Android" and then see the categories in the
     > generated config in the "Recording Command" section if you are curious.
@@ -64,3 +61,23 @@ captures traces across all open tabs.
     > contain the URL and title of all open tabs, URLs of subresources used by
     > each tab, extension IDs, hardware identifying details, and other similar
     > information that you may not want to make public.
+
+## Recording a trace with crossbench automation
+
+If you need to automate collecting traces or need more precise control over
+chrome flags we recommend using
+[crossbench](https://chromium.googlesource.com/crossbench).
+It supports collecting traces for chrome on all major platforms.
+
+1. Follow Steps 1-4 from the [manual process](#recording-a-trace-manually) to create a trace configuration.
+2. Download the textproto config from the
+   [cmdline instructions page ](https://ui.perfetto.dev/#!/record/cmdline)
+   and save it locally as `config.txtpb`
+3. Run crossbench with your configuration
+   ```bash
+   ./tools/perf/crossbench load \
+     --probe='perfetto:/tmp/config.txtpb' \
+     --url="http://test.com" \
+     --browser=path/to/chrome \
+     -- $CUSTOM_CHROME_FLAGS
+   ```

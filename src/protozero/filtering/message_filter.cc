@@ -164,7 +164,8 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
       if (state->eat_next_bytes == 0) {
         config_.string_filter().MaybeFilter(
             reinterpret_cast<char*>(state->filter_string_ptr),
-            static_cast<size_t>(out_ - state->filter_string_ptr));
+            static_cast<size_t>(out_ - state->filter_string_ptr),
+            state->filter_string_semantic_type);
       }
     }
   } else {
@@ -236,6 +237,7 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
               state->action = StackState::kFilterString;
               AppendLenDelim(token.field_id, submessage_len, &out_);
               state->filter_string_ptr = out_;
+              state->filter_string_semantic_type = filter.semantic_type;
             } else if (filter.allowed) {
               state->action = StackState::kPassthrough;
               AppendLenDelim(token.field_id, submessage_len, &out_);
