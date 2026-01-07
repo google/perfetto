@@ -59,10 +59,10 @@ struct TableInitParams {
 };
 
 template <class Variant, class T>
-struct variant_index_impl;
+struct table_init_params;
 
 template <class T, class... Ts>
-struct variant_index_impl<std::variant<Ts...>, T> {
+struct table_init_params<std::variant<Ts...>, T> {
   static constexpr std::array<TableInitParams, sizeof...(Ts)> value = {
       {{decltype(Ts::kSpec)::kColumnCount, Ts::kSpec.column_names.data(),
         Ts::kSpec.column_specs.data()}...}};
@@ -72,7 +72,7 @@ struct variant_index_impl<std::variant<Ts...>, T> {
 // AllTables variant. This allows us to initialize all tables in a simple loop
 // without template instantiation bloat.
 constexpr std::array kTableInitParams =
-    variant_index_impl<tables::AllTables, void>::value;
+    table_init_params<tables::AllTables, void>::value;
 
 static_assert(
     std::size(kTableInitParams) == tables::kTableCount,
