@@ -51,10 +51,12 @@ class Interpreter {
 
   void Initialize(const BytecodeVector& bytecode,
                   uint32_t num_registers,
+                  uint32_t column_count,
                   const Column* const* columns,
                   const dataframe::Index* indexes,
                   const StringPool* string_pool) {
-    state_.Initialize(bytecode, num_registers, columns, indexes, string_pool);
+    state_.Initialize(bytecode, num_registers, column_count, columns, indexes,
+                      string_pool);
   }
 
   // Not movable because it's a very large object and the move cost would be

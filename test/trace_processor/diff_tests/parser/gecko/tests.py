@@ -69,3 +69,28 @@ class GeckoParser(TestSuite):
           1,0,"main","/system/bin/app_process64",0,1714
           2,1,"android::AndroidRuntime::start(char const*, android::Vector<android::String8> const&, bool)","/system/lib64/libandroid_runtime.so",0,1714
         '''))
+
+  def test_gecko_preprocessed_format(self):
+    return DiffTestBlueprint(
+        trace=DataPath('gecko_preprocessed_dav1d.json'),
+        query="""
+          INCLUDE PERFETTO MODULE stacks.cpu_profiling;
+
+          SELECT name, mapping_name, self_count, cumulative_count
+          FROM cpu_profiling_summary_tree
+          ORDER BY cumulative_count desc
+          LIMIT 10
+        """,
+        out=Csv('''
+          "name","mapping_name","self_count","cumulative_count"
+          "start","gecko",0,54917
+          "main","gecko",0,54917
+          "dav1d_send_data","gecko",0,54514
+          "gen_picture","gecko",1,54508
+          "dav1d_parse_obus","gecko",1,54507
+          "dav1d_submit_frame","gecko",4,54488
+          "dav1d_decode_frame","gecko",0,54480
+          "dav1d_decode_frame_main","gecko",6,54419
+          "dav1d_decode_tile_sbrow","gecko",32,40172
+          "decode_sb","gecko",13,40088
+        '''))
