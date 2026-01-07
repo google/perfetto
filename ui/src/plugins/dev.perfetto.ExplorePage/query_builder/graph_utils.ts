@@ -181,28 +181,7 @@ export function insertNodeBetween(
   // Store the existing child nodes along with their connection info
   // We need to preserve the port index for secondary input connections
   // Note: A parent can be connected to a child on multiple ports (e.g., Union node)
-  const existingChildren: Array<{
-    child: QueryNode;
-    portIndex: number | undefined;
-  }> = [];
-
-  for (const child of parentNode.nextNodes) {
-    if (child === undefined) continue;
-
-    // Check primary input connection
-    if (child.primaryInput === parentNode) {
-      existingChildren.push({child, portIndex: undefined});
-    }
-
-    // Check all secondary input connections
-    if (child.secondaryInputs) {
-      for (const [port, inputNode] of child.secondaryInputs.connections) {
-        if (inputNode === parentNode) {
-          existingChildren.push({child, portIndex: port});
-        }
-      }
-    }
-  }
+  const existingChildren = captureAllChildConnections(parentNode);
 
   // Clear parent's next nodes (we'll reconnect through newNode)
   parentNode.nextNodes = [];
