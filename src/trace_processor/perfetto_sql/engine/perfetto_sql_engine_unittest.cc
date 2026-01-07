@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -33,8 +32,7 @@ namespace {
 class PerfettoSqlEngineTest : public ::testing::Test {
  protected:
   StringPool pool_;
-  DataframeSharedStorage dataframe_shared_storage_;
-  PerfettoSqlEngine engine_{&pool_, &dataframe_shared_storage_, true};
+  PerfettoSqlEngine engine_{&pool_, true};
 };
 
 sql_modules::RegisteredPackage CreateTestPackage(

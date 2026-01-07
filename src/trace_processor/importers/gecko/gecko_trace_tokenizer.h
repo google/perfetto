@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor::gecko_importer {
 
@@ -36,6 +37,13 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
   base::Status NotifyEndOfFile() override;
 
  private:
+  // Parses the legacy Gecko format with "stringTable" and schema+data tables.
+  void ParseLegacyFormat(const Json::Value& value);
+
+  // Parses the preprocessed Gecko format with "stringArray" and separate column
+  // arrays (used by Firefox Profiler's preprocessed output).
+  void ParsePreprocessedFormat(const Json::Value& value);
+
   TraceProcessorContext* const context_;
   std::unique_ptr<TraceSorter::Stream<GeckoEvent>> stream_;
   std::string pending_json_;

@@ -25,12 +25,15 @@ import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {DraggableItem, SelectDeselectAllButtons} from '../widgets';
+import {
+  DraggableItem,
+  SelectDeselectAllButtons,
+  DataExplorerEmptyState,
+} from '../widgets';
 import {
   NodeDetailsMessage,
   NodeTitle,
@@ -194,31 +197,23 @@ export class UnionNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
+    let message: m.Child;
 
     if (selectedCols.length === 0) {
-      return {
-        content: [
-          NodeTitle(this.getTitle()),
-          NodeDetailsMessage('No common columns'),
-        ],
-      };
-    }
-
-    const cards: m.Child[] = [];
-    // If more than 3 columns, just show the count
-    if (selectedCols.length > 3) {
-      cards.push(m(Card, m('div', `${selectedCols.length} common columns`)));
+      message = NodeDetailsMessage('No common columns selected');
+    } else if (selectedCols.length > 3) {
+      // Show the count of common columns
+      message = m('div', `${selectedCols.length} common columns`);
     } else {
-      // Show individual column names for 3 or fewer
+      // Show individual column names
       const selectedItems = selectedCols.map((c) =>
         m('div', ColumnName(c.column.name)),
       );
-      cards.push(m(Card, ...selectedItems));
+      message = m('div', ...selectedItems);
     }
 
-    return {
-      content: [NodeTitle(this.getTitle()), m(CardStack, cards)],
-    };
+    const content = [NodeTitle(this.getTitle()), message];
+    return {content};
   }
 
   nodeSpecificModify(): NodeModifyAttrs {
@@ -240,48 +235,59 @@ export class UnionNode implements QueryNode {
     }
 
     // Selected columns section
-    sections.push({
-      title: `Select Common Columns (${selectedCount} / ${totalCount} selected)`,
-      content: m(
-        '.pf-modify-columns-content',
-        m(SelectDeselectAllButtons, {
-          onSelectAll: () => {
-            this.state.selectedColumns = this.state.selectedColumns.map(
-              (col) => ({
-                ...col,
-                checked: true,
-              }),
-            );
-            this.state.onchange?.();
-          },
-          onDeselectAll: () => {
-            this.state.selectedColumns = this.state.selectedColumns.map(
-              (col) => ({
-                ...col,
-                checked: false,
-              }),
-            );
-            this.state.onchange?.();
-          },
+    if (totalCount === 0) {
+      // Show empty state when no common columns
+      sections.push({
+        content: m(DataExplorerEmptyState, {
+          icon: 'table',
+          title: 'No common columns between sources',
+          variant: 'warning',
         }),
-        m(
-          '.pf-modify-columns-node',
+      });
+    } else {
+      sections.push({
+        title: `Select Common Columns (${selectedCount} / ${totalCount} selected)`,
+        content: m(
+          '.pf-modify-columns-content',
+          m(SelectDeselectAllButtons, {
+            onSelectAll: () => {
+              this.state.selectedColumns = this.state.selectedColumns.map(
+                (col) => ({
+                  ...col,
+                  checked: true,
+                }),
+              );
+              this.state.onchange?.();
+            },
+            onDeselectAll: () => {
+              this.state.selectedColumns = this.state.selectedColumns.map(
+                (col) => ({
+                  ...col,
+                  checked: false,
+                }),
+              );
+              this.state.onchange?.();
+            },
+          }),
           m(
-            '.pf-column-list-container',
+            '.pf-modify-columns-node',
             m(
-              '.pf-column-list-help',
-              'Select which common columns to include in the union',
-            ),
-            m(
-              '.pf-column-list',
-              this.state.selectedColumns.map((col, index) =>
-                this.renderSelectedColumn(col, index),
+              '.pf-column-list-container',
+              m(
+                '.pf-column-list-help',
+                'Select which common columns to include in the union',
+              ),
+              m(
+                '.pf-column-list',
+                this.state.selectedColumns.map((col, index) =>
+                  this.renderSelectedColumn(col, index),
+                ),
               ),
             ),
           ),
         ),
-      ),
-    });
+      });
+    }
 
     return {
       info: 'Stacks rows from multiple inputs vertically (UNION ALL). All inputs must have compatible column schemas. Useful for combining similar data from different sources.',

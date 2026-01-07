@@ -34,6 +34,13 @@ class InternMap {
   InternMap();
   ~InternMap();
 
+  // Clears all interned data, resetting the map to its initial state.
+  // This allows reusing allocated memory instead of destroying and recreating.
+  void Clear() {
+    map_.Clear();
+    last_iid_by_type_.Clear();
+  }
+
   // Given a value (identified by the memory buffer starting at `value`,
   // `value_size` bytes long) of a specific `type`, finds if there was an
   // existing iid associated with it, or assigns a new iid to it. Assigned iids
