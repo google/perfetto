@@ -19,25 +19,25 @@
   justify-content: center;
 }
 
-.pf-v8-bar-container {
+.pf-v8-percent-cell {
   position: relative;
   height: 100%;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-}
 
-.pf-v8-bar-text {
-  position: relative;
-  z-index: 1;
-  margin-right: 4px;
-}
+  .text {
+    position: relative;
+    z-index: 1;
+    margin-right: 4px;
+  }
 
-.pf-v8-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background-color: rgba(255, 0, 0, 0.3);
+  .percent {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(255, 0, 0, 0.3);
+  }
 }

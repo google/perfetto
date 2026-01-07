@@ -49,6 +49,30 @@ const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
   },
 };
 
+
+const GROUP_COLORS: {[key: string]: string} = {
+  total: '#BBB',
+  ic: '#3366CC',
+  optimize_maglev_bg: '#962c02',
+  optimize_maglev: '#fc4f26',
+  optimize_bg: '#702000',
+  optimize: '#DC3912',
+  compile_bg: '#b08000',
+  compile: '#FFAA00',
+  parse_bg: '#c05000',
+  parse: '#FF6600',
+  network_data: '#103366',
+  callback: '#109618',
+  api: '#990099',
+  gc_custom: '#0099C6',
+  gc_bg: '#00597c',
+  gc: '#00799c',
+  javascript: '#DD4477',
+  runtime: '#88BB00',
+  blink: '#006600',
+  unclassified: '#000',
+};
+
 export class V8RuntimeCallStatsTab implements Tab {
   private previousSelection?: Selection;
   private loading = false;
@@ -140,27 +164,25 @@ export class V8RuntimeCallStatsTab implements Tab {
     };
   }
 
-  private renderPercentCell(value: SqlValue, row: Row): CellRenderResult {
+  private renderPercentCell(value: SqlValue, row: Row): CellRenderResult | string {
     const val = value as number;
-    // If the row is empty, it means we are rendering the header cell.
-    // In this case we just want to render the text.
-    if (Object.keys(row).length === 0) {
-      return {
-        content: `${val.toFixed(2)}%`,
-        align: 'right',
-      };
+    const group = row['v8_rcs_group'] as string;
+    const isHeaderRow = !group;
+    if (isHeaderRow) {
+      return `${val.toFixed(2)}%`;
     }
+    const color = GROUP_COLORS[group] ?? GROUP_COLORS['unclassified'];
     return {
       content: m(
-        'div.pf-v8-bar-container',
-        m('div.pf-v8-bar', {
+        'div.pf-v8-percent-cell',
+        m('div.text', {
           style: {
             width: `${val}%`,
+            backgroundColor: color,
           },
         }),
-        m('div.pf-v8-bar-text', `${val.toFixed(2)}%`),
-      ),
-      align: 'right',
+        m('div.percent', `${val.toFixed(2)}%`),
+      )
     };
   }
 
