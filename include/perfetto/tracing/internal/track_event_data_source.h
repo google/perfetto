@@ -126,28 +126,31 @@ static constexpr bool IsValidTimestamp() {
 template <typename...>
 using void_t = void;
 
+// Helper to check if T is a pure rvalue (prvalue).
+template <typename T>
+constexpr bool IsPrvalue = !std::is_reference_v<T>;
+
 // Returns true iff `T` is a valid event name type.
 // Valid types are:
 // - Types for which `GetStaticString(T)` is defined.
 // - Temporary `perfetto::DynamicString` objects. `DynamicString` uses a raw
 //   pointer, so to prevent dangling pointers, the underlying string must
-//   outlive the event. Requiring `DynamicString` to be a temporary ensures this
+//   outlive the event. Requiring it to be a pure rvalue (prvalue) ensures this
 //   for the duration of the TRACE_EVENT call.
 template <typename T, typename = void>
-struct IsValidEventNameType
-    : std::bool_constant<std::is_same_v<perfetto::DynamicString,
-                                        typename std::decay<T>::type> &&
-                         !std::is_reference_v<T>> {};
+constexpr bool IsValidEventNameType =
+    std::is_same_v<perfetto::DynamicString, std::decay_t<T>> && IsPrvalue<T>;
 
 template <typename T>
-struct IsValidEventNameType<
-    T,
-    void_t<decltype(GetStaticString(std::declval<T>()))>> : std::true_type {};
+constexpr bool
+    IsValidEventNameType<T,
+                         void_t<decltype(GetStaticString(std::declval<T>()))>> =
+        true;
 
 template <typename T>
 inline void ValidateEventNameType() {
   static_assert(
-      IsValidEventNameType<T>::value,
+      IsValidEventNameType<T>,
       "Event names must be static strings. To use dynamic event names, see "
       "https://perfetto.dev/docs/instrumentation/"
       "track-events#dynamic-event-names");
