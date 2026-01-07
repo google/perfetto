@@ -25,6 +25,8 @@ export interface TagInputAttrs extends HTMLFocusableAttrs {
   onTagAdd: (text: string) => void;
   onTagRemove: (index: number) => void;
   placeholder?: string;
+  // Optional custom tag renderer (e.g., to use MiddleEllipsis for label)
+  renderTag?: (text: string, onRemove: () => void) => m.Children;
 }
 
 const INPUT_REF = 'input';
@@ -90,10 +92,16 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
       onfocus,
       onblur,
       placeholder,
+      renderTag: customRenderTag,
       ...htmlAttrs
     } = attrs;
 
     const valueIsControlled = value !== undefined;
+
+    const tagRenderer =
+      customRenderTag ??
+      ((text: string, onRemove: () => void) =>
+        renderTag(text, onChange, onRemove));
 
     return m(
       '.pf-tag-input',
@@ -110,9 +118,7 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
       m(
         Stack,
         {orientation: 'horizontal', spacing: 'small'},
-        tags.map((tag, index) =>
-          renderTag(tag, onChange, () => onTagRemove(index)),
-        ),
+        tags.map((tag, index) => tagRenderer(tag, () => onTagRemove(index))),
       ),
       m('input', {
         ref: INPUT_REF,

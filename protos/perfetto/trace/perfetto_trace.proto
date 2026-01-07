@@ -4888,6 +4888,17 @@ message TraceConfig {
       SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS = 5;
     }
 
+    // Semantic types for string fields. This tells the filter what kind of
+    // data the field contains, so it can apply the right filtering rules.
+    // See /rfcs/0011-subset-string-filter-rules.md for design details.
+    // Introduced in: Perfetto v54.
+    enum SemanticType {
+      SEMANTIC_TYPE_UNSPECIFIED = 0;
+      SEMANTIC_TYPE_ATRACE = 1;
+      SEMANTIC_TYPE_JOB = 2;
+      SEMANTIC_TYPE_WAKELOCK = 3;
+    }
+
     // A rule specifies how strings should be filtered.
     message StringFilterRule {
       // The policy (i.e. algorithm) dictating how strings matching this rule
@@ -4900,6 +4911,21 @@ message TraceConfig {
       // The string which should appear after the tgid in atrace tracepoint
       // strings.
       optional string atrace_payload_starts_with = 3;
+
+      // Optional name for the rule. When merging chains (e.g. via
+      // string_filter_chain_v54), rules with matching names in the newer chain
+      // will overwrite rules in the base chain. Rules without a name (empty or
+      // unset) are always treated as distinct and will be appended.
+      // See /rfcs/0011-subset-string-filter-rules.md for design details.
+      // Introduced in: Perfetto v54.
+      optional string name = 4;
+
+      // The semantic types this rule applies to. If empty, the rule applies
+      // to all string fields regardless of their semantic type. If non-empty,
+      // the rule only applies to fields whose semantic type is in this list.
+      // See /rfcs/0011-subset-string-filter-rules.md for design details.
+      // Introduced in: Perfetto v54.
+      repeated SemanticType semantic_type = 5;
     }
 
     // A chain is a list of rules which string will be sequentially checked
@@ -4936,6 +4962,15 @@ message TraceConfig {
     //
     // Introduced in: Perfetto v54.
     optional bytes bytecode_overlay_v54 = 4;
+
+    // String filter chain for Perfetto v54+. Rules in this chain either
+    // overwrite rules in string_filter_chain (if the name matches) or are
+    // appended (if the name doesn't match). This allows modifying existing
+    // rules (e.g., changing policy) without duplicating the entire chain.
+    // Rules without a name are always appended.
+    // See /rfcs/0011-subset-string-filter-rules.md for design details.
+    // Introduced in: Perfetto v54.
+    optional StringFilterChain string_filter_chain_v54 = 5;
   }
   // old field number for trace_filter
   reserved 32;
@@ -9938,6 +9973,7 @@ message F2fsWriteCheckpointFtraceEvent {
   optional uint32 is_umount = 2;
   optional string msg = 3;
   optional int32 reason = 4;
+  optional uint32 phase = 5;
 }
 message F2fsWriteEndFtraceEvent {
   optional uint64 dev = 1;
