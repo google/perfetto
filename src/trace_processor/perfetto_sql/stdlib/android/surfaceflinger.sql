@@ -219,3 +219,107 @@ JOIN _android_sf_process
   USING (upid)
 JOIN main_thread_slice
   ON main_thread_slice.vsync = CAST(expected_timeline.name AS INTEGER);
+
+-- Workloads that are submitted to SurfaceFlinger to do compositing work
+CREATE PERFETTO TABLE android_surfaceflinger_workloads (
+  -- Timestamp of the workload
+  ts TIMESTAMP,
+  -- Source of the workload
+  source STRING,
+  -- Name of the output the workload is compositing for
+  output_name STRING,
+  -- SF vsync ID that the workload was scheduled for
+  sf_vsync LONG,
+  -- CPU time of the frame_signal slice in SF
+  sf_cpu_frame_signal_nanos LONG,
+  -- CPU time of the commit slice in SF
+  sf_cpu_commit_nanos LONG,
+  -- CPU time of the composite slice in SF
+  sf_cpu_composite_nanos LONG,
+  -- CPU time of the present call in HWC, observed from SF
+  hwc_present_nanos LONG,
+  -- CPU time of the validate call in HWC, observed from SF
+  hwc_validate_nanos LONG,
+  -- CPU time of the presentOrValidate call in HWC, observed from SF
+  hwc_present_or_validate_nanos LONG,
+  -- CPU time of the drawLayers slice in RenderEngine
+  re_draw_layers_nanos LONG,
+  -- GPU time of work submitted to RenderEngine
+  re_gpu_completion_nanos LONG,
+  -- CPU time of the flush call sent to Skia, observed from SF
+  skia_flush_nanos LONG,
+  -- CPU time of the submit call sent to Skia, observed from SF
+  skia_submit_nanos LONG,
+  -- Number of GPU composited layers for the workload
+  gpu_composited_layers LONG,
+  -- Number of DPU composited layers for the workload
+  dpu_composited_layers LONG
+) AS
+SELECT
+  ts,
+  max(iif(key = 'surfaceflinger_workload.source', string_value, NULL)) AS source,
+  max(iif(key = 'surfaceflinger_workload.output_name', string_value, NULL)) AS output_name,
+  max(iif(key = 'surfaceflinger_workload.vsync_id', int_value, NULL)) AS sf_vsync,
+  max(
+    iif(
+      key = 'surfaceflinger_workload.summary.timings.sf_cpu.frame_signal_nanos',
+      int_value,
+      NULL
+    )
+  ) AS sf_cpu_frame_signal_nanos,
+  max(
+    iif(key = 'surfaceflinger_workload.summary.timings.sf_cpu.commit_nanos', int_value, NULL)
+  ) AS sf_cpu_commit_nanos,
+  max(
+    iif(
+      key = 'surfaceflinger_workload.summary.timings.sf_cpu.composite_nanos',
+      int_value,
+      NULL
+    )
+  ) AS sf_cpu_composite_nanos,
+  max(
+    iif(key = 'surfaceflinger_workload.summary.timings.hwc.present_nanos', int_value, NULL)
+  ) AS hwc_present_nanos,
+  max(
+    iif(key = 'surfaceflinger_workload.summary.timings.hwc.validate_nanos', int_value, NULL)
+  ) AS hwc_validate_nanos,
+  max(
+    iif(
+      key = 'surfaceflinger_workload.summary.timings.hwc.present_or_validate_nanos',
+      int_value,
+      NULL
+    )
+  ) AS hwc_present_or_validate_nanos,
+  max(
+    iif(
+      key = 'surfaceflinger_workload.summary.timings.re.draw_layers_nanos',
+      int_value,
+      NULL
+    )
+  ) AS re_draw_layers_nanos,
+  max(
+    iif(
+      key = 'surfaceflinger_workload.summary.timings.re.gpu_completion_nanos',
+      int_value,
+      NULL
+    )
+  ) AS re_gpu_completion_nanos,
+  max(
+    iif(key = 'surfaceflinger_workload.summary.timings.skia.flush_nanos', int_value, NULL)
+  ) AS skia_flush_nanos,
+  max(
+    iif(key = 'surfaceflinger_workload.summary.timings.skia.submit_nanos', int_value, NULL)
+  ) AS skia_submit_nanos,
+  max(
+    iif(key = 'surfaceflinger_workload.summary.stats.gpu_composited_layers', int_value, NULL)
+  ) AS gpu_composited_layers,
+  max(
+    iif(key = 'surfaceflinger_workload.summary.stats.dpu_composited_layers', int_value, NULL)
+  ) AS dpu_composited_layers
+FROM instant
+JOIN args
+  USING (arg_set_id)
+WHERE
+  key GLOB 'surfaceflinger_workload*'
+GROUP BY
+  arg_set_id;
