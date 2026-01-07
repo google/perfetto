@@ -75,6 +75,7 @@
 #include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_sched_boost.h"
+#include "perfetto/ext/base/string_utils.h"  // IWYU pragma: keep
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/utils.h"
@@ -117,7 +118,7 @@
 #include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
-#include "protos/perfetto/common/trace_stats.pbzero.h"
+#include "protos/perfetto/common/trace_stats.pbzero.h"  // IWYU pragma: keep
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
