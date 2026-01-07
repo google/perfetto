@@ -864,6 +864,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     const newRootNodes = Array.from(newRootNodesSet);
 
+    // STEP 5c: Remove the deleted node's layout from the map
+    // Now that we've transferred the layout to children/orphans, clean it up
+    updatedNodeLayouts.delete(node.nodeId);
+
     // STEP 6: Update selection if deleted node was selected
     const newSelectedNode =
       state.selectedNode === node ? undefined : state.selectedNode;
