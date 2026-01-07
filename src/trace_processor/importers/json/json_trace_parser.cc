@@ -412,17 +412,22 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           context_->storage->IncrementStats(stats::json_parser_failure);
         } else {
           json::ReturnCode ret;
-          while ((ret = it_.ParseObjectFieldWithoutRecursing()) ==
-                 json::ReturnCode::kOk) {
+          for (ret = it_.ParseObjectFieldWithoutRecursing();
+               ret == json::ReturnCode::kOk;
+               ret = it_.ParseObjectFieldWithoutRecursing()) {
             if (it_.key() == "cpu") {
-              if (const auto* val = std::get_if<int64_t>(&it_.value()))
+              if (const auto* val = std::get_if<int64_t>(&it_.value())) {
                 cpu = static_cast<uint32_t>(*val);
+              }
             } else if (it_.key() == "io_wait") {
-              if (const auto* val = std::get_if<int64_t>(&it_.value()))
+              if (const auto* val = std::get_if<int64_t>(&it_.value())) {
                 row.io_wait = static_cast<uint32_t>(*val);
+              }
             } else if (it_.key() == "blocked_function") {
-              if (const auto* val = std::get_if<std::string_view>(&it_.value()))
+              if (const auto* val =
+                      std::get_if<std::string_view>(&it_.value())) {
                 row.blocked_function = storage->InternString(*val);
+              }
             }
           }
           if (ret != json::ReturnCode::kEndOfScope)
