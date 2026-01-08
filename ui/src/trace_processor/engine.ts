@@ -311,6 +311,7 @@ export abstract class EngineBase implements Engine, Disposable {
         } else {
           res.resolve();
         }
+        this.pendingRegisterSqlPackage = undefined;
         break;
       case TPM.TPM_SUMMARIZE_TRACE:
         const summaryRes = assertExists(
