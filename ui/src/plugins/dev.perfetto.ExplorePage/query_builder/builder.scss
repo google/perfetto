@@ -209,15 +209,15 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 24px;
-  max-width: 510px;
+  max-width: 750px;
 }
 
 .pf-tutorial-cards {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-bottom: 24px;
-  max-width: 510px;
+  max-width: 500px;
 }
 
 .pf-solution-cards {
