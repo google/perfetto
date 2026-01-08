@@ -91,19 +91,18 @@ export class AppImpl implements App {
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
 
-  // Extra SQL packages, injected via is_internal_user.js.
+  // Extra SQL packages injected from extensions.
   private _sqlPackagesPromises = new Array<
     Promise<ReadonlyArray<SqlPackage>>
   >();
 
-  // Protobuf descriptor sets as Base64-encoded strings.
-  // Injected via is_internal_user.js.
+  // Protobuf descriptor sets as Base64-encoded strings injected from extensions.
   private _protoDescriptorsPromises = new Array<
     Promise<ReadonlyArray<string>>
   >();
 
   // Command macros. The key is the macro name, value is a list of commands to
-  // invoke. Injected via is_internal_user.js.
+  // invoke. Injected from extensions.
   private _macrosPromises = new Array<
     Promise<Map<string, ReadonlyArray<CommandInvocation>>>
   >();
