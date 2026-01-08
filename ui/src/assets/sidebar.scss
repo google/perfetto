@@ -59,7 +59,7 @@
     &.pf-sidebar__channel--autopush::before {
       display: block;
       position: absolute;
-      font-size: 10px;
+      font-size: var(--pf-font-size-xs);
       line-height: 5px;
       font-family: var(--pf-font);
       top: 7px;
@@ -144,11 +144,11 @@
           margin: 0 12px;
         }
         > h1 {
-          font-size: 15px;
+          font-size: var(--pf-font-size-l);
         }
         > h2 {
           color: rgba(255, 255, 255, 0.5);
-          font-size: 12px;
+          font-size: var(--pf-font-size-s);
           margin-top: 8px;
           font-weight: 400;
         }
@@ -200,7 +200,7 @@
       li {
         a {
           line-height: 24px;
-          font-size: 14px;
+          font-size: var(--pf-font-size-m);
           padding: 4px 12px;
           text-decoration: none;
           display: block;
@@ -234,7 +234,7 @@
         }
         .pf-sidebar__button-icon {
           margin-right: 10px;
-          font-size: 20px;
+          font-size: var(--pf-font-size-xxl);
         }
         &:hover {
           background: color-hover-surface(transparent, currentColor);
@@ -285,7 +285,7 @@
       margin: 1px 0;
       background: var(--pf-sidebar-surface-secondary);
       border-radius: $border-radius;
-      font-size: 12px;
+      font-size: var(--pf-font-size-s);
       text-align: center;
       &--green {
         background: var(--pf-color-success);
@@ -300,7 +300,7 @@
         color: var(--pf-color-text-on-danger);
       }
       > div {
-        font-size: 10px;
+        font-size: var(--pf-font-size-xs);
         line-height: 11px;
       }
     }
@@ -309,7 +309,7 @@
       position: absolute;
       right: 8px;
       bottom: 3px;
-      font-size: 12px;
+      font-size: var(--pf-font-size-s);
       font-family: var(--pf-font-compact);
       a {
         color: rgba(255, 255, 255, 0.5);
@@ -322,7 +322,7 @@
 
 // Note: The hiring banner doesn't use theme colors.
 .pf-hiring-banner {
-  font-size: 12px;
+  font-size: var(--pf-font-size-s);
   background: #db4634;
   box-shadow: 0 0 3px var(--pf-color-box-shadow);
   left: -65px;

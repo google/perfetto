@@ -179,7 +179,7 @@ $indent-guide-offset: 12px;
   display: flex;
   flex-direction: column;
   font-family: var(--pf-font-compact);
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   overflow: auto;
   isolation: isolate; // Improves layerization performance.
 
