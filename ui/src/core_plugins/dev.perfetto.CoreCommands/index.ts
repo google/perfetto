@@ -233,18 +233,11 @@ export default class CoreCommands implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: TraceImpl): Promise<void> {
-    const app = AppImpl.instance;
-
-    // Rgister macros from settings first.
-    registerMacros(ctx, assertExists(CoreCommands.macrosSetting).get());
-
-    // Register the macros from extras at onTraceReady (the latest time
-    // possible).
-    ctx.onTraceReady.addListener(async (_) => {
-      // Await the promises: we've tried to be async as long as possible but
-      // now we need the extras to be loaded.
-      registerMacros(ctx, Object.fromEntries(await app.macros()));
-    });
+    // Register all macros from settings.
+    const macros = assertExists(CoreCommands.macrosSetting).get();
+    for (const [macroName, commands] of Object.entries(macros)) {
+      ctx.commands.registerMacro({macroName, commands});
+    }
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAllProcesses',
@@ -873,22 +866,4 @@ async function openWithLegacyUi(file: File) {
     return await openFileWithLegacyTraceViewer(file);
   }
   return await openInOldUIWithSizeCheck(file);
-}
-
-function registerMacros(trace: TraceImpl, config: MacroConfig) {
-  for (const [macroName, commands] of Object.entries(config)) {
-    trace.commands.registerCommand({
-      id: `dev.perfetto.UserMacro.${macroName}`,
-      name: macroName,
-      callback: async () => {
-        // Macros could run multiple commands, some of which might prompt the
-        // user in an optional way. But macros should be self-contained
-        // so we disable prompts during their execution.
-        using _ = trace.omnibox.disablePrompts();
-        for (const command of commands) {
-          await trace.commands.runCommand(command.id, ...command.args);
-        }
-      },
-    });
-  }
 }
