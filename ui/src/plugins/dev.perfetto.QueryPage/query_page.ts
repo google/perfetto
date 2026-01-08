@@ -31,7 +31,9 @@ import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
 import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
+import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
+import {TabBar} from '../../widgets/tab_bar';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
@@ -40,6 +42,8 @@ import {DataSource} from '../../components/widgets/datagrid/data_source';
 import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {SimpleTableList} from './simple_table_list';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -56,8 +60,6 @@ export interface QueryPageAttrs {
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private dataSource?: DataSource;
-  private readonly verticalSplit = SplitPanel();
-  private readonly horizontalSplit = SplitPanel();
 
   onbeforeupdate(
     vnode: m.Vnode<QueryPageAttrs>,
@@ -172,28 +174,51 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     const resultsPanel = m(
       '.pf-query-page__results-panel',
       this.dataSource && attrs.queryResult
-        ? this.renderQueryResult(attrs.trace, attrs.queryResult, this.dataSource)
-        : m(EmptyState, {
-            title: 'Run a query to see results',
-            icon: 'database',
-            fillHeight: true,
-          }),
+        ? this.renderQueryResult(
+            attrs.trace,
+            attrs.queryResult,
+            this.dataSource,
+          )
+        : attrs.executedQuery
+          ? m(EmptyState, {
+              title: 'Running query...',
+              icon: 'hourglass_empty',
+              fillHeight: true,
+            })
+          : m(EmptyState, {
+              title: 'Run a query to see results',
+              fillHeight: true,
+            }),
     );
 
-    const historyPanel = m(QueryHistoryComponent, {
-      className: 'pf-query-page__history',
-      trace: attrs.trace,
-      runQuery: (query: string) => {
-        attrs.onExecute?.(query);
-      },
-      setQuery: (query: string) => {
-        attrs.onEditorContentUpdate?.(query);
-      },
+    const sidebarPanel = m(TabBar, {
+      className: 'pf-query-page__sidebar',
+      tabs: [
+        {
+          key: 'history',
+          title: 'History',
+          content: m(QueryHistoryComponent, {
+            className: 'pf-query-page__history',
+            trace: attrs.trace,
+            runQuery: (query: string) => {
+              attrs.onExecute?.(query);
+            },
+            setQuery: (query: string) => {
+              attrs.onEditorContentUpdate?.(query);
+            },
+          }),
+        },
+        {
+          key: 'tables',
+          title: 'Tables',
+          content: this.renderTablesTab(attrs),
+        },
+      ],
     });
 
-    const leftPanel = m(this.verticalSplit, {
+    const leftPanel = m(SplitPanel, {
       direction: 'vertical',
-      split: {percent: 50},
+      split: {percent: 70},
       minSize: 100,
       firstPanel: editorPanel,
       secondPanel: resultsPanel,
@@ -201,12 +226,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
     return m(
       '.pf-query-page',
-      m(this.horizontalSplit, {
+      m(SplitPanel, {
         direction: 'horizontal',
         split: {percent: 70},
         minSize: 100,
         firstPanel: leftPanel,
-        secondPanel: historyPanel,
+        secondPanel: sidebarPanel,
       }),
     );
   }
@@ -306,6 +331,30 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         })(),
       ];
     }
+  }
+
+  private renderTablesTab(attrs: QueryPageAttrs): m.Children {
+    const sqlModulesPlugin = attrs.trace.plugins.getPlugin(SqlModulesPlugin);
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+
+    if (!sqlModules) {
+      return m(
+        EmptyState,
+        {
+          title: 'Loading tables...',
+          icon: 'hourglass_empty',
+          fillHeight: true,
+        },
+        m(Spinner),
+      );
+    }
+
+    return m(SimpleTableList, {
+      sqlModules,
+      onTableClick: (tableName) => {
+        attrs.onExecute?.(`SELECT * FROM ${tableName} LIMIT 100`);
+      },
+    });
   }
 
   private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {
