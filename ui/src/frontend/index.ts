@@ -327,20 +327,9 @@ function main() {
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
   const app = AppImpl.instance;
-  const isInternalUserPromise = tryLoadIsInternalUserScript();
-  isInternalUserPromise.then((params) => {
-    app.isInternalUser = params.isInternalUser;
-    app.analytics.initialize(params.isInternalUser);
+  tryLoadIsInternalUserScript(app).then(() => {
+    app.analytics.initialize(app.isInternalUser);
   });
-  app.addExtensionMacrosPromise(
-    isInternalUserPromise.then((p) => Object.assign({}, ...p.extraMacros)),
-  );
-  app.addExtensionParsingDescriptorsPromise(
-    isInternalUserPromise.then((p) => p.extraParsingDescriptors),
-  );
-  app.addExtensionSqlPackagesPromise(
-    isInternalUserPromise.then((p) => p.extraSqlPackages),
-  );
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);

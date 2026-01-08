@@ -243,7 +243,7 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.onTraceReady.addListener(async (_) => {
       // Await the promises: we've tried to be async as long as possible but
       // now we need the extras to be loaded.
-      registerMacros(ctx, await app.extensionMacros());
+      registerMacros(ctx, await app.macros());
     });
 
     ctx.commands.registerCommand({
