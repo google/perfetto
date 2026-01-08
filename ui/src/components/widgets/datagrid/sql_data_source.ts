@@ -237,7 +237,9 @@ export class SQLDataSource implements DataSource {
   private shouldClearCache(newModel: DataSourceModel): boolean {
     if (!this.lastModel) return false;
     // Covering the most basic use-case.
-    return this.lastModel.pivot?.drillDown?.name !== newModel.pivot?.drillDown?.name;
+    return (
+      this.lastModel.pivot?.drillDown?.name !== newModel.pivot?.drillDown?.name
+    );
   }
 
   /**
