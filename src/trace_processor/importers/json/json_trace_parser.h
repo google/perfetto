@@ -47,6 +47,7 @@ class JsonTraceParser {
 
   StringId process_sort_index_hint_id_;
   StringId thread_sort_index_hint_id_;
+  StringId running_string_id_;
 
   void MaybeAddFlow(StringPool* pool, TrackId track_id, const JsonEvent& event);
 };

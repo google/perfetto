@@ -106,7 +106,7 @@ message ScrollAction {
 
   ScrollDirection direction = 2 [features = { field_presence: EXPLICIT }];
 
-  // The distance to scroll in pixels.
+  // The distance to scroll in DIPs.
   float distance = 3 [features = { field_presence: EXPLICIT }];
 
   int32 tab_id = 4 [features = { field_presence: EXPLICIT }];
@@ -363,11 +363,16 @@ message PauseMediaAction {
 }
 
 // Seek media action seeks the media session to the given seek time in
-// microseconds from the beginning of the media. The seek time should be
+// milliseconds from the beginning of the media. The seek time should be
 // non-negative.
-// Next ID: 2
+// Next ID: 3
 message SeekMediaAction {
-  int64 seek_time_microseconds = 1 [features = { field_presence: EXPLICIT }];
+  int64 seek_time_microseconds = 1 [
+    deprecated = true,
+    features = { field_presence: EXPLICIT }
+  ];
+
+  int64 seek_time_milliseconds = 2 [features = { field_presence: EXPLICIT }];
 }
 
 // Controls media session in a tab.

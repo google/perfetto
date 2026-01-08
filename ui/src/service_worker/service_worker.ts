@@ -58,6 +58,60 @@ const INSTALL_TIMEOUT_MS = 30000;
 // Files passed to POST /_open_trace/NNNN.
 let postedFiles = new Map<string, File>();
 
+// Allowlisted external domains that bypass firewall restrictions.
+// These match the domains previously allowed in CSP connect-src.
+// Note: script-src and img-src domains are NOT included here because
+// the service worker cannot intercept <script> or <img> loads.
+const ALLOWLISTED_DOMAINS = [
+  /\.googleapis\.com$/, // For Google Cloud Storage fetches.
+  /\.google-analytics\.com$/, // For analytics.
+];
+
+function isAllowlistedDomain(hostname: string): boolean {
+  return ALLOWLISTED_DOMAINS.some((pattern) => pattern.test(hostname));
+}
+
+function isLocalhost(hostname: string): boolean {
+  return hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1';
+}
+
+// Firewall check for outbound requests.
+// - Localhost: Allow everything (needed for trace_processor_shell, ADB, etc.)
+// - Same-origin: Allow everything (includes /_open_trace/ POST)
+// - Allowlisted domains: Allow everything
+// - All other external requests: GET only, no query string
+function checkFirewall(req: Request): {allowed: boolean; reason?: string} {
+  const url = new URL(req.url);
+
+  // Exempt: localhost
+  if (isLocalhost(url.hostname)) {
+    return {allowed: true};
+  }
+
+  // Exempt: same-origin requests
+  if (url.origin === self.location.origin) {
+    return {allowed: true};
+  }
+
+  // Allowlisted external domains: allow everything
+  if (isAllowlistedDomain(url.hostname)) {
+    return {allowed: true};
+  }
+
+  // All other external requests: GET only, no query string
+  if (req.method !== 'GET') {
+    return {allowed: false, reason: `Method ${req.method} not allowed`};
+  }
+
+  if (url.search !== '') {
+    return {allowed: false, reason: 'Query strings not allowed'};
+  }
+
+  return {allowed: true};
+}
+
 // The install() event is fired:
 // 1. On the first visit, when there is no SW installed.
 // 2. Every time the user opens the site and the version has been updated (they
@@ -132,6 +186,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Firewall check - runs for ALL requests including cross-origin.
+  const firewall = checkFirewall(event.request);
+  if (!firewall.allowed) {
+    console.warn(
+      LOG_TAG + `Blocked: ${event.request.url} - ${firewall.reason}`,
+    );
+    event.respondWith(
+      new Response(`Blocked by firewall: ${firewall.reason}`, {
+        status: 403,
+        statusText: 'Forbidden',
+      }),
+    );
+    return;
+  }
 
   // The early return here will cause the browser to fall back on standard
   // network-based fetch.

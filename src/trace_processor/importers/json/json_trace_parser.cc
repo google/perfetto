@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
@@ -44,6 +45,7 @@
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -99,7 +101,8 @@ JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
       process_sort_index_hint_id_(
           context->storage->InternString("process_sort_index_hint")),
       thread_sort_index_hint_id_(
-          context->storage->InternString("thread_sort_index_hint")) {}
+          context->storage->InternString("thread_sort_index_hint")),
+      running_string_id_(context->storage->InternString("Running")) {}
 
 JsonTraceParser::~JsonTraceParser() = default;
 
@@ -387,6 +390,62 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                           /* close_flow = */ false);
       } else {
         context_->storage->IncrementStats(stats::flow_invalid_id);
+      }
+      break;
+    }
+    case 'T': {  // Thread state event.
+      if (event.dur == std::numeric_limits<int64_t>::max()) {
+        context_->storage->IncrementStats(stats::json_parser_failure);
+        return;
+      }
+
+      tables::ThreadStateTable::Row row;
+      row.ts = timestamp;
+      row.dur = event.dur;
+      row.utid = utid;
+      row.state = slice_name_id;
+
+      std::optional<uint32_t> cpu;
+      if (event.args_size > 0) {
+        it_.Reset(event.args.get(), event.args.get() + event.args_size);
+        if (!it_.ParseStart()) {
+          context_->storage->IncrementStats(stats::json_parser_failure);
+        } else {
+          json::ReturnCode ret;
+          for (ret = it_.ParseObjectFieldWithoutRecursing();
+               ret == json::ReturnCode::kOk;
+               ret = it_.ParseObjectFieldWithoutRecursing()) {
+            if (it_.key() == "cpu") {
+              if (const auto* val = std::get_if<int64_t>(&it_.value())) {
+                cpu = static_cast<uint32_t>(*val);
+              }
+            } else if (it_.key() == "io_wait") {
+              if (const auto* val = std::get_if<int64_t>(&it_.value())) {
+                row.io_wait = static_cast<uint32_t>(*val);
+              }
+            } else if (it_.key() == "blocked_function") {
+              if (const auto* val =
+                      std::get_if<std::string_view>(&it_.value())) {
+                row.blocked_function = storage->InternString(*val);
+              }
+            }
+          }
+          if (ret != json::ReturnCode::kEndOfScope)
+            context_->storage->IncrementStats(stats::json_parser_failure);
+        }
+      }
+
+      storage->mutable_thread_state_table()->Insert(row);
+
+      // If this is a Running state with a cpu arg, also populate the sched
+      // table.
+      if (slice_name_id == running_string_id_ && cpu.has_value()) {
+        tables::SchedSliceTable::Row sched_row;
+        sched_row.ts = timestamp;
+        sched_row.dur = event.dur;
+        sched_row.utid = utid;
+        sched_row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu);
+        storage->mutable_sched_slice_table()->Insert(sched_row);
       }
       break;
     }
