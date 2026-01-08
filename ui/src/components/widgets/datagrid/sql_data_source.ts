@@ -190,6 +190,7 @@ export class SQLDataSource implements DataSource {
    * Notify of parameter changes and trigger data update
    */
   notify(model: DataSourceModel): void {
+    console.log(model == this.lastModel, model);
     if (this.shouldClearCache(model)) {
       this.cachedResult = undefined;
       this.cachedAggregateTotals = undefined;
@@ -235,7 +236,8 @@ export class SQLDataSource implements DataSource {
 
   private shouldClearCache(newModel: DataSourceModel): boolean {
     if (!this.lastModel) return false;
-    return this.lastModel.pivot?.drillDown !== newModel.pivot?.drillDown;
+    // Covering the most basic use-case.
+    return this.lastModel.pivot?.drillDown?.name !== newModel.pivot?.drillDown?.name;
   }
 
   /**
