@@ -114,6 +114,7 @@ export interface BuilderAttrs {
     width: number;
     text: string;
   }>;
+  readonly loadGeneration?: number;
   readonly isExplorerCollapsed?: boolean;
   readonly sidebarWidth?: number;
 
@@ -165,9 +166,6 @@ export interface BuilderAttrs {
 
   // Node state change callback
   readonly onNodeStateChange?: () => void;
-
-  // Graph recenter callback
-  readonly onRecenterReady?: (recenter: () => void) => void;
 
   // Undo / Redo
   readonly onUndo?: () => void;
@@ -387,6 +385,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             onNodeSelected,
             nodeLayouts: attrs.nodeLayouts,
             labels: attrs.labels,
+            loadGeneration: attrs.loadGeneration,
             onNodeLayoutChange: attrs.onNodeLayoutChange,
             onLabelsChange: attrs.onLabelsChange,
             onDeselect: attrs.onDeselect,
@@ -399,7 +398,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             onConnectionRemove: attrs.onConnectionRemove,
             onImport: attrs.onImport,
             onExport: attrs.onExport,
-            onRecenterReady: attrs.onRecenterReady,
           }),
           selectedNode &&
             m(
