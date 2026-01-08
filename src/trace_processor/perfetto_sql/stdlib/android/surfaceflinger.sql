@@ -276,9 +276,5 @@ SELECT
   extract_arg(arg_set_id, 'surfaceflinger_workload.summary.stats.gpu_composited_layers') AS gpu_composited_layers,
   extract_arg(arg_set_id, 'surfaceflinger_workload.summary.stats.dpu_composited_layers') AS dpu_composited_layers
 FROM slice
-JOIN args
-  USING (arg_set_id)
 WHERE
-  category = 'rendering' AND key GLOB 'surfaceflinger_workload*'
-GROUP BY
-  ts;
+  category = 'rendering' AND name = 'WorkloadSummary';
