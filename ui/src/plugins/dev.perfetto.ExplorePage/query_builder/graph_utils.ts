@@ -180,27 +180,8 @@ export function insertNodeBetween(
 
   // Store the existing child nodes along with their connection info
   // We need to preserve the port index for secondary input connections
-  const existingChildren: Array<{
-    child: QueryNode;
-    portIndex: number | undefined;
-  }> = [];
-
-  for (const child of parentNode.nextNodes) {
-    if (child !== undefined) {
-      // Check if parentNode is connected to child's secondary inputs
-      // and find the port index if so
-      let portIndex: number | undefined = undefined;
-      if (child.secondaryInputs) {
-        for (const [port, inputNode] of child.secondaryInputs.connections) {
-          if (inputNode === parentNode) {
-            portIndex = port;
-            break;
-          }
-        }
-      }
-      existingChildren.push({child, portIndex});
-    }
-  }
+  // Note: A parent can be connected to a child on multiple ports (e.g., Union node)
+  const existingChildren = captureAllChildConnections(parentNode);
 
   // Clear parent's next nodes (we'll reconnect through newNode)
   parentNode.nextNodes = [];
@@ -243,6 +224,35 @@ export function reconnectParentsToChildren(
       addConnection(parent, child, portIndex);
     }
   }
+}
+
+/**
+ * Captures all connections from a parent to its children, including multiple
+ * connections to the same child on different ports.
+ */
+export function captureAllChildConnections(
+  parentNode: QueryNode,
+): Array<{child: QueryNode; portIndex: number | undefined}> {
+  const connections: Array<{child: QueryNode; portIndex: number | undefined}> =
+    [];
+
+  for (const child of parentNode.nextNodes) {
+    // Check primary input connection
+    if (child.primaryInput === parentNode) {
+      connections.push({child, portIndex: undefined});
+    }
+
+    // Check all secondary input connections
+    if (child.secondaryInputs) {
+      for (const [port, inputNode] of child.secondaryInputs.connections) {
+        if (inputNode === parentNode) {
+          connections.push({child, portIndex: port});
+        }
+      }
+    }
+  }
+
+  return connections;
 }
 
 // ============================================================================
@@ -499,27 +509,55 @@ export function addConnection(
  * Removes a connection from one node to another, cleaning up both forward
  * and backward links.
  */
-export function removeConnection(fromNode: QueryNode, toNode: QueryNode): void {
-  // Remove forward link (fromNode -> toNode)
-  const nextIndex = fromNode.nextNodes.indexOf(toNode);
-  if (nextIndex !== -1) {
-    fromNode.nextNodes.splice(nextIndex, 1);
-  }
-
+export function removeConnection(
+  fromNode: QueryNode,
+  toNode: QueryNode,
+  specificPort?: number,
+): void {
   // Check if it's in primary input
   if (toNode.primaryInput === fromNode) {
     toNode.primaryInput = undefined;
     toNode.onPrevNodesUpdated?.();
   }
 
-  // Also check if it's in secondary inputs
+  // Check if it's in secondary inputs
   if (toNode.secondaryInputs) {
-    for (const [portIndex, inputNode] of toNode.secondaryInputs.connections) {
+    if (specificPort !== undefined) {
+      // Remove specific port connection
+      const inputNode = toNode.secondaryInputs.connections.get(specificPort);
       if (inputNode === fromNode) {
-        removeSecondaryInput(toNode, portIndex);
+        removeSecondaryInput(toNode, specificPort);
         toNode.onPrevNodesUpdated?.();
-        break;
       }
+    } else {
+      // No specific port - remove ALL connections from fromNode to toNode
+      const portsToRemove: number[] = [];
+      for (const [portIndex, inputNode] of toNode.secondaryInputs.connections) {
+        if (inputNode === fromNode) {
+          portsToRemove.push(portIndex);
+        }
+      }
+      for (const port of portsToRemove) {
+        removeSecondaryInput(toNode, port);
+      }
+      if (portsToRemove.length > 0) {
+        toNode.onPrevNodesUpdated?.();
+      }
+    }
+  }
+
+  // Only remove from nextNodes if no connections remain from fromNode to toNode
+  const stillConnected =
+    toNode.primaryInput === fromNode ||
+    (toNode.secondaryInputs &&
+      Array.from(toNode.secondaryInputs.connections.values()).includes(
+        fromNode,
+      ));
+
+  if (!stillConnected) {
+    const nextIndex = fromNode.nextNodes.indexOf(toNode);
+    if (nextIndex !== -1) {
+      fromNode.nextNodes.splice(nextIndex, 1);
     }
   }
 }

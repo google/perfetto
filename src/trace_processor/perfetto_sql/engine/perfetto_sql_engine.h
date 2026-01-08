@@ -268,6 +268,38 @@ class PerfettoSqlEngine {
                                              SqlSource sql);
 
  private:
+  enum class FrameType { kRoot, kInclude, kWildcard };
+
+  // Result of processing a single frame iteration.
+  enum class FrameResult {
+    kContinue,     // Frame still has work, continue processing it
+    kFrameDone,    // Frame completed, should be popped
+    kReturnResult  // Root frame completed with result
+  };
+
+  // Represents the execution state for a single SQL source being executed.
+  struct ExecutionFrame {
+    FrameType type = FrameType::kRoot;
+
+    // For root and include frames: the SQL being executed
+    SqlSource sql_source;
+    std::unique_ptr<PerfettoSqlParser> parser;
+    ExecutionStats accumulated_stats;
+    std::optional<SqliteEngine::PreparedStatement> current_stmt;
+
+    // For include frames: metadata needed to complete the include
+    std::string include_key;
+    sql_modules::RegisteredPackage::ModuleFile* file_ptr = nullptr;
+    SqlSource traceback_sql;
+
+    // For wildcard frames: modules to include (processed in order)
+    std::vector<
+        std::pair<std::string, sql_modules::RegisteredPackage::ModuleFile*>>
+        wildcard_modules;
+    size_t wildcard_index = 0;
+    SqlSource wildcard_traceback_sql;
+  };
+
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
 
@@ -327,6 +359,14 @@ class PerfettoSqlEngine {
                                  const std::string& key,
                                  const PerfettoSqlParser&);
 
+  // Implementation of ExecuteUntilLastStatement. Separated to handle
+  // re-entrant Execute() calls from statement handlers.
+  base::StatusOr<ExecutionResult> ExecuteUntilLastStatementImpl(SqlSource);
+
+  // Processes a single iteration of the frame at the given index.
+  // May push new frames onto the stack (for includes/wildcards).
+  base::StatusOr<FrameResult> ProcessFrame(size_t frame_idx);
+
   // Called when a transaction is committed by SQLite; that is, the result of
   // running some SQL is considered "perm".
   //
@@ -348,6 +388,11 @@ class PerfettoSqlEngine {
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.
   const bool enable_extra_checks_;
+
+  // Execution stack for iterative (non-recursive) processing of SQL sources.
+  // When an INCLUDE statement is encountered, the included module's SQL is
+  // pushed onto this stack and executed before continuing with the current SQL.
+  std::vector<ExecutionFrame> execution_stack_;
 
   uint64_t function_count_ = 0;
   uint64_t aggregate_function_count_ = 0;

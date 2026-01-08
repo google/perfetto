@@ -61,24 +61,44 @@ class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
   }
 
   view({attrs}: m.CVnode<SqlEditorAttrs>) {
-    return [
-      m(Editor, {
-        ref: 'editor',
-        text: attrs.sql,
-        onUpdate: attrs.onUpdate,
-        onExecute: attrs.onExecute,
-        autofocus: true,
-      }),
-      m(ResizeHandle, {
-        onResize: (deltaPx: number) => {
-          this.editorHeight += deltaPx;
-          this.editorElement!.style.height = `${this.editorHeight}px`;
+    return m(
+      '.sql-editor-container',
+      {
+        onkeydown: (e: KeyboardEvent) => {
+          // When ESC is pressed, blur the editor and focus the canvas
+          // so that delete key can work on the graph
+          if (e.key === 'Escape') {
+            const target = e.target as HTMLElement;
+            target.blur();
+
+            // Find the graph canvas (it's a div, not a canvas element) and focus it
+            const canvas = document.querySelector('.pf-canvas') as HTMLElement;
+            if (canvas !== null) {
+              canvas.focus();
+            }
+            e.stopPropagation();
+          }
         },
-        onResizeStart: () => {
-          this.editorHeight = this.editorElement!.clientHeight;
-        },
-      }),
-    ];
+      },
+      [
+        m(Editor, {
+          ref: 'editor',
+          text: attrs.sql,
+          onUpdate: attrs.onUpdate,
+          onExecute: attrs.onExecute,
+          autofocus: true,
+        }),
+        m(ResizeHandle, {
+          onResize: (deltaPx: number) => {
+            this.editorHeight += deltaPx;
+            this.editorElement!.style.height = `${this.editorHeight}px`;
+          },
+          onResizeStart: () => {
+            this.editorHeight = this.editorElement!.clientHeight;
+          },
+        }),
+      ],
+    );
   }
 }
 

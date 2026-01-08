@@ -25,15 +25,10 @@ import ThreadPlugin from '../dev.perfetto.Thread';
 import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 import {uuidv4Sql} from '../../base/uuid';
 import {
-  Config as ProcessSchedulingTrackConfig,
-  PROCESS_SCHEDULING_TRACK_KIND,
-  ProcessSchedulingTrack,
-} from './process_scheduling_track';
-import {
-  Config as ProcessSummaryTrackConfig,
-  PROCESS_SUMMARY_TRACK_KIND,
-  ProcessSummaryTrack,
-} from './process_summary_track';
+  Config,
+  SLICE_TRACK_SUMMARY_KIND,
+  GroupSummaryTrack,
+} from './group_summary_track';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
@@ -46,7 +41,8 @@ export default class implements PerfettoPlugin {
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
-    // Makes the queries in `ProcessSchedulingTrack` significantly faster.
+    // Makes the queries in `SliceTrackSummary` significantly faster when using
+    // scheduling data.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
     await createPerfettoIndex({
@@ -54,12 +50,13 @@ export default class implements PerfettoPlugin {
       name: `__process_scheduling_${uuidv4Sql()}`,
       on: `__intrinsic_sched_slice(utid)`,
     });
-    // Makes the queries in `ProcessSummaryTrack` significantly faster.
+    // Makes the queries in `SliceTrackSummary` significantly faster when using
+    // slice data.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
     await createPerfettoIndex({
       engine: ctx.engine,
-      name: `__process_summary_${uuidv4Sql()}`,
+      name: `__slice_track_summary_${uuidv4Sql()}`,
       on: `__intrinsic_slice(track_id)`,
     });
 
@@ -74,7 +71,6 @@ export default class implements PerfettoPlugin {
         FROM cpu
         GROUP BY machine
       )
-
       select *
       from (
         select
@@ -170,39 +166,27 @@ export default class implements PerfettoPlugin {
       // for additional details.
       isBootImageProfiling && chips.push('boot image profiling');
 
-      if (hasSched) {
-        const config: ProcessSchedulingTrackConfig = {
-          pidForColor,
-          upid,
-          utid,
-        };
-
-        ctx.tracks.registerTrack({
-          uri,
-          tags: {
-            kinds: [PROCESS_SCHEDULING_TRACK_KIND],
-          },
-          chips,
-          renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
-          subtitle,
-        });
-      } else {
-        const config: ProcessSummaryTrackConfig = {
-          pidForColor,
-          upid,
-          utid,
-        };
-
-        ctx.tracks.registerTrack({
-          uri,
-          tags: {
-            kinds: [PROCESS_SUMMARY_TRACK_KIND],
-          },
-          chips,
-          renderer: new ProcessSummaryTrack(ctx.engine, config),
-          subtitle,
-        });
-      }
+      const config: Config = {
+        pidForColor,
+        upid,
+        utid,
+      };
+      const track = new GroupSummaryTrack(
+        ctx,
+        config,
+        cpuCount,
+        threads,
+        hasSched,
+      );
+      ctx.tracks.registerTrack({
+        uri,
+        tags: {
+          kinds: [SLICE_TRACK_SUMMARY_KIND],
+        },
+        chips,
+        renderer: track,
+        subtitle,
+      });
     }
   }
 }

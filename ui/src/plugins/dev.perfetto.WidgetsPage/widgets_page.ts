@@ -27,6 +27,7 @@ import {renderCodeSnippet} from './demos/code_snippet_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
 import {renderDataGrid} from './demos/datagrid_demo';
+import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
 import {renderForm} from './demos/form_demo';
@@ -77,6 +78,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
   {id: 'datagrid', label: 'DataGrid', view: renderDataGrid},
+  {id: 'drawer-panel', label: 'DrawerPanel', view: renderDrawerPanel},
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
   {id: 'form', label: 'Form', view: renderForm},
@@ -95,7 +97,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'segmented-buttons', label: 'SegmentedButtons', view: segmentedButtons},
   {id: 'select', label: 'Select', view: renderSelect},
   {id: 'spinner', label: 'Spinner', view: renderSpinner},
-  {id: 'split-panel', label: 'Split Panel', view: renderSplitPanel},
+  {id: 'split-panel', label: 'SplitPanel', view: renderSplitPanel},
   {id: 'switch', label: 'Switch', view: renderSwitch},
   {id: 'tabstrip', label: 'TabStrip', view: renderTabStrip},
   {id: 'taginput', label: 'TagInput', view: renderTagInput},

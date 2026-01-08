@@ -90,6 +90,7 @@ def main():
   # Collect all tables and fwd header paths for generating all_tables_fwd.h
   all_tables: List[ParsedTable] = []
   all_fwd_header_paths: List[str] = []
+  all_fwd_relout_paths: List[str] = []
 
   for in_path, header in headers.items():
     out_path = get_out_path(in_path)
@@ -119,6 +120,7 @@ def main():
     # Collect for all_tables header
     all_tables.extend(header.tables)
     all_fwd_header_paths.append(fwd_header_path)
+    all_fwd_relout_paths.append(fwd_relout_path)
 
     # For fwd header, only need includes of other fwd headers
     fwd_deps = [
@@ -140,8 +142,10 @@ def main():
 
   # Generate the combined all_tables_fwd.h header
   if all_fwd_header_paths:
-    first_fwd_path = all_fwd_header_paths[0]
-    out_dir = os.path.dirname(first_fwd_path)
+    # Use relout path (without import_prefix) for output directory, consistent
+    # with how other headers compute their output paths.
+    first_fwd_relout = all_fwd_relout_paths[0]
+    out_dir = os.path.dirname(first_fwd_relout)
     generate_all_tables_header(args, all_tables, all_fwd_header_paths, out_dir)
 
 
