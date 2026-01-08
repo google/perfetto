@@ -294,13 +294,6 @@ async function loadTraceIntoEngine(
     deserializeAppStatePhase2(serializedAppState, trace);
   }
 
-  // Await and register all macros. This is the last possible moment where we can
-  // await this because startup commands just below may depend on macros.
-  const macros = await app.macros();
-  for (const [macroName, commands] of Object.entries(macros)) {
-    trace.commands.registerMacro({macroName, commands});
-  }
-
   // Execute startup commands as the final step - simulates user actions
   // after the trace is fully loaded and any saved state has been restored.
   // This ensures startup commands see the complete, final state of the trace.

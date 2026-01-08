@@ -68,8 +68,8 @@ export interface AppInitArgs {
  * and should use AppImpl instead.
  */
 export class AppImpl implements App {
+  readonly commands = new CommandManagerImpl();
   readonly omnibox = new OmniboxManagerImpl();
-  readonly commands = new CommandManagerImpl(this.omnibox);
   readonly pages = new PageManagerImpl();
   readonly sidebar: SidebarManagerImpl;
   readonly plugins = new PluginManagerImpl();
