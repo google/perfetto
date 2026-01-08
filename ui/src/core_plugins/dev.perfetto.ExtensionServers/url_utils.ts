@@ -46,9 +46,7 @@ export function resolveServerUrl(input: string): string {
   }
 
   // Unknown format
-  throw new Error(
-    'Invalid server URL: must start with https:// or github://',
-  );
+  throw new Error('Invalid server URL: must start with https:// or github://');
 }
 
 // Normalizes a canonical HTTPS URL to a stable server key.
