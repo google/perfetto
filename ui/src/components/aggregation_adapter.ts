@@ -28,15 +28,17 @@ import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
-import {DataGridDataSource} from './widgets/data_grid/common';
-import {SQLDataSource} from './widgets/data_grid/sql_data_source';
-import {BarChartData, ColumnDef, Sorting} from './aggregation';
+import {Pivot} from './widgets/datagrid/model';
+import {SQLDataSource} from './widgets/datagrid/sql_data_source';
+import {createSimpleSchema} from './widgets/datagrid/sql_schema';
+import {BarChartData, ColumnDef} from './aggregation';
 import {
   createPerfettoTable,
   DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
-import {DataGridApi} from './widgets/data_grid/data_grid';
-import {DataGridExportButton} from './widgets/data_grid/export_buttons';
+import {DataGridApi} from './widgets/datagrid/datagrid';
+import {DataGridExportButton} from './widgets/datagrid/export_button';
+import {DataSource} from './widgets/datagrid/data_source';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -55,47 +57,9 @@ export interface Aggregation {
   prepareData(engine: Engine): Promise<AggregationData>;
 }
 
-export interface Aggregator {
-  readonly id: string;
-
-  /**
-   * This function is called every time the area selection changes. The purpose
-   * of this function is to test whether this aggregator applies to the given
-   * area selection. If it does, it returns an aggregation object which gives
-   * further instructions on how to prepare the aggregation data.
-   *
-   * Aggregators are arranged this way because often the computation required to
-   * work out whether this aggregation applies is the same as the computation
-   * required to actually do the aggregation, so doing it like this means the
-   * prepareData() function returned can capture intermediate state avoiding
-   * having to do it again or awkwardly cache it somewhere in the aggregators
-   * local state.
-   */
-  probe(area: AreaSelection): Aggregation | undefined;
-  getTabName(): string;
-  getDefaultSorting(): Sorting;
-  getColumnDefinitions(): ColumnDef[];
-
-  /**
-   * Optionally override which component is used to render the data in the
-   * details panel. This can be used to define customize how the data is
-   * rendered.
-   */
-  readonly PanelComponent?: PanelComponent;
-}
-
-export interface AggregationPanelAttrs {
-  readonly dataSource: DataGridDataSource;
-  readonly sorting: Sorting;
+export interface AggregatePivotModel extends Pivot {
   readonly columns: ReadonlyArray<ColumnDef>;
-  readonly barChartData?: ReadonlyArray<BarChartData>;
-  readonly onReady?: (api: DataGridApi) => void;
 }
-
-// Define a type for the expected props of the panel components so that a
-// generic AggregationPanel can be specificed as an argument to
-// createBaseAggregationToTabAdaptor()
-export type PanelComponent = m.ComponentTypes<AggregationPanelAttrs>;
 
 export interface Aggregator {
   readonly id: string;
@@ -122,9 +86,27 @@ export interface Aggregator {
    */
   probe(area: AreaSelection): Aggregation | undefined;
   getTabName(): string;
-  getDefaultSorting(): Sorting;
-  getColumnDefinitions(): ColumnDef[];
+  getColumnDefinitions(): ColumnDef[] | AggregatePivotModel;
+
+  /**
+   * Optionally override which component is used to render the data in the
+   * details panel. This can be used to define customize how the data is
+   * rendered.
+   */
+  readonly PanelComponent?: PanelComponent;
 }
+
+export interface AggregationPanelAttrs {
+  readonly dataSource: DataSource;
+  readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
+  readonly onReady?: (api: DataGridApi) => void;
+}
+
+// Define a type for the expected props of the panel components so that a
+// generic AggregationPanel can be specificed as an argument to
+// createBaseAggregationToTabAdaptor()
+export type PanelComponent = m.ComponentTypes<AggregationPanelAttrs>;
 
 export function selectTracksAndGetDataset<T extends DatasetSchema>(
   tracks: ReadonlyArray<Track>,
@@ -138,7 +120,7 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
     .filter((d) => d.implements(spec));
 
   if (datasets.length > 0) {
-    return UnionDataset.create(datasets).optimize();
+    return UnionDataset.create(datasets);
   } else {
     return undefined;
   }
@@ -254,7 +236,11 @@ export function createAggregationTab(
           data = undefined;
           if (aggregation) {
             data = await aggregation?.prepareData(trace.engine);
-            dataSource = new SQLDataSource(trace.engine, data.tableName);
+            dataSource = new SQLDataSource({
+              engine: trace.engine,
+              sqlSchema: createSimpleSchema(data.tableName),
+              rootSchemaName: 'query',
+            });
           }
         });
       }
@@ -287,13 +273,14 @@ export function createAggregationTab(
           key: aggregator.id,
           dataSource,
           columns: aggregator.getColumnDefinitions(),
-          sorting: aggregator.getDefaultSorting(),
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;
           },
         }),
-        buttons: dataGridApi && m(DataGridExportButton, {api: dataGridApi}),
+        buttons:
+          dataGridApi &&
+          m(DataGridExportButton, {onExportData: dataGridApi.exportData}),
       };
     },
   };

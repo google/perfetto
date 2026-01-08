@@ -19,23 +19,26 @@ import {
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
-  notifyNextNodes,
 } from '../../query_node';
+import {notifyNextNodes} from '../graph_utils';
 import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../../widgets/callout';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {NodeIssues} from '../node_issues';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 import {
-  PopupMultiSelect,
+  LabeledControl,
+  IssueList,
+  ListItem,
+  OutlinedMultiSelect,
   MultiSelectOption,
   MultiSelectDiff,
-} from '../../../../widgets/multiselect';
-import {StructuredQueryBuilder} from '../structured_query_builder';
-import {LabeledControl, IssueList, ListItem} from '../widgets';
+} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {NodeTitle} from '../node_styling_widgets';
+import {NodeTitle, ColumnName} from '../node_styling_widgets';
+import {loadNodeDoc} from '../node_doc_loader';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -235,7 +238,8 @@ export class IntervalIntersectNode implements QueryNode {
     this.secondaryInputs = {
       connections: new Map(),
       min: 2,
-      max: 'unbounded',
+      max: 6,
+      portNames: (portIndex: number) => `Input ${portIndex}`,
     };
     // Initialize connections from state.inputNodes
     for (let i = 0; i < state.inputNodes.length; i++) {
@@ -287,6 +291,22 @@ export class IntervalIntersectNode implements QueryNode {
       if (!checkColumns(inputNode, ['id', 'ts', 'dur'])) return false;
     }
 
+    // Validate partition columns exist in all inputs
+    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
+      for (const partitionCol of this.state.partitionColumns) {
+        for (let i = 0; i < inputNodes.length; i++) {
+          const node = inputNodes[i];
+          const cols = new Set(node.finalCols.map((c) => c.name));
+          if (!cols.has(partitionCol)) {
+            this.setValidationError(
+              `Partition column '${partitionCol}' is missing from Input ${i}. Please remove the partitioning or ensure all inputs have this column.`,
+            );
+            return false;
+          }
+        }
+      }
+    }
+
     return true;
   }
 
@@ -302,49 +322,10 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Find intervals that overlap across all connected sources. All inputs are treated equally - returns intervals that exist in all sources simultaneously.',
-      ),
-      m(
-        'p',
-        m('strong', 'Required columns:'),
-        ' All inputs must have ',
-        m('code', 'id'),
-        ', ',
-        m('code', 'ts'),
-        ', and ',
-        m('code', 'dur'),
-        ' columns.',
-      ),
-      m(
-        'p',
-        m('strong', 'Partition:'),
-        ' Optionally partition the intersection by common columns (e.g., ',
-        m('code', 'utid'),
-        '). When partitioned, intervals are matched only within the same partition values.',
-      ),
-      m(
-        'p',
-        m('strong', 'Duplicate columns:'),
-        " Columns that appear in multiple inputs will be excluded from the result. Use '+ -> Columns -> Modify' to rename conflicting columns before connecting.",
-      ),
-      m(
-        'p',
-        m('strong', 'Filter unfinished intervals:'),
-        " Enable per-input to exclude intervals that haven't completed yet.",
-      ),
-      m(
-        'p',
-        m('strong', 'Example:'),
-        ' Find CPU slices that occur during both a user gesture AND a network request.',
-      ),
-    );
+    return loadNodeDoc('interval_intersect');
   }
 
-  private renderPartitionSelector(compact: boolean = false): m.Child {
+  private renderPartitionSelector(): m.Child {
     // Initialize partition columns if needed
     if (!this.state.partitionColumns) {
       this.state.partitionColumns = [];
@@ -352,11 +333,22 @@ export class IntervalIntersectNode implements QueryNode {
 
     // Get common columns for partition selection
     const commonColumns = this.getCommonColumns();
-    if (commonColumns.length === 0) {
+
+    // Build options: include both common columns AND currently selected partition columns
+    // This ensures we show invalid partition columns so the user can deselect them
+    const allPartitionOptions = new Set([
+      ...commonColumns,
+      ...(this.state.partitionColumns ?? []),
+    ]);
+
+    // If there are no options at all (no common columns and no partitions set), don't show
+    if (allPartitionOptions.size === 0) {
       return null;
     }
 
-    const partitionOptions: MultiSelectOption[] = commonColumns.map((col) => ({
+    const partitionOptions: MultiSelectOption[] = Array.from(
+      allPartitionOptions,
+    ).map((col) => ({
       id: col,
       name: col,
       checked: this.state.partitionColumns?.includes(col) ?? false,
@@ -370,11 +362,10 @@ export class IntervalIntersectNode implements QueryNode {
     return m(
       LabeledControl,
       {label: 'Partition by:'},
-      m(PopupMultiSelect, {
+      m(OutlinedMultiSelect, {
         label,
         options: partitionOptions,
         showNumSelected: false,
-        compact,
         onChange: (diffs: MultiSelectDiff[]) => {
           if (!this.state.partitionColumns) {
             this.state.partitionColumns = [];
@@ -400,8 +391,24 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
+    const details: m.Child[] = [NodeTitle(this.getTitle())];
+
+    // Display partition columns (read-only)
+    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
+      details.push(
+        m(
+          'div',
+          'Partition by: ',
+          this.state.partitionColumns.map((col, index) => [
+            ColumnName(col),
+            index < this.state.partitionColumns!.length - 1 ? ', ' : '',
+          ]),
+        ),
+      );
+    }
+
     return {
-      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
+      content: details,
     };
   }
 
@@ -414,7 +421,7 @@ export class IntervalIntersectNode implements QueryNode {
     }
 
     const inputNodes = this.inputNodesList;
-    if (inputNodes.length === 0 || inputNodes[0] === undefined) {
+    if (inputNodes.length === 0) {
       if (this.state.partitionColumns.length > 0) {
         console.warn(
           '[IntervalIntersect] Clearing partition columns - no input nodes available',
@@ -424,23 +431,9 @@ export class IntervalIntersectNode implements QueryNode {
       return;
     }
 
-    const firstNodeCols = inputNodes[0].finalCols;
-    const availablePartitionCols = new Set(firstNodeCols.map((c) => c.name));
-
-    // Remove partition columns that no longer exist in input nodes
-    const validPartitionCols = this.state.partitionColumns.filter((colName) =>
-      availablePartitionCols.has(colName),
-    );
-
-    if (validPartitionCols.length !== this.state.partitionColumns.length) {
-      const removed = this.state.partitionColumns.filter(
-        (c) => !validPartitionCols.includes(c),
-      );
-      console.warn(
-        `[IntervalIntersect] Removing partition columns no longer available in input: ${removed.join(', ')}`,
-      );
-      this.state.partitionColumns = validPartitionCols;
-    }
+    // Don't automatically remove partition columns that become invalid.
+    // Instead, keep them and let validation fail so the user sees the error
+    // and can manually remove the partitioning.
   }
 
   onPrevNodesUpdated(): void {
@@ -555,6 +548,7 @@ export class IntervalIntersectNode implements QueryNode {
     // If no inputs connected, show empty state
     if (connectedInputs.length === 0) {
       return {
+        info: 'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
         sections: [
           {
             content: m(EmptyState, {
@@ -588,7 +582,7 @@ export class IntervalIntersectNode implements QueryNode {
     }
 
     // Add partition selector
-    const partitionSelector = this.renderPartitionSelector(false);
+    const partitionSelector = this.renderPartitionSelector();
     if (partitionSelector !== null) {
       sections.push({
         content: partitionSelector,
@@ -634,6 +628,7 @@ export class IntervalIntersectNode implements QueryNode {
     });
 
     return {
+      info: 'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
       sections,
     };
   }
@@ -688,21 +683,25 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   static deserializeState(
+    state: IntervalIntersectSerializedState,
+  ): IntervalIntersectNodeState {
+    return {
+      inputNodes: [],
+      filterNegativeDur: state.filterNegativeDur,
+      partitionColumns: state.partitionColumns,
+    };
+  }
+
+  static deserializeConnections(
     nodes: Map<string, QueryNode>,
     state: IntervalIntersectSerializedState,
-  ): {
-    inputNodes: QueryNode[];
-    filterNegativeDur?: boolean[];
-    partitionColumns?: string[];
-  } {
+  ): {inputNodes: QueryNode[]} {
     // Resolve all input nodes from their IDs
     const inputNodes = state.intervalNodes
       .map((id) => nodes.get(id))
       .filter((node): node is QueryNode => node !== undefined);
     return {
       inputNodes,
-      filterNegativeDur: state.filterNegativeDur,
-      partitionColumns: state.partitionColumns,
     };
   }
 }

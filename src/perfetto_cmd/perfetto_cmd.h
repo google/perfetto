@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/thread_task_runner.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -88,6 +89,7 @@ class PerfettoCmd : public Consumer {
   enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
 
   bool OpenOutputFile();
+  uint64_t GetBytesWritten();
   void SetupCtrlCSignalHandler();
   void FinalizeTraceAndExit();
   void PrintUsage(const char* argv0);
@@ -155,16 +157,18 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
+  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
+      base::ScopedMmap mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
-  base::Status ReportTraceToAndroidFramework(
-      base::ScopedFile trace_fd,
+  static base::Status ReportTraceToAndroidFramework(
+      int trace_fd,
       uint64_t trace_size,
-      const protos::gen::TraceConfig_AndroidReportConfig& report_config,
       const base::Uuid& uuid,
-      const std::string& unique_session_name);
-  void ReportTraceToAndroidFrameworkOrCrash(base::ScopedFile trace_fd,
-                                            uint64_t trace_size);
+      const std::string& unique_session_name,
+      const protos::gen::TraceConfig_AndroidReportConfig& report_config,
+      bool statsd_logging);
+  void ReportTraceToAndroidFrameworkOrCrash();
   void ReportAllPersistentTracesToAndroidFramework();
   static std::vector<base::ScopedFile>
   UnlinkAndReturnPersistentTracesToUpload();
@@ -194,7 +198,6 @@ class PerfettoCmd : public Consumer {
   bool report_to_android_framework_ = false;
   bool statsd_logging_ = false;
   bool tracing_succeeded_ = false;
-  uint64_t bytes_written_ = 0;
   std::string detach_key_;
   std::string attach_key_;
   bool stop_trace_once_attached_ = false;

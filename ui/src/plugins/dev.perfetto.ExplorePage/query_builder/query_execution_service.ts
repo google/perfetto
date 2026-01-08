@@ -14,7 +14,8 @@
 
 import {NUM} from '../../../trace_processor/query_result';
 import {Engine} from '../../../trace_processor/engine';
-import {Query, QueryNode, hashNodeQuery} from '../query_node';
+import {Query, QueryNode} from '../query_node';
+import {hashNodeQuery, analyzeNode, isAQuery} from './query_builder_utils';
 import {getAllDownstreamNodes} from './graph_utils';
 
 /**
@@ -868,7 +869,12 @@ export class QueryExecutionService {
   }
 
   private hashQuery(node: QueryNode): string | undefined {
-    return hashNodeQuery(node);
+    const result = hashNodeQuery(node);
+    if (result instanceof Error) {
+      console.warn(result.message);
+      return undefined;
+    }
+    return result;
   }
 
   private canReuseTable(
@@ -881,5 +887,151 @@ export class QueryExecutionService {
       node.state.materializationTableName !== undefined &&
       node.state.materializedQueryHash === queryHash
     );
+  }
+
+  /**
+   * Centralized method for processing a node's query with proper autoExecute handling.
+   *
+   * # Purpose
+   *
+   * This method centralizes all autoExecute logic to avoid spreading it across
+   * multiple components (NodeExplorer, Builder, DataExplorer). It handles the
+   * complete flow: decide whether to analyze, analyze if needed, decide whether
+   * to execute, execute if needed.
+   *
+   * # Behavior based on autoExecute and manual flags
+   *
+   * | autoExecute | manual | materialized | Behavior                              |
+   * |-------------|--------|--------------|---------------------------------------|
+   * | true        | false  | -            | Analyze + execute if query changed    |
+   * | true        | true   | -            | Analyze + execute (forced)            |
+   * | false       | false  | true         | Load existing data from table         |
+   * | false       | false  | false        | Skip - show "Run Query" button        |
+   * | false       | true   | -            | Analyze + execute (user clicked)      |
+   *
+   * When autoExecute=false:
+   * - If node is already materialized: Load existing data (fast, no re-analysis)
+   * - If node is not materialized: Skip everything, user must click "Run Query"
+   *
+   * # Usage
+   *
+   * ```typescript
+   * // Called from NodeExplorer when node state changes
+   * await service.processNode(node, engine, { manual: false, ... });
+   *
+   * // Called from Builder when user clicks "Run Query"
+   * await service.processNode(node, engine, { manual: true, ... });
+   * ```
+   *
+   * @param node The node to process
+   * @param engine The engine for analysis and execution
+   * @param options Configuration and callbacks
+   * @param options.manual True when user explicitly clicked "Run Query"
+   * @param options.hasExistingResult Whether there's already a result displayed
+   * @param options.onAnalysisStart Called when analysis starts
+   * @param options.onAnalysisComplete Called when analysis completes
+   * @param options.onExecutionStart Called when execution starts
+   * @param options.onExecutionSuccess Called when execution succeeds
+   * @param options.onExecutionError Called when execution fails
+   * @returns Object with query (if analyzed) and whether execution occurred
+   */
+  async processNode(
+    node: QueryNode,
+    engine: Engine,
+    options: {
+      /** True when user explicitly clicked "Run Query" */
+      manual: boolean;
+      /** Whether there's already a result displayed (for reuse optimization) */
+      hasExistingResult?: boolean;
+      /** Called when analysis starts */
+      onAnalysisStart?: () => void;
+      /** Called when analysis completes (with query, error, or undefined if skipped) */
+      onAnalysisComplete?: (query: Query | Error | undefined) => void;
+      /** Called when execution starts */
+      onExecutionStart?: () => void;
+      /** Called when execution succeeds */
+      onExecutionSuccess?: (result: {
+        tableName: string;
+        rowCount: number;
+        columns: string[];
+        durationMs: number;
+      }) => void;
+      /** Called when execution fails */
+      onExecutionError?: (error: unknown) => void;
+    },
+  ): Promise<{query: Query | Error | undefined; executed: boolean}> {
+    const autoExecute = node.state.autoExecute ?? true;
+
+    // Special case: If node is already materialized and we don't have results displayed,
+    // load the existing results even when autoExecute=false.
+    // This handles the case where user navigates away and back to a materialized node.
+    // We only fetch metadata (count + columns) - no re-analysis or re-execution.
+    if (
+      !autoExecute &&
+      !options.manual &&
+      node.state.materialized &&
+      node.state.materializationTableName &&
+      !options.hasExistingResult
+    ) {
+      try {
+        const tableName = node.state.materializationTableName;
+        const startTime = performance.now();
+
+        const [countResult, schemaResult] = await Promise.all([
+          engine.query(`SELECT COUNT(*) as count FROM ${tableName}`),
+          engine.query(`SELECT * FROM ${tableName} LIMIT 1`),
+        ]);
+
+        options.onExecutionSuccess?.({
+          tableName,
+          rowCount: Number(countResult.firstRow({count: NUM}).count),
+          columns: schemaResult.columns(),
+          durationMs: performance.now() - startTime,
+        });
+
+        console.debug('Analysis skipped - reusing existing materialization');
+        return {query: undefined, executed: false};
+      } catch {
+        // If loading fails (e.g., table was dropped), clear materialization state
+        // and fall through to show "Run Query" button
+        node.state.materialized = false;
+        node.state.materializationTableName = undefined;
+        node.state.materializedQueryHash = undefined;
+      }
+    }
+
+    // Skip analysis/execution if autoExecute=false and not manual
+    // User must click "Run Query" to execute the query
+    if (!autoExecute && !options.manual) {
+      options.onAnalysisComplete?.(undefined);
+      return {query: undefined, executed: false};
+    }
+
+    // Analyze the node
+    options.onAnalysisStart?.();
+    let query: Query | Error;
+    try {
+      query = await analyzeNode(node, engine);
+    } catch (e) {
+      query = e instanceof Error ? e : new Error(String(e));
+    }
+    options.onAnalysisComplete?.(query);
+
+    // If analysis failed or returned no query, we're done
+    if (!isAQuery(query)) {
+      return {query, executed: false};
+    }
+
+    // Execute the query.
+    // We reach here only if (autoExecute || options.manual) is true,
+    // since the !autoExecute && !options.manual case returns early above.
+    await this.executeNodeQuery(node, query, {
+      shouldAutoExecute: true, // We've already decided to execute
+      hasExistingResult: options.hasExistingResult ?? false,
+      onStart: () => options.onExecutionStart?.(),
+      onSuccess: (result) => options.onExecutionSuccess?.(result),
+      onError: (error) => options.onExecutionError?.(error),
+    });
+    return {query, executed: true};
   }
 }

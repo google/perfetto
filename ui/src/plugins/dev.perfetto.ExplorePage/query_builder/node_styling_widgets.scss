@@ -16,7 +16,7 @@
 
 // Content wrapper - provides consistent layout and spacing for node details
 .pf-exp-node-details-content {
-  font-size: var(--pf-exp-font-size-sm);
+  font-size: var(--pf-font-size-s);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -30,12 +30,12 @@
 
 // Message styling for informational text (e.g., "No columns added")
 .pf-exp-node-details-message {
-  color: var(--pf-color-text-lighter);
+  color: var(--pf-color-text-muted);
 }
 
 // Text styling for secondary/lighter text
 .pf-exp-node-details-text {
-  color: var(--pf-color-text-lighter);
+  color: var(--pf-color-text-muted);
 }
 
 // Spacer for consistent vertical spacing
@@ -53,29 +53,29 @@
   font-family: var(--pf-font-monospace);
   font-size: 0.9em;
   font-weight: 600;
-  background-color: var(--pf-minimal-background);
+  background-color: var(--pf-color-background-secondary);
   border-radius: 3px;
   color: var(--pf-color-text);
 }
 
-// Merge node condition styling
-.pf-exp-merge-condition {
+// Join node condition styling
+.pf-exp-join-condition {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
 
-.pf-exp-merge-equals {
-  color: var(--pf-color-text-lighter);
+.pf-exp-join-equals {
+  color: var(--pf-color-text-muted);
   font-weight: 500;
 }
 
 // SQL expression styling
 .pf-exp-sql-expression {
   font-family: var(--pf-font-monospace);
-  font-size: var(--pf-exp-font-size-sm);
-  background-color: var(--pf-minimal-background);
+  font-size: var(--pf-font-size-s);
+  background-color: var(--pf-color-background-secondary);
   padding: 0.5rem;
   border-radius: 4px;
   display: block;

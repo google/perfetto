@@ -38,9 +38,9 @@ export function maybeOpenTraceFromRoute(route: Route) {
 
   const url = route.args.url;
   if (url && url !== getCurrentTraceUrl()) {
-    // /?url=https://commondatastorage.googleapis.com/bucket/trace
-    // This really works only for GCS because the Content Security Policy
-    // forbids any other url.
+    // /?url=https://example.com/path/to/trace.pftrace
+    // Works with any public HTTPS URL. The service worker firewall enforces
+    // that only GET requests without query strings are allowed.
     loadTraceFromUrl(url);
     return;
   }

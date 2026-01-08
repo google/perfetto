@@ -146,6 +146,7 @@ export default class SchedPlugin implements PerfettoPlugin {
         }
         return {
           where: `utid IN (${utids.join()})`,
+          columns: {utid: NUM_NULL},
         };
       },
     });
@@ -153,10 +154,10 @@ export default class SchedPlugin implements PerfettoPlugin {
 
   async addCpuSliceTracks(ctx: Trace, cpus: ReadonlyArray<Cpu>): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceSelectionAggregator()),
+      createAggregationTab(ctx, new CpuSliceSelectionAggregator(ctx)),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator()),
+      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator(ctx)),
     );
 
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
@@ -251,7 +252,7 @@ export default class SchedPlugin implements PerfettoPlugin {
     const {engine} = ctx;
 
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ThreadStateSelectionAggregator()),
+      createAggregationTab(ctx, new ThreadStateSelectionAggregator(ctx)),
     );
 
     if (SchedPlugin.threadStateByCpuFlag.get()) {
@@ -468,7 +469,7 @@ export default class SchedPlugin implements PerfettoPlugin {
     const activeCpuCountTitle = 'Active CPU count';
     ctx.tracks.registerTrack({
       uri: activeCpuCountUri,
-      renderer: new ActiveCPUCountTrack({trackUri: activeCpuCountUri}, ctx),
+      renderer: new ActiveCPUCountTrack(activeCpuCountUri, ctx),
     });
     const activeCpuCountTrackNode = new TrackNode({
       name: activeCpuCountTitle,
@@ -486,11 +487,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       const activeCpuTypeCountTitle = `Active CPU count: ${cpuType}`;
       ctx.tracks.registerTrack({
         uri: activeCpuTypeCountUri,
-        renderer: new ActiveCPUCountTrack(
-          {trackUri: activeCpuTypeCountUri},
-          ctx,
-          cpuType,
-        ),
+        renderer: new ActiveCPUCountTrack(activeCpuTypeCountUri, ctx, cpuType),
       });
       const activeCpuTypeCountTrackNode = new TrackNode({
         name: activeCpuTypeCountTitle,

@@ -17,14 +17,19 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
-  createFinalColumns,
   nextNodeId,
 } from '../../../query_node';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
+import {
+  ColumnInfo,
+  columnInfoFromSqlColumn,
+  newColumnInfoList,
+} from '../../column_info';
 import protos from '../../../../../protos';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {NodeDetailsAttrs} from '../../node_explorer_types';
+import {loadNodeDoc} from '../../node_doc_loader';
+import {NodeTitle} from '../../node_styling_widgets';
 
 export interface SlicesSourceSerializedState {
   comment?: string;
@@ -44,7 +49,7 @@ export class SlicesSourceNode implements QueryNode {
     this.nodeId = nextNodeId();
     this.state = attrs;
     this.state.onchange = attrs.onchange;
-    this.finalCols = createFinalColumns(slicesSourceNodeColumns(true));
+    this.finalCols = newColumnInfoList(slicesSourceNodeColumns(true), true);
     this.nextNodes = [];
   }
 
@@ -69,7 +74,7 @@ export class SlicesSourceNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: m('.pf-exp-node-title', this.getTitle()),
+      content: NodeTitle(this.getTitle()),
     };
   }
 
@@ -87,15 +92,7 @@ export class SlicesSourceNode implements QueryNode {
       this.nodeId,
     );
 
-    // Manually create selectColumns for the specific columns we want
-    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
-    for (const col of this.finalCols) {
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnName = col.column.name;
-      selectColumns.push(selectColumn);
-    }
-    sq.selectColumns = selectColumns;
-
+    StructuredQueryBuilder.applyNodeColumnSelection(sq, this);
     return sq;
   }
 
@@ -104,21 +101,7 @@ export class SlicesSourceNode implements QueryNode {
   }
 
   nodeInfo(): m.Children {
-    return m(
-      'div',
-      m(
-        'p',
-        'Provides slice data from your trace. Slices represent time intervals with start time (',
-        m('code', 'ts'),
-        ') and duration (',
-        m('code', 'dur'),
-        '), tracking spans of execution like function calls, scheduling periods, or GPU work.',
-      ),
-      m(
-        'p',
-        'Includes context like process and thread information, making it easy to analyze execution patterns.',
-      ),
-    );
+    return loadNodeDoc('slices_source');
   }
 }
 
@@ -163,6 +146,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
       },
     },
     {
+      name: 'track_name',
+      type: {
+        kind: 'string',
+      },
+    },
+    {
       name: 'process_name',
       type: {
         kind: 'string',
@@ -179,6 +168,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
       },
     },
     {
+      name: 'pid',
+      type: {
+        kind: 'int',
+      },
+    },
+    {
       name: 'thread_name',
       type: {
         kind: 'string',
@@ -192,6 +187,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
           table: 'thread',
           column: 'id',
         },
+      },
+    },
+    {
+      name: 'tid',
+      type: {
+        kind: 'int',
       },
     },
     {
@@ -214,6 +215,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
       name: 'category',
       type: {
         kind: 'string',
+      },
+    },
+    {
+      name: 'arg_set_id',
+      type: {
+        kind: 'arg_set_id',
       },
     },
   ];

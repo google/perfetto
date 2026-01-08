@@ -54,6 +54,7 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/public",
+      "../../base",
       "protos",
     ]
     defines = [ "PERFETTO_SDK_DISABLE_SHLIB_EXPORT" ]

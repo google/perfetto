@@ -80,7 +80,7 @@ class TpBatchShell(cmd.Cmd):
 
   def print_percentiles(self, data):
     percentiles = [25, 50, 75, 95, 99, 99.9]
-    nearest = np.percentile(data, percentiles, interpolation='nearest')
+    nearest = np.percentile(data, percentiles, method='nearest')
     logging.info("Representative traces for percentiles")
     for i, near in enumerate(nearest):
       print("{}%: {}".format(percentiles[i], self.files[data.index(near)]))

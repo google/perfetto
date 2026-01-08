@@ -2216,6 +2216,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/etw/etw_module.cc",
         "src/trace_processor/importers/etw/etw_module.h",
+        "src/trace_processor/importers/etw/file_io_tracker.cc",
+        "src/trace_processor/importers/etw/file_io_tracker.h",
     ],
 )
 
@@ -3059,7 +3061,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/created_function.h",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.h",
-        "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
@@ -3121,6 +3122,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.cc",
@@ -3156,6 +3159,8 @@ perfetto_cc_tp_tables(
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables.py",
     ],
     outs = [
+        "src/trace_processor/perfetto_sql/intrinsics/functions/all_tables_fwd.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/tables_fwd.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h",
     ],
 )
@@ -3227,6 +3232,8 @@ perfetto_cc_tp_tables(
         ":src_trace_processor_tables_tables_python",
     ],
     outs = [
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/all_tables_fwd.h",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_fwd.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h",
     ],
 )
@@ -3305,8 +3312,10 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/cujs/cujs_base.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/base.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/cuj_frame_counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/threads.sql",
     ],
 )
 
@@ -3361,6 +3370,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph_class_aggregation.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/helpers.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/object_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/raw_dominator_tree.sql",
     ],
 )
@@ -3669,6 +3679,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/stacks/cpu_profiling.sql",
+        "src/trace_processor/perfetto_sql/stdlib/stacks/symbolization_candidates.sql",
     ],
 )
 
@@ -3940,20 +3951,36 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/winscope_tables.py",
     ],
     outs = [
+        "src/trace_processor/tables/all_tables_fwd.h",
+        "src/trace_processor/tables/android_tables_fwd.h",
         "src/trace_processor/tables/android_tables_py.h",
+        "src/trace_processor/tables/counter_tables_fwd.h",
         "src/trace_processor/tables/counter_tables_py.h",
+        "src/trace_processor/tables/etm_tables_fwd.h",
         "src/trace_processor/tables/etm_tables_py.h",
+        "src/trace_processor/tables/flow_tables_fwd.h",
         "src/trace_processor/tables/flow_tables_py.h",
+        "src/trace_processor/tables/jit_tables_fwd.h",
         "src/trace_processor/tables/jit_tables_py.h",
+        "src/trace_processor/tables/memory_tables_fwd.h",
         "src/trace_processor/tables/memory_tables_py.h",
+        "src/trace_processor/tables/metadata_tables_fwd.h",
         "src/trace_processor/tables/metadata_tables_py.h",
+        "src/trace_processor/tables/perf_tables_fwd.h",
         "src/trace_processor/tables/perf_tables_py.h",
+        "src/trace_processor/tables/profiler_tables_fwd.h",
         "src/trace_processor/tables/profiler_tables_py.h",
+        "src/trace_processor/tables/sched_tables_fwd.h",
         "src/trace_processor/tables/sched_tables_py.h",
+        "src/trace_processor/tables/slice_tables_fwd.h",
         "src/trace_processor/tables/slice_tables_py.h",
+        "src/trace_processor/tables/trace_proto_tables_fwd.h",
         "src/trace_processor/tables/trace_proto_tables_py.h",
+        "src/trace_processor/tables/track_tables_fwd.h",
         "src/trace_processor/tables/track_tables_py.h",
+        "src/trace_processor/tables/v8_tables_fwd.h",
         "src/trace_processor/tables/v8_tables_py.h",
+        "src/trace_processor/tables/winscope_tables_fwd.h",
         "src/trace_processor/tables/winscope_tables_py.h",
     ],
 )
@@ -4748,8 +4775,15 @@ perfetto_filegroup(
         "src/tracing/service/trace_buffer.h",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v1.h",
+        "src/tracing/service/trace_buffer_v2.cc",
+        "src/tracing/service/trace_buffer_v2.h",
+        "src/tracing/service/tracing_service_endpoints_impl.cc",
+        "src/tracing/service/tracing_service_endpoints_impl.h",
         "src/tracing/service/tracing_service_impl.cc",
         "src/tracing/service/tracing_service_impl.h",
+        "src/tracing/service/tracing_service_session.cc",
+        "src/tracing/service/tracing_service_session.h",
+        "src/tracing/service/tracing_service_structs.h",
     ],
 )
 
@@ -5711,6 +5745,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_system_property_config.proto",
         "protos/perfetto/config/android/app_wakelock_config.proto",
         "protos/perfetto/config/android/cpu_per_uid_config.proto",
+        "protos/perfetto/config/android/inputmethod_config.proto",
         "protos/perfetto/config/android/kernel_wakelocks_config.proto",
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",

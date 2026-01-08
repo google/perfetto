@@ -33,8 +33,6 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'Choreographer#doFrame*\' OR name GLOB \'DrawFrame*\' LIMIT 1) AS has_data',
     'android.startup.startups':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name IN (\'bindApplication\', \'activityStart\', \'activityResume\') LIMIT 1) AS has_data',
-    'slices.with_context':
-        'SELECT EXISTS(SELECT 1 FROM slice JOIN thread_track ON slice.track_id = thread_track.id LIMIT 1) AS has_data',
 
     # MID IMPORTANCE TABLES
     'android.anrs':
@@ -45,12 +43,80 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'BatteryStatus\' LIMIT 1) AS has_data',
     'android.battery_stats':
         'SELECT EXISTS(SELECT 1 FROM counter_track WHERE name GLOB \'battery_stats.*\' LIMIT 1) AS has_data',
+    'android.power_rails':
+        'SELECT EXISTS(SELECT 1 FROM track WHERE type = \'power_rails\' LIMIT 1) AS has_data',
     'android.process_metadata':
         'SELECT EXISTS(SELECT 1 FROM process LIMIT 1) AS has_data',
     'android.screenshots':
         'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'Screenshot\' AND category = \'android_screenshot\' LIMIT 1) AS has_data',
-    'android.suspend':
-        'SELECT EXISTS(SELECT 1 FROM track WHERE name IN (\'Suspend/Resume Minimal\', \'Suspend/Resume Latency\') LIMIT 1) AS has_data',
+    'android.statsd':
+        'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'Statsd Atoms\' LIMIT 1) AS has_data',
     'android.wakeups':
         'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'wakeup_reason\' LIMIT 1) AS has_data',
+
+    # HIGH IMPORTANCE TABLES - Chrome
+    'chrome.event_latency':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'EventLatency\' LIMIT 1) AS has_data',
+    'chrome.tasks':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE category GLOB \'*toplevel*\' AND (name = \'ThreadControllerImpl::RunTask\' OR name = \'ThreadPool_RunTask\') LIMIT 1) AS has_data',
+
+    # MID IMPORTANCE TABLES - Chrome
+    'chrome.graphics_pipeline':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'Graphics.Pipeline\' LIMIT 1) AS has_data',
+    'chrome.metadata':
+        'SELECT EXISTS(SELECT 1 FROM metadata WHERE name = \'cr-hardware-class\' OR name GLOB \'cr-*\' LIMIT 1) AS has_data',
+
+    # LOW IMPORTANCE TABLES
+    'chrome.android_input':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'UnwantedInteractionBlocker::notifyMotion*\' LIMIT 1) AS has_data',
+
+    # PIXEL TABLES
+    'pixel.camera':
+        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'cam*_*:* (frame *)\' LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - Android
+    'android.cpu.cpu_per_uid':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_cpu_per_uid_track LIMIT 1) AS has_data',
+    'android.input':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_key_events LIMIT 1) AS has_data',
+    'android.kernel_wakelocks':
+        'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'android_kernel_wakelock\' LIMIT 1) AS has_data',
+    'android.network_packets':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_network_packets LIMIT 1) AS has_data',
+    'android.user_list':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_user_list LIMIT 1) AS has_data',
+    'android.winscope.inputmethod':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_inputmethod_clients LIMIT 1) AS has_data',
+    'android.winscope.rect':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_winscope_rect LIMIT 1) AS has_data',
+    'android.winscope.surfaceflinger':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_surfaceflinger_transaction LIMIT 1) AS has_data',
+    'android.winscope.transitions':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_window_manager_shell_transition_participants LIMIT 1) AS has_data',
+    'android.winscope.viewcapture':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_viewcapture LIMIT 1) AS has_data',
+    'android.winscope.windowmanager':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_windowmanager LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - Linux
+    'linux.perf.spe':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_spe_record LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - V8/JIT
+    'stack_trace.jit':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_jit_code LIMIT 1) AS has_data',
+    'v8.jit':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_v8_isolate LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - Visualization
+    'viz.track_event_callstacks':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track_event_callstacks LIMIT 1) AS has_data',
+
+    # INTRINSIC-BASED TABLES - Prelude (single intrinsic only)
+    'prelude.after_eof.counters':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track LIMIT 1) AS has_data',
+    'prelude.after_eof.events':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_ftrace_event LIMIT 1) AS has_data',
+    'prelude.after_eof.tracks':
+        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track LIMIT 1) AS has_data',
 }

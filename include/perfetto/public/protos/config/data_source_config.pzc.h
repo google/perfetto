@@ -97,6 +97,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   target_buffer,
                   2);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  STRING,
+                  const char*,
+                  target_buffer_name,
+                  11);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   VARINT,
                   uint32_t,
                   trace_duration_ms,

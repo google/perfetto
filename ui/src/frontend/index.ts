@@ -173,8 +173,7 @@ function setupContentSecurityPolicy() {
     'connect-src': [
       `'self'`,
       'ws://127.0.0.1:8037', // For the adb websocket server.
-      'https://*.google-analytics.com',
-      'https://*.googleapis.com', // For Google Cloud Storage fetches.
+      'https:', // Allow any HTTPS; service worker firewall adds granular filtering.
       'blob:',
       'data:',
     ].concat(rpcPolicy),

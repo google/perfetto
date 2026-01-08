@@ -14,7 +14,48 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../../../widgets/menu';
-import {NodeDescriptor} from '../node_registry';
+import {NodeDescriptor, nodeRegistry} from '../node_registry';
+import {Keycap} from '../../../../widgets/hotkey_glyphs';
+
+/**
+ * Build menu items for a specific node type.
+ *
+ * @param nodeType - Type of nodes to include
+ * @param onAddNode - Callback when a menu item is clicked
+ * @returns Array of Mithril children representing the menu items
+ */
+export function buildMenuItems(
+  nodeType: 'source' | 'multisource' | 'modification',
+  onAddNode: (id: string) => void,
+): m.Children[] {
+  const nodes = nodeRegistry
+    .list()
+    .filter(([_id, descriptor]) => descriptor.type === nodeType);
+
+  return buildCategorizedMenuItems(nodes, onAddNode);
+}
+
+/**
+ * Generate label with optional hotkey for a node descriptor.
+ *
+ * @param descriptor - Node descriptor
+ * @returns Mithril children for the label with hotkey if available
+ */
+function getLabelWithHotkey(descriptor: NodeDescriptor): m.Children {
+  const hotkey =
+    descriptor.hotkey && typeof descriptor.hotkey === 'string'
+      ? descriptor.hotkey.toUpperCase()
+      : undefined;
+
+  if (hotkey) {
+    return m('.pf-exp-menu-label-with-hotkey', [
+      m('span', descriptor.name),
+      m(Keycap, hotkey),
+    ]);
+  }
+
+  return descriptor.name;
+}
 
 /**
  * Build categorized menu items from a list of node descriptors.
@@ -55,7 +96,7 @@ export function buildCategorizedMenuItems(
       const [id, descriptor] = catNodes[0];
       menuItems.push(
         m(MenuItem, {
-          label: descriptor.name,
+          label: getLabelWithHotkey(descriptor),
           onclick: () => onClickHandler(id),
         }),
       );
@@ -69,7 +110,7 @@ export function buildCategorizedMenuItems(
           },
           catNodes.map(([id, descriptor]) =>
             m(MenuItem, {
-              label: descriptor.name,
+              label: getLabelWithHotkey(descriptor),
               onclick: () => onClickHandler(id),
             }),
           ),
@@ -83,7 +124,7 @@ export function buildCategorizedMenuItems(
   for (const [id, descriptor] of uncategorized) {
     menuItems.push(
       m(MenuItem, {
-        label: descriptor.name,
+        label: getLabelWithHotkey(descriptor),
         onclick: () => onClickHandler(id),
       }),
     );

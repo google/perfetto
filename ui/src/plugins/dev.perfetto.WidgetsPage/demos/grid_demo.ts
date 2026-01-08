@@ -354,11 +354,51 @@ function renderSimpleGridDemo(
     ];
   };
 
+  // Generate bogus data with various edge cases
+  const bogusData = [
+    {
+      id: 1,
+      name: 'Alice',
+      score: 95,
+      notes: 'Excellent performance in all areas',
+      status: 'active',
+    },
+    {id: 2, name: 'Bob', score: null, notes: null, status: 'pending'},
+    {
+      id: 3,
+      name: 'Charlie',
+      score: 78,
+      notes: 'Needs improvement',
+      status: 'active',
+    },
+    {id: 4, name: null, score: 88, notes: 'Anonymous entry', status: null},
+    {
+      id: 5,
+      name: 'Diana',
+      score: 100,
+      notes:
+        'This is an extremely long note that should test the max initial width clamping behavior of the grid column sizing logic. It just keeps going and going and going, with more and more text to really push the boundaries of what a reasonable column width should be.',
+      status: 'active',
+    },
+    {id: 6, name: 'Eve', score: undefined, notes: '', status: 'inactive'},
+    {id: 7, name: 'Frank', score: 45, notes: 'Below average', status: 'active'},
+    {id: 8, name: 'Grace', score: 82, notes: null, status: 'pending'},
+    {id: 9, name: 'Henry', score: 91, notes: 'Good work', status: 'active'},
+    {
+      id: 10,
+      name: 'Ivy',
+      score: 0,
+      notes: 'Zero score (not null)',
+      status: 'inactive',
+    },
+  ];
+
   return m(Grid, {
     key: 'grid-demo-no-virt',
     columns: [
       {
         key: 'id',
+        widthPx: 60, // Fixed width column
         header: m(
           GridHeaderCell,
           {
@@ -370,68 +410,81 @@ function renderSimpleGridDemo(
         ),
       },
       {
-        key: 'lang',
+        key: 'name',
+        minWidthPx: 120, // Min width column
         header: m(
           GridHeaderCell,
           {
-            menuItems: makeHeaderMenuItems('lang'),
+            menuItems: makeHeaderMenuItems('name'),
           },
-          'Language',
+          'Name',
         ),
       },
       {
-        key: 'year',
+        key: 'score',
         header: m(
           GridHeaderCell,
           {
             sort: sortArrows ? 'DESC' : undefined,
             onSort: sortArrows ? () => alert('Sort clicked') : undefined,
-            menuItems: makeHeaderMenuItems('year'),
+            menuItems: makeHeaderMenuItems('score'),
           },
-          'Year',
+          'Score',
         ),
       },
       {
-        key: 'creator',
+        key: 'notes',
+        maxInitialWidthPx: 200, // Max initial width column
         header: m(
           GridHeaderCell,
           {
-            menuItems: makeHeaderMenuItems('creator'),
+            menuItems: makeHeaderMenuItems('notes'),
           },
-          'Creator',
+          'Notes',
         ),
       },
       {
-        key: 'typing',
+        key: 'status',
         header: m(
           GridHeaderCell,
           {
-            menuItems: makeHeaderMenuItems('typing'),
+            menuItems: makeHeaderMenuItems('status'),
           },
-          'Typing',
+          'Status',
         ),
       },
     ],
-    rowData: languages.map((row) => {
+    rowData: bogusData.map((row) => {
       const menuItems = contextMenus
         ? [
             m(MenuItem, {
-              label: `Copy "${row.lang}"`,
-              onclick: () => navigator.clipboard.writeText(row.lang),
+              label: `Copy row ${row.id}`,
+              onclick: () => navigator.clipboard.writeText(JSON.stringify(row)),
             }),
             m(MenuItem, {
               label: 'Show details',
-              onclick: () => alert(`${row.lang} (${row.year})`),
+              onclick: () => alert(JSON.stringify(row, null, 2)),
             }),
           ]
         : undefined;
 
+      // Render nullish values with a placeholder style
+      const renderValue = (value: unknown) => {
+        if (value === null || value === undefined) {
+          return m('span.pf-text-muted', '—');
+        }
+        if (value === '') {
+          return m('span.pf-text-muted', '(empty)');
+        }
+        return String(value);
+      };
+
       return [
         m(GridCell, {wrap, align: 'right', menuItems}, row.id),
-        m(GridCell, {wrap, menuItems}, row.lang),
-        m(GridCell, {wrap, align: 'right', menuItems}, row.year),
-        m(GridCell, {wrap, menuItems}, row.creator),
-        m(GridCell, {wrap, menuItems}, row.typing),
+        m(GridCell, {wrap, menuItems}, renderValue(row.name)),
+        m(GridCell, {wrap, align: 'right', menuItems}, renderValue(row.score)),
+        m(GridCell, {wrap, menuItems}, renderValue(row.notes)),
+        m(GridCell, {wrap, menuItems}, renderValue(row.status)),
       ];
     }),
     fillHeight: true,

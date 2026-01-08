@@ -15,13 +15,8 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {
-  analyzeNode,
-  isAQuery,
-  Query,
-  QueryNode,
-  queryToRun,
-} from '../query_node';
+import {Query, QueryNode} from '../query_node';
+import {isAQuery, queryToRun} from './query_builder_utils';
 import {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
@@ -30,17 +25,34 @@ import {NodeIssues} from './node_issues';
 import {TabStrip} from '../../../widgets/tabs';
 import {NodeModifyAttrs} from './node_explorer_types';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
+import {DataExplorerEmptyState, InfoBox} from './widgets';
+import {QueryExecutionService} from './query_execution_service';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
-  readonly onQueryAnalyzed: (query: Query | Error) => void;
+  readonly queryExecutionService: QueryExecutionService;
+  /** Called when analysis completes (with query, error, or undefined if skipped) */
+  readonly onQueryAnalyzed: (query: Query | Error | undefined) => void;
   readonly onAnalysisStateChange?: (isAnalyzing: boolean) => void;
+  /** Called when execution starts */
+  readonly onExecutionStart?: () => void;
+  /** Called when execution succeeds */
+  readonly onExecutionSuccess?: (result: {
+    tableName: string;
+    rowCount: number;
+    columns: string[];
+    durationMs: number;
+  }) => void;
+  /** Called when execution fails */
+  readonly onExecutionError?: (error: unknown) => void;
   readonly onchange?: () => void;
   readonly resolveNode: (nodeId: string) => QueryNode | undefined;
   readonly isCollapsed?: boolean;
   readonly selectedView?: number;
   readonly onViewChange?: (view: number) => void;
+  /** Whether there's already a result displayed (for reuse optimization) */
+  readonly hasExistingResult?: boolean;
 }
 
 enum SelectedView {
@@ -93,6 +105,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       );
       this.currentQuery = error;
       attrs.onQueryAnalyzed(error);
+      // Clear prevSqString so that when node becomes valid again, we'll re-process it
+      this.prevSqString = undefined;
       return;
     }
 
@@ -102,25 +116,42 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       if (node.state.hasOperationChanged) {
         node.state.hasOperationChanged = false;
       }
-      attrs.onAnalysisStateChange?.(true);
+
+      // Use the centralized service to handle analysis and execution.
+      // The service decides whether to analyze/execute based on autoExecute flag.
       this.tableAsyncLimiter.schedule(async () => {
         try {
-          this.currentQuery = await analyzeNode(node, attrs.trace.engine);
-          if (!isAQuery(this.currentQuery)) {
-            attrs.onAnalysisStateChange?.(false);
-            return;
+          const result = await attrs.queryExecutionService.processNode(
+            node,
+            attrs.trace.engine,
+            {
+              manual: false, // This is automatic processing, not manual "Run Query"
+              hasExistingResult: attrs.hasExistingResult,
+              onAnalysisStart: () => attrs.onAnalysisStateChange?.(true),
+              onAnalysisComplete: (query) => {
+                this.currentQuery = query;
+                if (isAQuery(query) && node instanceof AggregationNode) {
+                  node.updateGroupByColumns();
+                }
+                attrs.onQueryAnalyzed(query);
+                this.prevSqString = curSqString;
+                attrs.onAnalysisStateChange?.(false);
+              },
+              onExecutionStart: () => attrs.onExecutionStart?.(),
+              onExecutionSuccess: (result) =>
+                attrs.onExecutionSuccess?.(result),
+              onExecutionError: (error) => attrs.onExecutionError?.(error),
+            },
+          );
+
+          // If skipped (autoExecute=false), update tracking but don't notify
+          if (result.query === undefined) {
+            this.prevSqString = curSqString;
           }
-          if (node instanceof AggregationNode) {
-            node.updateGroupByColumns();
-          }
-          attrs.onQueryAnalyzed(this.currentQuery);
-          this.prevSqString = curSqString;
-          attrs.onAnalysisStateChange?.(false);
         } catch (e) {
           // Silently handle "Already analyzing" errors - the AsyncLimiter
           // will retry when the current analysis completes
           if (e instanceof Error && e.message.includes('Already analyzing')) {
-            // Keep isAnalyzing = true, will retry automatically
             return;
           }
           // For other errors, set them as the current query and stop analyzing
@@ -153,17 +184,12 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     return result;
   }
 
-  private renderCornerButtons(buttons: NodeModifyAttrs): m.Child {
-    if (
-      !buttons.topLeftButtons &&
-      !buttons.topRightButtons &&
-      !buttons.bottomLeftButtons &&
-      !buttons.bottomRightButtons
-    ) {
+  private renderTopButtons(buttons: NodeModifyAttrs): m.Child {
+    if (!buttons.topLeftButtons && !buttons.topRightButtons) {
       return null;
     }
 
-    return m('.pf-exp-node-explorer__buttons', [
+    return m('.pf-exp-node-explorer__buttons-top-container', [
       m('.pf-exp-node-explorer__buttons-top', [
         m(
           '.pf-exp-node-explorer__buttons-top-left',
@@ -174,16 +200,23 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.renderButtons(buttons.topRightButtons),
         ),
       ]),
-      m('.pf-exp-node-explorer__buttons-bottom', [
-        m(
-          '.pf-exp-node-explorer__buttons-bottom-left',
-          this.renderButtons(buttons.bottomLeftButtons),
-        ),
-        m(
-          '.pf-exp-node-explorer__buttons-bottom-right',
-          this.renderButtons(buttons.bottomRightButtons),
-        ),
-      ]),
+    ]);
+  }
+
+  private renderBottomButtons(buttons: NodeModifyAttrs): m.Child {
+    if (!buttons.bottomLeftButtons && !buttons.bottomRightButtons) {
+      return null;
+    }
+
+    return m('.pf-exp-node-explorer__buttons-bottom', [
+      m(
+        '.pf-exp-node-explorer__buttons-bottom-left',
+        this.renderButtons(buttons.bottomLeftButtons),
+      ),
+      m(
+        '.pf-exp-node-explorer__buttons-bottom-right',
+        this.renderButtons(buttons.bottomRightButtons),
+      ),
     ]);
   }
 
@@ -212,8 +245,10 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     if (this.isNodeModifyAttrs(modifyResult)) {
       const attrs = modifyResult as NodeModifyAttrs;
       return m('.pf-exp-node-explorer__modify', [
-        this.renderCornerButtons(attrs),
+        m(InfoBox, attrs.info),
+        this.renderTopButtons(attrs),
         this.renderSections(attrs.sections),
+        this.renderBottomButtons(attrs),
       ]);
     }
 
@@ -227,14 +262,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
     const obj = value as Record<string, unknown>;
 
-    // Check if it has any of the NodeModifyAttrs properties
-    return (
-      'sections' in obj ||
-      'topLeftButtons' in obj ||
-      'topRightButtons' in obj ||
-      'bottomLeftButtons' in obj ||
-      'bottomRightButtons' in obj
-    );
+    // Check if it has the required info property
+    return 'info' in obj;
   }
 
   private renderContent(node: QueryNode, selectedView: number): m.Child {
@@ -274,10 +303,16 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.resultTabMode === 'sql'
             ? isAQuery(this.currentQuery)
               ? m(CodeSnippet, {language: 'SQL', text: sql})
-              : m('div', sql)
+              : m(DataExplorerEmptyState, {
+                  icon: 'info',
+                  title: 'SQL not available',
+                })
             : isAQuery(this.currentQuery)
               ? m(CodeSnippet, {text: textproto, language: 'textproto'})
-              : m('div', textproto),
+              : m(DataExplorerEmptyState, {
+                  icon: 'info',
+                  title: 'Proto not available',
+                }),
         ]),
     );
   }
@@ -292,8 +327,10 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     // This ensures that changes in the node's UI components trigger the callback chain
     node.state.onchange = attrs.onchange;
 
-    // Always analyze to generate the query object (needed to enable Run button)
-    // The autoExecute flag only controls whether we automatically execute after analysis
+    // Process the node via the centralized service.
+    // The service handles all autoExecute logic internally:
+    // - If autoExecute=true: Analyze and execute automatically
+    // - If autoExecute=false: Skip until user clicks "Run Query"
     this.updateQuery(node, attrs);
 
     if (isCollapsed) {

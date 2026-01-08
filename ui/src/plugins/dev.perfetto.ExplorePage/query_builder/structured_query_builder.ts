@@ -110,6 +110,31 @@ export class StructuredQueryBuilder {
   }
 
   /**
+   * Applies column selection from a node's finalCols to a structured query.
+   * Mutates the query in place. If all columns are selected, does nothing
+   * (no explicit column selection needed).
+   *
+   * @param sq The structured query to modify
+   * @param node The node whose finalCols define the column selection
+   */
+  static applyNodeColumnSelection(
+    sq: protos.PerfettoSqlStructuredQuery,
+    node: QueryNode,
+  ): void {
+    // If all columns are selected, no explicit selection needed
+    if (node.finalCols.every((c) => c.checked)) return;
+
+    sq.selectColumns = node.finalCols
+      .filter((c) => c.checked !== false)
+      .map((c) => {
+        const col = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+        col.columnName = c.column.name;
+        if (c.alias) col.alias = c.alias;
+        return col;
+      });
+  }
+
+  /**
    * Creates a structured query with ORDER BY clause.
    * Wraps the inner query and adds the orderBy specification.
    *
@@ -347,7 +372,7 @@ export class StructuredQueryBuilder {
     query.selectColumns = columns.map((col) => {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
       selectCol.columnNameOrExpression = col.columnNameOrExpression;
-      if (col.alias) {
+      if (col.alias && col.alias.trim() !== '') {
         selectCol.alias = col.alias;
       }
       return selectCol;
@@ -422,6 +447,53 @@ export class StructuredQueryBuilder {
     });
 
     sq.sql = sqlProto;
+    return sq;
+  }
+
+  /**
+   * Creates a structured query from a time range.
+   * Produces a single-row result with columns: id (always 0), ts, dur.
+   *
+   * Mode is automatically determined:
+   * - STATIC mode: when both ts and dur are provided (fixed values)
+   * - DYNAMIC mode: when ts or dur is missing (uses trace bounds)
+   *
+   * In DYNAMIC mode:
+   * - If ts is not provided, the backend will use trace_start()
+   * - If dur is not provided, the backend will use trace_dur()
+   *
+   * @param ts The start timestamp in nanoseconds (optional)
+   * @param dur The duration in nanoseconds (optional)
+   * @param nodeId The node id to assign
+   * @returns A new structured query for the time range
+   */
+  static fromTimeRange(
+    ts?: bigint,
+    dur?: bigint,
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery {
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = nodeId ?? nextNodeId();
+
+    const timeRange =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalTimeRange();
+
+    // Determine mode: STATIC if both ts and dur are set, DYNAMIC otherwise
+    // Mode enum values: STATIC = 0, DYNAMIC = 1
+    const hasTs = ts !== undefined;
+    const hasDur = dur !== undefined;
+    const isStatic = hasTs && hasDur;
+    timeRange.mode = isStatic ? 0 : 1; // 0 = STATIC, 1 = DYNAMIC
+
+    // Convert bigint to number for protobuf (protobufjs uses number for int64)
+    if (hasTs) {
+      timeRange.ts = Number(ts);
+    }
+    if (hasDur) {
+      timeRange.dur = Number(dur);
+    }
+
+    sq.experimentalTimeRange = timeRange;
     return sq;
   }
 
@@ -556,6 +628,87 @@ export class StructuredQueryBuilder {
   }
 
   /**
+   * Creates a structured query that adds columns from a JOIN and/or computed expressions.
+   * This is a higher-level method that handles the complexity of composing
+   * JOIN operations with computed columns.
+   *
+   * @param baseQuery The base query (can be a QueryNode or structured query)
+   * @param inputQuery The query providing additional columns via JOIN (optional)
+   * @param joinColumns Columns to add from the input query via JOIN (can be empty)
+   * @param condition Join condition (required if joinColumns is not empty)
+   * @param computedColumns Computed expressions to add as columns (can be empty)
+   * @param allBaseColumns All columns from the base query (needed when adding computed columns)
+   * @param referencedModules Optional array of referenced module names
+   * @param nodeId The node id to assign
+   * @returns A new structured query with added columns, or undefined if extraction fails
+   */
+  static withAddColumnsAndExpressions(
+    baseQuery: QuerySource,
+    inputQuery: QuerySource | undefined,
+    joinColumns: ColumnSpec[],
+    condition: JoinCondition | undefined,
+    computedColumns: ColumnSpec[],
+    allBaseColumns: ColumnSpec[],
+    referencedModules?: string[],
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    const hasJoinColumns = joinColumns.length > 0;
+    const hasComputedColumns = computedColumns.length > 0;
+
+    // If nothing to add, just return base query
+    if (!hasJoinColumns && !hasComputedColumns) {
+      return extractQuery(baseQuery);
+    }
+
+    let query: protos.PerfettoSqlStructuredQuery | undefined;
+
+    // Step 1: Apply JOIN if we have columns to join
+    if (hasJoinColumns && inputQuery && condition) {
+      query = this.withAddColumns(
+        baseQuery,
+        inputQuery,
+        joinColumns,
+        condition,
+        // Use a temporary node ID with '_join' suffix if we'll add computed columns later.
+        // This helps with debugging by making intermediate query steps visible.
+        hasComputedColumns ? `${nodeId}_join` : nodeId,
+      );
+    } else {
+      query = extractQuery(baseQuery);
+    }
+
+    if (!query) return undefined;
+
+    // Step 2: Add computed columns on top if we have any
+    if (hasComputedColumns) {
+      // Build columns to include: base columns + joined columns (if any) + computed columns
+      const allColumns: ColumnSpec[] = [
+        ...allBaseColumns,
+        // For joined columns, reference them by their alias and preserve the alias in the outer SELECT
+        ...joinColumns.map((col) => ({
+          columnNameOrExpression: col.alias ?? col.columnNameOrExpression,
+          alias: col.alias,
+        })),
+        ...computedColumns,
+      ];
+
+      // Create a temporary node wrapper for the query
+      const tempNode: QueryNode = {
+        getStructuredQuery: () => query,
+      } as QueryNode;
+
+      query = this.withSelectColumns(
+        tempNode,
+        allColumns,
+        referencedModules,
+        nodeId,
+      );
+    }
+
+    return query;
+  }
+
+  /**
    * Creates a structured query with filters applied.
    * Wraps the inner query and adds the filter group.
    *
@@ -577,6 +730,72 @@ export class StructuredQueryBuilder {
     sq.innerQuery = query;
     sq.experimentalFilterGroup = filterGroup;
 
+    return sq;
+  }
+
+  /**
+   * Creates a structured query with filter-to-intervals operation.
+   * Filters the base query to only include rows that overlap with intervals
+   * from the intervals query. The output preserves the base query's schema.
+   *
+   * Key features:
+   * - Overlapping intervals in the filter set are automatically merged
+   * - Output schema matches the base query exactly
+   * - Supports optional clipping of ts/dur to interval boundaries
+   *
+   * @param baseQuery The base query containing intervals to filter
+   * @param intervalsQuery The query containing the time intervals to filter to
+   * @param partitionColumns Optional partition columns for the filtering
+   * @param clipToIntervals Whether to clip ts/dur to interval boundaries (default: true)
+   * @param filterNegativeDur Optional array [base, intervals] indicating which queries should filter dur >= 0
+   * @param nodeId The node id to assign
+   * @returns A new structured query with filter-to-intervals, or undefined if extraction fails
+   */
+  static withFilterToIntervals(
+    baseQuery: QuerySource,
+    intervalsQuery: QuerySource,
+    partitionColumns?: string[],
+    clipToIntervals?: boolean,
+    filterNegativeDur?: boolean[],
+    nodeId?: string,
+    selectColumns?: string[],
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    // Extract and optionally filter base query
+    let base = extractQuery(baseQuery);
+    if (!base) return undefined;
+    if (filterNegativeDur && filterNegativeDur[0]) {
+      base = this.applyDurFilter(base);
+    }
+
+    // Extract and optionally filter intervals query
+    let intervals = extractQuery(intervalsQuery);
+    if (!intervals) return undefined;
+    if (filterNegativeDur && filterNegativeDur[1]) {
+      intervals = this.applyDurFilter(intervals);
+    }
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = nodeId ?? nextNodeId();
+
+    const filterToIntervals =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalFilterToIntervals();
+    filterToIntervals.base = base;
+    filterToIntervals.intervals = intervals;
+
+    if (partitionColumns && partitionColumns.length > 0) {
+      filterToIntervals.partitionColumns = [...partitionColumns];
+    }
+
+    // clip_to_intervals defaults to true in the proto, so only set if false
+    if (clipToIntervals === false) {
+      filterToIntervals.clipToIntervals = false;
+    }
+
+    if (selectColumns && selectColumns.length > 0) {
+      filterToIntervals.selectColumns = [...selectColumns];
+    }
+
+    sq.experimentalFilterToIntervals = filterToIntervals;
     return sq;
   }
 }

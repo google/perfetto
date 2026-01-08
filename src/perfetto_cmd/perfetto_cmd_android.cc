@@ -33,6 +33,7 @@
 #include "src/android_internal/incident_service.h"
 #include "src/android_internal/lazy_library_loader.h"
 #include "src/android_internal/tracing_service_proxy.h"
+#include "src/android_stats/statsd_logging_helper.h"
 
 #include "protos/perfetto/config/trace_config.gen.h"
 
@@ -62,7 +63,8 @@ void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
   PERFETTO_CHECK(!cfg.destination_package().empty());
   PERFETTO_CHECK(!cfg.skip_incidentd());
 
-  if (bytes_written_ == 0) {
+  uint64_t bytes_written = GetBytesWritten();
+  if (bytes_written == 0) {
     LogUploadEvent(PerfettoStatsdAtom::kNotUploadingEmptyTrace);
     PERFETTO_LOG("Skipping write to incident. Empty trace.");
     return;
@@ -74,11 +76,11 @@ void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
   // Skip the trace-uuid link for traces that are too small. Realistically those
   // traces contain only a marker (e.g. seized_for_bugreport, or the trace
   // expired without triggers). Those are useless and introduce only noise.
-  if (bytes_written_ > 4096) {
+  if (bytes_written > 4096) {
     base::Uuid uuid(uuid_);
     PERFETTO_LOG("go/trace-uuid/%s name=\"%s\" size=%" PRIu64,
                  uuid.ToPrettyString().c_str(),
-                 trace_config_->unique_session_name().c_str(), bytes_written_);
+                 trace_config_->unique_session_name().c_str(), bytes_written);
   }
 
   // Ask incidentd to create a report, which will read the file we just
@@ -89,15 +91,19 @@ void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
                              cfg.privacy_level()));
 }
 
+// static
 base::Status PerfettoCmd::ReportTraceToAndroidFramework(
-    base::ScopedFile trace_fd,
+    int trace_fd,
     uint64_t trace_size,
-    const protos::gen::TraceConfig_AndroidReportConfig& report_config,
     const base::Uuid& uuid,
-    const std::string& unique_session_name) {
-  if (!trace_fd) {
-    return base::ErrStatus("Invalid trace_fd");
-  }
+    const std::string& unique_session_name,
+    const protos::gen::TraceConfig_AndroidReportConfig& report_config,
+    bool statsd_logging) {
+  auto log_upload_event_fn = [statsd_logging, &uuid](PerfettoStatsdAtom atom) {
+    if (statsd_logging) {
+      android_stats::MaybeLogUploadEvent(atom, uuid.lsb(), uuid.msb());
+    }
+  };
 
   if (report_config.reporter_service_class().empty() ||
       report_config.reporter_service_package().empty()) {
@@ -108,13 +114,13 @@ base::Status PerfettoCmd::ReportTraceToAndroidFramework(
   }
 
   if (trace_size == 0) {
-    LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportEmptyTrace);
+    log_upload_event_fn(PerfettoStatsdAtom::kCmdFwReportEmptyTrace);
     PERFETTO_LOG("Skipping reporting trace to Android. Empty trace.");
     return base::OkStatus();
   }
 
-  LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportBegin);
-  base::StackString<128> self_fd("/proc/self/fd/%d", *trace_fd);
+  log_upload_event_fn(PerfettoStatsdAtom::kCmdFwReportBegin);
+  base::StackString<128> self_fd("/proc/self/fd/%d", trace_fd);
   base::ScopedFile fd(base::OpenFile(self_fd.c_str(), O_RDONLY | O_CLOEXEC));
   if (!fd) {
     return base::ErrStatus(
@@ -140,17 +146,18 @@ base::Status PerfettoCmd::ReportTraceToAndroidFramework(
                  uuid.ToPrettyString().c_str(), unique_session_name.c_str(),
                  trace_size);
   }
-  LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportHandoff);
+  log_upload_event_fn(PerfettoStatsdAtom::kCmdFwReportHandoff);
   return base::OkStatus();
 }
 
-void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash(
-    base::ScopedFile trace_fd,
-    uint64_t trace_size) {
+void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
+  PERFETTO_CHECK(trace_out_stream_);
+  uint64_t bytes_written = GetBytesWritten();
+  int trace_fd = fileno(*trace_out_stream_);
   base::Uuid uuid(uuid_);
   base::Status status = ReportTraceToAndroidFramework(
-      std::move(trace_fd), trace_size, trace_config_->android_report_config(),
-      uuid, trace_config_->unique_session_name());
+      trace_fd, bytes_written, uuid, trace_config_->unique_session_name(),
+      trace_config_->android_report_config(), statsd_logging_);
   if (!status.ok()) {
     PERFETTO_FATAL("ReportTraceToAndroidFramework: %s", status.c_message());
   }
@@ -182,20 +189,21 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
                                                O_CREAT | O_EXCL | O_RDWR, 0666);
   PERFETTO_CHECK(staging_fd);
 
+  uint64_t bytes_written = GetBytesWritten();
   int fd = fileno(*trace_out_stream_);
   off_t offset = 0;
-  size_t remaining = static_cast<size_t>(bytes_written_);
+  size_t remaining = static_cast<size_t>(bytes_written);
 
   // Count time in terms of CPU to avoid timeouts due to suspend:
   base::TimeNanos start = base::GetThreadCPUTimeNs();
   for (;;) {
     errno = 0;
-    PERFETTO_DCHECK(static_cast<size_t>(offset) + remaining == bytes_written_);
+    PERFETTO_DCHECK(static_cast<size_t>(offset) + remaining == bytes_written);
     auto wsize = PERFETTO_EINTR(sendfile(*staging_fd, fd, &offset, remaining));
     if (wsize < 0) {
       PERFETTO_FATAL("sendfile() failed wsize=%zd, off=%" PRId64
                      ", initial=%" PRIu64 ", remaining=%zu",
-                     wsize, static_cast<int64_t>(offset), bytes_written_,
+                     wsize, static_cast<int64_t>(offset), bytes_written,
                      remaining);
     }
     remaining -= static_cast<size_t>(wsize);
@@ -207,7 +215,7 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
       PERFETTO_FATAL("sendfile() timed out wsize=%zd, off=%" PRId64
                      ", initial=%" PRIu64
                      ", remaining=%zu, start=%lld, now=%lld",
-                     wsize, static_cast<int64_t>(offset), bytes_written_,
+                     wsize, static_cast<int64_t>(offset), bytes_written,
                      remaining, static_cast<long long int>(start.count()),
                      static_cast<long long int>(now.count()));
     }

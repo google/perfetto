@@ -22,7 +22,8 @@ import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {getSelectableColumns, SqlTableState} from '../widgets/sql/table/state';
 import {SqlTable} from '../widgets/sql/table/table';
-import {SqlTableDescription} from '../widgets/sql/table/table_description';
+import {SqlTableDefinition} from '../widgets/sql/table/table_description';
+import {resolveTableDefinition} from '../widgets/sql/table/columns';
 import {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {addEphemeralTab} from './add_ephemeral_tab';
@@ -40,7 +41,7 @@ import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
 
 export interface AddSqlTableTabParams {
-  table: SqlTableDescription;
+  table: SqlTableDefinition;
   filters?: Filter[];
   imports?: string[];
 }
@@ -49,9 +50,10 @@ export function addLegacyTableTab(
   trace: Trace,
   config: AddSqlTableTabParams,
 ): void {
+  const resolvedTable = resolveTableDefinition(trace, config.table);
   addSqlTableTabWithState(
     trace,
-    new SqlTableState(trace, config.table, {
+    new SqlTableState(trace, resolvedTable, {
       filters: new Filters(config.filters),
       imports: config.imports,
     }),
@@ -98,7 +100,7 @@ class SqlTableTab implements Tab {
     const addDebugTrack = m(
       Popup,
       {
-        trigger: m(Button, {label: 'Show debug track'}),
+        trigger: m(Button, {label: 'Add debug track'}),
         position: PopupPosition.Top,
       },
       m(AddDebugTrackMenu, {

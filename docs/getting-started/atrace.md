@@ -18,11 +18,11 @@ This page is mainly intended for:
 
 ![Atrace slices example](/docs/images/atrace_slices.png)
 
-Atrace is an API introduced in Android 4.3 that predates that allows you to add
+Atrace is an API introduced in Android 4.3 that predates Perfetto and allows you to add
 instrumentation to your code. It is still supported and in use, and
 interoperates well with Perfetto.
 
-Under the hoods, Atrace forwards events up to the kernel ftrace ring-buffer and
+Under the hood, Atrace forwards events up to the kernel ftrace ring-buffer and
 gets fetched together with the rest of scheduling data and other system-level
 trace data. Atrace is both:
 
@@ -67,7 +67,7 @@ import static android.os.Trace.TRACE_TAG_AUDIO;
 public void playSound(String path) {
   Trace.traceBegin(TRACE_TAG_AUDIO, "PlaySound");
   try {
-    // Measure the time it takes to open the sound sevice.
+    // Measure the time it takes to open the sound service.
     Trace.traceBegin(TRACE_TAG_AUDIO, "OpenAudioDevice");
     try {
       SoundDevice dev = openAudioDevice();
@@ -83,7 +83,7 @@ public void playSound(String path) {
         Trace.traceEnd();
       }
       // Log buffer usage statistics in the trace.
-      Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev->buffer)
+      Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev.buffer)
       ...
     }
   } finally {
@@ -105,7 +105,7 @@ TAB: C/C++ (platform private)
 void PlaySound(const char* path) {
   ATRACE_BEGIN("PlaySound");
 
-  // Measure the time it takes to open the sound sevice.
+  // Measure the time it takes to open the sound service.
   ATRACE_BEGIN("OpenAudioDevice");
   struct snd_dev* dev = OpenAudioDevice();
   ATRACE_END();
@@ -135,9 +135,9 @@ import android.os.Trace;
 
 public void playSound(String path) {
   try {
-    ATrace_beginSection("PlaySound");
+    Trace.beginSection("PlaySound");
 
-    // Measure the time it takes to open the sound sevice.
+    // Measure the time it takes to open the sound service.
     Trace.beginSection("OpenAudioDevice");
     try {
       SoundDevice dev = openAudioDevice();
@@ -154,7 +154,7 @@ public void playSound(String path) {
       }
 
       // Log buffer usage statistics in the trace.
-      Trace.setCounter("SndBufferUsage", dev->buffer)
+      Trace.setCounter("SndBufferUsage", dev.buffer)
       ...
     }
   } finally {
@@ -175,8 +175,8 @@ Refer to the [NDK reference documentation for Tracing](https://developer.android
 void PlaySound(const char* path) {
   ATrace_beginSection("PlaySound");
 
-  // Measure the time it takes to open the sound sevice.
-  ATRACE_BEGIN("OpenAudioDevice");
+  // Measure the time it takes to open the sound service.
+  ATrace_beginSection("OpenAudioDevice");
   struct snd_dev* dev = OpenAudioDevice();
   ATrace_endSection();
 
@@ -221,7 +221,7 @@ public void playSound(String path) {
     sendAudioBuffer(dev, ...)
     ...
     // Log buffer usage statistics in the trace.
-    Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev->buffer.used_bytes)
+    Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev.buffer.used_bytes)
   }
 }
 ```
@@ -264,7 +264,7 @@ public void playSound(String path) {
     sendAudioBuffer(dev, ...)
 
     // Log buffer usage statistics in the trace.
-    Trace.setCounter("SndBufferUsage", dev->buffer.used_bytes)
+    Trace.setCounter("SndBufferUsage", dev.buffer.used_bytes)
   }
 }
 ```
@@ -444,14 +444,14 @@ use cases, but we are not there yet. So the answer is: _depends_.
 | When to prefer Atrace                                                                                                           | When to prefer the Tracing SDK                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | You need something simple that just works.                                                                                      | You need more advanced features (e.g. flows).                                                                  |
-| You are okay with one on/off toggle for the whole app. (If you are in the Android system you can only se a limited set of tags) | You need fine-grained control over tracing categories.                                                         |
+| You are okay with one on/off toggle for the whole app. (If you are in the Android system you can only use a limited set of tags) | You need fine-grained control over tracing categories.                                                         |
 | You are okay with events being multiplexed in the main ftace buffer.                                                            | You want control over muxing events in different buffers.                                                       |
 | Instrumentation overhead is not a big concern, your trace points are hit sporadically.                                          | You want minimal overhead for your instrumentation points. Your trace points are frequent (every 10ms or less) |
 
 #### If you are an unbundled app
 
 You should consider using
-[androidx.tracing](https://developer.android.com/jetpack/androidx/releases/racing)
+[androidx.tracing](https://developer.android.com/jetpack/androidx/releases/tracing)
 from Jetpack. We work closely with the Jetpack project. Using androidx.tracing
 is going to lead to a smoother migration path once we improve our SDK.
 

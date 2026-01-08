@@ -131,6 +131,7 @@ source_set("storage_minimal") {
     "containers",
     "importers/common",
     "importers/common:parser_types",
+    "importers/etw:minimal",
     "importers/ftrace:minimal",
     "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",

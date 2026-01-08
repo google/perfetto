@@ -123,6 +123,11 @@ using SparseNullTypes = TypeSet<SparseNull,
                                 SparseNullWithPopcountAlways,
                                 SparseNullWithPopcountUntilFinalization>;
 
+// Tag type for Id column data pointers. Id columns don't have backing storage
+// (the value is the row index), so we use a distinct pointer type that is
+// always null to allow proper type deduction in generic code.
+struct IdDataTag {};
+
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
 class Storage {
@@ -131,7 +136,7 @@ class Storage {
   struct Id {
     uint32_t size;  // Number of rows in the column
 
-    static const void* data() { return nullptr; }
+    static const IdDataTag* data() { return nullptr; }
   };
   using Uint32 = FlexVector<uint32_t>;
   using Int32 = FlexVector<int32_t>;
@@ -139,7 +144,7 @@ class Storage {
   using Double = FlexVector<double>;
   using String = FlexVector<StringPool::Id>;
 
-  using DataPointer = std::variant<std::nullptr_t,
+  using DataPointer = std::variant<const IdDataTag*,
                                    const uint32_t*,
                                    const int32_t*,
                                    const int64_t*,
@@ -185,11 +190,12 @@ class Storage {
   }
 
   // Returns a variant containing pointer to the underlying data.
-  // Returns nullptr if the storage type is Id (which has no buffer).
+  // Returns nullptr (as IdDataTag*) if the storage type is Id (which has no
+  // buffer).
   DataPointer data() const {
     switch (type_.index()) {
       case StorageType::GetTypeIndex<dataframe::Id>():
-        return nullptr;
+        return static_cast<const IdDataTag*>(nullptr);
       case StorageType::GetTypeIndex<dataframe::Uint32>():
         return base::unchecked_get<Storage::Uint32>(data_).data();
       case StorageType::GetTypeIndex<dataframe::Int32>():
