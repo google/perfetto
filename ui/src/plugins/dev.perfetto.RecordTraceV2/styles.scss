@@ -601,6 +601,11 @@
     flex-direction: row;
     gap: 8px;
 
+    > section {
+      flex: 1;
+      min-width: 0;
+    }
+
     .pf-multiselect-panel {
       max-height: 500px;
     }
