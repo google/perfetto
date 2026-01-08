@@ -22,10 +22,6 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
-import {
-  createProcessInstrumentsSamplesProfileTrack,
-  createThreadInstrumentsSamplesProfileTrack,
-} from './instruments_samples_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -35,9 +31,16 @@ import {
   QueryFlamegraph,
   QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {
+  Flamegraph,
+  FLAMEGRAPH_STATE_SCHEMA,
+  FlamegraphState,
+} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
 import {z} from 'zod';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {createProfilingTrack} from '../dev.perfetto.CpuProfile/profiling_track';
+import CpuProfilePlugin from '../dev.perfetto.CpuProfile';
 
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;
@@ -60,7 +63,7 @@ function makeUriForProc(upid: number) {
 
 export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.InstrumentsSamplesProfile';
-  static readonly dependencies = [ProcessThreadGroupsPlugin];
+  static readonly dependencies = [ProcessThreadGroupsPlugin, CpuProfilePlugin];
 
   private store?: Store<InstrumentsSamplesProfilePluginState>;
 
@@ -310,4 +313,102 @@ function getUtidsFromInstrumentsSampleAreaSelection(
     }
   }
   return utids;
+}
+
+export function createProcessInstrumentsSamplesProfileTrack(
+  trace: Trace,
+  uri: string,
+  upid: number,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+) {
+  return createProfilingTrack(
+    trace,
+    uri,
+    {
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          callsiteId: NUM,
+        },
+        src: `
+          SELECT
+            p.id,
+            ts,
+            callsite_id AS callsiteId,
+            upid
+          FROM instruments_sample p
+          JOIN thread USING (utid)
+          WHERE callsite_id IS NOT NULL
+          ORDER BY ts
+        `,
+        filter: {
+          col: 'upid',
+          eq: upid,
+        },
+      }),
+      callsiteQuery: (ts) => `
+        SELECT p.callsite_id
+        FROM instruments_sample p
+        JOIN thread t USING (utid)
+        WHERE p.ts = ${ts}
+          AND t.upid = ${upid}
+      `,
+      sqlModule: 'appleos.instruments.samples',
+      metricName: 'Instruments Samples',
+      panelTitle: 'Instruments Samples',
+      sliceName: 'Instruments Sample',
+    },
+    detailsPanelState,
+    onDetailsPanelStateChange,
+  );
+}
+
+export function createThreadInstrumentsSamplesProfileTrack(
+  trace: Trace,
+  uri: string,
+  utid: number,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+) {
+  return createProfilingTrack(
+    trace,
+    uri,
+    {
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          callsiteId: NUM,
+        },
+        src: `
+          SELECT
+            p.id,
+            ts,
+            callsite_id AS callsiteId,
+            utid
+          FROM instruments_sample p
+          WHERE callsite_id IS NOT NULL
+          ORDER BY ts
+        `,
+        filter: {
+          col: 'utid',
+          eq: utid,
+        },
+      }),
+      callsiteQuery: (ts) => `
+        SELECT p.callsite_id
+        FROM instruments_sample p
+        WHERE p.ts = ${ts}
+          AND p.utid = ${utid}
+      `,
+      sqlModule: 'appleos.instruments.samples',
+      metricName: 'Instruments Samples',
+      panelTitle: 'Instruments Samples',
+      sliceName: 'Instruments Sample',
+    },
+    detailsPanelState,
+    onDetailsPanelStateChange,
+  );
 }
