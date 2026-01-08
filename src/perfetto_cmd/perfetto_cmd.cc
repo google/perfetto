@@ -1316,10 +1316,10 @@ void PerfettoCmd::FinalizeTraceAndExit() {
           base::OpenFile(persistent_trace_out_path_, O_RDONLY);
       uint64_t file_size = base::GetFileSize(*trace_fd).value_or(0);
       unlink(trace_config_->output_path().c_str());
-      ReportTraceToAndroidFrameworkOrCrash(std::move(trace_fd), file_size);
+      ReportTraceToAndroidFrameworkOrCrash(*trace_fd, file_size);
     } else {
-      ReportTraceToAndroidFrameworkOrCrash(
-          base::ScopedFile(dup(fileno(*trace_out_stream_))), bytes_written_);
+      ReportTraceToAndroidFrameworkOrCrash(fileno(*trace_out_stream_),
+                                           GetBytesWritten());
     }
 #endif
   } else {

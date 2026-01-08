@@ -157,8 +157,6 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
-  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
-      base::ScopedMmap mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   static base::Status ReportTraceToAndroidFramework(
@@ -168,7 +166,7 @@ class PerfettoCmd : public Consumer {
       const std::string& unique_session_name,
       const protos::gen::TraceConfig_AndroidReportConfig& report_config,
       bool statsd_logging);
-  void ReportTraceToAndroidFrameworkOrCrash();
+  void ReportTraceToAndroidFrameworkOrCrash(int trace_fd, uint64_t trace_size);
   void ReportAllPersistentTracesToAndroidFramework();
   static std::vector<base::ScopedFile>
   UnlinkAndReturnPersistentTracesToUpload();
