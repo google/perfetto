@@ -166,6 +166,40 @@ The `manifest.json` file contains server metadata and module list:
 - `modules` (required): List of available modules. Use `["default"]` for
   single-module servers.
 
+**Extension Response Formats:**
+
+The extension endpoints return JSON with the following structures:
+
+`/modules/{module}/macros`:
+```json
+{
+  "macros": {
+    "Startup Analysis": [
+      {"id": "dev.perfetto.RunQuery", "args": ["SELECT 1"]}
+    ]
+  }
+}
+```
+
+`/modules/{module}/sql_modules`:
+```json
+{
+  "modules": {
+    "android.startup": "CREATE TABLE..."
+  }
+}
+```
+
+`/modules/{module}/proto_descriptors`:
+```json
+{
+  "descriptors": [
+    "base64-encoded-descriptor-1",
+    "base64-encoded-descriptor-2"
+  ]
+}
+```
+
 ### Request Strategy
 
 The UI uses different request patterns for different endpoint types:
