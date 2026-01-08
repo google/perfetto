@@ -47,12 +47,13 @@ import {
   addConnection,
   removeConnection,
   notifyNextNodes,
+  captureAllChildConnections,
 } from './query_builder/graph_utils';
-import {showExamplesModal} from './examples_modal';
 import {
   showStateOverwriteWarning,
   showExportWarning,
 } from './query_builder/widgets';
+import {showExamplesModal} from './examples_modal';
 
 registerCoreNodes();
 
@@ -645,43 +646,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   /**
-   * Finds which port a node is connected to in a child's secondary inputs.
-   * Returns undefined if not connected to any secondary input (i.e., connected to primary input).
-   *
-   * Example: If node B is connected to child C's secondary input at port 1, returns 1.
-   */
-  private findSecondaryInputPort(
-    child: QueryNode,
-    node: QueryNode,
-  ): number | undefined {
-    if (!child.secondaryInputs) return undefined;
-
-    for (const [port, inputNode] of child.secondaryInputs.connections) {
-      if (inputNode === node) {
-        return port;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Captures how the deleted node connected to each of its children.
-   * This information is needed to reconnect the parent with the same port semantics.
-   *
-   * Example:
-   *   A → B → C (primary)     =>  portIndex = undefined
-   *   A → B → D (secondary 1) =>  portIndex = 1
-   */
-  private captureChildConnections(
-    deletedNode: QueryNode,
-  ): Array<{child: QueryNode; portIndex: number | undefined}> {
-    return deletedNode.nextNodes.map((child) => ({
-      child,
-      portIndex: this.findSecondaryInputPort(child, deletedNode),
-    }));
-  }
-
-  /**
    * Gets the primary input parent of a node.
    * Returns undefined for:
    * - Source nodes (no inputs)
@@ -727,7 +691,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // STEP 2: Capture graph structure BEFORE modification
     // We need to capture this info before removeConnection() clears the references
     const primaryParent = this.getPrimaryParent(node);
-    const childConnections = this.captureChildConnections(node);
+    const childConnections = captureAllChildConnections(node);
     const allInputs = getAllInputNodes(node); // Capture ALL parents (primary + secondary)
 
     // STEP 3: Remove the node from the graph
@@ -863,6 +827,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     const newRootNodes = Array.from(newRootNodesSet);
+
+    // STEP 5c: Remove the deleted node's layout from the map
+    // Now that we've transferred the layout to children/orphans, clean it up
+    updatedNodeLayouts.delete(node.nodeId);
 
     // STEP 6: Update selection if deleted node was selected
     const newSelectedNode =

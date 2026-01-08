@@ -53,8 +53,12 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
+#include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -533,15 +537,17 @@ class JsonExporter {
       const auto& arg_table = storage_->arg_table();
       ArgSet arg_set;
       uint32_t cur_args_set_id = std::numeric_limits<uint32_t>::max();
-      for (auto it = arg_table.IterateRows(); it; ++it) {
-        ArgSetId set_id = it.arg_set_id();
+      auto c = arg_table.CreateCursor({}, {});
+      c.Execute();
+      for (; !c.Eof(); c.Next()) {
+        ArgSetId set_id = c.arg_set_id();
         if (set_id != cur_args_set_id) {
           args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
           arg_set = ArgSet();
           cur_args_set_id = set_id;
         }
-        arg_set.AppendArg(storage->GetString(it.key()),
-                          storage_->GetArgValue(it.row_number().row_number()));
+        arg_set.AppendArg(storage->GetString(c.key()),
+                          GetArgValue(*storage_, c));
       }
       if (cur_args_set_id != std::numeric_limits<uint32_t>::max()) {
         args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());

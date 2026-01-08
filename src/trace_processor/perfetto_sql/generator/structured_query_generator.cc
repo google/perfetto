@@ -214,6 +214,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> IntervalIntersect(
       const StructuredQuery::IntervalIntersect::Decoder&);
 
+  base::StatusOr<std::string> FilterToIntervals(
+      const StructuredQuery::ExperimentalFilterToIntervals::Decoder&);
+
   base::StatusOr<std::string> Join(
       const StructuredQuery::ExperimentalJoin::Decoder&);
 
@@ -285,6 +288,7 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       root_query.has_inner_query() && !root_query.has_table() &&
       !root_query.has_experimental_time_range() &&
       !root_query.has_simple_slices() && !root_query.has_interval_intersect() &&
+      !root_query.has_experimental_filter_to_intervals() &&
       !root_query.has_experimental_join() &&
       !root_query.has_experimental_union() && !root_query.has_sql() &&
       !root_query.has_inner_query_id() && !root_query.filters() &&
@@ -346,6 +350,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_interval_intersect()) {
       StructuredQuery::IntervalIntersect::Decoder ii(q.interval_intersect());
       ASSIGN_OR_RETURN(source, IntervalIntersect(ii));
+    } else if (q.has_experimental_filter_to_intervals()) {
+      StructuredQuery::ExperimentalFilterToIntervals::Decoder fti(
+          q.experimental_filter_to_intervals());
+      ASSIGN_OR_RETURN(source, FilterToIntervals(fti));
     } else if (q.has_experimental_join()) {
       StructuredQuery::ExperimentalJoin::Decoder join(q.experimental_join());
       ASSIGN_OR_RETURN(source, Join(join));
@@ -607,12 +615,15 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
           col.c_str());
     }
 
-    // Check for duplicates
-    if (seen_cols.count(col) > 0) {
+    // Check for duplicates (case-insensitive)
+    std::string col_lower = col;
+    std::transform(col_lower.begin(), col_lower.end(), col_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    if (seen_cols.count(col_lower) > 0) {
       return base::ErrStatus("Partition column '%s' is duplicated",
                              col.c_str());
     }
-    seen_cols.insert(col);
+    seen_cols.insert(col_lower);
     partition_cols.push_back(col);
   }
 
@@ -675,6 +686,168 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
            " = source_" + std::to_string(suffix) + ".id";
   }
   sql += ")";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::FilterToIntervals(
+    const StructuredQuery::ExperimentalFilterToIntervals::Decoder& filter) {
+  if (filter.base().size == 0) {
+    return base::ErrStatus("FilterToIntervals must specify a base query");
+  }
+  if (filter.intervals().size == 0) {
+    return base::ErrStatus("FilterToIntervals must specify an intervals query");
+  }
+  referenced_modules_.Insert("intervals.intersect", nullptr);
+  referenced_modules_.Insert("intervals.overlap", nullptr);
+
+  // Validate and collect partition columns
+  std::vector<std::string> partition_cols;
+  std::set<std::string> seen_cols;
+  for (auto it = filter.partition_columns(); it; ++it) {
+    std::string col = it->as_std_string();
+
+    // Validate that partition columns are not empty
+    if (col.empty()) {
+      return base::ErrStatus("Partition column cannot be empty");
+    }
+
+    // Validate that partition columns are not id, ts, or dur (case-insensitive)
+    if (base::CaseInsensitiveEqual(col, "id") ||
+        base::CaseInsensitiveEqual(col, "ts") ||
+        base::CaseInsensitiveEqual(col, "dur")) {
+      return base::ErrStatus(
+          "Partition column '%s' is reserved and cannot be used for "
+          "partitioning",
+          col.c_str());
+    }
+
+    // Check for duplicates (case-insensitive)
+    std::string col_lower = col;
+    std::transform(col_lower.begin(), col_lower.end(), col_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    if (seen_cols.count(col_lower) > 0) {
+      return base::ErrStatus("Partition column '%s' is duplicated",
+                             col.c_str());
+    }
+    seen_cols.insert(col_lower);
+    partition_cols.push_back(col);
+  }
+
+  // Determine if we clip to intervals (default true)
+  bool clip_to_intervals =
+      filter.has_clip_to_intervals() ? filter.clip_to_intervals() : true;
+
+  // Collect select columns if specified
+  std::vector<std::string> select_cols;
+  for (auto it = filter.select_columns(); it; ++it) {
+    select_cols.push_back(it->as_std_string());
+  }
+
+  // Generate the SQL query
+  // We first merge overlapping intervals in the filter set, then use
+  // _interval_intersect! internally to compute overlaps, and finally
+  // reshape the output to match the base schema.
+  std::string base_source = NestedSource(filter.base());
+  std::string intervals_source = NestedSource(filter.intervals());
+
+  std::string sql = "(WITH fti_base AS (SELECT * FROM " + base_source + ")";
+  sql += ",\nfti_intervals_raw AS (SELECT * FROM " + intervals_source + ")";
+
+  // Merge overlapping intervals to avoid duplicate output rows when a base
+  // interval overlaps with multiple overlapping filter intervals.
+  // Use partitioned merge if we have partition columns, otherwise use
+  // non-partitioned merge.
+  if (partition_cols.empty()) {
+    // Non-partitioned: use interval_merge_overlapping and add a dummy id
+    sql +=
+        ",\nfti_intervals AS (\n"
+        "  SELECT\n"
+        "    ROW_NUMBER() OVER (ORDER BY ts) AS id,\n"
+        "    ts,\n"
+        "    dur\n"
+        "  FROM interval_merge_overlapping!(fti_intervals_raw, 0)\n"
+        ")";
+  } else {
+    // Partitioned: use _interval_merge_overlapping_partitioned for each
+    // partition column and add a dummy id. We only support a single partition
+    // column for the merge operation, but multiple for the intersection.
+    // For simplicity, we merge on the first partition column.
+    sql +=
+        ",\nfti_intervals AS (\n"
+        "  SELECT\n"
+        "    ROW_NUMBER() OVER (ORDER BY ts) AS id,\n"
+        "    ts,\n"
+        "    dur";
+    for (const auto& col : partition_cols) {
+      sql += ",\n    " + col;
+    }
+    sql +=
+        "\n  FROM "
+        "_interval_merge_overlapping_partitioned!(fti_intervals_raw, " +
+        partition_cols[0] + ")\n)";
+  }
+
+  // Use _interval_intersect! macro to compute overlaps
+  sql += "\nSELECT ";
+
+  // Build the column list based on clip_to_intervals and select_columns
+  if (select_cols.empty()) {
+    // No explicit column selection: use base_0.*
+    if (clip_to_intervals) {
+      // When clipping, select intersected ts/dur, then all base columns
+      // This produces duplicate ts/dur columns, but SQL will use the first
+      // occurrence
+      sql += "ii.ts, ii.dur, base_0.*";
+    } else {
+      // When not clipping, just select all base columns as-is (no duplicates)
+      sql += "base_0.*";
+    }
+  } else {
+    // Explicit column selection
+    bool first = true;
+
+    if (clip_to_intervals) {
+      // When clipping: ii.ts, ii.dur first, then other columns, then
+      // original_ts/dur at end
+      sql += "ii.ts, ii.dur";
+      first = false;
+
+      // Add non-ts/dur columns
+      for (const auto& col : select_cols) {
+        if (!base::CaseInsensitiveEqual(col, "ts") &&
+            !base::CaseInsensitiveEqual(col, "dur")) {
+          sql += ", base_0." + col;
+        }
+      }
+
+      // Add original_ts and original_dur at the end if they were requested
+      for (const auto& col : select_cols) {
+        if (base::CaseInsensitiveEqual(col, "ts")) {
+          sql += ", base_0.ts AS original_ts";
+        } else if (base::CaseInsensitiveEqual(col, "dur")) {
+          sql += ", base_0.dur AS original_dur";
+        }
+      }
+    } else {
+      // When not clipping: preserve exact order from select_cols
+      for (const auto& col : select_cols) {
+        if (!first)
+          sql += ", ";
+        sql += "base_0." + col;
+        first = false;
+      }
+    }
+  }
+
+  sql += "\nFROM _interval_intersect!((fti_base, fti_intervals), (";
+  for (size_t i = 0; i < partition_cols.size(); ++i) {
+    if (i > 0) {
+      sql += ", ";
+    }
+    sql += partition_cols[i];
+  }
+  sql += ")) ii\nJOIN fti_base AS base_0 ON ii.id_0 = base_0.id)";
 
   return sql;
 }

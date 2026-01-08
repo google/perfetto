@@ -101,6 +101,11 @@ std::optional<SampleLine> ParseSampleLine(std::string_view line) {
     std::optional<uint32_t> cpu;
     if (base::StartsWith(pieces[pos], "[") &&
         base::EndsWith(pieces[pos], "]")) {
+      // If there is only one piece and it's enclosed in brackets, skip this
+      // line as it lacks other required fields (e.g. TID/PID).
+      if (pos == 0) {
+        continue;
+      }
       cpu = base::StringToUInt32(pieces[pos].substr(1, pieces[pos].size() - 2));
       if (!cpu) {
         continue;

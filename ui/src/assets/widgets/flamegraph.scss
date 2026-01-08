@@ -27,16 +27,49 @@
   .filter-bar {
     margin: 6px 8px;
     display: flex;
-    column-gap: 8px;
-    align-items: start;
-
-    .pf-tag-input {
-      flex-grow: 1;
-    }
+    gap: 6px;
+    align-items: center;
 
     .pf-select {
       flex-shrink: 0;
     }
+  }
+
+  .pf-tag-input {
+    flex: 1 1 0;
+    min-width: 0;
+    max-height: 60px;
+    overflow-y: auto;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    // Override the inner Stack to allow wrapping and add gaps
+    .pf-stack {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .pf-chip {
+      max-width: 200px;
+      min-width: auto;
+    }
+
+    input {
+      min-width: 80px;
+    }
+  }
+
+  .pf-flamegraph-filter-bar-separator {
+    width: 1px;
+    height: 24px;
+    background: var(--pf-color-border);
+    flex-shrink: 0;
+    margin: 0 4px;
+  }
+
+  .pf-flamegraph-filter-label {
+    font-weight: 500;
+    flex-shrink: 0;
   }
 
   .popup-anchor {
@@ -58,12 +91,6 @@
   .pf-virtual-canvas {
     height: 100%;
   }
-}
-
-.pf-flamegraph-filter-bar-popup-content {
-  white-space: pre-line;
-  width: 100%;
-  word-wrap: break-word;
 }
 
 .pf-flamegraph-tooltip-popup {
@@ -98,5 +125,48 @@
     font-style: italic;
     color: var(--pf-color-text-muted);
     padding-bottom: 4px; // Extra gap between marker and function name
+  }
+}
+
+.pf-filter-builder {
+  &.pf-popup {
+    min-width: 300px;
+    > .pf-popup-content {
+      padding: 12px;
+    }
+  }
+  &__separator {
+    height: 1px;
+    background: var(--pf-color-border);
+    margin: 12px 0 8px 0;
+  }
+  &__tip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: smaller;
+    color: var(--pf-color-text-muted);
+    padding-bottom: 8px;
+  }
+  &__help {
+    font-size: 13px;
+  }
+  &__help-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  &__help-row {
+    margin: 4px 0;
+  }
+  &__desc,
+  &__warn {
+    font-size: smaller;
+    margin-bottom: 8px;
+  }
+  &__desc {
+    color: var(--pf-color-text-muted);
+  }
+  &__warn {
+    color: var(--pf-color-warning);
   }
 }
