@@ -27,54 +27,6 @@
   align-items: stretch;
   margin: 4px 0;
 
-  .pf-menu-item {
-    font-family: var(--pf-font-compact);
-    user-select: none;
-    text-align: left;
-    padding: 6px 10px;
-    white-space: nowrap;
-    min-width: max-content;
-    line-height: 1;
-    cursor: pointer;
-
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    grid-template-areas: "left-icon label right-icon";
-
-    .pf-menu-item__label {
-      grid-area: label;
-    }
-
-    &__left-icon {
-      grid-area: left-icon;
-      margin-right: 6px; // Make some room between the icon and label
-    }
-
-    &__right-icon {
-      grid-area: right-icon;
-      margin-left: 6px; // Make some room between the icon and label
-    }
-
-    &:hover {
-      background: color_hover(transparent);
-    }
-
-    &:active,
-    &.pf-active {
-      background: color_active(transparent);
-    }
-
-    &[disabled] {
-      color: var(--pf-color-text-muted);
-      background: unset;
-      cursor: not-allowed;
-    }
-
-    &:focus-visible {
-      @include focus;
-    }
-  }
-
   .pf-menu-divider {
     border-bottom: solid 1px var(--pf-color-border);
     margin: 5px 0 5px 0;
@@ -100,5 +52,53 @@
     // color: var(--pf-color-text-muted);
     padding: 3px 8px 3px 8px;
     user-select: none;
+  }
+}
+
+.pf-menu-item {
+  font-family: var(--pf-font-compact);
+  user-select: none;
+  text-align: left;
+  padding: 6px 10px;
+  white-space: nowrap;
+  min-width: max-content;
+  line-height: 1;
+  cursor: pointer;
+
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "left-icon label right-icon";
+
+  .pf-menu-item__label {
+    grid-area: label;
+  }
+
+  &__left-icon {
+    grid-area: left-icon;
+    margin-right: 6px; // Make some room between the icon and label
+  }
+
+  &__right-icon {
+    grid-area: right-icon;
+    margin-left: 6px; // Make some room between the icon and label
+  }
+
+  &:hover {
+    background: color_hover(transparent);
+  }
+
+  &:active,
+  &.pf-active {
+    background: color_active(transparent);
+  }
+
+  &[disabled] {
+    color: var(--pf-color-text-muted);
+    background: unset;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    @include focus;
   }
 }

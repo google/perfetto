@@ -67,11 +67,11 @@
     }
     &.pf-sidebar__channel--canary::before {
       content: "CANARY";
-      color: #ffd700;
+      color: var(--pf-color-warning);
     }
     &.pf-sidebar__channel--autopush::before {
       content: "AUTOPUSH";
-      color: #aed581;
+      color: var(--pf-color-danger);
     }
   }
 

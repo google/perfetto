@@ -18,14 +18,24 @@ import {Icon} from './icon';
 
 interface AnchorAttrs extends HTMLAnchorAttrs {
   // Optional icon to show at the end of the content.
-  icon?: string;
+  readonly icon?: string;
+
+  // Optional icon to show at the start of the content.
+  readonly startIcon?: string;
 }
 
 export class Anchor implements m.ClassComponent<AnchorAttrs> {
   view({attrs, children}: m.CVnode<AnchorAttrs>) {
-    const {icon, ...htmlAttrs} = attrs;
+    const {icon, startIcon, ...htmlAttrs} = attrs;
 
-    return m('a.pf-anchor', htmlAttrs, children, icon && m(Icon, {icon}));
+    return m(
+      'a.pf-anchor',
+      htmlAttrs,
+      startIcon &&
+        m(Icon, {icon: startIcon, className: 'pf-anchor__icon--start'}),
+      children,
+      icon && m(Icon, {icon, className: 'pf-anchor__icon--end'}),
+    );
   }
 }
 
