@@ -17,8 +17,31 @@
   font-family: var(--pf-font-compact);
   position: relative;
 
+  // The outer split panel needs to fill the container
+  > .pf-split-panel {
+    height: 100%;
+  }
+
+  &__editor-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+
+    .pf-editor {
+      flex: 1;
+      contain: strict; // See b/388579546
+      min-height: 3rem;
+    }
+  }
+
+  &__results-panel {
+    height: 100%;
+    overflow: auto;
+  }
+
   &__results {
-    max-height: 500px;
+    height: 100%;
   }
 
   &__results-summary {
@@ -29,9 +52,9 @@
     border-bottom: 1px solid var(--pf-color-border);
   }
 
-  .pf-editor {
-    contain: strict; // See b/388579546
-    min-height: 3rem;
+  &__history {
+    height: 100%;
+    overflow: auto;
   }
 
   &__hotkeys {
