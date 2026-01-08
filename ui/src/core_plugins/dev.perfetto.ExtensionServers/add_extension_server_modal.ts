@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {AsyncLimiter} from '../../base/async_limiter';
 import {Button} from '../../widgets/button';
 import {showModal} from '../../widgets/modal';
 import {TextInput} from '../../widgets/text_input';
@@ -23,151 +24,49 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Tooltip} from '../../widgets/tooltip';
 import {Icon} from '../../widgets/icon';
+import {Spinner} from '../../widgets/spinner';
 import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
-import {ExtensionServer} from './types';
-import {fetchManifest} from './extension_server';
+import {ExtensionServer, Manifest} from './types';
+import {defer} from '../../base/deferred';
 import {resolveServerUrl} from './url_utils';
+import {fetchManifest} from './extension_server';
 
-type ServerType = 'github' | 'http';
+interface GithubUserInput {
+  type: 'github';
+  repo: string;
+  ref: string;
+}
 
-interface AddServerModalState {
-  serverType: ServerType;
-  // GitHub fields
-  githubRepo: string; // Format: owner/repo
-  githubRef: string;
-  // HTTP field
-  httpUrl: string;
-  loadingManifest: boolean;
-  manifestError?: string;
-  availableModules: string[];
+interface HttpsUserInput {
+  type: 'https';
+  url: string;
+}
+
+type UserInput = GithubUserInput | HttpsUserInput;
+
+interface OkLoadedState {
+  type: 'ok';
+  availableModules: ReadonlyArray<string>;
   enabledModules: Set<string>;
 }
 
+interface ErrorLoadedState {
+  type: 'error';
+  error: string;
+}
+
+type LoadedState = OkLoadedState | ErrorLoadedState;
+
 class AddExtensionServerModal {
-  state: AddServerModalState;
-  private editingServer: ExtensionServer | undefined;
+  private readonly fetchLimiter = new AsyncLimiter();
+  private userInput: UserInput;
+  private loadedState?: LoadedState;
 
   constructor(server?: ExtensionServer) {
-    this.editingServer = server;
-    this.state = this.createInitialState(server);
+    this.userInput = createInitial(server);
   }
 
-  private createInitialState(server?: ExtensionServer): AddServerModalState {
-    const baseState = {
-      loadingManifest: false,
-      availableModules: [],
-      enabledModules: new Set(server?.enabledModules ?? []),
-    };
-
-    if (!server) {
-      return {
-        ...baseState,
-        serverType: 'github',
-        githubRepo: '',
-        githubRef: 'main',
-        httpUrl: '',
-      };
-    }
-
-    const isGithub = server.url.startsWith('github://');
-    if (isGithub) {
-      const match = server.url.match(/^github:\/\/([^/]+\/[^/]+)\/(.+)$/);
-      return {
-        ...baseState,
-        serverType: 'github',
-        githubRepo: match?.[1] ?? '',
-        githubRef: match?.[2] ?? 'main',
-        httpUrl: '',
-      };
-    }
-
-    return {
-      ...baseState,
-      serverType: 'http',
-      githubRepo: '',
-      githubRef: 'main',
-      httpUrl: server.url,
-    };
-  }
-
-  private getCurrentUrl(): string {
-    if (this.state.serverType === 'github') {
-      const {githubRepo, githubRef} = this.state;
-      return `github://${githubRepo}/${githubRef}`;
-    } else {
-      return this.state.httpUrl;
-    }
-  }
-
-  private isUrlValid(): boolean {
-    if (this.state.serverType === 'github') {
-      const parts = this.state.githubRepo.trim().split('/');
-      return !!(
-        parts.length === 2 &&
-        parts[0] &&
-        parts[1] &&
-        this.state.githubRef.trim()
-      );
-    } else {
-      return !!this.state.httpUrl.trim();
-    }
-  }
-
-  private async loadManifest(): Promise<void> {
-    if (!this.isUrlValid()) return;
-
-    this.state.loadingManifest = true;
-    this.state.manifestError = undefined;
-    m.redraw();
-
-    try {
-      const url = this.getCurrentUrl();
-      const resolvedUrl = resolveServerUrl(url);
-      const manifest = await fetchManifest(resolvedUrl);
-
-      if (!manifest) {
-        const location =
-          this.state.serverType === 'github'
-            ? `${this.state.githubRepo} @ ${this.state.githubRef}`
-            : this.state.httpUrl;
-        const hint =
-          this.state.serverType === 'github'
-            ? 'Please check that the repository, branch, and manifest.json file exist.'
-            : 'Check that the URL is correct and CORS is enabled.';
-        this.state.manifestError = `Could not fetch manifest from ${location}. ${hint}`;
-        this.state.availableModules = [];
-      } else {
-        this.state.availableModules = manifest.modules;
-        // Keep existing selections if editing, otherwise select 'default' if available
-        if (!this.editingServer) {
-          this.state.enabledModules = new Set();
-          if (manifest.modules.includes('default')) {
-            this.state.enabledModules.add('default');
-          }
-        }
-      }
-    } catch (e) {
-      this.state.manifestError = `Error loading manifest: ${e}`;
-      this.state.availableModules = [];
-    } finally {
-      this.state.loadingManifest = false;
-      m.redraw();
-    }
-  }
-
-  getResult(): ExtensionServer | undefined {
-    if (!this.isUrlValid() || this.state.enabledModules.size === 0) {
-      return undefined;
-    }
-
-    return {
-      url: this.getCurrentUrl(),
-      enabledModules: Array.from(this.state.enabledModules),
-      enabled: this.editingServer?.enabled ?? true,
-    };
-  }
-
-  view(): m.Children {
+  view() {
     return m(
       '.pf-add-extension-server-modal',
       m(
@@ -176,32 +75,36 @@ class AddExtensionServerModal {
         m(SegmentedButtons, {
           options: [
             {label: 'GitHub', icon: 'link'},
-            {label: 'HTTP/HTTPS', icon: 'public'},
+            {label: 'HTTPS', icon: 'public'},
           ],
-          selectedOption: this.state.serverType === 'github' ? 0 : 1,
+          selectedOption: this.userInput.type === 'github' ? 0 : 1,
           onOptionSelected: (idx: number) => {
-            this.state.serverType = idx === 0 ? 'github' : 'http';
+            this.userInput.type = idx === 0 ? 'github' : 'https';
           },
         }),
       ),
-      this.state.serverType === 'github'
+      this.userInput.type === 'github'
         ? m(
             Card,
             m(FormLabel, 'Repository'),
             m(TextInput, {
               placeholder:
                 'owner/repo (e.g., perfetto-dev/extension-server-test)',
-              value: this.state.githubRepo,
+              value: this.userInput.repo,
               onInput: (value: string) => {
-                this.state.githubRepo = value;
+                const github = assertGithub(this.userInput);
+                github.repo = value;
+                this.scheduleManifestFetch();
               },
             }),
             m(FormLabel, 'Branch/Tag'),
             m(TextInput, {
               placeholder: 'e.g., main',
-              value: this.state.githubRef,
+              value: this.userInput.ref,
               onInput: (value: string) => {
-                this.state.githubRef = value;
+                const github = assertGithub(this.userInput);
+                github.ref = value;
+                this.scheduleManifestFetch();
               },
             }),
           )
@@ -210,9 +113,11 @@ class AddExtensionServerModal {
             m(FormLabel, 'URL'),
             m(TextInput, {
               placeholder: 'https://example.com/path/to/extensions',
-              value: this.state.httpUrl,
+              value: this.userInput.url,
               onInput: (value: string) => {
-                this.state.httpUrl = value;
+                const https = assertHttps(this.userInput);
+                https.url = value;
+                this.scheduleManifestFetch();
               },
             }),
           ),
@@ -220,79 +125,188 @@ class AddExtensionServerModal {
         Card,
         m(
           '.pf-add-extension-server-modal__fetch-section',
-          m(Button, {
-            label: this.state.loadingManifest ? 'Loading...' : 'Fetch Manifest',
-            disabled: !this.isUrlValid() || this.state.loadingManifest,
-            onclick: () => this.loadManifest(),
-          }),
+          this.loadedState !== undefined
+            ? m(Spinner, {easing: true})
+            : m(Button, {
+                label: 'Refresh',
+                icon: 'refresh',
+                onclick: () => this.loadManifest(),
+              }),
           m(
             Tooltip,
             {
               trigger: m(Icon, {icon: 'help', className: 'pf-help-icon'}),
             },
-            'Click "Fetch Manifest" to load available modules from the server. You must select at least one module to add the server.',
+            'Manifest is fetched automatically as you type. Click "Refresh" to manually reload. You must select at least one module to add the server.',
           ),
         ),
-        this.state.manifestError &&
+        this.loadedState?.type === 'error' &&
           m(
             '.pf-add-extension-server-modal__error',
             m(
               Callout,
               {icon: 'error', intent: Intent.Danger},
-              this.state.manifestError,
+              this.loadedState.error,
             ),
           ),
-        this.state.availableModules.length > 0 && [
-          m(FormLabel, 'Select Modules'),
-          m(MultiSelect, {
-            options: this.state.availableModules.map((moduleName) => ({
-              id: moduleName,
-              name: moduleName,
-              checked: this.state.enabledModules.has(moduleName),
-            })),
-            onChange: (diffs: MultiSelectDiff[]) => {
-              for (const diff of diffs) {
-                if (diff.checked) {
-                  this.state.enabledModules.add(diff.id);
-                } else {
-                  this.state.enabledModules.delete(diff.id);
+        this.loadedState?.type === 'ok' &&
+          this.loadedState.availableModules.length > 0 && [
+            m(FormLabel, 'Select Modules'),
+            m(MultiSelect, {
+              options: this.loadedState.availableModules.map((moduleName) => ({
+                id: moduleName,
+                name: moduleName,
+                checked: assertOkLoadedState(
+                  this.loadedState,
+                ).enabledModules.has(moduleName),
+              })),
+              onChange: (diffs: MultiSelectDiff[]) => {
+                const ok = assertOkLoadedState(this.loadedState);
+                for (const diff of diffs) {
+                  if (diff.checked) {
+                    ok.enabledModules.add(diff.id);
+                  } else {
+                    ok.enabledModules.delete(diff.id);
+                  }
                 }
-              }
-            },
-            fixedSize: true,
-          }),
-        ],
+              },
+              fixedSize: true,
+            }),
+          ],
       ),
     );
+  }
+
+  canSave(): boolean {
+    return (
+      this.loadedState?.type === 'ok' &&
+      this.loadedState.enabledModules.size > 0
+    );
+  }
+
+  getResult(): ExtensionServer | undefined {
+    if (this.loadedState?.type !== 'ok') {
+      return undefined;
+    }
+    return {
+      url: this.getUrl(),
+      enabledModules: Array.from(
+        assertOkLoadedState(this.loadedState).enabledModules,
+      ),
+      enabled: true,
+    };
+  }
+
+  private scheduleManifestFetch(): void {
+    this.loadedState = undefined;
+    this.fetchLimiter.schedule(() => this.loadManifest());
+  }
+
+  private async loadManifest(): Promise<void> {
+    const url = this.getUrl();
+    const resolvedUrl = resolveServerUrl(url);
+    let manifest: Manifest;
+    try {
+      manifest = await fetchManifest(resolvedUrl);
+    } catch (e) {
+      const location =
+        this.userInput.type === 'github'
+          ? `${this.userInput.repo} @ ${this.userInput.ref}`
+          : this.userInput.url;
+      const hint =
+        this.userInput.type === 'github'
+          ? 'Please check that the repository, branch, and manifest.json file exist.'
+          : 'Check that the URL is correct and CORS is enabled.';
+      this.loadedState = {
+        type: 'error',
+        error: `Could not fetch manifest from ${location}. ${hint}`,
+      };
+      return;
+    }
+    this.loadedState = {
+      type: 'ok',
+      availableModules: manifest.modules,
+      enabledModules: new Set(
+        manifest.modules.includes('default') ? ['default'] : [],
+      ),
+    };
+  }
+
+  private getUrl() {
+    return this.userInput.type === 'github'
+      ? `github://${this.userInput.repo}/${this.userInput.ref}`
+      : this.userInput.url;
   }
 }
 
 export function showAddExtensionServerModal(
   server?: ExtensionServer,
 ): Promise<ExtensionServer | undefined> {
-  return new Promise((resolve) => {
-    const content = new AddExtensionServerModal(server);
-    showModal({
-      title: server ? 'Edit Extension Server' : 'Add Extension Server',
-      buttons: [
-        {
-          text: server ? 'Save' : 'Add',
-          primary: true,
-          disabled: () => content.state.enabledModules.size === 0,
-          action: () => {
-            const result = content.getResult();
-            if (result) {
-              resolve(result);
-            }
-          },
-        },
-        {
-          text: 'Cancel',
-          primary: false,
-          action: () => resolve(undefined),
-        },
-      ],
-      content: () => content.view(),
-    });
+  const deferred = defer<ExtensionServer | undefined>();
+  const modal = new AddExtensionServerModal(server);
+  showModal({
+    title: server ? 'Edit Extension Server' : 'Add Extension Server',
+    buttons: [
+      {
+        text: server ? 'Save' : 'Add',
+        primary: true,
+        disabled: () => modal.canSave(),
+        action: () => deferred.resolve(modal.getResult()),
+      },
+      {
+        text: 'Cancel',
+        primary: false,
+        action: () => deferred.resolve(undefined),
+      },
+    ],
+    content: () => modal.view(),
   });
+  return deferred;
+}
+
+function createInitial(server?: ExtensionServer): UserInput {
+  if (!server) {
+    return {
+      type: 'github',
+      repo: '',
+      ref: 'main',
+    };
+  }
+  const githubMatch = server.url.match(/^github:\/\/([^/]+\/[^/]+)\/(.+)$/);
+  if (githubMatch) {
+    return {
+      type: 'github',
+      repo: githubMatch[1] ?? '',
+      ref: githubMatch[2] ?? 'main',
+    };
+  }
+  const httpsMatch = server.url.match(/^https?:\/\/(.+)$/);
+  if (httpsMatch) {
+    return {
+      type: 'https',
+      url: httpsMatch[1],
+    };
+  }
+  throw new Error(`Unsupported server URL: ${server.url}`);
+}
+
+function assertGithub(state: UserInput): GithubUserInput {
+  if (state.type !== 'github') {
+    throw new Error('State is not of type GithubState');
+  }
+  return state;
+}
+
+function assertHttps(state: UserInput): HttpsUserInput {
+  if (state.type !== 'https') {
+    throw new Error('State is not of type HttpsState');
+  }
+  return state;
+}
+
+function assertOkLoadedState(state: LoadedState | undefined): OkLoadedState {
+  if (state?.type !== 'ok') {
+    throw new Error('LoadedState is not of type OkLoadedState');
+  }
+  return state;
 }

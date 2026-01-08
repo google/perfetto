@@ -38,15 +38,22 @@ async function loadServerState(
 ): Promise<ExtensionServerState> {
   const canonicalUrl = resolveServerUrl(server.url);
   const serverKey = normalizeServerKey(canonicalUrl);
-  const manifest = await fetchManifest(canonicalUrl);
 
+  const fetchManifestOrUndefined = async (canonicalUrl: string) => {
+    try {
+      return await fetchManifest(canonicalUrl);
+    } catch (e) {
+      return undefined;
+    }
+  };
+  const manifest = await fetchManifestOrUndefined(canonicalUrl);
   return {
     url: server.url,
     enabledModules: server.enabledModules,
     enabled: server.enabled,
     canonicalUrl,
     serverKey,
-    displayName: manifest?.name ?? server.url,
+    displayName: manifest?.name ?? canonicalUrl,
     availableModules: manifest?.modules ?? [],
     lastFetchError: manifest ? undefined : 'Failed to fetch manifest',
   };
@@ -71,7 +78,6 @@ async function fetchJson<T extends z.ZodTypeAny>(
   if (!response.ok) {
     throw new Error(`Fetch failed: ${url} returned ${response.status}`);
   }
-
   const json = await response.json();
   const result = schema.safeParse(json);
   if (!result.success) {
@@ -82,14 +88,8 @@ async function fetchJson<T extends z.ZodTypeAny>(
 
 // Fetches manifest, returning undefined on error (for graceful degradation
 // when configuring servers).
-export async function fetchManifest(
-  serverUrl: string,
-): Promise<Manifest | undefined> {
-  try {
-    return await fetchJson(serverUrl + '/manifest.json', ManifestSchema);
-  } catch {
-    return undefined;
-  }
+export async function fetchManifest(serverUrl: string): Promise<Manifest> {
+  return await fetchJson(serverUrl + '/manifest.json', ManifestSchema);
 }
 
 // =============================================================================
