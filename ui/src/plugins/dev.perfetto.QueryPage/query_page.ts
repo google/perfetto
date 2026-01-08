@@ -13,8 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
-import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
@@ -31,8 +29,9 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
+import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
-import {ResizeHandle} from '../../widgets/resize_handle';
+import {SplitPanel} from '../../widgets/split_panel';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
@@ -57,13 +56,8 @@ export interface QueryPageAttrs {
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private dataSource?: DataSource;
-  private editorHeight: number = 0;
-  private editorElement?: HTMLElement;
-
-  oncreate({dom}: m.VnodeDOM<QueryPageAttrs>) {
-    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
-    this.editorElement.style.height = '200px';
-  }
+  private readonly verticalSplit = SplitPanel();
+  private readonly horizontalSplit = SplitPanel();
 
   onbeforeupdate(
     vnode: m.Vnode<QueryPageAttrs>,
@@ -80,8 +74,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
-    return m(
-      '.pf-query-page',
+    const editorPanel = m('.pf-query-page__editor-panel', [
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {
@@ -169,33 +162,51 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           ),
         ),
       m(Editor, {
-        ref: 'editor',
         language: 'perfetto-sql',
         text: attrs.editorText,
         onUpdate: attrs.onEditorContentUpdate,
         onExecute: attrs.onExecute,
       }),
-      m(ResizeHandle, {
-        onResize: (deltaPx: number) => {
-          this.editorHeight += deltaPx;
-          this.editorElement!.style.height = `${this.editorHeight}px`;
-        },
-        onResizeStart: () => {
-          this.editorHeight = this.editorElement!.clientHeight;
-        },
-      }),
-      this.dataSource &&
-        attrs.queryResult &&
-        this.renderQueryResult(attrs.trace, attrs.queryResult, this.dataSource),
-      m(QueryHistoryComponent, {
-        className: 'pf-query-page__history',
-        trace: attrs.trace,
-        runQuery: (query: string) => {
-          attrs.onExecute?.(query);
-        },
-        setQuery: (query: string) => {
-          attrs.onEditorContentUpdate?.(query);
-        },
+    ]);
+
+    const resultsPanel = m(
+      '.pf-query-page__results-panel',
+      this.dataSource && attrs.queryResult
+        ? this.renderQueryResult(attrs.trace, attrs.queryResult, this.dataSource)
+        : m(EmptyState, {
+            title: 'Run a query to see results',
+            icon: 'database',
+            fillHeight: true,
+          }),
+    );
+
+    const historyPanel = m(QueryHistoryComponent, {
+      className: 'pf-query-page__history',
+      trace: attrs.trace,
+      runQuery: (query: string) => {
+        attrs.onExecute?.(query);
+      },
+      setQuery: (query: string) => {
+        attrs.onEditorContentUpdate?.(query);
+      },
+    });
+
+    const leftPanel = m(this.verticalSplit, {
+      direction: 'vertical',
+      split: {percent: 50},
+      minSize: 100,
+      firstPanel: editorPanel,
+      secondPanel: resultsPanel,
+    });
+
+    return m(
+      '.pf-query-page',
+      m(this.horizontalSplit, {
+        direction: 'horizontal',
+        split: {percent: 70},
+        minSize: 100,
+        firstPanel: leftPanel,
+        secondPanel: historyPanel,
       }),
     );
   }
