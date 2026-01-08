@@ -600,6 +600,10 @@
     display: flex;
     flex-direction: row;
     gap: 8px;
+
+    .pf-multiselect-panel {
+      max-height: 500px;
+    }
   }
 
   .dropdown {
