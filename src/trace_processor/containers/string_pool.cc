@@ -58,7 +58,7 @@ StringPool::Id StringPool::InsertString(base::StringView str) {
           "unique strings.",
           (kMaxBlockCount * kBlockSizeBytes) / (1024 * 1024));
     }
-    blocks_[+new_index] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
+    blocks_[new_index] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
     block_end_ptrs_[new_index] = blocks_[new_index].get();
   }
 
