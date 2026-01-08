@@ -144,6 +144,7 @@ export class SQLDataSource implements DataSource {
   private cachedDistinctValues?: ReadonlyMap<string, ReadonlyArray<SqlValue>>;
   private cachedAggregateTotals?: ReadonlyMap<string, SqlValue>;
   private isLoadingFlag = false;
+  private lastModel?: DataSourceModel;
 
   constructor(config: SQLDataSourceConfig) {
     this.engine = config.engine;
@@ -189,6 +190,12 @@ export class SQLDataSource implements DataSource {
    * Notify of parameter changes and trigger data update
    */
   notify(model: DataSourceModel): void {
+    if (this.shouldClearCache(model)) {
+      this.cachedResult = undefined;
+      this.cachedAggregateTotals = undefined;
+    }
+    this.lastModel = model;
+
     this.limiter.schedule(async () => {
       // Defer setting loading flag to avoid setting it synchronously during the
       // view() call that triggered notify(). This avoids the bug that the
@@ -224,6 +231,11 @@ export class SQLDataSource implements DataSource {
         this.isLoadingFlag = false;
       }
     });
+  }
+
+  private shouldClearCache(newModel: DataSourceModel): boolean {
+    if (!this.lastModel) return false;
+    return this.lastModel.pivot?.drillDown !== newModel.pivot?.drillDown;
   }
 
   /**
