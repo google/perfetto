@@ -45,10 +45,10 @@ interface AddServerModalState {
 
 class AddExtensionServerModal {
   state: AddServerModalState;
-  private editingServer: ExtensionServer | null;
+  private editingServer: ExtensionServer | undefined;
 
   constructor(server?: ExtensionServer) {
-    this.editingServer = server ?? null;
+    this.editingServer = server;
     this.state = this.createInitialState(server);
   }
 
@@ -155,9 +155,9 @@ class AddExtensionServerModal {
     }
   }
 
-  getResult(): ExtensionServer | null {
+  getResult(): ExtensionServer | undefined {
     if (!this.isUrlValid() || this.state.enabledModules.size === 0) {
-      return null;
+      return undefined;
     }
 
     return {
@@ -269,10 +269,9 @@ class AddExtensionServerModal {
 
 export function showAddExtensionServerModal(
   server?: ExtensionServer,
-): Promise<ExtensionServer | null> {
+): Promise<ExtensionServer | undefined> {
   return new Promise((resolve) => {
     const content = new AddExtensionServerModal(server);
-
     showModal({
       title: server ? 'Edit Extension Server' : 'Add Extension Server',
       buttons: [
@@ -290,7 +289,7 @@ export function showAddExtensionServerModal(
         {
           text: 'Cancel',
           primary: false,
-          action: () => resolve(null),
+          action: () => resolve(undefined),
         },
       ],
       content: () => content.view(),

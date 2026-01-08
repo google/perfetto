@@ -16,8 +16,6 @@
 //
 // Supports:
 // - github://owner/repo/ref[/optional/path] -> https://raw.githubusercontent.com/...
-// - gs://bucket/path -> https://storage.googleapis.com/bucket/path
-// - s3://bucket/path -> https://bucket.s3.amazonaws.com/path
 // - https://... -> unchanged (already canonical)
 //
 // Note: http:// URLs are rejected. Use https:// instead.
@@ -32,31 +30,6 @@ export function resolveServerUrl(input: string): string {
     }
     // Path format: owner/repo/ref[/optional/path]
     return `https://raw.githubusercontent.com/${path}`;
-  }
-
-  // GCS alias: gs://bucket/path
-  if (trimmed.startsWith('gs://')) {
-    const path = trimmed.substring('gs://'.length);
-    if (!path) {
-      throw new Error('Invalid GCS URL: missing bucket/path');
-    }
-    return `https://storage.googleapis.com/${path}`;
-  }
-
-  // S3 alias: s3://bucket/path
-  if (trimmed.startsWith('s3://')) {
-    const path = trimmed.substring('s3://'.length);
-    if (!path) {
-      throw new Error('Invalid S3 URL: missing bucket/path');
-    }
-    // Extract bucket name (first path component)
-    const slashIndex = path.indexOf('/');
-    if (slashIndex === -1) {
-      throw new Error('Invalid S3 URL: missing path after bucket');
-    }
-    const bucket = path.substring(0, slashIndex);
-    const objectPath = path.substring(slashIndex + 1);
-    return `https://${bucket}.s3.amazonaws.com/${objectPath}`;
   }
 
   // HTTPS URLs pass through unchanged
@@ -74,7 +47,7 @@ export function resolveServerUrl(input: string): string {
 
   // Unknown format
   throw new Error(
-    'Invalid server URL: must start with https://, github://, gs://, or s3://',
+    'Invalid server URL: must start with https:// or github://',
   );
 }
 

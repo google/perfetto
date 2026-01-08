@@ -24,18 +24,6 @@ describe('resolveServerUrl', () => {
     );
   });
 
-  test('resolves gs:// URLs', () => {
-    expect(resolveServerUrl('gs://my-bucket/path/to/file')).toEqual(
-      'https://storage.googleapis.com/my-bucket/path/to/file',
-    );
-  });
-
-  test('resolves s3:// URLs', () => {
-    expect(resolveServerUrl('s3://my-bucket/path/to/file')).toEqual(
-      'https://my-bucket.s3.amazonaws.com/path/to/file',
-    );
-  });
-
   test('passes through https:// URLs', () => {
     const url = 'https://perfetto.corp.example.com/extensions';
     expect(resolveServerUrl(url)).toEqual(url);
@@ -59,15 +47,9 @@ describe('resolveServerUrl', () => {
     );
   });
 
-  test('throws on s3:// with bucket but no path', () => {
-    expect(() => resolveServerUrl('s3://my-bucket')).toThrow(
-      'Invalid S3 URL: missing path after bucket',
-    );
-  });
-
   test('throws on invalid protocol', () => {
     expect(() => resolveServerUrl('ftp://example.com')).toThrow(
-      'Invalid server URL: must start with https://, github://, gs://, or s3://',
+      'Invalid server URL: must start with https:// or github://',
     );
   });
 });
@@ -91,18 +73,6 @@ describe('normalizeServerKey', () => {
         'https://raw.githubusercontent.com/acme/perfetto-ext/main',
       ),
     ).toEqual('raw-githubusercontent-com-acme-perfetto-ext-main');
-  });
-
-  test('normalizes GCS URL', () => {
-    expect(
-      normalizeServerKey('https://storage.googleapis.com/my-bucket/extensions'),
-    ).toEqual('storage-googleapis-com-my-bucket-extensions');
-  });
-
-  test('normalizes S3 URL', () => {
-    expect(
-      normalizeServerKey('https://my-bucket.s3.amazonaws.com/extensions'),
-    ).toEqual('my-bucket-s3-amazonaws-com-extensions');
   });
 
   test('handles special characters', () => {

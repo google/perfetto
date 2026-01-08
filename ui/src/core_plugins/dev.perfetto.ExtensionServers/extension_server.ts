@@ -25,6 +25,7 @@ import {
   SqlModulesSchema,
 } from './types';
 import {normalizeServerKey, resolveServerUrl} from './url_utils';
+import {showModal} from '../../widgets/modal';
 
 const FETCH_TIMEOUT_MS = 5000; // 5 seconds
 
@@ -111,10 +112,10 @@ async function loadModuleMacros(
         commands,
       ]);
   } catch (e) {
-    console.warn(
-      `Failed to load macros from ${state.canonicalUrl}/${module}:`,
-      e,
-    );
+    await showModal({
+      title: 'Fetching server extensions failed',
+      content: `Failed to load macros from ${state.canonicalUrl}/${module}: ${e}`,
+    });
     return [];
   }
 }
@@ -130,10 +131,10 @@ async function loadModuleSqlModules(
     );
     return Object.entries(wrapper.modules).sort();
   } catch (e) {
-    console.warn(
-      `Failed to load SQL modules from ${state.canonicalUrl}/${module}:`,
-      e,
-    );
+    await showModal({
+      title: 'Fetching server extensions failed',
+      content: `Failed to load sql from ${state.canonicalUrl}/${module}: ${e}`,
+    });
     return [];
   }
 }
@@ -149,10 +150,10 @@ async function loadModuleProtoDescriptors(
     );
     return wrapper.descriptors.sort();
   } catch (e) {
-    console.warn(
-      `Failed to load proto descriptors from ${state.canonicalUrl}/${module}:`,
-      e,
-    );
+    await showModal({
+      title: 'Fetching server extensions failed',
+      content: `Failed to load protos from ${state.canonicalUrl}/${module}: ${e}`,
+    });
     return [];
   }
 }

@@ -22,7 +22,7 @@ import {showAddExtensionServerModal} from './add_extension_server_modal';
 export function renderExtensionServersSettings(): m.Children {
   const app = AppImpl.instance;
   const setting = app.settings.get('extensionServers');
-  if (!setting) return null;
+  if (!setting) return undefined;
 
   const servers = (setting.get() ?? []) as ExtensionServer[];
 

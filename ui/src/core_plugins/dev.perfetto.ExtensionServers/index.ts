@@ -14,10 +14,7 @@
 
 import {AppImpl} from '../../core/app_impl';
 import {PerfettoPlugin} from '../../public/plugin';
-import {
-  ExtensionInitializationResult,
-  initializeExtensions,
-} from './extension_server';
+import {initializeExtensions} from './extension_server';
 import {ExtensionServer, ExtensionServersSchema} from './types';
 import {renderExtensionServersSettings} from './extension_servers_settings';
 
@@ -41,29 +38,28 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
     });
 
     // Initialize extension servers asynchronously
-    initializeExtensions(setting.get()).then(
-      (result: ExtensionInitializationResult) => {
-        // Convert macros Map to Record and push to extraMacros
-        ctx.addExtensionMacrosPromise(
-          result.macrosPromise.then((macros) => Object.assign({}, ...macros)),
-        );
+    const extPromise = initializeExtensions(setting.get());
 
-        // Convert SQL modules Map to SqlPackage and push to extraSqlPackages
-        ctx.addExtensionSqlPackagesPromise(
-          result.sqlModulesPromise.then((modules) => [
-            {
-              // TODO(lalitm): DNS. This needs to be discussed before submitting.
-              name: 'extension_servers',
-              modules: Array.from(modules, ([name, sql]) => ({name, sql})),
-            },
-          ]),
-        );
-
-        // Extract proto descriptor strings and push to extraParsingDescriptors
-        ctx.addExtensionParsingDescriptorsPromise(
-          result.protoDescriptorsPromise,
-        );
-      },
+    // Add the extension promises to the app.
+    ctx.addMacros(
+      extPromise.then(async ({macrosPromise}) =>
+        Object.assign({}, ...(await macrosPromise)),
+      ),
+    );
+    ctx.addSqlPackages(
+      extPromise.then(async ({sqlModulesPromise}) => [
+        {
+          // TODO(lalitm): DNS. This needs to be discussed before submitting.
+          name: 'extension_servers',
+          modules: Array.from(await sqlModulesPromise, ([name, sql]) => ({
+            name,
+            sql,
+          })),
+        },
+      ]),
+    );
+    ctx.addProtoDescriptors(
+      extPromise.then(({protoDescriptorsPromise}) => protoDescriptorsPromise),
     );
   }
 }
