@@ -790,11 +790,18 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       attrs.loadGeneration !== undefined &&
       attrs.loadGeneration !== this.previousLoadGeneration;
 
-    if (loadGenerationChanged && nodes.length > 0) {
-      // Content was loaded - defer recenter to onReady callback
-      // We can't recenter immediately because NodeGraph hasn't rendered the new nodes yet
+    if (loadGenerationChanged) {
+      // Always sync previousLoadGeneration to prevent repeated detection
+      // This is critical - if we only update when nodes.length > 0, then when
+      // nodeGraphApi is initially null (causing empty nodes), we'd miss the update.
+      // Later panning would then trigger a late recenter causing infinite redraws.
       this.previousLoadGeneration = attrs.loadGeneration;
-      this.recenterRequired = true;
+
+      if (nodes.length > 0) {
+        // Content was loaded - defer recenter to onReady callback
+        // We can't recenter immediately because NodeGraph hasn't rendered the new nodes yet
+        this.recenterRequired = true;
+      }
     }
 
     // Perform auto-layout if nodeLayouts is empty and API is available
