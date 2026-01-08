@@ -148,6 +148,7 @@ class MessageFilter {
   }
 
   const Config& config() const { return config_; }
+  Config& config() { return config_; }
 
   // Returns the helper class used to perform string filtering.
   StringFilter& string_filter() { return config_.string_filter(); }
@@ -219,6 +220,9 @@ class MessageFilter {
     // The pointer to the start of the string to update the string if it is
     // filtered.
     uint8_t* filter_string_ptr = nullptr;
+
+    // The semantic type of the string field being filtered (0 = unspecified).
+    uint32_t filter_string_semantic_type = 0;
 
     // How |eat_next_bytes| should be handled. It seems that keeping this field
     // at the end rather than next to |eat_next_bytes| makes the filter a little

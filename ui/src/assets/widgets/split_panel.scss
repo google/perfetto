@@ -12,94 +12,100 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
-
 .pf-split-panel {
-  height: 100%;
   display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pf-split-horizontal {
+  flex-direction: row;
+}
+
+.pf-split-vertical {
   flex-direction: column;
+}
 
-  &__main {
-    flex: 1; // Fill the remaining space
-    overflow: auto;
+.pf-split-panel__first,
+.pf-split-panel__second {
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
 
-    // Making this a flex element allows multiple individually overflowing
-    // sections to be added to the main content area.
-    display: flex;
-    flex-direction: column; // Users normally expect content to stack vertically
-  }
+.pf-split-panel__handle {
+  flex-shrink: 0;
+  background-color: var(--pf-color-background-secondary);
+  touch-action: none;
+}
 
-  &__handle {
-    gap: 2px;
-    background-color: var(--pf-color-background-secondary);
-    border-top: 1px solid var(--pf-color-border);
-    cursor: row-resize;
-    display: flex;
-    align-items: baseline;
-    padding-inline: 2px;
-    align-items: center;
-  }
+.pf-split-horizontal > .pf-split-panel__handle {
+  width: 4px;
+  cursor: col-resize;
+  position: relative;
+}
 
-  &__tabs {
-    padding-inline: 3px; // Leave some space for the drop shadow
-    display: flex;
-    overflow: hidden;
-    flex: 1; // Expand to fill remaining space.
+// Larger hit area for easier grabbing
+.pf-split-horizontal > .pf-split-panel__handle::before {
+  content: "";
+  position: absolute;
+  inset: 0 -6px;
+}
 
-    // Align tabs to the bottom of the handle & overlap the drawer border so
-    // that the active tab looks like it is part of the drawer.
-    align-self: flex-end;
-    margin-bottom: -1px;
-  }
+.pf-split-vertical > .pf-split-panel__handle {
+  height: 4px;
+  cursor: row-resize;
+  position: relative;
+}
 
-  &__tab {
-    display: flex;
-    align-items: baseline;
-    gap: 2px;
+// Larger hit area for easier grabbing
+.pf-split-vertical > .pf-split-panel__handle::before {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
 
-    font-family: var(--pf-font-compact);
-    font-size: var(--pf-font-size-m);
+.pf-split-panel__handle:hover,
+.pf-split-panel__handle.pf-split-handle--active {
+  background-color: var(--pf-color-accent);
+}
 
-    padding: 5px; // Space around the tab content
-    margin-top: 2px; // Space between tab and top of handle
-    cursor: pointer; // Active tab is not clickable
+// Grip pattern indicator
+.pf-split-panel__handle::after {
+  content: "";
+  display: block;
+  position: absolute;
+}
 
-    border-radius: 3px 3px 0 0; // Rounded top corners only
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    border-style: solid;
-    border-color: var(--pf-color-border-secondary);
-    border-width: 1px 1px 0 1px;
+.pf-split-horizontal > .pf-split-panel__handle::after {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 24px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--pf-color-text-muted) 0px,
+    var(--pf-color-text-muted) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  opacity: 0.5;
+}
 
-    &:not(:first-child) {
-      // Merge borders
-      margin-left: -1px;
-    }
-
-    &:hover {
-      background: color_hover(transparent);
-    }
-
-    &.pf-split-panel__tab--active {
-      cursor: default;
-      background-color: var(--pf-color-background);
-      box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
-      border-color: var(--pf-color-border);
-      z-index: 1;
-    }
-  }
-
-  &__tab-title {
-    margin: 0px 4px;
-    overflow: hidden;
-    user-select: none;
-  }
-
-  &__drawer {
-    flex-shrink: 0;
-    overflow: auto;
-    box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
-    border-top: 1px solid var(--pf-color-border);
-  }
+.pf-split-vertical > .pf-split-panel__handle::after {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 2px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--pf-color-text-muted) 0px,
+    var(--pf-color-text-muted) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  opacity: 0.5;
 }
