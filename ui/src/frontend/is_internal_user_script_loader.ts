@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AppImpl} from '../core/app_impl';
 import {raf} from '../core/raf_scheduler';
 import {SqlPackage} from '../public/extra_sql_packages';
 import {CommandInvocation} from '../core/command_manager';
@@ -25,7 +24,7 @@ const SCRIPT_URL =
 
 // This interface describes the required interface that the script expect to
 // find on window.globals.
-interface Globals {
+interface InteralUserScriptParams {
   // This variable is set by the is_internal_user.js script if the user is a
   // googler. This is used to avoid exposing features that are not ready yet for
   // public consumption. The gated features themselves are not secret. If a user
@@ -43,12 +42,14 @@ interface Globals {
 
   // JSON Amalgamator populates this with statsd atom descriptors
   // as a list of base64-encoded strings.
-  readonly extraParsingDescriptors: ReadonlyArray<string>;
+  // WARNING: do not change/rename/move without considering impact on the
+  // internal_user script.
+  readonly extraParsingDescriptors: string[];
 
   // The script adds to this list, hence why it's readonly.
   // WARNING: do not change/rename/move without considering impact on the
   // internal_user script.
-  readonly extraMacros: Record<string, CommandInvocation[]>[];
+  readonly extraMacros: Record<string, ReadonlyArray<CommandInvocation>>[];
 
   // TODO(stevegolton): Check if we actually need to use these.
   // Used when switching to the legacy TraceViewer UI.
@@ -62,44 +63,33 @@ interface Globals {
  * Sets up a proxy object on window.globals that forwards property accesses to
  * the given AppImpl instance.
  */
-function setupGlobalsProxy(app: AppImpl) {
-  // Patch the global window object with a few hooks that point into the app
-  // object.
-  (window as unknown as {globals?: Globals}).globals = {
-    get isInternalUser() {
-      return app.isInternalUser;
-    },
-    set isInternalUser(value: boolean) {
-      app.isInternalUser = value;
-    },
-    get extraSqlPackages(): SqlPackage[] {
-      return app.extraSqlPackages;
-    },
-    get extraParsingDescriptors(): ReadonlyArray<string> {
-      return app.extraParsingDescriptors;
-    },
-    get extraMacros(): Record<string, CommandInvocation[]>[] {
-      return app.extraMacros;
-    },
+function setupGlobalsProxy(): InteralUserScriptParams {
+  const params: InteralUserScriptParams = {
+    isInternalUser: false,
+    extraSqlPackages: [],
+    extraParsingDescriptors: [],
+    extraMacros: [],
     shutdown() {
       raf.shutdown();
     },
   };
+  // Patch the global window object with a few hooks that point into the app
+  // object.
+  (window as unknown as {globals?: InteralUserScriptParams}).globals = params;
+  return params;
 }
 
 /**
  * Loads a script that detects if the user is internal, allowing access to
  * non-public features and SQL packages.
  *
- * This function works by creating a temporary `window.globals` object that
- * acts as a proxy to the main `AppImpl` instance. An external script is then
- * loaded, which populates properties on `window.globals`. These properties are
- * transparently forwarded to the `AppImpl` instance.
+ * Returns a promise that resolves to an object containing the parameters set
+ * by the script.
  */
-export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
+export async function tryLoadIsInternalUserScript(): Promise<InteralUserScriptParams> {
   // Set up the global object and attach it to `window` before loading the
   // script.
-  setupGlobalsProxy(app);
+  const params = setupGlobalsProxy();
 
   await new Promise<void>((resolve) => {
     const script = document.createElement('script');
@@ -113,4 +103,8 @@ export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
     // to load.
     setTimeout(() => resolve(), SCRIPT_LOAD_TIMEOUT_MS);
   });
+
+  // The script has loaded (or timed out). The params object has been mutated
+  // by the script if possible.
+  return params;
 }
