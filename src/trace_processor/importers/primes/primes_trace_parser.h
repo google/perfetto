@@ -7,7 +7,6 @@
 
 #include "protos/third_party/primes/primes_tracing.gen.h"
 #include "protos/third_party/primes/primes_tracing.pbzero.h"
-#include "src/trace_processor/importers/primes/primes_trace_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"

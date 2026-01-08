@@ -10,7 +10,7 @@ namespace perfetto::trace_processor::primes {
 
 constexpr uint32_t kStartTimeFieldNumber = 4;
 constexpr uint32_t kEdgesFieldNumber = 7;
-constexpr uint32_t kTraceStartOffsetFieldNumber = 2;
+constexpr uint32_t kEdgeStartOffsetFieldNumber = 2;
 constexpr uint32_t kSecondsFieldNumber = 1;
 constexpr uint32_t kNanosFieldNumber = 2;
 
@@ -22,7 +22,7 @@ PrimesTraceTokenizer::PrimesTraceTokenizer(TraceProcessorContext* ctx)
 
 PrimesTraceTokenizer::~PrimesTraceTokenizer() = default;
 
-int64_t unify_time(int64_t seconds, int32_t nanos) {
+int64_t to_nanos(int64_t seconds, int32_t nanos) {
   return seconds * 1000000000LL + nanos;
 }
 
@@ -48,8 +48,10 @@ base::Status PrimesTraceTokenizer::Parse(TraceBlobView blob) {
   // time.
   if (!start_time_) {
     protozero::Field ts_field = decoder.FindField(kStartTimeFieldNumber);
-    if (!ts_field || !ts_field.valid()) {
+    if (!ts_field) {
       // If the timestamp could not be found, return and wait for more data.
+      // If the start time is never found, `NotifyEndOfFile` will return an
+      // error.
       return base::OkStatus();
     }
     auto ts_bytes = ts_field.as_bytes();
@@ -62,7 +64,7 @@ base::Status PrimesTraceTokenizer::Parse(TraceBlobView blob) {
     if (!nanos_field || !nanos_field.valid()) {
       return base::ErrStatus("Trace start time is missing nanos field.");
     }
-    start_time_ = unify_time(seconds_field.as_int64(), nanos_field.as_int32());
+    start_time_ = to_nanos(seconds_field.as_int64(), nanos_field.as_int32());
   }
 
   size_t field_start_offset = decoder.read_offset();
@@ -78,7 +80,7 @@ base::Status PrimesTraceTokenizer::Parse(TraceBlobView blob) {
       auto field_bytes = field.as_bytes();
       auto start_offset_field =
           protozero::ProtoDecoder(field_bytes.data, field_bytes.size)
-              .FindField(kTraceStartOffsetFieldNumber)
+              .FindField(kEdgeStartOffsetFieldNumber)
               .as_bytes();
       auto ts_decoder = protozero::ProtoDecoder(start_offset_field.data,
                                                 start_offset_field.size);
@@ -88,9 +90,8 @@ base::Status PrimesTraceTokenizer::Parse(TraceBlobView blob) {
         PERFETTO_ELOG("Cannot calculate a valid timestamp for trace edge.");
         continue;  // Skip this edge.
       }
-      int64_t edge_timestamp =
-          start_time_ +
-          unify_time(seconds_field.as_int64(), nanos_field.as_int32());
+      int64_t edge_timestamp = start_time_ + to_nanos(seconds_field.as_int64(),
+                                                      nanos_field.as_int32());
 
       TraceBlobView edge_slice = slice->slice_off(
           field_start_offset, field_end_offset - field_start_offset);

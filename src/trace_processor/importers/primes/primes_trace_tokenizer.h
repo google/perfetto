@@ -4,7 +4,6 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "protos/third_party/primes/primes_tracing.gen.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/primes/primes_trace_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"

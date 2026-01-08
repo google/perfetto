@@ -35,7 +35,7 @@ message Trace {
 
   // Fields from the Primes Trace proto that are not useful in the context of
   // Perfetto.
-  reserved 3, 5, 8, 9, 10;
+  reserved 3, 5, 6, 8, 9, 10;
 
   // When the trace started.
   optional Timestamp start_time = 4;
@@ -46,15 +46,6 @@ message Trace {
   // optimization for the common case of wanting to process trace duration
   // without enumerating all edges.
   optional Duration duration = 11;
-
-  message TraceFailure {
-    // If non-zero, the offset (from trace start time) at which the trace was
-    // considered timed out and failed.
-    optional Duration timed_out_after = 1;
-  }
-
-  // If the trace failed, information about the failure.
-  optional TraceFailure trace_failure = 6;
 
   // Trace edges.
   repeated TraceEdge edges = 7;
