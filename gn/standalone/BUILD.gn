@@ -220,6 +220,13 @@ config("default") {
     ]
   }
 
+  if (is_mac) {
+    ldflags += [
+      "-framework",
+      "CoreFoundation",
+    ]
+  }
+
   if (is_clang || !is_win) {  # Clang or GCC, but not MSVC.
     cflags += [
       "-fstrict-aliasing",
