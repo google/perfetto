@@ -12,84 +12,104 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {MultiSourceNode, QueryNode} from '../query_node';
-import {NodeContainerLayout} from './graph/node_container';
+/**
+ * Utility functions for the query builder.
+ */
 
-export function isMultiSourceNode(node: QueryNode): node is MultiSourceNode {
-  return 'prevNodes' in node;
-}
+import {ColumnInfo} from './column_info';
 
-export function findOverlappingNode(
-  dragNodeLayout: NodeContainerLayout,
-  resolvedNodeLayouts: Map<QueryNode, NodeContainerLayout>,
-  dragNode: QueryNode,
-): QueryNode | undefined {
-  for (const [node, layout] of resolvedNodeLayouts.entries()) {
-    if (node !== dragNode && isOverlapping(dragNodeLayout, layout, 0)) {
-      return node;
-    }
-  }
-  return undefined;
-}
-
-export function isOverlapping(
-  layout1: NodeContainerLayout,
-  layout2: NodeContainerLayout,
-  padding: number,
-): boolean {
-  const w1 = layout1.width ?? 0;
-  const h1 = layout1.height ?? 0;
-  const w2 = layout2.width ?? 0;
-  const h2 = layout2.height ?? 0;
-
+/**
+ * Checks if a column type is numeric/quantitative.
+ * Numeric types include: INT, DOUBLE, DURATION, TIMESTAMP, BOOLEAN, ID types, and ARG_SET_ID.
+ *
+ * @param typeStr The column type string (case-insensitive)
+ * @returns true if the type is numeric
+ */
+export function isNumericType(typeStr: string): boolean {
+  const normalized = typeStr.toUpperCase();
   return (
-    layout1.x < layout2.x + w2 + padding &&
-    layout1.x + w1 + padding > layout2.x &&
-    layout1.y < layout2.y + h2 + padding &&
-    layout1.y + h1 + padding > layout2.y
+    normalized === 'INT' ||
+    normalized === 'DOUBLE' ||
+    normalized === 'DURATION' ||
+    normalized === 'TIMESTAMP' ||
+    normalized === 'BOOLEAN' ||
+    normalized.startsWith('ID(') ||
+    normalized.startsWith('JOINID(') ||
+    normalized === 'ARG_SET_ID'
   );
 }
 
-export function findBlockOverlap(
-  draggedBlock: QueryNode[],
-  resolvedNodeLayouts: Map<QueryNode, NodeContainerLayout>,
-): QueryNode | undefined {
-  const draggedBlockSet = new Set(draggedBlock);
-  for (const nodeInBlock of draggedBlock) {
-    const layout = resolvedNodeLayouts.get(nodeInBlock);
-    if (!layout) continue;
-
-    for (const [
-      candidateNode,
-      candidateLayout,
-    ] of resolvedNodeLayouts.entries()) {
-      if (draggedBlockSet.has(candidateNode)) continue;
-
-      if (isOverlapping(layout, candidateLayout, 0)) {
-        return candidateNode;
-      }
-    }
-  }
-  return undefined;
+/**
+ * Checks if a column type is a string type.
+ *
+ * @param typeStr The column type string (case-insensitive)
+ * @returns true if the type is a string
+ */
+export function isStringType(typeStr: string): boolean {
+  return typeStr.toUpperCase() === 'STRING';
 }
 
-export function isOverlappingBottomPort(
-  dragNodeLayout: NodeContainerLayout,
-  targetNodeLayout: NodeContainerLayout,
-  padding: number,
+/**
+ * Checks if a column is compatible with a specific aggregation operation.
+ *
+ * @param col The column to check
+ * @param op The aggregation operation (e.g., 'SUM', 'COUNT', 'MEAN', etc.)
+ * @returns true if the column is compatible with the operation
+ */
+export function isColumnValidForAggregation(
+  col: ColumnInfo,
+  op?: string,
 ): boolean {
-  const w1 = dragNodeLayout.width ?? 0;
-  const h1 = dragNodeLayout.height ?? 0;
-  const w2 = targetNodeLayout.width ?? 0;
-  const h2 = targetNodeLayout.height ?? 0;
+  if (!op) return true;
 
-  const bottomPortY = targetNodeLayout.y + h2;
-  const bottomPortX = targetNodeLayout.x + w2 / 2;
+  const typeStr = col.type;
+  const isNumeric = isNumericType(typeStr);
+  const isString = isStringType(typeStr);
 
-  return (
-    dragNodeLayout.x < bottomPortX + padding &&
-    dragNodeLayout.x + w1 > bottomPortX - padding &&
-    dragNodeLayout.y < bottomPortY + padding &&
-    dragNodeLayout.y + h1 > bottomPortY - padding
-  );
+  switch (op) {
+    case 'MEAN':
+    case 'MEDIAN':
+    case 'PERCENTILE':
+    case 'DURATION_WEIGHTED_MEAN':
+      // These operations require numeric types
+      return isNumeric;
+    case 'GLOB':
+      // GLOB requires string types
+      return isString;
+    case 'COUNT':
+    case 'COUNT(*)':
+    case 'SUM':
+    case 'MIN':
+    case 'MAX':
+    default:
+      // These operations work on all types
+      return true;
+  }
+}
+
+/**
+ * Gets a human-readable description of the type requirements for an aggregation operation.
+ *
+ * @param op The aggregation operation
+ * @returns A description of the type requirements
+ */
+export function getAggregationTypeRequirements(op: string): string {
+  switch (op) {
+    case 'MEAN':
+    case 'MEDIAN':
+    case 'PERCENTILE':
+    case 'DURATION_WEIGHTED_MEAN':
+      return 'Requires numeric column';
+    case 'GLOB':
+      return 'Requires string column';
+    case 'COUNT(*)':
+      return 'No column required';
+    case 'COUNT':
+    case 'SUM':
+    case 'MIN':
+    case 'MAX':
+      return 'Works with any column type';
+    default:
+      return 'Unknown operation';
+  }
 }

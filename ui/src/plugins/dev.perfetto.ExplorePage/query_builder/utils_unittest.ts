@@ -13,488 +13,364 @@
 // limitations under the License.
 
 import {
-  isMultiSourceNode,
-  findOverlappingNode,
-  isOverlapping,
-  findBlockOverlap,
-  isOverlappingBottomPort,
+  isNumericType,
+  isStringType,
+  isColumnValidForAggregation,
+  getAggregationTypeRequirements,
 } from './utils';
-import {QueryNode, NodeType} from '../query_node';
-import {NodeContainerLayout} from './graph/node_container';
+import {ColumnInfo} from './column_info';
 
-describe('query_builder utils', () => {
-  function createMockNode(nodeId: string, prevNodes?: QueryNode[]): QueryNode {
-    const node: Partial<QueryNode> & {prevNodes?: QueryNode[]} = {
-      nodeId,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: [],
-      state: {},
-      validate: () => true,
-      getTitle: () => 'Test',
-      nodeSpecificModify: () => null,
-      getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
-    };
-    node.clone = () => node as QueryNode;
-    if (prevNodes !== undefined) {
-      node.prevNodes = prevNodes;
+describe('utils', () => {
+  describe('isNumericType', () => {
+    it('should return true for INT type', () => {
+      expect(isNumericType('INT')).toBe(true);
+      expect(isNumericType('int')).toBe(true);
+    });
+
+    it('should return true for DOUBLE type', () => {
+      expect(isNumericType('DOUBLE')).toBe(true);
+      expect(isNumericType('double')).toBe(true);
+    });
+
+    it('should return true for DURATION type', () => {
+      expect(isNumericType('DURATION')).toBe(true);
+      expect(isNumericType('duration')).toBe(true);
+    });
+
+    it('should return true for TIMESTAMP type', () => {
+      expect(isNumericType('TIMESTAMP')).toBe(true);
+      expect(isNumericType('timestamp')).toBe(true);
+    });
+
+    it('should return true for BOOLEAN type', () => {
+      expect(isNumericType('BOOLEAN')).toBe(true);
+      expect(isNumericType('boolean')).toBe(true);
+    });
+
+    it('should return true for ID types', () => {
+      expect(isNumericType('ID(slice)')).toBe(true);
+      expect(isNumericType('ID(thread)')).toBe(true);
+      expect(isNumericType('id(process)')).toBe(true);
+    });
+
+    it('should return true for JOINID types', () => {
+      expect(isNumericType('JOINID(slice.id)')).toBe(true);
+      expect(isNumericType('joinid(thread.id)')).toBe(true);
+    });
+
+    it('should return true for ARG_SET_ID type', () => {
+      expect(isNumericType('ARG_SET_ID')).toBe(true);
+      expect(isNumericType('arg_set_id')).toBe(true);
+    });
+
+    it('should return false for STRING type', () => {
+      expect(isNumericType('STRING')).toBe(false);
+      expect(isNumericType('string')).toBe(false);
+    });
+
+    it('should return false for unknown types', () => {
+      expect(isNumericType('UNKNOWN')).toBe(false);
+      expect(isNumericType('BLOB')).toBe(false);
+    });
+  });
+
+  describe('isStringType', () => {
+    it('should return true for STRING type', () => {
+      expect(isStringType('STRING')).toBe(true);
+      expect(isStringType('string')).toBe(true);
+    });
+
+    it('should return false for non-string types', () => {
+      expect(isStringType('INT')).toBe(false);
+      expect(isStringType('DOUBLE')).toBe(false);
+      expect(isStringType('DURATION')).toBe(false);
+    });
+  });
+
+  describe('isColumnValidForAggregation', () => {
+    function createColumnInfo(name: string, type: string): ColumnInfo {
+      return {
+        name,
+        type,
+        checked: false,
+        column: {
+          name,
+        },
+      };
     }
-    return node as QueryNode;
-  }
 
-  describe('isMultiSourceNode', () => {
-    it('should return true for node with prevNodes array', () => {
-      const node = createMockNode('node1', []);
+    describe('MEAN operation', () => {
+      it('should allow numeric columns', () => {
+        expect(
+          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'MEAN'),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('value', 'DOUBLE'),
+            'MEAN',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('ts', 'TIMESTAMP'),
+            'MEAN',
+          ),
+        ).toBe(true);
+      });
 
-      expect(isMultiSourceNode(node)).toBe(true);
+      it('should reject string columns', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'MEAN',
+          ),
+        ).toBe(false);
+      });
     });
 
-    it('should return false for node without prevNodes', () => {
-      const node = createMockNode('node1');
+    describe('MEDIAN operation', () => {
+      it('should allow numeric columns', () => {
+        expect(
+          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'MEDIAN'),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('value', 'DOUBLE'),
+            'MEDIAN',
+          ),
+        ).toBe(true);
+      });
 
-      expect(isMultiSourceNode(node)).toBe(false);
+      it('should reject string columns', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'MEDIAN',
+          ),
+        ).toBe(false);
+      });
     });
 
-    it('should return true even for empty prevNodes array', () => {
-      const node = createMockNode('node1', []);
+    describe('PERCENTILE operation', () => {
+      it('should allow numeric columns', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('dur', 'INT'),
+            'PERCENTILE',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('value', 'DOUBLE'),
+            'PERCENTILE',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('id', 'ID(slice)'),
+            'PERCENTILE',
+          ),
+        ).toBe(true);
+      });
 
-      expect(isMultiSourceNode(node)).toBe(true);
+      it('should reject string columns', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'PERCENTILE',
+          ),
+        ).toBe(false);
+      });
     });
 
-    it('should return true for node with multiple prevNodes', () => {
-      const prevNode1 = createMockNode('prev1');
-      const prevNode2 = createMockNode('prev2');
-      const node = createMockNode('node1', [prevNode1, prevNode2]);
+    describe('DURATION_WEIGHTED_MEAN operation', () => {
+      it('should allow numeric columns', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('value', 'INT'),
+            'DURATION_WEIGHTED_MEAN',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('dur', 'DURATION'),
+            'DURATION_WEIGHTED_MEAN',
+          ),
+        ).toBe(true);
+      });
 
-      expect(isMultiSourceNode(node)).toBe(true);
-    });
-  });
-
-  describe('isOverlapping', () => {
-    it('should return true for overlapping layouts', () => {
-      const layout1: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-      const layout2: NodeContainerLayout = {
-        x: 50,
-        y: 50,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlapping(layout1, layout2, 0)).toBe(true);
-    });
-
-    it('should return false for non-overlapping layouts', () => {
-      const layout1: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-      const layout2: NodeContainerLayout = {
-        x: 150,
-        y: 150,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlapping(layout1, layout2, 0)).toBe(false);
+      it('should reject string columns', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'DURATION_WEIGHTED_MEAN',
+          ),
+        ).toBe(false);
+      });
     });
 
-    it('should return true for layouts touching at edge (no padding)', () => {
-      const layout1: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-      const layout2: NodeContainerLayout = {
-        x: 100,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
+    describe('GLOB operation', () => {
+      it('should allow string columns', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'GLOB',
+          ),
+        ).toBe(true);
+      });
 
-      // Touching at x=100, so they don't overlap
-      expect(isOverlapping(layout1, layout2, 0)).toBe(false);
+      it('should reject numeric columns', () => {
+        expect(
+          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'GLOB'),
+        ).toBe(false);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('value', 'DOUBLE'),
+            'GLOB',
+          ),
+        ).toBe(false);
+      });
     });
 
-    it('should return false when applying padding separates them', () => {
-      const layout1: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-      const layout2: NodeContainerLayout = {
-        x: 110,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlapping(layout1, layout2, 5)).toBe(false);
+    describe('COUNT operation', () => {
+      it('should allow all column types', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'COUNT',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'COUNT'),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('value', 'DOUBLE'),
+            'COUNT',
+          ),
+        ).toBe(true);
+      });
     });
 
-    it('should return true when padding causes overlap', () => {
-      const layout1: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-      const layout2: NodeContainerLayout = {
-        x: 105,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlapping(layout1, layout2, 10)).toBe(true);
+    describe('COUNT(*) operation', () => {
+      it('should allow all column types', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'COUNT(*)',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('dur', 'INT'),
+            'COUNT(*)',
+          ),
+        ).toBe(true);
+      });
     });
 
-    it('should handle layouts without width/height (defaults to 0)', () => {
-      const layout1: NodeContainerLayout = {x: 0, y: 0};
-      const layout2: NodeContainerLayout = {x: 0, y: 0};
-
-      expect(isOverlapping(layout1, layout2, 0)).toBe(false);
+    describe('SUM operation', () => {
+      it('should allow all column types', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'SUM',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'SUM'),
+        ).toBe(true);
+      });
     });
 
-    it('should detect vertical overlap only', () => {
-      const layout1: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-      const layout2: NodeContainerLayout = {
-        x: 50,
-        y: 150,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlapping(layout1, layout2, 0)).toBe(false);
+    describe('MIN/MAX operations', () => {
+      it('should allow all column types', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'MIN',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'MIN'),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            'MAX',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'MAX'),
+        ).toBe(true);
+      });
     });
 
-    it('should detect horizontal overlap only', () => {
-      const layout1: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-      const layout2: NodeContainerLayout = {
-        x: 150,
-        y: 50,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlapping(layout1, layout2, 0)).toBe(false);
-    });
-
-    it('should handle complete containment', () => {
-      const layout1: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 200,
-        height: 200,
-      };
-      const layout2: NodeContainerLayout = {
-        x: 50,
-        y: 50,
-        width: 50,
-        height: 50,
-      };
-
-      expect(isOverlapping(layout1, layout2, 0)).toBe(true);
-    });
-  });
-
-  describe('findOverlappingNode', () => {
-    it('should return overlapping node', () => {
-      const node1 = createMockNode('node1');
-      const node2 = createMockNode('node2');
-      const node3 = createMockNode('node3');
-
-      const dragLayout: NodeContainerLayout = {
-        x: 50,
-        y: 50,
-        width: 100,
-        height: 100,
-      };
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [node1, {x: 0, y: 0, width: 100, height: 100}],
-        [node2, {x: 200, y: 200, width: 100, height: 100}],
-        [node3, {x: 75, y: 75, width: 100, height: 100}],
-      ]);
-
-      const result = findOverlappingNode(dragLayout, layouts, node2);
-
-      // node1 overlaps with dragLayout (returns first overlapping node found)
-      expect(result).toBe(node1);
-    });
-
-    it('should return undefined when no overlap', () => {
-      const node1 = createMockNode('node1');
-      const node2 = createMockNode('node2');
-
-      const dragLayout: NodeContainerLayout = {
-        x: 300,
-        y: 300,
-        width: 100,
-        height: 100,
-      };
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [node1, {x: 0, y: 0, width: 100, height: 100}],
-        [node2, {x: 500, y: 500, width: 100, height: 100}],
-      ]);
-
-      const result = findOverlappingNode(dragLayout, layouts, node1);
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should exclude the drag node itself', () => {
-      const dragNode = createMockNode('drag');
-      const node2 = createMockNode('node2');
-
-      const dragLayout: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [dragNode, {x: 0, y: 0, width: 100, height: 100}],
-        [node2, {x: 200, y: 200, width: 100, height: 100}],
-      ]);
-
-      const result = findOverlappingNode(dragLayout, layouts, dragNode);
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should return first overlapping node found', () => {
-      const node1 = createMockNode('node1');
-      const node2 = createMockNode('node2');
-      const node3 = createMockNode('node3');
-
-      const dragLayout: NodeContainerLayout = {
-        x: 50,
-        y: 50,
-        width: 100,
-        height: 100,
-      };
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [node1, {x: 60, y: 60, width: 100, height: 100}],
-        [node2, {x: 70, y: 70, width: 100, height: 100}],
-        [node3, {x: 200, y: 200, width: 100, height: 100}],
-      ]);
-
-      const result = findOverlappingNode(dragLayout, layouts, node3);
-
-      // Should return one of the overlapping nodes
-      expect(result).toBeDefined();
-      expect([node1, node2]).toContain(result);
+    describe('undefined operation', () => {
+      it('should return true for undefined operation', () => {
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('name', 'STRING'),
+            undefined,
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('dur', 'INT'),
+            undefined,
+          ),
+        ).toBe(true);
+      });
     });
   });
 
-  describe('findBlockOverlap', () => {
-    it('should return overlapping node outside the block', () => {
-      const blockNode1 = createMockNode('block1');
-      const blockNode2 = createMockNode('block2');
-      const outsideNode = createMockNode('outside');
-
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [blockNode1, {x: 0, y: 0, width: 100, height: 100}],
-        [blockNode2, {x: 150, y: 0, width: 100, height: 100}],
-        [outsideNode, {x: 50, y: 50, width: 100, height: 100}],
-      ]);
-
-      const result = findBlockOverlap([blockNode1, blockNode2], layouts);
-
-      expect(result).toBe(outsideNode);
+  describe('getAggregationTypeRequirements', () => {
+    it('should return correct requirements for numeric-only operations', () => {
+      expect(getAggregationTypeRequirements('MEAN')).toBe(
+        'Requires numeric column',
+      );
+      expect(getAggregationTypeRequirements('MEDIAN')).toBe(
+        'Requires numeric column',
+      );
+      expect(getAggregationTypeRequirements('PERCENTILE')).toBe(
+        'Requires numeric column',
+      );
+      expect(getAggregationTypeRequirements('DURATION_WEIGHTED_MEAN')).toBe(
+        'Requires numeric column',
+      );
     });
 
-    it('should return undefined when no overlap exists', () => {
-      const blockNode1 = createMockNode('block1');
-      const blockNode2 = createMockNode('block2');
-      const outsideNode = createMockNode('outside');
-
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [blockNode1, {x: 0, y: 0, width: 100, height: 100}],
-        [blockNode2, {x: 150, y: 0, width: 100, height: 100}],
-        [outsideNode, {x: 300, y: 300, width: 100, height: 100}],
-      ]);
-
-      const result = findBlockOverlap([blockNode1, blockNode2], layouts);
-
-      expect(result).toBeUndefined();
+    it('should return correct requirements for string-only operations', () => {
+      expect(getAggregationTypeRequirements('GLOB')).toBe(
+        'Requires string column',
+      );
     });
 
-    it('should ignore overlap within the block', () => {
-      const blockNode1 = createMockNode('block1');
-      const blockNode2 = createMockNode('block2');
-
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [blockNode1, {x: 0, y: 0, width: 100, height: 100}],
-        [blockNode2, {x: 50, y: 50, width: 100, height: 100}],
-      ]);
-
-      const result = findBlockOverlap([blockNode1, blockNode2], layouts);
-
-      expect(result).toBeUndefined();
+    it('should return correct requirements for COUNT(*)', () => {
+      expect(getAggregationTypeRequirements('COUNT(*)')).toBe(
+        'No column required',
+      );
     });
 
-    it('should handle empty block', () => {
-      const outsideNode = createMockNode('outside');
-
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [outsideNode, {x: 0, y: 0, width: 100, height: 100}],
-      ]);
-
-      const result = findBlockOverlap([], layouts);
-
-      expect(result).toBeUndefined();
+    it('should return correct requirements for universal operations', () => {
+      expect(getAggregationTypeRequirements('COUNT')).toBe(
+        'Works with any column type',
+      );
+      expect(getAggregationTypeRequirements('SUM')).toBe(
+        'Works with any column type',
+      );
+      expect(getAggregationTypeRequirements('MIN')).toBe(
+        'Works with any column type',
+      );
+      expect(getAggregationTypeRequirements('MAX')).toBe(
+        'Works with any column type',
+      );
     });
 
-    it('should handle node in block without layout', () => {
-      const blockNode = createMockNode('block1');
-      const outsideNode = createMockNode('outside');
-
-      const layouts = new Map<QueryNode, NodeContainerLayout>([
-        [outsideNode, {x: 0, y: 0, width: 100, height: 100}],
-      ]);
-
-      const result = findBlockOverlap([blockNode], layouts);
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe('isOverlappingBottomPort', () => {
-    it('should return true when drag node overlaps bottom port', () => {
-      const dragLayout: NodeContainerLayout = {
-        x: 45,
-        y: 95,
-        width: 10,
-        height: 10,
-      };
-      const targetLayout: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-
-      // Bottom port is at (50, 100) - center bottom of target
-      // Drag node at (45, 95) with size 10x10 covers (45-55, 95-105)
-      expect(isOverlappingBottomPort(dragLayout, targetLayout, 5)).toBe(true);
-    });
-
-    it('should return false when drag node does not overlap bottom port', () => {
-      const dragLayout: NodeContainerLayout = {
-        x: 200,
-        y: 200,
-        width: 10,
-        height: 10,
-      };
-      const targetLayout: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlappingBottomPort(dragLayout, targetLayout, 5)).toBe(false);
-    });
-
-    it('should handle padding correctly', () => {
-      const dragLayout: NodeContainerLayout = {
-        x: 40,
-        y: 90,
-        width: 20,
-        height: 20,
-      };
-      const targetLayout: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-
-      // Bottom port at (50, 100)
-      // With padding=10, port detection area is (40-60, 90-110)
-      // Drag node covers (40-60, 90-110) - perfect match
-      expect(isOverlappingBottomPort(dragLayout, targetLayout, 10)).toBe(true);
-    });
-
-    it('should return false when only horizontally aligned', () => {
-      const dragLayout: NodeContainerLayout = {
-        x: 45,
-        y: 200,
-        width: 10,
-        height: 10,
-      };
-      const targetLayout: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlappingBottomPort(dragLayout, targetLayout, 5)).toBe(false);
-    });
-
-    it('should return false when only vertically aligned', () => {
-      const dragLayout: NodeContainerLayout = {
-        x: 200,
-        y: 95,
-        width: 10,
-        height: 10,
-      };
-      const targetLayout: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-
-      expect(isOverlappingBottomPort(dragLayout, targetLayout, 5)).toBe(false);
-    });
-
-    it('should handle layouts without width/height', () => {
-      const dragLayout: NodeContainerLayout = {x: 50, y: 100};
-      const targetLayout: NodeContainerLayout = {x: 0, y: 0};
-
-      // Bottom port at (0, 0), drag node at (50, 100) - no overlap
-      expect(isOverlappingBottomPort(dragLayout, targetLayout, 5)).toBe(false);
-    });
-
-    it('should detect overlap with zero padding', () => {
-      const dragLayout: NodeContainerLayout = {
-        x: 49,
-        y: 99,
-        width: 2,
-        height: 2,
-      };
-      const targetLayout: NodeContainerLayout = {
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-      };
-
-      // Bottom port at (50, 100)
-      // Drag node covers (49-51, 99-101)
-      expect(isOverlappingBottomPort(dragLayout, targetLayout, 0)).toBe(true);
+    it('should return unknown for unrecognized operations', () => {
+      expect(getAggregationTypeRequirements('UNKNOWN_OP')).toBe(
+        'Unknown operation',
+      );
     });
   });
 });

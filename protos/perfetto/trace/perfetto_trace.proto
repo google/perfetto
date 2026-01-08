@@ -663,6 +663,22 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/inputmethod_config.proto
+
+// Custom configuration for the "android.inputmethod" data source.
+message InputMethodConfig {
+  // If true, enables tracing in the clients.
+  optional bool client = 1;
+
+  // If true, enables tracing in InputMethodService.
+  optional bool service = 2;
+
+  // If true, enables tracing in InputMethodManagerService.
+  optional bool manager_service = 3;
+}
+
+// End of protos/perfetto/config/android/inputmethod_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -878,9 +894,35 @@ message SurfaceFlingerTransactionsConfig {
 
 // Data source that lists details (such as version code) about users on an
 // Android device.
-message UserListConfig {
-  // If not empty, emit info about only the following list of user types
-  // (exact match, no regex). Otherwise, emit info about all users.
+message AndroidUserListConfig {
+  // An allowlist of user type strings, used to control the granularity of
+  // user type information emitted in the trace. Exact, case-sensitive string
+  // matching is used.
+  //
+  // Any user type read from the device that is NOT present in the
+  // effective allowlist will have its type reported as
+  // "android.os.usertype.FILTERED".
+  //
+  // The effective allowlist is determined as follows:
+  //
+  // 1. If this 'user_type_filter' field is provided and non-empty:
+  //    This list itself is the effective allowlist.
+  //    Example TraceConfig:
+  //    --------------------
+  //    data_sources {
+  //        config {
+  //            name: "android.user_list"
+  //            target_buffer: 0
+  //            user_list_config {
+  //              # Only report these specific types, others become FILTERED.
+  //              user_type_filter: "android.os.usertype.full.SYSTEM"
+  //              user_type_filter: "android.os.usertype.system.HEADLESS"
+  //            }
+  //        }
+  //    }
+  //
+  //
+  // Note: This field does not support regular expressions.
   repeated string user_type_filter = 1;
 }
 
@@ -3989,7 +4031,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 139
+// Next id: 140
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4005,12 +4047,30 @@ message DataSourceConfig {
   optional string name = 1;
 
   // The index of the logging buffer where TracePacket(s) will be stored.
-  // This field doesn't make a major difference for the Producer(s). The final
-  // logging buffers, in fact, are completely owned by the Service. We just ask
-  // the Producer to copy this number into the chunk headers it emits, so that
-  // the Service can quickly identify the buffer where to move the chunks into
-  // without expensive lookups on its fastpath.
+  // This field is quite subtle as it has a double semantic:
+  // 1) When the config is passed, this field is a 0-based index relative to the
+  //    buffer array in the TraceConfig and defines the mapping between data
+  //    sources and config. From v54 this is optional because the user can
+  //    instead use target_buffer_name.
+  // 2) When the TracingService issues a SetupDataSource/StartDataSource to the
+  //    producer, it overwrites this field with the global buffer index (which
+  //    depends on other tracing sessions active). This tells the producer which
+  //    buffer id should be passed to CreateTraceWriter. In this case, the trace
+  //    service always sets the resolved global id, even when using
+  //    `target_buffer_name`.
+  // In hindsight we should have used two different fields given even in v0 they
+  // had a different semantic. But now it's too late as this would be a major
+  // protocol breaking change.
   optional uint32 target_buffer = 2;
+
+  // Alternative to |target_buffer|. References a buffer by name (as specified
+  // in TraceConfig.BufferConfig.name) rather than by index. This is more
+  // readable and less error-prone than using buffer indices.
+  // If both |target_buffer| and |target_buffer_name| are specified, they must
+  // refer to the same buffer, otherwise the service will reject the config.
+  // Using both fields allows configs to work with both old and new versions
+  // of the tracing service. Introduced in v54.
+  optional string target_buffer_name = 11;
 
   // Set by the service to indicate the duration of the trace.
   // DO NOT SET in consumer as this will be overridden by the service.
@@ -4190,7 +4250,10 @@ message DataSourceConfig {
   optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
 
   // Data source name: android.user_list
-  optional UserListConfig user_list_config = 138 [lazy = true];
+  optional AndroidUserListConfig user_list_config = 138 [lazy = true];
+
+  // Data source name: android.inputmethod
+  optional InputMethodConfig inputmethod_config = 139 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -4217,7 +4280,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 43.
+// Next id: 44.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4258,6 +4321,25 @@ message TraceConfig {
     // clone-related flush, we don't end up with a mixture of leftovers from
     // the previous write and new data.
     optional bool clear_before_clone = 6;
+
+    // Optional name for this buffer. If set, data sources can reference this
+    // buffer by name using |target_buffer_name| in DataSourceConfig instead of
+    // using the buffer index. Buffer names must be unique within a tracing
+    // session. This provides a more human-readable and less error-prone way to
+    // configure which buffer a data source writes to.
+    optional string name = 7;
+
+    // When true, uses the experimental TraceBufferV2 implementation for this
+    // buffer. This is for testing purposes only and may be removed in future
+    // versions.
+    enum ExperimentalMode {
+      // Use the default V1 implementation.
+      MODE_UNSPECIFIED = 0;
+
+      // Use TraceBufferV2.
+      TRACE_BUFFER_V2 = 1;
+    }
+    optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
 
@@ -4806,6 +4888,17 @@ message TraceConfig {
       SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS = 5;
     }
 
+    // Semantic types for string fields. This tells the filter what kind of
+    // data the field contains, so it can apply the right filtering rules.
+    // See /rfcs/0011-subset-string-filter-rules.md for design details.
+    // Introduced in: Perfetto v54.
+    enum SemanticType {
+      SEMANTIC_TYPE_UNSPECIFIED = 0;
+      SEMANTIC_TYPE_ATRACE = 1;
+      SEMANTIC_TYPE_JOB = 2;
+      SEMANTIC_TYPE_WAKELOCK = 3;
+    }
+
     // A rule specifies how strings should be filtered.
     message StringFilterRule {
       // The policy (i.e. algorithm) dictating how strings matching this rule
@@ -4818,6 +4911,21 @@ message TraceConfig {
       // The string which should appear after the tgid in atrace tracepoint
       // strings.
       optional string atrace_payload_starts_with = 3;
+
+      // Optional name for the rule. When merging chains (e.g. via
+      // string_filter_chain_v54), rules with matching names in the newer chain
+      // will overwrite rules in the base chain. Rules without a name (empty or
+      // unset) are always treated as distinct and will be appended.
+      // See /rfcs/0011-subset-string-filter-rules.md for design details.
+      // Introduced in: Perfetto v54.
+      optional string name = 4;
+
+      // The semantic types this rule applies to. If empty, the rule applies
+      // to all string fields regardless of their semantic type. If non-empty,
+      // the rule only applies to fields whose semantic type is in this list.
+      // See /rfcs/0011-subset-string-filter-rules.md for design details.
+      // Introduced in: Perfetto v54.
+      repeated SemanticType semantic_type = 5;
     }
 
     // A chain is a list of rules which string will be sequentially checked
@@ -4826,6 +4934,43 @@ message TraceConfig {
       repeated StringFilterRule rules = 1;
     }
     optional StringFilterChain string_filter_chain = 3;
+
+    // Bytecode overlay for Perfetto v54+. This overlay is applied on top of
+    // bytecode_v2 to upgrade specific simple fields to new values. Old Perfetto
+    // versions ignore this field; new versions apply it.
+    //
+    // The motivation for this is that adding new opcodes in a backwards
+    // compatible way while also minimizing config size is hard. Instead, the
+    // overlay mechanism allows us to "patch" specific fields in the original
+    // bytecode_v2 with new semantics.
+    //
+    // See RFC 0011-subset-string-filter-rules.md for more info.
+    //
+    // Note:
+    // Unlike bytecode_v2 (which uses implicit message indices via EndOfMessage
+    // markers), this overlay uses a triplet format with explicit indices:
+    //   [msg_index, field_id << 3 | opcode, argument] ... [checksum]
+    // Each entry is exactly 3 varints. The argument is 0 when not needed.
+    // Entries must be sorted by (msg_index, field_id).
+    //
+    // The parser processes bytecode_v2 and this overlay simultaneously:
+    //  - any field not mentioned in the overlay is parsed as usual
+    //  - any field in the overlay but *not* in the bytecode_v2 is added
+    //    with its overlay value
+    //  - any field in both the overlay and bytecode_v2 takes the value in the
+    //    overlay, the bytecode_v2 value is ignored.
+    //
+    // Introduced in: Perfetto v54.
+    optional bytes bytecode_overlay_v54 = 4;
+
+    // String filter chain for Perfetto v54+. Rules in this chain either
+    // overwrite rules in string_filter_chain (if the name matches) or are
+    // appended (if the name doesn't match). This allows modifying existing
+    // rules (e.g., changing policy) without duplicating the entire chain.
+    // Rules without a name are always appended.
+    // See /rfcs/0011-subset-string-filter-rules.md for design details.
+    // Introduced in: Perfetto v54.
+    optional StringFilterChain string_filter_chain_v54 = 5;
   }
   // old field number for trace_filter
   reserved 32;
@@ -4969,6 +5114,19 @@ message TraceConfig {
   // Introduced in: perfetto v53.
   // Supported on: Android 25Q4+.
   optional bool no_flush_before_write_into_file = 42;
+
+  // When true, data sources in remote producers (machines connected via
+  // traced_relay) will be matched by default. When false (the default), data
+  // sources only match the host machine. In either case, an explicit
+  // |DataSource.machine_name_filter| takes priority.
+  //
+  // NB: perfetto versions before v54 do not have this option and match across
+  // machines by default. To be compatible across this version boundary, either
+  // set this field to true, or set an explicit machine_name_filter on all data
+  // sources.
+  //
+  // Introduced in: perfetto v54.
+  optional bool trace_all_machines = 43;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -5745,6 +5903,9 @@ message FrameTimelineEvent {
 
     // experimental value for present_type. Do not consider in jank analysis.
     optional PresentType present_type_experimental = 17;
+
+    // jank metadata information (for debug).
+    optional float jank_debug_metadata = 18;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -5800,6 +5961,9 @@ message FrameTimelineEvent {
 
     // experimental value for present_type. Do not consider in jank analysis.
     optional PresentType present_type_experimental = 13;
+
+    // jank metadata information (for debug).
+    optional float jank_debug_metadata = 14;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding
@@ -6911,19 +7075,17 @@ message DisplayState {
 
 // Begin of protos/perfetto/trace/android/user_list.proto
 
-message UserList {
+message AndroidUserList {
   message UserInfo {
+    // eg. android.os.usertype.full.SYSTEM, android.os.usertype.full.SECONDARY
     optional string type = 1;
-    optional uint64 uid = 2;
+    optional int32 uid = 2;
   }
 
   repeated UserInfo users = 1;
 
-  // At least one error occurred parsing the user.list.
-  optional bool parse_error = 2;
-
-  // Failed to open / read user.list.
-  optional bool read_error = 3;
+  // Error number
+  optional int32 error = 2;
 }
 
 // End of protos/perfetto/trace/android/user_list.proto
@@ -7726,6 +7888,7 @@ message FileIoDirEnumEtwEvent {
   optional uint32 info_class = 6;
   optional uint32 file_index = 7;
   optional string file_name = 8;
+  optional uint32 opcode = 9;
 }
 
 // Proto definition based on the `FileIo_Info` class definition.
@@ -7736,6 +7899,7 @@ message FileIoInfoEtwEvent {
   optional uint64 extra_info = 4;
   optional uint32 ttid = 5;
   optional uint32 info_class = 6;
+  optional uint32 opcode = 7;
 }
 
 // Proto definition based on the `FileIo_ReadWrite` class definition.
@@ -7747,6 +7911,7 @@ message FileIoReadWriteEtwEvent {
   optional uint32 ttid = 5;
   optional uint32 io_size = 6;
   optional uint32 io_flags = 7;
+  optional uint32 opcode = 8;
 }
 
 // Proto definition based on the `FileIo_SimpleOp` class definition.
@@ -7755,6 +7920,7 @@ message FileIoSimpleOpEtwEvent {
   optional uint64 file_object = 2;
   optional uint64 file_key = 3;
   optional uint32 ttid = 4;
+  optional uint32 opcode = 5;
 }
 
 // Proto definition based on the `FileIo_OpEnd` class definition.
@@ -9807,6 +9973,7 @@ message F2fsWriteCheckpointFtraceEvent {
   optional uint32 is_umount = 2;
   optional string msg = 3;
   optional int32 reason = 4;
+  optional uint32 phase = 5;
 }
 message F2fsWriteEndFtraceEvent {
   optional uint64 dev = 1;
@@ -10023,6 +10190,18 @@ message FuncgraphExitFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/ftrace.proto
+
+// Begin of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
+message FwtpPerfettoCounterFtraceEvent {
+  optional uint64 timestamp = 1;
+  optional uint32 track_id = 2;
+  optional string category = 3;
+  optional string name = 4;
+  optional uint32 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
 
 // Begin of protos/perfetto/trace/ftrace/g2d.proto
 
@@ -11310,6 +11489,8 @@ message PixelMmKswapdWakeFtraceEvent {
 message PixelMmKswapdDoneFtraceEvent {
   optional uint64 delta_nr_scanned = 1;
   optional uint64 delta_nr_reclaimed = 2;
+  optional uint64 delta_nr_allocated = 3;
+  optional uint64 duration_ns = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/pixel_mm.proto
@@ -11579,6 +11760,47 @@ message ScmCallStartFtraceEvent {
 message ScmCallEndFtraceEvent {}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
+
+// Begin of protos/perfetto/trace/ftrace/scsi.proto
+
+message ScsiDispatchCmdErrorFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 rtn = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+}
+message ScsiDispatchCmdTimeoutFtraceEvent {
+  optional uint32 host_no = 1;
+  optional uint32 channel = 2;
+  optional uint32 id = 3;
+  optional uint32 lun = 4;
+  optional int32 result = 5;
+  optional uint32 opcode = 6;
+  optional uint32 cmd_len = 7;
+  optional uint32 data_sglen = 8;
+  optional uint32 prot_sglen = 9;
+  optional uint32 prot_op = 10;
+  optional string cmnd = 11;
+  optional int32 driver_tag = 12;
+  optional int32 scheduler_tag = 13;
+  optional uint32 sense_key = 14;
+  optional uint32 asc = 15;
+  optional uint32 ascq = 16;
+}
+message ScsiEhWakeupFtraceEvent {
+  optional uint32 host_no = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/scsi.proto
 
 // Begin of protos/perfetto/trace/ftrace/sde.proto
 
@@ -12174,6 +12396,7 @@ message MmShrinkSlabEndFtraceEvent {
 
 message WorkqueueActivateWorkFtraceEvent {
   optional uint64 work = 1;
+  optional uint64 function = 2;
 }
 message WorkqueueExecuteEndFtraceEvent {
   optional uint64 work = 1;
@@ -12186,9 +12409,9 @@ message WorkqueueExecuteStartFtraceEvent {
 message WorkqueueQueueWorkFtraceEvent {
   optional uint64 work = 1;
   optional uint64 function = 2;
-  optional uint64 workqueue = 3;
-  optional uint32 req_cpu = 4;
-  optional uint32 cpu = 5;
+  optional int32 req_cpu = 4;
+  optional int32 cpu = 5;
+  optional string workqueue = 6;
 }
 
 // End of protos/perfetto/trace/ftrace/workqueue.proto
@@ -12839,6 +13062,10 @@ message FtraceEvent {
     DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
     DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
     DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
+    FwtpPerfettoCounterFtraceEvent fwtp_perfetto_counter = 596;
+    ScsiDispatchCmdErrorFtraceEvent scsi_dispatch_cmd_error = 597;
+    ScsiDispatchCmdTimeoutFtraceEvent scsi_dispatch_cmd_timeout = 598;
+    ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
   }
 }
 
@@ -15155,7 +15382,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 44.
+// Next id: 45.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -15247,8 +15474,17 @@ message InternedData {
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
+  // Interned job names for Android Job Names. These are separate from
+  // other strings because they are under app control.
+  repeated AndroidJobName android_job_name = 44;
+
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
+}
+
+message AndroidJobName {
+  optional uint64 iid = 1;
+  optional string name = 2;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -15685,6 +15921,21 @@ message ObfuscatedMember {
   // deobfuscated field name relative to the class containing this
   // ObfuscatedMember.
   optional string deobfuscated_name = 2;
+
+  // R8 inline method support: line number ranges for disambiguation.
+  // When multiple methods map to the same obfuscated name, the line number
+  // from the stack frame is used to select the correct mapping.
+  //
+  // Format in R8 mapping: "1:3:void foo():10:12 -> a"
+  // - obfuscated_line_start/end = 1:3 (line range in obfuscated code)
+  // - source_line_start/end = 10:12 (line range in original source)
+  //
+  // Methods with the same obfuscated_name and overlapping obfuscated line
+  // ranges form an inline chain, ordered innermost (inlined) first.
+  optional uint32 obfuscated_line_start = 3;
+  optional uint32 obfuscated_line_end = 4;
+  optional uint32 source_line_start = 5;
+  optional uint32 source_line_end = 6;
 }
 
 message ObfuscatedClass {
@@ -17620,7 +17871,7 @@ message TracePacket {
 
     EvdevEvent evdev_event = 121;
 
-    UserList user_list = 123;
+    AndroidUserList user_list = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

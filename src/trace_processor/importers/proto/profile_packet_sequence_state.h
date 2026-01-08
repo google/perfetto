@@ -17,17 +17,25 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_PACKET_SEQUENCE_STATE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_PACKET_SEQUENCE_STATE_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class VirtualMemoryMapping;
 
@@ -101,12 +109,10 @@ class ProfilePacketSequenceState final
       return std::tie(upid, src_callstack_id, heap_name) ==
              std::tie(o.upid, o.src_callstack_id, o.heap_name);
     }
-    struct Hasher {
-      size_t operator()(const SourceAllocationIndex& o) const {
-        return static_cast<size_t>(base::FnvHasher::Combine(
-            o.upid, o.src_callstack_id, o.heap_name.raw_id()));
-      }
-    };
+    template <typename H>
+    friend H PerfettoHashValue(H h, const SourceAllocationIndex& o) {
+      return H::Combine(std::move(h), o.upid, o.src_callstack_id, o.heap_name);
+    }
   };
 
   void AddAllocation(const SourceAllocation& alloc);
@@ -132,19 +138,13 @@ class ProfilePacketSequenceState final
 
   std::vector<SourceAllocation> pending_allocs_;
 
-  struct Hasher {
-    size_t operator()(const std::pair<UniquePid, CallsiteId>& p) const {
-      return static_cast<size_t>(
-          base::FnvHasher::Combine(p.first, p.second.value));
-    }
-  };
   base::FlatHashMap<std::pair<UniquePid, CallsiteId>,
                     tables::HeapProfileAllocationTable::Row,
-                    Hasher>
+                    base::MurmurHash<std::pair<UniquePid, CallsiteId>>>
       prev_alloc_;
   base::FlatHashMap<std::pair<UniquePid, CallsiteId>,
                     tables::HeapProfileAllocationTable::Row,
-                    Hasher>
+                    base::MurmurHash<std::pair<UniquePid, CallsiteId>>>
       prev_free_;
 
   // For continuous dumps, we only store the delta in the data-base. To do
@@ -159,7 +159,7 @@ class ProfilePacketSequenceState final
   // the correction maps below.
   base::FlatHashMap<SourceAllocationIndex,
                     base::FlatSet<CallsiteId>,
-                    SourceAllocationIndex::Hasher>
+                    base::MurmurHash<SourceAllocationIndex>>
       seen_callstacks_;
   base::FlatHashMap<SourceCallstackId, tables::HeapProfileAllocationTable::Row>
       alloc_correction_;
@@ -169,7 +169,6 @@ class ProfilePacketSequenceState final
   std::optional<uint64_t> prev_index;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_PACKET_SEQUENCE_STATE_H_

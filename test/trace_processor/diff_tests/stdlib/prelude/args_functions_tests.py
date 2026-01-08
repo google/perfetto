@@ -62,6 +62,68 @@ class ArgsFunctions(TestSuite):
         "Event","value1",42,3.250000,"[NULL]"
         """))
 
+  def test_display_value(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          timestamp: 10000000
+          track_event {
+            track_uuid: 1
+            categories: "cat"
+            name: "Event"
+            type: TYPE_INSTANT
+            debug_annotations {
+              name: "int_val"
+              int_value: -123
+            }
+            debug_annotations {
+              name: "uint_val"
+              uint_value: 18446744073709551615
+            }
+            debug_annotations {
+              name: "string_val"
+              string_value: "hello"
+            }
+            debug_annotations {
+              name: "real_val"
+              double_value: 3.5
+            }
+            debug_annotations {
+              name: "pointer_val"
+              pointer_value: 48879
+            }
+            debug_annotations {
+              name: "bool_true"
+              bool_value: true
+            }
+            debug_annotations {
+              name: "bool_false"
+              bool_value: false
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          key,
+          value_type,
+          display_value
+        FROM slice
+        JOIN args USING (arg_set_id);
+        """,
+        out=Csv("""
+        "key","value_type","display_value"
+        "debug.int_val","int","-123"
+        "debug.uint_val","uint","18446744073709551615"
+        "debug.string_val","string","hello"
+        "debug.real_val","real","3.5"
+        "debug.pointer_val","pointer","0xbeef"
+        "debug.bool_true","bool","true"
+        "debug.bool_false","bool","false"
+        """))
+
   def test__intrinsic_arg_set_to_json_simple(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

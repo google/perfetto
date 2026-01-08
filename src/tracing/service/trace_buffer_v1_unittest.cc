@@ -1899,7 +1899,7 @@ TEST_F(TraceBufferTest, MissingPacketsOnSequence) {
 // the read iterators on clone. This will be deprecated once the
 // buffer_clone_preserve_read_iter flag rollout sticks. See b/448604718.
 TEST_F(TraceBufferTest, Clone_NoFragments_NoPreserveReadIter) {
-  if (base::flags::buffer_clone_preserve_read_iter)
+  if (PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER))
     GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=false";
 
   const char kNumWriters = 3;
@@ -1936,7 +1936,7 @@ TEST_F(TraceBufferTest, Clone_NoFragments_NoPreserveReadIter) {
 }
 
 TEST_F(TraceBufferTest, Clone_NoFragments_PreserveReadIter) {
-  if (!base::flags::buffer_clone_preserve_read_iter)
+  if (!PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER))
     GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
 
   ResetBuffer(4096);
@@ -2000,7 +2000,7 @@ TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
   // Verify that in the new behavior (buffer_clone_preserve_read_iter=true)
   // If we read a fragment from the original buffer, the cloned buffer will
   // continue from the updated position.
-  if (!base::flags::buffer_clone_preserve_read_iter)
+  if (!PERFETTO_FLAGS(BUFFER_CLONE_PRESERVE_READ_ITER))
     return;
 
   // Consume one packet from the original buffer.

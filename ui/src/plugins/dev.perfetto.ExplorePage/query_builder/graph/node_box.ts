@@ -15,26 +15,16 @@
 import m from 'mithril';
 
 import {classNames} from '../../../../base/classnames';
-import {Icons} from '../../../../base/semantic_icons';
-import {Button} from '../../../../widgets/button';
-import {MenuItem, PopupMenu} from '../../../../widgets/menu';
-import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
-import {UIFilter} from '../operations/filter';
-import {Chip} from '../../../../widgets/chip';
+import {PopupMenu, MenuDivider, MenuTitle} from '../../../../widgets/menu';
+import {QueryNode, NodeType} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
-import {Callout} from '../../../../widgets/callout';
-import {Intent} from '../../../../widgets/common';
-import {nodeRegistry} from '../node_registry';
+import {buildMenuItems} from './menu_utils';
+import {NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeDetailsContent} from '../node_styling_widgets';
 
-export interface NodeActions {
-  readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
-}
-
-export interface NodeBoxAttrs extends NodeActions {
+export interface NodeBoxAttrs {
   readonly node: QueryNode;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
 }
 
 export function renderWarningIcon(node: QueryNode): m.Child {
@@ -49,40 +39,28 @@ export function renderWarningIcon(node: QueryNode): m.Child {
   });
 }
 
-export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
-  const {node, onDuplicateNode, onDeleteNode} = attrs;
-  const menuItems: m.Child[] = [
-    m(MenuItem, {
-      label: 'Duplicate',
-      onclick: () => onDuplicateNode(node),
-    }),
-    m(MenuItem, {
-      label: 'Delete',
-      onclick: () => onDeleteNode(node),
-    }),
-  ];
-
-  return m(
-    PopupMenu,
-    {
-      trigger: m(Button, {
-        iconFilled: true,
-        icon: Icons.ContextMenu,
-      }),
-    },
-    ...menuItems,
-  );
-}
-
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   const {node, onAddOperationNode} = attrs;
-  const operationNodes = nodeRegistry
-    .list()
-    .filter(([_id, descriptor]) => descriptor.type === 'modification');
 
-  if (operationNodes.length === 0) {
+  const multisourceMenuItems = buildMenuItems('multisource', (id) =>
+    onAddOperationNode(id, node),
+  );
+
+  const modificationMenuItems = buildMenuItems('modification', (id) =>
+    onAddOperationNode(id, node),
+  );
+
+  if (modificationMenuItems.length === 0 && multisourceMenuItems.length === 0) {
     return null;
   }
+
+  const menuItems = [
+    m(MenuTitle, {label: 'Modification nodes'}),
+    ...modificationMenuItems,
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Operations'}),
+    ...multisourceMenuItems,
+  ];
 
   return m(
     PopupMenu,
@@ -92,40 +70,18 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
         icon: 'add',
       }),
     },
-    ...operationNodes.map(([id, descriptor]) => {
-      return m(MenuItem, {
-        label: descriptor.name,
-        onclick: () => onAddOperationNode(id, node),
-      });
-    }),
+    ...menuItems,
   );
 }
 
-export function renderFilters(attrs: NodeBoxAttrs): m.Child {
-  const {node, onRemoveFilter} = attrs;
-  if (!node.state.filters || node.state.filters.length === 0) return null;
-
-  return m(
-    '.pf-exp-node-box__filters',
-    node.state.filters?.map((filter) => {
-      const label =
-        'value' in filter
-          ? `${filter.column} ${filter.op} ${filter.value}`
-          : `${filter.column} ${filter.op}`;
-      return m(Chip, {
-        label,
-        removable: true,
-        onRemove: () => onRemoveFilter(node, filter),
-      });
-    }),
-  );
+function renderDetailsView(node: QueryNode): m.Child {
+  const attrs: NodeDetailsAttrs = node.nodeDetails();
+  return NodeDetailsContent(attrs.content);
 }
 
 export const NodeBox: m.Component<NodeBoxAttrs> = {
   view({attrs}) {
     const {node} = attrs;
-    const hasCustomTitle = node.state.customTitle !== undefined;
-    const shouldShowTitle = !singleNodeOperation(node.type) || hasCustomTitle;
 
     return [
       m(
@@ -133,17 +89,12 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         {
           class: classNames(NodeType[node.type]),
         },
-        shouldShowTitle && m('span.pf-exp-node-box__title', node.getTitle()),
-        node.state.comment &&
-          m(Callout, {intent: Intent.None}, node.state.comment),
-        m('.pf-exp-node-box__details', node.nodeDetails?.()),
-        renderFilters(attrs),
+        m('.pf-exp-node-box__details', renderDetailsView(node)),
       ),
       m(
         '.pf-exp-node-box__actions',
         renderAddButton(attrs),
         renderWarningIcon(node),
-        renderContextMenu(attrs),
       ),
     ];
   },

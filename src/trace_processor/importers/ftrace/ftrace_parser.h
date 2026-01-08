@@ -346,6 +346,10 @@ class FtraceParser {
                               protozero::ConstBytes blob);
   void ParseMaliGpuPowerState(int64_t ts, protozero::ConstBytes blob);
   void ParseDmabufRssStat(int64_t ts, uint32_t pid, protozero::ConstBytes blob);
+  void ParseFwtpPerfettoCounter(protozero::ConstBytes blob);
+  void ParseF2fsWriteCheckpoint(int64_t ts,
+                                uint32_t pid,
+                                protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   GenericFtraceTracker* generic_tracker_;
@@ -442,6 +446,12 @@ class FtraceParser {
   const StringId disp_vblank_irq_enable_output_id_arg_name_;
   const StringId hrtimer_id_;
   const StringId local_timer_id_;
+  const StringId f2fs_checkpoint_name_id_;
+  const StringId f2fs_reason_str_arg_id_;
+  const StringId f2fs_reason_int_arg_id_;
+  const StringId f2fs_dev_arg_id_;
+  const StringId f2fs_checkpoint_unknown_reason_id_;
+  std::array<StringId, 8> f2fs_checkpoint_reason_ids_;
 
   std::vector<StringId> syscall_arg_name_ids_;
 
@@ -531,7 +541,7 @@ class FtraceParser {
 
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
-      return base::FnvHasher::Combine(p.first, p.second);
+      return base::MurmurHashCombine(p.first, p.second);
     }
   };
 

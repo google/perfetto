@@ -42,8 +42,9 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore((init: unknown) => this.migrate(init));
-    ctx.trash.use(this.store);
+    this.store = ctx.mountStore('com.example.SkeletonStore', (init: unknown) =>
+      this.migrate(init),
+    );
 
     ctx.commands.registerCommand({
       id: 'com.example.ShowCounter',

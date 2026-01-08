@@ -17,9 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include "perfetto/base/status.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
-
-#include "src/trace_processor/importers/common/metadata_tracker.h"
 
 namespace perfetto::trace_processor {
 
@@ -29,6 +32,11 @@ class TraceProcessorContext;
 class ClockSynchronizerListenerImpl {
  private:
   TraceProcessorContext* context_;
+  StringId source_clock_id_key_;
+  StringId target_clock_id_key_;
+  StringId source_timestamp_key_;
+  StringId source_sequence_id_key_;
+  StringId target_sequence_id_key_;
 
  public:
   explicit ClockSynchronizerListenerImpl(TraceProcessorContext* context);
@@ -37,15 +45,16 @@ class ClockSynchronizerListenerImpl {
 
   base::Status OnInvalidClockSnapshot();
 
-  base::Status OnTraceTimeClockIdChanged(
-      ClockSynchronizer<ClockSynchronizerListenerImpl>::ClockId
-          trace_time_clock_id);
+  base::Status OnTraceTimeClockIdChanged(ClockSynchronizerBase::ClockId);
 
-  base::Status OnSetTraceTimeClock(
-      ClockSynchronizer<ClockSynchronizerListenerImpl>::ClockId
-          trace_time_clock_id);
+  base::Status OnSetTraceTimeClock(ClockSynchronizerBase::ClockId);
 
-  // Returns true if this is a local host, false otherwise.
+  void RecordConversionError(ClockSynchronizerBase::ErrorType,
+                             ClockSynchronizerBase::ClockId source_clock_id,
+                             ClockSynchronizerBase::ClockId target_clock_id,
+                             int64_t source_timestamp,
+                             std::optional<size_t>);
+
   bool IsLocalHost();
 };
 

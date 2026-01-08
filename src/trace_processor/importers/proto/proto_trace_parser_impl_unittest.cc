@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -40,6 +41,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -52,11 +54,9 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
-#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -66,6 +66,7 @@
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/args_utils.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -250,6 +251,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&context_, 1);
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.stack_profile_tracker =
         std::make_unique<StackProfileTracker>(&context_);
@@ -269,10 +272,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    std::unique_ptr<ClockSynchronizerListenerImpl> clock_tracker_listener =
-        std::make_unique<ClockSynchronizerListenerImpl>(&context_);
-    clock_ = new ClockTracker(std::move(clock_tracker_listener));
-    context_.clock_tracker.reset(clock_);
+    context_.clock_tracker = std::make_unique<ClockTracker>(
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
@@ -284,6 +285,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.track_group_idx_state =
         std::make_unique<TrackCompressorGroupIdxState>();
 
+    clock_ = context_.clock_tracker.get();
     reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
 
@@ -316,17 +318,22 @@ class ProtoTraceParserTest : public ::testing::Test {
             dataframe::Eq{},
             std::nullopt,
         },
+        dataframe::FilterSpec{
+            tables::ArgTable::ColumnIndex::key,
+            1,
+            dataframe::Eq{},
+            std::nullopt,
+        },
     });
     cursor.SetFilterValueUnchecked(0, set_id);
+    cursor.SetFilterValueUnchecked(1, storage_->GetString(key_id).data());
 
     bool found = false;
     for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
-      if (cursor.key() == key_id) {
-        EXPECT_EQ(cursor.flat_key(), key_id);
-        if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
-          found = true;
-          break;
-        }
+      EXPECT_EQ(cursor.flat_key(), key_id);
+      if (GetArgValue(*storage_, cursor) == value) {
+        found = true;
+        break;
       }
     }
     return found;
@@ -646,9 +653,11 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
 
   auto dim_set_id = context_.storage->track_table()[0].dimension_arg_set_id();
   ASSERT_TRUE(dim_set_id.has_value());
-  std::optional<Variadic> cpu;
-  ASSERT_OK(context_.storage->ExtractArg(*dim_set_id, "cpu", &cpu));
-  EXPECT_EQ(cpu->int_value, 10u);
+  ArgExtractor args_cursor(context_.storage->arg_table());
+  uint32_t row = args_cursor.Get(*dim_set_id, "cpu");
+  ASSERT_NE(row, std::numeric_limits<uint32_t>::max());
+  Variadic cpu = GetArgValue(*context_.storage, args_cursor.cursor());
+  EXPECT_EQ(cpu.int_value, 10u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
@@ -668,19 +677,22 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
 
   EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
 
-  auto row = context_.storage->track_table().FindById(TrackId(0));
-  EXPECT_EQ(context_.storage->GetString(row->name()), "cpufreq");
-  std::optional<Variadic> cpu;
-  ASSERT_OK(context_.storage->ExtractArg(row->dimension_arg_set_id().value(),
-                                         "cpu", &cpu));
-  ASSERT_EQ(cpu->type, Variadic::Type::kInt);
-  EXPECT_EQ(cpu->uint_value, 0u);
+  auto track_row = context_.storage->track_table().FindById(TrackId(0));
+  EXPECT_EQ(context_.storage->GetString(track_row->name()), "cpufreq");
+  ArgExtractor args_cursor(context_.storage->arg_table());
+  uint32_t arg_row =
+      args_cursor.Get(track_row->dimension_arg_set_id().value(), "cpu");
+  ASSERT_NE(arg_row, std::numeric_limits<uint32_t>::max());
+  Variadic cpu = GetArgValue(*context_.storage, args_cursor.cursor());
+  ASSERT_EQ(cpu.type, Variadic::Type::kInt);
+  EXPECT_EQ(cpu.uint_value, 0u);
 
-  row = context_.storage->track_table().FindById(TrackId(1));
-  ASSERT_OK(context_.storage->ExtractArg(row->dimension_arg_set_id().value(),
-                                         "cpu", &cpu));
-  ASSERT_EQ(cpu->type, Variadic::Type::kInt);
-  EXPECT_EQ(cpu->uint_value, 1u);
+  track_row = context_.storage->track_table().FindById(TrackId(1));
+  arg_row = args_cursor.Get(track_row->dimension_arg_set_id().value(), "cpu");
+  ASSERT_NE(arg_row, std::numeric_limits<uint32_t>::max());
+  cpu = GetArgValue(*context_.storage, args_cursor.cursor());
+  ASSERT_EQ(cpu.type, Variadic::Type::kInt);
+  EXPECT_EQ(cpu.uint_value, 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuIdleStats) {
@@ -2530,7 +2542,6 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
             storage_->InternString("chrome_event.metadata"));
 
   uint32_t arg_set_id = raw_table[0].arg_set_id();
-  EXPECT_EQ(storage_->arg_table().row_count(), 2u);
   EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString(kStringName),
                      Variadic::String(storage_->InternString(kStringValue))));
   EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString(kIntName),
@@ -3048,19 +3059,21 @@ TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
   EXPECT_EQ(tracks[1].name(), storage_->InternString("cycle-follower"));
   EXPECT_EQ(tracks[2].name(), storage_->InternString("cache-follower"));
 
-  std::optional<Variadic> cpu;
+  Variadic cpu = Variadic::Null();
+  ArgExtractor args_cursor(context_.storage->arg_table());
   auto get_cpu = [&, this](uint32_t i) {
     auto dim_set_id = tracks[i].dimension_arg_set_id();
     ASSERT_TRUE(dim_set_id.has_value());
-    ASSERT_OK(context_.storage->ExtractArg(*dim_set_id, "cpu", &cpu));
-    ASSERT_TRUE(cpu.has_value());
+    uint32_t row = args_cursor.Get(*dim_set_id, "cpu");
+    ASSERT_NE(row, std::numeric_limits<uint32_t>::max());
+    cpu = GetArgValue(*context_.storage, args_cursor.cursor());
   };
   get_cpu(0);
-  EXPECT_EQ(cpu->int_value, 0u);
+  EXPECT_EQ(cpu.int_value, 0u);
   get_cpu(1);
-  EXPECT_EQ(cpu->int_value, 0u);
+  EXPECT_EQ(cpu.int_value, 0u);
   get_cpu(2);
-  EXPECT_EQ(cpu->int_value, 0u);
+  EXPECT_EQ(cpu.int_value, 0u);
 }
 
 }  // namespace

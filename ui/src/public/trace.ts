@@ -36,10 +36,10 @@ export interface EventListeners {
 }
 
 /**
- * The main API endpoint to interact programmaticaly with the UI and alter its
+ * The main API endpoint to interact programmatically with the UI and alter its
  * state once a trace is loaded. There are N+1 instances of this interface,
  * one for each plugin and one for the core (which, however, gets to see the
- * full AppImpl behind this to acces all the internal methods).
+ * full AppImpl behind this to access all the internal methods).
  * This interface is passed to plugins' onTraceLoad() hook and is injected
  * pretty much everywhere in core.
  */
@@ -50,7 +50,8 @@ export interface Trace extends App {
   readonly tabs: TabManager;
   readonly tracks: TrackManager;
   readonly selection: SelectionManager;
-  readonly workspace: Workspace;
+  readonly currentWorkspace: Workspace;
+  readonly defaultWorkspace: Workspace;
   readonly workspaces: WorkspaceManager;
   readonly traceInfo: TraceInfo;
   readonly statusbar: StatusbarManager;
@@ -65,7 +66,7 @@ export interface Trace extends App {
   scrollTo(args: ScrollToArgs): void;
 
   // Create a store mounted over the top of this plugin's persistent state.
-  mountStore<T>(migrate: Migrate<T>): Store<T>;
+  mountStore<T>(id: string, migrate: Migrate<T>): Store<T>;
 
   // Returns the blob of the current trace file.
   // If the trace is opened from a file or postmessage, the blob is returned
@@ -77,12 +78,6 @@ export interface Trace extends App {
   // code. These are on top of traceInfo.importErrors, which is a summary of
   // what TraceProcessor reports on the stats table at import time.
   get loadingErrors(): ReadonlyArray<string>;
-
-  // When the trace is opened via postMessage deep-linking, returns the sub-set
-  // of postMessageData.pluginArgs[pluginId] for the current plugin. If not
-  // present returns undefined.
-  readonly openerPluginArgs?: {[key: string]: unknown};
-
   // Trace scoped disposables. Will be destroyed when the trace is unloaded.
   readonly trash: DisposableStack;
 }
@@ -100,5 +95,3 @@ export interface Trace extends App {
 export interface TraceAttrs {
   trace: Trace;
 }
-
-export const TRACE_SUFFIX = '.perfetto-trace';

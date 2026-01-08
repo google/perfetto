@@ -21,11 +21,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <functional>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 
+#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 
 // This file provides an implementation of the 64-bit MurmurHash2 algorithm,
@@ -165,90 +168,187 @@ Int NormalizeFloatToInt(Float value) {
   return res;
 }
 
-}  // namespace murmur_internal
-
-// std::hash<T> drop-in class which uses the core MurmurHash functions above to
-// produce a hash.
+// Computes a 64-bit hash for a single built-in value without any combination.
+// This is the core primitive used by both MurmurHashValue and
+// MurmurHashCombiner::CombineOne for built-in types.
 //
-// Uses:
-//  1) MurmurHashMix for fixed size numeric types (integers, floats, doubles).
-//  2) MurmurHashBytes for string types (string, string_view) etc.
-//  3) Falls back to std::hash<T> for all other types.
-//     TODO(lalitm): create a absl-like API for allowing aribtrary types
-//     to be hashed without needing to override std::hash<T>.
+// NOTE: This function intentionally has no else branch for non-builtin types,
+// which will cause a compile error if called with an unsupported type. Callers
+// should check if the type is supported before calling this function.
 template <typename T>
-struct MurmurHash {
-  uint64_t operator()(const T& value) const {
-    if constexpr (std::is_integral_v<T>) {
-      return murmur_internal::MurmurHashMix(static_cast<uint64_t>(value));
-    } else if constexpr (std::is_same_v<T, double>) {
-      return murmur_internal::MurmurHashMix(
-          murmur_internal::NormalizeFloatToInt<double, uint64_t>(value));
-    } else if constexpr (std::is_same_v<T, float>) {
-      return murmur_internal::MurmurHashMix(
-          murmur_internal::NormalizeFloatToInt<float, uint32_t>(value));
-    } else if constexpr (std::is_same_v<T, std::string> ||
-                         std::is_same_v<T, std::string_view>) {
-      return murmur_internal::MurmurHashBytes(value.data(), value.size());
-    } else {
-      return std::hash<T>{}(value);
-    }
+auto MurmurHashBuiltinValue(const T& value) {
+  if constexpr (std::is_enum_v<T>) {
+    return murmur_internal::MurmurHashMix(
+        static_cast<uint64_t>(static_cast<std::underlying_type_t<T>>(value)));
+  } else if constexpr (std::is_integral_v<T>) {
+    return murmur_internal::MurmurHashMix(static_cast<uint64_t>(value));
+  } else if constexpr (std::is_same_v<T, double>) {
+    return murmur_internal::MurmurHashMix(
+        murmur_internal::NormalizeFloatToInt<double, uint64_t>(value));
+  } else if constexpr (std::is_same_v<T, float>) {
+    return murmur_internal::MurmurHashMix(
+        murmur_internal::NormalizeFloatToInt<float, uint32_t>(value));
+  } else if constexpr (std::is_same_v<T, std::string> ||
+                       std::is_same_v<T, std::string_view> ||
+                       std::is_same_v<T, base::StringView>) {
+    return murmur_internal::MurmurHashBytes(value.data(), value.size());
+  } else if constexpr (std::is_same_v<T, const char*>) {
+    std::string_view view(value);
+    return murmur_internal::MurmurHashBytes(view.data(), view.size());
+  } else if constexpr (std::is_pointer_v<T>) {
+    return murmur_internal::MurmurHashMix(
+        static_cast<uint64_t>(reinterpret_cast<uintptr_t>(value)));
+  } else {
+    struct InvalidBuiltin {};
+    return InvalidBuiltin{};
   }
-};
-
-// Simple wrapper function around MurmurHash to improve clarity in callsites
-// to not have to instantiate the class and then call operator().
-template <typename T>
-uint64_t MurmurHashValue(const T& value) {
-  return MurmurHash<T>{}(value);
 }
 
+// Helper to check if a type has a built-in MurmurHash implementation.
+template <typename T>
+constexpr bool HasMurmurHashBuiltinValue() {
+  return std::is_same_v<decltype(MurmurHashBuiltinValue(std::declval<T>())),
+                        uint64_t>;
+}
+
+// Helper to check if two types are integeral and U is convertible to T.
+template <typename T, typename U>
+constexpr bool IsConvertibleIntegral() {
+  return std::is_integral_v<T> && std::is_integral_v<U> &&
+         std::is_convertible_v<U, T>;
+}
+
+// Helper to check if a type is string-like (i.e. string, c-string or string
+// views).
+template <typename T>
+constexpr bool IsStringLike() {
+  return std::is_same_v<T, std::string> ||
+         std::is_same_v<T, std::string_view> ||
+         std::is_same_v<T, base::StringView> || std::is_same_v<T, const char*>;
+}
+
+// Helper to check if heterogeneous lookup is allowed between T and U.
+// Only allows it for convertible integral types and string-like types.
+template <typename T, typename U>
+constexpr bool AllowsHeterogeneousLookup() {
+  return IsConvertibleIntegral<T, U>() ||
+         (IsStringLike<T>() && IsStringLike<U>());
+}
+
+}  // namespace murmur_internal
+
+// ============================================================================
+// MurmurHashCombiner - the core hasher state object
+// ============================================================================
+//
 // A helper class to create a 64-bit MurmurHash from a series of
 // structured fields.
 //
+// This class supports both the absl-style hasher API and a direct
+// member Combine() method.
+//
+// Absl-style API (for custom types with PerfettoHashValue):
+//   template <typename H>
+//   friend H PerfettoHashValue(H h, const MyType& value) {
+//     return H::Combine(std::move(h), value.field1, value.field2);
+//   }
+//
+// Direct API (for simple hash combining):
+//   MurmurHashCombiner combiner;
+//   combiner.Combine(field1, field2, ...);
+//   return combiner.digest();
+//
 // IMPORTANT: This is NOT a true streaming hash. It is an order-dependent
 // combiner. It does not guarantee that hashing two concatenated chunks of data
-// will produce the same result as hashing them separately in sequence. It is
-// designed exclusively for creating a hash from a fixed set of fields.
+// will produce the same result as hashing them separately in sequence.
 class MurmurHashCombiner {
  public:
-  MurmurHashCombiner() : hash_(kSeed) {}
+  MurmurHashCombiner() = default;
 
-  // Combines the hash of one or more arguments into the combiner's state.
-  //
-  // This function uses a C++17 fold expression to hash each argument with
-  // `MurmurHashValue` and then mixes it into the current state via the private
-  // `Update` method. The combination is order-dependent.
+  // Static Combine - returns a new hasher with the combined state.
+  // This is used by the absl-style PerfettoHashValue API.
+  template <typename... Args>
+  static MurmurHashCombiner Combine(MurmurHashCombiner h, const Args&... args) {
+    h.Combine(args...);
+    return h;
+  }
+
+  // Member Combine - combines values into this hasher's state.
+  // This is a convenient API for directly combining multiple values.
+  // The combination is order-dependent.
   template <typename... Args>
   void Combine(const Args&... args) {
-    // A C++17 fold expression that calls our private Update for each hashed
-    // arg.
-    (Update(MurmurHashValue(args)), ...);
+    // Uses a C++17 fold expression with CombineOne for each argument.
+    (CombineOne(args), ...);
   }
 
   // Returns the digest (i.e. current state of the combiner).
-  inline uint64_t digest() const { return hash_; }
+  uint64_t digest() const { return hash_; }
 
  private:
+  // Combines a single value into the hasher state.
+  template <typename T>
+  void CombineOne(const T& value) {
+    if constexpr (murmur_internal::HasMurmurHashBuiltinValue<T>()) {
+      Update(murmur_internal::MurmurHashBuiltinValue(value));
+    } else {
+      // For custom types, use ADL to find the PerfettoHashValue function.
+      // This will cause a compile error with a clear message if the function
+      // is not defined.
+      hash_ = PerfettoHashValue(std::move(*this), value).digest();
+    }
+  }
+
   // Low-level update with a pre-computed hash value. This uses a fast,
   // order-dependent combination step inspired by the `hash_combine` function
   // in the Boost C++ libraries.
-  inline void Update(uint64_t piece_hash) {
+  void Update(uint64_t piece_hash) {
     hash_ ^= piece_hash + 0x9e3779b9 + (hash_ << 6) + (hash_ >> 2);
   }
 
   static constexpr uint64_t kSeed = 0xe17a1465U;
-  uint64_t hash_;
+  uint64_t hash_ = kSeed;
 };
 
 // Simple wrapper function around MurmurHashCombiner to improve clarity in
 // callsites to not have to instantiate the class, call Combine() then digest().
 template <typename... Args>
 uint64_t MurmurHashCombine(const Args&... value) {
-  MurmurHashCombiner combiner;
-  combiner.Combine(value...);
-  return combiner.digest();
+  return MurmurHashCombiner::Combine(MurmurHashCombiner{}, value...).digest();
 }
+
+// Simple wrapper function to compute a hash value for a single value.
+// This is the primitive hash operation that MurmurHash<T> delegates to.
+//
+// For built-in types (integers, floats, strings), this uses a fast path that
+// avoids the overhead of the MurmurHashCombiner. For custom types, it delegates
+// to MurmurHashCombiner which will use ADL to find the PerfettoHashValue.
+template <typename T>
+uint64_t MurmurHashValue(const T& value) {
+  if constexpr (murmur_internal::HasMurmurHashBuiltinValue<T>()) {
+    return murmur_internal::MurmurHashBuiltinValue(value);
+  } else {
+    return MurmurHashCombine(value);
+  }
+}
+
+// std::hash<T> drop-in class which uses MurmurHashValue as the primitive.
+// All specializations consistently delegate to MurmurHashValue.
+template <typename T>
+struct MurmurHash {
+  using is_transparent = void;
+
+  uint64_t operator()(const T& value) const { return MurmurHashValue(value); }
+
+  // Heterogeneous lookup support. Only allowed for types where it makes sense
+  // (e.g. string-like types and convertible integral types).
+  template <typename U>
+  auto operator()(const U& value) const
+      -> std::enable_if_t<murmur_internal::AllowsHeterogeneousLookup<T, U>(),
+                          uint64_t> {
+    return MurmurHashValue(value);
+  }
+};
 
 }  // namespace perfetto::base
 

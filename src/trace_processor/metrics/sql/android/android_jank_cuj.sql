@@ -16,11 +16,8 @@
 -- Initialize relevant thread, frames and CUJ tables for computing this metric.
 SELECT RUN_METRIC('android/jank/android_jank_cuj_init.sql');
 
--- Creates a table that matches CUJ counters with the correct CUJs.
--- After the CUJ ends FrameTracker emits counters with the number of total
--- frames, missed frames, longest frame duration, etc.
--- The same numbers are also reported by FrameTracker to statsd.
-SELECT RUN_METRIC('android/jank/internal/counters.sql');
+INCLUDE PERFETTO MODULE android.cujs.base;
+INCLUDE PERFETTO MODULE android.cujs.cuj_frame_counters;
 
 DROP VIEW IF EXISTS android_jank_cuj_output;
 CREATE PERFETTO VIEW android_jank_cuj_output AS
@@ -31,7 +28,7 @@ SELECT
         AndroidJankCujMetric_Cuj(
           'id', cuj_id,
           'name', cuj_name,
-          'process', process_metadata,
+          'process', process_metadata_proto(cuj.upid),
           'layer_name', layer_name,
           'ts', COALESCE(boundary.ts, cuj.ts),
           'dur', COALESCE(boundary.dur, cuj.dur),
@@ -42,9 +39,14 @@ SELECT
               'missed_app_frames', missed_app_frames,
               'missed_sf_frames', missed_sf_frames,
               'missed_frames_max_successive', missed_frames_max_successive,
+              -- convert from jank per second to total janks.
+              'weighted_missed_app_frames', weighted_missed_app_frames * anim_duration_ms / 1000,
+              'weighted_missed_sf_frames', weighted_missed_sf_frames * anim_duration_ms / 1000,
               'sf_callback_missed_frames', sf_callback_missed_frames,
               'hwui_callback_missed_frames', hwui_callback_missed_frames,
-              'frame_dur_max', frame_dur_max)
+              'frame_dur_max', frame_dur_max,
+              -- convert from ms to ns.
+              'anim_duration', anim_duration_ms * 1000000)
             FROM android_jank_cuj_counter_metrics cm
             WHERE cm.cuj_id = cuj.cuj_id),
           'trace_metrics', (

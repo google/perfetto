@@ -854,9 +854,12 @@ TRACE_IMPORT_LOGS_TABLE = Table(
         C('trace_id', CppUint32()),
         C('ts', CppOptional(CppInt64())),
         C('byte_offset', CppOptional(CppInt64())),
-        C('severity', CppString()),
-        C('name', CppString()),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C('stat_key', CppInt64()),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
 )
 

@@ -267,8 +267,10 @@ TEST_P(SharedMemoryArbiterImplTest, UseShmemEmulation) {
       arbiter_->shmem_abi_for_testing()->GetChunkState(page_idx, chunk_idx));
 }
 
-// Check that we can actually create up to kMaxWriterID TraceWriter(s).
+// Check that we can create up to many TraceWriter(s).
 TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
+  constexpr size_t kBigWriterCount = (1 << 12);
+  static_assert(kBigWriterCount < kMaxWriterID);
   auto checkpoint = task_runner_->CreateCheckpoint("last_unregistered");
 
   std::vector<uint32_t> registered_ids;
@@ -280,34 +282,28 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   ON_CALL(mock_producer_endpoint_, UnregisterTraceWriter)
       .WillByDefault([&](uint32_t id) {
         unregistered_ids.push_back(id);
-        if (unregistered_ids.size() == kMaxWriterID) {
+        if (unregistered_ids.size() == kBigWriterCount) {
           checkpoint();
         }
       });
   {
     std::map<WriterID, std::unique_ptr<TraceWriter>> writers;
 
-    for (size_t i = 0; i < kMaxWriterID; i++) {
+    for (size_t i = 0; i < kBigWriterCount; i++) {
       std::unique_ptr<TraceWriter> writer =
           arbiter_->CreateTraceWriter(1, BufferExhaustedPolicy::kStall);
       ASSERT_TRUE(writer);
       WriterID writer_id = writer->writer_id();
       ASSERT_TRUE(writers.emplace(writer_id, std::move(writer)).second);
     }
-
-    // A further call should return a null impl of trace writer as we exhausted
-    // writer IDs.
-    ASSERT_EQ(arbiter_->CreateTraceWriter(1, BufferExhaustedPolicy::kStall)
-                  ->writer_id(),
-              0);
   }
 
   // This should run the Register/UnregisterTraceWriter tasks enqueued by the
   // memory arbiter.
   task_runner_->RunUntilCheckpoint("last_unregistered", 15000);
 
-  std::vector<uint32_t> expected_ids;  // 1..kMaxWriterID
-  for (uint32_t i = 1; i <= kMaxWriterID; i++)
+  std::vector<uint32_t> expected_ids;  // 1..max_writer
+  for (uint32_t i = 1; i <= kBigWriterCount; i++)
     expected_ids.push_back(i);
   EXPECT_THAT(registered_ids, UnorderedElementsAreArray(expected_ids));
   EXPECT_THAT(unregistered_ids, UnorderedElementsAreArray(expected_ids));

@@ -32,7 +32,10 @@
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -48,6 +51,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/args_utils.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -63,6 +67,12 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
     storage_ = context_.storage.get();
+    context_.metadata_tracker =
+        std::make_unique<MetadataTracker>(context_.storage.get());
+    context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&context_, 1);
+    context_.clock_tracker = std::make_unique<ClockTracker>(
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.global_args_tracker =
@@ -111,7 +121,7 @@ class NetworkTraceModuleTest : public testing::Test {
     for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
       if (cursor.key() == key_id) {
         EXPECT_EQ(cursor.flat_key(), key_id);
-        if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
+        if (GetArgValue(*storage_, cursor) == value) {
           found = true;
           break;
         }

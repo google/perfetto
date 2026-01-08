@@ -196,7 +196,7 @@ message PageContext {
 
 // The page content represented as a tree of semantic chunks and (in the
 // future) annotated with additional information about the page.
-// Next ID: 9
+// Next ID: 10
 message AnnotatedPageContent {
   // The version of the proto. Each time a backwards incompatible change is made
   // to the proto, the version should be incremented.
@@ -221,6 +221,9 @@ message AnnotatedPageContent {
 
   // The rect of the viewport for the tab. i.e., screenshot dimensions.
   // Dimensions are in captured pixels.
+  // This coordinate system should be used for coordinate based browser actions.
+  // This uses device independent pixels, i.e., doesn't include the device
+  // scale factor while other dimensions in APC are based on that.
   BoundingRect viewport_geometry = 5 [features = { field_presence: EXPLICIT }];
 
   // The id of the tab that the page content was extracted from. Guaranteed to
@@ -231,6 +234,11 @@ message AnnotatedPageContent {
   // details are populated here. The popup window draws on top of the tab and as
   // such has a higher z order than the main frame's Document.
   PopupWindow popup_window = 8 [features = { field_presence: EXPLICIT }];
+
+  // Information that pertains to the user's profile, not the page.
+  // TODO(crbug.com/454610456): This should be moved out of AnnotatedPageContent because
+  // it does not semantically belong here.
+  ProfileInformation profile_information = 9 [features = { field_presence: EXPLICIT }];
 }
 
 // The ContentNode tree is a sparse representation of the DOM tree for a web
@@ -356,7 +364,7 @@ message ContentAttributes {
 }
 
 // The geometry of the content, in the page coordinate system.
-// Next ID: 6
+// Next ID: 7
 // NOTE: If `visual_bounding_box` is empty, i.e., the content is offscreen and
 // it's in an iframe, the `outer_bounding_box` may be incorrect. See crbug.com/384996050
 // for details.
@@ -380,6 +388,14 @@ message Geometry {
   // ancestor clipping. These are the element bounds visible to the user and
   // hit-testable in the DOM.
   BoundingRect visible_bounding_box = 2 [features = { field_presence: EXPLICIT }];
+
+  // Multiple boxes are used when there are multiple rectangles belonging to
+  // the same node, e.g.: across multiple lines, columns or pages. In layout
+  // terms, a node that does this is called a fragmentainer.
+  // Each rectangle represents a hit testable fragment belonging to the node.
+  // An empty array indicates that the node is not fragmented or is entirely
+  // offscreen. Relative to viewport origin.
+  repeated BoundingRect fragment_visible_bounding_boxes = 6;
 
   // Whether the content node is fixed or sticky position. This may suggest
   // that the node is a header, footer, or sidebar.
@@ -407,7 +423,7 @@ message BoundingRect {
 // Note: ScrollerInfo is populated for ANNOTATED_PAGE_CONTENT_MODE_DEFAULT. The
 // rest of the fields are only populated for
 // ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS.
-// Next ID: 16
+// Next ID: 18
 message InteractionInfo {
   // Set if the content node is scrollable.
   ScrollerInfo scroller_info = 12 [features = { field_presence: EXPLICIT }];
@@ -475,6 +491,18 @@ message InteractionInfo {
   // Provides signals which indicate whether the node is actionable. The action
   // may be triggered by clicking or hovering on the element.
   repeated ClickabilityReason clickability_reasons = 15;
+
+  // Whether the content node is explicitly disabled from being actionable. For
+  // example, a `select` element with the `disabled` or `aria-disabled`
+  // attribute. Disabled nodes are still valid action targets and can consume
+  // events. This is not set for nodes which are not hit-testable and will
+  // ignore events, for example with `pointer-events: none`.
+  bool is_disabled = 16 [features = { field_presence: EXPLICIT }];
+
+  // Hints on why the interaction with the node is disabled.
+  //
+  // TODO(linnan): Deprecate is_disabled in favour of the list of reasons.
+  repeated InteractionDisabledReason interaction_disabled_reasons = 17;
 
   reserved 8, 1, 2, 11;
 }
@@ -585,9 +613,17 @@ message AnchorData {
   repeated AnchorRel rel = 2;
 }
 
+// FormInfo is a mirror of AIPageContentFormData from
+// third_party/blink/public/mojom/content_extraction/ai_page_content.mojom,
+// in contrast with FormData, which is a mirror of autofill::FormData from
+// components/autofill/core/common/mojom/autofill_types.mojom.
 message FormInfo {
-  // The of the form.
+  // The name of the form.
   string form_name = 1 [features = { field_presence: EXPLICIT }];
+
+  // The action URL of the form, if present. This is the resolved value
+  // including the final origin.
+  string action_url = 2 [features = { field_presence: EXPLICIT }];
 }
 
 // Next ID: 11
@@ -881,13 +917,14 @@ message Point {
 }
 
 // Represents a popup window that is open on a web page.
-// Next ID: 5
+// Next ID: 6
 message PopupWindow {
   // Root node for the document in the window.
   ContentNode root_node = 1 [features = { field_presence: EXPLICIT }];
 
-  // Metadata for the document in the window.
-  FrameData frame_data = 2 [features = { field_presence: EXPLICIT }];
+  // The bounding box of the popup window relative to the viewport. The popup is
+  // not clipped by any ancestor except the viewport clipping the screenshot.
+  BoundingRect visible_bounding_box = 5 [features = { field_presence: EXPLICIT }];
 
   // Unique identifier for the document which opened this popup window.
   DocumentIdentifier opener_document_id = 3 [features = { field_presence: EXPLICIT }];
@@ -895,6 +932,38 @@ message PopupWindow {
   // Unique identifier for the node which opened this popup window. Relies on
   // opener_document_id to determine which document contains the node.
   int32 opener_common_ancestor_dom_node_id = 4 [features = { field_presence: EXPLICIT }];
+
+  reserved 2;
+}
+
+// Information that pertains the user's Chrome profile.
+// Next ID: 2
+message ProfileInformation {
+  AutofillInformation autofill_information = 1 [features = { field_presence: EXPLICIT }];
+}
+
+// Autofill information that pertains to Autofill data on the client.
+// Next ID: 2
+message AutofillInformation {
+  repeated FillableData fillable_data = 1;
+
+  // The type of data that can be autofilled into a form because the client has
+  // corresponding data on file. Note that this is coarse data: A user may have
+  // an address on file that does not contain an email address. So the autofill
+  // status may indicate that an address is fillable but autofill cannot be
+  // triggered on an email field.
+  enum FillableData {
+    UNSPECIFIED = 0;
+
+    // If reported, the user has at least one address on file.
+    ADDRESS = 1;
+
+    // The gap in numbering here exists to stay aligned with
+    // FormFillingRequest.RequestedData.
+
+    // If reported, the user has at least one credit card on file.
+    CREDIT_CARD = 6;
+  }
 }
 
 // Uniquely identifies a DOM elements across all frames.
@@ -1041,11 +1110,35 @@ message SiteEngagement {
 }
 
 // The coordinates of a point.
-// Next ID: 3
+// Next ID: 4
 message Coordinate {
   int32 x = 1 [features = { field_presence: EXPLICIT }];
 
   int32 y = 2 [features = { field_presence: EXPLICIT }];
+
+  // The type of the coordinate. If not specified, the coordinate is assumed to
+  // be relative to the viewport dimensions or screenshot dimensions depending
+  // on the context.
+  PixelType pixel_type = 3 [features = { field_presence: EXPLICIT }];
+
+  enum PixelType {
+    // The coordinate type is not specified. Assumed to be viewport.
+    PIXEL_TYPE_UNSPECIFIED = 0;
+
+    // Density independent pixels (DIPs).
+    // The coordinate is in DIPs which are independent of OS-level UI scaling.
+    // e.g., The coordinate is relative to the viewport dimensions set in APC.
+    PIXEL_TYPE_DIPS = 1;
+
+    // Physical pixels.
+    // The coordinate is provided in physical screen pixels. Values provided in
+    // physical pixels depend on UI scaling factor so must not be used when the
+    // scaling factor changes (e.g. APC generated, window moved to a higher
+    // density monitor; physical coordinate values must now be invalidated).
+    // e.g., The coordinate is relative to the dimensions of the annotated page
+    // content root node.
+    PIXEL_TYPE_PHYSICAL_PIXELS = 2;
+  }
 }
 
 // A meta tag (https://developer.mozilla.org/en-US/docs/Wecrbug.com/HTML/Element/meta).
@@ -1608,7 +1701,7 @@ enum AXStringAttribute {
 }
 
 // AX Int attribute enum.
-// Next ID: 69
+// Next ID: 70
 enum AXIntAttribute {
   AX_IA_NONE = 0;
 
@@ -1747,6 +1840,8 @@ enum AXIntAttribute {
   AX_IA_MAXLENGTH = 67;
 
   AX_IA_PAINTORDER = 68;
+
+  AX_IA_COMMITTEDTEXTLENGTH = 69;
 }
 
 // AX Float attribute enum.
@@ -1772,7 +1867,7 @@ enum AXFloatAttribute {
 }
 
 // AX Bool attribute enum.
-// Next ID: 23
+// Next ID: 26
 enum AXBoolAttribute {
   AX_BA_NONE = 0;
 
@@ -1819,6 +1914,12 @@ enum AXBoolAttribute {
   AX_BA_LONGCLICKABLE = 21;
 
   AX_BA_HASHIDDENOFFSCREENNODES = 22;
+
+  AX_BA_HASCOMPOSITION = 23;
+
+  AX_BA_COMMITTEDBYIME = 24;
+
+  AX_BA_TEXTSUGGESTIONSELECTEDBYIME = 25;
 }
 
 // AX IntList attribute enum.
@@ -1953,6 +2054,7 @@ enum ContentAttributeType {
   // Image chunks.
   CONTENT_ATTRIBUTE_IMAGE = 9;
 
+  // Root SVG nodes.
   CONTENT_ATTRIBUTE_SVG = 25;
 
   CONTENT_ATTRIBUTE_CANVAS = 26;
@@ -2038,6 +2140,21 @@ enum ClickabilityReason {
   // in Chrome to know what properties the rule might effect, so this reason
   // just indicates that a :hover rule is defined.
   CLICKABILITY_REASON_HOVER_PSEUDO_CLASS = 14;
+}
+
+// Provides hints that indicate that interaction with this node is disabled.
+// Next ID: 4
+enum InteractionDisabledReason {
+  INTERACTION_DISABLED_REASON_UNSPECIFIED = 0;
+
+  // The node is disabled by the `disabled` attribute.
+  INTERACTION_DISABLED_REASON_DISABLED = 1;
+
+  // The node is disabled by the `aria-disabled` attribute.
+  INTERACTION_DISABLED_REASON_ARIA_DISABLED = 2;
+
+  // The node has the style `cursor: not-allowed`.
+  INTERACTION_DISABLED_REASON_CURSOR_NOT_ALLOWED = 3;
 }
 
 // Next ID: 5
@@ -2150,6 +2267,13 @@ enum RedactionDecision {
 
   // Is a password input or was in the past.
   REDACTION_DECISION_REDACTED_HAS_BEEN_PASSWORD = 2;
+
+  // Empty payment fields are not redacted.
+  REDACTION_DECISION_UNREDACTED_EMPTY_PAYMENT_FIELD = 3;
+
+  // Is a non-empty field that autofill recognized as a sensitive payment field
+  // type and so must be redacted.
+  REDACTION_DECISION_REDACTED_IS_SENSITIVE_PAYMENT_FIELD = 4;
 }
 
 // The type of data that can be autofilled into a form.

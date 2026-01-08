@@ -17,17 +17,15 @@
 syntax = "proto2";
 package perfetto.protos;
 
-message UserList {
+message AndroidUserList {
   message UserInfo {
+    // eg. android.os.usertype.full.SYSTEM, android.os.usertype.full.SECONDARY
     optional string type = 1;
-    optional uint64 uid = 2;
+    optional int32 uid = 2;
   }
 
   repeated UserInfo users = 1;
 
-  // At least one error occurred parsing the user.list.
-  optional bool parse_error = 2;
-
-  // Failed to open / read user.list.
-  optional bool read_error = 3;
+  // Error number
+  optional int32 error = 2;
 }

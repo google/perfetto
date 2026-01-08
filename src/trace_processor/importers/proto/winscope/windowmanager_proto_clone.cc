@@ -18,6 +18,7 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
+#include "protos/perfetto/trace/android/windowmanager.pbzero.h"
 
 namespace perfetto::trace_processor::winscope::windowmanager_proto_clone {
 
@@ -27,6 +28,9 @@ void CloneField(const protozero::Field& field, protozero::Message* dst);
 void CloneWindowContainerProtoPruningChildren(
     protozero::ConstBytes src_bytes,
     protos::pbzero::WindowContainerProto* dst_window_container);
+void CloneWindowManagerServiceDumpProtoPruningChildren(
+    protozero::ConstBytes src_bytes,
+    protos::pbzero::WindowManagerServiceDumpProto* dst_window_manager_service);
 void CloneDisplayContentProtoPruningChildren(
     protozero::ConstBytes src_bytes,
     protos::pbzero::DisplayContentProto* dst_dc);
@@ -49,6 +53,29 @@ void CloneTaskFragmentProtoPruningChildren(
     protos::pbzero::TaskFragmentProto* dst_tf);
 
 }  // namespace
+
+std::vector<uint8_t> CloneEntryProtoPruningChildren(
+    const protos::pbzero::WindowManagerTraceEntry::Decoder& root) {
+  protozero::ConstBytes bytes{root.begin(),
+                              static_cast<size_t>(root.end() - root.begin())};
+  protozero::ProtoDecoder src_root(bytes);
+  protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> dst_root_buf;
+  protos::pbzero::WindowManagerTraceEntry* dst_root = dst_root_buf.get();
+
+  for (auto field = src_root.ReadField(); field; field = src_root.ReadField()) {
+    if (field.id() == protos::pbzero::WindowManagerTraceEntry::
+                          kWindowManagerServiceFieldNumber) {
+      auto* dst_window_manager_service = dst_root->BeginNestedMessage<
+          protos::pbzero::WindowManagerServiceDumpProto>(field.id());
+      CloneWindowManagerServiceDumpProtoPruningChildren(
+          field.as_bytes(), dst_window_manager_service);
+      continue;
+    }
+    CloneField(field, dst_root);
+  }
+
+  return dst_root_buf.SerializeAsArray();
+}
 
 std::vector<uint8_t> CloneRootWindowContainerProtoPruningChildren(
     const protos::pbzero::RootWindowContainerProto::Decoder& root) {
@@ -131,6 +158,19 @@ std::vector<uint8_t> CloneWindowContainerChildProtoPruningChildren(
 }
 
 namespace {
+
+void CloneWindowManagerServiceDumpProtoPruningChildren(
+    protozero::ConstBytes src_bytes,
+    protos::pbzero::WindowManagerServiceDumpProto* dst_window_manager_service) {
+  protozero::ProtoDecoder src_wc(src_bytes);
+  for (auto field = src_wc.ReadField(); field; field = src_wc.ReadField()) {
+    if (field.id() == protos::pbzero::WindowManagerServiceDumpProto::
+                          kRootWindowContainerFieldNumber) {
+      continue;  // prune children fields
+    }
+    CloneField(field, dst_window_manager_service);
+  }
+}
 
 void CloneWindowContainerProtoPruningChildren(
     protozero::ConstBytes src_bytes,

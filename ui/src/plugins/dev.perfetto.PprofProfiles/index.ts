@@ -19,26 +19,40 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {PprofPage} from './pprof_page';
-import {PprofPageState} from './types';
+import {PprofPageState, PPROF_PAGE_STATE_SCHEMA} from './types';
+import {Store} from '../../base/store';
+import {assertExists} from '../../base/logging';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.PprofProfiles';
-  private state: PprofPageState = {
-    selectedProfileId: undefined,
-    flamegraphState: undefined,
-  };
+  private store?: Store<PprofPageState>;
+
+  private migratePprofPageState(init: unknown): PprofPageState {
+    const result = PPROF_PAGE_STATE_SCHEMA.safeParse(init);
+    return result.data ?? {};
+  }
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    this.store = trace.mountStore('dev.perfetto.PprofProfiles', (init) =>
+      this.migratePprofPageState(init),
+    );
     const profiles = await this.getPprofProfiles(trace);
     if (profiles.length === 0) {
       return;
     }
+    const store = assertExists(this.store);
     trace.pages.registerPage({
       route: '/pprof',
       render: () =>
         m(PprofPage, {
           trace,
-          state: this.state,
+          state: store.state,
+          onStateChange: (state: PprofPageState) => {
+            store.edit((draft) => {
+              draft.selectedProfileId = state.selectedProfileId;
+              draft.flamegraphState = state.flamegraphState;
+            });
+          },
           profiles,
         }),
     });

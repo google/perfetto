@@ -32,7 +32,7 @@ export default class implements PerfettoPlugin {
           uri,
           name: 'Chrome Interactions',
         });
-        ctx.workspace.addChildInOrder(track);
+        ctx.currentWorkspace.addChildInOrder(track);
         track.pin();
       },
     });

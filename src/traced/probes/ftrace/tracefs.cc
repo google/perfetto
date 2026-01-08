@@ -544,35 +544,32 @@ void Tracefs::ClearTrace() {
   PERFETTO_CHECK(ClearFile(path));  // Could not clear.
 
   const auto total_cpu_count = NumberOfCpus();
+  const auto online_cpu_count = NumberOfOnlineCpus();
 
-  if constexpr (base::flags::ftrace_clear_offline_cpus_only) {
-    const auto online_cpu_count = NumberOfOnlineCpus();
+  // Truncating the trace file leads to tracing_reset_online_cpus being called
+  // in the kernel. So if all cpus are online, no further action needed.
+  if (total_cpu_count == online_cpu_count)
+    return;
 
-    // Truncating the trace file leads to tracing_reset_online_cpus being called
-    // in the kernel. So if all cpus are online, no further action needed.
-    if (total_cpu_count == online_cpu_count)
-      return;
+  PERFETTO_LOG(
+      "Since %zu / %zu CPUS are online, clearing buffer for the offline ones "
+      "individually.",
+      online_cpu_count, total_cpu_count);
 
-    PERFETTO_LOG(
-        "Since %zu / %zu CPUS are online, clearing buffer for the offline ones "
-        "individually.",
-        online_cpu_count, total_cpu_count);
+  std::optional<std::vector<uint32_t>> offline_cpus = GetOfflineCpus();
 
-    std::optional<std::vector<uint32_t>> offline_cpus = GetOfflineCpus();
-
-    // We cannot use PERFETTO_CHECK on ClearPerCpuTrace as we might get a
-    // permission denied error on Android. The permissions to these files are
-    // configured in platform/framework/native/cmds/atrace/atrace.rc.
-    if (offline_cpus.has_value()) {
-      for (const auto& cpu : offline_cpus.value()) {
-        ClearPerCpuTrace(cpu);
-      }
-      return;
+  // We cannot use PERFETTO_CHECK on ClearPerCpuTrace as we might get a
+  // permission denied error on Android. The permissions to these files are
+  // configured in platform/framework/native/cmds/atrace/atrace.rc.
+  if (offline_cpus.has_value()) {
+    for (const auto& cpu : offline_cpus.value()) {
+      ClearPerCpuTrace(cpu);
     }
+    return;
   }
 
-  // If the feature is disabled / we can't determine which CPUs are offline,
-  // clear the buffer for all possible CPUs.
+  // If we can't determine which CPUs are offline, clear the buffer for all
+  // possible CPUs.
   for (size_t cpu = 0; cpu < total_cpu_count; cpu++) {
     ClearPerCpuTrace(cpu);
   }

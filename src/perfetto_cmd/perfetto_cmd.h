@@ -26,10 +26,12 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -41,6 +43,11 @@
 #include "src/perfetto_cmd/packet_writer.h"
 
 namespace perfetto {
+
+// Forward declaration for a proto.
+namespace protos::gen {
+class TraceConfig_AndroidReportConfig;
+}  // namespace protos::gen
 
 class PerfettoCmd : public Consumer {
  public:
@@ -71,11 +78,14 @@ class PerfettoCmd : public Consumer {
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
  private:
+  friend class PerfettoCmdlineUnitTest;
+
   struct SnapshotTriggerInfo;
 
   enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
 
   bool OpenOutputFile();
+  uint64_t GetBytesWritten();
   void SetupCtrlCSignalHandler();
   void FinalizeTraceAndExit();
   void PrintUsage(const char* argv0);
@@ -106,11 +116,20 @@ class PerfettoCmd : public Consumer {
 
   void ReadbackTraceDataAndQuit(const std::string& error);
 
-  enum BgProcessStatus : char {
-    kBackgroundOk = 0,
-    kBackgroundOtherError = 1,
-    kBackgroundTimeout = 2,
+  enum WaitStatus : char {
+    kWaitOk = 0,
+    kWaitOtherError = 1,
+    kWaitTimeout = 2,
   };
+
+  // Used to implement the --notify-fd flag.
+  //
+  // Signals client by writing to FD (if there is one) that data sources has
+  // started (or failed to start).
+  //
+  // Only the first time this function is called is significant. Further calls
+  // will have no effect.
+  void NotifyFd(WaitStatus status);
 
   // Used to implement the --background-wait flag.
   //
@@ -118,7 +137,7 @@ class PerfettoCmd : public Consumer {
   //
   // Returns the status received from the child process or kTimeout, in case of
   // timeout.
-  BgProcessStatus WaitOnBgProcessPipe();
+  WaitStatus WaitOnBgProcessPipe();
 
   // Used to implement the --background-wait flag.
   //
@@ -127,15 +146,24 @@ class PerfettoCmd : public Consumer {
   //
   // Only the first time this function is called is significant. Further calls
   // will have no effect.
-  void NotifyBgProcessPipe(BgProcessStatus status);
+  void NotifyBgProcessPipe(WaitStatus status);
 
   void OnCloneSnapshotTriggerReceived(TracingSessionID,
                                       const SnapshotTriggerInfo& trigger);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
+  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
+      base::ScopedMmap mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
+  static base::Status ReportTraceToAndroidFramework(
+      int trace_fd,
+      uint64_t trace_size,
+      const base::Uuid& uuid,
+      const std::string& unique_session_name,
+      const protos::gen::TraceConfig_AndroidReportConfig& report_config,
+      bool statsd_logging);
   void ReportTraceToAndroidFrameworkOrCrash();
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
@@ -154,12 +182,12 @@ class PerfettoCmd : public Consumer {
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
   bool ctrl_c_handler_installed_ = false;
+  base::ScopedPlatformHandle notify_fd_;
   base::Pipe background_wait_pipe_;
   bool save_to_incidentd_ = false;
   bool report_to_android_framework_ = false;
   bool statsd_logging_ = false;
   bool tracing_succeeded_ = false;
-  uint64_t bytes_written_ = 0;
   std::string detach_key_;
   std::string attach_key_;
   bool stop_trace_once_attached_ = false;

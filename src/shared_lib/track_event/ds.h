@@ -17,19 +17,25 @@
 #ifndef SRC_SHARED_LIB_TRACK_EVENT_DS_H_
 #define SRC_SHARED_LIB_TRACK_EVENT_DS_H_
 
+#include <atomic>
 #include <cstdint>
+#include <string>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/public/abi/track_event_abi.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/data_source.h"
-#include "protos/perfetto/common/data_source_descriptor.gen.h"
-#include "protos/perfetto/config/track_event/track_event_config.gen.h"
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "perfetto/tracing/internal/data_source_internal.h"
+#include "perfetto/tracing/internal/data_source_type.h"
 #include "src/shared_lib/track_event/category_impl.h"
 #include "src/shared_lib/track_event/global_state.h"
 #include "src/shared_lib/track_event/intern_map.h"
+
+#include "protos/perfetto/common/data_source_descriptor.gen.h"  // IWYU pragma: keep
+#include "protos/perfetto/config/track_event/track_event_config.gen.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 
 namespace perfetto::shlib {
 
@@ -50,6 +56,18 @@ struct TrackEventIncrementalState {
   // state.
   base::FlatHashMap<std::string, bool> dynamic_categories;
   InternMap iids;
+
+  // Clears the incremental state without destroying and recreating this object.
+  // This allows reusing allocated memory in hash maps and other data structures
+  // instead of deallocating and reallocating them.
+  void Clear() {
+    was_cleared = true;
+    serialized_interned_data.Reset();
+    last_timestamp_ns = 0;
+    seen_track_uuids.clear();
+    dynamic_categories.Clear();
+    iids.Clear();
+  }
 };
 
 struct TrackEventTlsState {
@@ -83,6 +101,13 @@ struct TrackEventTlsState {
 struct TrackEventDataSourceTraits : public perfetto::DefaultDataSourceTraits {
   using IncrementalStateType = TrackEventIncrementalState;
   using TlsStateType = TrackEventTlsState;
+
+  // Clear the incremental state without destroying and recreating it. This
+  // allows reusing allocated memory in hash maps.
+  static bool ClearIncrementalState(TrackEventIncrementalState* incr_state) {
+    incr_state->Clear();
+    return true;
+  }
 };
 
 class TrackEvent

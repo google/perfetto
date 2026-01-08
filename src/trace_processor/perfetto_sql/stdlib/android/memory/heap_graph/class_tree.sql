@@ -22,6 +22,8 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- Converts the heap graph into a tree by performing a BFS on the graph from
 -- the roots. This basically ends up with all paths being the shortest path
 -- from the root to the node (with lower ids being picked in the case of ties).
+-- Root nodes are sorted by class name before traversal to make the output
+-- more deterministic.
 CREATE PERFETTO TABLE _heap_graph_object_min_depth_tree AS
 SELECT
   node_id AS id,
@@ -34,9 +36,11 @@ FROM graph_reachable_bfs!(
     ORDER BY ref.owned_id
   ),
   (
-    SELECT id AS node_id
-    FROM heap_graph_object
-    WHERE root_type IS NOT NULL
+    SELECT o.id AS node_id
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    WHERE o.root_type IS NOT NULL
+    ORDER BY c.name, o.id
   )
 )
 ORDER BY
@@ -56,104 +60,6 @@ CREATE PERFETTO TABLE _heap_graph_class_tree AS
 SELECT
   *
 FROM _heap_graph_path_hashes_to_class_tree!(_heap_graph_path_hashes_aggregated);
-
-CREATE PERFETTO MACRO _heap_graph_object_references_agg(
-    path_hashes TableOrSubquery,
-    path_hash_values TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  WITH
-    _path_hashes AS (
-      SELECT
-        *
-      FROM $path_hashes
-      JOIN $path_hash_values
-        USING (path_hash)
-    )
-  SELECT
-    path_hash,
-    coalesce(c.deobfuscated_name, c.name) AS class_name,
-    count(r.owned_id) AS outgoing_reference_count,
-    o.*
-  FROM _path_hashes AS h
-  JOIN heap_graph_object AS o
-    ON h.id = o.id
-  JOIN heap_graph_class AS c
-    ON o.type_id = c.id
-  JOIN heap_graph_reference AS r
-    ON r.owner_id = o.id
-  GROUP BY
-    o.id
-  ORDER BY
-    outgoing_reference_count DESC
-);
-
-CREATE PERFETTO MACRO _heap_graph_incoming_references_agg(
-    path_hashes TableOrSubquery,
-    path_hash_values TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  WITH
-    _path_hashes AS (
-      SELECT
-        *
-      FROM $path_hashes
-      JOIN $path_hash_values
-        USING (path_hash)
-    )
-  SELECT
-    path_hash,
-    coalesce(c.deobfuscated_name, c.name) AS class_name,
-    coalesce(r.deobfuscated_field_name, r.field_name) AS field_name,
-    r.field_type_name,
-    src.*
-  FROM _path_hashes AS h
-  JOIN heap_graph_object AS dst
-    ON h.id = dst.id
-  JOIN heap_graph_reference AS r
-    ON r.owned_id = dst.id
-  JOIN heap_graph_object AS src
-    ON r.owner_id = src.id
-  JOIN heap_graph_class AS c
-    ON src.type_id = c.id
-  ORDER BY
-    self_size DESC
-);
-
-CREATE PERFETTO MACRO _heap_graph_outgoing_references_agg(
-    path_hashes TableOrSubquery,
-    path_hash_values TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  WITH
-    _path_hashes AS (
-      SELECT
-        *
-      FROM $path_hashes
-      JOIN $path_hash_values
-        USING (path_hash)
-    )
-  SELECT
-    path_hash,
-    coalesce(c.deobfuscated_name, c.name) AS class_name,
-    coalesce(r.deobfuscated_field_name, r.field_name) AS field_name,
-    r.field_type_name,
-    dst.*
-  FROM _path_hashes AS h
-  JOIN heap_graph_object AS src
-    ON h.id = src.id
-  JOIN heap_graph_reference AS r
-    ON r.owner_id = src.id
-  JOIN heap_graph_object AS dst
-    ON r.owned_id = dst.id
-  JOIN heap_graph_class AS c
-    ON dst.type_id = c.id
-  ORDER BY
-    dst.self_size DESC
-);
 
 CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
     path_hashes TableOrSubquery,

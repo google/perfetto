@@ -39,6 +39,7 @@ class ClockSynchronizer;
 class CpuTracker;
 class DescriptorPool;
 class EventTracker;
+class FileIoTracker;
 class FlowTracker;
 class GlobalArgsTracker;
 class ImportLogsTracker;
@@ -202,6 +203,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<TrackTracker> track_tracker;
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;
+  PerTraceAndMachinePtr<FileIoTracker> file_io_tracker;
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
@@ -232,14 +234,9 @@ class TraceProcessorContext {
 class TraceProcessorContext::ForkedContextState {
  public:
   using TraceIdAndMachineId = std::pair<uint32_t, uint32_t>;
-  struct Hasher {
-    uint64_t operator()(const TraceIdAndMachineId& key) {
-      return base::MurmurHashCombine(key.first, key.second);
-    }
-  };
   base::FlatHashMap<TraceIdAndMachineId,
                     std::unique_ptr<TraceProcessorContext>,
-                    Hasher>
+                    base::MurmurHash<TraceIdAndMachineId>>
       trace_and_machine_to_context;
   base::FlatHashMap<uint32_t, TraceProcessorContext*> trace_to_context;
   base::FlatHashMap<uint32_t, TraceProcessorContext*> machine_to_context;

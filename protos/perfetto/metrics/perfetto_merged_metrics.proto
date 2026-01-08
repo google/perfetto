@@ -127,6 +127,10 @@ message AndroidProcessMetadata {
   // Android user-id running this process (applicable to multi-user android)
   optional int64 android_user_id = 10;
 
+  // Type of Android user running this process (applicable to multi-user
+  // android)
+  optional string android_user_type = 12;
+
   // Package metadata from Android package list.
   message Package {
     optional string package_name = 1;
@@ -1750,7 +1754,7 @@ message AndroidJankCujMetric {
     optional bool hwui_callback_missed = 9;
   }
 
-  // Next id: 18
+  // Next id: 21
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
@@ -1764,12 +1768,21 @@ message AndroidJankCujMetric {
     // Number of frames missed due to SF.
     optional int64 missed_sf_frames = 4;
 
+    // Weighted number of frames missed due to the app missing the deadline.
+    optional double weighted_missed_app_frames = 19;
+
+    // Weighted number of frames missed due to SF.
+    optional double weighted_missed_sf_frames = 20;
+
     // Number of successive frames missed.
     // Not available in timeline_metrics and trace_metrics.
     optional int64 missed_frames_max_successive = 5;
 
     // Max frame duration in nanoseconds.
     optional int64 frame_dur_max = 6;
+
+    // Duration in ns of the animation.
+    optional int64 anim_duration = 18;
 
     // Average frame duration in nanoseconds.
     // Not available in counter_metrics.
@@ -1893,13 +1906,10 @@ message JavaHeapHistogram {
 // Begin of protos/perfetto/metrics/android/java_heap_stats.proto
 
 message JavaHeapStats {
-  message HeapRoots {
-    optional string root_type = 1;
-    optional string type_name = 2;
-    optional int64 obj_count = 3;
-  }
+  // Was repeated HeapRoots roots = 7;
+  reserved 7;
 
-  // Next id: 12
+  // Next id: 13
   message Sample {
     optional int64 ts = 1;
     // Size of the Java heap in bytes
@@ -1915,9 +1925,8 @@ message JavaHeapStats {
     optional int64 reachable_obj_count = 5;
     // Sum of anonymous RSS + swap pages in bytes.
     optional int64 anon_rss_and_swap_size = 6;
+    optional int64 dmabuf_rss_size = 12;
 
-    // ART root objects
-    repeated HeapRoots roots = 7;
     // OOM adjustment score
     optional int64 oom_score_adj = 10;
     // Process uptime in millis at the time of the heap dump
@@ -3074,36 +3083,6 @@ message SysuiUpdateNotifOnUiModeChangedMetric {
 }
 // End of protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto
 
-// Begin of protos/perfetto/metrics/android/task_names.proto
-
-message AndroidTaskNames {
-  message Process {
-    optional int64 pid = 1;
-
-    // Process name.
-    optional string process_name = 2;
-
-    // Names of all threads for this process.
-    repeated string thread_name = 3;
-
-    // User id under which this process runs.
-    optional int64 uid = 4;
-
-    // Packages matching the process uid.
-    repeated string uid_package_name = 5;
-
-    // Removed, was short_lived_tasks.
-    reserved 6;
-
-    // Removed, was long_lived_tasks.
-    reserved 7;
-  }
-
-  repeated Process process = 1;
-}
-
-// End of protos/perfetto/metrics/android/task_names.proto
-
 // Begin of protos/perfetto/metrics/android/trace_quality.proto
 
 // Metric which checks the data in the trace processor tables is "reasonble"
@@ -3391,7 +3370,8 @@ message TraceMetrics {
 
   optional AndroidDisplayMetrics display_metrics = 22;
 
-  optional AndroidTaskNames android_task_names = 23;
+  // Deprecated was AndroidTaskNames
+  reserved 23;
 
   // Deprecated was AndroidThreadTimeInStateMetric
   reserved 24;

@@ -31,6 +31,7 @@ in the module become available in the global namespace without being qualified
 by the module name.
 
 Example:
+
 ```sql
 -- Include all tables/views/functions from the android.startup.startups module
 -- in the standard library.
@@ -120,6 +121,7 @@ Note however the full feature set of `CREATE TABLE` is not supported:
   They cannot be defined by column names and types.
 
 Example:
+
 ```sql
 -- Create a Perfetto table with constant values.
 CREATE PERFETTO TABLE constant_table AS
@@ -250,6 +252,7 @@ parse tree. The following are the supported types:
 | `ColumnName`      | Corresponds to a column name of a table           |
 
 Example:
+
 ```sql
 -- Create a macro taking no arguments. Note how the returned SQL fragment needs
 -- to be wrapped in brackets to make it a valid SQL expression.

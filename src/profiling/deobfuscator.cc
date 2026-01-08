@@ -16,7 +16,11 @@
 
 #include "src/profiling/deobfuscator.h"
 
+#include <stdlib.h>
+
 #include <optional>
+#include <set>
+
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -83,7 +87,41 @@ struct ProguardMember {
   ProguardMemberType type;
   std::string obfuscated_name;
   std::string deobfuscated_name;
+  // Line number info for R8 inline support (methods only)
+  std::optional<uint32_t> obfuscated_line_start;
+  std::optional<uint32_t> obfuscated_line_end;
+  std::optional<uint32_t> source_line_start;
+  std::optional<uint32_t> source_line_end;
 };
+
+// Parse line range like "1:3" or just "1". Returns (start, end) or nullopt.
+std::optional<std::pair<uint32_t, uint32_t>> ParseLineRange(
+    const std::string& s) {
+  if (s.empty()) {
+    return std::nullopt;
+  }
+  auto colon = s.find(':');
+  if (colon == std::string::npos) {
+    char* end;
+    uint32_t val = static_cast<uint32_t>(strtoul(s.c_str(), &end, 10));
+    if (end != s.c_str() + s.size()) {
+      return std::nullopt;
+    }
+    return std::make_pair(val, val);
+  }
+  char* end;
+  std::string start_str = s.substr(0, colon);
+  uint32_t start = static_cast<uint32_t>(strtoul(start_str.c_str(), &end, 10));
+  if (*end != '\0') {
+    return std::nullopt;
+  }
+  std::string stop_str = s.substr(colon + 1);
+  uint32_t stop = static_cast<uint32_t>(strtoul(stop_str.c_str(), &end, 10));
+  if (*end != '\0') {
+    return std::nullopt;
+  }
+  return std::make_pair(start, stop);
+}
 
 std::optional<ProguardMember> ParseMember(std::string line) {
   base::StringSplitter ss(std::move(line), ' ');
@@ -117,20 +155,56 @@ std::optional<ProguardMember> ParseMember(std::string line) {
     return std::nullopt;
   }
 
-  ProguardMemberType member_type;
+  ProguardMember result;
+  result.obfuscated_name = std::move(obfuscated_name);
+
   auto paren_idx = deobfuscated_name.find('(');
   if (paren_idx != std::string::npos) {
-    member_type = ProguardMemberType::kMethod;
-    deobfuscated_name.resize(paren_idx);
-    auto colon_idx = type_name.find(':');
-    if (colon_idx != std::string::npos) {
-      type_name = type_name.substr(colon_idx + 1);
+    result.type = ProguardMemberType::kMethod;
+
+    // Parse R8 format: "1:3:void foo():10:12" or "1:3:void foo():10"
+    // type_name may be "1:3:void" (with obfuscated line range prefix)
+    // deobfuscated_name may be "foo():10:12" (with source line suffix)
+
+    // Extract obfuscated line range from type_name prefix (e.g., "1:3:void")
+    // Count colons to find the pattern X:Y:type
+    size_t first_colon = type_name.find(':');
+    if (first_colon != std::string::npos) {
+      size_t second_colon = type_name.find(':', first_colon + 1);
+      if (second_colon != std::string::npos) {
+        // Has obfuscated line range: "1:3:void"
+        std::string obf_range = type_name.substr(0, second_colon);
+        auto parsed = ParseLineRange(obf_range);
+        if (parsed) {
+          result.obfuscated_line_start = parsed->first;
+          result.obfuscated_line_end = parsed->second;
+        }
+        type_name = type_name.substr(second_colon + 1);
+      }
     }
+
+    // Extract source line range from deobfuscated_name suffix
+    // Format: "foo():10:12" or "foo():10" or "Cls.foo():10"
+    size_t close_paren = deobfuscated_name.find(')');
+    if (close_paren != std::string::npos &&
+        close_paren + 1 < deobfuscated_name.size() &&
+        deobfuscated_name[close_paren + 1] == ':') {
+      std::string source_range = deobfuscated_name.substr(close_paren + 2);
+      auto parsed = ParseLineRange(source_range);
+      if (parsed) {
+        result.source_line_start = parsed->first;
+        result.source_line_end = parsed->second;
+      }
+      deobfuscated_name.resize(close_paren + 1);
+    }
+
+    // Remove parameter list: "foo()" -> "foo"
+    deobfuscated_name.resize(paren_idx);
   } else {
-    member_type = ProguardMemberType::kField;
+    result.type = ProguardMemberType::kField;
   }
-  return ProguardMember{member_type, std::move(obfuscated_name),
-                        std::move(deobfuscated_name)};
+  result.deobfuscated_name = std::move(deobfuscated_name);
+  return result;
 }
 
 std::string FlattenMethods(const std::vector<std::string>& v) {
@@ -153,6 +227,104 @@ std::string FlattenClasses(
     result += p.first + "." + FlattenMethods(p.second);
     first = false;
   }
+  return result;
+}
+
+std::map<std::string, std::string> ObfuscatedClass::deobfuscated_methods()
+    const {
+  std::map<std::string, std::string> result;
+  if (method_mappings_.empty()) {
+    return result;
+  }
+
+  // Group mappings by obfuscated name, tracking line ranges for R8 inline
+  // detection.
+  struct Group {
+    std::vector<size_t> indices;  // Indices into method_mappings_
+  };
+  std::map<std::string, Group> by_obfuscated;
+  for (size_t i = 0; i < method_mappings_.size(); ++i) {
+    by_obfuscated[method_mappings_[i].obfuscated_name].indices.push_back(i);
+  }
+
+  for (const auto& [obfuscated_name, group] : by_obfuscated) {
+    // Try to detect R8 inline chains: entries with same line range but varying
+    // source lines. For inline chains, use the outermost method (last in
+    // chain).
+    bool found_inline_chain = false;
+    std::string outermost_method;
+
+    // Check each line range group for inline chain pattern
+    for (size_t start = 0; start < group.indices.size();) {
+      const auto& first_mapping = method_mappings_[group.indices[start]];
+
+      // Find entries with same line range
+      size_t end = start + 1;
+      while (end < group.indices.size()) {
+        const auto& m = method_mappings_[group.indices[end]];
+        if (m.obfuscated_line_start != first_mapping.obfuscated_line_start ||
+            m.obfuscated_line_end != first_mapping.obfuscated_line_end) {
+          break;
+        }
+        ++end;
+      }
+
+      // Check if source lines vary (indicates inline chain)
+      bool is_inline = false;
+      for (size_t j = start + 1; j < end; ++j) {
+        if (method_mappings_[group.indices[j]].source_line_start !=
+            first_mapping.source_line_start) {
+          is_inline = true;
+          break;
+        }
+      }
+
+      if (is_inline) {
+        // Outermost method is last in the chain
+        const auto& last = method_mappings_[group.indices[end - 1]];
+        if (!found_inline_chain) {
+          found_inline_chain = true;
+          outermost_method = last.deobfuscated_name;
+        } else if (outermost_method != last.deobfuscated_name) {
+          // Different outermost methods in different line ranges - ambiguous
+          found_inline_chain = false;
+          break;
+        }
+      } else {
+        // Not an inline chain in this range
+        found_inline_chain = false;
+        break;
+      }
+      start = end;
+    }
+
+    if (found_inline_chain) {
+      result[obfuscated_name] = outermost_method;
+    } else {
+      // Collect unique deobfuscated names
+      std::set<std::string> unique_names;
+      for (size_t idx : group.indices) {
+        unique_names.insert(method_mappings_[idx].deobfuscated_name);
+      }
+
+      if (unique_names.size() == 1) {
+        result[obfuscated_name] = *unique_names.begin();
+      } else {
+        // Join with " | " for ambiguous mappings
+        std::string joined;
+        bool first = true;
+        for (const auto& name : unique_names) {
+          if (!first) {
+            joined += " | ";
+          }
+          joined += name;
+          first = false;
+        }
+        result[obfuscated_name] = joined;
+      }
+    }
+  }
+
   return result;
 }
 
@@ -194,8 +366,24 @@ base::Status ProguardParser::AddLine(std::string line) {
         break;
       }
       case (ProguardMemberType::kMethod): {
-        current_class_->AddMethod(opt_member->obfuscated_name,
-                                  opt_member->deobfuscated_name);
+        MethodMapping mapping;
+        mapping.obfuscated_name = opt_member->obfuscated_name;
+
+        // Build fully qualified deobfuscated name
+        const std::string& method_name = opt_member->deobfuscated_name;
+        if (method_name.find('.') != std::string::npos) {
+          // Already fully qualified (e.g., "OtherClass.method")
+          mapping.deobfuscated_name = method_name;
+        } else {
+          // Relative to current class
+          mapping.deobfuscated_name =
+              current_class_->deobfuscated_name() + "." + method_name;
+        }
+        mapping.obfuscated_line_start = opt_member->obfuscated_line_start;
+        mapping.obfuscated_line_end = opt_member->obfuscated_line_end;
+        mapping.source_line_start = opt_member->source_line_start;
+        mapping.source_line_end = opt_member->source_line_end;
+        current_class_->AddMethod(std::move(mapping));
         break;
       }
     }
@@ -241,12 +429,23 @@ void MakeDeobfuscationPackets(
       proto_member->set_obfuscated_name(obfuscated_field_name);
       proto_member->set_deobfuscated_name(deobfuscated_field_name);
     }
-    for (const auto& field_p : cls.deobfuscated_methods()) {
-      const std::string& obfuscated_method_name = field_p.first;
-      const std::string& deobfuscated_method_name = field_p.second;
+    // Emit line-aware method mappings for R8 inline support
+    for (const auto& method : cls.method_mappings()) {
       auto* proto_member = proto_class->add_obfuscated_methods();
-      proto_member->set_obfuscated_name(obfuscated_method_name);
-      proto_member->set_deobfuscated_name(deobfuscated_method_name);
+      proto_member->set_obfuscated_name(method.obfuscated_name);
+      proto_member->set_deobfuscated_name(method.deobfuscated_name);
+      if (method.obfuscated_line_start.has_value()) {
+        proto_member->set_obfuscated_line_start(*method.obfuscated_line_start);
+      }
+      if (method.obfuscated_line_end.has_value()) {
+        proto_member->set_obfuscated_line_end(*method.obfuscated_line_end);
+      }
+      if (method.source_line_start.has_value()) {
+        proto_member->set_source_line_start(*method.source_line_start);
+      }
+      if (method.source_line_end.has_value()) {
+        proto_member->set_source_line_end(*method.source_line_end);
+      }
     }
   }
   callback(trace.SerializeAsString());

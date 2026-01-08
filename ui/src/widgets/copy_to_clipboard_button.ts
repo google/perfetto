@@ -14,61 +14,53 @@
 
 import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
+import {ActionButtonHelper} from './action_button_helper';
 import {Button, ButtonVariant} from './button';
-import {Intent} from './common';
-
-export class CopyHelper {
-  private _copied = false;
-  private timeoutId: ReturnType<typeof setTimeout> | undefined;
-  private readonly timeout: number;
-
-  constructor(timeout = 2000) {
-    this.timeout = timeout;
-  }
-
-  get copied(): boolean {
-    return this._copied;
-  }
-
-  async copy(text: string) {
-    await navigator.clipboard.writeText(text);
-    this._copied = true;
-    m.redraw();
-
-    clearTimeout(this.timeoutId);
-    this.timeoutId = setTimeout(() => {
-      this._copied = false;
-      m.redraw();
-    }, this.timeout);
-  }
-}
+import {copyToClipboard} from '../base/clipboard';
 
 export interface CopyToClipboardButtonAttrs {
-  readonly textToCopy: string;
+  readonly textToCopy: string | (() => string | Promise<string>);
   readonly title?: string;
   readonly label?: string;
   readonly variant?: ButtonVariant;
+  readonly disabled?: boolean;
+  readonly compact?: boolean;
 }
 
 export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs> {
-  const helper = new CopyHelper();
+  const helper = new ActionButtonHelper();
 
   return {
     view({attrs}: m.Vnode<CopyToClipboardButtonAttrs>): m.Children {
       const hasLabel = Boolean(attrs.label);
       const label = (function () {
         if (!hasLabel) return '';
-        if (helper.copied) return 'Copied';
-        return attrs.label;
+        switch (helper.state) {
+          case 'idle':
+          case 'working':
+            return attrs.label;
+          case 'done':
+            return 'Copied';
+        }
       })();
+
       return m(Button, {
         variant: attrs.variant,
         title: attrs.title ?? 'Copy to clipboard',
-        icon: helper.copied ? Icons.Check : Icons.Copy,
-        intent: helper.copied ? Intent.Success : Intent.None,
+        icon: helper.state === 'done' ? Icons.Check : Icons.Copy,
+        loading: helper.state === 'working',
         label,
+        disabled: attrs.disabled,
+        compact: attrs.compact,
         onclick: async () => {
-          await helper.copy(attrs.textToCopy);
+          const textToCopy = attrs.textToCopy;
+          await helper.execute(async () => {
+            const text =
+              typeof textToCopy === 'string'
+                ? textToCopy
+                : await Promise.resolve(textToCopy());
+            await copyToClipboard(text);
+          });
         },
       });
     },

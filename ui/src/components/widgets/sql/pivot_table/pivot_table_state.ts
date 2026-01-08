@@ -27,6 +27,7 @@ import {SortDirection} from '../../../../base/comparison_utils';
 import {Aggregation, expandAggregations} from './aggregations';
 import {PivotTreeNode} from './pivot_tree_node';
 import {aggregationId, pivotId} from './ids';
+import {uuidv4} from '../../../../base/uuid';
 
 // Pivot and aggregation ids are human-readable, but are not valid SQLite identifiers,
 // so we need to generate valid aliases for them. We map the values back to be keyed
@@ -72,6 +73,7 @@ export class PivotTableState {
   public readonly table: SqlTableDescription;
   public readonly trace: Trace;
   public readonly filters: Filters;
+  public readonly uuid: string;
 
   private readonly pivots: TableColumn[] = [];
   private readonly aggregations: Aggregation[] = [];
@@ -86,6 +88,7 @@ export class PivotTableState {
   constructor(private readonly args: PivotTableStateArgs) {
     this.table = args.table;
     this.trace = args.trace;
+    this.uuid = uuidv4();
 
     this.pivots = [...args.pivots];
     this.aggregations =

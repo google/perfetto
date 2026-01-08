@@ -25,7 +25,7 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
@@ -47,8 +47,7 @@ struct NameInPackage {
 
   struct Hasher {
     size_t operator()(const NameInPackage& o) const {
-      return static_cast<size_t>(
-          base::FnvHasher::Combine(o.name.raw_id(), o.package.raw_id()));
+      return static_cast<size_t>(base::MurmurHashCombine(o.name, o.package));
     }
   };
 };

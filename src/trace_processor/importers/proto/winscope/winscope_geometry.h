@@ -22,6 +22,9 @@
 
 namespace perfetto::trace_processor::winscope::geometry {
 
+// Equality function for double values.
+bool IsEqual(double a, double b);
+
 // Represents a corner of a 2D rect from a Winscope trace.
 struct Point {
   double x;
@@ -54,6 +57,11 @@ class Rect {
 
   bool operator==(const Rect& other) const;
 
+  template <typename H>
+  friend H PerfettoHashValue(H hasher, const Rect& rect) {
+    return H::Combine(std::move(hasher), rect.x, rect.y, rect.w, rect.h);
+  }
+
   bool IsAlmostEqual(const Rect& other) const;
   bool IsEmpty() const;
   Rect CropRect(const Rect& other) const;
@@ -77,6 +85,11 @@ struct Region {
 class TransformMatrix {
  public:
   bool operator==(const TransformMatrix& other) const;
+
+  template <typename H>
+  friend H PerfettoHashValue(H h, const TransformMatrix& m) {
+    return H::Combine(std::move(h), m.dsdx, m.dtdx, m.tx, m.dsdy, m.dtdy, m.ty);
+  }
 
   Point TransformPoint(Point point) const;
   Rect TransformRect(const Rect& r) const;

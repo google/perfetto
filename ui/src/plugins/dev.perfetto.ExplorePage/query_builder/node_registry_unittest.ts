@@ -26,6 +26,8 @@ describe('NodeRegistry', () => {
       validate: () => true,
       getTitle: () => 'Test',
       nodeSpecificModify: () => null,
+      nodeDetails: () => ({content: null}),
+      nodeInfo: () => null,
       clone: () => createMockNode(nodeId),
       getStructuredQuery: () => undefined,
       serializeState: () => ({}),
@@ -107,7 +109,6 @@ describe('NodeRegistry', () => {
         icon: 'advanced-icon',
         type: 'multisource',
         hotkey: 'ctrl+a',
-        devOnly: true,
         preCreate,
         factory: (_state: QueryNodeState) => createMockNode('advanced'),
       };
@@ -116,7 +117,6 @@ describe('NodeRegistry', () => {
 
       const retrieved = registry.get('advanced-node');
       expect(retrieved?.hotkey).toBe('ctrl+a');
-      expect(retrieved?.devOnly).toBe(true);
       expect(retrieved?.preCreate).toBe(preCreate);
     });
   });
@@ -299,40 +299,6 @@ describe('NodeRegistry', () => {
       registry.register('source-node', descriptor1Updated);
       expect(registry.list().length).toBe(2);
       expect(registry.get('source-node')).toBe(descriptor1Updated);
-    });
-
-    it('should handle node descriptors with all field types', () => {
-      const registry = new NodeRegistry();
-      const preCreate = async (_context: PreCreateContext) => {
-        return {customTitle: 'Custom'};
-      };
-
-      const descriptor: NodeDescriptor = {
-        name: 'Complex Node',
-        description: 'A complex node with all features',
-        icon: 'complex-icon',
-        hotkey: 'ctrl+shift+c',
-        type: 'multisource',
-        devOnly: true,
-        preCreate,
-        factory: (state: QueryNodeState) => {
-          const node = createMockNode('complex');
-          node.state.customTitle = state.customTitle;
-          return node;
-        },
-      };
-
-      registry.register('complex-node', descriptor);
-
-      const retrieved = registry.get('complex-node');
-      expect(retrieved?.name).toBe('Complex Node');
-      expect(retrieved?.description).toBe('A complex node with all features');
-      expect(retrieved?.icon).toBe('complex-icon');
-      expect(retrieved?.hotkey).toBe('ctrl+shift+c');
-      expect(retrieved?.type).toBe('multisource');
-      expect(retrieved?.devOnly).toBe(true);
-      expect(retrieved?.preCreate).toBe(preCreate);
-      expect(typeof retrieved?.factory).toBe('function');
     });
   });
 });

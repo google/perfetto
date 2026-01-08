@@ -27,6 +27,10 @@
 #include <sys/un.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
+#include <sys/wait.h> /* For waitpid() */
+#endif
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -1181,6 +1185,103 @@ TEST_F(UnixSocketTest, ShmemSupported) {
 #endif
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
+
+// Test UnixSocketWatch functionality on platforms that support inotify
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST_F(UnixSocketTest, UnixSocketWatch) {
+  TempDir tmp_dir = TempDir::Create();
+  std::string sock_path = tmp_dir.path() + "/test_watch.sock";
+
+  bool callback_called = false;
+  auto callback_checkpoint = task_runner_.CreateCheckpoint("callback_called");
+
+  // Create a UnixSocketWatch to monitor socket creation
+  auto watch =
+      WatchUnixSocketCreation(&task_runner_, sock_path.c_str(),
+                              [&callback_called, callback_checkpoint]() {
+                                callback_called = true;
+                                callback_checkpoint();
+                              });
+
+  // The watch should be created successfully for filesystem-linked sockets
+  ASSERT_NE(watch, nullptr);
+
+  // Initially, callback should not have been called
+  ASSERT_FALSE(callback_called);
+
+  // Create the socket file by creating and binding a Unix socket to it
+  auto srv = UnixSocket::Listen(sock_path, &event_listener_, &task_runner_,
+                                SockFamily::kUnix, SockType::kStream);
+  ASSERT_TRUE(srv && srv->is_listening());
+
+  // Wait for the callback to be triggered
+  task_runner_.RunUntilCheckpoint("callback_called");
+
+  // Verify that the callback was called
+  ASSERT_TRUE(callback_called);
+
+  // Clean up
+  srv.reset();
+  remove(sock_path.c_str());
+}
+
+TEST_F(UnixSocketTest, UnixSocketWatchAbstractSocket) {
+  // UnixSocketWatch should return nullptr for abstract sockets
+  auto watch =
+      WatchUnixSocketCreation(&task_runner_, "@abstract_socket", []() {});
+
+  ASSERT_EQ(watch, nullptr);
+}
+
+TEST_F(UnixSocketTest, UnixSocketWatchInvalidPath) {
+  // UnixSocketWatch should return nullptr for non-Unix socket paths
+  auto watch1 =
+      WatchUnixSocketCreation(&task_runner_, "127.0.0.1:8080", []() {});
+
+  auto watch2 =
+      WatchUnixSocketCreation(&task_runner_, "vsock://1:1000", []() {});
+
+  ASSERT_EQ(watch1, nullptr);
+  ASSERT_EQ(watch2, nullptr);
+}
+#endif  // LINUX_BUT_NOT_QNX || OS_ANDROID
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// Regression test for macOS behavior where SetTxTimeout/SetRxTimeout fail with
+// EINVAL when called on a server socket immediately after the client has
+// disconnected. On Linux this should just work.
+TEST_F(UnixSocketTest, SetTimeoutAfterClientDisconnect) {
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
+  ASSERT_TRUE(srv->is_listening());
+
+  auto conn_received = task_runner_.CreateCheckpoint("conn_received");
+  EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
+      .WillOnce([conn_received](UnixSocket*, UnixSocket* new_conn) {
+        // Client will disconnect right away. Release the socket and try to set
+        // timeouts. On macOS, this used to crash because setsockopt() fails
+        // with EINVAL when the peer has disconnected.
+        auto raw = new_conn->ReleaseSocket();
+        ASSERT_TRUE(raw.SetTxTimeout(1000));
+        ASSERT_TRUE(raw.SetRxTimeout(1000));
+        conn_received();
+      });
+
+  // Client connects and immediately disconnects.
+  std::thread client([&] {
+    auto cli =
+        UnixSocketRaw::CreateMayFail(kTestSocket.family(), SockType::kStream);
+    ASSERT_TRUE(cli);
+    ASSERT_TRUE(cli.Connect(kTestSocket.name()));
+    // Socket closes when cli goes out of scope.
+  });
+
+  task_runner_.RunUntilCheckpoint("conn_received");
+  client.join();
+}
+#endif  // !OS_WIN
 
 }  // namespace
 }  // namespace base

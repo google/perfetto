@@ -23,10 +23,10 @@ export default class implements PerfettoPlugin {
   static onActivate(app: App): void {
     app.pages.registerPage({
       route: '/widgets',
-      render: () => m(WidgetsPage, {app}),
+      render: (subpage) => m(WidgetsPage, {app, subpage}),
     });
     app.sidebar.addMenuItem({
-      section: 'navigation',
+      section: 'settings',
       text: 'Widgets',
       href: '#!/widgets',
       icon: 'widgets',

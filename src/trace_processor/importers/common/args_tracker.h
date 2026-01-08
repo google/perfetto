@@ -28,9 +28,12 @@
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -301,14 +304,9 @@ class ArgsTracker {
                                    uint32_t /*col*/,
                                    uint32_t /*row*/,
                                    StringId /*key*/>;
-  struct Hasher {
-    uint64_t operator()(const ArrayKeyTuple& t) const {
-      return base::FnvHasher::Combine(
-          reinterpret_cast<uint64_t>(std::get<0>(t)), std::get<1>(t),
-          std::get<2>(t), std::get<3>(t).raw_id());
-    }
-  };
-  base::FlatHashMap<ArrayKeyTuple, size_t /*next_index*/, Hasher>
+  base::FlatHashMap<ArrayKeyTuple,
+                    size_t /*next_index*/,
+                    base::MurmurHash<ArrayKeyTuple>>
       array_indexes_;
 };
 

@@ -107,6 +107,16 @@ config("extra_warnings") {
       "-Wno-switch-default",
     ]
 
+    # This is required for at least upstream and FreeBSD clang 19.
+    # See https://github.com/llvm/llvm-project/issues/76375 for more
+    # information.
+    if (is_freebsd) {
+      cflags += [
+        "-Wno-c23-extensions",
+        "-Wno-c++20-extensions",
+      ]
+    }
+
     if (perfetto_thread_safety_annotations) {
       cflags += [
         "-Wthread-safety",
@@ -334,7 +344,14 @@ config("default") {
     # stable Chrome, Safari, and Firefox. See:
     # - https://webassembly.org/roadmap/
     # - https://emscripten.org/docs/porting/simd.html
-    cflags += [ "-msimd128" ]
+    #
+    # We pass -mavx2 also to make x86_64 hand-rolled SIMD code work when
+    # using WASM: see
+    # https://emscripten.org/docs/porting/simd.html#compiling-simd-code-targeting-x86-sse-instruction-sets.
+    cflags += [
+      "-msimd128",
+      "-mavx2",
+    ]
   }
 
   if (is_wasm_memory64) {
@@ -351,6 +368,13 @@ config("default") {
       "-D_LARGEFILE_SOURCE",
       "-D_LARGEFILE64_SOURCE",
     ]
+    libs += [
+      "pthread",
+      "rt",
+    ]
+  }
+
+  if (is_freebsd) {
     libs += [
       "pthread",
       "rt",

@@ -34,62 +34,15 @@
     border-left: solid 3px transparent;
     color: var(--pf-color-text-muted);
 
-    &--active {
-      border-left: solid 3px var(--pf-color-success);
-    }
-
     &--enabled {
       color: unset;
     }
-
-    &--focused {
-      background-color: color-mix(
-        in srgb,
-        var(--pf-color-highlight) 70%,
-        transparent
-      );
-      animation: highlight-flash 1s ease-out;
-    }
-  }
-
-  &__details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  &__description {
-    font-size: smaller;
   }
 
   &__controls {
     display: flex;
     flex-direction: row;
-    column-gap: 12px;
+    column-gap: 16px;
     align-items: center;
-  }
-
-  &__link-button {
-    visibility: hidden;
-  }
-}
-
-.pf-card:hover .pf-plugins-page__link-button {
-  visibility: visible;
-}
-
-@keyframes highlight-flash {
-  0% {
-    background-color: transparent;
-  }
-  30% {
-    background-color: var(--pf-color-highlight);
-  }
-  100% {
-    background-color: color-mix(
-      in srgb,
-      var(--pf-color-highlight) 70%,
-      transparent
-    );
   }
 }

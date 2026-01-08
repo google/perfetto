@@ -17,11 +17,13 @@
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -106,11 +108,44 @@ std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
   return {tokenizer.Substr(first_tok, last_statement_start),
           tokenizer.Substr(last_statement_start, statement_end)};
 }
+
+// Indents each line of the input string by the specified number of spaces.
+std::string IndentLines(const std::string& input, size_t indent_spaces) {
+  if (input.empty()) {
+    return input;
+  }
+
+  std::string result;
+  result.reserve(input.size() + indent_spaces * 10);  // Estimate
+
+  std::string indent(indent_spaces, ' ');
+  size_t pos = 0;
+  size_t line_start = 0;
+
+  while (pos < input.size()) {
+    if (input[pos] == '\n') {
+      result.append(indent);
+      result.append(input, line_start, pos - line_start + 1);
+      line_start = pos + 1;
+    }
+    pos++;
+  }
+
+  // Handle last line if it doesn't end with newline
+  if (line_start < input.size()) {
+    result.append(indent);
+    result.append(input, line_start, std::string::npos);
+  }
+
+  return result;
+}
+
 struct QueryState {
   QueryState(QueryType _type,
              protozero::ConstBytes _bytes,
              size_t index,
-             std::optional<size_t> parent_idx)
+             std::optional<size_t> parent_idx,
+             std::set<std::string>& used_table_names)
       : type(_type), bytes(_bytes), parent_index(parent_idx) {
     protozero::ProtoDecoder decoder(bytes);
     std::string prefix = type == QueryType::kShared ? "shared_sq_" : "sq_";
@@ -120,6 +155,15 @@ struct QueryState {
     } else {
       table_name = prefix + std::to_string(index);
     }
+
+    // Ensure table_name is unique by appending a suffix if needed
+    std::string original_name = table_name;
+    size_t suffix = 0;
+    while (used_table_names.count(table_name) > 0) {
+      table_name = original_name + "_" + std::to_string(suffix);
+      suffix++;
+    }
+    used_table_names.insert(table_name);
   }
 
   QueryType type;
@@ -159,6 +203,8 @@ class GeneratorImpl {
   base::StatusOr<std::string> SimpleSlices(
       const StructuredQuery::SimpleSlices::Decoder&);
   base::StatusOr<std::string> SqlSource(const StructuredQuery::Sql::Decoder&);
+  base::StatusOr<std::string> TimeRange(
+      const StructuredQuery::ExperimentalTimeRange::Decoder&);
 
   // Nested sources
   std::string NestedSource(protozero::ConstBytes);
@@ -168,8 +214,27 @@ class GeneratorImpl {
   base::StatusOr<std::string> IntervalIntersect(
       const StructuredQuery::IntervalIntersect::Decoder&);
 
+  base::StatusOr<std::string> FilterToIntervals(
+      const StructuredQuery::ExperimentalFilterToIntervals::Decoder&);
+
+  base::StatusOr<std::string> Join(
+      const StructuredQuery::ExperimentalJoin::Decoder&);
+
+  base::StatusOr<std::string> Union(
+      const StructuredQuery::ExperimentalUnion::Decoder&);
+
+  base::StatusOr<std::string> AddColumns(
+      const StructuredQuery::ExperimentalAddColumns::Decoder&);
+
+  base::StatusOr<std::string> CreateSlices(
+      const StructuredQuery::ExperimentalCreateSlices::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
+  static base::StatusOr<std::string> ExperimentalFilterGroup(
+      const StructuredQuery::ExperimentalFilterGroup::Decoder&);
+  static base::StatusOr<std::string> SingleFilter(
+      const StructuredQuery::Filter::Decoder&);
 
   // Aggregation.
   static base::StatusOr<std::string> GroupBy(RepeatedString group_by);
@@ -179,6 +244,10 @@ class GeneratorImpl {
       RepeatedProto select_cols);
   base::StatusOr<std::string> SelectColumnsNoAggregates(
       RepeatedProto select_columns);
+
+  // Sorting.
+  static base::StatusOr<std::string> OrderBy(
+      const StructuredQuery::OrderBy::Decoder&);
 
   // Helpers.
   static base::StatusOr<std::string> OperatorToString(
@@ -193,11 +262,13 @@ class GeneratorImpl {
   std::vector<Query>& queries_;
   base::FlatHashMap<std::string, std::nullptr_t>& referenced_modules_;
   std::vector<std::string>& preambles_;
+  std::set<std::string> used_table_names_;
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
     protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt);
+  state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt,
+                      used_table_names_);
   for (; state_index_ < state_.size(); ++state_index_) {
     base::StatusOr<std::string> sql = GenerateImpl();
     if (!sql.ok()) {
@@ -208,7 +279,24 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
     }
     state_[state_index_].sql = *sql;
   }
+
+  // Check if the root query is just an inner_query wrapper with operations
+  // (ORDER BY, LIMIT, OFFSET). If so, we should apply those in the final
+  // SELECT instead of creating a duplicate CTE.
+  StructuredQuery::Decoder root_query(state_[0].bytes);
+  bool root_only_has_inner_query_and_operations =
+      root_query.has_inner_query() && !root_query.has_table() &&
+      !root_query.has_experimental_time_range() &&
+      !root_query.has_simple_slices() && !root_query.has_interval_intersect() &&
+      !root_query.has_experimental_filter_to_intervals() &&
+      !root_query.has_experimental_join() &&
+      !root_query.has_experimental_union() && !root_query.has_sql() &&
+      !root_query.has_inner_query_id() && !root_query.filters() &&
+      !root_query.has_experimental_filter_group() &&
+      !root_query.has_group_by() && !root_query.select_columns();
+
   std::string sql = "WITH ";
+  size_t cte_count = 0;
   for (size_t i = 0; i < state_.size(); ++i) {
     QueryState& state = state_[state_.size() - i - 1];
     if (state.type == QueryType::kShared) {
@@ -216,12 +304,25 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
           Query{state.id_from_proto.value(), state.table_name, state.sql});
       continue;
     }
-    sql += state.table_name + " AS (" + state.sql + ")";
-    if (i < state_.size() - 1) {
-      sql += ", ";
+    // Skip the root query if it's just a wrapper for inner_query + operations
+    if (&state == &state_[0] && root_only_has_inner_query_and_operations) {
+      continue;
     }
+    if (cte_count > 0) {
+      sql += ",\n";
+    }
+    sql += state.table_name + " AS (\n" + IndentLines(state.sql, 2) + "\n)";
+    cte_count++;
   }
-  sql += " SELECT * FROM " + state_[0].table_name;
+
+  // Build the final SELECT
+  if (root_only_has_inner_query_and_operations) {
+    // The root query is just wrapping an inner query with operations.
+    // Apply those operations directly in the final SELECT.
+    sql += "\n" + state_[0].sql;
+  } else {
+    sql += "\nSELECT *\nFROM " + state_[0].table_name;
+  }
   return sql;
 }
 
@@ -239,12 +340,36 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     if (q.has_table()) {
       StructuredQuery::Table::Decoder table(q.table());
       ASSIGN_OR_RETURN(source, Table(table));
+    } else if (q.has_experimental_time_range()) {
+      StructuredQuery::ExperimentalTimeRange::Decoder time_range(
+          q.experimental_time_range());
+      ASSIGN_OR_RETURN(source, TimeRange(time_range));
     } else if (q.has_simple_slices()) {
       StructuredQuery::SimpleSlices::Decoder slices(q.simple_slices());
       ASSIGN_OR_RETURN(source, SimpleSlices(slices));
     } else if (q.has_interval_intersect()) {
       StructuredQuery::IntervalIntersect::Decoder ii(q.interval_intersect());
       ASSIGN_OR_RETURN(source, IntervalIntersect(ii));
+    } else if (q.has_experimental_filter_to_intervals()) {
+      StructuredQuery::ExperimentalFilterToIntervals::Decoder fti(
+          q.experimental_filter_to_intervals());
+      ASSIGN_OR_RETURN(source, FilterToIntervals(fti));
+    } else if (q.has_experimental_join()) {
+      StructuredQuery::ExperimentalJoin::Decoder join(q.experimental_join());
+      ASSIGN_OR_RETURN(source, Join(join));
+    } else if (q.has_experimental_union()) {
+      StructuredQuery::ExperimentalUnion::Decoder union_decoder(
+          q.experimental_union());
+      ASSIGN_OR_RETURN(source, Union(union_decoder));
+
+    } else if (q.has_experimental_add_columns()) {
+      StructuredQuery::ExperimentalAddColumns::Decoder add_columns_decoder(
+          q.experimental_add_columns());
+      ASSIGN_OR_RETURN(source, AddColumns(add_columns_decoder));
+    } else if (q.has_experimental_create_slices()) {
+      StructuredQuery::ExperimentalCreateSlices::Decoder create_slices_decoder(
+          q.experimental_create_slices());
+      ASSIGN_OR_RETURN(source, CreateSlices(create_slices_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -257,7 +382,14 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     }
   }
 
-  ASSIGN_OR_RETURN(std::string filters, Filters(q.filters()));
+  std::string filters;
+  if (q.has_experimental_filter_group()) {
+    StructuredQuery::ExperimentalFilterGroup::Decoder exp_filter_group(
+        q.experimental_filter_group());
+    ASSIGN_OR_RETURN(filters, ExperimentalFilterGroup(exp_filter_group));
+  } else {
+    ASSIGN_OR_RETURN(filters, Filters(q.filters()));
+  }
 
   std::string select;
   std::string group_by;
@@ -271,12 +403,36 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     ASSIGN_OR_RETURN(select, SelectColumnsNoAggregates(q.select_columns()));
   }
 
-  std::string sql = "SELECT " + select + " FROM " + source;
+  // Assemble SQL clauses in standard evaluation order:
+  // SELECT, FROM, WHERE, GROUP BY, ORDER BY, LIMIT, OFFSET.
+  std::string sql = "SELECT " + select + "\nFROM " + source;
   if (!filters.empty()) {
-    sql += " WHERE " + filters;
+    sql += "\nWHERE " + filters;
   }
   if (!group_by.empty()) {
-    sql += " " + group_by;
+    sql += "\n" + group_by;
+  }
+  if (q.has_order_by()) {
+    StructuredQuery::OrderBy::Decoder order_by_decoder(q.order_by());
+    ASSIGN_OR_RETURN(std::string order_by, OrderBy(order_by_decoder));
+    sql += "\n" + order_by;
+  }
+  if (q.has_offset() && !q.has_limit()) {
+    return base::ErrStatus("OFFSET requires LIMIT to be specified");
+  }
+  if (q.has_limit()) {
+    if (q.limit() < 0) {
+      return base::ErrStatus("LIMIT must be non-negative, got %" PRId64,
+                             q.limit());
+    }
+    sql += "\nLIMIT " + std::to_string(q.limit());
+  }
+  if (q.has_offset()) {
+    if (q.offset() < 0) {
+      return base::ErrStatus("OFFSET must be non-negative, got %" PRId64,
+                             q.offset());
+    }
+    sql += "\nOFFSET " + std::to_string(q.offset());
   }
   return sql;
 }
@@ -292,6 +448,39 @@ base::StatusOr<std::string> GeneratorImpl::Table(
   return table.table_name().ToStdString();
 }
 
+base::StatusOr<std::string> GeneratorImpl::TimeRange(
+    const StructuredQuery::ExperimentalTimeRange::Decoder& time_range) {
+  if (!time_range.has_mode()) {
+    return base::ErrStatus("ExperimentalTimeRange: mode field is required");
+  }
+
+  switch (time_range.mode()) {
+    case StructuredQuery::ExperimentalTimeRange::STATIC: {
+      if (!time_range.has_ts()) {
+        return base::ErrStatus(
+            "ExperimentalTimeRange: ts is required for STATIC mode");
+      }
+      if (!time_range.has_dur()) {
+        return base::ErrStatus(
+            "ExperimentalTimeRange: dur is required for STATIC mode");
+      }
+      std::string ts_expr = std::to_string(time_range.ts());
+      std::string dur_expr = std::to_string(time_range.dur());
+      return "(SELECT 0 AS id, " + ts_expr + " AS ts, " + dur_expr + " AS dur)";
+    }
+    case StructuredQuery::ExperimentalTimeRange::DYNAMIC: {
+      std::string ts_expr = time_range.has_ts()
+                                ? std::to_string(time_range.ts())
+                                : "trace_start()";
+      std::string dur_expr = time_range.has_dur()
+                                 ? std::to_string(time_range.dur())
+                                 : "trace_dur()";
+      return "(SELECT 0 AS id, " + ts_expr + " AS ts, " + dur_expr + " AS dur)";
+    }
+  }
+  return base::ErrStatus("ExperimentalTimeRange: unknown mode value");
+}
+
 base::StatusOr<std::string> GeneratorImpl::SqlSource(
     const StructuredQuery::Sql::Decoder& sql) {
   if (sql.sql().size == 0) {
@@ -304,17 +493,20 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
       SqlSource::FromTraceProcessorImplementation("");
   if (sql.has_preamble()) {
     // If preambles are specified, we assume that the SQL is a single statement.
+    auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql.sql());
+    if (!parsed_preamble.sql().empty()) {
+      return base::ErrStatus(
+          "Sql source specifies both `preamble` and has multiple statements in "
+          "the `sql` field. This is not supported - please don't use "
+          "`preamble` "
+          "and pass all the SQL you want to execute in the `sql` field.");
+    }
     preambles_.push_back(sql.preamble().ToStdString());
     final_sql_statement = source_sql;
   } else {
     auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql.sql());
     if (!parsed_preamble.sql().empty()) {
       preambles_.push_back(parsed_preamble.sql());
-    } else if (sql.has_preamble()) {
-      return base::ErrStatus(
-          "Sql source specifies both `preamble` and has multiple statements in "
-          "the `sql` field. This is not supported - plase don't use `preamble` "
-          "and pass all the SQL you want to execute in the `sql` field.");
     }
     final_sql_statement = main_sql;
   }
@@ -350,8 +542,10 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
     cols_str = base::Join(cols, ", ");
   }
 
-  std::string generated_sql = "(SELECT " + cols_str + " FROM (" +
-                              std::move(rewriter).Build().sql() + "))";
+  std::string user_sql = std::move(rewriter).Build().sql();
+  std::string inner =
+      "SELECT " + cols_str + "\nFROM (\n" + IndentLines(user_sql, 2) + "\n)";
+  std::string generated_sql = "(\n" + IndentLines(inner, 2) + ")";
   return generated_sql;
 }
 
@@ -400,33 +594,604 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
   }
   referenced_modules_.Insert("intervals.intersect", nullptr);
 
+  // Validate and collect partition columns
+  std::vector<std::string> partition_cols;
+  std::set<std::string> seen_cols;
+  for (auto it = interval.partition_columns(); it; ++it) {
+    std::string col = it->as_std_string();
+
+    // Validate that partition columns are not empty
+    if (col.empty()) {
+      return base::ErrStatus("Partition column cannot be empty");
+    }
+
+    // Validate that partition columns are not id, ts, or dur (case-insensitive)
+    if (base::CaseInsensitiveEqual(col, "id") ||
+        base::CaseInsensitiveEqual(col, "ts") ||
+        base::CaseInsensitiveEqual(col, "dur")) {
+      return base::ErrStatus(
+          "Partition column '%s' is reserved and cannot be used for "
+          "partitioning",
+          col.c_str());
+    }
+
+    // Check for duplicates (case-insensitive)
+    std::string col_lower = col;
+    std::transform(col_lower.begin(), col_lower.end(), col_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    if (seen_cols.count(col_lower) > 0) {
+      return base::ErrStatus("Partition column '%s' is duplicated",
+                             col.c_str());
+    }
+    seen_cols.insert(col_lower);
+    partition_cols.push_back(col);
+  }
+
   std::string sql =
       "(WITH iibase AS (SELECT * FROM " + NestedSource(interval.base()) + ")";
   auto ii = interval.interval_intersect();
   for (size_t i = 0; ii; ++ii, ++i) {
     sql += ", iisource" + std::to_string(i) + " AS (SELECT * FROM " +
-           NestedSource(*ii) + ") ";
+           NestedSource(*ii) + ")";
   }
 
-  sql += "SELECT ii.ts, ii.dur, iibase.*";
-  ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
-    sql += ", iisource" + std::to_string(i) + ".*";
+  sql += "\nSELECT ii.ts, ii.dur";
+  // Add partition columns from ii
+  for (const auto& col : partition_cols) {
+    sql += ", ii." + col;
   }
-  sql += " FROM _interval_intersect!((iibase";
+
+  // Add renamed columns from iibase (base table gets _0 suffix)
+  // We explicitly rename id, ts, dur for unambiguous access
+  sql += ", base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0";
+  // Also add all other columns from base table
+  sql += ", base_0.*";
+
+  // Add renamed columns from each interval source (they get _1, _2, etc.
+  // suffixes)
   ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
+  for (size_t i = 0; ii; ++ii, ++i) {
+    size_t suffix = i + 1;
+    sql += ", source_" + std::to_string(suffix) + ".id AS id_" +
+           std::to_string(suffix);
+    sql += ", source_" + std::to_string(suffix) + ".ts AS ts_" +
+           std::to_string(suffix);
+    sql += ", source_" + std::to_string(suffix) + ".dur AS dur_" +
+           std::to_string(suffix);
+    // Also add all other columns from this source table
+    sql += ", source_" + std::to_string(suffix) + ".*";
+  }
+
+  sql += "\nFROM _interval_intersect!((iibase";
+  ii = interval.interval_intersect();
+  for (size_t i = 0; ii; ++ii, ++i) {
     sql += ", iisource" + std::to_string(i);
   }
-  sql += "), ()) ii JOIN iibase ON ii.id_0 = iibase.id";
+
+  // Add partition columns to the macro call
+  sql += "), (";
+  for (size_t i = 0; i < partition_cols.size(); ++i) {
+    if (i > 0) {
+      sql += ", ";
+    }
+    sql += partition_cols[i];
+  }
+  sql += ")) ii\nJOIN iibase AS base_0 ON ii.id_0 = base_0.id";
 
   ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
-    sql += " JOIN iisource" + std::to_string(i) + " ON ii.id_" +
-           std::to_string(i + 1) + " = iisource" + std::to_string(i) + ".id";
+  for (size_t i = 0; ii; ++ii, ++i) {
+    size_t suffix = i + 1;
+    sql += "\nJOIN iisource" + std::to_string(i) + " AS source_" +
+           std::to_string(suffix) + " ON ii.id_" + std::to_string(suffix) +
+           " = source_" + std::to_string(suffix) + ".id";
   }
   sql += ")";
+
   return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::FilterToIntervals(
+    const StructuredQuery::ExperimentalFilterToIntervals::Decoder& filter) {
+  if (filter.base().size == 0) {
+    return base::ErrStatus("FilterToIntervals must specify a base query");
+  }
+  if (filter.intervals().size == 0) {
+    return base::ErrStatus("FilterToIntervals must specify an intervals query");
+  }
+  referenced_modules_.Insert("intervals.intersect", nullptr);
+  referenced_modules_.Insert("intervals.overlap", nullptr);
+
+  // Validate and collect partition columns
+  std::vector<std::string> partition_cols;
+  std::set<std::string> seen_cols;
+  for (auto it = filter.partition_columns(); it; ++it) {
+    std::string col = it->as_std_string();
+
+    // Validate that partition columns are not empty
+    if (col.empty()) {
+      return base::ErrStatus("Partition column cannot be empty");
+    }
+
+    // Validate that partition columns are not id, ts, or dur (case-insensitive)
+    if (base::CaseInsensitiveEqual(col, "id") ||
+        base::CaseInsensitiveEqual(col, "ts") ||
+        base::CaseInsensitiveEqual(col, "dur")) {
+      return base::ErrStatus(
+          "Partition column '%s' is reserved and cannot be used for "
+          "partitioning",
+          col.c_str());
+    }
+
+    // Check for duplicates (case-insensitive)
+    std::string col_lower = col;
+    std::transform(col_lower.begin(), col_lower.end(), col_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    if (seen_cols.count(col_lower) > 0) {
+      return base::ErrStatus("Partition column '%s' is duplicated",
+                             col.c_str());
+    }
+    seen_cols.insert(col_lower);
+    partition_cols.push_back(col);
+  }
+
+  // Determine if we clip to intervals (default true)
+  bool clip_to_intervals =
+      filter.has_clip_to_intervals() ? filter.clip_to_intervals() : true;
+
+  // Collect select columns if specified
+  std::vector<std::string> select_cols;
+  for (auto it = filter.select_columns(); it; ++it) {
+    select_cols.push_back(it->as_std_string());
+  }
+
+  // Generate the SQL query
+  // We first merge overlapping intervals in the filter set, then use
+  // _interval_intersect! internally to compute overlaps, and finally
+  // reshape the output to match the base schema.
+  std::string base_source = NestedSource(filter.base());
+  std::string intervals_source = NestedSource(filter.intervals());
+
+  std::string sql = "(WITH fti_base AS (SELECT * FROM " + base_source + ")";
+  sql += ",\nfti_intervals_raw AS (SELECT * FROM " + intervals_source + ")";
+
+  // Merge overlapping intervals to avoid duplicate output rows when a base
+  // interval overlaps with multiple overlapping filter intervals.
+  // Use partitioned merge if we have partition columns, otherwise use
+  // non-partitioned merge.
+  if (partition_cols.empty()) {
+    // Non-partitioned: use interval_merge_overlapping and add a dummy id
+    sql +=
+        ",\nfti_intervals AS (\n"
+        "  SELECT\n"
+        "    ROW_NUMBER() OVER (ORDER BY ts) AS id,\n"
+        "    ts,\n"
+        "    dur\n"
+        "  FROM interval_merge_overlapping!(fti_intervals_raw, 0)\n"
+        ")";
+  } else {
+    // Partitioned: use _interval_merge_overlapping_partitioned for each
+    // partition column and add a dummy id. We only support a single partition
+    // column for the merge operation, but multiple for the intersection.
+    // For simplicity, we merge on the first partition column.
+    sql +=
+        ",\nfti_intervals AS (\n"
+        "  SELECT\n"
+        "    ROW_NUMBER() OVER (ORDER BY ts) AS id,\n"
+        "    ts,\n"
+        "    dur";
+    for (const auto& col : partition_cols) {
+      sql += ",\n    " + col;
+    }
+    sql +=
+        "\n  FROM "
+        "_interval_merge_overlapping_partitioned!(fti_intervals_raw, " +
+        partition_cols[0] + ")\n)";
+  }
+
+  // Use _interval_intersect! macro to compute overlaps
+  sql += "\nSELECT ";
+
+  // Build the column list based on clip_to_intervals and select_columns
+  if (select_cols.empty()) {
+    // No explicit column selection: use base_0.*
+    if (clip_to_intervals) {
+      // When clipping, select intersected ts/dur, then all base columns
+      // This produces duplicate ts/dur columns, but SQL will use the first
+      // occurrence
+      sql += "ii.ts, ii.dur, base_0.*";
+    } else {
+      // When not clipping, just select all base columns as-is (no duplicates)
+      sql += "base_0.*";
+    }
+  } else {
+    // Explicit column selection
+    bool first = true;
+
+    if (clip_to_intervals) {
+      // When clipping: ii.ts, ii.dur first, then other columns, then
+      // original_ts/dur at end
+      sql += "ii.ts, ii.dur";
+      first = false;
+
+      // Add non-ts/dur columns
+      for (const auto& col : select_cols) {
+        if (!base::CaseInsensitiveEqual(col, "ts") &&
+            !base::CaseInsensitiveEqual(col, "dur")) {
+          sql += ", base_0." + col;
+        }
+      }
+
+      // Add original_ts and original_dur at the end if they were requested
+      for (const auto& col : select_cols) {
+        if (base::CaseInsensitiveEqual(col, "ts")) {
+          sql += ", base_0.ts AS original_ts";
+        } else if (base::CaseInsensitiveEqual(col, "dur")) {
+          sql += ", base_0.dur AS original_dur";
+        }
+      }
+    } else {
+      // When not clipping: preserve exact order from select_cols
+      for (const auto& col : select_cols) {
+        if (!first)
+          sql += ", ";
+        sql += "base_0." + col;
+        first = false;
+      }
+    }
+  }
+
+  sql += "\nFROM _interval_intersect!((fti_base, fti_intervals), (";
+  for (size_t i = 0; i < partition_cols.size(); ++i) {
+    if (i > 0) {
+      sql += ", ";
+    }
+    sql += partition_cols[i];
+  }
+  sql += ")) ii\nJOIN fti_base AS base_0 ON ii.id_0 = base_0.id)";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::Join(
+    const StructuredQuery::ExperimentalJoin::Decoder& join) {
+  if (!join.has_left_query()) {
+    return base::ErrStatus("Join must specify a left query");
+  }
+  if (!join.has_right_query()) {
+    return base::ErrStatus("Join must specify a right query");
+  }
+  if (!join.has_equality_columns() && !join.has_freeform_condition()) {
+    return base::ErrStatus(
+        "Join must specify either equality_columns or freeform_condition");
+  }
+
+  std::string left_table = NestedSource(join.left_query());
+  std::string right_table = NestedSource(join.right_query());
+
+  std::string join_type_str;
+  switch (join.type()) {
+    case StructuredQuery::ExperimentalJoin::INNER:
+      join_type_str = "INNER";
+      break;
+    case StructuredQuery::ExperimentalJoin::LEFT:
+      join_type_str = "LEFT";
+      break;
+  }
+
+  std::string condition;
+  if (join.has_equality_columns()) {
+    StructuredQuery::ExperimentalJoin::EqualityColumns::Decoder eq_cols(
+        join.equality_columns());
+    if (!eq_cols.has_left_column()) {
+      return base::ErrStatus("EqualityColumns must specify a left column");
+    }
+    if (!eq_cols.has_right_column()) {
+      return base::ErrStatus("EqualityColumns must specify a right column");
+    }
+    condition = left_table + "." + eq_cols.left_column().ToStdString() + " = " +
+                right_table + "." + eq_cols.right_column().ToStdString();
+  } else {
+    StructuredQuery::ExperimentalJoin::FreeformCondition::Decoder free_cond(
+        join.freeform_condition());
+    if (!free_cond.has_left_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a left query alias");
+    }
+    if (!free_cond.has_right_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a right query alias");
+    }
+    if (!free_cond.has_sql_expression()) {
+      return base::ErrStatus("FreeformCondition must specify a sql expression");
+    }
+    std::string left_alias = free_cond.left_query_alias().ToStdString();
+    std::string right_alias = free_cond.right_query_alias().ToStdString();
+    std::string sql_expr = free_cond.sql_expression().ToStdString();
+
+    // Use aliases in the FROM clause
+    condition = sql_expr;
+    std::string sql = "(SELECT * FROM " + left_table + " AS " + left_alias +
+                      " " + join_type_str + " JOIN " + right_table + " AS " +
+                      right_alias + " ON " + condition + ")";
+    return sql;
+  }
+
+  std::string sql = "(SELECT * FROM " + left_table + " " + join_type_str +
+                    " JOIN " + right_table + " ON " + condition + ")";
+  return sql;
+}
+
+// Helper function to validate that all queries in a UNION have matching columns
+base::Status ValidateUnionColumns(
+    const std::vector<std::vector<std::string>>& query_columns) {
+  if (query_columns.empty() || query_columns[0].empty()) {
+    return base::OkStatus();
+  }
+
+  const auto& reference_cols = query_columns[0];
+  std::set<std::string> reference_set(reference_cols.begin(),
+                                      reference_cols.end());
+
+  for (size_t i = 1; i < query_columns.size(); ++i) {
+    if (query_columns[i].empty()) {
+      continue;
+    }
+
+    const auto& cols = query_columns[i];
+    if (cols.size() != reference_cols.size()) {
+      return base::ErrStatus(
+          "Union queries have different column counts (query %zu vs query 0)",
+          i);
+    }
+
+    std::set<std::string> cols_set(cols.begin(), cols.end());
+    if (cols_set != reference_set) {
+      return base::ErrStatus(
+          "Union queries have different column sets (query %zu vs query 0)", i);
+    }
+  }
+
+  return base::OkStatus();
+}
+
+base::StatusOr<std::string> GeneratorImpl::Union(
+    const StructuredQuery::ExperimentalUnion::Decoder& union_decoder) {
+  auto queries = union_decoder.queries();
+  if (!queries) {
+    return base::ErrStatus("Union must specify at least one query");
+  }
+
+  // Count the number of queries and collect column information for validation
+  size_t query_count = 0;
+  std::vector<std::vector<std::string>> query_columns;
+
+  for (auto it = queries; it; ++it) {
+    query_count++;
+    StructuredQuery::Decoder query(*it);
+
+    // Extract column names from select_columns if present
+    std::vector<std::string> cols;
+    if (auto select_cols = query.select_columns(); select_cols) {
+      for (auto col_it = select_cols; col_it; ++col_it) {
+        StructuredQuery::SelectColumn::Decoder column(*col_it);
+        std::string col_name;
+
+        // Use alias if present, otherwise use column name or expression
+        if (column.has_alias()) {
+          col_name = column.alias().ToStdString();
+        } else if (column.has_column_name_or_expression()) {
+          col_name = column.column_name_or_expression().ToStdString();
+        } else if (column.has_column_name()) {
+          col_name = column.column_name().ToStdString();
+        }
+
+        if (!col_name.empty()) {
+          cols.push_back(col_name);
+        }
+      }
+    }
+
+    query_columns.push_back(cols);
+  }
+
+  if (query_count < 2) {
+    return base::ErrStatus("Union must specify at least two queries");
+  }
+
+  // Validate that all queries have the same columns (if columns are specified)
+  RETURN_IF_ERROR(ValidateUnionColumns(query_columns));
+
+  // Build a local WITH clause to avoid CTE name conflicts with global scope.
+  // Similar to IntervalIntersect, we create local CTEs with unique names.
+  std::string sql = "(\n  WITH ";
+  size_t idx = 0;
+  for (auto it = union_decoder.queries(); it; ++it, ++idx) {
+    if (idx > 0) {
+      sql += ", ";
+    }
+    sql += "union_query_" + std::to_string(idx) + " AS (\n  ";
+    sql += "SELECT *\n  ";
+    sql += "FROM " + NestedSource(*it) + ")";
+  }
+
+  // Build the UNION/UNION ALL query
+  std::string union_keyword =
+      union_decoder.use_union_all() ? "UNION ALL" : "UNION";
+  sql += "\n  SELECT *\n  FROM union_query_0";
+  for (size_t i = 1; i < query_count; ++i) {
+    sql += "\n  " + union_keyword + "\n  SELECT *\n  FROM union_query_" +
+           std::to_string(i);
+  }
+  sql += ")";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::AddColumns(
+    const StructuredQuery::ExperimentalAddColumns::Decoder& add_columns) {
+  // Validate required fields
+  if (!add_columns.has_core_query()) {
+    return base::ErrStatus("AddColumns must specify a core query");
+  }
+  if (!add_columns.has_input_query()) {
+    return base::ErrStatus("AddColumns must specify an input query");
+  }
+  if (!add_columns.has_equality_columns() &&
+      !add_columns.has_freeform_condition()) {
+    return base::ErrStatus(
+        "AddColumns must specify either equality_columns or "
+        "freeform_condition");
+  }
+
+  // Validate input_columns
+  auto input_columns = add_columns.input_columns();
+  if (!input_columns) {
+    return base::ErrStatus("AddColumns must specify at least one input column");
+  }
+  size_t column_count = 0;
+  for (auto it = input_columns; it; ++it) {
+    column_count++;
+  }
+  if (column_count == 0) {
+    return base::ErrStatus("AddColumns must specify at least one input column");
+  }
+
+  // Generate nested sources
+  std::string core_table = NestedSource(add_columns.core_query());
+  std::string input_table = NestedSource(add_columns.input_query());
+
+  // Build the SELECT clause with all core columns plus input columns
+  std::string select_clause = "core.*";
+  for (auto it = add_columns.input_columns(); it; ++it) {
+    StructuredQuery::SelectColumn::Decoder col_decoder(*it);
+
+    // Get the column name or expression
+    if (!col_decoder.has_column_name_or_expression()) {
+      return base::ErrStatus(
+          "SelectColumn must specify column_name_or_expression");
+    }
+    std::string col_expr =
+        col_decoder.column_name_or_expression().ToStdString();
+    if (col_expr.empty()) {
+      return base::ErrStatus("Input column name cannot be empty");
+    }
+
+    // Add the column with optional alias
+    select_clause += ", input." + col_expr;
+    if (col_decoder.has_alias()) {
+      std::string alias = col_decoder.alias().ToStdString();
+      if (!alias.empty()) {
+        select_clause += " AS " + alias;
+      }
+    }
+  }
+
+  // Build the join condition
+  std::string condition;
+  if (add_columns.has_equality_columns()) {
+    StructuredQuery::ExperimentalJoin::EqualityColumns::Decoder eq_cols(
+        add_columns.equality_columns());
+    if (!eq_cols.has_left_column()) {
+      return base::ErrStatus("EqualityColumns must specify a left column");
+    }
+    if (!eq_cols.has_right_column()) {
+      return base::ErrStatus("EqualityColumns must specify a right column");
+    }
+    condition = "core." + eq_cols.left_column().ToStdString() + " = input." +
+                eq_cols.right_column().ToStdString();
+  } else {
+    StructuredQuery::ExperimentalJoin::FreeformCondition::Decoder free_cond(
+        add_columns.freeform_condition());
+    if (!free_cond.has_left_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a left query alias");
+    }
+    if (!free_cond.has_right_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a right query alias");
+    }
+    if (!free_cond.has_sql_expression()) {
+      return base::ErrStatus("FreeformCondition must specify a sql expression");
+    }
+
+    std::string left_alias = free_cond.left_query_alias().ToStdString();
+    std::string right_alias = free_cond.right_query_alias().ToStdString();
+
+    // Validate that aliases match "core" and "input"
+    if (left_alias != "core") {
+      return base::ErrStatus(
+          "FreeformCondition left_query_alias must be 'core', got '%s'",
+          left_alias.c_str());
+    }
+    if (right_alias != "input") {
+      return base::ErrStatus(
+          "FreeformCondition right_query_alias must be 'input', got '%s'",
+          right_alias.c_str());
+    }
+
+    condition = free_cond.sql_expression().ToStdString();
+  }
+
+  // Generate the final SQL using LEFT JOIN to keep all core rows
+  std::string sql = "(SELECT " + select_clause + " FROM " + core_table +
+                    " AS core LEFT JOIN " + input_table + " AS input ON " +
+                    condition + ")";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::CreateSlices(
+    const StructuredQuery::ExperimentalCreateSlices::Decoder& create_slices) {
+  // Validate required fields
+  if (!create_slices.has_starts_query()) {
+    return base::ErrStatus("CreateSlices must specify a starts_query");
+  }
+  if (!create_slices.has_ends_query()) {
+    return base::ErrStatus("CreateSlices must specify an ends_query");
+  }
+
+  // Default to "ts" if not specified or empty
+  std::string starts_ts_col =
+      create_slices.has_starts_ts_column()
+          ? create_slices.starts_ts_column().ToStdString()
+          : "ts";
+  std::string ends_ts_col = create_slices.has_ends_ts_column()
+                                ? create_slices.ends_ts_column().ToStdString()
+                                : "ts";
+
+  // If explicitly set to empty string, also default to "ts"
+  if (starts_ts_col.empty()) {
+    starts_ts_col = "ts";
+  }
+  if (ends_ts_col.empty()) {
+    ends_ts_col = "ts";
+  }
+
+  // Generate nested sources
+  std::string starts_table = NestedSource(create_slices.starts_query());
+  std::string ends_table = NestedSource(create_slices.ends_query());
+
+  // Build the SQL to create slices
+  // For each start, find the first end that comes after it
+  return base::StackString<1024>(
+             R"(
+(WITH starts AS (SELECT * FROM %s),
+     ends AS (SELECT * FROM %s),
+     matched AS (
+       SELECT
+         starts.%s AS start_ts,
+         (SELECT MIN(ends.%s) FROM ends WHERE ends.%s > starts.%s) AS end_ts
+       FROM starts
+     )
+SELECT
+  start_ts AS ts,
+  end_ts - start_ts AS dur
+FROM matched
+WHERE end_ts IS NOT NULL)
+)",
+             starts_table.c_str(), ends_table.c_str(), starts_ts_col.c_str(),
+             ends_ts_col.c_str(), ends_ts_col.c_str(), starts_ts_col.c_str())
+      .ToStdString();
 }
 
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
@@ -454,13 +1219,49 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
-                      state_.size(), state_index_);
+                      state_.size(), state_index_, used_table_names_);
   return state_.back().table_name;
 }
 
 std::string GeneratorImpl::NestedSource(protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kNested, bytes, state_.size(), state_index_);
+  state_.emplace_back(QueryType::kNested, bytes, state_.size(), state_index_,
+                      used_table_names_);
   return state_.back().table_name;
+}
+
+base::StatusOr<std::string> GeneratorImpl::SingleFilter(
+    const StructuredQuery::Filter::Decoder& filter) {
+  std::string column_name = filter.column_name().ToStdString();
+  auto op = static_cast<StructuredQuery::Filter::Operator>(filter.op());
+  ASSIGN_OR_RETURN(std::string op_str, OperatorToString(op));
+
+  if (op == StructuredQuery::Filter::Operator::IS_NULL ||
+      op == StructuredQuery::Filter::Operator::IS_NOT_NULL) {
+    return column_name + " " + op_str;
+  }
+
+  std::string sql = column_name + " " + op_str + " ";
+
+  if (auto srhs = filter.string_rhs(); srhs) {
+    sql += "'" + (*srhs++).ToStdString() + "'";
+    for (; srhs; ++srhs) {
+      sql += " OR " + column_name + " " + op_str + " '" +
+             (*srhs).ToStdString() + "'";
+    }
+  } else if (auto drhs = filter.double_rhs(); drhs) {
+    sql += std::to_string((*drhs++));
+    for (; drhs; ++drhs) {
+      sql += " OR " + column_name + " " + op_str + " " + std::to_string(*drhs);
+    }
+  } else if (auto irhs = filter.int64_rhs(); irhs) {
+    sql += std::to_string(*irhs++);
+    for (; irhs; ++irhs) {
+      sql += " OR " + column_name + " " + op_str + " " + std::to_string(*irhs);
+    }
+  } else {
+    return base::ErrStatus("Filter must specify a right-hand side");
+  }
+  return sql;
 }
 
 base::StatusOr<std::string> GeneratorImpl::Filters(
@@ -471,41 +1272,74 @@ base::StatusOr<std::string> GeneratorImpl::Filters(
     if (!sql.empty()) {
       sql += " AND ";
     }
-
-    std::string column_name = filter.column_name().ToStdString();
-    auto op = static_cast<StructuredQuery::Filter::Operator>(filter.op());
-    ASSIGN_OR_RETURN(std::string op_str, OperatorToString(op));
-
-    if (op == StructuredQuery::Filter::Operator::IS_NULL ||
-        op == StructuredQuery::Filter::Operator::IS_NOT_NULL) {
-      sql += column_name + " " + op_str;
-      continue;
-    }
-
-    sql += column_name + " " + op_str + " ";
-
-    if (auto srhs = filter.string_rhs(); srhs) {
-      sql += "'" + (*srhs++).ToStdString() + "'";
-      for (; srhs; ++srhs) {
-        sql += " OR " + column_name + " " + op_str + " '" +
-               (*srhs).ToStdString() + "'";
-      }
-    } else if (auto drhs = filter.double_rhs(); drhs) {
-      sql += std::to_string((*drhs++));
-      for (; drhs; ++drhs) {
-        sql +=
-            " OR " + column_name + " " + op_str + " " + std::to_string(*drhs);
-      }
-    } else if (auto irhs = filter.int64_rhs(); irhs) {
-      sql += std::to_string(*irhs++);
-      for (; irhs; ++irhs) {
-        sql +=
-            " OR " + column_name + " " + op_str + " " + std::to_string(*irhs);
-      }
-    } else {
-      return base::ErrStatus("Filter must specify a right-hand side");
-    }
+    ASSIGN_OR_RETURN(std::string filter_sql, SingleFilter(filter));
+    sql += filter_sql;
   }
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::ExperimentalFilterGroup(
+    const StructuredQuery::ExperimentalFilterGroup::Decoder& exp_filter_group) {
+  auto op = static_cast<StructuredQuery::ExperimentalFilterGroup::Operator>(
+      exp_filter_group.op());
+  if (op == StructuredQuery::ExperimentalFilterGroup::UNSPECIFIED) {
+    return base::ErrStatus(
+        "ExperimentalFilterGroup must specify an operator (AND or OR)");
+  }
+
+  std::string op_str;
+  switch (op) {
+    case StructuredQuery::ExperimentalFilterGroup::AND:
+      op_str = " AND ";
+      break;
+    case StructuredQuery::ExperimentalFilterGroup::OR:
+      op_str = " OR ";
+      break;
+    case StructuredQuery::ExperimentalFilterGroup::UNSPECIFIED:
+      return base::ErrStatus(
+          "ExperimentalFilterGroup operator cannot be UNSPECIFIED");
+  }
+
+  std::string sql;
+  size_t item_count = 0;
+
+  // Process simple filters
+  for (auto it = exp_filter_group.filters(); it; ++it) {
+    StructuredQuery::Filter::Decoder filter(*it);
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    ASSIGN_OR_RETURN(std::string filter_sql, SingleFilter(filter));
+    sql += filter_sql;
+    item_count++;
+  }
+
+  // Process nested groups (wrap in parentheses)
+  for (auto it = exp_filter_group.groups(); it; ++it) {
+    StructuredQuery::ExperimentalFilterGroup::Decoder group(*it);
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    ASSIGN_OR_RETURN(std::string group_sql, ExperimentalFilterGroup(group));
+    sql += "(" + group_sql + ")";
+    item_count++;
+  }
+
+  // Process SQL expressions
+  for (auto it = exp_filter_group.sql_expressions(); it; ++it) {
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    sql += (*it).ToStdString();
+    item_count++;
+  }
+
+  if (item_count == 0) {
+    return base::ErrStatus(
+        "ExperimentalFilterGroup must have at least one filter, group, or SQL "
+        "expression");
+  }
+
   return sql;
 }
 
@@ -519,6 +1353,47 @@ base::StatusOr<std::string> GeneratorImpl::GroupBy(
       sql += ", ";
     }
     sql += (*it).ToStdString();
+  }
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::OrderBy(
+    const StructuredQuery::OrderBy::Decoder& order_by) {
+  auto specs = order_by.ordering_specs();
+  if (!specs) {
+    return base::ErrStatus("ORDER BY must specify at least one ordering spec");
+  }
+
+  // The order of ordering_specs is significant: the first spec is the primary
+  // sort key, subsequent specs are used to break ties.
+  // See SQL-92 standard section 7.10 (Sort specification list).
+  std::string sql = "ORDER BY ";
+  bool first = true;
+  for (auto it = specs; it; ++it) {
+    StructuredQuery::OrderBy::OrderingSpec::Decoder spec(*it);
+    if (!first) {
+      sql += ", ";
+    }
+    first = false;
+
+    if (spec.column_name().size == 0) {
+      return base::ErrStatus("ORDER BY column_name cannot be empty");
+    }
+    sql += spec.column_name().ToStdString();
+
+    if (spec.has_direction()) {
+      switch (spec.direction()) {
+        case StructuredQuery::OrderBy::ASC:
+          sql += " ASC";
+          break;
+        case StructuredQuery::OrderBy::DESC:
+          sql += " DESC";
+          break;
+        case StructuredQuery::OrderBy::UNSPECIFIED:
+          // Default to ASC, no need to add anything
+          break;
+      }
+    }
   }
   return sql;
 }
@@ -654,6 +1529,14 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
     return std::string("COUNT(*)");
   }
 
+  if (op == StructuredQuery::GroupBy::Aggregate::CUSTOM) {
+    if (!aggregate.has_custom_sql_expression()) {
+      return base::ErrStatus(
+          "Custom SQL expression not specified for CUSTOM aggregation");
+    }
+    return aggregate.custom_sql_expression().ToStdString();
+  }
+
   if (!aggregate.has_column_name()) {
     return base::ErrStatus("Column name not specified for aggregation");
   }
@@ -662,6 +1545,8 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
   switch (op) {
     case StructuredQuery::GroupBy::Aggregate::COUNT:
       return "COUNT(" + column_name + ")";
+    case StructuredQuery::GroupBy::Aggregate::COUNT_DISTINCT:
+      return "COUNT(DISTINCT " + column_name + ")";
     case StructuredQuery::GroupBy::Aggregate::SUM:
       return "SUM(" + column_name + ")";
     case StructuredQuery::GroupBy::Aggregate::MIN:
@@ -681,6 +1566,8 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
     case StructuredQuery::GroupBy::Aggregate::DURATION_WEIGHTED_MEAN:
       return "SUM(cast_double!(" + column_name +
              " * dur)) / cast_double!(SUM(dur))";
+    case StructuredQuery::GroupBy::Aggregate::CUSTOM:
+      PERFETTO_FATAL("CUSTOM aggregation should have been handled above");
     case StructuredQuery::GroupBy::Aggregate::UNSPECIFIED:
       return base::ErrStatus("Invalid aggregate operator %d", op);
   }

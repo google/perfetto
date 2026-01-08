@@ -48,7 +48,7 @@ export default class implements PerfettoPlugin {
   }
 
   private createTrackHierarchyFromNames(ctx: Trace) {
-    ctx.workspace.flatTracks
+    ctx.defaultWorkspace.flatTracks
       .filter((track) => track.name.includes(NESTING_SEPARATOR))
       .forEach((track) => this.organizeTrack(track));
   }

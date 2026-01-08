@@ -15,8 +15,15 @@
  */
 
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -24,28 +31,20 @@ namespace perfetto::trace_processor {
 
 ImportLogsTracker::ImportLogsTracker(TraceProcessorContext* context,
                                      uint32_t trace_id)
-    : context_(context),
-      trace_id_(trace_id),
-      severity_info_id_(context_->storage->InternString("info")),
-      severity_data_loss_id_(context_->storage->InternString("data_loss")),
-      severity_error_id_(context_->storage->InternString("error")) {}
+    : context_(context), trace_id_(trace_id) {}
 
 void ImportLogsTracker::RecordImportLog(
     size_t stat_key,
     std::optional<int64_t> timestamp,
     std::optional<int64_t> byte_offset,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
-  PERFETTO_CHECK(stats::kSources[stat_key] == stats::Source::kAnalysis);
-
   context_->storage->IncrementStats(stat_key);
 
   tables::TraceImportLogsTable::Row row;
   row.trace_id = trace_id_;
   row.ts = timestamp;
   row.byte_offset = byte_offset;
-  row.severity = SeverityToStringId(stats::kSeverities[stat_key]);
-  row.name = context_->storage->InternString(
-      base::StringView(stats::kNames[stat_key]));
+  row.stat_key = static_cast<int64_t>(stat_key);
 
   auto id =
       context_->storage->mutable_trace_import_logs_table()->Insert(row).id;
@@ -74,16 +73,12 @@ void ImportLogsTracker::RecordParserError(
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 
-StringId ImportLogsTracker::SeverityToStringId(stats::Severity severity) {
-  switch (severity) {
-    case stats::Severity::kInfo:
-      return severity_info_id_;
-    case stats::Severity::kDataLoss:
-      return severity_data_loss_id_;
-    case stats::Severity::kError:
-      return severity_error_id_;
-  }
-  PERFETTO_FATAL("Unknown severity");
+void ImportLogsTracker::RecordAnalysisError(
+    size_t stat_key,
+    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+  RecordImportLog(stat_key,
+                  /*timestamp=*/std::nullopt,
+                  /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 
 }  // namespace perfetto::trace_processor

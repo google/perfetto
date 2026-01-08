@@ -87,7 +87,7 @@ export default class implements PerfettoPlugin {
     const memoryGroupFn = () => {
       return ctx.plugins
         .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(ctx.workspace, 'MEMORY');
+        .getOrCreateStandardGroup(ctx.defaultWorkspace, 'MEMORY');
     };
     const node = await addGlobalCounter(ctx, memoryGroupFn);
     await addGlobalAllocs(ctx, () => {

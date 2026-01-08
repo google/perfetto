@@ -16,6 +16,10 @@
 
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <string>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
@@ -23,7 +27,8 @@
 
 namespace protozero {
 
-FilterBytecodeGenerator::FilterBytecodeGenerator() = default;
+FilterBytecodeGenerator::FilterBytecodeGenerator(BytecodeVersion min_version)
+    : min_version_(min_version) {}
 FilterBytecodeGenerator::~FilterBytecodeGenerator() = default;
 
 void FilterBytecodeGenerator::EndMessage() {
@@ -43,8 +48,37 @@ void FilterBytecodeGenerator::AddSimpleField(uint32_t field_id) {
 
 // Allows a string field which needs to be rewritten using the given chain.
 void FilterBytecodeGenerator::AddFilterStringField(uint32_t field_id) {
+  // String filtering is only available if bytecode v2+ is targeted.
+  PERFETTO_CHECK(min_version_ >= BytecodeVersion::kV2);
+
   PERFETTO_CHECK(field_id > last_field_id_);
   bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterString);
+  last_field_id_ = field_id;
+  endmessage_called_ = false;
+}
+
+// Allows a string field with a semantic type.
+void FilterBytecodeGenerator::AddFilterStringFieldWithType(
+    uint32_t field_id,
+    uint32_t semantic_type) {
+  // String filtering is only available if bytecode v2+ is targeted.
+  PERFETTO_CHECK(min_version_ >= BytecodeVersion::kV2);
+  PERFETTO_CHECK(field_id > last_field_id_);
+
+  // If min_version is at least v54, we can just use the new opcode directly.
+  if (min_version_ >= BytecodeVersion::kV54) {
+    bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
+    bytecode_.push_back(semantic_type);
+  } else {
+    // On bytecode v2, the field will just be totally denied. Just don't add
+    // anything.
+
+    // On v54 it will allowed.
+    v54_overlay_.push_back(num_messages_);
+    v54_overlay_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
+    v54_overlay_.push_back(semantic_type);
+  }
+
   last_field_id_ = field_id;
   endmessage_called_ = false;
 }
@@ -81,17 +115,38 @@ void FilterBytecodeGenerator::AddNestedField(uint32_t field_id,
 // The returned bytecode is a binary buffer which consists of a sequence of
 // varints (the opcodes) and a checksum.
 // The returned string can be passed as-is to FilterBytecodeParser.Load().
-std::string FilterBytecodeGenerator::Serialize() {
+FilterBytecodeGenerator::SerializeResult FilterBytecodeGenerator::Serialize() {
   PERFETTO_CHECK(endmessage_called_);
   PERFETTO_CHECK(max_msg_index_ < num_messages_);
-  protozero::PackedVarInt words;
-  perfetto::base::FnvHasher hasher;
-  for (uint32_t word : bytecode_) {
-    words.Append(word);
-    hasher.Update(word);
+
+  SerializeResult result;
+
+  // Serialize main bytecode.
+  {
+    protozero::PackedVarInt words;
+    perfetto::base::FnvHasher hasher;
+    for (uint32_t word : bytecode_) {
+      words.Append(word);
+      hasher.Update(word);
+    }
+    words.Append(static_cast<uint32_t>(hasher.digest()));
+    result.bytecode =
+        std::string(reinterpret_cast<const char*>(words.data()), words.size());
   }
-  words.Append(static_cast<uint32_t>(hasher.digest()));
-  return std::string(reinterpret_cast<const char*>(words.data()), words.size());
+
+  // Serialize v54 overlay if non-empty.
+  if (!v54_overlay_.empty()) {
+    protozero::PackedVarInt words;
+    perfetto::base::FnvHasher hasher;
+    for (uint32_t word : v54_overlay_) {
+      words.Append(word);
+      hasher.Update(word);
+    }
+    words.Append(static_cast<uint32_t>(hasher.digest()));
+    result.v54_overlay =
+        std::string(reinterpret_cast<const char*>(words.data()), words.size());
+  }
+  return result;
 }
 
 }  // namespace protozero

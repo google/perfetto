@@ -32,8 +32,9 @@ class WindowManagerParser {
   void Parse(int64_t timestamp, protozero::ConstBytes blob);
 
  private:
-  tables::WindowManagerTable::Id InsertSnapshotRow(int64_t timestamp,
-                                                   protozero::ConstBytes blob);
+  tables::WindowManagerTable::Id InsertSnapshotRow(
+      int64_t timestamp,
+      protos::pbzero::WindowManagerTraceEntry::Decoder& entry_decoder);
   void InsertWindowContainerRows(
       int64_t timestamp,
       tables::WindowManagerTable::Id snapshot_id,

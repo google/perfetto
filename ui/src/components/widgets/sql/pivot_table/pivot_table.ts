@@ -20,7 +20,7 @@ import {Button} from '../../../../widgets/button';
 import {Icons} from '../../../../base/semantic_icons';
 import {TableColumn, tableColumnId} from '../table/table_column';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
-import {SelectColumnMenu} from '../table/select_column_menu';
+import {SelectColumnMenu} from '../table/menus/select_column_menu';
 import {SqlColumn} from '../table/sql_column';
 import {buildSqlQuery} from '../table/query_builder';
 import {Aggregation, AGGREGATIONS} from './aggregations';
@@ -36,6 +36,7 @@ import {
 
 export interface PivotTableAttrs {
   readonly state: PivotTableState;
+  readonly getSelectableColumns: () => TableColumn[];
   // Additional button to render at the end of each row. Typically used
   // for adding new filters.
   extraRowButton?(node: PivotTreeNode): m.Children;
@@ -69,7 +70,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             },
             pivotId(pivot),
           ),
-          reorderable: {handle: 'pivot'},
+          reorderable: {reorderGroup: 'pivot'},
           thickRightBorder: index === pivots.length - 1,
         };
         return gridColumn;
@@ -88,7 +89,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             },
             aggregationId(agg),
           ),
-          reorderable: {handle: 'aggregation'},
+          reorderable: {reorderGroup: 'aggregation'},
         };
         return gridColumn;
       }),
@@ -97,7 +98,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     if (extraRowButton) {
       columns.push({
         key: 'action-button',
-        minWidth: 0,
+        widthPx: 24,
         header: m(GridHeaderCell, ''),
       });
     }
@@ -269,20 +270,18 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           icon: Icons.Add,
         },
         m(SelectColumnMenu, {
-          columns: state.table.columns.map((column) => ({
+          columns: attrs.getSelectableColumns().map((column) => ({
             key: tableColumnId(column),
             column,
           })),
-          manager: {
-            filters: state.filters,
-            trace: state.trace,
-            getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-              buildSqlQuery({
-                table: state.table.name,
-                columns,
-                filters: state.filters.get(),
-              }),
-          },
+          filters: state.filters,
+          trace: state.trace,
+          getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+            buildSqlQuery({
+              table: state.table.name,
+              columns,
+              filters: state.filters.get(),
+            }),
           existingColumnIds: new Set(state.getPivots().map(pivotId)),
           onColumnSelected: (column) => state.addPivot(column, index),
         }),
@@ -365,22 +364,20 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           icon: Icons.Add,
         },
         m(SelectColumnMenu, {
-          columns: state.table.columns.map((column) => ({
+          columns: attrs.getSelectableColumns().map((column) => ({
             key: tableColumnId(column),
             column,
           })),
-          manager: {
-            filters: state.filters,
-            trace: state.trace,
-            getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-              buildSqlQuery({
-                table: state.table.name,
-                columns,
-                filters: state.filters.get(),
-              }),
-          },
+          filters: state.filters,
+          trace: state.trace,
+          getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+            buildSqlQuery({
+              table: state.table.name,
+              columns,
+              filters: state.filters.get(),
+            }),
           columnMenu: (column) => ({
-            rightIcon: '',
+            rightIcon: Icons.ContextMenuAlt,
             children: AGGREGATIONS.map((agg) =>
               m(MenuItem, {
                 label: agg,

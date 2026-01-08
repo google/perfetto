@@ -131,6 +131,7 @@ source_set("storage_minimal") {
     "containers",
     "importers/common",
     "importers/common:parser_types",
+    "importers/etw:minimal",
     "importers/ftrace:minimal",
     "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",
@@ -236,11 +237,15 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
   }
 
-  executable("trace_processor_shell") {
+  # Library target for the trace processor shell.
+  # Allows embedders (e.g. Google3) to customize the shell executable's
+  # interaction with the environment.
+  static_library("trace_processor_shell_lib") {
     deps = [
       ":lib",
       "../../gn:default_deps",
       "../../gn:protobuf_full",
+      "../../include/perfetto/ext/trace_processor:trace_processor_shell",
       "../../protos/perfetto/trace_processor:zero",
       "../../src/profiling:deobfuscator",
       "../../src/profiling/symbolizer",
@@ -259,7 +264,17 @@ if (enable_perfetto_trace_processor_sqlite) {
     if (enable_perfetto_trace_processor_httpd) {
       deps += [ "rpc:httpd" ]
     }
+    public_deps =
+        [ "../../include/perfetto/ext/trace_processor:trace_processor_shell" ]
     sources = [ "trace_processor_shell.cc" ]
+  }
+
+  executable("trace_processor_shell") {
+    deps = [
+      ":trace_processor_shell_lib",
+      "../../gn:default_deps",
+    ]
+    sources = [ "trace_processor_shell_main.cc" ]
     if ((perfetto_build_standalone || build_with_chromium) &&
         !is_perfetto_build_generator) {
       data_deps = [

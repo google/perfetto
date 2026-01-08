@@ -82,10 +82,6 @@ void Extra::delete_extra(Extra* ptr) {
   delete ptr;
 }
 
-PerfettoTeHlExtra* const* Extra::get() const {
-  return extras_.data();
-}
-
 Category::Category(const std::string& name) : Category(name, {}) {}
 
 Category::Category(const std::string& name,
@@ -124,10 +120,6 @@ bool Category::is_category_enabled() {
       (category_).enabled, PERFETTO_MEMORY_ORDER_RELAXED));
 }
 
-const PerfettoTeCategory* Category::get() const {
-  return &category_;
-}
-
 void Category::delete_category(Category* ptr) {
   delete ptr;
 }
@@ -146,10 +138,6 @@ void Flow::set_process_terminating_flow(uint64_t id) {
   flow_.id = ret.id;
 }
 
-const PerfettoTeHlExtraFlow* Flow::get() const {
-  return &flow_;
-}
-
 void Flow::delete_flow(Flow* ptr) {
   delete ptr;
 }
@@ -162,10 +150,6 @@ NamedTrack::NamedTrack(uint64_t id,
              name_.data(),
              id,
              parent_uuid} {}
-
-const PerfettoTeHlExtraNamedTrack* NamedTrack::get() const {
-  return &track_;
-}
 
 void NamedTrack::delete_track(NamedTrack* ptr) {
   delete ptr;
@@ -208,10 +192,6 @@ void RegisteredTrack::unregister_track() {
   PerfettoTeRegisteredTrackUnregister(&registered_track_);
 }
 
-const PerfettoTeHlExtraRegisteredTrack* RegisteredTrack::get() const {
-  return &track_;
-}
-
 void RegisteredTrack::delete_track(RegisteredTrack* ptr) {
   delete ptr;
 }
@@ -237,10 +217,6 @@ void Proto::delete_proto(Proto* ptr) {
   delete ptr;
 }
 
-const PerfettoTeHlExtraProtoFields* Proto::get() const {
-  return &proto_;
-}
-
 ProtoFieldNested::ProtoFieldNested()
     : field_({{PERFETTO_TE_HL_PROTO_TYPE_NESTED, 0}, nullptr}) {}
 
@@ -262,10 +238,6 @@ void ProtoFieldNested::set_id(uint32_t id) {
 
 void ProtoFieldNested::delete_field(ProtoFieldNested* ptr) {
   delete ptr;
-}
-
-const PerfettoTeHlProtoFieldNested* ProtoFieldNested::get() const {
-  return &field_;
 }
 
 Session::Session(bool is_backend_in_process, void* buf, size_t len) {

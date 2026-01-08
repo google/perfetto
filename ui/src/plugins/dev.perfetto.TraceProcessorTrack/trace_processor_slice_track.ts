@@ -31,6 +31,7 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import m from 'mithril';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
 export interface TraceProcessorSliceTrackAttrs {
   readonly trace: Trace;
@@ -38,6 +39,7 @@ export interface TraceProcessorSliceTrackAttrs {
   readonly maxDepth?: number;
   readonly trackIds: ReadonlyArray<number>;
   readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
+  readonly depthTableName?: string;
 }
 
 const schema = {
@@ -51,6 +53,7 @@ const schema = {
   correlation_id: STR_NULL,
   arg_set_id: NUM_NULL,
   parent_id: NUM_NULL,
+  track_id: NUM,
 };
 
 export async function createTraceProcessorSliceTrack({
@@ -59,11 +62,12 @@ export async function createTraceProcessorSliceTrack({
   maxDepth,
   trackIds,
   detailsPanel,
+  depthTableName,
 }: TraceProcessorSliceTrackAttrs) {
   return SliceTrack.create({
     trace,
     uri,
-    dataset: await getDataset(trace.engine, trackIds),
+    dataset: await getDataset(trace.engine, trackIds, depthTableName),
     sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
@@ -98,66 +102,86 @@ export async function createTraceProcessorSliceTrack({
   });
 }
 
-async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
+async function getDataset(
+  engine: Engine,
+  trackIds: ReadonlyArray<number>,
+  depthTableName?: string,
+) {
   assertTrue(trackIds.length > 0);
 
   if (trackIds.length === 1) {
+    // Single track case - use depth directly from slice table
     return new SourceDataset({
       schema,
-      src: `
-        select
-          slice.id,
-          ts,
-          dur,
-          depth,
-          name,
-          thread_dur,
-          track_id,
-          category,
-          extract_arg(arg_set_id, 'correlation_id') as correlation_id,
-          arg_set_id,
-          parent_id
-        from slice
-      `,
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        depth: 'depth',
+        name: 'name',
+        thread_dur: 'thread_dur',
+        track_id: 'track_id',
+        category: 'category',
+        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
+        arg_set_id: 'arg_set_id',
+        parent_id: 'parent_id',
+      },
+      src: 'slice',
+      filter: {
+        col: 'track_id',
+        eq: trackIds[0],
+      },
+    });
+  } else {
+    // Multiple tracks case - need to compute layout depths.
+    // If no depth table name provided, create one with a constant name.
+    const tableName = depthTableName ?? `__async_slice_depth_${trackIds[0]}`;
+
+    if (depthTableName === undefined) {
+      // Create the depth table if not provided by caller
+      await createPerfettoTable({
+        name: tableName,
+        engine,
+        as: `
+          select
+            id,
+            layout_depth as depth,
+            ${Math.min(...trackIds)} AS minTrackId
+          from experimental_slice_layout('${trackIds.join(',')}')
+        `,
+      });
+    }
+
+    // Join slice with the depth table (caller-provided or self-created).
+    return new SourceDataset({
+      schema,
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        depth: {
+          join: 'depth',
+          expr: 'depth.depth',
+        },
+        name: 'name',
+        thread_dur: 'thread_dur',
+        track_id: 'track_id',
+        category: 'category',
+        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
+        arg_set_id: 'arg_set_id',
+        parent_id: 'parent_id',
+      },
+      src: 'slice',
+      joins: {
+        depth: {
+          from: `${tableName} USING (id)`,
+          unique: true,
+        },
+      },
       filter: {
         col: 'track_id',
         in: trackIds,
       },
-    });
-  } else {
-    // If we have more than one trackId, we must use experimental_slice_layout
-    // to work out the depths. However, just using this as the dataset can be
-    // extremely slow. So we cache the depths up front in a new table for this
-    // track.
-    const tableName = `__async_slice_depth_${trackIds[0]}`;
-
-    await engine.query(`
-      create perfetto table ${tableName} as
-      select
-        id,
-        layout_depth as depth
-      from experimental_slice_layout('${trackIds.join(',')}')
-    `);
-
-    // The (inner) join acts as a filter as well as providing the depth.
-    return new SourceDataset({
-      schema,
-      src: `
-        select
-          slice.id,
-          ts,
-          dur,
-          d.depth as depth,
-          name,
-          thread_dur,
-          track_id,
-          category,
-          extract_arg(arg_set_id, 'correlation_id') as correlation_id,
-          arg_set_id,
-          parent_id
-        from slice
-        join ${tableName} d using (id)
-      `,
     });
   }
 }

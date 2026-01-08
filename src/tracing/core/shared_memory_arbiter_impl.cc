@@ -387,7 +387,7 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
     if (fully_bound_ &&
         (last_patch_req || bytes_pending_commit_ >= shmem_abi_.size() / 2)) {
       bool should_post_immediate_flush = true;
-      if (base::flags::sma_prevent_duplicate_immediate_flushes) {
+      if constexpr (PERFETTO_FLAGS(SMA_PREVENT_DUPLICATE_IMMEDIATE_FLUSHES)) {
         // Only post an immediate flush task if we haven't already posted one.
         // This prevents spamming the task runner with immediate flushes when
         // the buffer remains over 50% full while chunks continue to be
@@ -421,7 +421,7 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
         FlushPendingCommitDataRequests();
       } else {
         bool should_post_immediate_flush = true;
-        if (base::flags::sma_prevent_duplicate_immediate_flushes) {
+        if constexpr (PERFETTO_FLAGS(SMA_PREVENT_DUPLICATE_IMMEDIATE_FLUSHES)) {
           // Only post an immediate flush task if we haven't already posted one.
           // This prevents spamming the task runner with immediate flushes when
           // the buffer remains over 50% full while chunks continue to be
@@ -908,6 +908,33 @@ void SharedMemoryArbiterImpl::NotifyFlushComplete(FlushRequestID req_id) {
   }
 }
 
+void SharedMemoryArbiterImpl::ScrapeEmulatedSharedMemoryBuffer(
+    const std::map<WriterID, BufferID>& buffer_for_writers) {
+  PERFETTO_CHECK(use_shmem_emulation_);
+
+  // This function must be called on the IPC thread.
+  PERFETTO_CHECK(task_runner_->RunsTasksOnCurrentThread());
+
+  CommitDataRequest commit_req;
+  ForEachScrapableChunk(&shmem_abi_, [&](SharedMemoryABI::Chunk* chunk,
+                                         bool chunk_complete, auto, auto) {
+    const auto writer = buffer_for_writers.find(chunk->writer_id());
+    if (writer == buffer_for_writers.end())
+      return;
+    BufferID target_buffer_id = writer->second;
+    auto* ctm = commit_data_req_->add_chunks_to_move();
+    auto page_and_chunk = shmem_abi_.GetPageAndChunkIndex(*chunk);
+    ctm->set_page(static_cast<uint32_t>(page_and_chunk.first));
+    ctm->set_chunk(static_cast<uint32_t>(page_and_chunk.second));
+    ctm->set_target_buffer(target_buffer_id);
+    ctm->set_data(chunk->begin(), chunk->size());
+    ctm->set_chunk_incomplete(!chunk_complete);
+  });
+  if (commit_req.chunks_to_move_size() == 0)
+    return;
+  producer_endpoint_->CommitData(commit_req);
+}
+
 std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
     MaybeUnboundBufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy) {
@@ -945,7 +972,8 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
       fully_bound_ = false;
       was_always_bound_ = false;
     } else if (target_buffer != kInvalidBufferId) {
-      // Trace writer is bound, so arbiter should be bound to an endpoint, too.
+      // Trace writer is bound, so arbiter should be bound to an endpoint,
+      // too.
       PERFETTO_CHECK(producer_endpoint_ && task_runner_);
       task_runner_to_register_on = task_runner_;
     }
@@ -983,15 +1011,15 @@ void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
 
     auto it = pending_writers_.find(id);
     if (it != pending_writers_.end()) {
-      // Writer hasn't been bound yet and thus also not yet registered with the
-      // service.
+      // Writer hasn't been bound yet and thus also not yet registered with
+      // the service.
       pending_writers_.erase(it);
       return;
     }
 
     // A trace writer from an aborted session may be destroyed before the
-    // arbiter is bound to a task runner. In that case, it was never registered
-    // with the service.
+    // arbiter is bound to a task runner. In that case, it was never
+    // registered with the service.
     if (!task_runner_)
       return;
 
@@ -1045,8 +1073,8 @@ bool SharedMemoryArbiterImpl::UpdateFullyBoundLocked() {
     PERFETTO_DCHECK(!fully_bound_);
     return false;
   }
-  // We're fully bound if all target buffer reservations have a valid associated
-  // BufferID.
+  // We're fully bound if all target buffer reservations have a valid
+  // associated BufferID.
   fully_bound_ = std::none_of(
       target_buffer_reservations_.begin(), target_buffer_reservations_.end(),
       [](std::pair<MaybeUnboundBufferID, TargetBufferReservation> entry) {

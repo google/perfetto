@@ -73,15 +73,32 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
   context_->clock_tracker->SetTraceTimeClock(
       protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
 
+  const Json::Value& value = *opt_value;
+
+  // Detect format: preprocessed uses "stringArray", legacy uses "stringTable".
+  bool is_preprocessed = false;
+  if (!value["threads"].empty()) {
+    const auto& first_thread = value["threads"][0];
+    is_preprocessed = first_thread.isMember("stringArray") ||
+                      (first_thread.isMember("frameTable") &&
+                       first_thread["frameTable"].isMember("func"));
+  }
+
+  if (is_preprocessed) {
+    ParsePreprocessedFormat(value);
+  } else {
+    ParseLegacyFormat(value);
+  }
+  return base::OkStatus();
+}
+
+void GeckoTraceTokenizer::ParseLegacyFormat(const Json::Value& value) {
   DummyMemoryMapping* dummy_mapping = nullptr;
   base::FlatHashMap<std::string, DummyMemoryMapping*> mappings;
-
-  const Json::Value& value = *opt_value;
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
+
   for (const auto& t : value["threads"]) {
-    // The trace uses per-thread indices, we reuse the vector for perf reasons
-    // to prevent reallocs on every thread.
     frame_ids.clear();
     callsites.clear();
 
@@ -155,16 +172,125 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
                     context_->storage->InternString(t["name"].asCString())}});
         added_metadata = true;
       }
-      ASSIGN_OR_RETURN(
-          int64_t converted,
-          context_->clock_tracker->ToTraceTime(
-              protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts));
-      stream_->Push(converted,
-                    GeckoEvent{GeckoEvent::StackSample{
-                        t["tid"].asUInt(), callsites[stack_idx].id}});
+      std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
+          protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts);
+      if (converted) {
+        stream_->Push(*converted,
+                      GeckoEvent{GeckoEvent::StackSample{
+                          t["tid"].asUInt(), callsites[stack_idx].id}});
+      }
     }
   }
-  return base::OkStatus();
+}
+
+void GeckoTraceTokenizer::ParsePreprocessedFormat(const Json::Value& value) {
+  DummyMemoryMapping* dummy_mapping = nullptr;
+  base::FlatHashMap<std::string, DummyMemoryMapping*> mappings;
+  std::vector<FrameId> frame_ids;
+  std::vector<Callsite> callsites;
+
+  for (const auto& t : value["threads"]) {
+    frame_ids.clear();
+    callsites.clear();
+
+    const auto& strings = t["stringArray"];
+    const auto& frames = t["frameTable"];
+    const auto& funcs = t["funcTable"];
+
+    // Preprocessed format: frameTable.func[] -> funcTable index,
+    // funcTable.name[] -> stringArray index.
+    const auto& frame_func_indices = frames["func"];
+    const auto& func_names = funcs["name"];
+
+    for (uint32_t i = 0; i < frame_func_indices.size(); ++i) {
+      uint32_t func_idx = frame_func_indices[i].asUInt();
+      uint32_t name_str_idx = func_names[func_idx].asUInt();
+      base::StringView name = strings[name_str_idx].asCString();
+
+      constexpr std::string_view kMappingStart = " (in ";
+      size_t mapping_meta_start = name.find(
+          base::StringView(kMappingStart.data(), kMappingStart.size()));
+      if (mapping_meta_start == base::StringView::npos) {
+        if (!dummy_mapping) {
+          dummy_mapping =
+              &context_->mapping_tracker->CreateDummyMapping("gecko");
+        }
+        frame_ids.push_back(
+            dummy_mapping->InternDummyFrame(name, base::StringView()));
+        continue;
+      }
+
+      DummyMemoryMapping* mapping;
+      size_t mapping_start = mapping_meta_start + kMappingStart.size();
+      size_t mapping_end = name.find(')', mapping_start);
+      std::string mapping_name =
+          name.substr(mapping_start, mapping_end - mapping_start).ToStdString();
+      if (auto* mapping_ptr = mappings.Find(mapping_name); mapping_ptr) {
+        mapping = *mapping_ptr;
+      } else {
+        mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
+        mappings.Insert(mapping_name, mapping);
+      }
+      frame_ids.push_back(mapping->InternDummyFrame(
+          name.substr(0, mapping_meta_start), base::StringView()));
+    }
+
+    // Preprocessed format: stackTable has separate "prefix" and "frame" arrays.
+    const auto& stacks = t["stackTable"];
+    const auto& prefixes = stacks["prefix"];
+    const auto& stack_frames = stacks["frame"];
+
+    for (uint32_t i = 0; i < prefixes.size(); ++i) {
+      const auto& prefix = prefixes[i];
+      std::optional<CallsiteId> prefix_id;
+      uint32_t depth = 0;
+      if (!prefix.isNull()) {
+        const auto& c = callsites[prefix.asUInt()];
+        prefix_id = c.id;
+        depth = c.depth + 1;
+      }
+      CallsiteId cid = context_->stack_profile_tracker->InternCallsite(
+          prefix_id, frame_ids[stack_frames[i].asUInt()], depth);
+      callsites.push_back({cid, depth});
+    }
+
+    // Preprocessed format: samples has separate "stack" and "time" arrays.
+    const auto& samples = t["samples"];
+    const auto& sample_stacks = samples["stack"];
+    const auto& sample_times = samples["time"];
+
+    // In preprocessed format, tid/pid can be strings or integers.
+    uint32_t tid = t["tid"].isString()
+                       ? base::CStringToUInt32(t["tid"].asCString()).value_or(0)
+                       : t["tid"].asUInt();
+    uint32_t pid = t["pid"].isString()
+                       ? base::CStringToUInt32(t["pid"].asCString()).value_or(0)
+                       : t["pid"].asUInt();
+
+    bool added_metadata = false;
+    for (uint32_t i = 0; i < sample_stacks.size(); ++i) {
+      const auto& stack_val = sample_stacks[i];
+      // Stack can be null in the preprocessed format.
+      if (stack_val.isNull()) {
+        continue;
+      }
+      uint32_t stack_idx = stack_val.asUInt();
+      auto ts = static_cast<int64_t>(sample_times[i].asDouble() * 1000 * 1000);
+      if (!added_metadata) {
+        stream_->Push(
+            ts, GeckoEvent{GeckoEvent::ThreadMetadata{
+                    tid, pid,
+                    context_->storage->InternString(t["name"].asCString())}});
+        added_metadata = true;
+      }
+      std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
+          protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts);
+      if (converted) {
+        stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
+                                      tid, callsites[stack_idx].id}});
+      }
+    }
+  }
 }
 
 }  // namespace perfetto::trace_processor::gecko_importer

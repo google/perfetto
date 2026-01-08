@@ -22,6 +22,7 @@
 
 #include "protos/perfetto/trace/android/surfaceflinger_common.gen.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.gen.h"
+#include "src/trace_processor/importers/proto/winscope/winscope_geometry.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_geometry_test_utils.h"
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers::test {
@@ -132,6 +133,21 @@ class Layer {
     return *this;
   }
 
+  Layer& SetEffectiveRadii(geometry::CornerRadii value) {
+    effective_radii_ = value;
+    return *this;
+  }
+
+  Layer& SetCornerRadii(geometry::CornerRadii value) {
+    corner_radii_ = value;
+    return *this;
+  }
+
+  Layer& SetCornerRadius(float value) {
+    corner_radius_ = value;
+    return *this;
+  }
+
   Layer& SetId(int32_t value) {
     id_ = value;
     return *this;
@@ -154,6 +170,9 @@ class Layer {
   std::optional<bool> is_opaque_;
   std::optional<uint32_t> layer_stack_;
   std::optional<int32_t> z_;
+  std::optional<geometry::CornerRadii> effective_radii_;
+  std::optional<geometry::CornerRadii> corner_radii_;
+  std::optional<float> corner_radius_;
   std::optional<int32_t> id_;
   bool nullify_id_ = false;
 };
@@ -228,6 +247,19 @@ class SnapshotProtoBuilder {
       }
       if (layer.z_.has_value()) {
         layer_proto->set_z(layer.z_.value());
+      }
+      if (layer.effective_radii_.has_value()) {
+        auto effective_radii_proto = layer_proto->mutable_effective_radii();
+        geometry::test::UpdateCornerRadii(effective_radii_proto,
+                                          layer.effective_radii_.value());
+      }
+      if (layer.corner_radii_.has_value()) {
+        auto corner_radii_proto = layer_proto->mutable_corner_radii();
+        geometry::test::UpdateCornerRadii(corner_radii_proto,
+                                          layer.corner_radii_.value());
+      }
+      if (layer.corner_radius_.has_value()) {
+        layer_proto->set_corner_radius(layer.corner_radius_.value());
       }
     }
 

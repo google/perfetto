@@ -280,8 +280,9 @@ perfetto_cc_proto_descriptor("gen_cc_track_event_descriptor") {
 }
 
 perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
-  descriptor_name = "chrome_track_event.descriptor"
-  descriptor_target = "../../../../protos/third_party/chromium:descriptor"
+  descriptor_name = "chrome_track_event_extension.descriptor"
+  descriptor_target =
+      "../../../../protos/third_party/chromium:extension_descriptor"
 }
 
 perfetto_cc_proto_descriptor("gen_cc_android_track_event_descriptor") {
@@ -335,6 +336,7 @@ source_set("unittests") {
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:args_utils",
     "../../util:build_id",
     "../../util:descriptors",
     "../../util:profiler_util",

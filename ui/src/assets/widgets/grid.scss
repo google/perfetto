@@ -17,12 +17,17 @@
 $border-1: 1px solid var(--pf-color-border);
 $border-2: 1px solid var(--pf-color-border-secondary);
 $border-3: 2px solid var(--pf-color-border);
+$inline-padding: 0.5em;
+$block-padding: 0.3em;
+$indent-size: 16px;
+$indent-guide-offset: 12px;
 
 .pf-grid-header-cell {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   height: 100%;
+  white-space: nowrap;
 
   &__main-content {
     display: flex;
@@ -40,11 +45,119 @@ $border-3: 2px solid var(--pf-color-border);
     flex-shrink: 1; // The title should shrink if necessary to avoid overflow.
     text-overflow: ellipsis;
     overflow: hidden;
-    padding: 0.3em 0.5em;
+    padding: $block-padding $inline-padding;
   }
 
   &__sub-content {
-    padding: 0.3em 0.5em;
+    padding: $block-padding $inline-padding;
+  }
+
+  .pf-visible-on-hover {
+    display: none;
+
+    &.pf-active {
+      display: block;
+    }
+  }
+
+  &:hover {
+    .pf-visible-on-hover {
+      display: block;
+    }
+  }
+
+  &__sort-button {
+    // Eliminate the extra space added by the button element.
+    margin-left: -$inline-padding;
+
+    // Muted color for the sort button when not actively sorted (hint state)
+    &.pf-grid-cell--hint {
+      color: var(--pf-color-text-hint);
+    }
+  }
+}
+
+.pf-grid-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  overflow: hidden;
+  height: 100%;
+
+  --pf-cell-padding-block: 0;
+  --pf-cell-padding-inline: 0;
+  --pf-grid-cell-indent: 0;
+
+  &__menu-button {
+    // Eliminate the extra space between the menu button and the cell content added by the content padding.
+    margin-left: calc(-1 * var(--pf-cell-padding-inline));
+  }
+
+  &__indent {
+    flex-shrink: 0;
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+    margin-right: calc(var(--pf-cell-padding-inline) * -1);
+
+    &--leaf {
+      visibility: hidden;
+    }
+  }
+
+  &__content {
+    flex: 1 1 auto;
+    padding: var(--pf-cell-padding-block) var(--pf-cell-padding-inline);
+    align-items: baseline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    height: 100%;
+  }
+
+  &--padded {
+    --pf-cell-padding-block: #{$block-padding};
+    --pf-cell-padding-inline: #{$inline-padding};
+  }
+
+  &--align-right {
+    .pf-grid-cell__menu-button {
+      margin-left: 0;
+      margin-right: calc(-1 * var(--pf-cell-padding-inline));
+      order: 2;
+    }
+
+    .pf-grid-cell__content {
+      order: 3;
+      text-align: right;
+    }
+  }
+
+  &--align-center {
+    .pf-grid-cell__content {
+      text-align: center;
+    }
+  }
+
+  &--nullish {
+    .pf-grid-cell__content {
+      font-style: italic;
+      color: var(--pf-color-text-muted);
+      text-align: center;
+    }
+  }
+
+  &--hint {
+    .pf-grid-cell__content {
+      color: var(--pf-color-text-hint);
+    }
+  }
+
+  &--wrap {
+    .pf-grid-cell__content {
+      white-space: normal;
+    }
   }
 
   .pf-visible-on-hover {
@@ -62,62 +175,13 @@ $border-3: 2px solid var(--pf-color-border);
   }
 }
 
-.pf-grid-cell {
-  display: flex;
-  align-items: baseline;
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  &--padded {
-    padding: 0.3em 0.5em;
-  }
-
-  &--align-right {
-    justify-content: flex-end;
-  }
-
-  &--align-center {
-    justify-content: center;
-  }
-
-  &--nullish {
-    font-style: italic;
-    color: var(--pf-color-text-muted);
-
-    // Add a little padding because italic text can extend beyond the bounds of
-    // the container, and because we have to use overflow: hidden in order to
-    // ellipsize properly, this can end up cutting off the edges of the text.
-    .pf-grid-cell__content-wrapper {
-      padding-right: 0.2em;
-    }
-  }
-
-  &--hint {
-    color: var(--pf-color-text-hint);
-  }
-
-  &__content-wrapper {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  &[active] {
-    background: color_active(transparent);
-  }
-}
-
 .pf-grid {
   display: flex;
   flex-direction: column;
-
-  white-space: nowrap;
   font-family: var(--pf-font-compact);
   font-size: 14px;
   overflow: auto;
-  align-items: flex-start;
-
-  // Fixes poor layerization performance
-  isolation: isolate;
+  isolation: isolate; // Improves layerization performance.
 
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
@@ -127,25 +191,27 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &__header {
+    flex: 0 0 auto;
+
     display: flex;
     flex-direction: column;
-    background: var(--pf-color-background);
     border-bottom: $border-1;
-    min-width: 100%;
+    min-width: max-content;
     position: sticky;
     top: 0;
     z-index: 1; // Ensure header is above body rows when scrolling.
+    background: var(--pf-color-background);
+    font-weight: 500;
   }
 
   &__puck {
-    // Improves layerization performance when scrolling.
-    will-change: transform;
+    will-change: transform; // Improves layerization performance.
   }
 
   &__body {
-    display: flex;
-    flex-direction: column;
-    min-width: 100%;
+    min-width: max-content;
+    background: var(--pf-color-background);
+    flex: 0 0 auto;
 
     .pf-grid__row {
       &:hover {
@@ -155,16 +221,30 @@ $border-3: 2px solid var(--pf-color-border);
     }
   }
 
+  &__empty-state {
+    margin-block: auto;
+  }
+
   &__row {
     display: flex;
     align-items: stretch;
     justify-content: flex-start;
     flex-direction: row;
+    overflow: hidden;
+
+    .pf-visible-on-row-hover {
+      visibility: hidden;
+    }
+
+    &:hover {
+      .pf-visible-on-row-hover {
+        visibility: visible;
+      }
+    }
   }
 
   &__cell-container {
-    position: relative;
-    align-items: baseline;
+    position: relative; // Positioned element in order to place absolutely positioned children relative to this.
     border-right: $border-2;
 
     &[draggable="true"] {
@@ -179,52 +259,44 @@ $border-3: 2px solid var(--pf-color-border);
       border-right: $border-3;
     }
 
-    &--drag-over {
-      position: relative;
+    // Drag indicator shown on all cells in the target column (header and body)
+    &--drag-over-before::after,
+    &--drag-over-after::after {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      width: 3px;
+      background-color: var(--pf-color-accent);
+      pointer-events: none;
+    }
 
-      &::after {
-        content: "";
-        position: absolute;
-        top: 0;
-        bottom: 0; // Spans full cell height, including sub-rows
-        width: 3px;
-        background-color: var(--pf-color-accent);
-      }
+    &--drag-over-before::after {
+      left: -2px;
+    }
 
-      &-before::after {
-        left: -2px;
-      }
-
-      &-after::after {
-        right: -2px;
-      }
+    &--drag-over-after::after {
+      right: -2px;
     }
   }
 
   &__resize-handle {
-    position: absolute;
-    float: right;
-    width: 9px;
-    cursor: col-resize;
-    user-select: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 9px;
-    right: -5px;
-    z-index: 30;
-    top: 0;
-    bottom: 0;
+    position: absolute; // Control positioning within cell.
+    width: 9px; // Wider than visible to make it easier to grab.
+    right: -5px; // Straddle cell right border.
+    inset-block: 0; // Fill full height of cell.
+    z-index: 1; // Appear above adjacent cells.
+    cursor: col-resize; // Indicate resizability.
+    user-select: none; // Prevent text selection while resizing.
+    touch-action: none; // Disable touch gestures like scrolling while dragging.
 
     &:hover,
     &:active {
       &::after {
         content: "";
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 3px;
-        transition: background-color 0.2s;
+        position: absolute; // Control positioning within resize handle.
+        left: 3px; // Center within resize handle.
+        width: 3px; // Narrower than resize handle to avoid looking too busy.
+        inset-block: 0; // Fill full height of cell.
         background-color: var(--pf-color-accent);
       }
     }

@@ -36,13 +36,14 @@ export function instructionsPage(recMgr: RecordingManager): RecordSubpage {
 }
 
 type RecMgrAttrs = {recMgr: RecordingManager};
+
 class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
   private configTxt = '';
   private cmdline?: string;
   private docsLink?: string;
 
   constructor({attrs}: m.CVnode<RecMgrAttrs>) {
-    // Generate the config PBTX.
+    // Generate the config txtpb (text proto format).
     const cfg = attrs.recMgr.genTraceConfig();
     const cfgBytes = protos.TraceConfig.encode(cfg).finish().slice();
     traceConfigToTxt(cfgBytes).then((txt) => {
@@ -50,28 +51,45 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
       m.redraw();
     });
 
-    // Generate the cmdline instructions.
+    // Generate platform-specific commands.
     switch (attrs.recMgr.currentPlatform) {
       case 'ANDROID':
         this.cmdline =
-          'cat config.pbtx | adb shell perfetto' +
+          'cat config.txtpb | adb shell perfetto' +
           ' -c - --txt -o /data/misc/perfetto-traces/trace.pftrace';
         this.docsLink = 'https://perfetto.dev/docs/quickstart/android-tracing';
         break;
       case 'LINUX':
-        this.cmdline = 'perfetto -c config.pbtx --txt -o /tmp/trace.pftrace';
+        this.cmdline = 'perfetto -c config.txtpb --txt -o /tmp/trace.pftrace';
         this.docsLink = 'https://perfetto.dev/docs/quickstart/linux-tracing';
         break;
       case 'CHROME':
-      case 'CHROME_OS':
+        this.cmdline =
+          'tools/perf/crossbench loading ' +
+          '--probe="perfetto:/tmp/config.txtpb --url=http://test.com" ' +
+          '--browser=path/to/chrome';
         this.docsLink = 'https://perfetto.dev/docs/quickstart/chrome-tracing';
+        break;
+      case 'CHROME_OS':
         this.cmdline =
           'There is no cmdline support for Chrome/CrOS.\n' +
           'You must use the recording UI via the extension to record traces.';
+        this.docsLink = 'https://perfetto.dev/docs/quickstart/chrome-tracing';
+        break;
     }
   }
 
-  view() {
+  view({attrs}: m.CVnode<RecMgrAttrs>) {
+    const recMgr = attrs.recMgr;
+
+    if (!recMgr.recordConfig.hasActiveProbes()) {
+      return m(
+        '.note',
+        "It looks like you didn't select any data source. ",
+        'Please select some from the "Probes" menu on the left.',
+      );
+    }
+
     return [
       this.docsLink &&
         m(
@@ -84,21 +102,15 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
           ),
         ),
       this.cmdline &&
-        m(
-          '',
-          m(CodeSnippet, {
-            language: 'Shell',
-            text: this.cmdline,
-          }),
-        ),
-      m('p', 'Save the file below as: config.pbtx'),
-      m(
-        '',
         m(CodeSnippet, {
-          language: 'textproto',
-          text: this.configTxt,
+          language: 'Shell',
+          text: this.cmdline,
         }),
-      ),
+      m(CodeSnippet, {
+        language: 'textproto',
+        text: this.configTxt,
+        downloadFileName: 'config.txtpb',
+      }),
     ];
   }
 }

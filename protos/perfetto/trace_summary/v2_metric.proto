@@ -168,11 +168,20 @@ message TraceMetricV2Spec {
     BOOLEAN = 4;
   }
   message DimensionSpec {
-    // The name of the dimension.
+    // The name of the dimension. Required.
     optional string name = 1;
     // The type of the dimension. If specified, this must match the SQL type
-    // of the column.
+    // of the column. Required.
     optional DimensionType type = 2;
+    // A human-readable name for the dimension, used in user interfaces.
+    // Optional.
+    optional string display_name = 3;
+    // Additional help text or a description for the dimension, providing more
+    // context. Optional.
+    optional string display_help = 4;
+    // A URL linking to more detailed documentation about this dimension.
+    // Optional.
+    optional string doc_link = 5;
   }
   repeated DimensionSpec dimensions_specs = 5;
   repeated string dimensions = 2;
@@ -223,7 +232,7 @@ message TraceMetricV2Spec {
   // interpreting and displaying metric values across different tools and
   // surfaces.
   enum MetricUnit {
-    // Next value: 28
+    // Next value: 33
     METRIC_UNIT_UNSPECIFIED = 0;
     // A unitless count of items or events.
     COUNT = 1;
@@ -279,6 +288,16 @@ message TraceMetricV2Spec {
     CORRELATION_COEFFICIENT = 26;
     // Electric potential measured in millivolts.
     MILLI_VOLTS = 27;
+    // Temperature measured in Celsius.
+    CELSIUS = 28;
+    // Electric charge measured in microamp-hours.
+    MICRO_AMP_HOURS = 29;
+    // Time measured in minutes.
+    TIME_MINS = 30;
+    // Signal strength measured in dBm (decibels relative to a milliwatt).
+    DECIBEL_MILLIWATTS = 31;
+    // A rate measured in kilobytes per second.
+    KILOBYTES_PER_SECOND = 32;
   }
   oneof unit_oneof {
     // A standard, predefined unit for the metric's value.
@@ -334,18 +353,23 @@ message TraceMetricV2Spec {
   // Specification for a interned dimension associated with this metric.
   // For a given dimension, there can only be one interned dimension attached to
   // it.
+  // Interned dimensions are useful for providing additional information about
+  // a dimension without adding that information as a dimension to every metric
+  // row. This is particularly useful when you have columns associated with a
+  // dimension that would otherwise blow up the proto size due to repetition. By
+  // using interned dimensions, you can emit only the necessary keys, reducing
+  // data redundancy.
   //
-  // Interned dimensions are useful when you have a bunch of columns
-  // associated with a single dimension, and repeating them many times would
-  // blow up the proto size. Using interned dimensions, you can emit
-  // only an ID in the key and then "expand" to match, reducing data
-  // redundancy.
-  // For example, if a metric is dimensioned by package name, we can use
-  // interned dimension to provide APK version code for each package name
-  // without adding version code as a dimension to every row.
+  // For example, if a metric is dimensioned by package name, you can use an
+  // interned dimension to provide the APK version code for each package without
+  // adding the version code as a dimension to every row.
   //
-  // Note: The query for an interned dimension must return a unique row per
-  // dimension value, as only one row per input dimension is allowed.
+  // Note: To optimize the output size, only the keys that are actually present
+  // in the main metric query's output will be included in the interned
+  // dimension bundles.
+  //
+  // The query for an interned dimension must return a unique row per dimension
+  // value, as only one row per input dimension is allowed.
   //
   // Example:
   // ```
@@ -441,6 +465,7 @@ message TraceMetricV2TemplateSpec {
   // properties for each value column.
   message ValueColumnSpec {
     // The name of the column from the query result to be used as the value.
+    // Required.
     optional string name = 1;
 
     // The unit for this specific value column. This will be copied into the
@@ -453,6 +478,15 @@ message TraceMetricV2TemplateSpec {
     // The polarity for this specific value column. This will be copied into
     // the `polarity` field of the generated `TraceMetricV2Spec`.
     optional TraceMetricV2Spec.MetricPolarity polarity = 4;
+    // A human-readable name for the value column, used in user interfaces.
+    // Optional.
+    optional string display_name = 5;
+    // Additional help text or a description for the value column, providing
+    // more context. Optional.
+    optional string display_help = 6;
+    // A URL linking to more detailed documentation about this value column.
+    // Optional.
+    optional string doc_link = 7;
   }
   repeated ValueColumnSpec value_column_specs = 8;
 

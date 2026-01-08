@@ -26,6 +26,7 @@ import {AsyncLimiter} from '../../../base/async_limiter';
 import {Callout} from '../../../widgets/callout';
 import {Box} from '../../../widgets/box';
 import {clamp} from '../../../base/math_utils';
+import {uuidv4} from '../../../base/uuid';
 
 interface HistogramData {
   raw: {
@@ -45,6 +46,8 @@ interface Data {
 }
 
 export class SqlHistogramState {
+  public readonly uuid: string;
+
   private data?: Data;
   private limiter = new AsyncLimiter();
 
@@ -56,6 +59,7 @@ export class SqlHistogramState {
       readonly column: SqlColumn;
     },
   ) {
+    this.uuid = uuidv4();
     this.reload();
     args.filters.addObserver(() => this.reload());
   }

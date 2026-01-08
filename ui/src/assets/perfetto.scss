@@ -19,7 +19,6 @@
 @import "sidebar";
 @import "topbar";
 @import "details";
-@import "trace_info_page";
 @import "statusbar";
 @import "cookie_consent";
 @import "perf_monitor";
@@ -29,7 +28,7 @@
 
 // Widgets/components - keep these sorted alphabetically
 @import "components/aggregation_adapter";
-@import "components/data_grid";
+@import "components/datagrid";
 @import "components/json_settings_editor";
 @import "components/pivot_table";
 @import "components/query_history";
@@ -44,6 +43,7 @@
 @import "widgets/chip";
 @import "widgets/code_snippet";
 @import "widgets/details_shell";
+@import "widgets/drawer_panel";
 @import "widgets/editor";
 @import "widgets/empty_state";
 @import "widgets/error";
@@ -69,10 +69,9 @@
 @import "widgets/select";
 @import "widgets/settings_shell";
 @import "widgets/spinner";
-@import "widgets/split_panel";
+@import "widgets/split_panel.scss";
 @import "widgets/sql_table";
 @import "widgets/stack";
-@import "widgets/switch";
 @import "widgets/tabs";
 @import "widgets/tag_input";
 @import "widgets/text_input";

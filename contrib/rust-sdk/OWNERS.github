@@ -1,0 +1,8 @@
+# This file is intended to define code ownership within the GitHub repository.
+# This file should be called OWNERS.github to prevent processing by internal tooling
+# that enforces stricter validation on OWNERS files, such as requiring internal
+# email domains.
+#
+# Syntax is the same as .github/CODEOWNERS but paths are relative to this directory.
+
+./ @dreveman @jon-rv @zytyz

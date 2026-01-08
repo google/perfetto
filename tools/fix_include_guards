@@ -25,6 +25,7 @@ from compat import xrange
 EXCLUDED_FILES = [
     'src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.h',
     'src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h',
+    'contrib/rust-sdk/perfetto-sys/wrapper.h',
 ]
 
 
