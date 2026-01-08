@@ -16,6 +16,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {Gate} from '../base/mithril_utils';
 import {Button} from './button';
+import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
 
 export interface TabBarTab {
@@ -25,11 +26,13 @@ export interface TabBarTab {
   readonly title: m.Children;
   // Content to display when this tab is active.
   readonly content: m.Children;
+  // Optional icon to display before the title.
+  readonly icon?: string;
   // Whether to show a close button on the tab.
   readonly closable?: boolean;
 }
 
-export interface TabBarAttrs {
+export interface TabsAttrs {
   // The tabs to display.
   readonly tabs: TabBarTab[];
   // The currently active tab key (controlled mode).
@@ -39,12 +42,16 @@ export interface TabBarAttrs {
   onTabChange?(key: string): void;
   // Called when a tab's close button is clicked.
   onTabClose?(key: string): void;
+  // Called when the add tab button is clicked.
+  // If provided, an add tab button will be shown.
+  onAddTab?(): void;
   // Additional class name for the container.
   readonly className?: string;
 }
 
 interface TabHandleAttrs {
   readonly active?: boolean;
+  readonly icon?: string;
   readonly hasCloseButton?: boolean;
   readonly onClose?: () => void;
   readonly onclick?: () => void;
@@ -52,15 +59,16 @@ interface TabHandleAttrs {
 
 class TabHandle implements m.ClassComponent<TabHandleAttrs> {
   view({attrs, children}: m.CVnode<TabHandleAttrs>): m.Children {
-    const {active, hasCloseButton, onClose, onclick} = attrs;
+    const {active, icon, hasCloseButton, onClose, onclick} = attrs;
     return m(
-      '.pf-tab-bar__tab',
+      '.pf-tabs__tab',
       {
-        className: classNames(active && 'pf-tab-bar__tab--active'),
+        className: classNames(active && 'pf-tabs__tab--active'),
         onclick,
         onauxclick: () => onClose?.(),
       },
-      m('.pf-tab-bar__tab-title', children),
+      icon && m(Icon, {icon}),
+      m('.pf-tabs__tab-title', children),
       hasCloseButton &&
         m(Button, {
           compact: true,
@@ -74,12 +82,13 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
   }
 }
 
-export class TabBar implements m.ClassComponent<TabBarAttrs> {
+export class Tabs implements m.ClassComponent<TabsAttrs> {
   // Current active tab key (for uncontrolled mode).
   private internalActiveTab?: string;
 
-  view({attrs}: m.CVnode<TabBarAttrs>): m.Children {
-    const {tabs, activeTabKey, onTabChange, onTabClose, className} = attrs;
+  view({attrs}: m.CVnode<TabsAttrs>): m.Children {
+    const {tabs, activeTabKey, onTabChange, onTabClose, onAddTab, className} =
+      attrs;
 
     if (tabs.length === 0) {
       return null;
@@ -89,15 +98,16 @@ export class TabBar implements m.ClassComponent<TabBarAttrs> {
     const activeKey = activeTabKey ?? this.internalActiveTab ?? tabs[0].key;
 
     return m(
-      '.pf-tab-bar',
+      '.pf-tabs',
       {className},
       m(
-        '.pf-tab-bar__tabs',
+        '.pf-tabs__tabs',
         tabs.map((tab) =>
           m(
             TabHandle,
             {
               active: tab.key === activeKey,
+              icon: tab.icon,
               hasCloseButton: tab.closable,
               onclick: () => {
                 this.internalActiveTab = tab.key;
@@ -108,9 +118,17 @@ export class TabBar implements m.ClassComponent<TabBarAttrs> {
             tab.title,
           ),
         ),
+        onAddTab &&
+          m(Button, {
+            className: 'pf-tabs__add-tab',
+            compact: true,
+            icon: Icons.Add,
+            title: 'Add new tab',
+            onclick: onAddTab,
+          }),
       ),
       m(
-        '.pf-tab-bar__content',
+        '.pf-tabs__content',
         tabs.map((tab) => m(Gate, {open: tab.key === activeKey}, tab.content)),
       ),
     );

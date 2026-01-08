@@ -21,34 +21,85 @@ import {QueryResultsTable} from '../../components/query_table/query_table';
 import {Flag} from '../../public/feature_flag';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {QueryPage} from './query_page';
+import {QueryPage, QueryTabState} from './query_page';
 import {queryHistoryStorage} from '../../components/widgets/query_history';
 import {EmptyState} from '../../widgets/empty_state';
 import {Anchor} from '../../widgets/anchor';
+
+let nextTabId = 1;
+
+function createNewTab(): QueryTabState {
+  return {
+    id: `query-${nextTabId++}`,
+    editorText: '',
+    executedQuery: undefined,
+    queryResult: undefined,
+  };
+}
 
 export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.QueryPage';
   static addQueryPageMiniFlag: Flag;
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    // The query page and tab share the same query data.
-    let executedQuery: string | undefined;
-    let queryResult: QueryResponse | undefined;
+    // State for multiple query tabs
+    const tabs: QueryTabState[] = [createNewTab()];
+    let activeTabId = tabs[0].id;
     let isLoading = false;
-    let editorText = '';
+
+    function getActiveTab(): QueryTabState | undefined {
+      return tabs.find((t) => t.id === activeTabId);
+    }
 
     async function onExecute(text: string) {
       if (!text) return;
 
-      executedQuery = text;
-      queryResult = undefined;
+      const tab = getActiveTab();
+      if (!tab) return;
+
+      tab.executedQuery = text;
+      tab.queryResult = undefined;
       queryHistoryStorage.saveQuery(text);
 
       isLoading = true;
-      queryResult = await runQueryForQueryTable(text, trace.engine);
+      m.redraw();
+
+      tab.queryResult = await runQueryForQueryTable(text, trace.engine);
       isLoading = false;
 
       trace.tabs.showTab('dev.perfetto.QueryPage');
+    }
+
+    function onAddTab() {
+      const newTab = createNewTab();
+      tabs.push(newTab);
+      activeTabId = newTab.id;
+    }
+
+    function onCloseTab(tabId: string) {
+      const index = tabs.findIndex((t) => t.id === tabId);
+      if (index === -1) return;
+
+      // Don't close the last tab
+      if (tabs.length === 1) return;
+
+      tabs.splice(index, 1);
+
+      // If we closed the active tab, switch to another
+      if (activeTabId === tabId) {
+        activeTabId = tabs[Math.min(index, tabs.length - 1)].id;
+      }
+    }
+
+    function onTabChange(tabId: string) {
+      activeTabId = tabId;
+    }
+
+    function onEditorContentUpdate(tabId: string, text: string) {
+      const tab = tabs.find((t) => t.id === tabId);
+      if (tab) {
+        tab.editorText = text;
+      }
     }
 
     trace.pages.registerPage({
@@ -56,10 +107,13 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       render: () =>
         m(QueryPage, {
           trace,
-          editorText,
-          executedQuery,
-          queryResult,
-          onEditorContentUpdate: (text) => (editorText = text),
+          tabs,
+          activeTabId,
+          isLoading,
+          onTabChange,
+          onAddTab,
+          onCloseTab,
+          onEditorContentUpdate,
           onExecute,
         }),
     });
@@ -77,11 +131,12 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       isEphemeral: false,
       content: {
         render() {
+          const activeTab = getActiveTab();
           return m(QueryResultsTable, {
             trace,
             isLoading,
-            query: executedQuery,
-            resp: queryResult,
+            query: activeTab?.executedQuery,
+            resp: activeTab?.queryResult,
             fillHeight: true,
             emptyState: m(
               EmptyState,

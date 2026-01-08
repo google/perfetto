@@ -48,10 +48,6 @@ export class QueryHistoryComponent
       {
         ...rest,
       },
-      m(
-        '.pf-query-history__header',
-        `Query history (${queryHistoryStorage.data.length} queries)`,
-      ),
       starred.map((attrs) => m(HistoryItemComponent, attrs)),
       unstarred.map((attrs) => m(HistoryItemComponent, attrs)),
     );

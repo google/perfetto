@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TabBar, TabBarTab} from '../../../widgets/tab_bar';
+import {Tabs, TabBarTab} from '../../../widgets/tabs';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
 export function renderTabBar(): m.Children {
@@ -70,7 +70,7 @@ export function renderTabBar(): m.Children {
               border: '1px solid var(--pf-color-border)',
             },
           },
-          m(TabBar, {
+          m(Tabs, {
             tabs,
             onTabClose: opts.closable
               ? (key) => {

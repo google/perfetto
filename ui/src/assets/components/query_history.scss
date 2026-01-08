@@ -13,20 +13,6 @@
 // limitations under the License.
 
 .pf-query-history {
-  &__header {
-    position: sticky;
-    top: 0;
-    display: flex;
-    align-content: baseline;
-    background-color: var(--pf-color-background-secondary);
-    font-size: 15px;
-    font-weight: 400;
-    padding: 4px 10px;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--pf-color-border);
-    z-index: 1;
-  }
-
   &__item {
     border-bottom: 1px solid var(--pf-color-border-secondary);
     padding: 0.25em 0.5em;

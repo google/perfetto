@@ -12,66 +12,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
-
-.pf-tabs {
+.pf-tab-strip {
   display: flex;
-  flex-direction: column;
-  height: 100%;
-  margin: 2px;
+  align-items: baseline;
 
   &__tabs {
     display: flex;
-    background-color: var(--pf-color-background);
-    padding-inline: 3px;
-    align-items: flex-end;
+    overflow: hidden;
+    flex: 1;
   }
 
   &__tab {
     color: var(--pf-color-text-muted);
-    display: flex;
+    padding: 4px;
+    margin-top: 3px;
     align-items: center;
-    gap: 4px;
-
-    padding: 4px 6px;
-    margin-top: 2px;
     cursor: pointer;
-
-    border-radius: 3px 3px 0 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-
-    &:not(:first-child) {
-      margin-left: -1px;
-    }
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
 
     &:hover {
-      color: var(--pf-color-text);
-      background: color_hover(transparent);
+      background-color: color_hover(transparent);
     }
 
-    &--active {
+    &[active] {
+      color: var(--pf-color-primary);
+      border-bottom: solid 2px var(--pf-color-primary);
       cursor: default;
-      color: var(--pf-color-text);
-      background-color: var(--pf-color-background-secondary);
+    }
 
-      &:hover {
-        background: var(--pf-color-background-secondary);
-      }
+    &:nth-child(1) {
+      margin-left: 3px;
     }
   }
 
   &__tab-title {
     margin: 0px 4px;
     overflow: hidden;
-    user-select: none;
   }
 
-  &__content {
-    flex: 1;
-    overflow: auto;
-    background: var(--pf-color-background-secondary);
-    border-radius: 3px;
+  &__tab-icon {
+    &--left {
+      margin-right: 4px;
+      align-self: center;
+    }
+
+    &--right {
+      margin-left: 4px;
+      align-self: center;
+    }
   }
 }

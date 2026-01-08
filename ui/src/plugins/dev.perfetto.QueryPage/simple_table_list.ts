@@ -13,13 +13,43 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {
+  PerfettoSqlType,
+  perfettoSqlTypeToString,
+} from '../../trace_processor/perfetto_sql_type';
 import {Icon} from '../../widgets/icon';
 import {TextInput} from '../../widgets/text_input';
 import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 
+function getTypeIcon(type?: PerfettoSqlType): string {
+  if (!type) return 'help_outline';
+  switch (type.kind) {
+    case 'int':
+      return 'tag';
+    case 'double':
+      return 'decimal_increase';
+    case 'string':
+      return 'text_fields';
+    case 'boolean':
+      return 'toggle_on';
+    case 'timestamp':
+      return 'schedule';
+    case 'duration':
+      return 'timer';
+    case 'bytes':
+      return 'memory';
+    case 'arg_set_id':
+      return 'data_object';
+    case 'id':
+    case 'joinid':
+      return 'key';
+    default:
+      return 'help_outline';
+  }
+}
+
 export interface SimpleTableListAttrs {
   readonly sqlModules: SqlModules;
-  readonly onTableClick: (tableName: string) => void;
 }
 
 export class SimpleTableList implements m.ClassComponent<SimpleTableListAttrs> {
@@ -49,17 +79,12 @@ export class SimpleTableList implements m.ClassComponent<SimpleTableListAttrs> {
       }),
       m(
         '.pf-simple-table-list__items',
-        filteredTables.map((table) =>
-          this.renderTableItem(table, attrs.onTableClick),
-        ),
+        filteredTables.map((table) => this.renderTableItem(table)),
       ),
     );
   }
 
-  private renderTableItem(
-    table: SqlTable,
-    onTableClick: (tableName: string) => void,
-  ): m.Children {
+  private renderTableItem(table: SqlTable): m.Children {
     const isExpanded = this.expandedTables.has(table.name);
 
     return m(
@@ -81,16 +106,16 @@ export class SimpleTableList implements m.ClassComponent<SimpleTableListAttrs> {
           },
           m(Icon, {icon: isExpanded ? 'expand_more' : 'chevron_right'}),
         ),
-        m(
-          '.pf-simple-table-list__item-name',
-          {onclick: () => onTableClick(table.name)},
-          table.name,
-        ),
+        m(Icon, {icon: 'table', className: 'pf-simple-table-list__item-icon'}),
+        m('.pf-simple-table-list__item-name', table.name),
       ),
       // Expandable details
       isExpanded &&
         m(
           '.pf-simple-table-list__item-details',
+          // Description
+          table.description &&
+            m('.pf-simple-table-list__description', table.description),
           // Module
           table.includeKey &&
             m(
@@ -108,10 +133,15 @@ export class SimpleTableList implements m.ClassComponent<SimpleTableListAttrs> {
                 table.columns.map((col) =>
                   m(
                     '.pf-simple-table-list__column',
+                    {title: col.description},
+                    m(Icon, {
+                      icon: getTypeIcon(col.type),
+                      className: 'pf-simple-table-list__column-icon',
+                    }),
                     m('code.pf-simple-table-list__column-name', col.name),
                     m(
                       'span.pf-simple-table-list__column-type',
-                      col.type ?? 'unknown',
+                      perfettoSqlTypeToString(col.type),
                     ),
                   ),
                 ),
