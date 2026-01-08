@@ -33,10 +33,10 @@ export class TabStrip implements m.ClassComponent<TabStripAttrs> {
   view({attrs}: m.CVnode<TabStripAttrs>) {
     const {tabs, currentTabKey, onTabChange, className} = attrs;
     return m(
-      '.pf-tabs',
+      '.pf-tab-strip',
       {className},
       m(
-        '.pf-tabs__tabs',
+        '.pf-tab-strip__tabs',
         tabs.map((tab) => {
           const {key, title, leftIcon, rightIcon} = tab;
           const renderIcon = (
@@ -49,10 +49,10 @@ export class TabStrip implements m.ClassComponent<TabStripAttrs> {
             if (typeof icon === 'string') {
               return m(Icon, {icon, className});
             }
-            return m('.pf-tabs__tab-icon', {className}, icon);
+            return m('.pf-tab-strip__tab-icon', {className}, icon);
           };
           return m(
-            '.pf-tabs__tab',
+            '.pf-tab-strip__tab',
             {
               active: currentTabKey === key,
               key,
@@ -61,9 +61,9 @@ export class TabStrip implements m.ClassComponent<TabStripAttrs> {
               },
             },
             [
-              renderIcon(leftIcon, 'pf-tabs__tab-icon--left'),
-              m('span.pf-tabs__tab-title', title),
-              renderIcon(rightIcon, 'pf-tabs__tab-icon--right'),
+              renderIcon(leftIcon, 'pf-tab-strip__tab-icon--left'),
+              m('span.pf-tab-strip__tab-title', title),
+              renderIcon(rightIcon, 'pf-tab-strip__tab-icon--right'),
             ],
           );
         }),
