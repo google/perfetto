@@ -27,6 +27,7 @@ _buildtools_visibility = [
   "./*",
   "../gn:*",
   "../gn/standalone:*",
+  "../src/base:flat_hash_map_benchmark",
 ]
 
 # Used to suppress warnings coming from googletest macros expansions.
@@ -138,6 +139,7 @@ config("abseil_config") {
     cflags += [
       "-Wno-deprecated-builtins",
       "-Wno-deprecated-pragma",
+      "-Wno-gcc-compat",
       "-Wno-unknown-warning-option",
     ]
   }
@@ -145,6 +147,14 @@ config("abseil_config") {
     cflags += [
       "-Wno-stringop-overflow",
       "-Wno-ignored-attributes",
+      "-Wno-pedantic",
+      "-Wno-overflow",
+    ]
+  }
+  if (is_mac) {
+    ldflags = [
+      "-framework",
+      "CoreFoundation",
     ]
   }
 }
@@ -1220,12 +1230,6 @@ if (current_toolchain == host_toolchain) {
     if (is_win) {
       # Protobuf does has its own #define WIN32_LEAN_AND_MEAN.
       configs -= [ "//gn/standalone:win32_lean_and_mean" ]
-    }
-    if (is_mac) {
-      ldflags = [
-        "-framework",
-        "CoreFoundation",
-      ]
     }
   }
 }  # host_toolchain

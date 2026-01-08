@@ -53,7 +53,7 @@ static void BM_BytecodeInterpreter_LinearFilterEqUint32(
   StringPool spool;
   std::vector<dataframe::Index> indexes;
   Interpreter<Fetcher> interpreter;
-  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 4, &col_ptr,
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 4, 1, &col_ptr,
                          indexes.data(), &spool);
 
   Fetcher fetcher;
@@ -95,7 +95,7 @@ static void BM_BytecodeInterpreter_LinearFilterEqString(
 
   std::vector<dataframe::Index> indexes;
   Interpreter<Fetcher> interpreter;
-  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 4, &col_ptr,
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 4, 1, &col_ptr,
                          indexes.data(), &spool);
 
   Fetcher fetcher;
@@ -136,7 +136,7 @@ static void BM_BytecodeInterpreter_SortUint32(benchmark::State& state) {
   StringPool spool;
   std::vector<dataframe::Index> indexes;
   Interpreter<Fetcher> interpreter;
-  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 4, &col_ptr,
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 4, 1, &col_ptr,
                          indexes.data(), &spool);
 
   Fetcher fetcher;
@@ -181,7 +181,7 @@ static void BM_BytecodeInterpreter_SortString(benchmark::State& state) {
 
   std::vector<dataframe::Index> indexes;
   Interpreter<Fetcher> interpreter;
-  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &col_ptr,
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, 1, &col_ptr,
                          indexes.data(), &spool);
 
   Fetcher fetcher;

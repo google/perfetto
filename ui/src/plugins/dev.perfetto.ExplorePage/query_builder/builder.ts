@@ -69,8 +69,6 @@ import {classNames} from '../../../base/classnames';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Icon} from '../../../widgets/icon';
-import {Card} from '../../../widgets/card';
-import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, Query} from '../query_node';
@@ -79,9 +77,9 @@ import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {DataExplorer} from './data_explorer';
 import {
-  SplitPanel,
-  SplitPanelDrawerVisibility,
-} from '../../../widgets/split_panel';
+  DrawerPanel,
+  DrawerPanelVisibility,
+} from '../../../widgets/drawer_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
@@ -93,53 +91,13 @@ import {DataExplorerEmptyState, RoundActionButton} from './widgets';
 import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {ResizeHandle} from '../../../widgets/resize_handle';
-import {nodeRegistry} from './node_registry';
 import {getAllDownstreamNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
 import {DataSource} from '../../../components/widgets/datagrid/data_source';
+import {NavigationSidePanel} from './navigation_sidepanel';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
 const SIDE_PANEL_WIDTH = 60;
-
-// Helper function for keyboard-accessible card interactions
-function createKeyboardHandler(callback: () => void) {
-  return (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      callback();
-    }
-  };
-}
-
-// Helper function to render template cards with consistent structure
-interface TemplateCardAttrs {
-  readonly icon: string;
-  readonly title: string;
-  readonly description: string;
-  readonly ariaLabel: string;
-  readonly onClick: () => void;
-}
-
-function renderTemplateCard(attrs: TemplateCardAttrs): m.Children {
-  return m(
-    Card,
-    {
-      'interactive': true,
-      'onclick': attrs.onClick,
-      'tabindex': 0,
-      'role': 'button',
-      'aria-label': attrs.ariaLabel,
-      'className': 'pf-template-card',
-      'onkeydown': createKeyboardHandler(attrs.onClick),
-    },
-    m(
-      '.pf-source-card-clickable',
-      m(Icon, {icon: attrs.icon}),
-      m('h3', attrs.title),
-    ),
-    m('p', attrs.description),
-  );
-}
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -200,11 +158,9 @@ export interface BuilderAttrs {
   readonly onImport: () => void;
   readonly onExport: () => void;
 
-  readonly onLoadExample: () => void;
-
   // Starting templates (when page is empty)
   readonly onLoadEmptyTemplate?: () => void;
-  readonly onLoadLearningTemplate?: () => void;
+  readonly onLoadExampleByPath?: (jsonPath: string) => void;
   readonly onLoadExploreTemplate?: () => void;
 
   // Node state change callback
@@ -236,7 +192,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private previousSelectedNode?: QueryNode;
   private response?: QueryResponse;
   private dataSource?: DataSource;
-  private drawerVisibility = SplitPanelDrawerVisibility.COLLAPSED;
+  private drawerVisibility = DrawerPanelVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
   private readonly MIN_SIDEBAR_WIDTH = 250;
   private readonly MAX_SIDEBAR_WIDTH = 800;
@@ -261,86 +217,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     attrs.onSidebarWidthChange?.(newWidth);
   }
 
-  private renderSourceCards(attrs: BuilderAttrs): m.Children {
-    const results: m.Children[] = [];
-
-    // Show template buttons when nothing is selected
-    if (!attrs.selectedNode) {
-      results.push(
-        m('h4.pf-starting-section-title', 'Templates:'),
-        m(
-          '.pf-template-grid',
-          renderTemplateCard({
-            icon: 'school',
-            title: 'Learning',
-            description: 'Educational example',
-            ariaLabel: 'Start with learning template',
-            onClick: () => attrs.onLoadLearningTemplate?.(),
-          }),
-          renderTemplateCard({
-            icon: 'explore',
-            title: 'Explore Trace Data',
-            description: 'Slices and high-frequency tables',
-            ariaLabel: 'Explore trace data',
-            onClick: () => attrs.onLoadExploreTemplate?.(),
-          }),
-          renderTemplateCard({
-            icon: 'auto_stories',
-            title: 'Examples',
-            description: 'Load an example graph',
-            ariaLabel: 'Load example graph',
-            onClick: () => attrs.onLoadExample(),
-          }),
-          renderTemplateCard({
-            icon: 'delete_sweep',
-            title: 'Clear Graph',
-            description: 'Start with empty canvas',
-            ariaLabel: 'Clear graph',
-            onClick: () => attrs.onLoadEmptyTemplate?.(),
-          }),
-        ),
-        m('h4.pf-starting-section-title', 'Add sources:'),
-      );
-    }
-
-    const sourceNodes = nodeRegistry
-      .list()
-      .filter(([_id, node]) => node.showOnLandingPage === true)
-      .map(([id, node]) => {
-        const name = node.name ?? 'Unnamed Source';
-        const description = node.description ?? '';
-        const icon = node.icon ?? '';
-        const hotkey =
-          node.hotkey && typeof node.hotkey === 'string'
-            ? node.hotkey.toUpperCase()
-            : undefined;
-
-        return m(
-          Card,
-          {
-            'interactive': true,
-            'onclick': () => attrs.onAddSourceNode(id),
-            'tabindex': 0,
-            'role': 'button',
-            'aria-label': `Add ${name} source`,
-            'className': 'pf-source-card',
-            'onkeydown': createKeyboardHandler(() => attrs.onAddSourceNode(id)),
-          },
-          m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', name)),
-          m('p', description),
-          hotkey ? m('.pf-source-card-hotkey', m(Keycap, hotkey)) : null,
-        );
-      });
-
-    // Wrap source cards in horizontal container
-    const sourceCardsContainer = m(
-      '.pf-source-cards-horizontal',
-      ...sourceNodes,
-    );
-
-    return [...results, sourceCardsContainer];
-  }
-
   view({attrs}: m.CVnode<BuilderAttrs>) {
     const {trace, rootNodes, onNodeSelected, selectedNode, onClearAllNodes} =
       attrs;
@@ -352,7 +228,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
       // Show drawer the first time any node is selected
       if (!this.hasEverSelectedNode) {
-        this.drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+        this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
         this.hasEverSelectedNode = true;
       }
 
@@ -432,216 +308,223 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             this.selectedView = view;
           },
         })
-      : m('.pf-unselected-explorer', this.renderSourceCards(attrs));
+      : m(
+          '.pf-unselected-explorer',
+          m(NavigationSidePanel, {
+            selectedNode: attrs.selectedNode,
+            onAddSourceNode: attrs.onAddSourceNode,
+            onLoadExampleByPath: attrs.onLoadExampleByPath,
+            onLoadExploreTemplate: attrs.onLoadExploreTemplate,
+            onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
+          }),
+        );
 
-    return m(
-      SplitPanel,
-      {
-        className: layoutClasses,
-        visibility: this.drawerVisibility,
-        onVisibilityChange: (v) => {
-          this.drawerVisibility = v;
-        },
-        startingHeight: 300,
-        drawerContent: selectedNode
-          ? m(DataExplorer, {
-              trace: this.trace,
-              query: this.query,
-              node: selectedNode,
-              response: this.response,
-              dataSource: this.dataSource,
-              isQueryRunning: this.isQueryRunning,
-              isAnalyzing: this.isAnalyzing,
-              onchange: () => {
-                attrs.onNodeStateChange?.();
-              },
-              onFilterAdd: (filter, filterOperator) => {
-                attrs.onFilterAdd(selectedNode, filter, filterOperator);
-              },
-              isFullScreen:
-                this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
-              onFullScreenToggle: () => {
-                if (
-                  this.drawerVisibility ===
-                  SplitPanelDrawerVisibility.FULLSCREEN
-                ) {
-                  this.drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
-                } else {
-                  this.drawerVisibility = SplitPanelDrawerVisibility.FULLSCREEN;
-                }
-              },
-              onExecute: async () => {
-                if (!selectedNode.validate()) {
-                  console.warn(
-                    `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
-                  );
-                  return;
-                }
-
-                // Use the centralized service with manual=true.
-                // The service handles both analysis and execution.
-                await this.queryExecutionService.processNode(
-                  selectedNode,
-                  this.trace.engine,
-                  {
-                    manual: true, // User explicitly clicked "Run Query"
-                    hasExistingResult: this.queryExecuted,
-                    ...this.createManualExecutionCallbacks(selectedNode),
-                  },
-                );
-              },
-              onExportToTimeline: () => {
-                this.exportToTimeline(selectedNode);
-              },
-            })
-          : m(DataExplorerEmptyState, {
-              icon: 'info',
-              title: 'Select a node to see the data',
-            }),
+    return m(DrawerPanel, {
+      className: layoutClasses,
+      visibility: this.drawerVisibility,
+      onVisibilityChange: (v) => {
+        this.drawerVisibility = v;
       },
-      m(
-        '.pf-qb-node-graph',
-        m(Graph, {
-          rootNodes,
-          selectedNode,
-          onNodeSelected,
-          nodeLayouts: attrs.nodeLayouts,
-          labels: attrs.labels,
-          onNodeLayoutChange: attrs.onNodeLayoutChange,
-          onLabelsChange: attrs.onLabelsChange,
-          onDeselect: attrs.onDeselect,
-          onAddSourceNode: attrs.onAddSourceNode,
-          onClearAllNodes,
-          onDuplicateNode: attrs.onDuplicateNode,
-          onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
-          onDeleteNode: attrs.onDeleteNode,
-          onConnectionRemove: attrs.onConnectionRemove,
-          onImport: attrs.onImport,
-          onExport: attrs.onExport,
-          onRecenterReady: attrs.onRecenterReady,
-        }),
-        selectedNode &&
-          m(
-            '.pf-qb-floating-controls',
-            !selectedNode.validate() &&
-              m(
-                Popup,
-                {
-                  trigger: m(
-                    '.pf-qb-floating-warning',
-                    m(Icon, {
-                      icon: Icons.Warning,
-                      filled: true,
-                      className: 'pf-qb-warning-icon',
-                      title: 'Click to see error details',
-                    }),
-                  ),
-                  position: PopupPosition.BottomEnd,
-                  showArrow: true,
-                },
-                m(
-                  '.pf-error-details',
-                  selectedNode.state.issues?.getTitle() ?? 'No error details',
-                ),
-              ),
-          ),
-        m(
-          '.pf-qb-floating-controls-bottom',
-          attrs.onUndo &&
-            RoundActionButton({
-              icon: Icons.Undo,
-              title: 'Undo (Ctrl+Z)',
-              onclick: attrs.onUndo,
-              disabled: !attrs.canUndo,
-            }),
-          attrs.onRedo &&
-            RoundActionButton({
-              icon: Icons.Redo,
-              title: 'Redo (Ctrl+Shift+Z)',
-              onclick: attrs.onRedo,
-              disabled: !attrs.canRedo,
-            }),
-        ),
-      ),
-      m(ResizeHandle, {
-        direction: 'horizontal',
-        onResize: (deltaPx) => this.handleSidebarResize(attrs, deltaPx),
-      }),
-      m(
-        '.pf-qb-explorer',
-        {
-          style: {
-            width: isExplorerCollapsed
-              ? '0'
-              : `${sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
-          },
-        },
-        explorer,
-      ),
-      selectedNode &&
-        m(
-          '.pf-qb-side-panel',
-          m(Button, {
-            icon: Icons.Info,
-            title: 'Info',
-            className:
-              this.selectedView === SelectedView.kInfo && !isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
-                this.selectedView === SelectedView.kInfo &&
-                !isExplorerCollapsed
-              ) {
-                attrs.onExplorerCollapsedChange?.(true);
+      startingHeight: 300,
+      drawerContent: selectedNode
+        ? m(DataExplorer, {
+            trace: this.trace,
+            query: this.query,
+            node: selectedNode,
+            response: this.response,
+            dataSource: this.dataSource,
+            isQueryRunning: this.isQueryRunning,
+            isAnalyzing: this.isAnalyzing,
+            onchange: () => {
+              attrs.onNodeStateChange?.();
+            },
+            onFilterAdd: (filter, filterOperator) => {
+              attrs.onFilterAdd(selectedNode, filter, filterOperator);
+            },
+            isFullScreen:
+              this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
+            onFullScreenToggle: () => {
+              if (this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN) {
+                this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
               } else {
-                this.selectedView = SelectedView.kInfo;
-                attrs.onExplorerCollapsedChange?.(false);
+                this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
               }
             },
+            onExecute: async () => {
+              if (!selectedNode.validate()) {
+                console.warn(
+                  `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
+                );
+                return;
+              }
+
+              // Use the centralized service with manual=true.
+              // The service handles both analysis and execution.
+              await this.queryExecutionService.processNode(
+                selectedNode,
+                this.trace.engine,
+                {
+                  manual: true, // User explicitly clicked "Run Query"
+                  hasExistingResult: this.queryExecuted,
+                  ...this.createManualExecutionCallbacks(selectedNode),
+                },
+              );
+            },
+            onExportToTimeline: () => {
+              this.exportToTimeline(selectedNode);
+            },
+          })
+        : m(DataExplorerEmptyState, {
+            icon: 'info',
+            title: 'Select a node to see the data',
           }),
-          selectedNode.nodeSpecificModify() != null &&
+      mainContent: [
+        m(
+          '.pf-qb-node-graph',
+          m(Graph, {
+            rootNodes,
+            selectedNode,
+            onNodeSelected,
+            nodeLayouts: attrs.nodeLayouts,
+            labels: attrs.labels,
+            onNodeLayoutChange: attrs.onNodeLayoutChange,
+            onLabelsChange: attrs.onLabelsChange,
+            onDeselect: attrs.onDeselect,
+            onAddSourceNode: attrs.onAddSourceNode,
+            onClearAllNodes,
+            onDuplicateNode: attrs.onDuplicateNode,
+            onAddOperationNode: (id, node) =>
+              attrs.onAddOperationNode(id, node),
+            onDeleteNode: attrs.onDeleteNode,
+            onConnectionRemove: attrs.onConnectionRemove,
+            onImport: attrs.onImport,
+            onExport: attrs.onExport,
+            onRecenterReady: attrs.onRecenterReady,
+          }),
+          selectedNode &&
+            m(
+              '.pf-qb-floating-controls',
+              !selectedNode.validate() &&
+                m(
+                  Popup,
+                  {
+                    trigger: m(
+                      '.pf-qb-floating-warning',
+                      m(Icon, {
+                        icon: Icons.Warning,
+                        filled: true,
+                        className: 'pf-qb-warning-icon',
+                        title: 'Click to see error details',
+                      }),
+                    ),
+                    position: PopupPosition.BottomEnd,
+                    showArrow: true,
+                  },
+                  m(
+                    '.pf-error-details',
+                    selectedNode.state.issues?.getTitle() ?? 'No error details',
+                  ),
+                ),
+            ),
+          m(
+            '.pf-qb-floating-controls-bottom',
+            attrs.onUndo &&
+              RoundActionButton({
+                icon: Icons.Undo,
+                title: 'Undo (Ctrl+Z)',
+                onclick: attrs.onUndo,
+                disabled: !attrs.canUndo,
+              }),
+            attrs.onRedo &&
+              RoundActionButton({
+                icon: Icons.Redo,
+                title: 'Redo (Ctrl+Shift+Z)',
+                onclick: attrs.onRedo,
+                disabled: !attrs.canRedo,
+              }),
+          ),
+        ),
+        m(ResizeHandle, {
+          direction: 'horizontal',
+          onResize: (deltaPx) => this.handleSidebarResize(attrs, deltaPx),
+        }),
+        m(
+          '.pf-qb-explorer',
+          {
+            style: {
+              width: isExplorerCollapsed
+                ? '0'
+                : `${sidebarWidth + (selectedNode ? 0 : SIDE_PANEL_WIDTH)}px`,
+            },
+          },
+          explorer,
+        ),
+        selectedNode &&
+          m(
+            '.pf-qb-side-panel',
             m(Button, {
-              icon: Icons.Edit,
-              title: 'Edit',
+              icon: Icons.Info,
+              title: 'Info',
               className:
-                this.selectedView === SelectedView.kModify &&
+                this.selectedView === SelectedView.kInfo && !isExplorerCollapsed
+                  ? 'pf-active'
+                  : '',
+              onclick: () => {
+                if (
+                  this.selectedView === SelectedView.kInfo &&
+                  !isExplorerCollapsed
+                ) {
+                  attrs.onExplorerCollapsedChange?.(true);
+                } else {
+                  this.selectedView = SelectedView.kInfo;
+                  attrs.onExplorerCollapsedChange?.(false);
+                }
+              },
+            }),
+            selectedNode.nodeSpecificModify() != null &&
+              m(Button, {
+                icon: Icons.Edit,
+                title: 'Edit',
+                className:
+                  this.selectedView === SelectedView.kModify &&
+                  !isExplorerCollapsed
+                    ? 'pf-active'
+                    : '',
+                onclick: () => {
+                  if (
+                    this.selectedView === SelectedView.kModify &&
+                    !isExplorerCollapsed
+                  ) {
+                    attrs.onExplorerCollapsedChange?.(true);
+                  } else {
+                    this.selectedView = SelectedView.kModify;
+                    attrs.onExplorerCollapsedChange?.(false);
+                  }
+                },
+              }),
+            m(Button, {
+              icon: 'code',
+              title: 'Result',
+              className:
+                this.selectedView === SelectedView.kResult &&
                 !isExplorerCollapsed
                   ? 'pf-active'
                   : '',
               onclick: () => {
                 if (
-                  this.selectedView === SelectedView.kModify &&
+                  this.selectedView === SelectedView.kResult &&
                   !isExplorerCollapsed
                 ) {
                   attrs.onExplorerCollapsedChange?.(true);
                 } else {
-                  this.selectedView = SelectedView.kModify;
+                  this.selectedView = SelectedView.kResult;
                   attrs.onExplorerCollapsedChange?.(false);
                 }
               },
             }),
-          m(Button, {
-            icon: 'code',
-            title: 'Result',
-            className:
-              this.selectedView === SelectedView.kResult && !isExplorerCollapsed
-                ? 'pf-active'
-                : '',
-            onclick: () => {
-              if (
-                this.selectedView === SelectedView.kResult &&
-                !isExplorerCollapsed
-              ) {
-                attrs.onExplorerCollapsedChange?.(true);
-              } else {
-                this.selectedView = SelectedView.kResult;
-                attrs.onExplorerCollapsedChange?.(false);
-              }
-            },
-          }),
-        ),
-    );
+          ),
+      ],
+    });
   }
 
   private resolveNode(

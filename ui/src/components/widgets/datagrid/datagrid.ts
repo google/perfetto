@@ -1556,14 +1556,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           const value = row[alias];
 
           // For aggregates with a field, we can use the field's cell renderer
-          let cellRenderer;
-          if ('field' in agg) {
-            const aggColInfo = getColumnInfo(schema, rootSchema, agg.field);
-            cellRenderer = aggColInfo?.cellRenderer;
-          }
+          let cellRenderer =
+            'field' in agg
+              ? getColumnInfo(schema, rootSchema, agg.field)?.cellRenderer
+              : undefined;
+          cellRenderer ??= (v: SqlValue) => renderCell(v, alias);
 
-          const rendered = cellRenderer?.(value, row);
-          const isRich = rendered !== undefined && isCellRenderResult(rendered);
+          const rendered = cellRenderer(value, row);
+          const isRich = isCellRenderResult(rendered);
 
           cells.push(
             m(
@@ -1575,7 +1575,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   ? rendered.nullish ?? value === null
                   : value === null,
               },
-              isRich ? rendered.content : rendered ?? String(value ?? ''),
+              isRich ? rendered.content : rendered,
             ),
           );
         }

@@ -36,8 +36,8 @@
 
   height: 100%;
 
-  // SplitPanel's main section needs to have the grid layout
-  .pf-split-panel__main {
+  // DrawerPanel's main section needs to have the grid layout
+  .pf-drawer-panel__main {
     display: grid;
     grid-template-columns: 1fr auto auto auto;
     overflow: hidden;
@@ -189,11 +189,11 @@
 }
 
 .pf-source-cards-horizontal {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
   padding-bottom: 8px;
+  max-width: 380px;
 }
 
 .pf-template-grid {
@@ -201,6 +201,43 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 16px;
+  max-width: 510px;
+}
+
+.pf-top-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 510px;
+}
+
+.pf-tutorial-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 510px;
+}
+
+.pf-solution-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 510px;
+}
+
+.pf-starting-section-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  color: var(--pf-color-text-primary);
+
+  &:first-child {
+    margin-top: 0;
+  }
 }
 
 .pf-template-card {
@@ -253,7 +290,6 @@
 }
 
 .pf-source-card {
-  width: 120px;
   display: flex;
   flex-direction: column;
   gap: 4px;
