@@ -64,6 +64,12 @@ export interface Pivot {
   // This allows drilling down into a specific pivot group to see the
   // underlying data. The keys are the groupBy column names.
   readonly drillDown?: Row;
+
+  // Set of collapsed group keys. Groups not in this set are expanded.
+  // Keys are formed by joining parent group values with '|' separator.
+  // E.g., for groupBy [process, thread], a collapsed Chrome group would be "Chrome".
+  // Only applicable when there are 2+ groupBy columns (hierarchical mode).
+  readonly collapsed?: ReadonlySet<string>;
 }
 
 export interface Model {

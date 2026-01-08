@@ -170,7 +170,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [{field: 'utid'}, {field: 'state'}],
+      groupBy: [{field: 'thread_name'}, {field: 'state'}],
       aggregates: [
         {function: 'COUNT'},
         {field: 'process_name', function: 'ANY'},

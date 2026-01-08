@@ -25,6 +25,7 @@ import {EmptyState} from '../../../widgets/empty_state';
 import {
   Grid,
   GridApi,
+  GridAttrs,
   GridCell,
   GridColumn,
   GridHeaderCell,
@@ -41,7 +42,7 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {DataSource} from './data_source';
+import {DataSource, PivotRollups} from './data_source';
 import {
   SchemaRegistry,
   getColumnInfo,
@@ -283,10 +284,10 @@ export interface DataGridApi {
 }
 
 function getOrCreateDataSource(data: DataSource | readonly Row[]): DataSource {
-  if ('notify' in data) {
-    return data;
-  } else {
+  if (Array.isArray(data)) {
     return new InMemoryDataSource(data);
+  } else {
+    return data as DataSource;
   }
 }
 
@@ -298,7 +299,8 @@ interface FlatGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly result: DataSource['rows'];
+  readonly rowsResult?: {totalRows: number; offset: number; rows: Row[]};
+  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -312,7 +314,9 @@ interface PivotGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly result: DataSource['rows'];
+  readonly rowsResult?: {totalRows: number; offset: number; rows: Row[]};
+  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
+  readonly pivotRollups?: PivotRollups;
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -336,6 +340,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   // Track parameterized columns needing key discovery
   private parameterKeyColumns = new Set<string>();
+
+  // Track expanded groups for hierarchical pivot mode
+  // Group keys are formed by joining parent values with '|' separator
+  private expandedGroups = new Set<string>();
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialColumns) {
@@ -426,17 +434,30 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Notify the data source of the current model state.
     const datasource = getOrCreateDataSource(data);
-    datasource.notify({
+
+    // Check if hierarchical pivot mode - if so, we need all rows (no pagination)
+    // because we need to match children to expanded parents
+    const isHierarchicalPivotMode = this.isHierarchicalPivotMode(this.pivot);
+
+    const model = {
       columns: columnsWithDeps,
       filters: this.filters,
-      pagination: {
-        offset: this.paginationOffset,
-        limit: this.paginationLimit,
-      },
+      // Don't paginate in hierarchical pivot mode - we need all rows to match
+      // children to expanded parents
+      pagination: isHierarchicalPivotMode
+        ? undefined
+        : {
+            offset: this.paginationOffset,
+            limit: this.paginationLimit,
+          },
       pivot: this.pivot,
       distinctValuesColumns: this.distinctValuesColumns,
       parameterKeyColumns: this.parameterKeyColumns,
-    });
+    };
+    const {result: rowsResult, isLoading: rowsLoading} =
+      datasource.getRows(model);
+    const {result: aggregateTotals} = datasource.getAggregateTotals(model);
+    const {result: pivotRollups} = datasource.getPivotRollups(model);
 
     // Expose the API
     attrs.onReady?.({
@@ -450,12 +471,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         );
       },
       getRowCount: () => {
-        return datasource?.rows?.totalRows;
+        return rowsResult?.totalRows;
       },
     });
-
-    // Extract the result from the datasource
-    const result = datasource.rows;
 
     // Determine if we're in pivot mode (has groupBy columns and not drilling down)
     const isPivotMode =
@@ -474,7 +492,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         schema,
         rootSchema,
         datasource,
-        result,
+        rowsResult,
+        aggregateTotals,
+        pivotRollups,
         pivot: this.pivot!,
         structuredQueryCompatMode,
         enablePivotControls,
@@ -497,7 +517,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         schema,
         rootSchema,
         datasource,
-        result,
+        rowsResult,
+        aggregateTotals,
         columnInfoCache,
         structuredQueryCompatMode,
         enablePivotControls,
@@ -538,34 +559,40 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           }),
         ),
         drillDown: this.pivot?.drillDown,
-        drillDownFields: this.pivot?.groupBy.map(({field}) => {
-          const colInfo = getColumnInfo(schema, rootSchema, field);
-          const titleParts = colInfo?.titleParts ?? field.split('.');
-          const rawValue = this.pivot?.drillDown?.[field];
-          return {
-            title: buildColumnTitle(titleParts),
-            value: formatChipValue(rawValue, colInfo?.cellFormatter),
-          };
-        }),
+        drillDownFields: this.pivot?.groupBy
+          .filter(
+            ({field}) => this.pivot?.drillDown && field in this.pivot.drillDown,
+          )
+          .map(({field}) => {
+            const colInfo = getColumnInfo(schema, rootSchema, field);
+            const titleParts = colInfo?.titleParts ?? field.split('.');
+            const rawValue = this.pivot?.drillDown?.[field];
+            return {
+              title: buildColumnTitle(titleParts),
+              value: formatChipValue(rawValue, colInfo?.cellFormatter),
+            };
+          }),
         onExitDrillDown: () => this.exitDrillDown(attrs),
       }),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
-        state: datasource.isLoading ? 'indeterminate' : 'none',
+        state: rowsLoading ? 'indeterminate' : 'none',
       }),
       m(Grid, {
         className: 'pf-data-grid__table',
         columns: gridColumns,
-        rowData: {
-          data: gridRows,
-          total: result?.totalRows ?? 0,
-          offset: Math.max(result?.rowOffset ?? 0, this.paginationOffset),
-          onLoadData: (offset, limit) => {
-            this.paginationOffset = offset;
-            this.paginationLimit = limit;
-            m.redraw();
-          },
-        },
+        rowData: isHierarchicalPivotMode
+          ? gridRows
+          : {
+              data: gridRows,
+              total: rowsResult?.totalRows ?? 0,
+              offset: Math.max(rowsResult?.offset ?? 0, this.paginationOffset),
+              onLoadData: (offset, limit) => {
+                this.paginationOffset = offset;
+                this.paginationLimit = limit;
+                m.redraw();
+              },
+            },
         virtualization: {
           rowHeightPx: 25,
         },
@@ -581,8 +608,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.gridApi = api;
         },
         emptyState:
-          result?.totalRows === 0 &&
-          !datasource.isLoading &&
+          rowsResult?.totalRows === 0 &&
+          !rowsLoading &&
           m(
             EmptyState,
             {
@@ -600,7 +627,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 onclick: () => this.clearFilters(attrs),
               }),
           ),
-      }),
+      } satisfies GridAttrs),
     );
   }
 
@@ -779,10 +806,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (!this.pivot) return;
 
     // Build drill-down filter from groupBy column values
+    // Only include fields that exist in the row (rollup/summary rows don't have
+    // values for lower-level groupBy columns)
     const drillDownRow: Row = {};
     for (const groupByCol of this.pivot.groupBy) {
       const field = groupByCol.field;
-      drillDownRow[field] = row[field];
+      if (field in row) {
+        drillDownRow[field] = row[field];
+      }
     }
 
     const newPivot: Pivot = {...this.pivot, drillDown: drillDownRow};
@@ -796,6 +827,44 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const newPivot: Pivot = {...this.pivot, drillDown: undefined};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
+  }
+
+  /**
+   * Toggle expansion state of a group in hierarchical pivot mode.
+   * @param groupKey The key identifying the group (e.g., "Chrome" or "Chrome|Main")
+   */
+  private toggleGroupExpansion(groupKey: string): void {
+    if (this.expandedGroups.has(groupKey)) {
+      this.expandedGroups.delete(groupKey);
+    } else {
+      this.expandedGroups.add(groupKey);
+    }
+  }
+
+  /**
+   * Check if hierarchical pivot mode is active.
+   * Hierarchical mode is when we have 2+ groupBy columns and are not in drillDown.
+   */
+  private isHierarchicalPivotMode(pivot: Pivot | undefined): boolean {
+    return pivot !== undefined && !pivot.drillDown && pivot.groupBy.length >= 2;
+  }
+
+  /**
+   * Build a group key from a row and the groupBy columns up to a certain level.
+   * @param row The row containing the values
+   * @param groupByFields Array of field names to include
+   * @param upToLevel How many levels to include (0 = first field only)
+   */
+  private buildGroupKey(
+    row: Row,
+    groupByFields: readonly string[],
+    upToLevel: number,
+  ): string {
+    const parts: string[] = [];
+    for (let i = 0; i <= upToLevel && i < groupByFields.length; i++) {
+      parts.push(String(row[groupByFields[i]] ?? ''));
+    }
+    return parts.join('|');
   }
 
   private removeAggregateColumn(index: number, attrs: DataGridAttrs): void {
@@ -1051,6 +1120,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
+      aggregateTotals,
       columnInfoCache,
       structuredQueryCompatMode,
       enablePivotControls,
@@ -1080,7 +1150,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         m(FilterMenu, {
           columnType,
           structuredQueryCompatMode,
-          distinctValues: datasource.distinctValues?.get(field),
+          distinctValues: datasource.getDistinctValues(field).result,
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
           onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
@@ -1143,7 +1213,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build subContent showing grand total if column has an aggregate
       let subContent: m.Children;
       if (aggregate) {
-        const totalValue = datasource.aggregateTotals?.get(field);
+        const totalValue = aggregateTotals?.get(field);
         const isLoading = totalValue === undefined;
         // Don't show grand total for ANY aggregation (it's just an arbitrary value)
         let totalContent: m.Children;
@@ -1185,13 +1255,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds grid rows for flat (non-pivot) mode.
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
-    const {attrs, result, columnInfoCache} = ctx;
+    const {attrs, rowsResult, columnInfoCache} = ctx;
 
-    if (result === undefined) return [];
+    if (rowsResult === undefined) return [];
 
     // Find the intersection of rows between what we have and what is required
     // and only render those.
-    const start = Math.max(result.rowOffset, this.paginationOffset);
+    const start = Math.max(rowsResult.offset, this.paginationOffset);
 
     const rowIndices = Array.from(
       {length: this.paginationLimit},
@@ -1200,7 +1270,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     return rowIndices
       .map((index) => {
-        const row = result.rows[index - result.rowOffset];
+        const row = rowsResult.rows[index - rowsResult.offset];
         if (row === undefined) return undefined;
 
         return this.columns.map((col) => {
@@ -1246,6 +1316,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
+      aggregateTotals,
       pivot,
       structuredQueryCompatMode,
       enablePivotControls,
@@ -1284,7 +1355,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         m(FilterMenu, {
           columnType,
           structuredQueryCompatMode,
-          distinctValues: datasource.distinctValues?.get(field),
+          distinctValues: datasource.getDistinctValues(field).result,
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
           onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
@@ -1421,7 +1492,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build subContent showing grand total with aggregate symbol
       // Don't show grand total for ANY aggregation (it's just an arbitrary value)
-      const aggregateTotalValue = datasource.aggregateTotals?.get(alias);
+      const aggregateTotalValue = aggregateTotals?.get(alias);
       const symbol = agg.function;
       const isLoading = aggregateTotalValue === undefined;
       let aggTotalContent: m.Children;
@@ -1462,26 +1533,34 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   /**
    * Builds grid rows for pivot mode.
    * Each row contains values for groupBy columns and aggregate columns.
+   * In hierarchical mode (2+ groupBy columns), builds a tree structure with
+   * expand/collapse capability.
    */
   private buildPivotRows(ctx: PivotGridBuildContext): m.Children[][] {
-    const {attrs, schema, rootSchema, result, pivot, enablePivotControls} = ctx;
+    const {attrs, schema, rootSchema, rowsResult, pivot, enablePivotControls} =
+      ctx;
 
-    if (result === undefined) return [];
+    if (rowsResult === undefined) return [];
 
+    // For hierarchical mode, build visible rows from rollups + expanded children
+    if (this.isHierarchicalPivotMode(pivot)) {
+      return this.buildHierarchicalPivotRows(ctx);
+    }
+
+    const aggregates = pivot.aggregates ?? [];
+
+    // Non-hierarchical pivot mode (single groupBy column)
     // Find the intersection of rows between what we have and what is required
-    // and only render those.
-    const start = Math.max(result.rowOffset, this.paginationOffset);
+    const start = Math.max(rowsResult.offset, this.paginationOffset);
 
     const rowIndices = Array.from(
       {length: this.paginationLimit},
       (_, i) => i + start,
     );
 
-    const aggregates = pivot.aggregates ?? [];
-
     return rowIndices
       .map((index) => {
-        const row = result.rows[index - result.rowOffset];
+        const row = rowsResult.rows[index - rowsResult.offset];
         if (row === undefined) return undefined;
 
         const cells: m.Children[] = [];
@@ -1583,6 +1662,212 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         return cells;
       })
       .filter(exists);
+  }
+
+  /**
+   * Builds hierarchical pivot rows with expand/collapse functionality.
+   * Shows rollup rows at each level, with children visible when expanded.
+   */
+  private buildHierarchicalPivotRows(
+    ctx: PivotGridBuildContext,
+  ): m.Children[][] {
+    const {
+      attrs,
+      schema,
+      rootSchema,
+      rowsResult,
+      pivotRollups,
+      pivot,
+      enablePivotControls,
+    } = ctx;
+
+    const aggregates = pivot.aggregates ?? [];
+    const groupByFields = pivot.groupBy.map(({field}) => field);
+    const numLevels = groupByFields.length;
+    const rollups = pivotRollups;
+
+    // Build the visible rows list based on expansion state
+    const visibleRows: Array<{row: Row; level: number; parentKey: string}> = [];
+
+    // Helper to add rows recursively based on expansion state
+    const addVisibleRows = (parentKey: string, level: number) => {
+      // Get rows at this level
+      let rowsAtLevel: readonly Row[];
+      if (level === numLevels - 1) {
+        // Deepest level comes from main result rows
+        rowsAtLevel = rowsResult?.rows ?? [];
+      } else {
+        // Rollup rows from datasource
+        rowsAtLevel = rollups?.byLevel.get(level) ?? [];
+      }
+
+      // Filter rows that belong to this parent
+      const matchingRows = rowsAtLevel.filter((row) => {
+        if (parentKey === '') return true; // Top level, all rows match
+        // Check if row's parent values match the parent key
+        const rowParentKey = this.buildGroupKey(row, groupByFields, level - 1);
+        return rowParentKey === parentKey;
+      });
+
+      for (const row of matchingRows) {
+        visibleRows.push({row, level, parentKey});
+
+        // If this level is not the deepest and is expanded, add children
+        if (level < numLevels - 1) {
+          const groupKey = this.buildGroupKey(row, groupByFields, level);
+          if (this.expandedGroups.has(groupKey)) {
+            addVisibleRows(groupKey, level + 1);
+          }
+        }
+      }
+    };
+
+    // Start from level 0 (top-level groups)
+    addVisibleRows('', 0);
+
+    // Build cells for each visible row
+    return visibleRows.map(({row, level}) => {
+      const cells: m.Children[] = [];
+      const groupKey = this.buildGroupKey(row, groupByFields, level);
+      const isExpandable = level < numLevels - 1;
+      const isExpanded = this.expandedGroups.has(groupKey);
+
+      // Render groupBy columns
+      for (let i = 0; i < numLevels; i++) {
+        const field = groupByFields[i];
+        const value = row[field];
+        const colInfo = getColumnInfo(schema, rootSchema, field);
+        const cellRenderer =
+          colInfo?.cellRenderer ?? ((v: SqlValue) => renderCell(v, field));
+
+        // For cells to the right of current level (i > level), show blank
+        // These are child columns that don't apply to parent/summary rows
+        if (i > level) {
+          cells.push(
+            m(GridCell, {
+              className: 'pf-data-grid__groupby-column',
+            }),
+          );
+        } else if (i < level) {
+          // For cells to the left (parent columns), show the inherited value
+          // with indentation to indicate hierarchy
+          const rendered = cellRenderer(value, row);
+          const isRich = isCellRenderResult(rendered);
+
+          cells.push(
+            m(
+              GridCell,
+              {
+                align: isRich ? rendered.align ?? 'left' : getAligment(value),
+                nullish: isRich
+                  ? rendered.nullish ?? value === null
+                  : value === null,
+                className: classNames(
+                  'pf-data-grid__groupby-column',
+                  'pf-data-grid__muted-cell',
+                ),
+                indent: 1,
+              },
+              isRich ? rendered.content : rendered,
+            ),
+          );
+        } else {
+          const rendered = cellRenderer(value, row);
+          const isRich = isCellRenderResult(rendered);
+
+          // Determine chevron state for GridCell's built-in chevron support
+          const chevronState = isExpandable
+            ? isExpanded
+              ? 'expanded'
+              : 'collapsed'
+            : undefined;
+
+          cells.push(
+            m(
+              GridCell,
+              {
+                align: isRich ? rendered.align ?? 'left' : getAligment(value),
+                nullish: isRich
+                  ? rendered.nullish ?? value === null
+                  : value === null,
+                className: 'pf-data-grid__groupby-column',
+                chevron: chevronState,
+                onChevronClick: isExpandable
+                  ? () => this.toggleGroupExpansion(groupKey)
+                  : undefined,
+                menuItems: [
+                  enablePivotControls && [
+                    m(MenuItem, {
+                      label: 'Drill down',
+                      icon: 'zoom_in',
+                      onclick: () => this.drillDown(row, attrs),
+                    }),
+                    m(MenuDivider),
+                  ],
+                  m(CellFilterMenu, {
+                    value,
+                    onFilterAdd: (filter) =>
+                      this.addFilter({field, ...filter}, attrs),
+                  }),
+                ],
+              },
+              isRich ? rendered.content : rendered,
+            ),
+          );
+        }
+      }
+
+      // Drill-down cell
+      if (enablePivotControls) {
+        cells.push(
+          m(
+            '.pf-datagrid__dd-cell',
+            {className: 'pf-datagrid__dd'},
+            m(Button, {
+              className:
+                'pf-visible-on-row-hover pf-datagrid__drilldown-button',
+              icon: Icons.GoTo,
+              rounded: true,
+              title: 'Drill down into this group',
+              fillWidth: true,
+              onclick: () => {
+                this.drillDown(row, attrs);
+              },
+            }),
+          ),
+        );
+      }
+
+      // Render aggregate columns
+      for (const agg of aggregates) {
+        const alias = getAggregateAlias(agg);
+        const value = row[alias];
+
+        let cellRenderer =
+          'field' in agg
+            ? getColumnInfo(schema, rootSchema, agg.field)?.cellRenderer
+            : undefined;
+        cellRenderer ??= (v: SqlValue) => renderCell(v, alias);
+
+        const rendered = cellRenderer(value, row);
+        const isRich = isCellRenderResult(rendered);
+
+        cells.push(
+          m(
+            GridCell,
+            {
+              align: isRich ? rendered.align ?? 'left' : getAligment(value),
+              nullish: isRich
+                ? rendered.nullish ?? value === null
+                : value === null,
+            },
+            isRich ? rendered.content : rendered,
+          ),
+        );
+      }
+
+      return cells;
+    });
   }
 
   private async formatData(

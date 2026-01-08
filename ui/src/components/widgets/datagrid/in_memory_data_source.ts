@@ -12,219 +12,365 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
+import {UseQueryResult} from '../../../trace_processor/query_cache';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {DataSource, DataSourceModel, DataSourceRows} from './data_source';
-import {Column, Filter, Pivot} from './model';
+import {DataSource, DataSourceModel, PivotRollups} from './data_source';
+import {AggregateColumn, Column, Filter, Pivot} from './model';
 
 export class InMemoryDataSource implements DataSource {
   private data: ReadonlyArray<Row> = [];
-  private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
-  private aggregateTotalsCache = new Map<string, SqlValue>();
 
-  // Cached state for diffing
-  private oldColumns?: readonly Column[];
-  private oldFilters: ReadonlyArray<Filter> = [];
-  private oldPivot?: Pivot;
+  // Last-result caches for expensive operations
+  private rowsCache?: {
+    key: string;
+    result: {totalRows: number; offset: number; rows: Row[]};
+  };
+  private aggregateTotalsCache?: {
+    key: string;
+    result: ReadonlyMap<string, SqlValue>;
+  };
+  private pivotRollupsCache?: {
+    key: string;
+    result: PivotRollups;
+  };
 
   constructor(data: ReadonlyArray<Row>) {
     this.data = data;
-    this.filteredSortedData = data;
   }
 
-  get rows(): DataSourceRows {
+  /**
+   * Creates a cache key from model parameters.
+   * Uses JSON.stringify for simplicity - works well for small objects.
+   */
+  private buildCacheKey(parts: Record<string, unknown>): string {
+    return JSON.stringify(parts);
+  }
+
+  getRows(
+    model: DataSourceModel,
+  ): UseQueryResult<{totalRows: number; offset: number; rows: Row[]}> {
+    const {columns, filters = [], pivot, pagination} = model;
+
+    // Check cache first
+    const cacheKey = this.buildCacheKey({columns, filters, pivot, pagination});
+    if (this.rowsCache?.key === cacheKey) {
+      return {result: this.rowsCache.result, isLoading: false};
+    }
+
+    // In pivot mode, separate filters into pre-pivot and post-pivot
+    const aggregates = pivot?.aggregates ?? [];
+    const aggregateFields = new Set(
+      aggregates.map((a) => ('field' in a ? a.field : '__count__')),
+    );
+    const prePivotFilters =
+      pivot && !pivot.drillDown
+        ? filters.filter((f) => !aggregateFields.has(f.field))
+        : filters;
+    const postPivotFilters =
+      pivot && !pivot.drillDown
+        ? filters.filter((f) => aggregateFields.has(f.field))
+        : [];
+
+    // Apply pre-pivot filters (on source data)
+    let result = this.applyFilters(this.data, prePivotFilters);
+
+    // Apply pivot (but not in drilldown mode - drilldown shows raw data)
+    if (pivot && !pivot.drillDown) {
+      result = this.applyPivoting(result, pivot);
+      // Apply post-pivot filters (on aggregate results)
+      if (postPivotFilters.length > 0) {
+        result = this.applyFilters(result, postPivotFilters);
+      }
+    } else if (pivot?.drillDown) {
+      // Drilldown mode: filter to show only rows matching the drillDown values
+      result = this.applyDrillDown(result, pivot);
+    }
+
+    // Apply sorting - find sorted column from columns or pivot
+    const sortedColumn = this.findSortedColumn(columns, pivot);
+    if (sortedColumn) {
+      result = this.applySorting(
+        result,
+        sortedColumn.field,
+        sortedColumn.direction,
+      );
+    }
+
+    const totalRows = result.length;
+    const offset = pagination?.offset ?? 0;
+    const limit = pagination?.limit ?? result.length;
+    const rows = [...result.slice(offset, offset + limit)];
+
+    const cachedResult = {totalRows, offset, rows};
+    this.rowsCache = {key: cacheKey, result: cachedResult};
+
     return {
-      rowOffset: 0,
-      rows: this.filteredSortedData,
-      totalRows: this.filteredSortedData.length,
+      result: cachedResult,
+      isLoading: false,
     };
   }
 
-  get distinctValues(): ReadonlyMap<string, readonly SqlValue[]> | undefined {
-    return this.distinctValuesCache.size > 0
-      ? this.distinctValuesCache
-      : undefined;
+  getDistinctValues(columnPath: string): UseQueryResult<readonly SqlValue[]> {
+    // Check cache first
+    const cached = this.distinctValuesCache.get(columnPath);
+    if (cached) {
+      return {result: cached, isLoading: false};
+    }
+
+    // Compute distinct values from base data (not filtered)
+    const uniqueValues = new Set<SqlValue>();
+    for (const row of this.data) {
+      uniqueValues.add(row[columnPath]);
+    }
+
+    // Sort with null-aware comparison
+    const sorted = Array.from(uniqueValues).sort((a, b) => {
+      // Nulls come first
+      if (a === null && b === null) return 0;
+      if (a === null) return -1;
+      if (b === null) return 1;
+
+      // Type-specific sorting
+      if (typeof a === 'number' && typeof b === 'number') {
+        return a - b;
+      }
+      if (typeof a === 'bigint' && typeof b === 'bigint') {
+        return Number(a - b);
+      }
+      if (typeof a === 'string' && typeof b === 'string') {
+        return a.localeCompare(b);
+      }
+
+      // Default: convert to string and compare
+      return String(a).localeCompare(String(b));
+    });
+
+    this.distinctValuesCache.set(columnPath, sorted);
+    return {result: sorted, isLoading: false};
   }
 
-  get parameterKeys(): ReadonlyMap<string, readonly string[]> | undefined {
-    return this.parameterKeysCache.size > 0
-      ? this.parameterKeysCache
-      : undefined;
+  getAggregateTotals(
+    model: DataSourceModel,
+  ): UseQueryResult<ReadonlyMap<string, SqlValue>> {
+    const {columns, filters = [], pivot} = model;
+
+    // Check cache first
+    const cacheKey = this.buildCacheKey({columns, filters, pivot});
+    if (this.aggregateTotalsCache?.key === cacheKey) {
+      return {result: this.aggregateTotalsCache.result, isLoading: false};
+    }
+
+    // First get the filtered/pivoted data
+    const aggregates = pivot?.aggregates ?? [];
+    const aggregateFields = new Set(
+      aggregates.map((a) => ('field' in a ? a.field : '__count__')),
+    );
+    const prePivotFilters =
+      pivot && !pivot.drillDown
+        ? filters.filter((f) => !aggregateFields.has(f.field))
+        : filters;
+    const postPivotFilters =
+      pivot && !pivot.drillDown
+        ? filters.filter((f) => aggregateFields.has(f.field))
+        : [];
+
+    let result = this.applyFilters(this.data, prePivotFilters);
+
+    const totals = new Map<string, SqlValue>();
+
+    if (pivot && !pivot.drillDown) {
+      result = this.applyPivoting(result, pivot);
+      if (postPivotFilters.length > 0) {
+        result = this.applyFilters(result, postPivotFilters);
+      }
+      // Compute aggregate totals across all filtered pivot rows
+      this.computeAggregateTotalsFromData(result, pivot, totals);
+    } else if (columns && !pivot) {
+      // Non-pivot mode: compute column-level aggregations
+      this.computeColumnAggregatesFromData(result, columns, totals);
+    }
+
+    this.aggregateTotalsCache = {key: cacheKey, result: totals};
+    return {result: totals, isLoading: false};
   }
 
-  get aggregateTotals(): ReadonlyMap<string, SqlValue> | undefined {
-    return this.aggregateTotalsCache.size > 0
-      ? this.aggregateTotalsCache
-      : undefined;
-  }
+  getPivotRollups(model: DataSourceModel): UseQueryResult<PivotRollups> {
+    const {filters = [], pivot} = model;
 
-  notify({
-    columns,
-    filters = [],
-    pivot,
-    distinctValuesColumns,
-    parameterKeyColumns,
-  }: DataSourceModel): void {
-    if (
-      !this.areColumnsEqual(columns, this.oldColumns) ||
-      !this.areFiltersEqual(filters, this.oldFilters) ||
-      !arePivotsEqual(pivot, this.oldPivot)
-    ) {
-      this.oldColumns = columns;
-      this.oldFilters = filters;
-      this.oldPivot = pivot;
+    // Only generate rollups for hierarchical pivot mode (2+ groupBy columns)
+    if (!pivot || pivot.drillDown || pivot.groupBy.length < 2) {
+      return {result: {byLevel: new Map()}, isLoading: false};
+    }
 
-      // Clear aggregate totals cache
-      this.aggregateTotalsCache.clear();
+    // Check cache
+    const cacheKey = this.buildCacheKey({filters, pivot, _type: 'rollups'});
+    if (this.pivotRollupsCache?.key === cacheKey) {
+      return {result: this.pivotRollupsCache.result, isLoading: false};
+    }
 
-      // In pivot mode, separate filters into pre-pivot and post-pivot
-      // Post-pivot filters apply to aggregate columns
-      const aggregates = pivot?.aggregates ?? [];
-      const aggregateFields = new Set(
-        aggregates.map((a) => ('field' in a ? a.field : '__count__')),
+    // Apply pre-pivot filters
+    const aggregates = pivot.aggregates ?? [];
+    const aggregateFields = new Set(
+      aggregates.map((a) => ('field' in a ? a.field : '__count__')),
+    );
+    const prePivotFilters = filters.filter(
+      (f) => !aggregateFields.has(f.field),
+    );
+    const filteredData = this.applyFilters(this.data, prePivotFilters);
+
+    // Build rollups for levels 0 to N-2
+    const byLevel = new Map<number, Row[]>();
+    const numLevels = pivot.groupBy.length;
+
+    for (let level = 0; level < numLevels - 1; level++) {
+      // Group by the first (level+1) columns
+      const groupByFieldsForLevel = pivot.groupBy
+        .slice(0, level + 1)
+        .map(({field}) => field);
+      const rollupRows = this.computeRollupForLevel(
+        filteredData,
+        groupByFieldsForLevel,
+        aggregates,
       );
-      const prePivotFilters =
-        pivot && !pivot.drillDown
-          ? filters.filter((f) => !aggregateFields.has(f.field))
-          : filters;
-      const postPivotFilters =
-        pivot && !pivot.drillDown
-          ? filters.filter((f) => aggregateFields.has(f.field))
-          : [];
-
-      // Apply pre-pivot filters (on source data)
-      let result = this.applyFilters(this.data, prePivotFilters);
-
-      // Apply pivot (but not in drilldown mode - drilldown shows raw data)
-      if (pivot && !pivot.drillDown) {
-        result = this.applyPivoting(result, pivot);
-        // Apply post-pivot filters (on aggregate results)
-        if (postPivotFilters.length > 0) {
-          result = this.applyFilters(result, postPivotFilters);
-        }
-        // Compute aggregate totals across all filtered pivot rows
-        this.computeAggregateTotals(result, pivot);
-      } else if (pivot?.drillDown) {
-        // Drilldown mode: filter to show only rows matching the drillDown values
-        result = this.applyDrillDown(result, pivot);
-      } else if (columns) {
-        // Non-pivot mode: compute column-level aggregations
-        this.computeColumnAggregates(result, columns);
-      }
-
-      // Apply sorting - find sorted column from columns or pivot
-      const sortedColumn = this.findSortedColumn(columns, pivot);
-      if (sortedColumn) {
-        result = this.applySorting(
-          result,
-          sortedColumn.field,
-          sortedColumn.direction,
-        );
-      }
-
-      // Store the filtered and sorted data
-      this.filteredSortedData = result;
+      byLevel.set(level, rollupRows);
     }
 
-    // Handle distinct values requests
-    if (distinctValuesColumns) {
-      for (const column of distinctValuesColumns) {
-        if (!this.distinctValuesCache.has(column)) {
-          // Compute distinct values from base data (not filtered)
-          const uniqueValues = new Set<SqlValue>();
-          for (const row of this.data) {
-            uniqueValues.add(row[column]);
+    const result: PivotRollups = {byLevel};
+    this.pivotRollupsCache = {key: cacheKey, result};
+    return {result, isLoading: false};
+  }
+
+  /**
+   * Compute rollup rows for a specific level by grouping on the given fields.
+   */
+  private computeRollupForLevel(
+    data: ReadonlyArray<Row>,
+    groupByFields: readonly string[],
+    aggregates: readonly AggregateColumn[],
+  ): Row[] {
+    const groups = new Map<string, Row[]>();
+
+    for (const row of data) {
+      const key = groupByFields.map((field) => row[field]).join('-');
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(row);
+    }
+
+    const result: Row[] = [];
+
+    for (const group of groups.values()) {
+      const newRow: Row = {};
+
+      // Copy the groupBy field values
+      for (const field of groupByFields) {
+        newRow[field] = group[0][field];
+      }
+
+      // Compute aggregates
+      for (const agg of aggregates) {
+        const alias =
+          agg.function === 'COUNT'
+            ? '__count__'
+            : 'field' in agg
+              ? agg.field
+              : '__unknown__';
+
+        if (agg.function === 'COUNT') {
+          newRow[alias] = group.length;
+          continue;
+        }
+
+        const aggField = 'field' in agg ? agg.field : null;
+        if (!aggField) {
+          newRow[alias] = null;
+          continue;
+        }
+
+        const values = group
+          .map((row) => row[aggField])
+          .filter((v) => v !== null);
+        if (values.length === 0) {
+          newRow[alias] = null;
+          continue;
+        }
+
+        switch (agg.function) {
+          case 'SUM':
+            newRow[alias] = values.reduce(
+              (acc: number, val) => acc + (Number(val) || 0),
+              0,
+            );
+            break;
+          case 'AVG':
+            newRow[alias] =
+              (values.reduce(
+                (acc: number, val) => acc + (Number(val) || 0),
+                0,
+              ) as number) / values.length;
+            break;
+          case 'MIN':
+            newRow[alias] = values.reduce(
+              (acc, val) => (val < acc ? val : acc),
+              values[0],
+            );
+            break;
+          case 'MAX':
+            newRow[alias] = values.reduce(
+              (acc, val) => (val > acc ? val : acc),
+              values[0],
+            );
+            break;
+          case 'ANY':
+            newRow[alias] = values[0];
+            break;
+        }
+      }
+
+      result.push(newRow);
+    }
+
+    return result;
+  }
+
+  getParameterKeys(prefix: string): UseQueryResult<readonly string[]> {
+    // Check cache first
+    const cached = this.parameterKeysCache.get(prefix);
+    if (cached) {
+      return {result: cached, isLoading: false};
+    }
+
+    // Find all keys that match the prefix pattern
+    const uniqueKeys = new Set<string>();
+    const prefixWithDot = prefix + '.';
+
+    for (const row of this.data) {
+      for (const key of Object.keys(row)) {
+        if (key.startsWith(prefixWithDot)) {
+          const paramKey = key.slice(prefixWithDot.length);
+          if (!paramKey.includes('.')) {
+            uniqueKeys.add(paramKey);
           }
-
-          // Sort with null-aware comparison
-          const sorted = Array.from(uniqueValues).sort((a, b) => {
-            // Nulls come first
-            if (a === null && b === null) return 0;
-            if (a === null) return -1;
-            if (b === null) return 1;
-
-            // Type-specific sorting
-            if (typeof a === 'number' && typeof b === 'number') {
-              return a - b;
-            }
-            if (typeof a === 'bigint' && typeof b === 'bigint') {
-              return Number(a - b);
-            }
-            if (typeof a === 'string' && typeof b === 'string') {
-              return a.localeCompare(b);
-            }
-
-            // Default: convert to string and compare
-            return String(a).localeCompare(String(b));
-          });
-
-          this.distinctValuesCache.set(column, sorted);
         }
       }
     }
 
-    // Handle parameter keys requests
-    if (parameterKeyColumns) {
-      for (const prefix of parameterKeyColumns) {
-        if (!this.parameterKeysCache.has(prefix)) {
-          // Find all keys that match the prefix pattern (e.g., "skills.typescript" for prefix "skills")
-          const uniqueKeys = new Set<string>();
-          const prefixWithDot = prefix + '.';
-
-          for (const row of this.data) {
-            for (const key of Object.keys(row)) {
-              if (key.startsWith(prefixWithDot)) {
-                // Extract the parameter key (everything after the prefix)
-                const paramKey = key.slice(prefixWithDot.length);
-                // Only add top-level keys (no further dots)
-                if (!paramKey.includes('.')) {
-                  uniqueKeys.add(paramKey);
-                }
-              }
-            }
-          }
-
-          // Sort alphabetically
-          const sorted = Array.from(uniqueKeys).sort((a, b) =>
-            a.localeCompare(b),
-          );
-
-          this.parameterKeysCache.set(prefix, sorted);
-        }
-      }
-    }
+    const sorted = Array.from(uniqueKeys).sort((a, b) => a.localeCompare(b));
+    this.parameterKeysCache.set(prefix, sorted);
+    return {result: sorted, isLoading: false};
   }
 
   /**
    * Export all data with current filters/sorting applied.
    */
   async exportData(): Promise<readonly Row[]> {
-    // Return all the filtered and sorted data
-    return this.filteredSortedData;
-  }
-
-  /**
-   * Compare columns for equality (including sort state).
-   */
-  private areColumnsEqual(
-    a: readonly Column[] | undefined,
-    b: readonly Column[] | undefined,
-  ): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    if (a.length !== b.length) return false;
-
-    return a.every((colA, i) => {
-      const colB = b[i];
-      return (
-        colA.field === colB.field &&
-        colA.sort === colB.sort &&
-        colA.aggregate === colB.aggregate
-      );
-    });
+    // For export, return all data without pagination
+    const result = this.getRows({});
+    return result.result?.rows ?? [];
   }
 
   /**
@@ -260,22 +406,6 @@ export class InMemoryDataSource implements DataSource {
     }
 
     return undefined;
-  }
-
-  // Helper function to compare arrays of filter definitions for equality.
-  private areFiltersEqual(
-    filtersA: ReadonlyArray<Filter>,
-    filtersB: ReadonlyArray<Filter>,
-  ): boolean {
-    if (filtersA.length !== filtersB.length) return false;
-
-    // Compare each filter
-    return filtersA.every((filterA, index) => {
-      const filterB = filtersB[index];
-      return (
-        stringifyJsonWithBigints(filterA) === stringifyJsonWithBigints(filterB)
-      );
-    });
   }
 
   private applyFilters(
@@ -499,9 +629,10 @@ export class InMemoryDataSource implements DataSource {
    * For AVG, we compute the average of averages (weighted by count would be better but we don't have that info).
    * For MIN/MAX, we find the min/max across all groups.
    */
-  private computeAggregateTotals(
+  private computeAggregateTotalsFromData(
     pivotedData: ReadonlyArray<Row>,
     pivot: Pivot,
+    totals: Map<string, SqlValue>,
   ): void {
     const aggregates = pivot.aggregates ?? [];
     for (const agg of aggregates) {
@@ -516,7 +647,7 @@ export class InMemoryDataSource implements DataSource {
         .filter((v) => v !== null);
 
       if (values.length === 0) {
-        this.aggregateTotalsCache.set(alias, null);
+        totals.set(alias, null);
         continue;
       }
 
@@ -524,14 +655,14 @@ export class InMemoryDataSource implements DataSource {
         case 'SUM':
         case 'COUNT':
           // Sum up all the sums/counts
-          this.aggregateTotalsCache.set(
+          totals.set(
             alias,
             values.reduce((acc: number, val) => acc + (Number(val) || 0), 0),
           );
           break;
         case 'AVG':
           // Average of averages (simple, not weighted)
-          this.aggregateTotalsCache.set(
+          totals.set(
             alias,
             (values.reduce(
               (acc: number, val) => acc + (Number(val) || 0),
@@ -540,20 +671,20 @@ export class InMemoryDataSource implements DataSource {
           );
           break;
         case 'MIN':
-          this.aggregateTotalsCache.set(
+          totals.set(
             alias,
             values.reduce((acc, val) => (val < acc ? val : acc), values[0]),
           );
           break;
         case 'MAX':
-          this.aggregateTotalsCache.set(
+          totals.set(
             alias,
             values.reduce((acc, val) => (val > acc ? val : acc), values[0]),
           );
           break;
         case 'ANY':
           // For ANY, just take the first value
-          this.aggregateTotalsCache.set(alias, values[0]);
+          totals.set(alias, values[0]);
           break;
       }
     }
@@ -563,9 +694,10 @@ export class InMemoryDataSource implements DataSource {
    * Compute aggregates for columns with aggregation functions defined.
    * This is used in non-pivot mode when columns have individual aggregations.
    */
-  private computeColumnAggregates(
+  private computeColumnAggregatesFromData(
     data: ReadonlyArray<Row>,
     columns: ReadonlyArray<Column>,
+    totals: Map<string, SqlValue>,
   ): void {
     for (const col of columns) {
       if (!col.aggregate) continue;
@@ -575,19 +707,19 @@ export class InMemoryDataSource implements DataSource {
         .filter((v) => v !== null);
 
       if (values.length === 0) {
-        this.aggregateTotalsCache.set(col.field, null);
+        totals.set(col.field, null);
         continue;
       }
 
       switch (col.aggregate) {
         case 'SUM':
-          this.aggregateTotalsCache.set(
+          totals.set(
             col.field,
             values.reduce((acc: number, val) => acc + (Number(val) || 0), 0),
           );
           break;
         case 'AVG':
-          this.aggregateTotalsCache.set(
+          totals.set(
             col.field,
             (values.reduce(
               (acc: number, val) => acc + (Number(val) || 0),
@@ -596,19 +728,19 @@ export class InMemoryDataSource implements DataSource {
           );
           break;
         case 'MIN':
-          this.aggregateTotalsCache.set(
+          totals.set(
             col.field,
             values.reduce((acc, val) => (val < acc ? val : acc), values[0]),
           );
           break;
         case 'MAX':
-          this.aggregateTotalsCache.set(
+          totals.set(
             col.field,
             values.reduce((acc, val) => (val > acc ? val : acc), values[0]),
           );
           break;
         case 'ANY':
-          this.aggregateTotalsCache.set(col.field, values[0]);
+          totals.set(col.field, values[0]);
           break;
       }
     }
@@ -667,20 +799,4 @@ function compareNumeric(a: SqlValue, b: SqlValue): number {
     // so just convert both to numbers.
     return Number(a) - Number(b);
   }
-}
-
-function arePivotsEqual(a?: Pivot, b?: Pivot): boolean {
-  if (a === b) return true;
-  if (a === undefined || b === undefined) return false;
-  // Compare groupBy fields (including sort)
-  if (JSON.stringify(a.groupBy) !== JSON.stringify(b.groupBy)) return false;
-  // Compare aggregates
-  if (JSON.stringify(a.aggregates) !== JSON.stringify(b.aggregates)) {
-    return false;
-  }
-  // Check drillDown equality
-  if (a.drillDown === b.drillDown) return true;
-  if (a.drillDown === undefined || b.drillDown === undefined) return false;
-  if (JSON.stringify(a.drillDown) !== JSON.stringify(b.drillDown)) return false;
-  return true;
 }

@@ -101,7 +101,8 @@ function buildAddColumnMenuFromSchema(
     } else if (isParameterizedColumnDef(entry)) {
       // Parameterized column - show available keys from datasource
       const title = typeof entry.title === 'string' ? entry.title : columnName;
-      const availableKeys = context.dataSource.parameterKeys?.get(fullPath);
+      const availableKeys =
+        context.dataSource.getParameterKeys(fullPath).result;
       menuItems.push(
         m(
           MenuItem,

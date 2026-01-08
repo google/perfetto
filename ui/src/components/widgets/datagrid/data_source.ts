@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {UseQueryResult} from '../../../trace_processor/query_cache';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Column, Filter, Pivot} from './model';
 
@@ -21,31 +22,36 @@ export interface Pagination {
 }
 
 export interface DataSource {
-  // The row data for the current data grid state (filters, sorting, pagination,
-  // etc)
-  readonly rows?: DataSourceRows;
-
-  // Available distinct values for specified columns (for filter dropdowns)
-  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
-
-  // Available parameter keys for parameterized columns (e.g., for 'args' ->
-  // ['foo', 'bar'])
-  readonly parameterKeys?: ReadonlyMap<string, readonly string[]>;
-
-  // Computed aggregate totals for each aggregate column (grand total across all
-  // filtered rows)
-  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
-
-  // Whether the data source is currently loading data/updating.
-  readonly isLoading?: boolean;
-
-  // Called when the data grid parameters change (sorting, filtering,
-  // pagination, etc), which might trigger a data reload.
-  notify(model: DataSourceModel): void;
-
   // Export all data with current filters/sorting applied. Returns a promise
   // that resolves to all filtered and sorted rows.
   exportData(): Promise<readonly Row[]>;
+
+  getRows(
+    model: DataSourceModel,
+  ): UseQueryResult<{totalRows: number; offset: number; rows: Row[]}>;
+
+  getDistinctValues(columnPath: string): UseQueryResult<readonly SqlValue[]>;
+
+  getAggregateTotals(
+    model: DataSourceModel,
+  ): UseQueryResult<ReadonlyMap<string, SqlValue>>;
+
+  getPivotRollups(model: DataSourceModel): UseQueryResult<PivotRollups>;
+
+  getParameterKeys(prefix: string): UseQueryResult<readonly string[]>;
+}
+
+/**
+ * Rollup data for hierarchical pivot tables. Contains aggregated rows at each
+ * level of the groupBy hierarchy.
+ */
+export interface PivotRollups {
+  // Rollup rows indexed by depth level.
+  // Level 0: rows grouped by first groupBy column only (top-level groups)
+  // Level 1: rows grouped by first two groupBy columns
+  // etc.
+  // The deepest level (all groupBy columns) comes from the main `rows` field.
+  readonly byLevel: ReadonlyMap<number, readonly Row[]>;
 }
 
 export interface DataSourceModel {

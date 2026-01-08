@@ -204,3 +204,8 @@
     flex-grow: 1;
   }
 }
+
+.pf-data-grid__muted-cell {
+  color: var(--pf-color-text-muted);
+  opacity: 0.6;
+}

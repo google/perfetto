@@ -39,6 +39,7 @@ const CPU_SLICE_SPEC = {
   dur: LONG,
   ts: LONG,
   utid: NUM,
+  ucpu: NUM,
 };
 
 export class CpuSliceSelectionAggregator implements Aggregator {
@@ -110,6 +111,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             sched.dur,
             sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
             sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
+            ucpu,
             __groupid,
             __partition
           from ${iiTable.name} as sched
@@ -130,12 +132,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [
-        {field: 'pid'},
-        {field: 'process_name'},
-        {field: 'tid'},
-        {field: 'thread_name'},
-      ],
+      groupBy: [{field: 'process_name'}, {field: 'thread_name'}],
       aggregates: [
         {function: 'COUNT'},
         {field: 'dur', function: 'SUM', sort: 'DESC'},
@@ -191,7 +188,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           formatHint: 'NUMERIC',
         },
         {
-          title: 'Process Name',
+          title: 'Process',
           columnId: 'process_name',
           formatHint: 'STRING',
         },
@@ -201,7 +198,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           formatHint: 'NUMERIC',
         },
         {
-          title: 'Thread Name',
+          title: 'Thread',
           columnId: 'thread_name',
           formatHint: 'STRING',
         },
@@ -221,14 +218,9 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           formatHint: 'PERCENT',
         },
         {
-          title: 'Partition',
-          columnId: '__partition',
-          formatHint: 'ID',
-        },
-        {
-          title: 'GroupID',
-          columnId: '__groupid',
-          formatHint: 'ID',
+          title: 'CPU',
+          columnId: 'ucpu',
+          formatHint: 'NUM',
         },
       ],
     };
