@@ -4233,7 +4233,7 @@ void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
   if (!ShouldLogEvent(cfg))
     return;
 
-  PERFETTO_DCHECK(uuid);  // The UUID must be set at this point.
+  PERFETTO_CHECK(uuid);  // The UUID must be set at this point.
   android_stats::MaybeLogUploadEvent(atom, uuid.lsb(), uuid.msb(),
                                      trigger_name);
 }
@@ -4244,7 +4244,8 @@ void TracingServiceImpl::MaybeLogTriggerEvent(const TraceConfig& cfg,
                                               const std::string& trigger_name) {
   if (!ShouldLogEvent(cfg))
     return;
-  PERFETTO_DCHECK(uuid);  // The UUID must be set at this point.
+
+  PERFETTO_CHECK(uuid);  // The UUID must be set at this point.
   android_stats::MaybeLogTriggerEvent(atom, uuid.lsb(), trigger_name);
 }
 
