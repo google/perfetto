@@ -36,8 +36,8 @@
 
   height: 100%;
 
-  // SplitPanel's main section needs to have the grid layout
-  .pf-split-panel__main {
+  // DrawerPanel's main section needs to have the grid layout
+  .pf-drawer-panel__main {
     display: grid;
     grid-template-columns: 1fr auto auto auto;
     overflow: hidden;
