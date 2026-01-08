@@ -492,7 +492,7 @@
     }
 
     .pf-icon {
-      font-size: 12px;
+      font-size: var(--pf-font-size-s);
     }
   }
 
@@ -511,7 +511,7 @@
   > .pf-simple-label-text {
     padding: 12px;
     font-family: var(--pf-font-compact);
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     line-height: 1.4;
     color: var(--pf-color-text);
   }

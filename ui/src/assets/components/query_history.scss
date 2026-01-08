@@ -19,7 +19,7 @@
     display: flex;
     align-content: baseline;
     background-color: var(--pf-color-background-secondary);
-    font-size: 15px;
+    font-size: var(--pf-font-size-l);
     font-weight: 400;
     padding: 4px 10px;
     vertical-align: middle;
@@ -45,7 +45,7 @@
 
       &:hover::after {
         content: "Doubleclick to re-run";
-        font-size: 12px;
+        font-size: var(--pf-font-size-m);
         color: var(--pf-color-text-hint);
         position: absolute;
         top: 0;
