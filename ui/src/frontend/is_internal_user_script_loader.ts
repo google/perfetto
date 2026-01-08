@@ -47,8 +47,8 @@ interface Globals {
   readonly extraParsingDescriptors: string[];
 
   // Command macros. The key is the macro name, value is a list of commands to
-  // invoke. We use Record instead of Map because this is populated by a script
-  // that writes plain JS objects.
+  // invoke. Uses Record because this is populated by an external script that
+  // writes plain JS objects; converted to Map when registering with the app.
   // WARNING: do not change/rename/move without considering impact on the
   // internal_user script.
   readonly extraMacros: Record<string, ReadonlyArray<CommandInvocation>>[];
@@ -84,16 +84,10 @@ function setupGlobalsProxy(): Globals {
   return params;
 }
 
-/**
- * Loads a script that detects if the user is internal, allowing access to
- * non-public features and SQL packages. Registers the loaded data directly
- * on the app instance.
- */
-export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
+async function tryLoadIsInternalUserScriptInternal(): Promise<Globals> {
   // Set up the global object and attach it to `window` before loading the
   // script.
-  const params = setupGlobalsProxy();
-
+  const globals = setupGlobalsProxy();
   await new Promise<void>((resolve) => {
     const script = document.createElement('script');
     script.src = SCRIPT_URL;
@@ -106,11 +100,31 @@ export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
     // to load.
     setTimeout(() => resolve(), SCRIPT_LOAD_TIMEOUT_MS);
   });
-
   // The script has loaded (or timed out). The params object has been mutated
-  // by the script if possible. Register everything on the app.
-  app.isInternalUser = params.isInternalUser;
-  app.addMacros(Object.assign({}, ...params.extraMacros));
-  app.addProtoDescriptors(params.extraParsingDescriptors);
-  app.addSqlPackages(params.extraSqlPackages);
+  // by the script if possible.
+  return globals;
+}
+
+/**
+ * Loads a script that detects if the user is internal, allowing access to
+ * non-public features and SQL packages. Registers the loaded data directly
+ * on the app instance.
+ */
+export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
+  const promise = tryLoadIsInternalUserScriptInternal();
+
+  // Register the macros, descriptors and SQL packages promises.
+  app.addMacros(
+    promise.then(
+      ({extraMacros}) => new Map(extraMacros.flatMap((r) => Object.entries(r))),
+    ),
+  );
+  app.addProtoDescriptors(
+    promise.then(({extraParsingDescriptors}) => extraParsingDescriptors),
+  );
+  app.addSqlPackages(promise.then(({extraSqlPackages}) => extraSqlPackages));
+
+  return promise.then((params) => {
+    app.isInternalUser = params.isInternalUser;
+  });
 }

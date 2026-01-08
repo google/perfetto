@@ -103,10 +103,9 @@ export class AppImpl implements App {
   >();
 
   // Command macros. The key is the macro name, value is a list of commands to
-  // invoke. We use Record instead of Map because this is populated by a script
-  // that writes plain JS objects. Injected via is_internal_user.js.
+  // invoke. Injected via is_internal_user.js.
   private _macrosPromises = new Array<
-    Promise<Record<string, ReadonlyArray<CommandInvocation>>>
+    Promise<Map<string, ReadonlyArray<CommandInvocation>>>
   >();
 
   // Initializes the singleton instance - must be called only once and before
@@ -316,14 +315,14 @@ export class AppImpl implements App {
 
   addMacros(
     args:
-      | Record<string, ReadonlyArray<CommandInvocation>>
-      | Promise<Record<string, ReadonlyArray<CommandInvocation>>>,
+      | Map<string, ReadonlyArray<CommandInvocation>>
+      | Promise<Map<string, ReadonlyArray<CommandInvocation>>>,
   ) {
     this._macrosPromises.push(Promise.resolve(args));
   }
 
-  async macros(): Promise<Record<string, ReadonlyArray<CommandInvocation>>> {
+  async macros(): Promise<Map<string, ReadonlyArray<CommandInvocation>>> {
     const macrosArray = await Promise.all(this._macrosPromises);
-    return Object.assign({}, ...macrosArray);
+    return new Map(macrosArray.flatMap((m) => [...m]));
   }
 }
