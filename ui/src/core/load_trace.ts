@@ -146,7 +146,7 @@ async function createEngine(
   }
 
   const descriptorBlobs: Uint8Array[] = [];
-  for (const b64Str of await app.extensionParsingDescriptors()) {
+  for (const b64Str of await app.protoDescriptors()) {
     descriptorBlobs.push(base64Decode(b64Str));
   }
   let engine;
@@ -225,7 +225,7 @@ async function loadTraceIntoEngine(
     await engine.restoreInitialTables();
   }
 
-  for (const p of await app.extensionSqlPackages()) {
+  for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }
 
