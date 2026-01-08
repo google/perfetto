@@ -257,69 +257,28 @@ CREATE PERFETTO TABLE android_surfaceflinger_workloads (
 ) AS
 SELECT
   ts,
-  max(iif(key = 'surfaceflinger_workload.source', string_value, NULL)) AS source,
-  max(iif(key = 'surfaceflinger_workload.output_name', string_value, NULL)) AS output_name,
-  max(iif(key = 'surfaceflinger_workload.vsync_id', int_value, NULL)) AS sf_vsync,
-  max(
-    iif(
-      key = 'surfaceflinger_workload.summary.timings.sf_cpu.frame_signal_nanos',
-      int_value,
-      NULL
-    )
-  ) AS sf_cpu_frame_signal_nanos,
-  max(
-    iif(key = 'surfaceflinger_workload.summary.timings.sf_cpu.commit_nanos', int_value, NULL)
-  ) AS sf_cpu_commit_nanos,
-  max(
-    iif(
-      key = 'surfaceflinger_workload.summary.timings.sf_cpu.composite_nanos',
-      int_value,
-      NULL
-    )
-  ) AS sf_cpu_composite_nanos,
-  max(
-    iif(key = 'surfaceflinger_workload.summary.timings.hwc.present_nanos', int_value, NULL)
-  ) AS hwc_present_nanos,
-  max(
-    iif(key = 'surfaceflinger_workload.summary.timings.hwc.validate_nanos', int_value, NULL)
-  ) AS hwc_validate_nanos,
-  max(
-    iif(
-      key = 'surfaceflinger_workload.summary.timings.hwc.present_or_validate_nanos',
-      int_value,
-      NULL
-    )
+  extract_arg(arg_set_id, 'surfaceflinger_workload.source') AS source,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.output_name') AS output_name,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.vsync_id') AS sf_vsync,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.sf_cpu.frame_signal_nanos') AS sf_cpu_frame_signal_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.sf_cpu.commit_nanos') AS sf_cpu_commit_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.sf_cpu.composite_nanos') AS sf_cpu_composite_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.hwc.present_nanos') AS hwc_present_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.hwc.validate_nanos') AS hwc_validate_nanos,
+  extract_arg(
+    arg_set_id,
+    'surfaceflinger_workload.summary.timings.hwc.present_or_validate_nanos'
   ) AS hwc_present_or_validate_nanos,
-  max(
-    iif(
-      key = 'surfaceflinger_workload.summary.timings.re.draw_layers_nanos',
-      int_value,
-      NULL
-    )
-  ) AS re_draw_layers_nanos,
-  max(
-    iif(
-      key = 'surfaceflinger_workload.summary.timings.re.gpu_completion_nanos',
-      int_value,
-      NULL
-    )
-  ) AS re_gpu_completion_nanos,
-  max(
-    iif(key = 'surfaceflinger_workload.summary.timings.skia.flush_nanos', int_value, NULL)
-  ) AS skia_flush_nanos,
-  max(
-    iif(key = 'surfaceflinger_workload.summary.timings.skia.submit_nanos', int_value, NULL)
-  ) AS skia_submit_nanos,
-  max(
-    iif(key = 'surfaceflinger_workload.summary.stats.gpu_composited_layers', int_value, NULL)
-  ) AS gpu_composited_layers,
-  max(
-    iif(key = 'surfaceflinger_workload.summary.stats.dpu_composited_layers', int_value, NULL)
-  ) AS dpu_composited_layers
-FROM instant
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.re.draw_layers_nanos') AS re_draw_layers_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.re.gpu_completion_nanos') AS re_gpu_completion_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.skia.flush_nanos') AS skia_flush_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.skia.submit_nanos') AS skia_submit_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.stats.gpu_composited_layers') AS gpu_composited_layers,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.stats.dpu_composited_layers') AS dpu_composited_layers
+FROM slice
 JOIN args
   USING (arg_set_id)
 WHERE
-  key GLOB 'surfaceflinger_workload*'
+  category = 'rendering' AND key GLOB 'surfaceflinger_workload*'
 GROUP BY
-  arg_set_id;
+  ts;
