@@ -17,7 +17,6 @@ import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Registry} from '../base/registry';
 import {Command, CommandManager} from '../public/command';
 import {raf} from './raf_scheduler';
-import {OmniboxManagerImpl} from './omnibox_manager';
 
 /**
  * Zod schema for a single command invocation.
@@ -70,8 +69,6 @@ export class CommandManagerImpl implements CommandManager {
   private readonly registry = new Registry<Command>((cmd) => cmd.id);
   private allowlistCheckFn: (id: string) => boolean = () => true;
 
-  constructor(private omnibox: OmniboxManagerImpl) {}
-
   getCommand(commandId: string): Command {
     return this.registry.get(commandId);
   }
@@ -86,28 +83,6 @@ export class CommandManagerImpl implements CommandManager {
 
   registerCommand(cmd: Command): Disposable {
     return this.registry.register(cmd);
-  }
-
-  registerMacro({
-    macroName,
-    commands,
-  }: {
-    macroName: string;
-    commands: ReadonlyArray<CommandInvocation>;
-  }) {
-    this.registerCommand({
-      id: `dev.perfetto.UserMacro.${macroName}`,
-      name: macroName,
-      callback: async () => {
-        // Macros could run multiple commands, some of which might prompt the
-        // user in an optional way. But macros should be self-contained
-        // so we disable prompts during their execution.
-        using _ = this.omnibox.disablePrompts();
-        for (const command of commands) {
-          await this.runCommand(command.id, ...command.args);
-        }
-      },
-    });
   }
 
   setAllowlistCheck(checkFn: (id: string) => boolean): void {
