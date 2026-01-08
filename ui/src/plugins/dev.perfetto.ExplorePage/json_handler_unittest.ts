@@ -1016,7 +1016,10 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const sortNode = new SortNode({
-      sortColNames: ['name', 'ts'],
+      sortCriteria: [
+        {colName: 'name', direction: 'ASC'},
+        {colName: 'ts', direction: 'DESC'},
+      ],
     });
     addConnection(tableNode, sortNode);
 
@@ -1032,7 +1035,10 @@ describe('JSON serialization/deserialization', () => {
     const deserializedTableNode = deserializedState.rootNodes[0];
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedNode = deserializedTableNode.nextNodes[0] as SortNode;
-    expect(deserializedNode.state.sortColNames).toEqual(['name', 'ts']);
+    expect(deserializedNode.state.sortCriteria).toEqual([
+      {colName: 'name', direction: 'ASC'},
+      {colName: 'ts', direction: 'DESC'},
+    ]);
   });
 
   test('serializes and deserializes filter node', () => {
@@ -1798,7 +1804,7 @@ describe('JSON serialization/deserialization', () => {
     addConnection(modifyNode, aggregationNode);
 
     const sortNode = new SortNode({
-      sortColNames: ['total_dur_ms'],
+      sortCriteria: [{colName: 'total_dur_ms', direction: 'ASC'}],
     });
     addConnection(aggregationNode, sortNode);
 
@@ -2014,7 +2020,9 @@ describe('JSON serialization/deserialization', () => {
     });
     addConnection(tableNode1, filterNode);
 
-    const sortNode = new SortNode({sortColNames: ['ts']});
+    const sortNode = new SortNode({
+      sortCriteria: [{colName: 'ts', direction: 'ASC'}],
+    });
     addConnection(tableNode2, sortNode);
 
     const sliceTable = sqlModules.getTable('slice')!;
@@ -2077,7 +2085,9 @@ describe('JSON serialization/deserialization', () => {
     });
     addConnection(filterNode1, filterNode2);
 
-    const sortNode = new SortNode({sortColNames: ['ts']});
+    const sortNode = new SortNode({
+      sortCriteria: [{colName: 'ts', direction: 'ASC'}],
+    });
     addConnection(filterNode2, sortNode);
 
     const sliceTable = sqlModules.getTable('slice')!;
@@ -2235,7 +2245,9 @@ describe('JSON serialization/deserialization', () => {
     });
     addConnection(tableNode, filterNode);
 
-    const sortNode = new SortNode({sortColNames: ['ts']});
+    const sortNode = new SortNode({
+      sortCriteria: [{colName: 'ts', direction: 'ASC'}],
+    });
     addConnection(filterNode, sortNode);
 
     const limitNode = new LimitAndOffsetNode({limit: 10, offset: 0});
@@ -2400,7 +2412,9 @@ describe('JSON serialization/deserialization', () => {
       trace,
       sqlModules,
     });
-    const sortNode = new SortNode({sortColNames: ['ts']});
+    const sortNode = new SortNode({
+      sortCriteria: [{colName: 'ts', direction: 'ASC'}],
+    });
     addConnection(tableNode2, sortNode);
     const limitNode = new LimitAndOffsetNode({limit: 100, offset: 0});
     addConnection(sortNode, limitNode);
