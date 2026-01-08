@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { defer } from '../base/deferred';
+import {defer} from '../base/deferred';
 import {AppImpl} from '../core/app_impl';
 import {CommandInvocation} from '../core/command_manager';
 import {raf} from '../core/raf_scheduler';
