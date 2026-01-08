@@ -67,42 +67,32 @@ declare global {
   }
 }
 
-/**
- * Sets up an object on window.globals for the internal user script to populate.
- */
-function setupGlobalsProxy(): Globals {
-  const params: Globals = {
-    isInternalUser: false,
-    extraSqlPackages: [],
-    extraParsingDescriptors: [],
-    extraMacros: [],
-    shutdown() {
-      raf.shutdown();
-    },
-  };
-  window.globals = params;
-  return params;
-}
-
 async function tryLoadIsInternalUserScriptInternal(): Promise<Globals> {
-  // Set up the global object and attach it to `window` before loading the
-  // script.
-  const globals = setupGlobalsProxy();
-  await new Promise<void>((resolve) => {
+  // The script has loaded (or timed out). The params object has been mutated
+  // by the script if possible.
+  return new Promise<Globals>((resolve) => {
+    const globals: Globals = {
+      isInternalUser: false,
+      extraSqlPackages: [],
+      extraParsingDescriptors: [],
+      extraMacros: [],
+      shutdown() {
+        raf.shutdown();
+      },
+    };
+    window.globals = globals;
+
     const script = document.createElement('script');
     script.src = SCRIPT_URL;
     script.async = true;
-    script.onerror = () => resolve();
-    script.onload = () => resolve();
+    script.onerror = () => resolve(globals);
+    script.onload = () => resolve(globals);
     document.head.append(script);
 
     // Set a timeout to avoid blocking the UI for too long if the script is slow
     // to load.
-    setTimeout(() => resolve(), SCRIPT_LOAD_TIMEOUT_MS);
+    setTimeout(() => resolve(globals), SCRIPT_LOAD_TIMEOUT_MS);
   });
-  // The script has loaded (or timed out). The params object has been mutated
-  // by the script if possible.
-  return globals;
 }
 
 /**
@@ -111,20 +101,21 @@ async function tryLoadIsInternalUserScriptInternal(): Promise<Globals> {
  * on the app instance.
  */
 export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
-  const promise = tryLoadIsInternalUserScriptInternal();
+  const scriptLoaded = tryLoadIsInternalUserScriptInternal();
 
   // Register the macros, descriptors and SQL packages promises.
   app.addMacros(
-    promise.then(
+    scriptLoaded.then(
       ({extraMacros}) => new Map(extraMacros.flatMap((r) => Object.entries(r))),
     ),
   );
   app.addProtoDescriptors(
-    promise.then(({extraParsingDescriptors}) => extraParsingDescriptors),
+    scriptLoaded.then(({extraParsingDescriptors}) => extraParsingDescriptors),
   );
-  app.addSqlPackages(promise.then(({extraSqlPackages}) => extraSqlPackages));
+  app.addSqlPackages(
+    scriptLoaded.then(({extraSqlPackages}) => extraSqlPackages),
+  );
 
-  return promise.then((params) => {
-    app.isInternalUser = params.isInternalUser;
-  });
+  const params = await scriptLoaded;
+  app.isInternalUser = params.isInternalUser;
 }
