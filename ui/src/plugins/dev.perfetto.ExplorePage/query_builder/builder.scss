@@ -204,6 +204,42 @@
   max-width: 510px;
 }
 
+.pf-top-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 510px;
+}
+
+.pf-tutorial-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 510px;
+}
+
+.pf-solution-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 510px;
+}
+
+.pf-starting-section-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  color: var(--pf-color-text-primary);
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
 .pf-template-card {
   display: flex;
   flex-direction: column;

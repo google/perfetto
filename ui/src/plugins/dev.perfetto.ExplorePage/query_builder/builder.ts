@@ -158,11 +158,9 @@ export interface BuilderAttrs {
   readonly onImport: () => void;
   readonly onExport: () => void;
 
-  readonly onLoadExample: () => void;
-
   // Starting templates (when page is empty)
   readonly onLoadEmptyTemplate?: () => void;
-  readonly onLoadLearningTemplate?: () => void;
+  readonly onLoadExampleByPath?: (jsonPath: string) => void;
   readonly onLoadExploreTemplate?: () => void;
 
   // Node state change callback
@@ -315,9 +313,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           m(NavigationSidePanel, {
             selectedNode: attrs.selectedNode,
             onAddSourceNode: attrs.onAddSourceNode,
-            onLoadLearningTemplate: attrs.onLoadLearningTemplate,
+            onLoadExampleByPath: attrs.onLoadExampleByPath,
             onLoadExploreTemplate: attrs.onLoadExploreTemplate,
-            onLoadExample: attrs.onLoadExample,
             onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
           }),
         );

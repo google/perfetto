@@ -391,9 +391,9 @@ function renderGlobFilterMenuItems(
 }
 
 /**
- * Renders free text equals filter menu items (Equals, Not equals) for quantitative columns.
+ * Renders numeric equals filter menu items (Equals, Not equals) for quantitative columns.
  */
-function renderFreeTextEqualsFilterMenuItems(
+function renderNumericEqualsFilterMenuItems(
   onFilterAdd: (filter: FilterOpAndValue) => void,
 ): m.ChildArray {
   return [
@@ -401,7 +401,7 @@ function renderFreeTextEqualsFilterMenuItems(
       MenuItem,
       {label: 'Equals'},
       m(TextFilterSubmenu, {
-        placeholder: 'Enter number to match...',
+        placeholder: 'Enter value...',
         inputType: 'number',
         onApply: (value) => onFilterAdd({op: '=', value}),
       }),
@@ -410,7 +410,7 @@ function renderFreeTextEqualsFilterMenuItems(
       MenuItem,
       {label: 'Not equals'},
       m(TextFilterSubmenu, {
-        placeholder: 'Enter number to exclude...',
+        placeholder: 'Enter value...',
         inputType: 'number',
         onApply: (value) => onFilterAdd({op: '!=', value}),
       }),
@@ -542,13 +542,13 @@ function renderTextFilterMenuItems(config: FilterMenuAttrs): m.ChildArray {
 
 /**
  * Renders filter menu items for quantitative columns.
- * Includes: free text equals/not equals, numeric comparisons, null filters.
+ * Includes: numeric equals/not equals, numeric comparisons, null filters.
  */
 function renderQuantitativeFilterMenuItems(
   onFilterAdd: (filter: FilterOpAndValue) => void,
 ): m.ChildArray {
   return [
-    renderFreeTextEqualsFilterMenuItems(onFilterAdd),
+    renderNumericEqualsFilterMenuItems(onFilterAdd),
     renderNumericComparisonMenuItems(onFilterAdd),
     m(MenuDivider),
     renderNullFilterMenuItems(onFilterAdd),
@@ -586,15 +586,29 @@ function renderIdentifierFilterMenuItems(
 
 /**
  * Renders filter menu items when columnType is undefined.
- * Shows all filter options except distinct value picker.
+ * Shows all filter options (distinct value picker, text-based equals, numeric comparisons,
+ * contains, glob, null).
  */
 function renderUnknownTypeFilterMenuItems(
   config: FilterMenuAttrs,
 ): m.ChildArray {
-  const {structuredQueryCompatMode, onFilterAdd} = config;
+  const {
+    structuredQueryCompatMode,
+    distinctValues,
+    valueFormatter,
+    onFilterAdd,
+    onRequestDistinctValues,
+    onDismissDistinctValues,
+  } = config;
 
   return [
-    renderFreeTextEqualsFilterMenuItems(onFilterAdd),
+    renderDistinctValueFilterMenuItems({
+      distinctValues,
+      valueFormatter,
+      onFilterAdd,
+      onRequestDistinctValues,
+      onDismissDistinctValues,
+    }),
     renderNumericComparisonMenuItems(onFilterAdd),
     m(MenuDivider),
     renderContainsFilterMenuItems(onFilterAdd, !structuredQueryCompatMode),

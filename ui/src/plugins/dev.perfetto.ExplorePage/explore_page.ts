@@ -53,7 +53,6 @@ import {
   showStateOverwriteWarning,
   showExportWarning,
 } from './query_builder/widgets';
-import {showExamplesModal} from './examples_modal';
 
 registerCoreNodes();
 
@@ -1016,16 +1015,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
-  private async handleLoadExample(attrs: ExplorePageAttrs) {
-    const selectedExample = await showExamplesModal();
-    if (!selectedExample) return;
-
-    // Show warning modal after example is selected
+  private async handleLoadExampleByPath(
+    attrs: ExplorePageAttrs,
+    jsonPath: string,
+  ) {
+    // Show warning modal before loading
     const confirmed = await showStateOverwriteWarning();
     if (!confirmed) return;
 
     try {
-      const response = await fetch(assetSrc(selectedExample.jsonPath));
+      const response = await fetch(assetSrc(jsonPath));
       if (!response.ok) {
         throw new Error(
           `Failed to load example: ${response.status} ${response.statusText}`,
@@ -1035,6 +1034,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       await this.loadStateFromJson(attrs, json);
     } catch (error) {
       console.error('Failed to load example:', error);
+      showModal({
+        title: 'Failed to Load Example',
+        content: () =>
+          m(
+            'div',
+            `An error occurred while loading the example: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+        buttons: [],
+      });
     }
   }
 
@@ -1218,7 +1226,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onImport: () => this.handleImport(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
-        onLoadExample: () => this.handleLoadExample(wrappedAttrs),
         onLoadEmptyTemplate: async () => {
           // Show warning modal before clearing
           const confirmed = await showStateOverwriteWarning();
@@ -1235,42 +1242,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             };
           });
         },
-        onLoadLearningTemplate: async () => {
-          // Show warning modal before loading
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
-
-          try {
-            const response = await fetch(
-              assetSrc('assets/explore_page/examples/learning.json'),
-            );
-            if (response.ok) {
-              const json = await response.text();
-              await this.loadStateFromJson(wrappedAttrs, json);
-            } else {
-              showModal({
-                title: 'Failed to Load Template',
-                content: () =>
-                  m(
-                    'div',
-                    `Failed to load the learning template. Server returned status: ${response.status}`,
-                  ),
-                buttons: [],
-              });
-            }
-          } catch (error) {
-            console.error('Failed to load learning example:', error);
-            showModal({
-              title: 'Failed to Load Template',
-              content: () =>
-                m(
-                  'div',
-                  `An error occurred while loading the learning template: ${error instanceof Error ? error.message : String(error)}`,
-                ),
-              buttons: [],
-            });
-          }
-        },
+        onLoadExampleByPath: (jsonPath: string) =>
+          this.handleLoadExampleByPath(wrappedAttrs, jsonPath),
         onLoadExploreTemplate: async () => {
           // Show warning modal before loading
           const confirmed = await showStateOverwriteWarning();

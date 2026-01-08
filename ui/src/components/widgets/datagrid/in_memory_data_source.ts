@@ -672,10 +672,8 @@ function compareNumeric(a: SqlValue, b: SqlValue): number {
 function arePivotsEqual(a?: Pivot, b?: Pivot): boolean {
   if (a === b) return true;
   if (a === undefined || b === undefined) return false;
-  // Compare groupBy fields
-  const aGroupBy = a.groupBy.map(({field}) => field).join(',');
-  const bGroupBy = b.groupBy.map(({field}) => field).join(',');
-  if (aGroupBy !== bGroupBy) return false;
+  // Compare groupBy fields (including sort)
+  if (JSON.stringify(a.groupBy) !== JSON.stringify(b.groupBy)) return false;
   // Compare aggregates
   if (JSON.stringify(a.aggregates) !== JSON.stringify(b.aggregates)) {
     return false;
