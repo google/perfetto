@@ -305,6 +305,7 @@ export class TrackView {
     node.uri &&
       renderer?.render({
         trackUri: node.uri,
+        trackNode: node,
         visibleWindow,
         size: trackRect,
         resolution: maybeNewResolution.value,

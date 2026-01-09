@@ -43,6 +43,20 @@ inline void UpdateRect(protos::gen::RectProto* rect_proto,
   rect_proto->set_right(static_cast<int32_t>(rect.x + rect.w));
   rect_proto->set_bottom(static_cast<int32_t>(rect.y + rect.h));
 }
+
+inline void UpdateCornerRadii(protos::gen::CornerRadiiProto* corner_radii_proto,
+                              geometry::CornerRadii corner_radii) {
+  corner_radii_proto->set_bl(static_cast<float>(corner_radii.bl));
+  corner_radii_proto->set_br(static_cast<float>(corner_radii.br));
+  corner_radii_proto->set_tl(static_cast<float>(corner_radii.tl));
+  corner_radii_proto->set_tr(static_cast<float>(corner_radii.tr));
+}
+
+inline bool IsCornerRadiiEqual(geometry::CornerRadii value,
+                               geometry::CornerRadii other) {
+  return IsEqual(value.bl, other.bl) && IsEqual(value.br, other.br) &&
+         IsEqual(value.tl, other.tl) && IsEqual(value.tr, other.tr);
+}
 }  // namespace perfetto::trace_processor::winscope::geometry::test
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINSCOPE_GEOMETRY_TEST_UTILS_H_

@@ -14,6 +14,14 @@
 
 @import "../theme";
 
+// Higher z-index than popup-portal so tooltips appear above popups
+.pf-tooltip-portal {
+  position: absolute;
+  z-index: 20;
+  width: 100%;
+  top: 0;
+}
+
 .pf-cursor-tooltip {
   position: absolute;
   background: var(--pf-color-background);

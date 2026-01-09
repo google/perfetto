@@ -16,16 +16,28 @@
 
 #include "src/tracing/service/tracing_service_impl.h"
 
+#include <fcntl.h>
 #include <limits.h>
 #include <string.h>
-
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <cinttypes>
 #include <cstdint>
+#include <cstdlib>
+#include <functional>
 #include <limits>
+#include <map>
+#include <memory>
 #include <optional>
+#include <regex>
+#include <set>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
@@ -49,6 +61,8 @@
 #endif
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/android_utils.h"
@@ -56,9 +70,14 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/metatrace.h"
-#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/periodic_task.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_sched_boost.h"
+#include "perfetto/ext/base/string_utils.h"  // IWYU pragma: keep
 #include "perfetto/ext/base/sys_types.h"
+#include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
@@ -70,24 +89,36 @@
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/static_buffer.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/flush_flags.h"
+#include "perfetto/tracing/core/forward_decls.h"
+#include "perfetto/tracing/core/trace_config.h"
+#include "protos/perfetto/config/trace_config.gen.h"
+#include "src/android_stats/perfetto_atoms.h"
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/protozero/filtering/message_filter.h"
 #include "src/protozero/filtering/string_filter.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
+#include "src/tracing/service/clock.h"
+#include "src/tracing/service/dependencies.h"
 #include "src/tracing/service/packet_stream_validator.h"
+#include "src/tracing/service/random.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_v1.h"
 #include "src/tracing/service/trace_buffer_v2.h"
+#include "src/tracing/service/tracing_service_endpoints_impl.h"
+#include "src/tracing/service/tracing_service_session.h"
+#include "src/tracing/service/tracing_service_structs.h"
 
 #include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
-#include "protos/perfetto/common/trace_stats.pbzero.h"
+#include "protos/perfetto/common/trace_stats.pbzero.h"  // IWYU pragma: keep
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
@@ -322,6 +353,27 @@ std::optional<protozero::StringFilter::Policy> ConvertPolicy(
       return protozero::StringFilter::Policy::kAtraceRepeatedSearchRedactGroups;
   }
   return std::nullopt;
+}
+
+using StringFilterRule =
+    protos::gen::TraceConfig::TraceFilter::StringFilterRule;
+
+std::optional<protozero::StringFilter::SemanticTypeMask>
+ConvertSemanticTypeMask(const StringFilterRule& rule) {
+  // If no semantic types are specified, match all semantic types.
+  if (rule.semantic_type().empty()) {
+    return protozero::StringFilter::SemanticTypeMask::All();
+  }
+
+  protozero::StringFilter::SemanticTypeMask mask;
+  for (const auto& type : rule.semantic_type()) {
+    auto semantic_type = static_cast<uint32_t>(type);
+    if (semantic_type >= protozero::StringFilter::SemanticTypeMask::kLimit) {
+      return std::nullopt;
+    }
+    mask.Set(semantic_type);
+  }
+  return mask;
 }
 
 }  // namespace
@@ -987,16 +1039,41 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     trace_filter.reset(new protozero::MessageFilter());
 
     protozero::StringFilter& string_filter = trace_filter->string_filter();
-    for (const auto& rule : filt.string_filter_chain().rules()) {
-      auto opt_policy = ConvertPolicy(rule.policy());
-      if (!opt_policy.has_value()) {
+    auto add_rule = [&](const auto& rule) -> base::Status {
+      auto policy = ConvertPolicy(rule.policy());
+      if (!policy.has_value()) {
         MaybeLogUploadEvent(
             cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
         return PERFETTO_SVC_ERR(
             "Trace filter has invalid string filtering rules, aborting");
       }
-      string_filter.AddRule(*opt_policy, rule.regex_pattern(),
-                            rule.atrace_payload_starts_with());
+      auto semantic_type = ConvertSemanticTypeMask(rule);
+      if (!semantic_type.has_value()) {
+        MaybeLogUploadEvent(
+            cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
+        return PERFETTO_SVC_ERR(
+            "Trace filter has invalid semantic types in string filtering "
+            "rules, aborting");
+      }
+      string_filter.AddRule(*policy, rule.regex_pattern(),
+                            rule.atrace_payload_starts_with(), rule.name(),
+                            *semantic_type);
+      return base::OkStatus();
+    };
+
+    // Load base string filter chain.
+    for (const auto& rule : filt.string_filter_chain().rules()) {
+      auto status = add_rule(rule);
+      if (!status.ok())
+        return status;
+    }
+
+    // Load v54 string filter chain. Rules with matching names will replace
+    // existing rules; others will be appended.
+    for (const auto& rule : filt.string_filter_chain_v54().rules()) {
+      auto status = add_rule(rule);
+      if (!status.ok())
+        return status;
     }
 
     const std::string& bytecode_v1 = filt.bytecode();
@@ -1803,7 +1880,7 @@ void TracingServiceImpl::ActivateTriggers(
     PERFETTO_DLOG("Received ActivateTriggers request for \"%s\"",
                   trigger_name.c_str());
     android_stats::MaybeLogTriggerEvent(PerfettoTriggerAtom::kTracedTrigger,
-                                        trigger_name);
+                                        /* trace_uuid_lsb */ 0, trigger_name);
 
     base::FnvHasher hash;
     hash.Update(trigger_name.c_str(), trigger_name.size());
@@ -1847,7 +1924,7 @@ void TracingServiceImpl::ActivateTriggers(
       double trigger_rnd = random_->GetValue();
       PERFETTO_DCHECK(trigger_rnd >= 0 && trigger_rnd < 1);
       if (trigger_rnd < iter->skip_probability()) {
-        MaybeLogTriggerEvent(tracing_session.config,
+        MaybeLogTriggerEvent(tracing_session.config, tracing_session.trace_uuid,
                              PerfettoTriggerAtom::kTracedLimitProbability,
                              trigger_name);
         continue;
@@ -1856,7 +1933,7 @@ void TracingServiceImpl::ActivateTriggers(
       // If we already triggered more times than the limit, silently ignore
       // this trigger.
       if (iter->max_per_24_h() > 0 && count_in_window >= iter->max_per_24_h()) {
-        MaybeLogTriggerEvent(tracing_session.config,
+        MaybeLogTriggerEvent(tracing_session.config, tracing_session.trace_uuid,
                              PerfettoTriggerAtom::kTracedLimitMaxPer24h,
                              trigger_name);
         continue;
@@ -4156,17 +4233,20 @@ void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
   if (!ShouldLogEvent(cfg))
     return;
 
-  PERFETTO_DCHECK(uuid);  // The UUID must be set at this point.
+  PERFETTO_CHECK(uuid);  // The UUID must be set at this point.
   android_stats::MaybeLogUploadEvent(atom, uuid.lsb(), uuid.msb(),
                                      trigger_name);
 }
 
 void TracingServiceImpl::MaybeLogTriggerEvent(const TraceConfig& cfg,
+                                              const base::Uuid& uuid,
                                               PerfettoTriggerAtom atom,
                                               const std::string& trigger_name) {
   if (!ShouldLogEvent(cfg))
     return;
-  android_stats::MaybeLogTriggerEvent(atom, trigger_name);
+
+  PERFETTO_CHECK(uuid);  // The UUID must be set at this point.
+  android_stats::MaybeLogTriggerEvent(atom, uuid.lsb(), trigger_name);
 }
 
 size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(

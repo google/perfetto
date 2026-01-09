@@ -29,7 +29,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -50,11 +49,12 @@
 // The presence of the perfetto_benchmark_3p_libs_prefix GN variable will
 // automatically define PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS.
 
-#if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
-
-// Last tested: https://github.com/abseil/abseil-cpp @ f2dbd918d.
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+// Use the checked-in abseil-cpp
 #include <absl/container/flat_hash_map.h>
+#endif
 
+#if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
 // Last tested: https://github.com/facebook/folly @ 028a9abae3.
 #include <folly/container/F14Map.h>
 
@@ -133,9 +133,9 @@ std::vector<uint64_t> LoadTraceStrings(benchmark::State& state) {
   }
   char line[4096];
   while (fgets(line, sizeof(line), *f)) {
-    base::FnvHasher hasher;
-    hasher.Update(line, strlen(line));
-    str_hashes.emplace_back(hasher.digest());
+    size_t len = strlen(line);
+    str_hashes.emplace_back(
+        base::MurmurHash<std::string_view>{}(std::string_view(line, len)));
   }
   return str_hashes;
 }
@@ -146,6 +146,24 @@ bool IsBenchmarkFunctionalOnly() {
 
 size_t num_samples() {
   return IsBenchmarkFunctionalOnly() ? size_t(100) : size_t(10 * 1000 * 1000);
+}
+
+void VaryingSizeArgs(benchmark::internal::Benchmark* b) {
+  if (IsBenchmarkFunctionalOnly()) {
+    b->Arg(100);
+    return;
+  }
+  for (int64_t size = 100; size <= 10000000; size *= 100) {
+    b->Arg(size);
+  }
+}
+
+void MissRateArgs(benchmark::internal::Benchmark* b) {
+  if (IsBenchmarkFunctionalOnly()) {
+    b->Arg(50);
+    return;
+  }
+  b->Arg(0)->Arg(50)->Arg(100);
 }
 
 // Uses directly the base::FlatHashMap with no STL wrapper. Configures the map
@@ -227,8 +245,10 @@ void BM_HashMap_TraceTids(benchmark::State& state) {
 template <typename MapType>
 void BM_HashMap_InsertRandInts(benchmark::State& state) {
   std::minstd_rand0 rng(0);
-  std::vector<size_t> keys(static_cast<size_t>(num_samples()));
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(rng());
   for (auto _ : state) {
     MapType mapz;
     for (const auto key : keys)
@@ -295,8 +315,10 @@ void BM_HashMap_InsertDupeInts(benchmark::State& state) {
 template <typename MapType>
 void BM_HashMap_LookupRandInts(benchmark::State& state) {
   std::minstd_rand0 rng(0);
-  std::vector<size_t> keys(static_cast<size_t>(num_samples()));
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(rng());
 
   MapType mapz;
   for (const size_t key : keys)
@@ -320,8 +342,10 @@ void BM_HashMap_LookupRandInts(benchmark::State& state) {
 template <typename MapType>
 void BM_HashMap_RandomIntsClear(benchmark::State& state) {
   std::minstd_rand0 rng(0);
-  std::vector<size_t> keys(static_cast<size_t>(num_samples()));
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(rng());
 
   MapType mapz;
   for (const size_t key : keys)
@@ -335,85 +359,292 @@ void BM_HashMap_RandomIntsClear(benchmark::State& state) {
                                          Counter::kIsIterationInvariantRate);
 }
 
+// Benchmark with varying map sizes to test cache behavior
+template <typename MapType>
+void BM_HashMap_InsertVaryingSize(benchmark::State& state) {
+  const size_t size = static_cast<size_t>(state.range(0));
+  std::minstd_rand0 rng(0);
+  std::vector<size_t> keys;
+  keys.reserve(size);
+  for (size_t i = 0; i < size; i++)
+    keys.push_back(rng());
+
+  for (auto _ : state) {
+    MapType mapz;
+    for (const auto key : keys)
+      mapz.insert({key, key});
+    benchmark::DoNotOptimize(mapz);
+    benchmark::ClobberMemory();
+  }
+  state.counters["insertions"] = Counter(static_cast<double>(keys.size()),
+                                         Counter::kIsIterationInvariantRate);
+}
+
+// Benchmark lookups with varying miss rates
+template <typename MapType>
+void BM_HashMap_LookupWithMisses(benchmark::State& state) {
+  const int miss_percent = static_cast<int>(state.range(0));
+  std::minstd_rand0 rng(0);
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(rng());
+
+  MapType mapz;
+  for (const size_t key : keys)
+    mapz.insert({key, key});
+
+  // Generate lookup keys: some hits, some misses
+  std::vector<size_t> lookup_keys;
+  lookup_keys.reserve(num_samples());
+  std::minstd_rand0 rng2(42);
+  for (size_t i = 0; i < num_samples(); i++) {
+    if (static_cast<int>(rng2() % 100) < miss_percent) {
+      // Generate a key that doesn't exist (use high bit to avoid collision)
+      lookup_keys.push_back(rng2() | (1ULL << 63));
+    } else {
+      lookup_keys.push_back(keys[rng2() % keys.size()]);
+    }
+  }
+
+  for (auto _ : state) {
+    int64_t found = 0;
+    for (const size_t key : lookup_keys) {
+      auto it = mapz.find(key);
+      if (it != mapz.end())
+        found++;
+    }
+    benchmark::DoNotOptimize(found);
+    benchmark::ClobberMemory();
+  }
+  state.counters["lookups"] = Counter(static_cast<double>(lookup_keys.size()),
+                                      Counter::kIsIterationInvariantRate);
+}
+
+// Benchmark with sequential keys (common pattern like row IDs)
+template <typename MapType>
+void BM_HashMap_InsertSequentialInts(benchmark::State& state) {
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(i);
+
+  for (auto _ : state) {
+    MapType mapz;
+    for (const auto key : keys)
+      mapz.insert({key, key});
+    benchmark::DoNotOptimize(mapz);
+    benchmark::ClobberMemory();
+  }
+  state.counters["insertions"] = Counter(static_cast<double>(keys.size()),
+                                         Counter::kIsIterationInvariantRate);
+}
+
+// Benchmark lookup of sequential keys
+template <typename MapType>
+void BM_HashMap_LookupSequentialInts(benchmark::State& state) {
+  std::vector<size_t> keys;
+  keys.reserve(num_samples());
+  for (size_t i = 0; i < num_samples(); i++)
+    keys.push_back(i);
+
+  MapType mapz;
+  for (const size_t key : keys)
+    mapz.insert({key, key});
+
+  for (auto _ : state) {
+    int64_t total = 0;
+    for (const size_t key : keys) {
+      auto it = mapz.find(key);
+      PERFETTO_CHECK(it != mapz.end());
+      total += it->second;
+    }
+    benchmark::DoNotOptimize(total);
+    benchmark::ClobberMemory();
+  }
+  state.counters["lookups"] = Counter(static_cast<double>(keys.size()),
+                                      Counter::kIsIterationInvariantRate);
+}
+
 }  // namespace
 
-using Ours_LinearProbing =
-    Ours<uint64_t, uint64_t, AlreadyHashed<uint64_t>, LinearProbe>;
-using Ours_QuadProbing =
-    Ours<uint64_t, uint64_t, AlreadyHashed<uint64_t>, QuadraticProbe>;
-using Ours_QuadCompProbing =
-    Ours<uint64_t, uint64_t, AlreadyHashed<uint64_t>, QuadraticHalfProbe>;
-using StdUnorderedMap =
-    std::unordered_map<uint64_t, uint64_t, AlreadyHashed<uint64_t>>;
+// =============================================================================
+// Type aliases for benchmarks
+// =============================================================================
 
-#if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
-using RobinMap = tsl::robin_map<uint64_t, uint64_t, AlreadyHashed<uint64_t>>;
-using AbslFlatHashMap =
+// Category 1: Default hash functions (realistic 1:1 comparison)
+// Each map uses its native/default hash function
+using Ours_Default =
+    Ours<uint64_t, uint64_t, base::MurmurHash<uint64_t>, LinearProbe>;
+using StdUnorderedMap_Default =
+    std::unordered_map<uint64_t, uint64_t>;  // std::hash
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+using AbslFlatHashMap_Default =
+    absl::flat_hash_map<uint64_t, uint64_t>;  // absl hash
+#endif
+
+// Category 2: MurmurHash for all (compare pure map performance, same hash)
+using StdUnorderedMap_Murmur =
+    std::unordered_map<uint64_t, uint64_t, base::MurmurHash<uint64_t>>;
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+using AbslFlatHashMap_Murmur =
+    absl::flat_hash_map<uint64_t, uint64_t, base::MurmurHash<uint64_t>>;
+#endif
+
+// Category 3: AlreadyHashed (pure map performance, no hash cost)
+using Ours_PreHashed =
+    Ours<uint64_t, uint64_t, AlreadyHashed<uint64_t>, LinearProbe>;
+using StdUnorderedMap_PreHashed =
+    std::unordered_map<uint64_t, uint64_t, AlreadyHashed<uint64_t>>;
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+using AbslFlatHashMap_PreHashed =
     absl::flat_hash_map<uint64_t, uint64_t, AlreadyHashed<uint64_t>>;
-using FollyF14FastMap =
+#endif
+
+// Third party libs (default hash)
+#if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
+using RobinMap_Default = tsl::robin_map<uint64_t, uint64_t>;
+using FollyF14_Default = folly::F14FastMap<uint64_t, uint64_t>;
+using RobinMap_Murmur =
+    tsl::robin_map<uint64_t, uint64_t, base::MurmurHash<uint64_t>>;
+using FollyF14_Murmur =
+    folly::F14FastMap<uint64_t, uint64_t, base::MurmurHash<uint64_t>>;
+using RobinMap_PreHashed =
+    tsl::robin_map<uint64_t, uint64_t, AlreadyHashed<uint64_t>>;
+using FollyF14_PreHashed =
     folly::F14FastMap<uint64_t, uint64_t, AlreadyHashed<uint64_t>>;
 #endif
 
+// =============================================================================
+// TraceStrings benchmark (uses pre-hashed keys - simulates string interning)
+// =============================================================================
 BENCHMARK(BM_HashMap_InsertTraceStrings_AppendOnly);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, Ours_LinearProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, Ours_QuadProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, StdUnorderedMap);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, Ours_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, StdUnorderedMap_PreHashed);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, AbslFlatHashMap_PreHashed);
+#endif
 #if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
-BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, RobinMap);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, AbslFlatHashMap);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, FollyF14FastMap);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, RobinMap_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertTraceStrings, FollyF14_PreHashed);
 #endif
 
-#define TID_ARGS int, uint64_t, std::hash<int>
-BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, Ours<TID_ARGS, LinearProbe>);
-BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, Ours<TID_ARGS, QuadraticProbe>);
-BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, Ours<TID_ARGS, QuadraticHalfProbe>);
-BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, std::unordered_map<TID_ARGS>);
+// =============================================================================
+// TraceTids benchmark (uses MurmurHash - realistic workload)
+// =============================================================================
+using Ours_Tid = Ours<int, uint64_t, base::MurmurHash<int>, LinearProbe>;
+using StdUnorderedMap_Tid =
+    std::unordered_map<int, uint64_t, base::MurmurHash<int>>;
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+using AbslFlatHashMap_Tid =
+    absl::flat_hash_map<int, uint64_t, base::MurmurHash<int>>;
+#endif
+BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, Ours_Tid);
+BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, StdUnorderedMap_Tid);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, AbslFlatHashMap_Tid);
+#endif
 #if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
-BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, tsl::robin_map<TID_ARGS>);
-BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, absl::flat_hash_map<TID_ARGS>);
-BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, folly::F14FastMap<TID_ARGS>);
+using RobinMap_Tid = tsl::robin_map<int, uint64_t, base::MurmurHash<int>>;
+using FollyF14_Tid = folly::F14FastMap<int, uint64_t, base::MurmurHash<int>>;
+BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, RobinMap_Tid);
+BENCHMARK_TEMPLATE(BM_HashMap_TraceTids, FollyF14_Tid);
 #endif
 
-BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, Ours_LinearProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, Ours_QuadProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, StdUnorderedMap);
+// =============================================================================
+// InsertRandInts benchmarks (Default, Murmur, PreHashed)
+// =============================================================================
+// Default hash
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, StdUnorderedMap_Default);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, AbslFlatHashMap_Default);
+#endif
 #if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
-BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, RobinMap);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, AbslFlatHashMap);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, FollyF14FastMap);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, RobinMap_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, FollyF14_Default);
+#endif
+// MurmurHash
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, StdUnorderedMap_Murmur);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, AbslFlatHashMap_Murmur);
+#endif
+#if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, RobinMap_Murmur);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, FollyF14_Murmur);
+#endif
+// PreHashed
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, Ours_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, StdUnorderedMap_PreHashed);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, AbslFlatHashMap_PreHashed);
+#endif
+#if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, RobinMap_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertRandInts, FollyF14_PreHashed);
 #endif
 
-BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, Ours_LinearProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, Ours_QuadProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, Ours_QuadCompProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, StdUnorderedMap);
+// =============================================================================
+// LookupRandInts benchmarks (Default, Murmur, PreHashed)
+// =============================================================================
+// Default hash
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, StdUnorderedMap_Default);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, AbslFlatHashMap_Default);
+#endif
 #if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
-BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, RobinMap);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, AbslFlatHashMap);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, FollyF14FastMap);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, RobinMap_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14_Default);
+#endif
+// MurmurHash
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, StdUnorderedMap_Murmur);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, AbslFlatHashMap_Murmur);
+#endif
+#if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, RobinMap_Murmur);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14_Murmur);
+#endif
+// PreHashed
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, Ours_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, StdUnorderedMap_PreHashed);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, AbslFlatHashMap_PreHashed);
+#endif
+#if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, RobinMap_PreHashed);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14_PreHashed);
 #endif
 
-BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, Ours_LinearProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, Ours_QuadProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, Ours_QuadCompProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, StdUnorderedMap);
+// =============================================================================
+// InsertCollidingInts benchmarks (Default only - pathological case)
+// =============================================================================
+BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, StdUnorderedMap_Default);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, AbslFlatHashMap_Default);
+#endif
 #if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
-BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, RobinMap);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, AbslFlatHashMap);
-BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, FollyF14FastMap);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, RobinMap_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertCollidingInts, FollyF14_Default);
 #endif
 
-BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, Ours_LinearProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, Ours_QuadProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, StdUnorderedMap);
+// =============================================================================
+// InsertDupeInts benchmarks (Default only - realistic workload)
+// =============================================================================
+BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, StdUnorderedMap_Default);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, AbslFlatHashMap_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, AbslFlatHashMap_Murmur);
+#endif
 #if defined(PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS)
-BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, RobinMap);
-BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, AbslFlatHashMap);
-BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14FastMap);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, RobinMap_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, FollyF14_Default);
 #endif
 
-BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, Ours_LinearProbing);
+BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, Ours_Default);
 
 // Heterogeneous lookup benchmarks
 template <typename MapType>
@@ -481,11 +712,59 @@ void BM_HashMap_RegularLookup_String(benchmark::State& state) {
                                       Counter::kIsIterationInvariantRate);
 }
 
-using Ours_String_LinearProbing =
+// String benchmarks - each map uses its default hash function
+using Ours_String =
     Ours<std::string, uint64_t, base::MurmurHash<std::string>, LinearProbe>;
-using StdUnorderedMap_String = std::unordered_map<std::string, uint64_t>;
+using StdUnorderedMap_String =
+    std::unordered_map<std::string, uint64_t>;  // std::hash
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+using AbslFlatHashMap_String =
+    absl::flat_hash_map<std::string, uint64_t>;  // absl hash
+// Same hash (MurmurHash) for fair map-only comparison
+using AbslFlatHashMap_String_Murmur =
+    absl::flat_hash_map<std::string, uint64_t, base::MurmurHash<std::string>>;
+#endif
 
-BENCHMARK_TEMPLATE(BM_HashMap_HeterogeneousLookup_String,
-                   Ours_String_LinearProbing);
-BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, Ours_String_LinearProbing);
+BENCHMARK_TEMPLATE(BM_HashMap_HeterogeneousLookup_String, Ours_String);
+BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, Ours_String);
 BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, StdUnorderedMap_String);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String, AbslFlatHashMap_String);
+BENCHMARK_TEMPLATE(BM_HashMap_RegularLookup_String,
+                   AbslFlatHashMap_String_Murmur);
+#endif
+
+// =============================================================================
+// Varying size benchmarks (test cache behavior at different sizes)
+// =============================================================================
+BENCHMARK_TEMPLATE(BM_HashMap_InsertVaryingSize, Ours_Default)
+    ->Apply(VaryingSizeArgs);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertVaryingSize, AbslFlatHashMap_Default)
+    ->Apply(VaryingSizeArgs);
+#endif
+
+// =============================================================================
+// Lookup with misses benchmarks (0%, 50%, 100% miss rate)
+// =============================================================================
+BENCHMARK_TEMPLATE(BM_HashMap_LookupWithMisses, Ours_Default)
+    ->Apply(MissRateArgs);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_LookupWithMisses, AbslFlatHashMap_Default)
+    ->Apply(MissRateArgs);
+#endif
+
+// =============================================================================
+// Sequential key benchmarks (common pattern like row IDs)
+// =============================================================================
+BENCHMARK_TEMPLATE(BM_HashMap_InsertSequentialInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_InsertSequentialInts, StdUnorderedMap_Default);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_InsertSequentialInts, AbslFlatHashMap_Default);
+#endif
+
+BENCHMARK_TEMPLATE(BM_HashMap_LookupSequentialInts, Ours_Default);
+BENCHMARK_TEMPLATE(BM_HashMap_LookupSequentialInts, StdUnorderedMap_Default);
+#if defined(PERFETTO_HASH_MAP_COMPARE_ABSL)
+BENCHMARK_TEMPLATE(BM_HashMap_LookupSequentialInts, AbslFlatHashMap_Default);
+#endif

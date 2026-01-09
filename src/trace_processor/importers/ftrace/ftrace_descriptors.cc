@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 600> descriptors{{
+std::array<FtraceMessageDescriptor, 601> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -2970,13 +2970,14 @@ std::array<FtraceMessageDescriptor, 600> descriptors{{
     },
     {
         "f2fs_write_checkpoint",
-        4,
+        5,
         {
             {},
             {"dev", ProtoSchemaType::kUint64},
             {"is_umount", ProtoSchemaType::kUint32},
             {"msg", ProtoSchemaType::kString},
             {"reason", ProtoSchemaType::kInt32},
+            {"phase", ProtoSchemaType::kUint32},
         },
     },
     {
@@ -6669,6 +6670,18 @@ std::array<FtraceMessageDescriptor, 600> descriptors{{
         {
             {},
             {"host_no", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "fwtp_perfetto_slice",
+        5,
+        {
+            {},
+            {"timestamp", ProtoSchemaType::kUint64},
+            {"track_id", ProtoSchemaType::kUint32},
+            {"category", ProtoSchemaType::kString},
+            {"name", ProtoSchemaType::kString},
+            {"begin", ProtoSchemaType::kUint32},
         },
     },
 }};

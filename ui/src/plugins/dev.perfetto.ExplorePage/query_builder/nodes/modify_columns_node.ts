@@ -22,7 +22,7 @@ import {
 import {Checkbox} from '../../../../widgets/checkbox';
 import {TextInput} from '../../../../widgets/text_input';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
-import {SIMPLE_TYPE_KINDS} from '../../../../trace_processor/perfetto_sql_type';
+import {parsePerfettoSqlTypeFromString} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
@@ -35,6 +35,7 @@ import {
 } from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 import {renderTypeSelector} from './modify_columns_utils';
+import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
 
 export interface ModifyColumnsSerializedState {
   primaryInputId?: string;
@@ -89,7 +90,7 @@ export class ModifyColumnsNode implements QueryNode {
 
     const newSelectedColumns = newColumnInfoList(sourceCols);
 
-    // Preserve checked status and aliases for columns that still exist.
+    // Preserve checked status, aliases, and types for columns that still exist.
     for (const oldCol of this.state.selectedColumns) {
       const newCol = newSelectedColumns.find(
         (c) => c.column.name === oldCol.column.name,
@@ -97,6 +98,11 @@ export class ModifyColumnsNode implements QueryNode {
       if (newCol) {
         newCol.checked = oldCol.checked;
         newCol.alias = oldCol.alias;
+        newCol.type = oldCol.type;
+        newCol.column = {
+          ...newCol.column,
+          type: oldCol.column.type,
+        };
       }
     }
 
@@ -107,10 +113,12 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   static deserializeState(
+    sqlModules: SqlModules,
     serializedState: ModifyColumnsSerializedState,
   ): ModifyColumnsState {
     return {
       ...serializedState,
+      sqlModules,
       selectedColumns: serializedState.selectedColumns.map((c) => ({
         name: c.name,
         type: c.type,
@@ -123,6 +131,7 @@ export class ModifyColumnsNode implements QueryNode {
 
   resolveColumns() {
     // Recover full column information from primaryInput
+    // Note: We preserve user-modified types and only recover the base column object
     if (this.primaryInput === undefined) {
       return;
     }
@@ -131,8 +140,14 @@ export class ModifyColumnsNode implements QueryNode {
     this.state.selectedColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
       if (sourceCol) {
-        c.column = sourceCol.column;
-        c.type = sourceCol.type;
+        // Only update the column reference, NOT the type
+        // The type may have been modified by the user and is preserved in serialization
+        c.column = {
+          ...sourceCol.column,
+          // Keep the user-modified type if it exists
+          type: c.column.type ?? sourceCol.column.type,
+        };
+        // Do NOT update c.type - it's already set from deserialization
       }
     });
   }
@@ -333,22 +348,16 @@ export class ModifyColumnsNode implements QueryNode {
 
     const handleTypeChange = (index: number, newType: string) => {
       const newSelectedColumns = [...this.state.selectedColumns];
-      const lowerType = newType.toLowerCase();
 
-      // Check if it's a simple type
-      const isSimple = SIMPLE_TYPE_KINDS.includes(
-        lowerType as (typeof SIMPLE_TYPE_KINDS)[number],
-      );
+      // Try to parse the type string (handles simple types, ID, and JOINID)
+      const parsedType = parsePerfettoSqlTypeFromString({type: newType});
 
-      const originalType = col.column.type;
       newSelectedColumns[index] = {
         ...newSelectedColumns[index],
         type: newType,
         column: {
           ...newSelectedColumns[index].column,
-          type: isSimple
-            ? {kind: lowerType as (typeof SIMPLE_TYPE_KINDS)[number]}
-            : originalType, // Keep original if it's an ID type
+          type: parsedType.ok ? parsedType.value : col.column.type,
         },
       };
       this.state.selectedColumns = newSelectedColumns;
@@ -389,7 +398,7 @@ export class ModifyColumnsNode implements QueryNode {
         placeholder: 'alias',
         value: col.alias ? col.alias : '',
       }),
-      renderTypeSelector(col, index, handleTypeChange),
+      renderTypeSelector(col, index, this.state.sqlModules, handleTypeChange),
     );
   }
 

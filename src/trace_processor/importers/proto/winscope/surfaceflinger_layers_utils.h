@@ -197,12 +197,26 @@ inline geometry::CornerRadii GetCornerRadii(const LayerDecoder& layer) {
       corner_radii.br = static_cast<double>(radii_decoder.br());
     }
   }
+
+  // Fallback to legacy corner_radius field
   if (!has_corner_radii && layer.has_corner_radius()) {
     auto radius = static_cast<double>(layer.corner_radius());
     corner_radii.tl = radius;
     corner_radii.tr = radius;
     corner_radii.bl = radius;
     corner_radii.br = radius;
+  }
+
+  // If the client draws rounded corners instead of SurfaceFlinger, the
+  // effective_radii field is populated and should be added to any existing
+  // corner radii data.
+  if (layer.has_effective_radii()) {
+    protos::pbzero::CornerRadiiProto::Decoder radii_decoder(
+        layer.effective_radii());
+    corner_radii.tl += static_cast<double>(radii_decoder.tl());
+    corner_radii.tr += static_cast<double>(radii_decoder.tr());
+    corner_radii.bl += static_cast<double>(radii_decoder.bl());
+    corner_radii.br += static_cast<double>(radii_decoder.br());
   }
 
   return corner_radii;
