@@ -45,7 +45,6 @@ export interface SortCriterion {
 }
 
 export interface SortNodeState extends QueryNodeState {
-  sortColNames?: string[]; // For backwards compatibility
   sortCriteria?: SortCriterion[];
 }
 
@@ -55,7 +54,6 @@ export class SortNode implements QueryNode {
   primaryInput?: QueryNode;
   nextNodes: QueryNode[];
   readonly state: SortNodeState;
-  sortCols: ColumnInfo[];
 
   constructor(state: SortNodeState) {
     this.nodeId = nextNodeId();
@@ -63,10 +61,9 @@ export class SortNode implements QueryNode {
     this.nextNodes = [];
 
     this.state.sortCriteria = this.state.sortCriteria ?? [];
-    this.sortCols = this.resolveSortCols();
   }
 
-  private resolveSortCols(): ColumnInfo[] {
+  get sortCols(): ColumnInfo[] {
     if (!this.state.sortCriteria) {
       return [];
     }
@@ -178,7 +175,6 @@ export class SortNode implements QueryNode {
               );
             }
           }
-          this.sortCols = this.resolveSortCols();
           this.state.onchange?.();
         },
       }),
@@ -198,7 +194,6 @@ export class SortNode implements QueryNode {
       const [removed] = newSortCriteria.splice(from, 1);
       newSortCriteria.splice(to, 0, removed);
       this.state.sortCriteria = newSortCriteria;
-      this.sortCols = this.resolveSortCols();
       this.state.onchange?.();
       m.redraw();
     };
@@ -259,9 +254,6 @@ export class SortNode implements QueryNode {
 
   clone(): QueryNode {
     const stateCopy: SortNodeState = {
-      sortColNames: this.state.sortColNames
-        ? [...this.state.sortColNames]
-        : undefined,
       sortCriteria: this.state.sortCriteria?.map((c) => ({...c})),
       filters: this.state.filters?.map((f) => ({...f})),
       filterOperator: this.state.filterOperator,
@@ -306,7 +298,6 @@ export class SortNode implements QueryNode {
     // that might contain circular references
     return {
       primaryInputId: this.primaryInput?.nodeId,
-      sortColNames: this.state.sortColNames,
       sortCriteria: this.state.sortCriteria,
     };
   }

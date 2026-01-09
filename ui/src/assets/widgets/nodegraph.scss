@@ -26,19 +26,18 @@
   font-family: var(--pf-font-compact); // Consistent font.
   cursor: grab; // Indicate panning by default.
 
-  // Square grid background.
+  // Dot pattern background.
+  background-color: color-mix(
+    in srgb,
+    var(--pf-color-background) 90%,
+    var(--pf-color-border-secondary) 10%
+  );
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--pf-color-border-secondary) 85%, black 15%) 1.5px,
+    transparent 1.5px
+  );
   background-size: 20px 20px;
-  background-color: var(--pf-color-background);
-  background: linear-gradient(
-      0deg,
-      var(--pf-color-border-secondary) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      var(--pf-color-border-secondary) 1px,
-      transparent 1px
-    );
 
   &--fill-height {
     height: 100%; // Fill parent height when modifier class applied.
@@ -492,7 +491,7 @@
     }
 
     .pf-icon {
-      font-size: 12px;
+      font-size: var(--pf-font-size-s);
     }
   }
 
@@ -511,7 +510,7 @@
   > .pf-simple-label-text {
     padding: 12px;
     font-family: var(--pf-font-compact);
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     line-height: 1.4;
     color: var(--pf-color-text);
   }

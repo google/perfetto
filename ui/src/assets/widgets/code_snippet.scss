@@ -28,7 +28,7 @@
   }
 
   .pf-code-snippet-language {
-    font-size: 0.8em;
+    font-size: var(--pf-font-size-s);
     color: var(--pf-color-text-secondary);
   }
 
@@ -36,6 +36,6 @@
     margin: 0;
     padding: 12px;
     overflow-x: auto;
-    font-size: 0.8em;
+    font-size: var(--pf-font-size-s);
   }
 }

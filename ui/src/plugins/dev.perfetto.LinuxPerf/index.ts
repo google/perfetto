@@ -31,13 +31,19 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {
+  Flamegraph,
+  FLAMEGRAPH_STATE_SCHEMA,
+  FlamegraphState,
+} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {createPerfCallsitesTrack} from './perf_samples_profile_track';
 import {Store} from '../../base/store';
 import {z} from 'zod';
+import CpuProfilePlugin from '../dev.perfetto.CpuProfile';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {createProfilingTrack} from '../dev.perfetto.CpuProfile/profiling_track';
 
 const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
@@ -57,6 +63,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
     TraceProcessorTrackPlugin,
+    CpuProfilePlugin,
   ];
 
   private store?: Store<LinuxPerfPluginState>;
@@ -537,4 +544,64 @@ function getSelectedThreadTrackTags(currentSelection: AreaSelection) {
     }
   }
   return ret;
+}
+
+export function createPerfCallsitesTrack(
+  trace: Trace,
+  uri: string,
+  upid: number | undefined,
+  utid: number | undefined,
+  sessionId: number | undefined,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+) {
+  const constraints = [];
+  if (upid !== undefined) {
+    constraints.push(`(upid = ${upid})`);
+  }
+  if (utid !== undefined) {
+    constraints.push(`(utid = ${utid})`);
+  }
+  if (sessionId !== undefined) {
+    constraints.push(`(perf_session_id = ${sessionId})`);
+  }
+  const trackConstraints = constraints.join(' AND ');
+  return createProfilingTrack(
+    trace,
+    uri,
+    {
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          callsiteId: NUM,
+        },
+        src: `
+          SELECT
+            p.id,
+            ts,
+            callsite_id AS callsiteId,
+            upid
+          FROM perf_sample AS p
+          JOIN thread USING (utid)
+          WHERE callsite_id IS NOT NULL
+            AND ${trackConstraints}
+          ORDER BY ts
+        `,
+      }),
+      callsiteQuery: (ts) => `
+        SELECT ps.callsite_id
+        FROM perf_sample ps
+        JOIN thread t USING (utid)
+        WHERE ps.ts = ${ts}
+          AND ${trackConstraints}
+      `,
+      sqlModule: 'linux.perf.samples',
+      metricName: 'Perf Samples',
+      panelTitle: 'Perf sample',
+      sliceName: 'Perf sample',
+    },
+    detailsPanelState,
+    onDetailsPanelStateChange,
+  );
 }

@@ -430,7 +430,8 @@ describe('HistoryManager', () => {
     expect(redoneFilterNode.state.filters?.length ?? 0).toBe(1);
     const redoneFilter = redoneFilterNode.state.filters?.[0];
     if (redoneFilter && 'value' in redoneFilter) {
-      expect(redoneFilter.value).toBe('123');
+      // Numeric strings are converted to numbers during deserialization
+      expect(redoneFilter.value).toBe(123);
     }
   });
 
@@ -489,7 +490,8 @@ describe('HistoryManager', () => {
     expect(filterNode1.state.filters?.length ?? 0).toBe(1);
     const undoneFilter1 = filterNode1.state.filters?.[0];
     if (undoneFilter1 && 'value' in undoneFilter1) {
-      expect(undoneFilter1.value).toBe('123');
+      // Numeric strings are converted to numbers during deserialization
+      expect(undoneFilter1.value).toBe(123);
     }
 
     // Undo again: should have 0 filters

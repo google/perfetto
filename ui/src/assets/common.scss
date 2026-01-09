@@ -26,6 +26,12 @@
   --pf-font: "Roboto", sans-serif;
   --pf-font-compact: "Roboto Condensed", sans-serif;
   --pf-font-monospace: "Roboto Mono", monospace;
+  --pf-font-size-xs: 10px;
+  --pf-font-size-s: 12px;
+  --pf-font-size-m: 14px;
+  --pf-font-size-l: 16px;
+  --pf-font-size-xl: 18px;
+  --pf-font-size-xxl: 20px;
 }
 
 * {
@@ -34,7 +40,7 @@
 }
 
 html {
-  font-size: 16px;
+  font-size: var(--pf-font-size-m);
   font-family: var(--pf-font);
   height: 100%;
   width: 100%;

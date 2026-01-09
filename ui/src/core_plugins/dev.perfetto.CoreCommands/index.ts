@@ -132,7 +132,7 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   return promptForTimestamp('Enter a timestamp');
 }
 
-const macroSchema = z.record(z.array(commandInvocationSchema));
+const macroSchema = z.record(z.array(commandInvocationSchema).readonly());
 type MacroConfig = z.infer<typeof macroSchema>;
 
 export default class CoreCommands implements PerfettoPlugin {
@@ -241,13 +241,9 @@ export default class CoreCommands implements PerfettoPlugin {
     // Register the macros from extras at onTraceReady (the latest time
     // possible).
     ctx.onTraceReady.addListener(async (_) => {
-      // Await the promise: we've tried to be async as long as possible but
+      // Await the promises: we've tried to be async as long as possible but
       // now we need the extras to be loaded.
-      await app.extraLoadingPromise;
-      registerMacros(
-        ctx,
-        app.extraMacros.reduce((acc, macro) => ({...acc, ...macro}), {}),
-      );
+      registerMacros(ctx, Object.fromEntries(await app.macros()));
     });
 
     ctx.commands.registerCommand({

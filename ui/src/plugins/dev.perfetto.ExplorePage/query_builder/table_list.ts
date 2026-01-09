@@ -55,11 +55,11 @@ type MatchType =
 function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
   switch (importance) {
     case 'high':
-      return 'Very frequent';
+      return 'Very common';
     case 'mid':
-      return 'Frequent';
+      return 'Common';
     case 'low':
-      return 'Low';
+      return 'Discouraged';
   }
 }
 

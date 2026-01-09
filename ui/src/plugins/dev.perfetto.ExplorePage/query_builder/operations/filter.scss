@@ -20,7 +20,7 @@
   gap: 1rem;
 
   .pf-exp-filters-label {
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     font-weight: 500;
     white-space: nowrap;
   }
@@ -114,7 +114,7 @@
   color: var(--pf-color-text-muted);
   padding: 2px 6px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--pf-font-size-xs);
   font-weight: 500;
   text-transform: uppercase;
 }
@@ -140,7 +140,7 @@
 
 .pf-or-group-label {
   font-weight: bold;
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   color: var(--primary-color, #4a90e2);
   min-width: 30px;
   display: flex;
@@ -222,7 +222,7 @@
 // Separator between filter options
 .pf-filter-or-separator {
   color: var(--md-sys-color-outline);
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   font-weight: 500;
   flex-shrink: 0;
 }

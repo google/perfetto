@@ -88,13 +88,21 @@
       gap: 8px;
     }
 
+    h1,
     h2 {
       margin-top: 0;
       margin-bottom: 0;
       font-weight: 600;
-      font-size: 1.25rem;
       line-height: 1.25;
       box-sizing: border-box;
+    }
+
+    h1 {
+      font-size: var(--pf-font-size-xl);
+    }
+
+    h2 {
+      font-size: var(--pf-font-size-l);
     }
 
     button {
@@ -109,7 +117,7 @@
     line-height: 1.5;
 
     .small-font {
-      font-size: 0.9rem;
+      font-size: var(--pf-font-size-s);
     }
   }
 
@@ -132,7 +140,7 @@
   border: 1px solid var(--pf-color-border);
   padding: 10px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--pf-font-size-xs);
   background: var(--pf-color-background-secondary);
   font-family: var(--pf-font-monospace);
   margin-top: 10px;

@@ -91,20 +91,22 @@ export class AppImpl implements App {
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
 
-  // This is normally empty and is injected with extra google-internal packages
-  // via is_internal_user.js
-  extraSqlPackages: SqlPackage[] = [];
+  // Extra SQL packages, injected via is_internal_user.js.
+  private _sqlPackagesPromises = new Array<
+    Promise<ReadonlyArray<SqlPackage>>
+  >();
 
-  // This is normally empty and is injected with Base64-encoded protobuf
-  // descriptor sets via is_internal_user.js.
-  extraParsingDescriptors: string[] = [];
+  // Protobuf descriptor sets as Base64-encoded strings.
+  // Injected via is_internal_user.js.
+  private _protoDescriptorsPromises = new Array<
+    Promise<ReadonlyArray<string>>
+  >();
 
-  // This is normally empty and is injected with extra google-internal macros
-  // via is_internal_user.js
-  extraMacros: Record<string, CommandInvocation[]>[] = [];
-
-  // Promise which is resolved when extra loading is completed.
-  extrasLoadingDeferred = defer<undefined>();
+  // Command macros. The key is the macro name, value is a list of commands to
+  // invoke. Injected via is_internal_user.js.
+  private _macrosPromises = new Array<
+    Promise<Map<string, ReadonlyArray<CommandInvocation>>>
+  >();
 
   // Initializes the singleton instance - must be called only once and before
   // AppImpl.instance is used.
@@ -255,7 +257,6 @@ export class AppImpl implements App {
       // Wait for extras parsing descriptors to be loaded
       // via is_internal_user.js. This prevents a race condition where
       // trace loading would otherwise begin before this data is available.
-      await this.extraLoadingPromise;
       this.closeCurrentTrace();
       this.isLoadingTrace = true;
       try {
@@ -273,7 +274,6 @@ export class AppImpl implements App {
         // loadTrace to be finished before setting it because some internal
         // implementation details of loadTrace() rely on that trace to be current
         // to work properly (mainly the router hash uuid).
-
         result.resolve(trace);
       } catch (error) {
         result.reject(error);
@@ -282,7 +282,6 @@ export class AppImpl implements App {
         raf.scheduleFullRedraw();
       }
     });
-
     return result;
   }
 
@@ -290,11 +289,40 @@ export class AppImpl implements App {
     Router.navigate(newHash);
   }
 
-  notifyOnExtrasLoadingCompleted() {
-    this.extrasLoadingDeferred.resolve();
+  addSqlPackages(
+    args: ReadonlyArray<SqlPackage> | Promise<ReadonlyArray<SqlPackage>>,
+  ) {
+    this._sqlPackagesPromises.push(Promise.resolve(args));
   }
 
-  get extraLoadingPromise(): Promise<undefined> {
-    return this.extrasLoadingDeferred;
+  async sqlPackages(): Promise<ReadonlyArray<SqlPackage>> {
+    return Promise.all(this._sqlPackagesPromises).then((pkgs) =>
+      pkgs.flatMap((p) => p),
+    );
+  }
+
+  addProtoDescriptors(
+    args: ReadonlyArray<string> | Promise<ReadonlyArray<string>>,
+  ) {
+    this._protoDescriptorsPromises.push(Promise.resolve(args));
+  }
+
+  async protoDescriptors(): Promise<ReadonlyArray<string>> {
+    return Promise.all(this._protoDescriptorsPromises).then((desc) =>
+      desc.flatMap((d) => d),
+    );
+  }
+
+  addMacros(
+    args:
+      | Map<string, ReadonlyArray<CommandInvocation>>
+      | Promise<Map<string, ReadonlyArray<CommandInvocation>>>,
+  ) {
+    this._macrosPromises.push(Promise.resolve(args));
+  }
+
+  async macros(): Promise<Map<string, ReadonlyArray<CommandInvocation>>> {
+    const macrosArray = await Promise.all(this._macrosPromises);
+    return new Map(macrosArray.flatMap((m) => [...m]));
   }
 }

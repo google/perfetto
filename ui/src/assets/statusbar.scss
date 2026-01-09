@@ -21,7 +21,7 @@
   background: var(--pf-sidebar-surface);
   padding: 0px 8px;
   color: var(--pf-sidebar-on-surface);
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   border-top: solid 1px var(--pf-sidebar-border);
 
   > .pf-button {

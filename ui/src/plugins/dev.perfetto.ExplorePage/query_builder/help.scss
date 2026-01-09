@@ -41,13 +41,13 @@
     h4 {
       margin-top: 0;
       margin-bottom: 0.5rem;
-      font-size: var(--pf-exp-font-size-md);
+      font-size: var(--pf-font-size-m);
       font-weight: 500;
     }
 
     p {
       margin-bottom: 0;
-      font-size: var(--pf-exp-font-size-sm);
+      font-size: var(--pf-font-size-s);
       color: var(--pf-color-text-muted);
     }
   }
@@ -80,19 +80,19 @@
     }
 
     .pf-importance-high {
-      background-color: var(--pf-color-danger);
+      background-color: var(--pf-color-success);
     }
 
     .pf-importance-mid {
-      background-color: var(--pf-color-primary);
+      background-color: var(--pf-color-warning);
     }
 
     .pf-importance-low {
-      background-color: var(--pf-color-text-disabled);
+      background-color: var(--pf-color-danger);
     }
 
     .table-description {
-      font-size: var(--pf-exp-font-size-sm);
+      font-size: var(--pf-font-size-s);
       color: var(--pf-color-text-muted);
     }
   }

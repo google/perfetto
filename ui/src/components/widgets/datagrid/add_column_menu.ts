@@ -364,14 +364,21 @@ const TEXT_SAFE_AGGREGATE_FUNCTIONS: AggregateFunction[] = ['ANY'];
  * Returns the available aggregate functions for a column based on its type.
  * Numeric aggregates (SUM, AVG, MIN, MAX) are only available for quantitative
  * and identifier columns. ANY is available for all column types.
+ * When the column type is unknown (undefined), all aggregates are allowed.
  */
 export function getAggregateFunctionsForColumnType(
   columnType: 'text' | 'quantitative' | 'identifier' | undefined,
 ): AggregateFunction[] {
-  if (columnType === 'quantitative' || columnType === 'identifier') {
+  // For unknown types (undefined), allow all aggregates since we can't
+  // determine restrictions
+  if (
+    columnType === undefined ||
+    columnType === 'quantitative' ||
+    columnType === 'identifier'
+  ) {
     return [...NUMERIC_AGGREGATE_FUNCTIONS, ...TEXT_SAFE_AGGREGATE_FUNCTIONS];
   }
-  // For 'text' columns or undefined, only text-safe aggregates
+  // For 'text' columns, only text-safe aggregates
   return TEXT_SAFE_AGGREGATE_FUNCTIONS;
 }
 

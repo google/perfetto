@@ -32,7 +32,6 @@ export default class QueryPagePlugin implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     // The query page and tab share the same query data.
-    let executedQuery: string | undefined;
     let queryResult: QueryResponse | undefined;
     let isLoading = false;
     let editorText = '';
@@ -40,7 +39,6 @@ export default class QueryPagePlugin implements PerfettoPlugin {
     async function onExecute(text: string) {
       if (!text) return;
 
-      executedQuery = text;
       queryResult = undefined;
       queryHistoryStorage.saveQuery(text);
 
@@ -55,9 +53,9 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       route: '/query',
       render: () =>
         m(QueryPage, {
+          isLoading,
           trace,
           editorText,
-          executedQuery,
           queryResult,
           onEditorContentUpdate: (text) => (editorText = text),
           onExecute,
@@ -80,7 +78,6 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           return m(QueryResultsTable, {
             trace,
             isLoading,
-            query: executedQuery,
             resp: queryResult,
             fillHeight: true,
             emptyState: m(

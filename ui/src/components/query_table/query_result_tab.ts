@@ -79,7 +79,6 @@ export class QueryResultTab implements Tab {
     return m(QueryResultsTable, {
       isLoading: this.isLoading(),
       trace: this.trace,
-      query: this.args.query,
       resp: this.queryResponse,
       fillHeight: true,
     });

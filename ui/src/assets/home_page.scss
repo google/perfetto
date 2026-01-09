@@ -97,7 +97,7 @@
         color: white;
         z-index: 2;
         text-transform: uppercase;
-        font-size: 16px;
+        font-size: var(--pf-font-size-l);
         font-family: var(--pf-font-compact);
       }
 
@@ -118,7 +118,7 @@
       }
 
       .pf-home-page__reload {
-        font-size: 12px;
+        font-size: var(--pf-font-size-s);
         opacity: 0;
         color: #da4534;
         font-weight: 400;

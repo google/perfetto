@@ -172,13 +172,13 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
     const result: m.Children = [];
     for (const btn of buttons) {
-      const attrs: Partial<ButtonAttrs> = {
+      const attrs = {
         onclick: btn.onclick,
         variant: btn.variant ?? ButtonVariant.Outlined, // Default to Outlined
+        label: btn.label,
+        icon: btn.icon,
+        compact: btn.compact,
       };
-      if (btn.label) attrs.label = btn.label;
-      if (btn.icon) attrs.icon = btn.icon;
-      if (btn.compact !== undefined) attrs.compact = btn.compact;
       result.push(m(Button, attrs as ButtonAttrs));
     }
     return result;

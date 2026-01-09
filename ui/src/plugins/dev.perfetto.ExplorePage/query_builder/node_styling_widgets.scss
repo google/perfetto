@@ -16,7 +16,7 @@
 
 // Content wrapper - provides consistent layout and spacing for node details
 .pf-exp-node-details-content {
-  font-size: var(--pf-exp-font-size-sm);
+  font-size: var(--pf-font-size-s);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -74,7 +74,7 @@
 // SQL expression styling
 .pf-exp-sql-expression {
   font-family: var(--pf-font-monospace);
-  font-size: var(--pf-exp-font-size-sm);
+  font-size: var(--pf-font-size-s);
   background-color: var(--pf-color-background-secondary);
   padding: 0.5rem;
   border-radius: 4px;

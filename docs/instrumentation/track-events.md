@@ -332,6 +332,10 @@ There are two ways to use dynamic event name:
   TRACE_EVENT("category", perfetto::DynamicString{dynamic_name});
 ```
 
+DANGER: `perfetto::DynamicString` must be passed as a prvalue (temporary).
+        This is to ensure that the underlying string survives until the event
+        is recorded.
+
 Note: Below is the old way of using dynamic event names. It's not recommended
       anymore.
 

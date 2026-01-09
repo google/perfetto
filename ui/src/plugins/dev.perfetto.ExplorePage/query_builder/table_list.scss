@@ -79,7 +79,7 @@
 .pf-table-card-header {
   .pf-timestamp-icon {
     color: var(--primary);
-    font-size: 18px;
+    font-size: var(--pf-font-size-xl);
     margin-left: 4px;
     opacity: 0.8;
   }

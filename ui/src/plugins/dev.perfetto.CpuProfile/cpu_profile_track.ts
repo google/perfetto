@@ -13,13 +13,10 @@
 // limitations under the License.
 
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {CpuProfileSampleFlamegraphDetailsPanel} from './cpu_profile_details_panel';
 import {Trace} from '../../public/trace';
-import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {Time} from '../../base/time';
-import {getColorForSample} from '../../components/colorizer';
 import {FlamegraphState} from '../../widgets/flamegraph';
+import {createProfilingTrack} from './profiling_track';
 
 export function createCpuProfileTrack(
   trace: Trace,
@@ -28,31 +25,39 @@ export function createCpuProfileTrack(
   detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
-  return SliceTrack.create({
+  return createProfilingTrack(
     trace,
     uri,
-    dataset: new SourceDataset({
-      schema: {
-        id: NUM,
-        ts: LONG,
-        callsite_id: NUM,
-      },
-      src: `cpu_profile_stack_sample`,
-      filter: {
-        col: 'utid',
-        eq: utid,
-      },
-    }),
-    sliceName: () => 'CPU Sample',
-    colorizer: (row) => getColorForSample(row.callsite_id),
-    detailsPanel: (row) => {
-      return new CpuProfileSampleFlamegraphDetailsPanel(
-        trace,
-        Time.fromRaw(row.ts),
-        utid,
-        detailsPanelState,
-        onDetailsPanelStateChange,
-      );
+    {
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          callsiteId: NUM,
+        },
+        src: `
+          SELECT
+            id,
+            ts,
+            callsite_id AS callsiteId
+          FROM cpu_profile_stack_sample
+        `,
+        filter: {
+          col: 'utid',
+          eq: utid,
+        },
+      }),
+      callsiteQuery: (ts) => `
+        SELECT callsite_id
+        FROM cpu_profile_stack_sample
+        WHERE ts = ${ts} AND utid = ${utid}
+      `,
+      sqlModule: 'callstacks.stack_profile',
+      metricName: 'CPU Profile Samples',
+      panelTitle: 'CPU Profile Samples',
+      sliceName: 'CPU Sample',
     },
-  });
+    detailsPanelState,
+    onDetailsPanelStateChange,
+  );
 }

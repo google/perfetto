@@ -963,8 +963,6 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
       });
 
       expect(connections.leftNode).toBe(node1);
@@ -984,12 +982,145 @@ describe('JoinNode', () => {
         leftColumn: 'id',
         rightColumn: 'id',
         sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
       });
 
       expect(connections.leftNode).toBeUndefined();
       expect(connections.rightNode).toBeUndefined();
+    });
+  });
+
+  describe('serialize/deserialize round-trip', () => {
+    it('should preserve checked columns after serialization and deserialization', () => {
+      // Create mock source nodes with columns
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('name', 'STRING'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('value', 'INT'),
+      ]);
+
+      // Create a join node with specific columns checked
+      const joinNode = new JoinNode({
+        leftNode: node1,
+        rightNode: node2,
+        leftQueryAlias: 'left',
+        rightQueryAlias: 'right',
+        conditionType: 'equality',
+        joinType: 'INNER',
+        leftColumn: 'id',
+        rightColumn: 'value',
+        sqlExpression: '',
+        leftColumns: createCheckedColumns([
+          {name: 'id', type: 'INT', checked: true},
+          {name: 'name', type: 'STRING', checked: false},
+        ]),
+        rightColumns: createCheckedColumns([
+          {name: 'value', type: 'INT', checked: true},
+        ]),
+      });
+
+      // Verify initial state
+      expect(joinNode.state.leftColumns?.[0].checked).toBe(true);
+      expect(joinNode.state.leftColumns?.[1].checked).toBe(false);
+      expect(joinNode.state.rightColumns?.[0].checked).toBe(true);
+
+      // Serialize the state
+      const serialized = joinNode.serializeState();
+
+      // Deserialize the state
+      const deserializedState = JoinNode.deserializeState(serialized);
+
+      // Create nodes map for connection deserialization
+      const nodes = new Map([
+        ['node1', node1],
+        ['node2', node2],
+      ]);
+      const connections = JoinNode.deserializeConnections(nodes, serialized);
+
+      // Create a new join node from deserialized state
+      // This simulates what happens when loading from saved state
+      const restoredNode = new JoinNode({
+        ...deserializedState,
+        leftNode: connections.leftNode,
+        rightNode: connections.rightNode,
+      });
+
+      // BUG: After deserialization and reconstruction, checked status is lost
+      // because updateColumnArrays() can't match columns properly
+      expect(restoredNode.state.leftColumns?.length).toBe(2);
+      expect(restoredNode.state.rightColumns?.length).toBe(1);
+
+      // These should pass but currently fail:
+      expect(restoredNode.state.leftColumns?.[0].checked).toBe(true);
+      expect(restoredNode.state.leftColumns?.[1].checked).toBe(false);
+      expect(restoredNode.state.rightColumns?.[0].checked).toBe(true);
+    });
+
+    it('should preserve column aliases after serialization and deserialization', () => {
+      // Create mock source nodes with columns
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+      ]);
+
+      // Create columns with aliases
+      const leftCols = createCheckedColumns([
+        {name: 'id', type: 'INT', checked: true},
+      ]);
+      leftCols[0].alias = 'left_id';
+
+      const rightCols = createCheckedColumns([
+        {name: 'id', type: 'INT', checked: true},
+      ]);
+      rightCols[0].alias = 'right_id';
+
+      // Create a join node with aliases
+      const joinNode = new JoinNode({
+        leftNode: node1,
+        rightNode: node2,
+        leftQueryAlias: 'left',
+        rightQueryAlias: 'right',
+        conditionType: 'equality',
+        joinType: 'INNER',
+        leftColumn: 'id',
+        rightColumn: 'id',
+        sqlExpression: '',
+        leftColumns: leftCols,
+        rightColumns: rightCols,
+      });
+
+      // Verify initial state has aliases
+      expect(joinNode.state.leftColumns?.[0].alias).toBe('left_id');
+      expect(joinNode.state.rightColumns?.[0].alias).toBe('right_id');
+
+      // Serialize the state
+      const serialized = joinNode.serializeState();
+
+      // Deserialize the state
+      const deserializedState = JoinNode.deserializeState(serialized);
+
+      // Create nodes map for connection deserialization
+      const nodes = new Map([
+        ['node1', node1],
+        ['node2', node2],
+      ]);
+      const connections = JoinNode.deserializeConnections(nodes, serialized);
+
+      // Create a new join node from deserialized state
+      const restoredNode = new JoinNode({
+        ...deserializedState,
+        leftNode: connections.leftNode,
+        rightNode: connections.rightNode,
+      });
+
+      // BUG: Aliases and checked status are both lost after deserialization
+      expect(restoredNode.state.leftColumns?.[0].alias).toBe('left_id');
+      expect(restoredNode.state.rightColumns?.[0].alias).toBe('right_id');
+      expect(restoredNode.state.leftColumns?.[0].checked).toBe(true);
+      expect(restoredNode.state.rightColumns?.[0].checked).toBe(true);
     });
   });
 });

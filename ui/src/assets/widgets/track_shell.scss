@@ -22,7 +22,7 @@
 
   font-family: var(--pf-font-compact);
   font-weight: 300;
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   user-select: none;
   scroll-margin-top: calc(var(--sticky-top) * 1px);
 
@@ -112,7 +112,7 @@
 
   &__buttons {
     // Make the track buttons a little larger so they're easier to see & click
-    font-size: 16px;
+    font-size: var(--pf-font-size-l);
     margin-left: 2px;
   }
 
