@@ -1497,6 +1497,8 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
 TEST_F(PerfettoCmdlineTest, NoClobber) {
   const std::string original_file_content = "Existing file";
   const std::string output_file_path = RandomTraceFileName();
+  const std::string expected_error_message =
+      "Error: Output file '" + output_file_path + "' already exists.";
   ScopedFileRemove remove_on_test_exit(output_file_path);
   {
     auto fd =
@@ -1513,10 +1515,9 @@ TEST_F(PerfettoCmdlineTest, NoClobber) {
 
   StartServiceIfRequiredNoNewExecsAfterThis();
 
-  ASSERT_EQ(1, perfetto_proc_no_clobber.Run(&stderr_)) << stderr_;
-  EXPECT_THAT(stderr_, HasSubstr("(errno: 17, File exists)"));
-
   // Assert that "perfetto --no-clobber" doesn't overwrite the output file.
+  ASSERT_EQ(1, perfetto_proc_no_clobber.Run(&stderr_)) << stderr_;
+  EXPECT_THAT(stderr_, HasSubstr(expected_error_message));
   {
     std::string file_content;
     base::ReadFile(output_file_path, &file_content);

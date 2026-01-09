@@ -166,7 +166,7 @@ Usage: %s
                              If using CLONE_SNAPSHOT triggers, each snapshot
                              will be saved in a new file with a counter suffix
                              (e.g., file.0, file.1, file.2).
-  --no-clobber     -n      : Do not overwrite an existing output file.
+  --no-clobber             : Do not overwrite an existing output file.
   --txt                    : Parse config as pbtxt. Not for production use.
                              Not a stable API.
   --query [--long]         : Queries the service state and prints it as
@@ -1273,6 +1273,12 @@ bool PerfettoCmd::OpenOutputFile() {
     // O_CREAT | O_EXCL will fail if the file exists already.
     const int flags = O_RDWR | O_CREAT | (no_clobber_ ? O_EXCL : O_TRUNC);
     fd = base::OpenFile(trace_out_path_, flags, 0600);
+    // Show a specific error message for the EEXIST errno
+    if (!fd && errno == EEXIST) {
+      PERFETTO_ELOG("Error: Output file '%s' already exists.",
+                    trace_out_path_.c_str());
+      return false;
+    }
   }
   if (!fd) {
     PERFETTO_PLOG(
