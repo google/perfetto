@@ -808,15 +808,16 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
           "'persist_trace_after_reboot'.");
       return 1;
     }
-    // PerfettoCmd assumes 'trace_out_path_' is the active output file owned by
-    // this process. When perfetto_cmd stops it automatically removes the file
-    // if '!trace_out_path_.empty()' and 'bytes_written_ == 0'.
-    // We use a separate field for the persistent trace file to prevent it from
-    // being automatically removed when perfetto_cmd stops.
-    persistent_trace_out_path_ = std::string(kAndroidPersistentStateDir) + "/" +
-                                 trace_config_->unique_session_name() +
-                                 ".pftrace";
-    PERFETTO_CHECK(trace_config_->output_path().empty());
+    if (!trace_config_->output_path().empty()) {
+      PERFETTO_ELOG(
+          "TraceConfig's 'output_path' must not be set when using "
+          "'persist_trace_after_reboot'.");
+      return 1;
+    }
+
+    std::string persistent_trace_out_path =
+        std::string(kAndroidPersistentStateDir) + "/" +
+        trace_config_->unique_session_name() + ".pftrace";
 
     // Delegate trace file creation to `traced` by passing the filename.
     // `traced` verifies trace configuration and the internal state (e.g.,
@@ -824,7 +825,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     // only upon successful startup.
     // This prevents us from having empty persistent files if the
     // session fails to start.
-    trace_config_->set_output_path(persistent_trace_out_path_);
+    trace_config_->set_output_path(persistent_trace_out_path);
   }
 
   // |activate_triggers| in the trace config is shorthand for trigger_perfetto.
@@ -1313,9 +1314,9 @@ void PerfettoCmd::FinalizeTraceAndExit() {
                  trace_config_->unique_session_name().c_str());
     if (trace_config_->persist_trace_after_reboot()) {
       base::ScopedFile trace_fd =
-          base::OpenFile(persistent_trace_out_path_, O_RDONLY);
+          base::OpenFile(trace_config_->output_path(), O_RDONLY);
       uint64_t file_size = base::GetFileSize(*trace_fd).value_or(0);
-      unlink(trace_config_->output_path().c_str());
+      remove(trace_config_->output_path().c_str());
       ReportTraceToAndroidFrameworkOrCrash(*trace_fd, file_size);
     } else {
       ReportTraceToAndroidFrameworkOrCrash(fileno(*trace_out_stream_),

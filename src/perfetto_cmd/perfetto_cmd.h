@@ -187,7 +187,6 @@ class PerfettoCmd : public Consumer {
   base::ScopedFstream trace_out_stream_;
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
-  std::string persistent_trace_out_path_;
   base::EventFd ctrl_c_evt_;
   bool ctrl_c_handler_installed_ = false;
   base::ScopedPlatformHandle notify_fd_;
