@@ -1275,7 +1275,7 @@ bool PerfettoCmd::OpenOutputFile() {
     fd = base::OpenFile(trace_out_path_, flags, 0600);
     // Show a specific error message for the EEXIST errno
     if (!fd && errno == EEXIST) {
-      PERFETTO_ELOG("Error: Output file '%s' already exists.",
+      PERFETTO_ELOG("Error: Output file '%s' already exists, refusing to overwrite due to '--no-clobber'.",
                     trace_out_path_.c_str());
       return false;
     }

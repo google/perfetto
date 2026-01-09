@@ -1498,7 +1498,7 @@ TEST_F(PerfettoCmdlineTest, NoClobber) {
   const std::string original_file_content = "Existing file";
   const std::string output_file_path = RandomTraceFileName();
   const std::string expected_error_message =
-      "Error: Output file '" + output_file_path + "' already exists.";
+      "Error: Output file '" + output_file_path + "' already exists, refusing to overwrite due to '--no-clobber'.";
   ScopedFileRemove remove_on_test_exit(output_file_path);
   {
     auto fd =
