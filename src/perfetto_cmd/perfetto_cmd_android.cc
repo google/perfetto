@@ -303,17 +303,22 @@ void PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
     if (maybe_file_size == 0) {
       continue;
     }
-    base::ScopedFile mmap_fd(dup(*fd));
-    if (!mmap_fd) {
-      continue;
+
+    std::optional<TraceConfig> trace_config;
+    {
+      // mmap-ed file closes upon scope exit.
+      base::ScopedFile mmap_fd(dup(*fd));
+      if (!mmap_fd) {
+        continue;
+      }
+      base::ScopedMmap mmaped_file =
+          base::ScopedMmap::FromHandle(std::move(mmap_fd), file_size);
+      if (!mmaped_file.IsValid()) {
+        continue;
+      }
+      trace_config = ParseTraceConfigFromMmapedTrace(std::move(mmaped_file));
     }
-    base::ScopedMmap mmaped_file =
-        base::ScopedMmap::FromHandle(std::move(mmap_fd), file_size);
-    if (!mmaped_file.IsValid()) {
-      continue;
-    }
-    std::optional<TraceConfig> trace_config =
-        ParseTraceConfigFromMmapedTrace(std::move(mmaped_file));
+
     if (!trace_config.has_value()) {
       continue;
     }
