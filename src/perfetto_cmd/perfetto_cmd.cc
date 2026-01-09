@@ -239,12 +239,12 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_QUERY_RAW,
     OPT_VERSION,
     OPT_NOTIFY_FD,
+    OPT_NO_CLOBBER,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
       {"config", required_argument, nullptr, 'c'},
       {"out", required_argument, nullptr, 'o'},
-      {"no-clobber", no_argument, nullptr, 'n'},
       {"background", no_argument, nullptr, 'd'},
       {"background-wait", no_argument, nullptr, 'D'},
       {"time", required_argument, nullptr, 't'},
@@ -274,6 +274,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
       {"notify-fd", required_argument, nullptr, OPT_NOTIFY_FD},
+      {"no-clobber", no_argument, nullptr, OPT_NO_CLOBBER},
       {nullptr, 0, nullptr, 0}};
 
   std::string config_file_name;
@@ -297,7 +298,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   optind = 1;  // Reset getopt state. It's reused by the snapshot thread.
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hc:o:ndDt:b:s:a:", long_options, nullptr);
+        getopt_long(argc, argv, "hc:o:dDt:b:s:a:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -348,11 +349,6 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
     if (option == 'o') {
       trace_out_path_ = optarg;
-      continue;
-    }
-
-    if (option == 'n') {
-      no_clobber_ = true;
       continue;
     }
 
@@ -527,6 +523,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       PERFETTO_ELOG("--notify-fd is not supported on Windows");
       return 1;
 #endif
+    }
+
+    if (option == OPT_NO_CLOBBER) {
+      no_clobber_ = true;
+      continue;
     }
 
     PrintUsage(argv[0]);

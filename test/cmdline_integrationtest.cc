@@ -1508,11 +1508,7 @@ TEST_F(PerfettoCmdlineTest, NoClobber) {
   auto perfetto_proc_no_clobber = Exec(
       "perfetto", {"--time", "1ms", "--no-clobber", "--out", output_file_path});
 
-  // "-n" is a short alias for "--no-clobber"
-  auto perfetto_proc_n =
-      ExecPerfetto({"--time", "1ms", "-n", "-o", output_file_path});
-
-  auto perfetto_proc_overwrite_file =
+  auto perfetto_proc =
       Exec("perfetto", {"--time", "1ms", "--out", output_file_path});
 
   StartServiceIfRequiredNoNewExecsAfterThis();
@@ -1520,11 +1516,7 @@ TEST_F(PerfettoCmdlineTest, NoClobber) {
   ASSERT_EQ(1, perfetto_proc_no_clobber.Run(&stderr_)) << stderr_;
   EXPECT_THAT(stderr_, HasSubstr("(errno: 17, File exists)"));
 
-  ASSERT_EQ(1, perfetto_proc_n.Run(&stderr_)) << stderr_;
-  EXPECT_THAT(stderr_, HasSubstr("(errno: 17, File exists)"));
-
-  // Assert neither "-n", nor "--no-clobber" perfetto invocation overwrite the
-  // output file.
+  // Assert that "perfetto --no-clobber" doesn't overwrite the output file.
   {
     std::string file_content;
     base::ReadFile(output_file_path, &file_content);
@@ -1532,7 +1524,7 @@ TEST_F(PerfettoCmdlineTest, NoClobber) {
   }
 
   // Assert regular invocation successfully overwrites a file.
-  ASSERT_EQ(0, perfetto_proc_overwrite_file.Run(&stderr_)) << stderr_;
+  ASSERT_EQ(0, perfetto_proc.Run(&stderr_)) << stderr_;
   {
     std::string file_content;
     base::ReadFile(output_file_path, &file_content);
