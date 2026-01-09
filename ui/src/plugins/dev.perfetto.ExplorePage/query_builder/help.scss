@@ -80,15 +80,15 @@
     }
 
     .pf-importance-high {
-      background-color: var(--pf-color-danger);
+      background-color: var(--pf-color-success);
     }
 
     .pf-importance-mid {
-      background-color: var(--pf-color-primary);
+      background-color: var(--pf-color-warning);
     }
 
     .pf-importance-low {
-      background-color: var(--pf-color-text-disabled);
+      background-color: var(--pf-color-danger);
     }
 
     .table-description {

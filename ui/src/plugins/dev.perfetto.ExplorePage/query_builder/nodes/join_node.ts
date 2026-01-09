@@ -52,12 +52,14 @@ export interface JoinSerializedState {
     type: string;
     checked: boolean;
     alias?: string;
+    columnName: string; // Original source column name
   }[];
   rightColumns?: {
     name: string;
     type: string;
     checked: boolean;
     alias?: string;
+    columnName: string; // Original source column name
   }[];
 }
 
@@ -146,7 +148,16 @@ export class JoinNode implements QueryNode {
     this.nextNodes = [];
 
     // Initialize column arrays from connected nodes if empty
-    this.updateColumnArrays();
+    // BUT: Only do this if we don't already have deserialized column data
+    // If leftColumns/rightColumns exist, they came from deserialization and
+    // we should preserve them. updateColumnArrays() will be called later
+    // when connections are restored via onPrevNodesUpdated()
+    if (
+      (!this.state.leftColumns || this.state.leftColumns.length === 0) &&
+      (!this.state.rightColumns || this.state.rightColumns.length === 0)
+    ) {
+      this.updateColumnArrays();
+    }
   }
 
   onPrevNodesUpdated() {
@@ -515,12 +526,14 @@ export class JoinNode implements QueryNode {
         type: c.type,
         checked: c.checked,
         alias: c.alias,
+        columnName: c.column.name, // Save original source column name
       })),
       rightColumns: (this.state.rightColumns ?? []).map((c) => ({
         name: c.name,
         type: c.type,
         checked: c.checked,
         alias: c.alias,
+        columnName: c.column.name, // Save original source column name
       })),
     };
   }
@@ -539,7 +552,7 @@ export class JoinNode implements QueryNode {
           name: c.name,
           type: c.type,
           checked: c.checked,
-          column: {name: c.name},
+          column: {name: c.columnName ?? c.name}, // Use original column name
           alias: c.alias,
         })) ?? [],
       rightColumns:
@@ -547,7 +560,7 @@ export class JoinNode implements QueryNode {
           name: c.name,
           type: c.type,
           checked: c.checked,
-          column: {name: c.name},
+          column: {name: c.columnName ?? c.name}, // Use original column name
           alias: c.alias,
         })) ?? [],
     };
