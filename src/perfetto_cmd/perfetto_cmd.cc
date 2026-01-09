@@ -417,8 +417,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
     if (option == OPT_UPLOAD_AFTER_REBOOT) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-      upload_after_reboot_flag_ = true;
-      continue;
+      // TODO(ktimofeev): add comment on why we do it here and why we don't care
+      // about other cli options.
+      // TODO(ktimofeev): return exit code from the function.
+      ReportAllPersistentTracesToAndroidFramework();
+      return 0;
 #else
       PERFETTO_ELOG("--upload-after-reboot is only supported on Android");
       return 1;
@@ -580,8 +583,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
-  if (upload_after_reboot_flag_ &&
-      (is_attach() || is_detach() || query_service_ || has_config_options ||
+  if ((is_attach() || is_detach() || query_service_ || has_config_options ||
        background_wait_ || bugreport_ || clone_all_bugreport_traces_)) {
     PERFETTO_ELOG("--upload-after-reboot cannot take any other argument");
     return 1;
@@ -616,9 +618,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   bool parsed = false;
   bool cfg_could_be_txt = false;
-  const bool will_trace_or_trigger = !is_attach() && !query_service_ &&
-                                     !clone_all_bugreport_traces_ &&
-                                     !upload_after_reboot_flag_;
+  const bool will_trace_or_trigger =
+      !is_attach() && !query_service_ && !clone_all_bugreport_traces_;
   if (!will_trace_or_trigger) {
     if ((!trace_config_raw.empty() || has_config_options)) {
       PERFETTO_ELOG("Cannot specify a trace config with this option");
@@ -976,13 +977,6 @@ int PerfettoCmd::ConnectToServiceRunAndMaybeNotify() {
 }
 
 int PerfettoCmd::ConnectToServiceAndRun() {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  if (upload_after_reboot_flag_) {
-    // Doesn't actually connect to service.
-    ReportAllPersistentTracesToAndroidFramework();
-    return 0;
-  }
-#endif
   // If we are just activating triggers then we don't need to rate limit,
   // connect as a consumer or run the trace. So bail out after processing all
   // the options.
