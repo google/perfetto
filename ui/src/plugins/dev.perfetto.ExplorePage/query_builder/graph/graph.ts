@@ -626,8 +626,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
     // Only update labels if the reference changed (indicating external state update)
-    if (vnode.attrs.labels !== old.attrs.labels && vnode.attrs.labels) {
-      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
+    if (vnode.attrs.labels !== old.attrs.labels) {
+      if (vnode.attrs.labels) {
+        this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
+      } else {
+        // Clear labels when attrs.labels is undefined
+        this.deserializeLabels([]);
+      }
     }
     return true;
   }
