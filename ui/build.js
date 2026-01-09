@@ -627,7 +627,6 @@ function genServiceWorkerManifestJson() {
     // itself and the copy of the index.html which is copied under /v1.2.3/.
     // The root /index.html will be fetched by service_worker.js separately.
     const skipRegex = /(\.map|manifest\.json|index.html)$/;
-    const then = performance.now();
     walk(
         cfg.outDistDir,
         (absPath) => {
@@ -642,8 +641,6 @@ function genServiceWorkerManifestJson() {
         skipRegex,
     );
     const manifestJson = JSON.stringify(manifest, null, 2);
-    const now = performance.now();
-    console.log((now - then) / 1000);
     fs.writeFileSync(pjoin(cfg.outDistDir, 'manifest.json'), manifestJson);
   }
   addTask(makeManifest, []);
