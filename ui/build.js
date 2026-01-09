@@ -168,6 +168,7 @@ async function main() {
     help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
   });
   parser.add_argument('--no-override-gn-args', {action: 'store_true'});
+  parser.add_argument('--esbuild', {action: 'store_true'});
 
   const args = parser.parse_args();
   const clean = !args.no_build;
@@ -189,6 +190,7 @@ async function main() {
   cfg.openPerfettoTrace = !!args.open_perfetto_trace;
   cfg.startHttpServer = args.serve;
   cfg.noOverrideGnArgs = !!args.no_override_gn_args;
+  cfg.esbuild = !!args.esbuild;
   if (args.minify_js) {
     cfg.minifyJs = args.minify_js;
   }
@@ -296,7 +298,7 @@ async function main() {
       }
     }
 
-    bundleJs('rollup.config.js');
+    bundleJs();
     genServiceWorkerManifestJson();
 
     // Watches the /dist. When changed:
@@ -561,8 +563,33 @@ function transpileTsProject(project, options) {
 }
 
 // Creates the three {frontend, controller, engine}_bundle.js in one invocation.
-function bundleJs(cfgName) {
-  const rcfg = pjoin(ROOT_DIR, 'ui/config', cfgName);
+function bundleJs() {
+  if (cfg.esbuild) {
+    bundleJsEsbuild();
+  } else {
+    bundleJsRollup();
+  }
+}
+
+function bundleJsEsbuild() {
+  const script = pjoin(ROOT_DIR, 'ui/config/esbuild.config.js');
+  const args = [script];
+  if (cfg.watch) args.push('--watch');
+  if (cfg.bigtrace) args.push('--bigtrace');
+  if (cfg.openPerfettoTrace) args.push('--open-perfetto-trace');
+  if (cfg.minifyJs) {
+    args.push('--minify-js', cfg.minifyJs);
+  }
+  if (cfg.onlyWasmMemory64) args.push('--only-wasm-memory64');
+  if (cfg.watch) {
+    addTask(exec, ['node', args, {async: true}]);
+  } else {
+    addTask(exec, ['node', args]);
+  }
+}
+
+function bundleJsRollup() {
+  const rcfg = pjoin(ROOT_DIR, 'ui/config/rollup.config.js');
   const args = ['-c', rcfg, '--no-indent'];
   if (cfg.bigtrace) {
     args.push('--environment', 'ENABLE_BIGTRACE:true');
@@ -581,7 +608,7 @@ function bundleJs(cfgName) {
     // --waitForBundleInput is sadly quite busted so it is required ts
     // has build at least once before invoking this.
     args.push('--watch', '--no-watch.clearScreen');
-    addTask(execModule, ['rollup', args, {async: true}]);
+    addTask(execModule, ['rollup', args, { async: true }]);
   } else {
     addTask(execModule, ['rollup', args]);
   }
@@ -594,6 +621,7 @@ function genServiceWorkerManifestJson() {
     // itself and the copy of the index.html which is copied under /v1.2.3/.
     // The root /index.html will be fetched by service_worker.js separately.
     const skipRegex = /(\.map|manifest\.json|index.html)$/;
+    const then = performance.now();
     walk(cfg.outDistDir, (absPath) => {
       const contents = fs.readFileSync(absPath);
       const relPath = path.relative(cfg.outDistDir, absPath);
@@ -601,6 +629,8 @@ function genServiceWorkerManifestJson() {
       manifest.resources[relPath] = 'sha256-' + b64;
     }, skipRegex);
     const manifestJson = JSON.stringify(manifest, null, 2);
+    const now = performance.now();
+    console.log((now - then) / 1000);
     fs.writeFileSync(pjoin(cfg.outDistDir, 'manifest.json'), manifestJson);
   }
   addTask(makeManifest, []);
