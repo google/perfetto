@@ -54,6 +54,9 @@ const char* kStateDir = "/data/misc/perfetto-traces";
 
 constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 
+static constexpr char kSysBootCompletedProperty[] = "sys.boot_completed";
+static constexpr int64_t kWaitForSysBootCompletedSeconds = 120;  // 2 minutes.
+
 }  // namespace
 
 void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
@@ -291,6 +294,26 @@ void PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
     // just crash, we don't care about traces to be reported.
     PERFETTO_FATAL(
         "Failed to set property perfetto.persistent.uploader.status");
+  }
+
+  // Now we wait until boot completes to make sure Android reporter service is
+  // available.
+  // '__system_property_wait' is only available since API level 26, so we have a
+  // simple loop here.
+  bool boot_completed = false;
+  for (int i = 0; i < kWaitForSysBootCompletedSeconds; i++) {
+    if (base::GetAndroidProp(kSysBootCompletedProperty) == "1") {
+      boot_completed = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  if (!boot_completed) {
+    PERFETTO_ELOG(
+        "System did not boot within %ld seconds, persistent traces will not be "
+        "uploaded.",
+        kWaitForSysBootCompletedSeconds);
+    return;
   }
 
   for (base::ScopedFile& fd : fds) {
