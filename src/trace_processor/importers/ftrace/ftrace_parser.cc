@@ -4465,14 +4465,33 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
 }
 
 void FtraceParser::ParseGpuPowerState(int64_t ts, protozero::ConstBytes blob) {
-  static constexpr auto kGpuPowerStateBlueprint = tracks::CounterBlueprint(
-      "gpu_power_state", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(),
-      tracks::StaticNameBlueprint("gpu_power_state"));
+  static constexpr auto kGpuPowerStateSliceBlueprint = tracks::SliceBlueprint(
+      "powervr_gpu_power_state", tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("powervr_gpu_power_state"));
 
   protos::pbzero::GpuPowerStateFtraceEvent::Decoder event(blob);
-  TrackId track = context_->track_tracker->InternTrack(kGpuPowerStateBlueprint);
-  context_->event_tracker->PushCounter(ts, event.new_state(), track);
+  TrackId track_id =
+      context_->track_tracker->InternTrack(kGpuPowerStateSliceBlueprint);
+
+  context_->slice_tracker->End(ts, track_id);
+
+  const char* state_name = nullptr;
+  switch (event.new_state()) {
+    case 0:
+      state_name = "OFF";
+      break;
+    case 1:
+      state_name = "PG";
+      break;
+    case 2:
+      state_name = "ON";
+      break;
+    default:
+      state_name = "UNKNOWN";
+      break;
+  }
+  StringId slice_name_id = context_->storage->InternString(state_name);
+  context_->slice_tracker->Begin(ts, track_id, kNullStringId, slice_name_id);
 }
 
 }  // namespace perfetto::trace_processor
