@@ -25,6 +25,7 @@ import {
 import {RpcConsumerPort} from './record_controller_interfaces';
 import {
   browserSupportsPerfettoConfig,
+  browserSupportsTrackEventDescriptor,
   extractTraceConfig,
   hasSystemDataSourceConfig,
 } from './trace_config_utils';
@@ -254,8 +255,27 @@ export class ChromeTracingController extends RpcConsumerPort {
 
   getTrackEventDescriptor() {
     const fetchTrackEventDescriptor = async () => {
-      const descriptor = base64Decode((await this.api.Tracing.getTrackEventDescriptor()).descriptor);
-      this.uiPort.postMessage({type: 'GetTrackEventDescriptorResponse', descriptor});
+      let serializedDescriptor: Uint8Array;
+      if (browserSupportsTrackEventDescriptor()) {
+        serializedDescriptor = base64Decode(
+          (await this.api.Tracing.getTrackEventDescriptor()).descriptor,
+        );
+      } else {
+        const categories = (await this.api.Tracing.getCategories()).categories;
+        const descriptor = protos.TrackEventDescriptor.create({
+          availableCategories: categories.map((value) => {
+            return protos.TrackEventCategory.create({
+              name: value,
+            });
+          }),
+        });
+        serializedDescriptor =
+          protos.TrackEventDescriptor.encode(descriptor).finish();
+      }
+      this.uiPort.postMessage({
+        type: 'GetTrackEventDescriptorResponse',
+        serializedDescriptor,
+      });
     };
     // If a target is already attached, we simply fetch the categories.
     if (this.devtoolsSocket.isAttached()) {
