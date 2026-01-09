@@ -753,17 +753,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   // Respect the wishes of the config with respect to statsd logging or fall
   // back on the presence of the --upload flag if not set.
-  switch (trace_config_->statsd_logging()) {
-    case TraceConfig::STATSD_LOGGING_ENABLED:
-      statsd_logging_ = true;
-      break;
-    case TraceConfig::STATSD_LOGGING_DISABLED:
-      statsd_logging_ = false;
-      break;
-    case TraceConfig::STATSD_LOGGING_UNSPECIFIED:
-      statsd_logging_ = upload_flag_;
-      break;
-  }
+  statsd_logging_ = ShouldLogStatsdEvents(
+      *trace_config_, /*unspecified_filed_value=*/upload_flag_);
   trace_config_->set_statsd_logging(statsd_logging_
                                         ? TraceConfig::STATSD_LOGGING_ENABLED
                                         : TraceConfig::STATSD_LOGGING_DISABLED);
@@ -1816,6 +1807,20 @@ void PerfettoCmd::CloneAllBugreportTraces(
       }
     });
   }
+}
+
+// static
+bool PerfettoCmd::ShouldLogStatsdEvents(const TraceConfig& cfg,
+                                        bool unspecified_filed_value) {
+  switch (cfg.statsd_logging()) {
+    case TraceConfig::STATSD_LOGGING_ENABLED:
+      return true;
+    case TraceConfig::STATSD_LOGGING_DISABLED:
+      return false;
+    case TraceConfig::STATSD_LOGGING_UNSPECIFIED:
+      break;
+  }
+  return unspecified_filed_value;
 }
 
 void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {

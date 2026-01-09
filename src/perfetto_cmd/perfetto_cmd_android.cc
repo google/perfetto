@@ -327,10 +327,13 @@ void PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
 
     base::Uuid uuid(trace_config->trace_uuid_lsb(),
                     trace_config->trace_uuid_msb());
-    // TODO(ktimofeev): read |statsd_logging| from |trace_config|.
+    // Respect the wishes of the config with respect to statsd logging, enable
+    // if unspecified.
+    bool statsd_logging =
+        ShouldLogStatsdEvents(*trace_config, /*unspecified_filed_value=*/true);
     base::Status status = ReportTraceToAndroidFramework(
         *fd, file_size, uuid, trace_config->unique_session_name(),
-        trace_config->android_report_config(), false);
+        trace_config->android_report_config(), statsd_logging);
     if (!status.ok()) {
       PERFETTO_ELOG("ReportTraceToAndroidFramework failed: %s",
                     status.c_message());
