@@ -54,6 +54,7 @@ using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::Property;
 using ::testing::SizeIs;
 
@@ -1522,7 +1523,7 @@ TEST_F(PerfettoCmdlineTest, NoClobber) {
   {
     std::string file_content;
     base::ReadFile(output_file_path, &file_content);
-    ASSERT_EQ(file_content, original_file_content);
+    EXPECT_EQ(file_content, original_file_content);
   }
 
   // Assert regular invocation successfully overwrites a file.
@@ -1530,7 +1531,8 @@ TEST_F(PerfettoCmdlineTest, NoClobber) {
   {
     std::string file_content;
     base::ReadFile(output_file_path, &file_content);
-    ASSERT_NE(file_content, original_file_content);
+    EXPECT_THAT(file_content, Not(IsEmpty()));
+    EXPECT_NE(file_content, original_file_content);
   }
 }
 
