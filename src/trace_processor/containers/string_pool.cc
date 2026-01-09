@@ -55,7 +55,12 @@ StringPool::Id StringPool::InsertString(base::StringView str) {
           "If your workload legitimately requires more unique strings, "
           "please file a bug. For workarounds, consider turning off parsing "
           "of raw ftrace events as this can generate a very large number of "
-          "unique strings.",
+          "unique strings. How you do this varies depending on how you are "
+          "using trace processor: 1) for the CLI, use the "
+          "--no-ftrace-raw flag; 2) for the Python API, set the "
+          "ingest_ftrace_in_raw flag to false in TraceProcessorConfig (this "
+          "is also the default) 3) for the C++ API, set the "
+          "ingest_ftrace_in_raw flag to false in TraceProcessorConfig.",
           (kMaxBlockCount * kBlockSizeBytes) / (1024 * 1024));
     }
     blocks_[new_index] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
