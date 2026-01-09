@@ -199,6 +199,7 @@ class PerfettoCmd : public Consumer {
   bool background_wait_ = false;
   bool ignore_guardrails_ = false;
   bool upload_flag_ = false;
+  bool no_clobber_ = false;
   bool connected_ = false;
   std::string uuid_;
   std::optional<TracingSessionID> clone_tsid_{};

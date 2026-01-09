@@ -166,6 +166,7 @@ Usage: %s
                              If using CLONE_SNAPSHOT triggers, each snapshot
                              will be saved in a new file with a counter suffix
                              (e.g., file.0, file.1, file.2).
+  --no-clobber     -n      : Do not overwrite an existing output file.
   --txt                    : Parse config as pbtxt. Not for production use.
                              Not a stable API.
   --query [--long]         : Queries the service state and prints it as
@@ -243,6 +244,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"help", no_argument, nullptr, 'h'},
       {"config", required_argument, nullptr, 'c'},
       {"out", required_argument, nullptr, 'o'},
+      {"no-clobber", no_argument, nullptr, 'n'},
       {"background", no_argument, nullptr, 'd'},
       {"background-wait", no_argument, nullptr, 'D'},
       {"time", required_argument, nullptr, 't'},
@@ -295,7 +297,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   optind = 1;  // Reset getopt state. It's reused by the snapshot thread.
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hc:o:dDt:b:s:a:", long_options, nullptr);
+        getopt_long(argc, argv, "hc:o:ndDt:b:s:a:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -346,6 +348,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
     if (option == 'o') {
       trace_out_path_ = optarg;
+      continue;
+    }
+
+    if (option == 'n') {
+      no_clobber_ = true;
       continue;
     }
 
@@ -1262,7 +1269,9 @@ bool PerfettoCmd::OpenOutputFile() {
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));
   } else {
-    fd = base::OpenFile(trace_out_path_, O_RDWR | O_CREAT | O_TRUNC, 0600);
+    // O_CREAT | O_EXCL will fail if the file exists already.
+    const int flags = O_RDWR | O_CREAT | (no_clobber_ ? O_EXCL : O_TRUNC);
+    fd = base::OpenFile(trace_out_path_, flags, 0600);
   }
   if (!fd) {
     PERFETTO_PLOG(
