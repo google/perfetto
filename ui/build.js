@@ -14,7 +14,6 @@
 
 'use strict';
 
-
 // This script takes care of:
 // - The build process for the whole UI and the chrome extension.
 // - The HTTP dev-server with live-reload capabilities.
@@ -73,7 +72,7 @@ const http = require('http');
 const path = require('path');
 const pjoin = path.join;
 
-const ROOT_DIR = path.dirname(__dirname);  // The repo root.
+const ROOT_DIR = path.dirname(__dirname); // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
 const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
 
@@ -102,7 +101,7 @@ const cfg = {
   //      v1.2/  -> outDistDir     : JS bundles and assets
   //    chrome_extension/          : Chrome extension.
   outDir: pjoin(ROOT_DIR, 'out/ui'),
-  version: '',  // v1.2.3, derived from the CHANGELOG + git.
+  version: '', // v1.2.3, derived from the CHANGELOG + git.
   outUiDir: '',
   outUiTestArtifactsDir: '',
   outDistRootDir: '',
@@ -124,7 +123,10 @@ const RULES = [
   {r: /ui\/src\/assets\/(explore_page\/node_info\/(.*)[.]md)/, f: copyAssets},
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
-  {r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+[.]scss/, f: compileScss},
+  {
+    r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+[.]scss/,
+    f: compileScss,
+  },
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
@@ -139,7 +141,6 @@ const subprocesses = [];
 const LIVE_SERVER_DEBOUNCE_MS = 250;
 let liveServerDebounceTimerId = 0;
 const notifyLiveServerPendingFiles = new Set();
-
 
 async function main() {
   const parser = new argparse.ArgumentParser();
@@ -198,8 +199,9 @@ async function main() {
     cfg.outBigtraceDistDir = ensureDir(pjoin(cfg.outDistDir, 'bigtrace'));
   }
   if (cfg.openPerfettoTrace) {
-    cfg.outOpenPerfettoTraceDistDir = ensureDir(pjoin(cfg.outDistRootDir,
-                                                      'open_perfetto_trace'));
+    cfg.outOpenPerfettoTraceDistDir = ensureDir(
+        pjoin(cfg.outDistRootDir, 'open_perfetto_trace'),
+    );
   }
   if (args.serve_host) {
     cfg.httpServerListenHost = args.serve_host;
@@ -217,7 +219,11 @@ async function main() {
     cfg.crossOriginIsolation = true;
   }
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
-  cfg.wasmModules = ['traceconv', 'trace_config_utils', 'trace_processor_memory64'];
+  cfg.wasmModules = [
+    'traceconv',
+    'trace_config_utils',
+    'trace_processor_memory64',
+  ];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
   }
@@ -227,8 +233,8 @@ async function main() {
     for (const proc of subprocesses) {
       if (proc) proc.kill('SIGKILL');
     }
-    process.kill(0, 'SIGKILL');  // Kill the whole process group.
-    process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
+    process.kill(0, 'SIGKILL'); // Kill the whole process group.
+    process.exit(130); // 130 -> Same behavior of bash when killed by SIGINT.
   });
 
   if (!args.no_depscheck) {
@@ -241,11 +247,7 @@ async function main() {
       const result = childProcess.spawnSync('arch', ['-arm64', 'true']);
       const isArm64Capable = result.status === 0;
       if (isArm64Capable) {
-        const archArgs = [
-          'arch',
-          '-arch',
-          'arm64',
-        ];
+        const archArgs = ['arch', '-arch', 'arm64'];
         args = archArgs.concat(args);
       }
     }
@@ -262,7 +264,7 @@ async function main() {
   addTask(() => {});
 
   if (!args.no_build) {
-    updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
+    updateSymlinks(); // Links //ui/out -> //out/xxx/ui/
 
     buildWasm(args.no_wasm);
     generateImports('ui/src/core_plugins', 'all_core_plugins');
@@ -277,16 +279,12 @@ async function main() {
     genVersion();
     generateStdlibDocs();
 
-    const tsProjects = [
-      'ui',
-      'ui/src/service_worker'
-    ];
+    const tsProjects = ['ui', 'ui/src/service_worker'];
     if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
     if (cfg.openPerfettoTrace) {
       scanDir('ui/src/open_perfetto_trace');
       tsProjects.push('ui/src/open_perfetto_trace');
     }
-
 
     for (const prj of tsProjects) {
       transpileTsProject(prj);
@@ -318,7 +316,8 @@ async function main() {
     while (!isDistComplete()) {
       const secs = Math.ceil((performance.now() - tStart) / 1000);
       process.stdout.write(
-          `\t\tWaiting for first build to complete... ${secs} s\r`);
+          `\t\tWaiting for first build to complete... ${secs} s\r`,
+      );
       await new Promise((r) => setTimeout(r, 500));
     }
   }
@@ -368,7 +367,7 @@ function cpHtml(src, filename) {
   // Then copy it into the dist/ root by patching the version code.
   // TODO(primiano): in next CLs, this script should take a
   // --release_map=xxx.json argument, to populate this with multiple channels.
-  const versionMap = JSON.stringify({'stable': cfg.version});
+  const versionMap = JSON.stringify({stable: cfg.version});
   const bodyRegex = /data-perfetto_version='[^']*'/;
   html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
   fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
@@ -469,8 +468,11 @@ function generateImports(dir, name) {
 // Generates a .ts source that defines the VERSION and SCM_REVISION constants.
 function genVersion() {
   const cmd = 'python3';
-  const args =
-      [VERSION_SCRIPT, '--ts_out', pjoin(cfg.outGenDir, 'perfetto_version.ts')];
+  const args = [
+    VERSION_SCRIPT,
+    '--ts_out',
+    pjoin(cfg.outGenDir, 'perfetto_version.ts'),
+  ];
   addTask(exec, [cmd, args]);
 }
 
@@ -478,9 +480,9 @@ function generateStdlibDocs() {
   const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_docs_json.py');
   const stdlibDir = pjoin(ROOT_DIR, 'src/trace_processor/perfetto_sql/stdlib');
 
-  const stdlibFiles =
-    listFilesRecursive(stdlibDir)
-    .filter((filePath) => path.extname(filePath) === '.sql');
+  const stdlibFiles = listFilesRecursive(stdlibDir).filter(
+      (filePath) => path.extname(filePath) === '.sql',
+  );
 
   addTask(exec, [
     cmd,
@@ -503,16 +505,20 @@ function updateSymlinks() {
   // /out/ui/test/data -> /test/data (For UI tests).
   mklink(
       pjoin(ROOT_DIR, 'test/data'),
-      pjoin(ensureDir(pjoin(cfg.outDir, 'test')), 'data'));
+      pjoin(ensureDir(pjoin(cfg.outDir, 'test')), 'data'),
+  );
 
   // Creates a out/dist_version -> out/dist/v1.2.3 symlink, so rollup config
   // can point to that without having to know the current version number.
   mklink(
       path.relative(cfg.outUiDir, cfg.outDistDir),
-      pjoin(cfg.outUiDir, 'dist_version'));
+      pjoin(cfg.outUiDir, 'dist_version'),
+  );
 
   mklink(
-      pjoin(ROOT_DIR, 'ui/node_modules'), pjoin(cfg.outTscDir, 'node_modules'));
+      pjoin(ROOT_DIR, 'ui/node_modules'),
+      pjoin(cfg.outTscDir, 'node_modules'),
+  );
 }
 
 // Invokes ninja for building the {trace_processor, traceconv} Wasm modules.
@@ -608,7 +614,7 @@ function bundleJsRollup() {
     // --waitForBundleInput is sadly quite busted so it is required ts
     // has build at least once before invoking this.
     args.push('--watch', '--no-watch.clearScreen');
-    addTask(execModule, ['rollup', args, { async: true }]);
+    addTask(execModule, ['rollup', args, {async: true}]);
   } else {
     addTask(execModule, ['rollup', args]);
   }
@@ -622,12 +628,19 @@ function genServiceWorkerManifestJson() {
     // The root /index.html will be fetched by service_worker.js separately.
     const skipRegex = /(\.map|manifest\.json|index.html)$/;
     const then = performance.now();
-    walk(cfg.outDistDir, (absPath) => {
-      const contents = fs.readFileSync(absPath);
-      const relPath = path.relative(cfg.outDistDir, absPath);
-      const b64 = crypto.createHash('sha256').update(contents).digest('base64');
-      manifest.resources[relPath] = 'sha256-' + b64;
-    }, skipRegex);
+    walk(
+        cfg.outDistDir,
+        (absPath) => {
+          const contents = fs.readFileSync(absPath);
+          const relPath = path.relative(cfg.outDistDir, absPath);
+          const b64 = crypto
+              .createHash('sha256')
+              .update(contents)
+              .digest('base64');
+          manifest.resources[relPath] = 'sha256-' + b64;
+        },
+        skipRegex,
+    );
     const manifestJson = JSON.stringify(manifest, null, 2);
     const now = performance.now();
     console.log((now - then) / 1000);
@@ -637,11 +650,16 @@ function genServiceWorkerManifestJson() {
 }
 
 function startServer() {
-  const host = cfg.httpServerListenHost == '127.0.0.1' ? 'localhost' : cfg.httpServerListenHost;
+  const host =
+    cfg.httpServerListenHost == '127.0.0.1' ?
+      'localhost' :
+      cfg.httpServerListenHost;
   console.log(
       'Starting HTTP server on',
-      `http://${host}:${cfg.httpServerListenPort}`);
-  http.createServer(function(req, res) {
+      `http://${host}:${cfg.httpServerListenPort}`,
+  );
+  http
+      .createServer(function(req, res) {
         console.debug(req.method, req.url);
         let uri = req.url.split('?', 1)[0];
         if (uri.endsWith('/')) {
@@ -649,7 +667,7 @@ function startServer() {
         }
 
         if (uri === '/live_reload') {
-          // Implements the Server-Side-Events protocol.
+        // Implements the Server-Side-Events protocol.
           const head = {
             'Content-Type': 'text/event-stream',
             'Connection': 'keep-alive',
@@ -688,10 +706,10 @@ function startServer() {
           }
 
           const mimeMap = {
-            'html': 'text/html',
-            'css': 'text/css',
-            'js': 'application/javascript',
-            'wasm': 'application/wasm',
+            html: 'text/html',
+            css: 'text/css',
+            js: 'application/javascript',
+            wasm: 'application/wasm',
           };
           const ext = uri.split('.').pop();
           const cType = mimeMap[ext] || 'octect/stream';
@@ -746,8 +764,7 @@ function notifyLiveServer(changedFile) {
     for (const cli of httpWatches) {
       if (cli === undefined) continue;
       for (const file of notifyLiveServerPendingFiles) {
-        cli.write(
-            'data: ' + path.relative(cfg.outDistRootDir, file) + '\n\n');
+        cli.write('data: ' + path.relative(cfg.outDistRootDir, file) + '\n\n');
       }
     }
     notifyLiveServerPendingFiles.clear();
@@ -782,13 +799,13 @@ function addTask(func, args) {
 }
 
 function runTasks() {
-  const snapTasks = tasks.splice(0);  // snap = std::move(tasks).
+  const snapTasks = tasks.splice(0); // snap = std::move(tasks).
   tasksTot += snapTasks.length;
   for (const task of snapTasks) {
     const DIM = '\u001b[2m';
     const BRT = '\u001b[37m';
     const RST = '\u001b[0m';
-    const ms = (performance.now() - tStart) / 1000;;
+    const ms = (performance.now() - tStart) / 1000;
     const ts = `[${DIM}${ms.toFixed(3)}${RST}]`;
     const descr = task.description.substr(0, 80);
     console.log(`${ts} ${BRT}${++tasksRan}/${tasksTot}${RST}\t${descr}`);
@@ -934,7 +951,11 @@ function cp(src, dst) {
   ensureDir(path.dirname(dst));
   if (cfg.verbose) {
     console.log(
-        'cp', path.relative(ROOT_DIR, src), '->', path.relative(ROOT_DIR, dst));
+        'cp',
+        path.relative(ROOT_DIR, src),
+        '->',
+        path.relative(ROOT_DIR, dst),
+    );
   }
   fs.copyFileSync(src, dst);
 }

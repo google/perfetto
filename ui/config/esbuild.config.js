@@ -29,8 +29,8 @@ const minifyJs = minifyArgIdx !== -1;
 const traceProcessorReplacementPlugin = {
   name: 'trace-processor-replacement',
   setup(build) {
-    build.onResolve({ filter: /trace_processor_32_stub/ }, args => {
-      return { path: path.join(args.resolveDir, '../gen/trace_processor.js') };
+    build.onResolve({filter: /trace_processor_32_stub/}, (args) => {
+      return {path: path.join(args.resolveDir, '../gen/trace_processor.js')};
     });
   },
 };
@@ -75,10 +75,18 @@ async function main() {
     makeCtx('chrome_extension', 'chrome_extension', 'chrome_extension'),
   ];
   if (bigtrace) {
-    tasks.push(makeCtx('bigtrace/bigtrace', 'dist_version/bigtrace', 'bigtrace'));
+    tasks.push(
+        makeCtx('bigtrace/bigtrace', 'dist_version/bigtrace', 'bigtrace'),
+    );
   }
   if (openPerfettoTrace) {
-    tasks.push(makeCtx('open_perfetto_trace', 'dist/open_perfetto_trace', 'open_perfetto_trace'));
+    tasks.push(
+        makeCtx(
+            'open_perfetto_trace',
+            'dist/open_perfetto_trace',
+            'open_perfetto_trace',
+        ),
+    );
   }
   await Promise.all(tasks);
 }
