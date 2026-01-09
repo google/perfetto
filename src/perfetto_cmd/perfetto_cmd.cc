@@ -417,11 +417,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
     if (option == OPT_UPLOAD_AFTER_REBOOT) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-      // TODO(ktimofeev): add comment on why we do it here and why we don't care
-      // about other cli options.
-      // TODO(ktimofeev): return exit code from the function.
-      ReportAllPersistentTracesToAndroidFramework();
-      return 0;
+      // The --upload-after-reboot flag is only used by the 'perfetto.rc' init
+      // script during system boot. This is a oneshot standalone operation, that
+      // doesn't consume any other flags.
+      bool all_reports_succeed = ReportAllPersistentTracesToAndroidFramework();
+      return all_reports_succeed ? 0 : 1;
 #else
       PERFETTO_ELOG("--upload-after-reboot is only supported on Android");
       return 1;

@@ -167,7 +167,9 @@ class PerfettoCmd : public Consumer {
       const protos::gen::TraceConfig_AndroidReportConfig& report_config,
       bool statsd_logging);
   void ReportTraceToAndroidFrameworkOrCrash(int trace_fd, uint64_t trace_size);
-  void ReportAllPersistentTracesToAndroidFramework();
+  // Return true if all persistent traces were successfully reported (or no
+  // traces found).
+  static bool ReportAllPersistentTracesToAndroidFramework();
   static std::vector<base::ScopedFile>
   UnlinkAndReturnPersistentTracesToUpload();
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
