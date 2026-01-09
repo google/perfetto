@@ -1531,7 +1531,7 @@ TEST_F(PerfettoCmdlineTest, NoClobber) {
     ASSERT_EQ(file_content, original_file_content);
   }
 
-  // Assert regular invocation sucsfull overwrites a file.
+  // Assert regular invocation successfully overwrites a file.
   ASSERT_EQ(0, perfetto_proc_overwrite_file.Run(&stderr_)) << stderr_;
   {
     std::string file_content;
