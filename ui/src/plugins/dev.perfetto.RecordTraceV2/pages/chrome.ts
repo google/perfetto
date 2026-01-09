@@ -77,7 +77,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       const memoryInfra = cats.has('disabled-by-default-memory-infra');
       const jsonStruct = {
         record_mode:
-          tc.mode === 'STOP_WHEN_FULLSSS'
+          tc.mode === 'STOP_WHEN_FULL'
             ? 'record-until-full'
             : 'record-continuously',
         included_categories: [...cats],
