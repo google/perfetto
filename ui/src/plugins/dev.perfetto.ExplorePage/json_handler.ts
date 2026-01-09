@@ -132,6 +132,73 @@ function serializeNode(node: QueryNode): SerializedNode {
   return serialized;
 }
 
+interface LabelData {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  text: string;
+}
+
+/**
+ * Normalizes layout coordinates so that the top-left corner is at (minX, minY).
+ * This ensures consistent positioning when loading/exporting graphs.
+ */
+function normalizeLayoutCoordinates(
+  nodeLayouts: Map<string, {x: number; y: number}>,
+  labels: LabelData[] | undefined,
+): {
+  nodeLayouts: Map<string, {x: number; y: number}>;
+  labels: LabelData[] | undefined;
+} {
+  // Collect all x and y coordinates from node layouts and labels
+  const xCoords: number[] = [];
+  const yCoords: number[] = [];
+
+  for (const layout of nodeLayouts.values()) {
+    xCoords.push(layout.x);
+    yCoords.push(layout.y);
+  }
+
+  if (labels) {
+    for (const label of labels) {
+      xCoords.push(label.x);
+      yCoords.push(label.y);
+    }
+  }
+
+  // If there are no coordinates, return as-is
+  if (xCoords.length === 0) {
+    return {nodeLayouts, labels};
+  }
+
+  const minX = Math.min(...xCoords);
+  const minY = Math.min(...yCoords);
+
+  // If already normalized (minX and minY are 0), return as-is
+  if (minX === 0 && minY === 0) {
+    return {nodeLayouts, labels};
+  }
+
+  // Create new normalized layouts
+  const normalizedLayouts = new Map<string, {x: number; y: number}>();
+  for (const [nodeId, layout] of nodeLayouts) {
+    normalizedLayouts.set(nodeId, {
+      x: layout.x - minX,
+      y: layout.y - minY,
+    });
+  }
+
+  // Normalize labels if present
+  const normalizedLabels = labels?.map((label) => ({
+    ...label,
+    x: label.x - minX,
+    y: label.y - minY,
+  }));
+
+  return {nodeLayouts: normalizedLayouts, labels: normalizedLabels};
+}
+
 export function serializeState(state: ExplorePageState): string {
   // Use utility function to get all nodes (bidirectional traversal)
   const allNodesArray = getAllNodesUtil(state.rootNodes);
@@ -142,12 +209,18 @@ export function serializeState(state: ExplorePageState): string {
 
   const serializedNodes = Array.from(allNodes.values()).map(serializeNode);
 
+  // Normalize coordinates so top-left corner is at (0, 0) when exporting
+  const normalized = normalizeLayoutCoordinates(
+    state.nodeLayouts,
+    state.labels,
+  );
+
   const serializedGraph: SerializedGraph = {
     nodes: serializedNodes,
     rootNodeIds: state.rootNodes.map((n) => n.nodeId),
     selectedNodeId: state.selectedNode?.nodeId,
-    nodeLayouts: Object.fromEntries(state.nodeLayouts),
-    labels: state.labels,
+    nodeLayouts: Object.fromEntries(normalized.nodeLayouts),
+    labels: normalized.labels,
     isExplorerCollapsed: state.isExplorerCollapsed,
     sidebarWidth: state.sidebarWidth,
   };
@@ -485,16 +558,22 @@ export function deserializeState(
     : undefined;
 
   // Use provided nodeLayouts if present, otherwise use empty map (will trigger auto-layout)
-  const nodeLayouts =
+  let nodeLayouts =
     serializedGraph.nodeLayouts != null
       ? new Map(Object.entries(serializedGraph.nodeLayouts))
       : new Map<string, {x: number; y: number}>();
+
+  // Normalize coordinates so top-left corner is at (minX, minY)
+  let labels = serializedGraph.labels;
+  const normalized = normalizeLayoutCoordinates(nodeLayouts, labels);
+  nodeLayouts = normalized.nodeLayouts;
+  labels = normalized.labels;
 
   return {
     rootNodes,
     selectedNode,
     nodeLayouts,
-    labels: serializedGraph.labels,
+    labels,
     isExplorerCollapsed: serializedGraph.isExplorerCollapsed,
     sidebarWidth: serializedGraph.sidebarWidth,
   };
