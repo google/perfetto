@@ -1278,10 +1278,6 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 #endif
   } else if (report_to_android_framework_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    // TODO(ktimofeev): can we be here during normal android reboot (we received
-    // SIGKILL)? If we can, we SHOULD NOT unlink the trace file in that case.
-    PERFETTO_LOG("FinalizeTraceAndExit, unique_session_name: %s",
-                 trace_config_->unique_session_name().c_str());
     if (trace_config_->persist_trace_after_reboot()) {
       base::ScopedFile trace_fd =
           base::OpenFile(trace_config_->output_path(), O_RDONLY);
