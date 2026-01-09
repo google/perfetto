@@ -583,12 +583,6 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
-  if ((is_attach() || is_detach() || query_service_ || has_config_options ||
-       background_wait_ || bugreport_ || clone_all_bugreport_traces_)) {
-    PERFETTO_ELOG("--upload-after-reboot cannot take any other argument");
-    return 1;
-  }
-
   if (clone_tsid_ && !clone_name_.empty()) {
     PERFETTO_ELOG("--clone and --clone-by-name are mutually exclusive");
     return 1;
