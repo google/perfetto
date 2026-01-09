@@ -382,6 +382,90 @@ where some frame matches "applyStyle".
 From this we have a clear idea where in the code we have to look. From the code
 we can see how that memory is being used and if we actually need all of it.
 
+## Profiling raw mmap calls
+
+Most native memory allocations happen via `malloc`, which `heapprofd` (the Native
+Heap Profiler above) sees. However, some components (e.g. ART, graphics drivers,
+custom allocators) may request memory directly from the kernel using
+`mmap`. These allocations are invisible to `heapprofd`.
+
+To debug these, we can leverage the fact that `mmap` calls are relatively rare
+(compared to `malloc`). Unlike CPU profiling where we _sample_ frequently to
+minimize overhead, for `mmap` we can record **every single event** without
+significant performance impact.
+
+We can achieve this using two data sources:
+
+1.  `linux.ftrace` with `syscall_events`: This gives us the timestamp,
+    arguments (size, flags), and return value of every mmap call.
+    **Requires Android 14 (U) or newer.**
+2.  `linux.perf`: We can configure the perf sampler to trigger on the `mmap` syscall.
+    Crucially, we set `period: 1` to capture a callstack for *every* occurrence.
+    **Supported on Android 12 (S) or newer.**
+
+### Using Perfetto
+
+You can combine both data sources in a single Perfetto config.
+
+**Note:** The syscall ID for `mmap` varies by architecture.
+*   **arm64**: `222` (used in the example below)
+*   **x86_64**: `9`
+
+```protobuf
+buffers: {
+    size_kb: 63488
+    fill_policy: RING_BUFFER
+}
+
+data_sources: {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+        # Use syscall names; Perfetto handles the ID mapping.
+        # Requires Android 14+
+        syscall_events: "sys_mmap"
+        syscall_events: "sys_munmap"
+        syscall_events: "sys_madvise"
+
+        # Optional: Capture scheduling to see which thread is calling mmap
+        ftrace_events: "sched/sched_switch"
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "linux.perf"
+    perf_event_config {
+      timebase {
+        period: 1 # Capture every occurrence, no sampling!
+        tracepoint {
+          name: "raw_syscalls:sys_enter"
+          # FILTER: 222 is mmap on arm64. Use 9 on x86_64.
+          filter: "id == 222" 
+        }
+      }
+      callstack_sampling {
+        # Optional: scope to specific target
+        # scope { target_cmdline: "your.app.package" }
+        kernel_frames: true
+      }
+    }
+  }
+}
+duration_ms: 10000
+```
+
+### Using Simpleperf
+
+You can also use `simpleperf` with the `--tp-filter` flag to achieve the same result
+if you only need callstacks (and not the ftrace arguments timeline).
+
+```bash
+# Record callstacks for every mmap (id == 222 on arm64)
+adb shell 'simpleperf record -e raw_syscalls:sys_enter --tp-filter "id == 222" -a --duration 10 -g'
+```
+
 ## {#java-hprof} Analyzing the Java Heap
 
 **Java Heap Dumps require Android 11.**

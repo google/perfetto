@@ -144,11 +144,10 @@ async function createEngine(
   if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
     useRpc = (await HttpRpcEngine.checkConnection()).connected;
   }
+
   const descriptorBlobs: Uint8Array[] = [];
-  if (app.extraParsingDescriptors.length > 0) {
-    for (const b64Str of app.extraParsingDescriptors) {
-      descriptorBlobs.push(base64Decode(b64Str));
-    }
+  for (const b64Str of await app.protoDescriptors()) {
+    descriptorBlobs.push(base64Decode(b64Str));
   }
   let engine;
   if (useRpc) {
@@ -225,7 +224,8 @@ async function loadTraceIntoEngine(
     assertTrue(engine instanceof HttpRpcEngine);
     await engine.restoreInitialTables();
   }
-  for (const p of app.extraSqlPackages) {
+
+  for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }
 

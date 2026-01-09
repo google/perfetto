@@ -24,7 +24,7 @@
   }
 
   &__plugin-title {
-    font-size: 18px;
+    font-size: var(--pf-font-size-xl);
     font-weight: 600;
     margin: 0 0 16px 0;
     padding: 8px 12px;
@@ -37,7 +37,7 @@
     align-items: center;
     gap: 4px;
     color: var(--pf-color-danger);
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
   }
 
   &__controls {
