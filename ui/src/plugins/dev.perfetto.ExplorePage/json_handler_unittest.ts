@@ -441,7 +441,7 @@ describe('JSON serialization/deserialization', () => {
     );
   });
 
-  test('serializes and deserializes node with filters', () => {
+  test('serializes and deserializes node with string filters', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),
       trace,
@@ -478,6 +478,50 @@ describe('JSON serialization/deserialization', () => {
     expect(filter?.op).toBe('=');
     if (filter !== undefined && 'value' in filter) {
       expect(filter.value).toBe('test');
+    } else {
+      fail('Filter value not found');
+    }
+  });
+
+  test('serializes and deserializes node with numeric filters', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      filters: [
+        {
+          column: 'dur',
+          op: '>',
+          value: 1000,
+        },
+      ],
+    });
+    addConnection(tableNode, filterNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedFilterNode = deserializedTableNode
+      .nextNodes[0] as FilterNode;
+    expect(deserializedFilterNode.state.filters?.length).toBe(1);
+    const filter = deserializedFilterNode.state.filters?.[0];
+    expect(filter?.column).toBe('dur');
+    expect(filter?.op).toBe('>');
+    if (filter !== undefined && 'value' in filter) {
+      // Numeric filters should remain as numbers after serialization/deserialization
+      expect(typeof filter.value).toBe('number');
+      expect(filter.value).toBe(1000);
     } else {
       fail('Filter value not found');
     }
@@ -554,7 +598,10 @@ describe('JSON serialization/deserialization', () => {
     expect(filter?.column).toBe('id');
     expect(filter?.op).toBe('=');
     if (filter !== undefined && 'value' in filter) {
-      expect(filter.value).toBe('12345678901234567890');
+      // BigInt values are serialized as strings and then converted back to numbers.
+      // Note: Very large numbers may lose precision due to JavaScript Number limits.
+      expect(typeof filter.value).toBe('number');
+      expect(filter.value).toBe(Number('12345678901234567890'));
     } else {
       fail('Filter value not found');
     }
