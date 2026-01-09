@@ -280,6 +280,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   std::string config_file_name;
   std::string trace_config_raw;
   bool parse_as_pbtxt = false;
+  bool no_clobber = false;
   TraceConfig::StatsdMetadata statsd_metadata;
 
   ConfigOptions config_options;
@@ -526,7 +527,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
 
     if (option == OPT_NO_CLOBBER) {
-      no_clobber_ = true;
+      no_clobber = true;
       continue;
     }
 
@@ -822,7 +823,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
   if (open_out_file) {
-    if (!OpenOutputFile())
+    if (!OpenOutputFile(no_clobber))
       return 1;
     if (!trace_config_->write_into_file())
       packet_writer_.emplace(trace_out_stream_.get());
@@ -1261,7 +1262,7 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   task_runner_.Quit();
 }
 
-bool PerfettoCmd::OpenOutputFile() {
+bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -1271,12 +1272,14 @@ bool PerfettoCmd::OpenOutputFile() {
     fd.reset(dup(fileno(stdout)));
   } else {
     // O_CREAT | O_EXCL will fail if the file exists already.
-    const int flags = O_RDWR | O_CREAT | (no_clobber_ ? O_EXCL : O_TRUNC);
+    const int flags = O_RDWR | O_CREAT | (no_clobber ? O_EXCL : O_TRUNC);
     fd = base::OpenFile(trace_out_path_, flags, 0600);
     // Show a specific error message for the EEXIST errno
     if (!fd && errno == EEXIST) {
-      PERFETTO_ELOG("Error: Output file '%s' already exists, refusing to overwrite due to '--no-clobber'.",
-                    trace_out_path_.c_str());
+      PERFETTO_ELOG(
+          "Error: Output file '%s' already exists, refusing to overwrite due "
+          "to '--no-clobber'.",
+          trace_out_path_.c_str());
       return false;
     }
   }
