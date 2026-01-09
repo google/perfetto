@@ -18,144 +18,47 @@ import {CommandInvocation} from '../../core/command_manager';
 import {
   ExtensionServer,
   ExtensionServerState,
-  MacrosSchema,
+  macrosSchema,
   Manifest,
-  ManifestSchema,
-  ProtoDescriptorsSchema,
-  SqlModulesSchema,
+  manifestSchema,
+  protoDescriptorsSchema,
+  sqlModulesSchema,
 } from './types';
 import {normalizeServerKey, resolveServerUrl} from './url_utils';
 import {showModal} from '../../widgets/modal';
+import {errResult, okResult, Result} from '../../base/result';
+import {AppImpl} from '../../core/app_impl';
 
 const FETCH_TIMEOUT_MS = 5000; // 5 seconds
 
 // =============================================================================
-// Runtime State Management
-// =============================================================================
-
-async function loadServerState(
-  server: ExtensionServer,
-): Promise<ExtensionServerState> {
-  const canonicalUrl = resolveServerUrl(server.url);
-  const serverKey = normalizeServerKey(canonicalUrl);
-
-  const fetchManifestOrUndefined = async (canonicalUrl: string) => {
-    try {
-      return await fetchManifest(canonicalUrl);
-    } catch (e) {
-      return undefined;
-    }
-  };
-  const manifest = await fetchManifestOrUndefined(canonicalUrl);
-  return {
-    url: server.url,
-    enabledModules: server.enabledModules,
-    enabled: server.enabled,
-    canonicalUrl,
-    serverKey,
-    displayName: manifest?.name ?? canonicalUrl,
-    availableModules: manifest?.modules ?? [],
-    lastFetchError: manifest ? undefined : 'Failed to fetch manifest',
-  };
-}
-
-// Loads runtime state from extension server configs and fetched manifests.
-export async function loadServerStates(
-  servers: ExtensionServer[],
-): Promise<ExtensionServerState[]> {
-  return Promise.all(servers.map(loadServerState));
-}
-
-// =============================================================================
-// Fetching
+// Helpers
 // =============================================================================
 
 async function fetchJson<T extends z.ZodTypeAny>(
   url: string,
   schema: T,
-): Promise<z.infer<T>> {
-  const response = await fetchWithTimeout(url, {}, FETCH_TIMEOUT_MS);
-  if (!response.ok) {
-    throw new Error(`Fetch failed: ${url} returned ${response.status}`);
+): Promise<Result<z.infer<T>>> {
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, {method: 'GET'}, FETCH_TIMEOUT_MS);
+  } catch (e) {
+    return errResult(`Failed to fetch ${url}: ${e}`);
   }
-  const json = await response.json();
+  if (!response.ok) {
+    return errResult(`Fetch failed: ${url} returned ${response.status}`);
+  }
+  let json: unknown;
+  try {
+    json = await response.json();
+  } catch (e) {
+    return errResult(`Failed to parse JSON from ${url}: ${e}`);
+  }
   const result = schema.safeParse(json);
   if (!result.success) {
-    throw new Error(`Invalid response from ${url}: ${result.error.message}`);
+    return errResult(`Invalid response from ${url}: ${result.error.message}`);
   }
-  return result.data;
-}
-
-// Fetches manifest, returning undefined on error (for graceful degradation
-// when configuring servers).
-export async function fetchManifest(serverUrl: string): Promise<Manifest> {
-  return await fetchJson(serverUrl + '/manifest.json', ManifestSchema);
-}
-
-// =============================================================================
-// Loading
-// =============================================================================
-
-async function loadModuleMacros(
-  state: ExtensionServerState,
-  module: string,
-): Promise<Array<[string, CommandInvocation[]]>> {
-  try {
-    const wrapper = await fetchJson(
-      `${state.canonicalUrl}/modules/${module}/macros`,
-      MacrosSchema,
-    );
-    return Object.entries(wrapper.macros)
-      .sort()
-      .map(([name, commands]) => [
-        `[${state.serverKey} ${module}] ${name}`,
-        commands,
-      ]);
-  } catch (e) {
-    await showModal({
-      title: 'Fetching server extensions failed',
-      content: `Failed to load macros from ${state.canonicalUrl}/${module}: ${e}`,
-    });
-    return [];
-  }
-}
-
-async function loadModuleSqlModules(
-  state: ExtensionServerState,
-  module: string,
-): Promise<Array<[string, string]>> {
-  try {
-    const wrapper = await fetchJson(
-      `${state.canonicalUrl}/modules/${module}/sql_modules`,
-      SqlModulesSchema,
-    );
-    return Object.entries(wrapper.modules).sort();
-  } catch (e) {
-    await showModal({
-      title: 'Fetching server extensions failed',
-      content: `Failed to load sql from ${state.canonicalUrl}/${module}: ${e}`,
-    });
-    return [];
-  }
-}
-
-async function loadModuleProtoDescriptors(
-  state: ExtensionServerState,
-  module: string,
-): Promise<ReadonlyArray<string>> {
-  try {
-    const wrapper = await fetchJson(
-      `${state.canonicalUrl}/modules/${module}/proto_descriptors`,
-      ProtoDescriptorsSchema,
-    );
-    return wrapper.descriptors.sort();
-  } catch (e) {
-    await showModal({
-      title: 'Fetching server extensions failed',
-      content: `Failed to load protos from ${state.canonicalUrl}/${module}: ${e}`,
-    });
-    return [];
-  }
+  return okResult(result.data);
 }
 
 function aggregate<T>(
@@ -174,6 +77,89 @@ function aggregate<T>(
 }
 
 // =============================================================================
+// Loading
+// =============================================================================
+
+export async function loadManifest(
+  serverUrl: string,
+): Promise<Result<Manifest>> {
+  return fetchJson(serverUrl + '/manifest', manifestSchema);
+}
+
+async function loadModuleMacros(
+  state: ExtensionServerState,
+  module: string,
+): Promise<Result<Array<[string, CommandInvocation[]]>>> {
+  const wrapper = await fetchJson(
+    `${state.canonicalUrl}/modules/${module}/macros`,
+    macrosSchema,
+  );
+  if (!wrapper.ok) {
+    return errResult(wrapper.error);
+  }
+  return okResult(
+    Object.entries(wrapper.value.macros)
+      .sort()
+      .map(([name, commands]) => [
+        `[${state.serverKey} ${module}] ${name}`,
+        commands,
+      ]),
+  );
+}
+
+async function loadModuleSqlModules(
+  state: ExtensionServerState,
+  module: string,
+): Promise<Result<Array<[string, string]>>> {
+  const wrapper = await fetchJson(
+    `${state.canonicalUrl}/modules/${module}/sql_modules`,
+    sqlModulesSchema,
+  );
+  if (!wrapper.ok) {
+    return errResult(wrapper.error);
+  }
+  return okResult(Object.entries(wrapper.value.modules).sort());
+}
+
+async function loadModuleProtoDescriptors(
+  state: ExtensionServerState,
+  module: string,
+): Promise<Result<ReadonlyArray<string>>> {
+  const wrapper = await fetchJson(
+    `${state.canonicalUrl}/modules/${module}/proto_descriptors`,
+    protoDescriptorsSchema,
+  );
+  if (!wrapper.ok) {
+    return errResult(wrapper.error);
+  }
+  return okResult(wrapper.value.descriptors.sort());
+}
+
+// =============================================================================
+// Runtime State Management
+// =============================================================================
+
+async function loadServerState(
+  server: ExtensionServer,
+): Promise<Result<ExtensionServerState>> {
+  const canonicalUrl = resolveServerUrl(server.url);
+  const serverKey = normalizeServerKey(canonicalUrl);
+  const manifest = await loadManifest(canonicalUrl);
+  if (!manifest.ok) {
+    return errResult(manifest.error);
+  }
+  return okResult({
+    url: server.url,
+    enabledModules: server.enabledModules,
+    enabled: server.enabled,
+    canonicalUrl,
+    serverKey,
+    displayName: manifest.value.name,
+    availableModules: manifest.value.modules,
+  });
+}
+
+// =============================================================================
 // Initialization
 // =============================================================================
 
@@ -187,29 +173,37 @@ export interface ExtensionInitializationResult {
 // Initializes extension servers by fetching manifests (synchronously) and
 // loading extensions (asynchronously). This function should be called early
 // in app initialization.
-//
-// Returns:
-// - states: Extension server states with manifests (needed for CSP)
-// - macrosPromise: Resolves when macros are loaded
-// - sqlModulesPromise: Resolves when SQL modules are loaded
-// - protoDescriptorsPromise: Resolves when proto descriptors are loaded
 export async function initializeExtensions(
+  ctx: AppImpl,
   servers: ExtensionServer[],
-): Promise<ExtensionInitializationResult> {
+): Promise<void> {
   // Load server states (fetches manifests) - this is blocking
-  const states = await loadServerStates(servers);
+  const states = await Promise.all(servers.map(loadServerState));
+
+  // Show errors
+  const errors = states
+    .filter((r) => !r.ok)
+    .map((r) => r.error)
+    .join('\n');
+  if (errors.length > 0) {
+    await showModal({
+      title: 'Extension Servers Failed to Load',
+      content: `Some extension servers failed to load:\n\n${errors}`,
+      buttons: [{text: 'OK', primary: true}],
+    });
+  }
 
   // Sort alphabetically by serverKey for deterministic ordering
   const sorted = states
+    .filter((r) => r.ok)
+    .map((r) => r.value)
     .filter((s) => s.enabled)
     .sort((a, b) => a.serverKey.localeCompare(b.serverKey));
 
   // Fire off all loads in parallel
-  const macroPromises: Promise<ReadonlyArray<[string, CommandInvocation[]]>>[] =
-    [];
-  const sqlModulePromises: Promise<ReadonlyArray<[string, string]>>[] = [];
-  const protoDescriptorPromises: Promise<ReadonlyArray<string>>[] = [];
-
+  const macroPromises = [];
+  const sqlModulePromises = [];
+  const protoDescriptorPromises = [];
   for (const state of sorted) {
     for (const module of [...state.enabledModules].sort()) {
       macroPromises.push(loadModuleMacros(state, module));
@@ -218,15 +212,62 @@ export async function initializeExtensions(
     }
   }
 
-  // Aggregate results into maps (macros overwrite, others first-wins)
-  const macrosPromise = Promise.all(macroPromises).then((r) =>
-    aggregate(r, true),
+  // Show errors once all loads are done.
+  Promise.all([
+    ...macroPromises,
+    ...sqlModulePromises,
+    ...protoDescriptorPromises,
+  ]).then((results) => {
+    const errors = results
+      .filter((r) => !r.ok)
+      .map((r) => r.error)
+      .join('\n');
+    if (errors.length > 0) {
+      showModal({
+        title: 'Extension Modules Failed to Load',
+        content: `Some extension modules failed to load:\n\n${errors}`,
+        buttons: [{text: 'OK', primary: true}],
+      });
+    }
+  });
+
+  ctx.addMacros(
+    Promise.all(macroPromises).then((r) =>
+      Object.assign(
+        {},
+        ...Array.from(
+          aggregate(
+            r.filter((x) => x.ok).map((x) => x.value),
+            true,
+          ).entries(),
+        ).map(([k, v]) => ({[k]: v})),
+      ),
+    ),
   );
-  const sqlModulesPromise = Promise.all(sqlModulePromises).then((r) =>
-    aggregate(r, false),
+  ctx.addSqlPackages(
+    Promise.all(sqlModulePromises).then((r) => [
+      {
+        // TODO(lalitm): DNS. This needs to be discussed before submitting.
+        name: 'extension_servers',
+        modules: Array.from(
+          aggregate(
+            r.filter((x) => x.ok).map((x) => x.value),
+            false,
+          ),
+          ([name, sql]) => ({
+            name,
+            sql,
+          }),
+        ),
+      },
+    ]),
   );
-  const protoDescriptorsPromise = Promise.all(protoDescriptorPromises).then(
-    (r) => r.flatMap((descs) => descs),
+  ctx.addProtoDescriptors(
+    Promise.all(protoDescriptorPromises).then((r) =>
+      r
+        .filter((x) => x.ok)
+        .map((x) => x.value)
+        .flatMap((descs) => descs),
+    ),
   );
-  return {states, macrosPromise, sqlModulesPromise, protoDescriptorsPromise};
 }

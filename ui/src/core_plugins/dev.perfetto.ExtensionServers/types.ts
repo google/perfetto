@@ -39,7 +39,7 @@ import {
 
 // Extension server configuration (persisted via Settings).
 // Both installation-provided and user-added servers use this schema.
-export const ExtensionServerSchema = z.object({
+export const extensionServerSchema = z.object({
   url: z.string(),
   enabledModules: z.array(z.string()),
   enabled: z.boolean(),
@@ -47,7 +47,7 @@ export const ExtensionServerSchema = z.object({
 
 // Array of extension servers.
 // This is the schema used for the Settings registration.
-export const ExtensionServersSchema = z.array(ExtensionServerSchema);
+export const extensionServersSchema = z.array(extensionServerSchema);
 
 // Manifest file format from {base_url}/manifest.json
 // Provides server metadata and available modules.
@@ -57,20 +57,20 @@ export const ExtensionServersSchema = z.array(ExtensionServerSchema);
 //   - {base_url}/modules/{module}/macros       → using MacrosSchema
 //   - {base_url}/modules/{module}/sql_modules  → using SqlModulesSchema
 //   - {base_url}/modules/{module}/proto_descriptors → using ProtoDescriptorsSchema
-export const ManifestSchema = z.object({
+export const manifestSchema = z.object({
   name: z.string(),
   modules: z.array(z.string()),
 });
 
 // Macros format from {base_url}/modules/{module}/macros
 // Maps macro names to command sequences.
-export const MacrosSchema = z.object({
+export const macrosSchema = z.object({
   macros: z.record(commandInvocationArraySchema),
 });
 
 // SQL Modules format from {base_url}/modules/{module}/sql_modules
 // Maps module paths (e.g., "android.startup") to SQL content.
-export const SqlModulesSchema = z.object({
+export const sqlModulesSchema = z.object({
   modules: z.record(z.string()),
 });
 
@@ -81,7 +81,7 @@ export const SqlModulesSchema = z.object({
 // custom proto messages embedded in traces without having the .proto files
 // compiled into the UI itself. Extension servers can provide descriptors
 // for proprietary or custom proto types.
-export const ProtoDescriptorsSchema = z.object({
+export const protoDescriptorsSchema = z.object({
   descriptors: z.array(z.string()),
 });
 
@@ -89,11 +89,11 @@ export const ProtoDescriptorsSchema = z.object({
 // TypeScript Types (derived from Zod schemas)
 // =============================================================================
 
-export type ExtensionServer = z.infer<typeof ExtensionServerSchema>;
-export type Manifest = z.infer<typeof ManifestSchema>;
-export type Macros = z.infer<typeof MacrosSchema>;
-export type SqlModules = z.infer<typeof SqlModulesSchema>;
-export type ProtoDescriptors = z.infer<typeof ProtoDescriptorsSchema>;
+export type ExtensionServer = z.infer<typeof extensionServerSchema>;
+export type Manifest = z.infer<typeof manifestSchema>;
+export type Macros = z.infer<typeof macrosSchema>;
+export type SqlModules = z.infer<typeof sqlModulesSchema>;
+export type ProtoDescriptors = z.infer<typeof protoDescriptorsSchema>;
 
 // Runtime state for an extension server.
 // Combines persisted config with derived and ephemeral fields.
@@ -113,10 +113,6 @@ export interface ExtensionServerState {
   // Fetched fields (from manifest)
   displayName: string;
   availableModules: string[];
-
-  // Ephemeral runtime state (not persisted)
-  // Absence of lastFetchError indicates success.
-  lastFetchError?: string;
 }
 
 // Aggregated extensions loaded from all enabled servers/modules.

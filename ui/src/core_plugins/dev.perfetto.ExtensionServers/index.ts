@@ -15,7 +15,7 @@
 import {AppImpl} from '../../core/app_impl';
 import {PerfettoPlugin} from '../../public/plugin';
 import {initializeExtensions} from './extension_server';
-import {ExtensionServer, ExtensionServersSchema} from './types';
+import {ExtensionServer, extensionServersSchema} from './types';
 import {renderExtensionServersSettings} from './extension_servers_settings';
 
 export const DEFAULT_EXTENSION_SERVERS: ExtensionServer[] = [
@@ -33,33 +33,9 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
       description:
         'Configure external extension servers that provide additional macros, SQL modules, and proto descriptors.',
       defaultValue: DEFAULT_EXTENSION_SERVERS,
-      schema: ExtensionServersSchema,
+      schema: extensionServersSchema,
       render: renderExtensionServersSettings,
     });
-
-    // Initialize extension servers asynchronously
-    const extPromise = initializeExtensions(setting.get());
-
-    // Add the extension promises to the app.
-    ctx.addMacros(
-      extPromise.then(async ({macrosPromise}) =>
-        Object.assign({}, ...(await macrosPromise)),
-      ),
-    );
-    ctx.addSqlPackages(
-      extPromise.then(async ({sqlModulesPromise}) => [
-        {
-          // TODO(lalitm): DNS. This needs to be discussed before submitting.
-          name: 'extension_servers',
-          modules: Array.from(await sqlModulesPromise, ([name, sql]) => ({
-            name,
-            sql,
-          })),
-        },
-      ]),
-    );
-    ctx.addProtoDescriptors(
-      extPromise.then(({protoDescriptorsPromise}) => protoDescriptorsPromise),
-    );
+    initializeExtensions(ctx, setting.get());
   }
 }
