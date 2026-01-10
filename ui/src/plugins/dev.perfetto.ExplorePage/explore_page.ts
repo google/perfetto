@@ -60,7 +60,7 @@ export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
-  labels?: Array<{
+  labels: Array<{
     id: string;
     x: number;
     y: number;
@@ -945,9 +945,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       if (files && files.length > 0) {
         const file = files[0];
 
-        // Show warning modal after file is selected
-        const confirmed = await showStateOverwriteWarning();
-        if (!confirmed) return;
+        // Show warning modal after file is selected (only if canvas has nodes or labels)
+        if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
+          const confirmed = await showStateOverwriteWarning();
+          if (!confirmed) return;
+        }
 
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -1032,9 +1034,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     jsonPath: string,
     errorTitle: string = 'Failed to Load',
   ): Promise<void> {
-    // Show warning modal before loading
-    const confirmed = await showStateOverwriteWarning();
-    if (!confirmed) return;
+    // Show warning modal before loading (only if canvas has nodes or labels)
+    if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
+      const confirmed = await showStateOverwriteWarning();
+      if (!confirmed) return;
+    }
 
     try {
       const response = await fetch(assetSrc(jsonPath));
@@ -1241,9 +1245,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onImport: () => this.handleImport(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
         onLoadEmptyTemplate: async () => {
-          // Show warning modal before clearing
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
+          // Show warning modal before clearing (only if canvas has nodes or labels)
+          if (state.rootNodes.length > 0 || state.labels.length > 0) {
+            const confirmed = await showStateOverwriteWarning();
+            if (!confirmed) return;
+          }
 
           // Clear all nodes for empty graph and increment loadGeneration
           wrappedAttrs.onStateUpdate((currentState) => {
@@ -1260,9 +1266,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onLoadExampleByPath: (jsonPath: string) =>
           this.loadJsonFromPath(wrappedAttrs, jsonPath, 'Failed to Load'),
         onLoadExploreTemplate: async () => {
-          // Show warning modal before loading
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
+          // Show warning modal before loading (only if canvas has nodes or labels)
+          if (state.rootNodes.length > 0 || state.labels.length > 0) {
+            const confirmed = await showStateOverwriteWarning();
+            if (!confirmed) return;
+          }
 
           await this.createExploreGraph(wrappedAttrs);
         },
