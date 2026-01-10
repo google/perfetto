@@ -75,6 +75,7 @@ export default class implements PerfettoPlugin {
   private state: ExplorePageState = {
     rootNodes: [],
     nodeLayouts: new Map(),
+    labels: [],
   };
 
   // Track whether we've successfully loaded state from local storage
