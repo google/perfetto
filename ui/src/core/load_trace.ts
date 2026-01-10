@@ -225,9 +225,8 @@ async function loadTraceIntoEngine(
     await engine.restoreInitialTables();
   }
 
-  for (const p of await app.sqlPackages()) {
-    await engine.registerSqlPackages(p);
-  }
+  const modules = await app.sqlModules();
+  await engine.registerSqlModules(modules);
 
   const traceDetails = await getTraceInfo(engine, app, traceSource);
   const trace = new TraceImpl(app, engine, traceDetails);

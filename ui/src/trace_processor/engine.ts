@@ -149,7 +149,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
-  private pendingRegisterSqlPackage?: Deferred<void>;
+  private pendingRegisterSqlModules?: Deferred<void>;
   private pendingAnalyzeStructuredQueries?: Deferred<protos.AnalyzeStructuredQueryResult>;
   private pendingTraceSummary?: Deferred<protos.TraceSummaryResult>;
   private _numRequestsPending = 0;
@@ -305,7 +305,7 @@ export abstract class EngineBase implements Engine, Disposable {
         break;
       case TPM.TPM_REGISTER_SQL_PACKAGE:
         const registerResult = assertExists(rpc.registerSqlPackageResult);
-        const res = assertExists(this.pendingRegisterSqlPackage);
+        const res = assertExists(this.pendingRegisterSqlModules);
         if (exists(registerResult.error) && registerResult.error.length > 0) {
           res.reject(registerResult.error);
         } else {
@@ -607,24 +607,21 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
-  registerSqlPackages(pkg: {
-    name: string;
-    modules: {name: string; sql: string}[];
-  }): Promise<void> {
-    if (this.pendingRegisterSqlPackage) {
+  registerSqlModules(
+    modules: ReadonlyArray<{name: string; sql: string}>,
+  ): Promise<void> {
+    if (this.pendingRegisterSqlModules) {
       return Promise.reject(new Error('Already registering SQL package'));
     }
 
     const result = defer<void>();
 
     const rpc = protos.TraceProcessorRpc.create();
-    rpc.request = TPM.TPM_REGISTER_SQL_PACKAGE;
+    rpc.request = TPM.TPM_REGISTER_SQL_MODULES;
     const args = (rpc.registerSqlPackageArgs =
-      new protos.RegisterSqlPackageArgs());
-    args.packageName = pkg.name;
-    args.modules = pkg.modules;
-    args.allowOverride = true;
-    this.pendingRegisterSqlPackage = result;
+      new protos.RegisterSqlModulesArgs());
+    args.modules = modules.map((m) => ({...m, allowOverride: true}));
+    this.pendingRegisterSqlModules = result;
     this.rpcSendRequest(rpc);
     return result;
   }

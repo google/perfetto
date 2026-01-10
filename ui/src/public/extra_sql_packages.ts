@@ -18,8 +18,3 @@ export interface SqlModule {
   readonly name: string;
   readonly sql: string;
 }
-
-export interface SqlPackage {
-  readonly name: string;
-  readonly modules: SqlModule[];
-}

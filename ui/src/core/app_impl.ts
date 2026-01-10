@@ -17,7 +17,7 @@ import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {App} from '../public/app';
-import {SqlPackage} from '../public/extra_sql_packages';
+import {SqlModule} from '../public/extra_sql_packages';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {Raf} from '../public/raf';
 import {RouteArgs} from '../public/route_schema';
@@ -91,10 +91,8 @@ export class AppImpl implements App {
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
 
-  // Extra SQL packages, injected via is_internal_user.js.
-  private _sqlPackagesPromises = new Array<
-    Promise<ReadonlyArray<SqlPackage>>
-  >();
+  // Extra SQL modules, injected via is_internal_user.js.
+  private _sqlModulesPromises = new Array<Promise<ReadonlyArray<SqlModule>>>();
 
   // Protobuf descriptor sets as Base64-encoded strings.
   // Injected via is_internal_user.js.
@@ -289,14 +287,14 @@ export class AppImpl implements App {
     Router.navigate(newHash);
   }
 
-  addSqlPackages(
-    args: ReadonlyArray<SqlPackage> | Promise<ReadonlyArray<SqlPackage>>,
+  addSqlModules(
+    args: ReadonlyArray<SqlModule> | Promise<ReadonlyArray<SqlModule>>,
   ) {
-    this._sqlPackagesPromises.push(Promise.resolve(args));
+    this._sqlModulesPromises.push(Promise.resolve(args));
   }
 
-  async sqlPackages(): Promise<ReadonlyArray<SqlPackage>> {
-    return Promise.all(this._sqlPackagesPromises).then((pkgs) =>
+  async sqlModules(): Promise<ReadonlyArray<SqlModule>> {
+    return Promise.all(this._sqlModulesPromises).then((pkgs) =>
       pkgs.flatMap((p) => p),
     );
   }
