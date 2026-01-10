@@ -146,10 +146,10 @@ interface LabelData {
  */
 function normalizeLayoutCoordinates(
   nodeLayouts: Map<string, {x: number; y: number}>,
-  labels: LabelData[] | undefined,
+  labels: LabelData[],
 ): {
   nodeLayouts: Map<string, {x: number; y: number}>;
-  labels: LabelData[] | undefined;
+  labels: LabelData[];
 } {
   // Collect all x and y coordinates from node layouts and labels
   const xCoords: number[] = [];
@@ -160,11 +160,9 @@ function normalizeLayoutCoordinates(
     yCoords.push(layout.y);
   }
 
-  if (labels) {
-    for (const label of labels) {
-      xCoords.push(label.x);
-      yCoords.push(label.y);
-    }
+  for (const label of labels) {
+    xCoords.push(label.x);
+    yCoords.push(label.y);
   }
 
   // If there are no coordinates, return as-is
@@ -189,8 +187,8 @@ function normalizeLayoutCoordinates(
     });
   }
 
-  // Normalize labels if present
-  const normalizedLabels = labels?.map((label) => ({
+  // Normalize labels
+  const normalizedLabels = labels.map((label) => ({
     ...label,
     x: label.x - minX,
     y: label.y - minY,
@@ -564,7 +562,7 @@ export function deserializeState(
       : new Map<string, {x: number; y: number}>();
 
   // Normalize coordinates so top-left corner is at (minX, minY)
-  let labels = serializedGraph.labels;
+  let labels = serializedGraph.labels ?? [];
   const normalized = normalizeLayoutCoordinates(nodeLayouts, labels);
   nodeLayouts = normalized.nodeLayouts;
   labels = normalized.labels;
