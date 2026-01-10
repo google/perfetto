@@ -24,7 +24,7 @@ import {
   DataSourceRows,
   Pagination,
 } from './data_source';
-import {Column, Filter, Pivot} from './model';
+import {Column, Filter, PathSet, Pivot} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
@@ -559,14 +559,19 @@ ${joinClauses}`;
 
     // Add drill-down conditions
     if (pivot?.drillDown) {
+      // Only add conditions for groupBy columns that have actual values.
+      // Rollup rows have NULL for rolled-up columns, which we should skip
+      // (not filter by IS NULL, as that would return no results).
       const drillDownConditions = pivot.groupBy
+        .filter((col) => {
+          const value = pivot.drillDown![col.field];
+          // Skip columns that are NULL (rolled-up columns)
+          return value !== null && value !== undefined;
+        })
         .map((col) => {
           const field = col.field;
           const value = pivot.drillDown![field];
           const sqlExpr = resolver.resolveColumnPath(field) ?? field;
-          if (value === null) {
-            return `${sqlExpr} IS NULL`;
-          }
           return `${sqlExpr} = ${sqlValue(value)}`;
         })
         .join(' AND ');
@@ -606,8 +611,40 @@ ${joinClauses}`;
 
   /**
    * Builds a pivot query with GROUP BY and aggregations.
+   * For multiple groupBy columns, generates rollup queries using UNION ALL.
    */
   private buildPivotQuery(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
+    pivot: Pivot,
+    options: {includeOrderBy: boolean},
+    dependencyColumns?: ReadonlyArray<Column>,
+  ): string {
+    // For multiple groupBy columns, use rollup query generation
+    if (pivot.groupBy.length > 1) {
+      return this.buildRollupPivotQuery(
+        resolver,
+        filters,
+        pivot,
+        options,
+        dependencyColumns,
+      );
+    }
+
+    // Single groupBy column - use simple pivot query
+    return this.buildSimplePivotQuery(
+      resolver,
+      filters,
+      pivot,
+      options,
+      dependencyColumns,
+    );
+  }
+
+  /**
+   * Builds a simple pivot query for single groupBy column.
+   */
+  private buildSimplePivotQuery(
     resolver: SQLSchemaResolver,
     filters: ReadonlyArray<Filter>,
     pivot: Pivot,
@@ -723,6 +760,363 @@ ${joinClauses}`;
     }
 
     return query;
+  }
+
+  /**
+   * Builds a rollup pivot query for multiple groupBy columns using UNION ALL.
+   *
+   * For N groupBy columns, generates N SELECT statements:
+   * - Level 0: GROUP BY first column only (columns 1..N-1 are rollups)
+   * - Level 1: GROUP BY first 2 columns (columns 2..N-1 are rollups)
+   * - ...
+   * - Level N-1: GROUP BY all columns
+   *
+   * Each level includes __<field>_is_rollup columns (0 or 1) to indicate
+   * whether a column value is a rollup aggregate or an actual value.
+   *
+   * Levels beyond 0 are filtered by expandedGroups to only show children
+   * of expanded parent groups.
+   */
+  private buildRollupPivotQuery(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
+    pivot: Pivot,
+    options: {includeOrderBy: boolean},
+    dependencyColumns?: ReadonlyArray<Column>,
+  ): string {
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    // Collect groupBy info
+    // We track both field (for CTE source column) and id (for output alias)
+    const groupByInfo: Array<{field: string; id: string; sqlExpr: string}> = [];
+
+    for (const col of pivot.groupBy) {
+      const sqlExpr = resolver.resolveColumnPath(col.field);
+      if (sqlExpr) {
+        groupByInfo.push({field: col.field, id: col.id, sqlExpr});
+      }
+    }
+
+    const groupByFields = groupByInfo.map((g) => g.field);
+    const groupByAliases = groupByInfo.map((g) => toAlias(g.id)); // Use id as alias everywhere
+    const groupByExprs = groupByInfo.map((g) => g.sqlExpr);
+
+    // Collect aggregate source fields
+    const aggregates = pivot.aggregates ?? [];
+    const aggregateSourceFields: Array<{field: string; alias: string}> = [];
+    for (const agg of aggregates) {
+      if ('field' in agg && agg.field) {
+        const alias = toAlias(agg.field);
+        const sqlExpr = resolver.resolveColumnPath(agg.field);
+        if (sqlExpr) {
+          aggregateSourceFields.push({field: agg.field, alias});
+        }
+      }
+    }
+
+    // Build the CTE that contains all source data with JOINs applied
+    const cteSelectClauses: string[] = [];
+    const addedFields = new Set<string>();
+
+    // Add groupBy columns to CTE
+    for (let i = 0; i < groupByFields.length; i++) {
+      cteSelectClauses.push(`${groupByExprs[i]} AS ${groupByAliases[i]}`);
+      addedFields.add(groupByFields[i]);
+    }
+
+    // Add aggregate source columns to CTE (deduplicated)
+    for (const {field, alias} of aggregateSourceFields) {
+      if (!addedFields.has(field)) {
+        const sqlExpr = resolver.resolveColumnPath(field);
+        if (sqlExpr) {
+          cteSelectClauses.push(`${sqlExpr} AS ${alias}`);
+          addedFields.add(field);
+        }
+      }
+    }
+
+    // Add dependency columns to CTE (columns needed for rendering but not in
+    // groupBy or aggregates)
+    if (dependencyColumns) {
+      for (const col of dependencyColumns) {
+        if (!addedFields.has(col.field)) {
+          const sqlExpr = resolver.resolveColumnPath(col.field);
+          if (sqlExpr) {
+            const alias = toAlias(col.field);
+            cteSelectClauses.push(`${sqlExpr} AS ${alias}`);
+            addedFields.add(col.field);
+          }
+        }
+      }
+    }
+
+    // If no explicit columns, select all
+    if (cteSelectClauses.length === 0) {
+      cteSelectClauses.push(`${baseAlias}.*`);
+    }
+
+    const joinClauses = resolver.buildJoinClauses();
+
+    let cteQuery = `SELECT ${cteSelectClauses.join(', ')}
+FROM ${baseTable} AS ${baseAlias}
+${joinClauses}`;
+
+    // Add WHERE clause for filters
+    if (filters.length > 0) {
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        if (!sqlExpr) {
+          return filterToSql(filter, filter.field);
+        }
+        return filterToSql(filter, sqlExpr);
+      });
+      cteQuery += `\nWHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    // Build UNION ALL for each rollup level
+    const unionQueries: string[] = [];
+    const numLevels = groupByFields.length;
+
+    // Default to collapsed (empty PathSet) if expandedGroups is undefined
+    const expandedGroups = pivot.expandedGroups ?? new PathSet();
+
+    for (let level = 0; level < numLevels; level++) {
+      const levelQuery = this.buildRollupLevelQuery(
+        level,
+        groupByFields,
+        groupByAliases,
+        aggregates,
+        expandedGroups,
+        dependencyColumns,
+      );
+      unionQueries.push(levelQuery);
+    }
+
+    // Check if we're sorting by an aggregate
+    const sortedColumn = this.findSortedColumn(undefined, pivot);
+    const sortedAggregate =
+      sortedColumn && aggregates.find((a) => a.id === sortedColumn.id);
+
+    // Build the full query with CTE
+    let query = `WITH __data__ AS (
+${cteQuery}
+), __union__ AS (
+${unionQueries.join('\nUNION ALL\n')}
+)`;
+
+    // When sorting by aggregate, add window functions to propagate parent
+    // aggregate values down to children. This allows sorting parent groups
+    // by their aggregate while keeping children under their parent.
+    if (sortedAggregate && options.includeOrderBy) {
+      const aggAlias = toAlias(sortedAggregate.id);
+      const sortKeyExprs: string[] = [];
+
+      // For each level except the last, create a sort key that captures
+      // the aggregate value at that level
+      for (let level = 0; level < groupByAliases.length - 1; level++) {
+        // Partition by columns 0..level, get the aggregate where __level__ = level
+        const partitionCols = groupByAliases.slice(0, level + 1).join(', ');
+        sortKeyExprs.push(
+          `FIRST_VALUE(${aggAlias}) OVER (PARTITION BY ${partitionCols} ORDER BY "__level__") AS "__sort_${level}__"`,
+        );
+      }
+
+      query += `
+SELECT *, ${sortKeyExprs.join(', ')}
+FROM __union__`;
+    } else {
+      query += `
+SELECT * FROM __union__`;
+    }
+
+    // Add ORDER BY if requested
+    if (options.includeOrderBy) {
+      const orderByClauses = this.buildRollupOrderBy(
+        pivot,
+        groupByFields,
+        groupByAliases,
+        sortedAggregate,
+      );
+      if (orderByClauses.length > 0) {
+        query += `\nORDER BY ${orderByClauses.join(', ')}`;
+      }
+    }
+
+    return query;
+  }
+
+  /**
+   * Builds a single rollup level SELECT query.
+   *
+   * The level indicates how many groupBy columns have real values:
+   * - Level 0: Only first groupBy column has value, rest are NULL (most aggregated)
+   * - Level N-1: All groupBy columns have values (leaf level)
+   *
+   * Each row includes a __level__ column to indicate its rollup depth.
+   */
+  private buildRollupLevelQuery(
+    level: number,
+    groupByFields: string[],
+    groupByAliases: string[],
+    aggregates: readonly import('./model').AggregateColumn[],
+    expandedGroups: PathSet,
+    dependencyColumns?: ReadonlyArray<Column>,
+  ): string {
+    const selectClauses: string[] = [];
+    const numGroupBy = groupByFields.length;
+
+    // Add __level__ column to indicate rollup depth
+    selectClauses.push(`${level} AS "__level__"`);
+
+    // Add groupBy columns - real value if i <= level, NULL otherwise
+    for (let i = 0; i < numGroupBy; i++) {
+      const alias = groupByAliases[i];
+      const isRollup = i > level;
+
+      if (isRollup) {
+        selectClauses.push(`NULL AS ${alias}`);
+      } else {
+        selectClauses.push(alias);
+      }
+    }
+
+    // Add aggregate expressions
+    // Note: In the CTE, source fields are aliased by field name (e.g., "dur")
+    // But the output alias should be the aggregate's id (e.g., "dur_sum")
+    for (const agg of aggregates) {
+      const outputAlias = toAlias(agg.id);
+      if (agg.function === 'COUNT') {
+        selectClauses.push(`COUNT(*) AS ${outputAlias}`);
+      } else if ('field' in agg && agg.field) {
+        const sourceAlias = toAlias(agg.field);
+        if (agg.function === 'ANY') {
+          selectClauses.push(`MIN(${sourceAlias}) AS ${outputAlias}`);
+        } else {
+          selectClauses.push(
+            `${agg.function}(${sourceAlias}) AS ${outputAlias}`,
+          );
+        }
+      }
+    }
+
+    // Add dependency columns (using MIN as ANY proxy)
+    if (dependencyColumns) {
+      const existingFields = new Set([
+        ...groupByFields,
+        ...aggregates
+          .filter((a) => 'field' in a)
+          .map((a) => (a as {field: string}).field),
+      ]);
+
+      for (const col of dependencyColumns) {
+        if (!existingFields.has(col.field)) {
+          const alias = toAlias(col.field);
+          selectClauses.push(`MIN(${alias}) AS ${alias}`);
+        }
+      }
+    }
+
+    let query = `SELECT ${selectClauses.join(', ')}\nFROM __data__`;
+
+    // Add WHERE clause for expanded groups filter (levels > 0)
+    // For a row at level N, ALL ancestor paths must be expanded.
+    // A path ['A', 'X'] is only valid if ['A'] is also expanded.
+    if (level > 0) {
+      // Collect paths of length `level` whose all ancestor prefixes are also expanded
+      const validParentPaths: SqlValue[][] = [];
+      for (const path of expandedGroups) {
+        if (path.length === level) {
+          // Check that all ancestor prefixes are also expanded
+          let allAncestorsExpanded = true;
+          for (let prefixLen = 1; prefixLen < level; prefixLen++) {
+            const prefix = path.slice(0, prefixLen);
+            if (!expandedGroups.has(prefix)) {
+              allAncestorsExpanded = false;
+              break;
+            }
+          }
+          if (allAncestorsExpanded) {
+            validParentPaths.push([...path]);
+          }
+        }
+      }
+
+      if (validParentPaths.length > 0) {
+        // Build tuple comparison: (col0, col1, ...) IN ((v0, v1, ...), ...)
+        const colTuple = groupByAliases.slice(0, level).join(', ');
+        const valueTuples = validParentPaths
+          .map((path) => `(${path.map(sqlValue).join(', ')})`)
+          .join(', ');
+        query += `\nWHERE (${colTuple}) IN (${valueTuples})`;
+      } else {
+        // No valid expanded paths at this level, so nothing to show
+        query += `\nWHERE FALSE`;
+      }
+    }
+
+    // Add GROUP BY for columns at this level
+    if (level >= 0) {
+      const groupByClause = groupByAliases.slice(0, level + 1).join(', ');
+      if (groupByClause) {
+        query += `\nGROUP BY ${groupByClause}`;
+      }
+    }
+
+    return query;
+  }
+
+  /**
+   * Builds ORDER BY clauses for rollup query.
+   *
+   * When sorting by an aggregate, we use __sort_N__ columns (computed via
+   * window functions) to sort parent groups by their aggregate value while
+   * keeping children under their parent.
+   *
+   * Example with groupBy [process, thread] sorted by SUM(dur) DESC:
+   * ORDER BY __sort_0__ DESC, process NULLS FIRST, sum_dur DESC, thread NULLS FIRST
+   *
+   * This sorts processes by their total duration, keeps rollup rows before
+   * children, and sorts threads within each process by their duration.
+   */
+  private buildRollupOrderBy(
+    pivot: Pivot,
+    groupByFields: string[],
+    groupByAliases: string[],
+    sortedAggregate?: import('./model').AggregateColumn,
+  ): string[] {
+    const orderByClauses: string[] = [];
+    const sortedColumn = this.findSortedColumn(undefined, pivot);
+    const direction = sortedColumn?.direction ?? 'ASC';
+
+    if (sortedAggregate) {
+      // When sorting by aggregate, use the __sort_N__ keys to sort parent groups
+      // Pattern: __sort_0__, groupBy[0] NULLS FIRST, __sort_1__, groupBy[1] NULLS FIRST, ...
+      // The __sort_N__ key contains the aggregate value at level N, propagated to children
+      // NULLS FIRST ensures rollup rows come before their children
+      const aggAlias = toAlias(sortedAggregate.id);
+      for (let i = 0; i < groupByAliases.length; i++) {
+        // Add sort key for this level to sort groups by aggregate
+        if (i < groupByAliases.length - 1) {
+          orderByClauses.push(`"__sort_${i}__" ${direction}`);
+        } else {
+          // For the last level, use the aggregate directly
+          orderByClauses.push(`${aggAlias} ${direction}`);
+        }
+        // Add groupBy column with NULLS FIRST to keep rollup before children
+        orderByClauses.push(`${groupByAliases[i]} NULLS FIRST`);
+      }
+    } else {
+      // When not sorting by aggregate, just use hierarchical ordering
+      for (let i = 0; i < groupByFields.length; i++) {
+        const col = pivot.groupBy[i];
+        const alias = groupByAliases[i];
+        const colDirection = col.sort ?? 'ASC';
+        orderByClauses.push(`${alias} ${colDirection} NULLS FIRST`);
+      }
+    }
+
+    return orderByClauses;
   }
 
   /**

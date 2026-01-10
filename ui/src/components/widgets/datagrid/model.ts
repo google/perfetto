@@ -14,6 +14,52 @@
 
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 
+/**
+ * A Set-like collection for storing paths of SqlValue arrays.
+ * Uses string serialization internally for efficient lookup while preserving
+ * the original SqlValue types for SQL generation.
+ */
+export class PathSet implements Iterable<readonly SqlValue[]> {
+  private readonly map = new Map<string, readonly SqlValue[]>();
+
+  constructor(paths?: Iterable<readonly SqlValue[]>) {
+    if (paths) {
+      for (const path of paths) {
+        this.add(path);
+      }
+    }
+  }
+
+  private static toKey(path: readonly SqlValue[]): string {
+    return path.map((v) => String(v)).join('\x00');
+  }
+
+  add(path: readonly SqlValue[]): this {
+    this.map.set(PathSet.toKey(path), path);
+    return this;
+  }
+
+  has(path: readonly SqlValue[]): boolean {
+    return this.map.has(PathSet.toKey(path));
+  }
+
+  delete(path: readonly SqlValue[]): boolean {
+    return this.map.delete(PathSet.toKey(path));
+  }
+
+  get size(): number {
+    return this.map.size;
+  }
+
+  [Symbol.iterator](): Iterator<readonly SqlValue[]> {
+    return this.map.values();
+  }
+
+  values(): IterableIterator<readonly SqlValue[]> {
+    return this.map.values();
+  }
+}
+
 export type AggregateFunction = 'ANY' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
 export type SortDirection = 'ASC' | 'DESC';
 
@@ -73,6 +119,14 @@ export interface Pivot {
   // This allows drilling down into a specific pivot group to see the
   // underlying data. The keys are the groupBy column names.
   readonly drillDown?: Row;
+
+  // When there are multiple groupBy columns, this controls which parent groups
+  // are expanded to show their children. Each path is an array of groupBy values
+  // from level 0 to the expanded level.
+  // For example, with groupBy: [{field: 'process'}, {field: 'thread'}]:
+  // - ['processA'] means processA is expanded (showing its threads)
+  // - ['processA', 'threadX'] means threadX under processA is expanded
+  readonly expandedGroups?: PathSet;
 }
 
 export interface Model {

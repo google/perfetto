@@ -124,10 +124,7 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [
-        {id: 'pid', field: 'pid'},
-        {id: 'process_name', field: 'process_name'},
-      ],
+      groupBy: [{id: 'process_name', field: 'process_name'}],
       aggregates: [
         {id: 'count', function: 'COUNT'},
         {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
