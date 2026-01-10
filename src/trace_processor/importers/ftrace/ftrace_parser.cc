@@ -538,7 +538,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       f2fs_reason_int_arg_id_(context_->storage->InternString("reason_int")),
       f2fs_dev_arg_id_(context->storage->InternString("dev")),
       f2fs_checkpoint_unknown_reason_id_(
-          context->storage->InternString("Unknown")) {
+          context->storage->InternString("Unknown")),
+      gpu_power_state_unknown_id_(context->storage->InternString("Unknown")),
+      gpu_power_state_off_id_(context->storage->InternString("OFF")),
+      gpu_power_state_pg_id_(context->storage->InternString("PG")),
+      gpu_power_state_on_id_(context->storage->InternString("ON")) {
   static const char* kReasonStrings[] = {
       "Umount",  "Fastboot", "Sync",  "Recovery",
       "Discard", "Trimmed",  "Pause", "Resize",
@@ -4475,22 +4479,18 @@ void FtraceParser::ParseGpuPowerState(int64_t ts, protozero::ConstBytes blob) {
 
   context_->slice_tracker->End(ts, track_id);
 
-  const char* state_name = nullptr;
+  StringId slice_name_id = gpu_power_state_unknown_id_;
   switch (event.new_state()) {
     case 0:
-      state_name = "OFF";
+      slice_name_id = gpu_power_state_off_id_;
       break;
     case 1:
-      state_name = "PG";
+      slice_name_id = gpu_power_state_pg_id_;
       break;
     case 2:
-      state_name = "ON";
-      break;
-    default:
-      state_name = "UNKNOWN";
+      slice_name_id = gpu_power_state_on_id_;
       break;
   }
-  StringId slice_name_id = context_->storage->InternString(state_name);
   context_->slice_tracker->Begin(ts, track_id, kNullStringId, slice_name_id);
 }
 

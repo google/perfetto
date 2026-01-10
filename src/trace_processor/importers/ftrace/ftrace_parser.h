@@ -452,6 +452,10 @@ class FtraceParser {
   const StringId f2fs_reason_int_arg_id_;
   const StringId f2fs_dev_arg_id_;
   const StringId f2fs_checkpoint_unknown_reason_id_;
+  const StringId gpu_power_state_unknown_id_;
+  const StringId gpu_power_state_off_id_;
+  const StringId gpu_power_state_pg_id_;
+  const StringId gpu_power_state_on_id_;
   std::array<StringId, 8> f2fs_checkpoint_reason_ids_;
 
   std::vector<StringId> syscall_arg_name_ids_;
