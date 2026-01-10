@@ -963,13 +963,6 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
       [&](metatrace::Record* r) { r->AddArg("include", include.key); });
 
   const std::string& key = include.key;
-  if (key == "*") {
-    for (auto module = modules_.GetIterator(); module; ++module) {
-      RETURN_IF_ERROR(IncludeModuleImpl(module.value(), key, parser));
-    }
-    return base::OkStatus();
-  }
-
   if (!key.empty() && key.back() == '*') {
     // If the key ends with a wildcard, collect all matching modules and
     // push a wildcard frame that will process them one at a time.
@@ -977,17 +970,16 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
     std::vector<std::pair<std::string, sql_modules::RegisteredModule*>>
         matching_modules;
     for (auto module = modules_.GetIterator(); module; ++module) {
-      if (!base::StartsWith(module.key(), prefix))
+      if (!base::StartsWith(module.key(), prefix)) {
         continue;
+      }
       // Include both already-included and not-yet-included modules in the list
       // The wildcard frame will skip already-included ones during iteration
       matching_modules.emplace_back(module.key(), &module.value());
     }
-
     if (matching_modules.empty()) {
       return base::OkStatus();
     }
-
     // Push a wildcard frame that will iterate through these modules
     execution_stack_.push_back(
         {FrameType::kWildcard,
