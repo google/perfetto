@@ -73,6 +73,24 @@ const ATRACE_THERMAL = [
   'workq',
 ];
 
+const ATRACE_RENDERING = [
+  'aidl',
+  'am',
+  'binder_driver',
+  'gfx',
+  'hal',
+  'idle',
+  'input',
+  'memory',
+  'power',
+  'sched',
+  'thermal',
+  'view',
+  'webview',
+  'wm',
+  'workq',
+];
+
 const LOGCAT_DEFAULT = [
   protos.AndroidLogId.LID_DEFAULT,
   protos.AndroidLogId.LID_SYSTEM,
@@ -230,6 +248,37 @@ export const ANDROID_PRESETS: Preset[] = [
         power_voltages: {settings: {}},
         cpu_usage: {settings: {pollMs: 1000}},
         cpu_freq: {settings: {pollMs: 1000}},
+      },
+    },
+  },
+  {
+    id: 'graphics',
+    title: 'Graphics',
+    subtitle: 'Graphics pipeline and system compositor',
+    icon: 'layers',
+    session: {
+      mode: 'STOP_WHEN_FULL',
+      bufSizeKb: 64 * 1024,
+      durationMs: 30000,
+      maxFileSizeMb: 500,
+      fileWritePeriodMs: 2500,
+      compression: false,
+      probes: {
+        cpu_usage: {settings: {pollMs: 1000}},
+        cpu_sched: {settings: {}},
+        cpu_freq: {settings: {pollMs: 1000}},
+        gpu_frequency: {settings: {}},
+        gpu_memory: {settings: {}},
+        gpu_work_period: {settings: {}},
+        mem_proc_stat: {settings: {pollMs: 1000}},
+        android_frame_timeline: {settings: {}},
+        atrace: {
+          settings: {
+            categories: ATRACE_RENDERING,
+            apps: '',
+            allApps: true,
+          },
+        },
       },
     },
   },
