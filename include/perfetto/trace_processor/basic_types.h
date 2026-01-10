@@ -307,6 +307,13 @@ struct SqlModule {
   // with the same name. This also bypasses any checks for reserved package
   // names so should be used with caution.
   bool allow_override = false;
+
+  // If true, allows this module to override any standard library module
+  // with the same name. This also bypasses any checks for reserved package
+  // names so should be used with caution.
+  //
+  // Only has effect if `allow_override` is also true.
+  bool allow_stdlib_override = false;
 };
 
 // Struct which defines how the trace should be summarized by
