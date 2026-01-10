@@ -13,19 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {AppImpl} from '../../core/app_impl';
 import {Button} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
 import {ExtensionServer} from './types';
 import {showAddExtensionServerModal} from './add_extension_server_modal';
+import {Setting} from '../../public/settings';
 
-export function renderExtensionServersSettings(): m.Children {
-  const app = AppImpl.instance;
-  const setting = app.settings.get('extensionServers');
-  if (!setting) return undefined;
-
-  const servers = (setting.get() ?? []) as ExtensionServer[];
-
+export function renderExtensionServersSettings(
+  setting: Setting<ExtensionServer[]>,
+): m.Children {
+  const servers = setting.get();
   const addServer = async () => {
     const result = await showAddExtensionServerModal();
     if (result) {
