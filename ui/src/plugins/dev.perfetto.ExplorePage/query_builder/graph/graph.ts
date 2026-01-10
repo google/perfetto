@@ -99,7 +99,7 @@ export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: LayoutMap;
-  readonly labels?: ReadonlyArray<TextLabelData>;
+  readonly labels: ReadonlyArray<TextLabelData>;
   readonly loadGeneration?: number;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
@@ -618,21 +618,14 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private previousLoadGeneration?: number;
 
   oninit(vnode: m.Vnode<GraphAttrs>) {
-    // Load initial labels from attrs if provided
-    if (vnode.attrs.labels) {
-      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
-    }
+    // Load initial labels from attrs
+    this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
   }
 
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
     // Only update labels if the reference changed (indicating external state update)
     if (vnode.attrs.labels !== old.attrs.labels) {
-      if (vnode.attrs.labels) {
-        this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
-      } else {
-        // Clear labels when attrs.labels is undefined
-        this.deserializeLabels([]);
-      }
+      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
     }
     return true;
   }
