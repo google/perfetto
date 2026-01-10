@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 
@@ -88,15 +89,26 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // the returned iterator.
   virtual Iterator ExecuteQuery(const std::string& sql) = 0;
 
-  // Registers SQL files with the associated path under the package named
-  // |sql_package.name|.
+  // Registers SQL modules which can be later included in SQL queries using
+  // `INCLUDE PERFETTO MODULE <module_name>`.
   //
-  // For example, if you registered a package called "camera" with a file path
-  // "camera/cpu/metrics.sql" you can include it (run the file) using "INCLUDE
-  // PERFETTO MODULE camera.cpu.metrics". The first word of the string has to be
-  // a package name and there can be only one package registered with a given
-  // name.
-  virtual base::Status RegisterSqlPackage(SqlPackage) = 0;
+  // Each entry in the passed vector corresponds to a single SQL module to be
+  // registered.
+  //
+  // For example, given a module defined as:
+  // ```
+  // SqlModule {
+  //   name: "my_package.my_module"
+  //   sql: "CREATE VIEW my_view AS SELECT * FROM my_table;"
+  // }
+  // ```
+  //
+  // it can be included in SQL queries as:
+  // ```
+  // INCLUDE PERFETTO MODULE 'my_package.my_module';
+  // SELECT * FROM my_view;
+  // ```
+  virtual base::Status RegisterSqlModules(const std::vector<SqlModule>&) = 0;
 
   // =================================================================
   // |        Trace summary related functionality starts here        |
@@ -184,10 +196,8 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // NOTE: No Iterators can active when called.
   virtual size_t RestoreInitialTables() = 0;
 
-  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
-  // functionality to |RegisterSqlModule()| and the only difference is in
-  // the argument, which is directly translatable to |SqlPackage|.
-  virtual base::Status RegisterSqlModule(SqlModule) = 0;
+  // Deprecated: please use RegisterSqlModules instead.
+  virtual base::Status RegisterSqlPackage(SqlPackage) = 0;
 
   // =================================================================
   // |  Trace-based metrics (v1) related functionality starts here   |

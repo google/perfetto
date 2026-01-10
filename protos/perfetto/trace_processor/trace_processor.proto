@@ -107,9 +107,11 @@ message TraceProcessorRpc {
     TPM_DISABLE_AND_READ_METATRACE = 9;
     TPM_GET_STATUS = 10;
     TPM_RESET_TRACE_PROCESSOR = 11;
+    // Deprecated: use TPM_REGISTER_SQL_MODULES instead.
     TPM_REGISTER_SQL_PACKAGE = 13;
     TPM_ANALYZE_STRUCTURED_QUERY = 14;
     TPM_SUMMARIZE_TRACE = 15;
+    TPM_REGISTER_SQL_MODULES = 16;
   }
 
   oneof type {
@@ -141,12 +143,14 @@ message TraceProcessorRpc {
     EnableMetatraceArgs enable_metatrace_args = 106;
     // For TPM_RESET_TRACE_PROCESSOR.
     ResetTraceProcessorArgs reset_trace_processor_args = 107;
-    // For TPM_REGISTER_SQL_PACKAGE.
+    // For TPM_REGISTER_SQL_PACKAGE (deprecated).
     RegisterSqlPackageArgs register_sql_package_args = 108;
     // For TPM_ANALYZE_STRUCTURED_QUERY.
     AnalyzeStructuredQueryArgs analyze_structured_query_args = 109;
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryArgs trace_summary_args = 110;
+    // For TPM_REGISTER_SQL_MODULES.
+    RegisterSqlModulesArgs register_sql_modules_args = 111;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -161,10 +165,12 @@ message TraceProcessorRpc {
     DisableAndReadMetatraceResult metatrace = 209;
     // For TPM_GET_STATUS.
     StatusResult status = 210;
-    // For TPM_REGISTER_SQL_PACKAGE.
+    // For TPM_REGISTER_SQL_PACKAGE (deprecated).
     RegisterSqlPackageResult register_sql_package_result = 211;
     // For TPM_FINALIZE_TRACE_DATA.
     FinalizeDataResult finalize_data_result = 212;
+    // For TPM_REGISTER_SQL_MODULES.
+    RegisterSqlModulesResult register_sql_modules_result = 215;
     // For TPM_ANALYZE_STRUCTURED_QUERY.
     AnalyzeStructuredQueryResult analyze_structured_query_result = 213;
     // For TPM_SUMMARIZE_TRACE.
@@ -375,6 +381,20 @@ message RegisterSqlPackageArgs {
 }
 
 message RegisterSqlPackageResult {
+  optional string error = 1;
+}
+
+message RegisterSqlModulesArgs {
+  message Module {
+    optional string name = 1;
+    optional string sql = 2;
+    optional bool allow_override = 3;
+    optional bool allow_stdlib_override = 4;
+  }
+  repeated Module modules = 1;
+}
+
+message RegisterSqlModulesResult {
   optional string error = 1;
 }
 

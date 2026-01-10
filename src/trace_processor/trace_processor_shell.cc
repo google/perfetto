@@ -894,12 +894,6 @@ Advanced:
                                       passed contents. The outer directory will
                                       be ignored. Only allowed when --dev is
                                       specified.
- --add-sql-module PACKAGE_PATH        Alias for --add-sql-package, kept for
-                                      backwards compatibility. Prefer
-                                      --add-sql-package.
- --override-sql-module PACKAGE_PATH   Alias for --override-sql-package, kept for
-                                      backwards compatibility. Prefer
-                                      --override-sql-package.
 
 Metrics (v1):
 
@@ -983,10 +977,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"query-file", required_argument, nullptr, 'q'},
       {"query-string", required_argument, nullptr, 'Q'},
-      {"add-sql-module", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
       {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
-      {"override-sql-module", required_argument, nullptr,
-       OPT_OVERRIDE_SQL_PACKAGE},
       {"override-sql-package", required_argument, nullptr,
        OPT_OVERRIDE_SQL_PACKAGE},
 
@@ -1447,7 +1438,7 @@ base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
 
   std::vector<std::string> paths;
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
-  sql_modules::NameToPackage modules;
+  std::vector<SqlModule> modules;
   for (const auto& path : paths) {
     if (base::GetFileExtension(path) != ".sql") {
       continue;
@@ -1468,16 +1459,9 @@ base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
 
     std::string import_key =
         package_name + "." + sql_modules::GetIncludeKey(path);
-    modules.Insert(package_name, {})
-        .first->push_back({import_key, file_contents});
+    modules.push_back({import_key, file_contents, allow_override, false});
   }
-  for (auto module_it = modules.GetIterator(); module_it; ++module_it) {
-    RETURN_IF_ERROR(trace_processor->RegisterSqlPackage(
-        {/*name=*/module_it.key(),
-         /*files=*/module_it.value(),
-         /*allow_override=*/allow_override}));
-  }
-  return base::OkStatus();
+  return trace_processor->RegisterSqlModules(modules);
 }
 
 base::Status LoadOverridenStdlib(TraceProcessor* trace_processor,
@@ -1493,7 +1477,7 @@ base::Status LoadOverridenStdlib(TraceProcessor* trace_processor,
 
   std::vector<std::string> paths;
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
-  sql_modules::NameToPackage packages;
+  std::vector<SqlModule> modules;
   for (const auto& path : paths) {
     if (base::GetFileExtension(path) != ".sql") {
       continue;
@@ -1504,17 +1488,10 @@ base::Status LoadOverridenStdlib(TraceProcessor* trace_processor,
       return base::ErrStatus("Cannot read file '%s'", filename.c_str());
     }
     std::string module_name = sql_modules::GetIncludeKey(path);
-    std::string package_name = sql_modules::GetPackageName(module_name);
-    packages.Insert(package_name, {})
-        .first->push_back({module_name, module_file});
+    modules.push_back({module_name, module_file, /*allow_override=*/true,
+                       /*allow_stdlib_override=*/true});
   }
-  for (auto package = packages.GetIterator(); package; ++package) {
-    trace_processor->RegisterSqlPackage({/*name=*/package.key(),
-                                         /*files=*/package.value(),
-                                         /*allow_override=*/true});
-  }
-
-  return base::OkStatus();
+  return trace_processor->RegisterSqlModules(modules);
 }
 
 base::Status LoadMetricExtensionProtos(TraceProcessor* trace_processor,

@@ -39,7 +39,6 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/dataframe/dataframe.h"
@@ -965,28 +964,47 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
 
   const std::string& key = include.key;
   if (key == "*") {
-    for (auto package = packages_.GetIterator(); package; ++package) {
-      RETURN_IF_ERROR(IncludePackageImpl(package.value(), key, parser));
+    for (auto module = modules_.GetIterator(); module; ++module) {
+      RETURN_IF_ERROR(IncludeModuleImpl(module.value(), key, parser));
     }
     return base::OkStatus();
   }
 
-  std::string package_name = sql_modules::GetPackageName(key);
-
-  auto* package = FindPackage(package_name);
-  if (!package) {
-    if (package_name == "common") {
-      return base::ErrStatus(
-          "INCLUDE: Package `common` has been removed and most of the "
-          "functionality has been moved to other packages. Check "
-          "`slices.with_context` for replacement for `common.slices` and "
-          "`time.conversion` for replacement for `common.timestamps`. The "
-          "documentation for Perfetto standard library can be found at "
-          "https://perfetto.dev/docs/analysis/stdlib-docs.");
+  if (!key.empty() && key.back() == '*') {
+    // If the key ends with a wildcard, collect all matching modules and
+    // push a wildcard frame that will process them one at a time.
+    std::string prefix = key.substr(0, key.size() - 1);
+    std::vector<std::pair<std::string, sql_modules::RegisteredModule*>>
+        matching_modules;
+    for (auto module = modules_.GetIterator(); module; ++module) {
+      if (!base::StartsWith(module.key(), prefix))
+        continue;
+      // Include both already-included and not-yet-included modules in the list
+      // The wildcard frame will skip already-included ones during iteration
+      matching_modules.emplace_back(module.key(), &module.value());
     }
-    return base::ErrStatus("INCLUDE: Package '%s' not found", key.c_str());
+
+    if (matching_modules.empty()) {
+      return base::OkStatus();
+    }
+
+    // Push a wildcard frame that will iterate through these modules
+    execution_stack_.push_back(
+        {FrameType::kWildcard,
+         /*sql_source=*/SqlSource::FromTraceProcessorImplementation(""),
+         /*parser=*/nullptr, /*accumulated_stats=*/{},
+         /*current_stmt=*/std::nullopt,
+         /*include_key=*/{}, /*file_ptr=*/nullptr,
+         /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
+         std::move(matching_modules), /*wildcard_index=*/0,
+         /*wildcard_traceback_sql=*/parser.statement_sql()});
+    return base::OkStatus();
   }
-  return IncludePackageImpl(*package, key, parser);
+  auto* module_file = modules_.Find(key);
+  if (!module_file) {
+    return base::ErrStatus("INCLUDE: unknown module '%s'", key.c_str());
+  }
+  return IncludeModuleImpl(*module_file, key, parser);
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateIndex(
@@ -1070,67 +1088,23 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
                          index.name.c_str());
 }
 
-base::Status PerfettoSqlEngine::IncludePackageImpl(
-    sql_modules::RegisteredPackage& package,
-    const std::string& include_key,
-    const PerfettoSqlParser& parser) {
-  if (!include_key.empty() && include_key.back() == '*') {
-    // If the key ends with a wildcard, collect all matching modules and
-    // push a wildcard frame that will process them one at a time.
-    std::string prefix = include_key.substr(0, include_key.size() - 1);
-    std::vector<
-        std::pair<std::string, sql_modules::RegisteredPackage::ModuleFile*>>
-        matching_modules;
-    for (auto module = package.modules.GetIterator(); module; ++module) {
-      if (!base::StartsWith(module.key(), prefix))
-        continue;
-      // Include both already-included and not-yet-included modules in the list
-      // The wildcard frame will skip already-included ones during iteration
-      matching_modules.emplace_back(module.key(), &module.value());
-    }
-
-    if (matching_modules.empty()) {
-      return base::OkStatus();
-    }
-
-    // Push a wildcard frame that will iterate through these modules
-    execution_stack_.push_back(
-        {FrameType::kWildcard,
-         /*sql_source=*/SqlSource::FromTraceProcessorImplementation(""),
-         /*parser=*/nullptr, /*accumulated_stats=*/{},
-         /*current_stmt=*/std::nullopt,
-         /*include_key=*/{}, /*file_ptr=*/nullptr,
-         /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
-         std::move(matching_modules), /*wildcard_index=*/0,
-         /*wildcard_traceback_sql=*/parser.statement_sql()});
-    return base::OkStatus();
-  }
-  auto* module_file = package.modules.Find(include_key);
-  if (!module_file) {
-    return base::ErrStatus("INCLUDE: unknown module '%s'", include_key.c_str());
-  }
-  return IncludeModuleImpl(*module_file, include_key, parser);
-}
-
 base::Status PerfettoSqlEngine::IncludeModuleImpl(
-    sql_modules::RegisteredPackage::ModuleFile& file,
+    sql_modules::RegisteredModule& module,
     const std::string& key,
     const PerfettoSqlParser& parser) {
   // INCLUDE is noop for already included files.
-  if (file.included) {
+  if (module.included) {
     return base::OkStatus();
   }
-
   // Push include frame onto execution stack. The main loop will process it.
   execution_stack_.push_back({FrameType::kInclude,
-                              SqlSource::FromModuleInclude(file.sql, key),
+                              SqlSource::FromModuleInclude(module.sql, key),
                               /*parser=*/nullptr, /*accumulated_stats=*/{},
-                              /*current_stmt=*/std::nullopt, key, &file,
+                              /*current_stmt=*/std::nullopt, key, &module,
                               /*traceback_sql=*/parser.statement_sql(),
                               /*wildcard_modules=*/{}, /*wildcard_index=*/0,
                               /*wildcard_traceback_sql=*/
                               SqlSource::FromTraceProcessorImplementation("")});
-
   return base::OkStatus();
 }
 

@@ -17,6 +17,7 @@
 #include "src/trace_processor/trace_processor_impl.h"
 
 #include <algorithm>
+#include <array>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -158,7 +159,6 @@
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-#include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
@@ -245,23 +245,6 @@ void AddStaticTable(std::vector<PerfettoSqlEngine::StaticTable>& tables,
       &table_instance->dataframe(),
       T::Name(),
   });
-}
-
-base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
-    const SqlPackage& package) {
-  const std::string& name = package.name;
-  sql_modules::RegisteredPackage new_package;
-  for (auto const& module_name_and_sql : package.modules) {
-    if (sql_modules::GetPackageName(module_name_and_sql.first) != name) {
-      return base::ErrStatus(
-          "Module name doesn't match the package name. First part of module "
-          "name should be package name. Import key: '%s', package name: '%s'.",
-          module_name_and_sql.first.c_str(), name.c_str());
-    }
-    new_package.modules.Insert(module_name_and_sql.first,
-                               {module_name_and_sql.second, false});
-  }
-  return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
 
 class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
@@ -403,15 +386,37 @@ void InsertIntoModulesTable(tables::ModulesTable* table,
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
 }
 
-sql_modules::NameToPackage GetStdlibPackages() {
-  sql_modules::NameToPackage packages;
+// List of packages reserved for the standard library. Modules in these packages
+// cannot be overridden without setting allow_stdlib_override and enabling dev
+// features.
+constexpr std::array<const char*, 22> kReservedPackages = {{
+    "android", "appleos",     "callstacks", "chrome", "counters",
+    "export",  "graphs",      "intervals",  "linux",  "pixel",
+    "pkvm",    "prelude",     "proto_path", "sched",  "slices",
+    "stacks",  "stack_trace", "time",       "traced", "v8",
+    "viz",     "wattson",
+}};
+
+bool IsInReservedPackage(const std::string& module_name) {
+  size_t dot_pos = module_name.find('.');
+  std::string package = dot_pos == std::string::npos
+                            ? module_name
+                            : module_name.substr(0, dot_pos);
+  for (const char* reserved_pkg : kReservedPackages) {
+    if (package == reserved_pkg) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::vector<SqlModule> GetStdlibModules() {
+  std::vector<SqlModule> modules;
   for (const auto& file_to_sql : stdlib::kFileToSql) {
     std::string module_name = sql_modules::GetIncludeKey(file_to_sql.path);
-    std::string package_name = sql_modules::GetPackageName(module_name);
-    packages.Insert(package_name, {})
-        .first->push_back({module_name, file_to_sql.sql});
+    modules.push_back({module_name, file_to_sql.sql, false, false});
   }
-  return packages;
+  return modules;
 }
 
 std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
@@ -566,20 +571,14 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     PERFETTO_CHECK(status.ok());
   }
 
-  // Register stdlib packages.
-  auto packages = GetStdlibPackages();
-  for (auto package = packages.GetIterator(); package; ++package) {
-    registered_sql_packages_.emplace_back<SqlPackage>(
-        {/*name=*/package.key(),
-         /*modules=*/package.value(),
-         /*allow_override=*/false});
-  }
+  // Register stdlib modules.
+  registered_modules_ = GetStdlibModules();
 
   // Compute initial trace bounds before any tables are finalized.
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
 
   engine_ = InitPerfettoSqlEngine(
-      context(), context()->storage.get(), config_, registered_sql_packages_,
+      context(), context()->storage.get(), config_, registered_modules_,
       sql_metrics_, &metrics_descriptor_pool_, &proto_fn_name_to_path_, this,
       notify_eof_called_, cached_trace_bounds_);
 
@@ -689,29 +688,56 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   return Iterator(std::move(impl));
 }
 
-base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
-  std::string name = sql_package.name;
-  if (engine_->FindPackage(name) && !sql_package.allow_override) {
-    return base::ErrStatus(
-        "Package '%s' is already registered. Choose a different name.\n"
-        "If you want to replace the existing package using trace processor "
-        "shell, you need to pass the --dev flag and use "
-        "--override-sql-package "
-        "to pass the module path.",
-        name.c_str());
+base::Status TraceProcessorImpl::RegisterSqlModules(
+    const std::vector<SqlModule>& modules) {
+  for (const auto& module : modules) {
+    if (engine_->FindModule(module.name) && !module.allow_override) {
+      return base::ErrStatus(
+          "Module '%s' is already registered. Choose a different name.\n"
+          "If you want to replace the existing module using trace processor "
+          "shell, you need to pass the --dev flag and use "
+          "--override-sql-module "
+          "to pass the module path.",
+          module.name.c_str());
+    }
+    // Check if trying to add a module in a package reserved for stdlib.
+    if (IsInReservedPackage(module.name)) {
+      if (!module.allow_stdlib_override) {
+        // If they're trying to override, mention the stdlib override option.
+        // Otherwise just tell them to use a non-reserved package name.
+        if (module.allow_override) {
+          return base::ErrStatus(
+              "Module '%s' is in a package reserved for the standard library.\n"
+              "Use a different package name, or if you want to override "
+              "standard library modules, use --override-stdlib instead.",
+              module.name.c_str());
+        }
+        return base::ErrStatus(
+            "Module '%s' is in a package reserved for the standard library.\n"
+            "Please use a different package name.",
+            module.name.c_str());
+      }
+      if (!config_.enable_dev_features) {
+        return base::ErrStatus(
+            "Module '%s' is in a package reserved for the standard library. "
+            "Overriding standard library modules requires --dev flag.",
+            module.name.c_str());
+      }
+    }
+    registered_modules_.push_back(module);
+    engine_->RegisterModule(module.name, module.sql);
   }
-  ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(sql_package));
-  registered_sql_packages_.emplace_back(std::move(sql_package));
-  engine_->RegisterPackage(name, std::move(new_package));
   return base::OkStatus();
 }
 
-base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule module) {
-  SqlPackage package;
-  package.name = std::move(module.name);
-  package.modules = std::move(module.files);
-  package.allow_override = module.allow_module_override;
-  return RegisterSqlPackage(package);
+base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
+  std::vector<SqlModule> modules;
+  modules.reserve(sql_package.modules.size());
+  for (const auto& module : sql_package.modules) {
+    modules.push_back(
+        {module.first, module.second, sql_package.allow_override, false});
+  }
+  return RegisterSqlModules(modules);
 }
 
 // =================================================================
@@ -909,7 +935,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   // Reset the engine to its initial state. Pass cached bounds to avoid
   // recomputing them.
   engine_ = InitPerfettoSqlEngine(
-      context(), context()->storage.get(), config_, registered_sql_packages_,
+      context(), context()->storage.get(), config_, registered_modules_,
       sql_metrics_, &metrics_descriptor_pool_, &proto_fn_name_to_path_, this,
       notify_eof_called_, cached_trace_bounds_);
 
@@ -1198,7 +1224,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     TraceProcessorContext* context,
     TraceStorage* storage,
     const Config& config,
-    const std::vector<SqlPackage>& packages,
+    const std::vector<SqlModule>& modules,
     std::vector<metrics::SqlMetricFile>& sql_metrics,
     const DescriptorPool* metrics_descriptor_pool,
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
@@ -1390,13 +1416,9 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     }
   }
 
-  // Reregister manually added stdlib packages.
-  for (const auto& package : packages) {
-    auto new_package = ToRegisteredPackage(package);
-    if (!new_package.ok()) {
-      PERFETTO_FATAL("%s", new_package.status().c_message());
-    }
-    engine->RegisterPackage(package.name, std::move(*new_package));
+  // Register all modules.
+  for (const auto& module : modules) {
+    engine->RegisterModule(module.name, module.sql);
   }
 
   // Import prelude package.

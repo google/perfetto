@@ -293,29 +293,25 @@ struct PERFETTO_EXPORT_COMPONENT SqlValue {
   Type type = kNull;
 };
 
-// Data used to register a new SQL package.
-struct SqlPackage {
-  // Must be unique among package, or can be used to override existing package
-  // if |allow_override| is set.
+// Represents a single SQL module to be registered with trace processor.
+struct SqlModule {
+  // The name of the module. This is used to reference the module in SQL
+  // queries.
+  // For example, "my_package.my_module".
   std::string name;
 
-  // Pairs of strings mapping from the name of the module used by `INCLUDE
-  // PERFETTO MODULE` statements to the contents of SQL files being executed.
-  // Module names should only contain alphanumeric characters and '.', where
-  // string before the first dot must be the package name.
-  //
-  // It is encouraged that include key should be the path to the SQL file being
-  // run, with slashes replaced by dots and without the SQL extension. For
-  // example, 'android/camera/jank.sql' would be included by
-  // 'android.camera.jank'. This conforms to user expectations of how modules
-  // behave in other languages (e.g. Java, Python etc).
-  std::vector<std::pair<std::string, std::string>> modules;
+  // The SQL contents of the module.
+  std::string sql;
 
-  // If true, will allow overriding a package which already exists with `name.
-  // Can only be set if enable_dev_features (in the TraceProcessorConfig object
-  // when creating TraceProcessor) is true. Otherwise, this option will throw an
-  // error.
+  // If true, allows this module to override any previously registered module
+  // with the same name.
   bool allow_override = false;
+
+  // If true, allows this module to override standard library modules with the
+  // same name.
+  // Only has effect if `allow_override` is also true and `enable_dev_features`
+  // is set in the `Config` used to create the TraceProcessor instance.
+  bool allow_stdlib_override = false;
 };
 
 // Struct which defines how the trace should be summarized by
@@ -409,11 +405,11 @@ struct AnalyzedStructuredQuery {
   std::vector<std::string> columns;
 };
 
-// Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.
-struct SqlModule {
+// Deprecated: use RegisterSqlModules + SqlModule instead.
+struct SqlPackage {
   std::string name;
-  std::vector<std::pair<std::string, std::string>> files;
-  bool allow_module_override = false;
+  std::vector<std::pair<std::string, std::string>> modules;
+  bool allow_override = false;
 };
 
 }  // namespace perfetto::trace_processor

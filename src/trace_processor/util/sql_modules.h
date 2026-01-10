@@ -19,26 +19,15 @@
 
 #include <cstddef>
 #include <string>
-#include <utility>
-#include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 
 namespace perfetto ::trace_processor::sql_modules {
 
-using NameToPackage =
-    base::FlatHashMap<std::string,
-                      std::vector<std::pair<std::string, std::string>>>;
-
-// Map from include key to sql file. Include key is the string used in INCLUDE
-// function.
-struct RegisteredPackage {
-  struct ModuleFile {
-    std::string sql;
-    bool included;
-  };
-  base::FlatHashMap<std::string, ModuleFile> modules;
+struct RegisteredModule {
+  std::string name;
+  std::string sql;
+  bool included = false;
 };
 
 inline std::string ReplaceSlashWithDot(std::string str) {
@@ -54,14 +43,6 @@ inline std::string GetIncludeKey(const std::string& path) {
   base::StringView path_view(path);
   auto path_no_extension = path_view.substr(0, path_view.rfind('.'));
   return ReplaceSlashWithDot(path_no_extension.ToStdString());
-}
-
-inline std::string GetPackageName(const std::string& str) {
-  size_t found = str.find('.');
-  if (found == std::string::npos) {
-    return str;
-  }
-  return str.substr(0, found);
 }
 
 }  // namespace perfetto::trace_processor::sql_modules

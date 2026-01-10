@@ -402,6 +402,16 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_REGISTER_SQL_MODULES: {
+      Response resp(tx_seq_id_++, req_type);
+      base::Status status = RegisterSqlModules(req.register_sql_modules_args());
+      auto* res = resp->set_register_sql_modules_result();
+      if (!status.ok()) {
+        res->set_error(status.message());
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unknown request" response, so the client can do feature
@@ -514,6 +524,17 @@ base::Status Rpc::RegisterSqlPackage(protozero::ConstBytes bytes) {
     package.modules.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
   }
   return trace_processor_->RegisterSqlPackage(package);
+}
+
+base::Status Rpc::RegisterSqlModules(protozero::ConstBytes bytes) {
+  protos::pbzero::RegisterSqlModulesArgs::Decoder args(bytes);
+  std::vector<SqlModule> modules;
+  for (auto it = args.modules(); it; ++it) {
+    protos::pbzero::RegisterSqlModulesArgs::Module::Decoder m(*it);
+    modules.push_back({m.name().ToStdString(), m.sql().ToStdString(),
+                       m.allow_override(), m.allow_stdlib_override()});
+  }
+  return trace_processor_->RegisterSqlModules(modules);
 }
 
 void Rpc::MaybePrintProgress() {
