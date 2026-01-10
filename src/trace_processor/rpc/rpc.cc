@@ -531,8 +531,8 @@ base::Status Rpc::RegisterSqlModules(protozero::ConstBytes bytes) {
   std::vector<SqlModule> modules;
   for (auto it = args.modules(); it; ++it) {
     protos::pbzero::RegisterSqlModulesArgs::Module::Decoder m(*it);
-    modules.push_back({m.name().ToStdString(), m.sql().ToStdString(),
-                       m.allow_override(), m.allow_stdlib_override()});
+    modules.push_back(
+        {m.name().ToStdString(), m.sql().ToStdString(), m.allow_override()});
   }
   return trace_processor_->RegisterSqlModules(modules);
 }

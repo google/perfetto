@@ -397,24 +397,24 @@ constexpr std::array<const char*, 22> kReservedPackages = {{
     "viz",     "wattson",
 }};
 
-bool IsInReservedPackage(const std::string& module_name) {
+std::optional<std::string> IsInReservedPackage(const std::string& module_name) {
   size_t dot_pos = module_name.find('.');
   std::string package = dot_pos == std::string::npos
                             ? module_name
                             : module_name.substr(0, dot_pos);
   for (const char* reserved_pkg : kReservedPackages) {
     if (package == reserved_pkg) {
-      return true;
+      return package;
     }
   }
-  return false;
+  return std::nullopt;
 }
 
 std::vector<SqlModule> GetStdlibModules() {
   std::vector<SqlModule> modules;
   for (const auto& file_to_sql : stdlib::kFileToSql) {
     std::string module_name = sql_modules::GetIncludeKey(file_to_sql.path);
-    modules.push_back({module_name, file_to_sql.sql, false, false});
+    modules.push_back({module_name, file_to_sql.sql, false});
   }
   return modules;
 }
@@ -690,40 +690,24 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
 
 base::Status TraceProcessorImpl::RegisterSqlModules(
     const std::vector<SqlModule>& modules) {
+  // Validate modules before registering any.
   for (const auto& module : modules) {
     if (engine_->FindModule(module.name) && !module.allow_override) {
       return base::ErrStatus(
-          "Module '%s' is already registered. Choose a different name.\n"
-          "If you want to replace the existing module using trace processor "
-          "shell, you need to pass the --dev flag and use "
-          "--override-sql-module "
-          "to pass the module path.",
+          "Module '%s' is already registered. Either choose a different name "
+          "or override the module.",
           module.name.c_str());
     }
     // Check if trying to add a module in a package reserved for stdlib.
-    if (IsInReservedPackage(module.name)) {
-      if (!module.allow_stdlib_override) {
-        // If they're trying to override, mention the stdlib override option.
-        // Otherwise just tell them to use a non-reserved package name.
-        if (module.allow_override) {
-          return base::ErrStatus(
-              "Module '%s' is in a package reserved for the standard library.\n"
-              "Use a different package name, or if you want to override "
-              "standard library modules, use --override-stdlib instead.",
-              module.name.c_str());
-        }
-        return base::ErrStatus(
-            "Module '%s' is in a package reserved for the standard library.\n"
-            "Please use a different package name.",
-            module.name.c_str());
-      }
-      if (!config_.enable_dev_features) {
-        return base::ErrStatus(
-            "Module '%s' is in a package reserved for the standard library. "
-            "Overriding standard library modules requires --dev flag.",
-            module.name.c_str());
-      }
+    if (auto package = IsInReservedPackage(module.name); package) {
+      return base::ErrStatus(
+          "Module '%s' is in package '%s' which is reserved bu the standard "
+          "library. Please use a different package name.",
+          module.name.c_str(), package->c_str());
     }
+  }
+  // Register modules.
+  for (const auto& module : modules) {
     registered_modules_.push_back(module);
     engine_->RegisterModule(module.name, module.sql);
   }
@@ -735,7 +719,7 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
   modules.reserve(sql_package.modules.size());
   for (const auto& module : sql_package.modules) {
     modules.push_back(
-        {module.first, module.second, sql_package.allow_override, false});
+        {module.first, module.second, sql_package.allow_override});
   }
   return RegisterSqlModules(modules);
 }

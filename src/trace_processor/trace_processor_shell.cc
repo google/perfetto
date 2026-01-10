@@ -952,7 +952,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_ANALYZE_TRACE_PROTO_CONTENT,
     OPT_CROP_TRACK_EVENTS,
     OPT_REGISTER_FILES_DIR,
-    OPT_OVERRIDE_STDLIB,
 
     OPT_RUN_METRICS,
     OPT_PRE_METRICS,
@@ -1006,7 +1005,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
       {"register-files-dir", required_argument, nullptr,
        OPT_REGISTER_FILES_DIR},
-      {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
 
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
       {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
@@ -1144,11 +1142,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_OVERRIDE_SQL_PACKAGE) {
       command_line_options.override_sql_package_paths.emplace_back(optarg);
-      continue;
-    }
-
-    if (option == OPT_OVERRIDE_STDLIB) {
-      command_line_options.override_stdlib_path = optarg;
       continue;
     }
 
@@ -1459,37 +1452,7 @@ base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
 
     std::string import_key =
         package_name + "." + sql_modules::GetIncludeKey(path);
-    modules.push_back({import_key, file_contents, allow_override, false});
-  }
-  return trace_processor->RegisterSqlModules(modules);
-}
-
-base::Status LoadOverridenStdlib(TraceProcessor* trace_processor,
-                                 std::string root) {
-  // Remove trailing slash
-  if (root.back() == '/') {
-    root.resize(root.length() - 1);
-  }
-
-  if (!base::FileExists(root)) {
-    return base::ErrStatus("Directory '%s' does not exist.", root.c_str());
-  }
-
-  std::vector<std::string> paths;
-  RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
-  std::vector<SqlModule> modules;
-  for (const auto& path : paths) {
-    if (base::GetFileExtension(path) != ".sql") {
-      continue;
-    }
-    std::string filename = root + "/" + path;
-    std::string module_file;
-    if (!base::ReadFile(filename, &module_file)) {
-      return base::ErrStatus("Cannot read file '%s'", filename.c_str());
-    }
-    std::string module_name = sql_modules::GetIncludeKey(path);
-    modules.push_back({module_name, module_file, /*allow_override=*/true,
-                       /*allow_stdlib_override=*/true});
+    modules.push_back({import_key, file_contents, allow_override});
   }
   return trace_processor->RegisterSqlModules(modules);
 }
@@ -1789,17 +1752,6 @@ base::Status MaybeWriteMetatrace(TraceProcessor* trace_processor,
 
 base::Status MaybeUpdateSqlPackages(TraceProcessor* trace_processor,
                                     const CommandLineOptions& options) {
-  if (!options.override_stdlib_path.empty()) {
-    if (!options.dev)
-      return base::ErrStatus("Overriding stdlib requires --dev flag");
-
-    auto status =
-        LoadOverridenStdlib(trace_processor, options.override_stdlib_path);
-    if (!status.ok())
-      return base::ErrStatus("Couldn't override stdlib: %s",
-                             status.c_message());
-  }
-
   if (!options.override_sql_package_paths.empty()) {
     for (const auto& override_sql_package_path :
          options.override_sql_package_paths) {

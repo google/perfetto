@@ -306,12 +306,6 @@ struct SqlModule {
   // If true, allows this module to override any previously registered module
   // with the same name.
   bool allow_override = false;
-
-  // If true, allows this module to override standard library modules with the
-  // same name.
-  // Only has effect if `allow_override` is also true and `enable_dev_features`
-  // is set in the `Config` used to create the TraceProcessor instance.
-  bool allow_stdlib_override = false;
 };
 
 // Struct which defines how the trace should be summarized by
