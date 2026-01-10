@@ -810,9 +810,6 @@ PerfettoSQL:
                                       as a new SQL package and can be used for
                                       INCLUDE PERFETTO MODULE statements. The
                                       name of the directory is the package name.
- --override-sql-package PACKAGE_PATH  Will override trace processor package with
-                                      passed contents. The outer directory will
-                                      specify the package name.
 
 Trace summarization:
   --summary                           Enables the trace summarization features of
@@ -890,10 +887,13 @@ Advanced:
                                       Some importers can use this data to
                                       augment trace data (e.g. decode ETM
                                       instruction streams).
- --override-stdlib=[path_to_stdlib]   Will override trace_processor/stdlib with
-                                      passed contents. The outer directory will
-                                      be ignored. Only allowed when --dev is
-                                      specified.
+ --override-sql-package PACKAGE_PATH  Will override trace processor package with
+                                      passed contents. This bypasses checks
+                                      trace processor makes around pacakges
+                                      already existing and clashing with stdlib
+                                      package names so should be used with
+                                      caution. The outer directory will specify
+                                      the package name.
 
 Metrics (v1):
 
