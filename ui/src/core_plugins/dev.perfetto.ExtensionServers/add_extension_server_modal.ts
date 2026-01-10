@@ -203,7 +203,7 @@ class AddExtensionServerModal {
           : this.userInput.url;
       const hint =
         this.userInput.type === 'github'
-          ? 'Please check that the repository, branch, and manifest.json file exist.'
+          ? 'Please check that the repository, branch, and manifest endpoint exist.'
           : 'Check that the URL is correct and CORS is enabled.';
       this.loadedState = {
         type: 'error',

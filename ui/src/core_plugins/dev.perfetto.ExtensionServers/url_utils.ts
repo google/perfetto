@@ -15,20 +15,20 @@
 // Resolves extension server URLs from shorthand aliases to canonical HTTPS URLs.
 //
 // Supports:
-// - github://owner/repo/ref[/optional/path] -> https://raw.githubusercontent.com/...
+// - github://owner/repo/ref -> https://raw.githubusercontent.com/owner/repo/ref
 // - https://... -> unchanged (already canonical)
 //
 // Note: http:// URLs are rejected. Use https:// instead.
 export function resolveServerUrl(input: string): string {
   const trimmed = input.trim();
 
-  // GitHub alias: github://owner/repo/ref[/optional/path]
+  // GitHub alias: github://owner/repo/ref
   if (trimmed.startsWith('github://')) {
     const path = trimmed.substring('github://'.length);
     if (!path) {
       throw new Error('Invalid GitHub URL: missing owner/repo/ref');
     }
-    // Path format: owner/repo/ref[/optional/path]
+    // Path format: owner/repo/ref
     return `https://raw.githubusercontent.com/${path}`;
   }
 

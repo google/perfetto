@@ -14,15 +14,12 @@
 
 import {z} from 'zod';
 import {fetchWithTimeout} from '../../base/http_utils';
-import {Macro} from '../../core/command_manager';
 import {
   ExtensionServer,
   macrosSchema,
   Manifest,
   manifestSchema,
-  ProtoDescriptor,
   protoDescriptorsSchema,
-  SqlModule,
   sqlModulesSchema,
 } from './types';
 import {resolveServerUrl} from './url_utils';
@@ -73,52 +70,6 @@ export async function loadManifest(
 }
 
 async function loadMacros(
-  canonicalUrl: string,
-  module: string,
-): Promise<Result<ReadonlyArray<Macro>>> {
-  const wrapper = await fetchJson(
-    `${canonicalUrl}/modules/${module}/macros`,
-    macrosSchema,
-  );
-  if (!wrapper.ok) {
-    return errResult(wrapper.error);
-  }
-  return okResult(wrapper.value.macros);
-}
-
-async function loadSqlModules(
-  canonicalUrl: string,
-  module: string,
-): Promise<Result<ReadonlyArray<SqlModule>>> {
-  const wrapper = await fetchJson(
-    `${canonicalUrl}/modules/${module}/sql_modules`,
-    sqlModulesSchema,
-  );
-  if (!wrapper.ok) {
-    return errResult(wrapper.error);
-  }
-  return okResult(wrapper.value.sqlModules);
-}
-
-async function loadProtoDescriptors(
-  canonicalUrl: string,
-  module: string,
-): Promise<Result<ReadonlyArray<ProtoDescriptor>>> {
-  const wrapper = await fetchJson(
-    `${canonicalUrl}/modules/${module}/proto_descriptors`,
-    protoDescriptorsSchema,
-  );
-  if (!wrapper.ok) {
-    return errResult(wrapper.error);
-  }
-  return okResult(wrapper.value.descriptors);
-}
-
-// =============================================================================
-// Initialization
-// =============================================================================
-
-function maybeLoadMacros(
   manifestResult: Result<Manifest>,
   canonicalUrl: string,
   module: string,
@@ -135,10 +86,25 @@ function maybeLoadMacros(
     // Not supported, return empty list.
     return okResult([]);
   }
-  return loadMacros(canonicalUrl, module);
+  const wrapper = await fetchJson(
+    `${canonicalUrl}/modules/${module}/macros`,
+    macrosSchema,
+  );
+  if (!wrapper.ok) {
+    return errResult(wrapper.error);
+  }
+  // Validate that all macro IDs start with the namespace
+  for (const macro of wrapper.value.macros) {
+    if (!macro.id.startsWith(manifest.namespace + '.')) {
+      return errResult(
+        `Macro ID '${macro.id}' must start with namespace '${manifest.namespace}.'`,
+      );
+    }
+  }
+  return okResult(wrapper.value.macros);
 }
 
-function maybeLoadSqlPackage(
+async function loadSqlPackage(
   manifestResult: Result<Manifest>,
   canonicalUrl: string,
   module: string,
@@ -155,20 +121,29 @@ function maybeLoadSqlPackage(
     // Not supported, return empty list.
     return okResult([]);
   }
-  return loadSqlModules(canonicalUrl, module).then((modules) => {
-    if (!modules.ok) {
-      return errResult(modules.error);
+  const wrapper = await fetchJson(
+    `${canonicalUrl}/modules/${module}/sql_modules`,
+    sqlModulesSchema,
+  );
+  if (!wrapper.ok) {
+    return errResult(wrapper.error);
+  }
+  for (const sqlModule of wrapper.value.sqlModules) {
+    if (!sqlModule.name.startsWith(manifest.namespace + '.')) {
+      return errResult(
+        `SQL module name '${sqlModule.name}' must start with namespace '${manifest.namespace}.'`,
+      );
     }
-    return okResult([
-      {
-        name: manifest.namespace,
-        modules: modules.value,
-      },
-    ]);
-  });
+  }
+  return okResult([
+    {
+      name: manifest.namespace,
+      modules: wrapper.value.sqlModules,
+    },
+  ]);
 }
 
-function maybeLoadProtoDescriptors(
+async function loadProtoDescriptors(
   manifestResult: Result<Manifest>,
   canonicalUrl: string,
   module: string,
@@ -185,8 +160,19 @@ function maybeLoadProtoDescriptors(
     // Not supported, return empty list.
     return okResult([]);
   }
-  return loadProtoDescriptors(canonicalUrl, module);
+  const wrapper = await fetchJson(
+    `${canonicalUrl}/modules/${module}/proto_descriptors`,
+    protoDescriptorsSchema,
+  );
+  if (!wrapper.ok) {
+    return errResult(wrapper.error);
+  }
+  return okResult(wrapper.value.descriptors);
 }
+
+// =============================================================================
+// Initialization
+// =============================================================================
 
 // Initializes extension servers by fetching manifests (synchronously) and
 // loading extensions (asynchronously). This function should be called early
@@ -196,25 +182,20 @@ export function initializeExtensions(
   servers: ReadonlyArray<ExtensionServer>,
 ) {
   const results = [];
-  for (const {url, enabledModules} of servers) {
-    const canonicalUrl = resolveServerUrl(url);
-    const manifest = loadManifest(canonicalUrl);
-    for (const module of enabledModules) {
-      const macros = manifest.then((r) =>
-        maybeLoadMacros(r, canonicalUrl, module),
-      );
-      const sqlPackage = manifest.then((r) =>
-        maybeLoadSqlPackage(r, canonicalUrl, module),
-      );
-      const protoDescriptors = manifest.then((r) =>
-        maybeLoadProtoDescriptors(r, canonicalUrl, module),
-      );
+  for (const {url: rawUrl, enabledModules, enabled} of servers) {
+    if (!enabled) {
+      continue;
+    }
+    const url = resolveServerUrl(rawUrl);
+    const manifest = loadManifest(url);
+    for (const mod of enabledModules) {
+      const macros = manifest.then((r) => loadMacros(r, url, mod));
+      const sqlPackage = manifest.then((r) => loadSqlPackage(r, url, mod));
+      const descs = manifest.then((r) => loadProtoDescriptors(r, url, mod));
+      results.push(macros, sqlPackage, descs);
       ctx.addMacros(macros.then((r) => (r.ok ? r.value : [])));
       ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));
-      ctx.addProtoDescriptors(
-        protoDescriptors.then((r) => (r.ok ? r.value : [])),
-      );
-      results.push(macros, sqlPackage, protoDescriptors);
+      ctx.addProtoDescriptors(descs.then((r) => (r.ok ? r.value : [])));
     }
   }
   // When all the extension loading promises complete, show a modal if there

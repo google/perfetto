@@ -15,7 +15,7 @@
 import {loadManifest, initializeExtensions} from './extension_server';
 import {AppImpl} from '../../core/app_impl';
 import {Macro} from '../../core/command_manager';
-import {SqlPackage} from '../../trace_processor/engine';
+import {SqlPackage} from '../../public/extra_sql_packages';
 
 // =============================================================================
 // Test Helpers
@@ -119,6 +119,29 @@ describe('extension_server', () => {
       expect(mockApp.addProtoDescriptors).not.toHaveBeenCalled();
     });
 
+    test('skips disabled servers', async () => {
+      const manifest = {
+        name: 'Test',
+        namespace: 'test',
+        features: ['macros'],
+        modules: ['default'],
+      };
+      mockFetch.mockImplementation(() => mockJsonResponse(manifest));
+
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
+        {
+          url: 'https://server.com',
+          enabledModules: ['default'],
+          enabled: false,
+        },
+      ]);
+
+      expect(mockApp.addMacros).not.toHaveBeenCalled();
+      expect(mockApp.addSqlPackages).not.toHaveBeenCalled();
+      expect(mockApp.addProtoDescriptors).not.toHaveBeenCalled();
+    });
+
     test('loads extensions for each enabled module', async () => {
       const manifest = {
         name: 'Test Server',
@@ -128,12 +151,12 @@ describe('extension_server', () => {
       };
 
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/manifest')) {
+        if (url.endsWith('/manifest')) {
           return mockJsonResponse(manifest);
         }
         if (url.includes('/macros')) {
           return mockJsonResponse({
-            macros: [{name: 'Test Macro', steps: []}],
+            macros: [{id: 'test.macro1', name: 'Test Macro', commands: []}],
           });
         }
         if (url.includes('/sql_modules')) {
@@ -173,14 +196,15 @@ describe('extension_server', () => {
     test('loads macros when feature is supported', async () => {
       const manifest = {
         name: 'Test',
-        namespace: 'test',
+        namespace: 'myext',
         features: ['macros'],
         modules: ['default'],
       };
-      const macros = [{name: 'My Macro', steps: [{id: 'cmd', args: []}]}];
+      // Macro IDs must start with namespace
+      const macros = [{id: 'myext.macro1', name: 'My Macro', commands: []}];
 
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/manifest')) {
+        if (url.endsWith('/manifest')) {
           return mockJsonResponse(manifest);
         }
         if (url.includes('/macros')) {
@@ -211,7 +235,7 @@ describe('extension_server', () => {
       };
 
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/manifest')) {
+        if (url.endsWith('/manifest')) {
           return mockJsonResponse(manifest);
         }
         return mockErrorResponse(404);
@@ -246,7 +270,7 @@ describe('extension_server', () => {
       };
 
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/manifest')) {
+        if (url.endsWith('/manifest')) {
           return mockJsonResponse(manifest);
         }
         return mockErrorResponse(404);
@@ -297,17 +321,17 @@ describe('extension_server', () => {
       };
 
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/manifest')) {
+        if (url.endsWith('/manifest')) {
           return mockJsonResponse(manifest);
         }
         if (url.includes('/default/macros')) {
           return mockJsonResponse({
-            macros: [{name: 'Default Macro', steps: []}],
+            macros: [{id: 'test.default1', name: 'Default Macro', commands: []}],
           });
         }
         if (url.includes('/android/macros')) {
           return mockJsonResponse({
-            macros: [{name: 'Android Macro', steps: []}],
+            macros: [{id: 'test.android1', name: 'Android Macro', commands: []}],
           });
         }
         return mockErrorResponse(404);
@@ -337,14 +361,14 @@ describe('extension_server', () => {
       };
 
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/manifest')) {
+        if (url.endsWith('/manifest')) {
           return mockJsonResponse(manifest);
         }
         if (url.includes('/sql_modules')) {
           return mockJsonResponse({
             sqlModules: [
-              {name: 'helpers', sql: 'CREATE TABLE t(x INT)'},
-              {name: 'utils', sql: 'SELECT 1'},
+              {name: 'myext.helpers', sql: 'CREATE TABLE t(x INT)'},
+              {name: 'myext.utils', sql: 'SELECT 1'},
             ],
           });
         }
@@ -364,6 +388,76 @@ describe('extension_server', () => {
       expect(sqlPackages).toHaveLength(1);
       expect(sqlPackages[0]?.name).toBe('myext');
       expect(sqlPackages[0]?.modules).toHaveLength(2);
+    });
+
+    test('rejects macros with invalid namespace prefix', async () => {
+      const manifest = {
+        name: 'Test',
+        namespace: 'myext',
+        features: ['macros'],
+        modules: ['default'],
+      };
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.endsWith('/manifest')) {
+          return mockJsonResponse(manifest);
+        }
+        if (url.includes('/macros')) {
+          // Macro ID doesn't start with namespace
+          return mockJsonResponse({
+            macros: [{id: 'wrong.macro1', name: 'Bad Macro', commands: []}],
+          });
+        }
+        return mockErrorResponse(404);
+      });
+
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
+        {
+          url: 'https://server.com',
+          enabledModules: ['default'],
+          enabled: true,
+        },
+      ]);
+
+      // Should return empty array due to validation failure
+      const macros = await mockApp.getMacrosAdded()[0];
+      expect(macros).toEqual([]);
+    });
+
+    test('rejects sql modules with invalid namespace prefix', async () => {
+      const manifest = {
+        name: 'Test',
+        namespace: 'myext',
+        features: ['sql_modules'],
+        modules: ['default'],
+      };
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.endsWith('/manifest')) {
+          return mockJsonResponse(manifest);
+        }
+        if (url.includes('/sql_modules')) {
+          // SQL module name doesn't start with namespace
+          return mockJsonResponse({
+            sqlModules: [{name: 'wrong.module', sql: 'SELECT 1'}],
+          });
+        }
+        return mockErrorResponse(404);
+      });
+
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
+        {
+          url: 'https://server.com',
+          enabledModules: ['default'],
+          enabled: true,
+        },
+      ]);
+
+      // Should return empty array due to validation failure
+      const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
+      expect(sqlPackages).toEqual([]);
     });
   });
 });

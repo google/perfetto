@@ -23,7 +23,7 @@ import {macroSchema} from '../../core/command_manager';
 //
 // extensionServersSchema (persisted in Settings)
 //
-// manifestSchema (fetched from {base_url}/manifest.json)
+// manifestSchema (fetched from {base_url}/manifest)
 //
 // Resource schemas (fetched from {base_url}/modules/{module}/...):
 //   ├── macrosSchema           → /macros
@@ -44,8 +44,8 @@ export const extensionServerSchema = z.object({
 // This is the schema used for the Settings registration.
 export const extensionServersSchema = z.array(extensionServerSchema);
 
-// Manifest file format from {base_url}/manifest.json
-// Provides server metadata and available modules.
+// Manifest format from {base_url}/manifest
+// Provides server metadata, features, and available modules.
 //
 // The `modules` array specifies a set of modules. For each enabled module,
 // the client fetches:
