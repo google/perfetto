@@ -21,6 +21,12 @@ Unreleased:
     * Breaking change: TrackEvent log messages are now parsed into
       "track_event.log_message.message" arg instead of "track_event.log_message"
       to ensure that arg set can be converted into a valid json.
+    * Added `RegisterSqlModules()` C++ API which takes a vector of `SqlModule`
+      structs. Each `SqlModule` has a `name`, `sql`, and `allow_override` field.
+      This simplifies the module registration API by removing the intermediate
+      "package" grouping layer. The old `RegisterSqlPackage(SqlPackage)` method
+      is deprecated and will be removed in v57.
+    * Removed `RegisterSqlModule()` which was deprecated in v48.
   UI:
     * Added snap-to-boundaries feature for precise time selection. When
       dragging selection handles or creating area selections, the cursor
