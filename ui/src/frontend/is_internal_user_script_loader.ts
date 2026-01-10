@@ -16,13 +16,18 @@ import {defer} from '../base/deferred';
 import {AppImpl} from '../core/app_impl';
 import {CommandInvocation} from '../core/command_manager';
 import {raf} from '../core/raf_scheduler';
-import {SqlPackage} from '../public/extra_sql_packages';
+import {SqlModule} from '../public/extra_sql_packages';
 
 // This controls how long we wait for the script to load before giving up and
 // proceeding as if the user is not internal.
 const SCRIPT_LOAD_TIMEOUT_MS = 5000;
 const SCRIPT_URL =
   'https://storage.cloud.google.com/perfetto-ui-internal/internal-data-v1/amalgamated.js';
+
+interface SqlPackage {
+  readonly name: string;
+  readonly modules: SqlModule[];
+}
 
 // This interface describes the required interface that the script expects to
 // find on window.globals.
@@ -103,8 +108,10 @@ export function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
   app.addProtoDescriptors(
     scriptLoaded.then(({extraParsingDescriptors}) => extraParsingDescriptors),
   );
-  app.addSqlPackages(
-    scriptLoaded.then(({extraSqlPackages}) => extraSqlPackages),
+  app.addSqlModules(
+    scriptLoaded.then(({extraSqlPackages}) =>
+      extraSqlPackages.flatMap((p) => p.modules),
+    ),
   );
 
   return scriptLoaded.then((globals) => {
