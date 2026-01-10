@@ -326,12 +326,16 @@ describe('extension_server', () => {
         }
         if (url.includes('/default/macros')) {
           return mockJsonResponse({
-            macros: [{id: 'test.default1', name: 'Default Macro', commands: []}],
+            macros: [
+              {id: 'test.default1', name: 'Default Macro', commands: []},
+            ],
           });
         }
         if (url.includes('/android/macros')) {
           return mockJsonResponse({
-            macros: [{id: 'test.android1', name: 'Android Macro', commands: []}],
+            macros: [
+              {id: 'test.android1', name: 'Android Macro', commands: []},
+            ],
           });
         }
         return mockErrorResponse(404);
