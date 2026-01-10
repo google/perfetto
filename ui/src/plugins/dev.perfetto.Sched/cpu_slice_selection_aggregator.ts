@@ -31,7 +31,7 @@ import {
   UnionDatasetWithLineage,
 } from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, Row, UNKNOWN} from '../../trace_processor/query_result';
+import {LONG, NUM, UNKNOWN} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 
 const CPU_SLICE_SPEC = {
@@ -101,7 +101,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
-            sched.id,
+            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id,
             utid,
             process.name as process_name,
             pid,
@@ -109,9 +109,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             tid,
             sched.dur,
             sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
-            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
-            __groupid,
-            __partition
+            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection
           from ${iiTable.name} as sched
           join thread using (utid)
           left join process using (upid)
@@ -151,23 +149,23 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           title: 'ID',
           columnId: 'id',
           formatHint: 'ID',
-          dependsOn: ['__groupid', '__partition'],
-          cellRenderer: (value: unknown, row: Row) => {
-            if (typeof value !== 'bigint') {
+          cellRenderer: (value: unknown) => {
+            // Value is a JSON object {id, groupid, partition}
+            if (typeof value !== 'string') {
               return String(value);
             }
 
-            const groupId = row['__groupid'];
-            const partition = row['__partition'];
-
-            if (typeof groupId !== 'bigint') {
-              return String(value);
-            }
+            const parsed = JSON.parse(value) as {
+              id: number;
+              groupid: number;
+              partition: unknown;
+            };
+            const {id, groupid, partition} = parsed;
 
             // Resolve track from lineage
-            const track = this.resolveTrack(Number(groupId), partition);
+            const track = this.resolveTrack(groupid, partition);
             if (!track) {
-              return String(value);
+              return String(id);
             }
 
             return m(
@@ -176,16 +174,12 @@ export class CpuSliceSelectionAggregator implements Aggregator {
                 title: 'Go to sched slice',
                 icon: Icons.UpdateSelection,
                 onclick: () => {
-                  this.trace.selection.selectTrackEvent(
-                    track.uri,
-                    Number(value),
-                    {
-                      scrollToSelection: true,
-                    },
-                  );
+                  this.trace.selection.selectTrackEvent(track.uri, id, {
+                    scrollToSelection: true,
+                  });
                 },
               },
-              String(value),
+              String(id),
             );
           },
         },
@@ -223,16 +217,6 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           title: 'Wall Duration % of Selection',
           columnId: 'fraction_of_selection',
           formatHint: 'PERCENT',
-        },
-        {
-          title: 'Partition',
-          columnId: '__partition',
-          formatHint: 'ID',
-        },
-        {
-          title: 'GroupID',
-          columnId: '__groupid',
-          formatHint: 'ID',
         },
       ],
     };

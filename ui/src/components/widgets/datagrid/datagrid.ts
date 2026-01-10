@@ -379,57 +379,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
 
-    // Collect all fields needed including dependencies
-    const visibleFields = this.columns.map((c) => c.field);
-    const dependencyFields = new Set<string>();
-
-    // Gather dependency fields from column definitions
-    for (const col of this.columns) {
-      const colInfo = getColumnInfo(schema, rootSchema, col.field);
-      if (colInfo?.dependsOn) {
-        for (const dep of colInfo.dependsOn) {
-          dependencyFields.add(dep);
-        }
-      }
-    }
-
-    // Also gather dependency fields from pivot columns when in pivot mode
-    if (this.pivot) {
-      // Check groupBy columns for dependencies
-      for (const groupByCol of this.pivot.groupBy) {
-        const colInfo = getColumnInfo(schema, rootSchema, groupByCol.field);
-        if (colInfo?.dependsOn) {
-          for (const dep of colInfo.dependsOn) {
-            dependencyFields.add(dep);
-          }
-        }
-      }
-
-      // Check aggregate columns (those with a field) for dependencies
-      for (const agg of this.pivot.aggregates ?? []) {
-        if (agg.function === 'COUNT') continue;
-        const colInfo = getColumnInfo(schema, rootSchema, agg.field);
-        if (colInfo?.dependsOn) {
-          for (const dep of colInfo.dependsOn) {
-            dependencyFields.add(dep);
-          }
-        }
-      }
-    }
-
-    // Create columns array with dependencies included
-    // Use field as ID for dependency columns - they're internal and need stable IDs
-    const columnsWithDeps: readonly Column[] = [
-      ...this.columns,
-      ...Array.from(dependencyFields)
-        .filter((field) => !visibleFields.includes(field))
-        .map((field) => ({id: field, field})),
-    ];
-
     // Notify the data source of the current model state.
     const datasource = getOrCreateDataSource(data);
     datasource.notify({
-      columns: columnsWithDeps,
+      columns: this.columns,
       filters: this.filters,
       pagination: {
         offset: this.paginationOffset,

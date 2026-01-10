@@ -516,7 +516,7 @@ export class SQLDataSource implements DataSource {
       const sqlExpr = resolver.resolveColumnPath(col.field);
       if (sqlExpr) {
         // Use column ID as alias to support duplicate columns with same field
-        const alias = this.columnToAlias(col);
+        const alias = toAlias(col.id);
         selectExprs.push(`${sqlExpr} AS ${alias}`);
       }
     }
@@ -550,9 +550,9 @@ ${joinClauses}`;
       const whereConditions = filters.map((filter) => {
         const sqlExpr = resolver.resolveColumnPath(filter.field);
         if (!sqlExpr) {
-          return this.filterToSql(filter, filter.field);
+          return filterToSql(filter, filter.field);
         }
-        return this.filterToSql(filter, sqlExpr);
+        return filterToSql(filter, sqlExpr);
       });
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
@@ -627,7 +627,7 @@ ${joinClauses}`;
       groupByFields.push(field);
       const sqlExpr = resolver.resolveColumnPath(field);
       if (sqlExpr) {
-        const alias = this.pathToAlias(id);
+        const alias = toAlias(id);
         groupByExprs.push(`${sqlExpr} AS ${alias}`);
         groupByAliases.push(alias);
       }
@@ -636,7 +636,7 @@ ${joinClauses}`;
     // Build aggregate expressions from pivot.aggregates
     const aggregates = pivot.aggregates ?? [];
     const aggregateExprs = aggregates.map((agg) => {
-      const alias = this.pathToAlias(agg.id);
+      const alias = toAlias(agg.id);
       if (agg.function === 'COUNT') {
         return `COUNT(*) AS ${alias}`;
       }
@@ -671,7 +671,7 @@ ${joinClauses}`;
           const sqlExpr = resolver.resolveColumnPath(col.field);
           if (sqlExpr) {
             // Use column ID as alias to support duplicate columns
-            const alias = this.columnToAlias(col);
+            const alias = toAlias(col.id);
             // Use MIN as a proxy for ANY to get a value from the group
             dependencyExprs.push(`MIN(${sqlExpr}) AS ${alias}`);
           }
@@ -696,9 +696,9 @@ ${joinClauses}`;
       const whereConditions = filters.map((filter) => {
         const sqlExpr = resolver.resolveColumnPath(filter.field);
         if (!sqlExpr) {
-          return this.filterToSql(filter, filter.field);
+          return filterToSql(filter, filter.field);
         }
-        return this.filterToSql(filter, sqlExpr);
+        return filterToSql(filter, sqlExpr);
       });
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
@@ -717,7 +717,7 @@ ${joinClauses}`;
       if (sortedColumn) {
         const {id, direction} = sortedColumn;
         // Use the column ID as the alias for ORDER BY
-        const alias = this.pathToAlias(id);
+        const alias = toAlias(id);
         query += `\nORDER BY ${alias} ${direction.toUpperCase()}`;
       }
     }
@@ -793,52 +793,6 @@ ${joinClauses}`;
     `;
   }
 
-  /**
-   * Converts a column path to a valid SQL alias.
-   */
-  private pathToAlias(path: string): string {
-    if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(path)) {
-      return path;
-    }
-    return `"${path}"`;
-  }
-
-  /**
-   * Gets the SQL alias for a column using its unique ID.
-   */
-  private columnToAlias(col: Column): string {
-    return this.pathToAlias(col.id);
-  }
-
-  /**
-   * Converts a filter to SQL using the resolved column expression.
-   */
-  private filterToSql(filter: Filter, sqlExpr: string): string {
-    switch (filter.op) {
-      case '=':
-      case '!=':
-      case '<':
-      case '<=':
-      case '>':
-      case '>=':
-        return `${sqlExpr} ${filter.op} ${sqlValue(filter.value)}`;
-      case 'glob':
-        return `${sqlExpr} GLOB ${sqlValue(filter.value)}`;
-      case 'not glob':
-        return `${sqlExpr} NOT GLOB ${sqlValue(filter.value)}`;
-      case 'is null':
-        return `${sqlExpr} IS NULL`;
-      case 'is not null':
-        return `${sqlExpr} IS NOT NULL`;
-      case 'in':
-        return `${sqlExpr} IN (${filter.value.map(sqlValue).join(', ')})`;
-      case 'not in':
-        return `${sqlExpr} NOT IN (${filter.value.map(sqlValue).join(', ')})`;
-      default:
-        assertUnreachable(filter);
-    }
-  }
-
   private async fetchPivotAggregates(
     filters: ReadonlyArray<Filter>,
     pivot: Pivot,
@@ -856,7 +810,7 @@ ${joinClauses}`;
     const aggregates = pivot.aggregates ?? [];
     const selectClauses = aggregates
       .map((agg) => {
-        const alias = this.pathToAlias(agg.id);
+        const alias = toAlias(agg.id);
         if (agg.function === 'COUNT') {
           return `COUNT(*) AS ${alias}`;
         }
@@ -892,7 +846,7 @@ ${joinClauses}`;
       );
       const whereConditions = filters.map((filter) => {
         const sqlExpr = filterResolver.resolveColumnPath(filter.field);
-        return this.filterToSql(filter, sqlExpr ?? filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
       });
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
@@ -919,7 +873,7 @@ ${joinClauses}`;
         const func = col.aggregate!;
         const colExpr = resolver.resolveColumnPath(col.field);
         // Use column ID as alias to support duplicate columns
-        const alias = this.columnToAlias(col);
+        const alias = toAlias(col.id);
 
         if (!colExpr) {
           return `NULL AS ${alias}`;
@@ -950,7 +904,7 @@ ${joinClauses}`;
     if (filters.length > 0) {
       const whereConditions = filters.map((filter) => {
         const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return this.filterToSql(filter, sqlExpr ?? filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
       });
       query += `\nWHERE ${whereConditions.join(' AND ')}`;
     }
@@ -979,4 +933,40 @@ function comparePagination(a?: Pagination, b?: Pagination): boolean {
   if (!a && !b) return true;
   if (!a || !b) return false;
   return a.limit === b.limit && a.offset === b.offset;
+}
+
+/**
+ * Converts a string to a valid SQL alias by wrapping in double quotes.
+ */
+function toAlias(id: string): string {
+  return `"${id}"`;
+}
+
+/**
+ * Converts a filter to SQL using the resolved column expression.
+ */
+function filterToSql(filter: Filter, sqlExpr: string): string {
+  switch (filter.op) {
+    case '=':
+    case '!=':
+    case '<':
+    case '<=':
+    case '>':
+    case '>=':
+      return `${sqlExpr} ${filter.op} ${sqlValue(filter.value)}`;
+    case 'glob':
+      return `${sqlExpr} GLOB ${sqlValue(filter.value)}`;
+    case 'not glob':
+      return `${sqlExpr} NOT GLOB ${sqlValue(filter.value)}`;
+    case 'is null':
+      return `${sqlExpr} IS NULL`;
+    case 'is not null':
+      return `${sqlExpr} IS NOT NULL`;
+    case 'in':
+      return `${sqlExpr} IN (${filter.value.map(sqlValue).join(', ')})`;
+    case 'not in':
+      return `${sqlExpr} NOT IN (${filter.value.map(sqlValue).join(', ')})`;
+    default:
+      assertUnreachable(filter);
+  }
 }
