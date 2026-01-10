@@ -85,8 +85,8 @@ implementation details are deferred to a separate RFC.
 1. **Standard protocols** - Use HTTP/HTTPS, not custom schemes
 2. **Leverage existing systems** - Use server's existing auth (GitHub, GCS IAM,
    corporate SSO), not custom Perfetto ACL
-3. **Simple discovery** - Required manifest file (`manifest.json`) provides
-   server metadata and module list
+3. **Simple discovery** - Required manifest endpoint (`/manifest`) provides
+   server metadata, supported features, and module list
 4. **Safe extensions** - Only declarative extensions (macros, SQL, proto
    descriptors), no JavaScript code execution
 
@@ -122,11 +122,14 @@ their own UI bundle with the desired servers pre-configured.
 Extension servers are configured with HTTPS URLs. For convenience, the UI also
 supports shorthand aliases that resolve to standard HTTPS endpoints:
 
-- `github://owner/repo/ref` resolves to GitHub raw.githubusercontent.com
+- `github://owner/repo/ref` resolves to
+  `https://raw.githubusercontent.com/owner/repo/ref`
 - `gs://bucket/path` resolves to GCS public HTTPS API
 - `s3://bucket/path` resolves to S3 HTTPS API
 
-Server URLs are normalized to a canonical form and loaded in deterministic order (installation-configured servers first, then user-configured servers alphabetically).
+Note: `http://` URLs are rejected - browsers don't allow mixed-content fetch,
+and silently upgrading can hide bugs if servers behave differently on HTTP vs
+HTTPS.
 
 ### Standard Endpoints
 
@@ -134,9 +137,9 @@ Extension servers implement these HTTP(S) endpoints:
 
 ```
 # Server metadata (required)
-{base_url}/manifest.json                          (GET)
+{base_url}/manifest                               (GET)
 
-# UI Extensions (module-scoped)
+# UI Extensions (module-scoped, optional based on features)
 {base_url}/modules/{module}/macros                (GET)
 {base_url}/modules/{module}/sql_modules           (GET)
 {base_url}/modules/{module}/proto_descriptors     (GET)
@@ -150,19 +153,35 @@ Extension servers implement these HTTP(S) endpoints:
 {base_url}/deobfuscate/mapping/{id}               (GET)
 ```
 
-**Manifest File:**
+**Manifest Endpoint:**
 
-The `manifest.json` file contains server metadata and module list:
+The `manifest` endpoint returns server metadata, features, and module list:
 
 ```json
 {
   "name": "Google Internal Extensions",
+  "namespace": "com.google",
+  "features": ["macros", "sql_modules", "proto_descriptors"],
   "modules": ["default", "android", "chrome"]
 }
 ```
 
 **Fields:**
 - `name` (required): Human-readable server name shown in Settings
+- `namespace` (required): Unique identifier for this server, following reverse
+  domain notation (e.g., `"com.google"`, `"dev.perfetto"`). Used to prevent
+  naming conflicts when multiple extension servers are configured:
+  - All SQL module names must start with the namespace (e.g., SQL modules from
+    a server with namespace `"com.google"` must be named `"com.google.startup"`,
+    `"com.google.memory"`, etc.)
+  - All macro IDs must start with the namespace (e.g.,
+    `"com.google.StartupAnalysis"`)
+  - The UI validates these constraints and rejects extensions that don't follow
+    the namespacing convention.
+- `features` (required): List of features this server provides. Valid values:
+  `"macros"`, `"sql_modules"`, `"proto_descriptors"`. The UI only fetches
+  endpoints for declared features - if a feature is not listed, the
+  corresponding endpoint is not queried.
 - `modules` (required): List of available modules. Use `["default"]` for
   single-module servers.
 
@@ -173,22 +192,33 @@ The extension endpoints return JSON with the following structures:
 `/modules/{module}/macros`:
 ```json
 {
-  "macros": {
-    "Startup Analysis": [
-      {"id": "dev.perfetto.RunQuery", "args": ["SELECT 1"]}
-    ]
-  }
+  "macros": [
+    {
+      "id": "com.google.StartupAnalysis",
+      "name": "Startup Analysis",
+      "commands": [
+        {"id": "dev.perfetto.RunQuery", "args": ["SELECT 1"]}
+      ]
+    }
+  ]
 }
 ```
+
+Note: The macro `id` must start with the server's namespace (e.g.,
+`com.google.`). The `name` is human-readable and shown in the command palette.
 
 `/modules/{module}/sql_modules`:
 ```json
 {
-  "modules": {
-    "android.startup": "CREATE TABLE..."
-  }
+  "sqlModules": [
+    {"name": "com.google.startup", "sql": "CREATE PERFETTO TABLE..."},
+    {"name": "com.google.memory", "sql": "CREATE PERFETTO FUNCTION..."}
+  ]
 }
 ```
+
+Note: Each SQL module `name` must start with the server's namespace (e.g.,
+`com.google.`).
 
 `/modules/{module}/proto_descriptors`:
 ```json
@@ -254,14 +284,15 @@ noise. Modules let users choose which sets of extensions they want.
 
 **How modules work:**
 
-- Server's `manifest.json` lists available modules:
-  `{"name": "...", "modules": ["default", "android", "chrome"]}`
+- Server's `/manifest` endpoint lists available modules and features:
+  `{"name": "...", "namespace": "...", "features": [...], "modules": [...]}`
 - When adding server, UI fetches manifest and shows module selection in Settings
 - The `default` module (if available) is automatically selected when manifest is
   fetched. Other modules remain unselected so users can opt in explicitly.
 - UI loads extensions only from selected modules
 - Each module's extensions in separate paths: `/modules/android/macros`,
   `/modules/chrome/macros`, etc.
+- UI only fetches endpoints for features declared in the manifest
 
 **Implementation notes:**
 
@@ -271,26 +302,23 @@ noise. Modules let users choose which sets of extensions they want.
 
 ### Resource Naming and Conflicts
 
-**Macros: Automatic Namespacing**
+**Namespace Enforcement**
 
-Macros are automatically namespaced to prevent conflicts.
+All resources from an extension server must be prefixed with the server's
+`namespace` (from the manifest). The UI validates this constraint and rejects
+resources that don't follow the convention:
 
-Format: `[server_key module] macro_name`
+- Macro IDs must start with `{namespace}.` (e.g., `com.google.StartupAnalysis`)
+- SQL module names must start with `{namespace}.` (e.g., `com.google.startup`)
 
-Examples:
+This prevents naming conflicts when multiple extension servers are configured.
+Each organization controls their own namespace, ensuring resources from
+different servers never collide.
 
-- `[google-internal default] Startup Analysis`
-- `[acme-corp android] Memory Snapshot`
+**Proto Descriptors**
 
-The `server_key` is derived from the normalized server URL. Duplicate macro names from different servers are distinguished by their namespace prefix.
-
-**Note:** Macros are registered with their full namespaced name. When invoking
-macros programmatically with `RunCommand`, use the full namespaced name (e.g.,
-`RunCommand("[google-internal default] Startup Analysis")`).
-
-**SQL Modules & Proto Descriptors: Conflict Handling**
-
-Not automatically namespaced. Conflicts are resolved via deterministic ordering (first registration wins), with duplicates logged to console. Future enhancement: Settings UI for conflict resolution.
+Proto descriptors are not namespaced since they define protobuf message types
+which have their own package-based namespacing in the proto schema itself.
 
 ### Extension Lifecycle
 
@@ -364,7 +392,7 @@ UI, OAuth flows, token refresh logic, and security considerations.
 
 ```
 acme-corp/perfetto-resources/
-├── manifest.json
+├── manifest
 ├── modules/
 │   ├── default/
 │   │   ├── macros
@@ -379,12 +407,38 @@ acme-corp/perfetto-resources/
 │       └── sql_modules
 ```
 
-**File: `manifest.json`**
+**File: `manifest`**
 
 ```json
 {
   "name": "Acme Corp Extensions",
+  "namespace": "com.acme",
+  "features": ["macros", "sql_modules", "proto_descriptors"],
   "modules": ["default", "android", "chrome"]
+}
+```
+
+**File: `modules/default/macros`**
+
+```json
+{
+  "macros": [
+    {
+      "id": "com.acme.StartupAnalysis",
+      "name": "Startup Analysis",
+      "commands": [{"id": "dev.perfetto.RunQuery", "args": ["SELECT 1"]}]
+    }
+  ]
+}
+```
+
+**File: `modules/default/sql_modules`**
+
+```json
+{
+  "sqlModules": [
+    {"name": "com.acme.startup", "sql": "CREATE PERFETTO TABLE..."}
+  ]
 }
 ```
 
@@ -399,16 +453,22 @@ Auth: GitHub OAuth (automatic)
 ### Corporate Server
 
 ```python
-@app.route('/manifest.json')
+@app.route('/manifest')
 def get_manifest():
     return jsonify({
         "name": "Acme Corp Extensions",
+        "namespace": "com.acme",
+        "features": ["macros", "sql_modules"],
         "modules": ["default", "android", "chrome", "infra"]
     })
 
 @app.route('/modules/<module>/macros')
 def get_module_macros(module):
     return send_file(f'/data/modules/{module}/macros')
+
+@app.route('/modules/<module>/sql_modules')
+def get_module_sql_modules(module):
+    return send_file(f'/data/modules/{module}/sql_modules')
 ```
 
 **Configuration:**
@@ -512,7 +572,7 @@ Leverage existing systems (GitHub, GCS, corporate SSO).
 
 ### Phase 2: UI Extensions
 
-- Manifest endpoint (`/manifest.json`)
+- Manifest endpoint (`/manifest`)
 - Module discovery and selection UI
 - Extension endpoints (macros, SQL modules, proto descriptors)
 - Replace `is_internal_user_script_loader.ts`
