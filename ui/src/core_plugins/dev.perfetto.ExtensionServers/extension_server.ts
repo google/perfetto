@@ -14,26 +14,27 @@
 
 import {z} from 'zod';
 import {fetchWithTimeout} from '../../base/http_utils';
-import {CommandInvocation} from '../../core/command_manager';
+import {Macro} from '../../core/command_manager';
 import {
   ExtensionServer,
-  ExtensionServerState,
   macrosSchema,
   Manifest,
   manifestSchema,
+  ProtoDescriptor,
   protoDescriptorsSchema,
+  SqlModule,
   sqlModulesSchema,
 } from './types';
-import {normalizeServerKey, resolveServerUrl} from './url_utils';
+import {resolveServerUrl} from './url_utils';
 import {showModal} from '../../widgets/modal';
 import {errResult, okResult, Result} from '../../base/result';
 import {AppImpl} from '../../core/app_impl';
 
-const FETCH_TIMEOUT_MS = 5000; // 5 seconds
-
 // =============================================================================
 // Helpers
 // =============================================================================
+
+const FETCH_TIMEOUT_MS = 5000; // 5 seconds
 
 async function fetchJson<T extends z.ZodTypeAny>(
   url: string,
@@ -61,19 +62,14 @@ async function fetchJson<T extends z.ZodTypeAny>(
   return okResult(result.data);
 }
 
-function aggregate<T>(
-  results: Array<ReadonlyArray<[string, T]>>,
-  overwrite: boolean = true,
-): Map<string, T> {
-  const map = new Map<string, T>();
-  for (const entries of results) {
-    for (const [key, value] of entries) {
-      if (overwrite || !map.has(key)) {
-        map.set(key, value);
-      }
-    }
-  }
-  return map;
+function sqlModulesToSqlPackage(
+  namespace: string,
+  sqlModules: ReadonlyArray<SqlModule>,
+) {
+  return {
+    name: namespace,
+    modules: sqlModules,
+  };
 }
 
 // =============================================================================
@@ -86,188 +82,88 @@ export async function loadManifest(
   return fetchJson(serverUrl + '/manifest', manifestSchema);
 }
 
-async function loadModuleMacros(
-  state: ExtensionServerState,
+async function loadMacros(
+  canonicalUrl: string,
   module: string,
-): Promise<Result<Array<[string, CommandInvocation[]]>>> {
+): Promise<Result<ReadonlyArray<Macro>>> {
   const wrapper = await fetchJson(
-    `${state.canonicalUrl}/modules/${module}/macros`,
+    `${canonicalUrl}/modules/${module}/macros`,
     macrosSchema,
   );
   if (!wrapper.ok) {
     return errResult(wrapper.error);
   }
-  return okResult(
-    Object.entries(wrapper.value.macros)
-      .sort()
-      .map(([name, commands]) => [
-        `[${state.serverKey} ${module}] ${name}`,
-        commands,
-      ]),
-  );
+  return okResult(wrapper.value.macros);
 }
 
-async function loadModuleSqlModules(
-  state: ExtensionServerState,
+async function loadSqlModules(
+  canonicalUrl: string,
   module: string,
-): Promise<Result<Array<[string, string]>>> {
+): Promise<Result<ReadonlyArray<SqlModule>>> {
   const wrapper = await fetchJson(
-    `${state.canonicalUrl}/modules/${module}/sql_modules`,
+    `${canonicalUrl}/modules/${module}/sql_modules`,
     sqlModulesSchema,
   );
   if (!wrapper.ok) {
     return errResult(wrapper.error);
   }
-  return okResult(Object.entries(wrapper.value.modules).sort());
+  return okResult(wrapper.value.sqlModules);
 }
 
-async function loadModuleProtoDescriptors(
-  state: ExtensionServerState,
+async function loadProtoDescriptors(
+  canonicalUrl: string,
   module: string,
-): Promise<Result<ReadonlyArray<string>>> {
+): Promise<Result<ReadonlyArray<ProtoDescriptor>>> {
   const wrapper = await fetchJson(
-    `${state.canonicalUrl}/modules/${module}/proto_descriptors`,
+    `${canonicalUrl}/modules/${module}/proto_descriptors`,
     protoDescriptorsSchema,
   );
   if (!wrapper.ok) {
     return errResult(wrapper.error);
   }
-  return okResult(wrapper.value.descriptors.sort());
-}
-
-// =============================================================================
-// Runtime State Management
-// =============================================================================
-
-async function loadServerState(
-  server: ExtensionServer,
-): Promise<Result<ExtensionServerState>> {
-  const canonicalUrl = resolveServerUrl(server.url);
-  const serverKey = normalizeServerKey(canonicalUrl);
-  const manifest = await loadManifest(canonicalUrl);
-  if (!manifest.ok) {
-    return errResult(manifest.error);
-  }
-  return okResult({
-    url: server.url,
-    enabledModules: server.enabledModules,
-    enabled: server.enabled,
-    canonicalUrl,
-    serverKey,
-    displayName: manifest.value.name,
-    availableModules: manifest.value.modules,
-  });
+  return okResult(wrapper.value.descriptors);
 }
 
 // =============================================================================
 // Initialization
 // =============================================================================
 
-export interface ExtensionInitializationResult {
-  states: ExtensionServerState[];
-  macrosPromise: Promise<Map<string, ReadonlyArray<CommandInvocation>>>;
-  sqlModulesPromise: Promise<Map<string, string>>;
-  protoDescriptorsPromise: Promise<ReadonlyArray<string>>;
-}
-
 // Initializes extension servers by fetching manifests (synchronously) and
 // loading extensions (asynchronously). This function should be called early
 // in app initialization.
-export async function initializeExtensions(
-  ctx: AppImpl,
-  servers: ExtensionServer[],
-): Promise<void> {
-  // Load server states (fetches manifests) - this is blocking
-  const states = await Promise.all(servers.map(loadServerState));
-
-  // Show errors
-  const errors = states
-    .filter((r) => !r.ok)
-    .map((r) => r.error)
-    .join('\n');
-  if (errors.length > 0) {
-    await showModal({
-      title: 'Extension Servers Failed to Load',
-      content: `Some extension servers failed to load:\n\n${errors}`,
-      buttons: [{text: 'OK', primary: true}],
-    });
-  }
-
-  // Sort alphabetically by serverKey for deterministic ordering
-  const sorted = states
-    .filter((r) => r.ok)
-    .map((r) => r.value)
-    .filter((s) => s.enabled)
-    .sort((a, b) => a.serverKey.localeCompare(b.serverKey));
-
-  // Fire off all loads in parallel
-  const macroPromises = [];
-  const sqlModulePromises = [];
-  const protoDescriptorPromises = [];
-  for (const state of sorted) {
-    for (const module of [...state.enabledModules].sort()) {
-      macroPromises.push(loadModuleMacros(state, module));
-      sqlModulePromises.push(loadModuleSqlModules(state, module));
-      protoDescriptorPromises.push(loadModuleProtoDescriptors(state, module));
+export function initializeExtensions(ctx: AppImpl, servers: ExtensionServer[]) {
+  const results = [];
+  for (const {url, namespace, enabledModules} of servers) {
+    const canonicalUrl = resolveServerUrl(url);
+    for (const module of enabledModules) {
+      const macro = loadMacros(canonicalUrl, module);
+      const sqlModules = loadSqlModules(canonicalUrl, module);
+      const protoDescriptors = loadProtoDescriptors(canonicalUrl, module);
+      results.push(macro, sqlModules, protoDescriptors);
+      ctx.addMacros(macro.then((r) => (r.ok ? r.value : [])));
+      ctx.addSqlPackages(
+        sqlModules.then((r) =>
+          r.ok ? [sqlModulesToSqlPackage(namespace, r.value)] : [],
+        ),
+      );
+      ctx.addProtoDescriptors(
+        protoDescriptors.then((r) => (r.ok ? r.value : [])),
+      );
     }
   }
-
-  // Show errors once all loads are done.
-  Promise.all([
-    ...macroPromises,
-    ...sqlModulePromises,
-    ...protoDescriptorPromises,
-  ]).then((results) => {
+  // When all the extension loading promises complete, show a modal if there were
+  // any errors.
+  Promise.all(results).then((results) => {
     const errors = results
       .filter((r) => !r.ok)
       .map((r) => r.error)
       .join('\n');
     if (errors.length > 0) {
       showModal({
-        title: 'Extension Modules Failed to Load',
-        content: `Some extension modules failed to load:\n\n${errors}`,
+        title: 'Error(s) while querying extension servers',
+        content: errors,
         buttons: [{text: 'OK', primary: true}],
       });
     }
   });
-
-  ctx.addMacros(
-    Promise.all(macroPromises).then((r) =>
-      Object.assign(
-        {},
-        ...Array.from(
-          aggregate(
-            r.filter((x) => x.ok).map((x) => x.value),
-            true,
-          ).entries(),
-        ).map(([k, v]) => ({[k]: v})),
-      ),
-    ),
-  );
-  ctx.addSqlPackages(
-    Promise.all(sqlModulePromises).then((r) => [
-      {
-        // TODO(lalitm): DNS. This needs to be discussed before submitting.
-        name: 'extension_servers',
-        modules: Array.from(
-          aggregate(
-            r.filter((x) => x.ok).map((x) => x.value),
-            false,
-          ),
-          ([name, sql]) => ({
-            name,
-            sql,
-          }),
-        ),
-      },
-    ]),
-  );
-  ctx.addProtoDescriptors(
-    Promise.all(protoDescriptorPromises).then((r) =>
-      r
-        .filter((x) => x.ok)
-        .map((x) => x.value)
-        .flatMap((descs) => descs),
-    ),
-  );
 }

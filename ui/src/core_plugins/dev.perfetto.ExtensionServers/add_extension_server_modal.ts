@@ -20,10 +20,10 @@ import {TextInput} from '../../widgets/text_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {FormLabel} from '../../widgets/form';
 import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
-import {ExtensionServer, Manifest} from './types';
+import {ExtensionServer} from './types';
 import {defer} from '../../base/deferred';
 import {resolveServerUrl} from './url_utils';
-import {fetchManifest} from './extension_server';
+import {loadManifest} from './extension_server';
 import {Stack} from '../../widgets/stack';
 import {EmptyState} from '../../widgets/empty_state';
 import {Section} from '../../widgets/section';
@@ -197,10 +197,8 @@ class AddExtensionServerModal {
 
     const url = this.getUrl();
     const resolvedUrl = resolveServerUrl(url);
-    let manifest: Manifest;
-    try {
-      manifest = await fetchManifest(resolvedUrl);
-    } catch (e) {
+    const manifestResult = await loadManifest(resolvedUrl);
+    if (!manifestResult.ok) {
       const location =
         this.userInput.type === 'github'
           ? `${this.userInput.repo} @ ${this.userInput.ref}`
@@ -213,11 +211,15 @@ class AddExtensionServerModal {
         type: 'error',
         error: `Could not fetch manifest from ${location}. ${hint}`,
       };
+      console.warn(
+        `Error fetching manifest from ${resolvedUrl}: ${manifestResult.error}`,
+      );
       m.redraw();
       return;
     }
 
     // Determine which modules to enable
+    const manifest = manifestResult.value;
     let enabledModules: Set<string>;
     if (preserveEnabledModules) {
       // When editing, preserve enabled modules that still exist in manifest

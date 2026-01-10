@@ -13,10 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {
-  CommandInvocation,
-  commandInvocationArraySchema,
-} from '../../core/command_manager';
+import {macroSchema} from '../../core/command_manager';
 
 // =============================================================================
 // Zod Schemas (source of truth)
@@ -24,16 +21,14 @@ import {
 //
 // Schema Hierarchy:
 //
-// ExtensionServersSchema (persisted in Settings)
-//   └── ExtensionServerSchema
+// extensionServersSchema (persisted in Settings)
 //
-// ManifestSchema (fetched from {base_url}/manifest.json)
+// manifestSchema (fetched from {base_url}/manifest.json)
 //
 // Resource schemas (fetched from {base_url}/modules/{module}/...):
-//   ├── MacrosSchema           → /macros
-//   ├── SqlModulesSchema       → /sql_modules
-//   └── ProtoDescriptorsSchema → /proto_descriptors
-//         └── ProtoDescriptorSchema
+//   ├── macrosSchema           → /macros
+//   ├── sqlModulesSchema       → /sql_modules
+//   └── protoDescriptorsSchema → /proto_descriptors
 //
 // =============================================================================
 
@@ -41,6 +36,7 @@ import {
 // Both installation-provided and user-added servers use this schema.
 export const extensionServerSchema = z.object({
   url: z.string(),
+  namespace: z.string(),
   enabledModules: z.array(z.string()),
   enabled: z.boolean(),
 });
@@ -63,15 +59,17 @@ export const manifestSchema = z.object({
 });
 
 // Macros format from {base_url}/modules/{module}/macros
-// Maps macro names to command sequences.
 export const macrosSchema = z.object({
-  macros: z.record(commandInvocationArraySchema),
+  macros: z.array(macroSchema),
 });
 
-// SQL Modules format from {base_url}/modules/{module}/sql_modules
-// Maps module paths (e.g., "android.startup") to SQL content.
+// SQL Modules format from {base_url}/modules/{module}/sql_modules.
+const sqlModuleSchema = z.object({
+  name: z.string(),
+  sql: z.string(),
+});
 export const sqlModulesSchema = z.object({
-  modules: z.record(z.string()),
+  sqlModules: z.array(sqlModuleSchema),
 });
 
 // Proto Descriptors format from {base_url}/modules/{module}/proto_descriptors
@@ -81,8 +79,9 @@ export const sqlModulesSchema = z.object({
 // custom proto messages embedded in traces without having the .proto files
 // compiled into the UI itself. Extension servers can provide descriptors
 // for proprietary or custom proto types.
+const protoDescriptorSchema = z.string();
 export const protoDescriptorsSchema = z.object({
-  descriptors: z.array(z.string()),
+  descriptors: z.array(protoDescriptorSchema),
 });
 
 // =============================================================================
@@ -91,41 +90,5 @@ export const protoDescriptorsSchema = z.object({
 
 export type ExtensionServer = z.infer<typeof extensionServerSchema>;
 export type Manifest = z.infer<typeof manifestSchema>;
-export type Macros = z.infer<typeof macrosSchema>;
-export type SqlModules = z.infer<typeof sqlModulesSchema>;
-export type ProtoDescriptors = z.infer<typeof protoDescriptorsSchema>;
-
-// Runtime state for an extension server.
-// Combines persisted config with derived and ephemeral fields.
-// Not persisted - computed fresh on each load.
-export interface ExtensionServerState {
-  // Source configuration
-  // Non-canonicalized (e.g. can be github://).
-  url: string;
-  enabledModules: string[];
-  enabled: boolean;
-
-  // Derived fields (computed from url)
-  // Canonicalized URL (always https://, never github://).
-  canonicalUrl: string;
-  serverKey: string;
-
-  // Fetched fields (from manifest)
-  displayName: string;
-  availableModules: string[];
-}
-
-// Aggregated extensions loaded from all enabled servers/modules.
-// Used internally by the extension system.
-//
-// Key formats:
-// - macros: "[server_key module] macro_name"
-//     Namespaced to avoid collisions between servers/modules.
-//     Example: "[raw.githubusercontent.com/foo/bar default] run_query"
-// - sqlModules: module_path
-//     Already globally unique (e.g., "android.startup", "chrome.scroll").
-export interface AggregatedExtensions {
-  macros: Map<string, CommandInvocation[]>;
-  sqlModules: Map<string, string>;
-  protoDescriptors: ProtoDescriptors;
-}
+export type SqlModule = z.infer<typeof sqlModuleSchema>;
+export type ProtoDescriptor = z.infer<typeof protoDescriptorSchema>;
