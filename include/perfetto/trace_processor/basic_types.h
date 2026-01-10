@@ -304,7 +304,8 @@ struct SqlModule {
   std::string sql;
 
   // If true, allows this module to override any previously registered module
-  // with the same name.
+  // with the same name. This also bypasses any checks for reserved package
+  // names so should be used with caution.
   bool allow_override = false;
 };
 

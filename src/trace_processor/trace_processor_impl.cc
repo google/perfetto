@@ -692,7 +692,11 @@ base::Status TraceProcessorImpl::RegisterSqlModules(
     const std::vector<SqlModule>& modules) {
   // Validate modules before registering any.
   for (const auto& module : modules) {
-    if (engine_->FindModule(module.name) && !module.allow_override) {
+    // If overriding is allowed, skip the existence and reserved package checks.
+    if (module.allow_override) {
+      continue;
+    }
+    if (engine_->FindModule(module.name)) {
       return base::ErrStatus(
           "Module '%s' is already registered. Either choose a different name "
           "or override the module.",
@@ -701,7 +705,7 @@ base::Status TraceProcessorImpl::RegisterSqlModules(
     // Check if trying to add a module in a package reserved for stdlib.
     if (auto package = IsInReservedPackage(module.name); package) {
       return base::ErrStatus(
-          "Module '%s' is in package '%s' which is reserved bu the standard "
+          "Module '%s' is in package '%s' which is reserved by the standard "
           "library. Please use a different package name.",
           module.name.c_str(), package->c_str());
     }

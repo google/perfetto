@@ -836,10 +836,6 @@ PerfettoSQL:
                                           foo.bar.baz.helpers.common
                                         Usage: INCLUDE PERFETTO MODULE foo.bar.*;
 
- --override-sql-package PATH[@PKG]    Same as --add-sql-package but allows
-                                      overriding existing user-registered
-                                      packages with the same name.
-
 Trace summarization:
   --summary                           Enables the trace summarization features of
                                       trace processor. Required for any flags
@@ -916,10 +912,12 @@ Advanced:
                                       Some importers can use this data to
                                       augment trace data (e.g. decode ETM
                                       instruction streams).
- --override-stdlib=[path_to_stdlib]   Will override trace_processor/stdlib with
-                                      passed contents. The outer directory will
-                                      be ignored. Only allowed when --dev is
-                                      specified.
+ --override-sql-package PATH[@PKG]    Same as --add-sql-package but allows
+                                      overriding existing packages with the
+                                      same name. This also bypasses
+                                      checks trace processor makes around
+                                      clashing with stdlib package names so
+                                      should be used with caution.
 
 Metrics (v1):
 
