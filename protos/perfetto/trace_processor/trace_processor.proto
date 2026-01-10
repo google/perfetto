@@ -389,6 +389,7 @@ message RegisterSqlModulesArgs {
     optional string name = 1;
     optional string sql = 2;
     optional bool allow_override = 3;
+    optional bool allow_stdlib_override = 4;
   }
   repeated Module modules = 1;
 }

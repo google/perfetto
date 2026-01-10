@@ -1501,7 +1501,13 @@ base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
 
     std::string import_key =
         package_name + "." + sql_modules::GetIncludeKey(path);
-    modules.push_back({import_key, file_contents, allow_override});
+
+    // Allow both normal and stdlib packages to be overridden if specified.
+    // This is necessary for Chrome which uses this flag to override
+    // stdlib packages in their test infra. Given how obscure this is already,
+    // it doesn't make sense to add another flag to control this behaviour.
+    modules.push_back(
+        {import_key, file_contents, allow_override, allow_override});
   }
   return trace_processor->RegisterSqlModules(modules);
 }
