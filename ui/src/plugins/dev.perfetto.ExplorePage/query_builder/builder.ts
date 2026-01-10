@@ -107,7 +107,7 @@ export interface BuilderAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
-  readonly labels?: ReadonlyArray<{
+  readonly labels: ReadonlyArray<{
     id: string;
     x: number;
     y: number;
