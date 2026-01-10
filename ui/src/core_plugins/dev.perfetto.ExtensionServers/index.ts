@@ -33,7 +33,7 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
   static onActivate(ctx: AppImpl) {
     // Register the extension servers setting
     const setting = ctx.settings.register<ExtensionServer[]>({
-      id: 'dev.perfetto.ExtensionServers#extensionServers',
+      id: 'dev.perfetto.ExtensionServers',
       name: 'Extension Servers',
       description:
         'Configure servers that provide additional macros, SQL modules, and proto descriptors.',
