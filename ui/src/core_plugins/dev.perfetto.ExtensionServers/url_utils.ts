@@ -48,3 +48,9 @@ export function resolveServerUrl(input: string): string {
   // Unknown format
   throw new Error('Invalid server URL: must start with https:// or github://');
 }
+
+// Converts a canonical URL into a display-friendly format by removing
+// the protocol prefix.
+export function makeDisplayUrl(url: string) {
+  return url.replace(/^github:\/\//, '').replace(/^https?:\/\//, '');
+}
