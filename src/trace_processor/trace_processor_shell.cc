@@ -806,13 +806,37 @@ PerfettoSQL:
                                       If used with --run-metrics, the query is
                                       executed after the selected metrics and
                                       the metrics output is suppressed.
- --add-sql-package PACKAGE_PATH       Files from the directory will be treated
-                                      as a new SQL package and can be used for
-                                      INCLUDE PERFETTO MODULE statements. The
-                                      name of the directory is the package name.
- --override-sql-package PACKAGE_PATH  Will override trace processor package with
-                                      passed contents. The outer directory will
-                                      specify the package name.
+ --add-sql-package PATH[@PACKAGE]     Registers SQL files from a directory as
+                                      a package for use with INCLUDE PERFETTO
+                                      MODULE statements.
+
+                                      By default, the directory name becomes the
+                                      root package name. Use @PACKAGE to
+                                      override.
+
+                                      Given a directory structure:
+                                        mydir/
+                                          utils.sql
+                                          helpers/common.sql
+
+                                      --add-sql-package ./mydir
+                                        Registers modules as:
+                                          mydir.utils
+                                          mydir.helpers.common
+                                        Usage: INCLUDE PERFETTO MODULE mydir.utils;
+
+                                      --add-sql-package ./mydir@foo
+                                        Registers modules as:
+                                          foo.utils
+                                          foo.helpers.common
+                                        Usage: INCLUDE PERFETTO MODULE foo.utils;
+
+                                      --add-sql-package ./mydir@foo.bar.baz
+                                        Registers modules as:
+                                          foo.bar.baz.utils
+                                          foo.bar.baz.helpers.common
+                                        Usage: INCLUDE PERFETTO MODULE foo.bar.*;
+
 
 Trace summarization:
   --summary                           Enables the trace summarization features of
@@ -894,6 +918,13 @@ Advanced:
                                       passed contents. The outer directory will
                                       be ignored. Only allowed when --dev is
                                       specified.
+ --override-sql-package PATH[@PKG]    Same as --add-sql-package but allows
+                                      overriding existing user-registered
+                                      packages with the same name. This bypasses
+                                      checks trace processor makes around
+                                      packages already existing and clashing
+                                      with stdlib package names so should be
+                                      used with caution.
  --add-sql-module PACKAGE_PATH        Alias for --add-sql-package, kept for
                                       backwards compatibility. Prefer
                                       --add-sql-package.
@@ -1426,24 +1457,49 @@ base::Status ParseMetricExtensionPaths(
   return CheckForDuplicateMetricExtension(metric_extensions);
 }
 
+// Parses PATH[@PACKAGE] syntax for --add-sql-package flag.
+// Returns the path portion and sets |out_package| to the package name
+// (or empty string if not specified, meaning use directory name).
+//
+// Examples:
+//   "./my_modules"        -> path="./my_modules", package=""
+//   "./my_modules@foo"    -> path="./my_modules", package="foo"
+//   "/tmp/sql@my.pkg"     -> path="/tmp/sql", package="my.pkg"
+std::string ParsePackagePath(const std::string& arg, std::string* out_package) {
+  size_t at_pos = arg.rfind('@');
+  if (at_pos != std::string::npos) {
+    *out_package = arg.substr(at_pos + 1);
+    return arg.substr(0, at_pos);
+  }
+  *out_package = "";
+  return arg;
+}
+
 base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
-                               std::string root,
+                               const std::string& path_arg,
                                bool allow_override) {
+  std::string explicit_package;
+  std::string root = ParsePackagePath(path_arg, &explicit_package);
+
   // Remove trailing slash
-  if (root.back() == '/')
+  if (!root.empty() && root.back() == '/')
     root.resize(root.length() - 1);
 
   if (!base::FileExists(root))
     return base::ErrStatus("Directory %s does not exist.", root.c_str());
 
-  // Get package name
-  size_t last_slash = root.rfind('/');
-  if (last_slash == std::string::npos) {
-    return base::ErrStatus("Package path must point to a directory: %s",
-                           root.c_str());
+  // Get package name: use explicit package if provided, otherwise dirname
+  std::string package_name;
+  if (!explicit_package.empty()) {
+    package_name = explicit_package;
+  } else {
+    size_t last_slash = root.rfind('/');
+    if (last_slash == std::string::npos) {
+      return base::ErrStatus("Package path must point to a directory: %s",
+                             root.c_str());
+    }
+    package_name = root.substr(last_slash + 1);
   }
-
-  std::string package_name = root.substr(last_slash + 1);
 
   std::vector<std::string> paths;
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
