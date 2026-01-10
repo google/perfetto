@@ -164,9 +164,7 @@ class AddExtensionServerModal {
     }
     return {
       url: this.getUrl(),
-      enabledModules: Array.from(
-        assertOkLoadedState(this.loadedState).enabledModules,
-      ),
+      enabledModules: Array.from(this.loadedState.enabledModules),
       enabled: true,
     };
   }

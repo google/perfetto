@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {normalizeServerKey, resolveServerUrl} from './url_utils';
+import {resolveServerUrl} from './url_utils';
 
 describe('resolveServerUrl', () => {
   test('resolves github:// URLs', () => {
@@ -50,55 +50,6 @@ describe('resolveServerUrl', () => {
   test('throws on invalid protocol', () => {
     expect(() => resolveServerUrl('ftp://example.com')).toThrow(
       'Invalid server URL: must start with https:// or github://',
-    );
-  });
-});
-
-describe('normalizeServerKey', () => {
-  test('normalizes simple domain', () => {
-    expect(normalizeServerKey('https://perfetto.acme.com')).toEqual(
-      'perfetto-acme-com',
-    );
-  });
-
-  test('normalizes domain with port and path', () => {
-    expect(normalizeServerKey('https://corp.example.com:8443/modules')).toEqual(
-      'corp-example-com-8443-modules',
-    );
-  });
-
-  test('normalizes GitHub URL', () => {
-    expect(
-      normalizeServerKey(
-        'https://raw.githubusercontent.com/acme/perfetto-ext/main',
-      ),
-    ).toEqual('raw-githubusercontent-com-acme-perfetto-ext-main');
-  });
-
-  test('handles special characters', () => {
-    expect(normalizeServerKey('https://my_server.example.com')).toEqual(
-      'my-server-example-com',
-    );
-    expect(normalizeServerKey('https://server---example.com')).toEqual(
-      'server-example-com',
-    );
-  });
-
-  test('removes query strings and fragments', () => {
-    expect(normalizeServerKey('https://example.com/api?v=1#docs')).toEqual(
-      'example-com-api',
-    );
-  });
-
-  test('lowercases mixed case URLs', () => {
-    expect(normalizeServerKey('https://Example.Com/Path')).toEqual(
-      'example-com-path',
-    );
-  });
-
-  test('throws on non-https URL', () => {
-    expect(() => normalizeServerKey('http://example.com')).toThrow(
-      'Server key normalization requires canonical HTTPS URL',
     );
   });
 });

@@ -36,7 +36,6 @@ import {macroSchema} from '../../core/command_manager';
 // Both installation-provided and user-added servers use this schema.
 export const extensionServerSchema = z.object({
   url: z.string(),
-  namespace: z.string(),
   enabledModules: z.array(z.string()),
   enabled: z.boolean(),
 });
@@ -55,6 +54,8 @@ export const extensionServersSchema = z.array(extensionServerSchema);
 //   - {base_url}/modules/{module}/proto_descriptors → using ProtoDescriptorsSchema
 export const manifestSchema = z.object({
   name: z.string(),
+  namespace: z.string(),
+  features: z.array(z.string()),
   modules: z.array(z.string()),
 });
 

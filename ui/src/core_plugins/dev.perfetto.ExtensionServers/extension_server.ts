@@ -62,16 +62,6 @@ async function fetchJson<T extends z.ZodTypeAny>(
   return okResult(result.data);
 }
 
-function sqlModulesToSqlPackage(
-  namespace: string,
-  sqlModules: ReadonlyArray<SqlModule>,
-) {
-  return {
-    name: namespace,
-    modules: sqlModules,
-  };
-}
-
 // =============================================================================
 // Loading
 // =============================================================================
@@ -128,31 +118,107 @@ async function loadProtoDescriptors(
 // Initialization
 // =============================================================================
 
+function maybeLoadMacros(
+  manifestResult: Result<Manifest>,
+  canonicalUrl: string,
+  module: string,
+) {
+  if (!manifestResult.ok) {
+    return errResult(manifestResult.error);
+  }
+  const manifest = manifestResult.value;
+  if (!manifest.modules.includes(module)) {
+    return errResult(`Module '${module}' not found on server ${canonicalUrl}`);
+  }
+  // Check if macros are supported.
+  if (!manifest.features.find((f) => f === 'macros')) {
+    // Not supported, return empty list.
+    return okResult([]);
+  }
+  return loadMacros(canonicalUrl, module);
+}
+
+function maybeLoadSqlPackage(
+  manifestResult: Result<Manifest>,
+  canonicalUrl: string,
+  module: string,
+) {
+  if (!manifestResult.ok) {
+    return errResult(manifestResult.error);
+  }
+  const manifest = manifestResult.value;
+  if (!manifest.modules.includes(module)) {
+    return errResult(`Module '${module}' not found on server ${canonicalUrl}`);
+  }
+  // Check if sql_modules are supported.
+  if (!manifest.features.find((f) => f === 'sql_modules')) {
+    // Not supported, return empty list.
+    return okResult([]);
+  }
+  return loadSqlModules(canonicalUrl, module).then((modules) => {
+    if (!modules.ok) {
+      return errResult(modules.error);
+    }
+    return okResult([
+      {
+        name: manifest.namespace,
+        modules: modules.value,
+      },
+    ]);
+  });
+}
+
+function maybeLoadProtoDescriptors(
+  manifestResult: Result<Manifest>,
+  canonicalUrl: string,
+  module: string,
+) {
+  if (!manifestResult.ok) {
+    return errResult(manifestResult.error);
+  }
+  const manifest = manifestResult.value;
+  if (!manifest.modules.includes(module)) {
+    return errResult(`Module '${module}' not found on server ${canonicalUrl}`);
+  }
+  // Check if proto_descriptors are supported.
+  if (!manifest.features.find((f) => f === 'proto_descriptors')) {
+    // Not supported, return empty list.
+    return okResult([]);
+  }
+  return loadProtoDescriptors(canonicalUrl, module);
+}
+
 // Initializes extension servers by fetching manifests (synchronously) and
 // loading extensions (asynchronously). This function should be called early
 // in app initialization.
-export function initializeExtensions(ctx: AppImpl, servers: ExtensionServer[]) {
+export function initializeExtensions(
+  ctx: AppImpl,
+  servers: ReadonlyArray<ExtensionServer>,
+) {
   const results = [];
-  for (const {url, namespace, enabledModules} of servers) {
+  for (const {url, enabledModules} of servers) {
     const canonicalUrl = resolveServerUrl(url);
+    const manifest = loadManifest(canonicalUrl);
     for (const module of enabledModules) {
-      const macro = loadMacros(canonicalUrl, module);
-      const sqlModules = loadSqlModules(canonicalUrl, module);
-      const protoDescriptors = loadProtoDescriptors(canonicalUrl, module);
-      results.push(macro, sqlModules, protoDescriptors);
-      ctx.addMacros(macro.then((r) => (r.ok ? r.value : [])));
-      ctx.addSqlPackages(
-        sqlModules.then((r) =>
-          r.ok ? [sqlModulesToSqlPackage(namespace, r.value)] : [],
-        ),
+      const macros = manifest.then((r) =>
+        maybeLoadMacros(r, canonicalUrl, module),
       );
+      const sqlPackage = manifest.then((r) =>
+        maybeLoadSqlPackage(r, canonicalUrl, module),
+      );
+      const protoDescriptors = manifest.then((r) =>
+        maybeLoadProtoDescriptors(r, canonicalUrl, module),
+      );
+      ctx.addMacros(macros.then((r) => (r.ok ? r.value : [])));
+      ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));
       ctx.addProtoDescriptors(
         protoDescriptors.then((r) => (r.ok ? r.value : [])),
       );
+      results.push(macros, sqlPackage, protoDescriptors);
     }
   }
-  // When all the extension loading promises complete, show a modal if there were
-  // any errors.
+  // When all the extension loading promises complete, show a modal if there
+  // were any errors.
   Promise.all(results).then((results) => {
     const errors = results
       .filter((r) => !r.ok)

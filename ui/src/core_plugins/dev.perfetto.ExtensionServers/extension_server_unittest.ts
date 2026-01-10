@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  loadServerStates,
-  fetchManifest,
-  initializeExtensions,
-} from './extension_server';
+import {loadManifest, initializeExtensions} from './extension_server';
+import {AppImpl} from '../../core/app_impl';
+import {Macro} from '../../core/command_manager';
+import {SqlPackage} from '../../trace_processor/engine';
 
 // =============================================================================
 // Test Helpers
@@ -40,6 +39,28 @@ function mockErrorResponse(status = 404) {
   } as Response);
 }
 
+// Mock AppImpl for testing initializeExtensions
+function createMockAppImpl() {
+  const macrosAdded: Array<Promise<ReadonlyArray<Macro>>> = [];
+  const sqlPackagesAdded: Array<Promise<ReadonlyArray<SqlPackage>>> = [];
+  const protoDescriptorsAdded: Array<Promise<ReadonlyArray<string>>> = [];
+
+  return {
+    addMacros: jest.fn((p: Promise<ReadonlyArray<Macro>>) => {
+      macrosAdded.push(p);
+    }),
+    addSqlPackages: jest.fn((p: Promise<ReadonlyArray<SqlPackage>>) => {
+      sqlPackagesAdded.push(p);
+    }),
+    addProtoDescriptors: jest.fn((p: Promise<ReadonlyArray<string>>) => {
+      protoDescriptorsAdded.push(p);
+    }),
+    getMacrosAdded: () => macrosAdded,
+    getSqlPackagesAdded: () => sqlPackagesAdded,
+    getProtoDescriptorsAdded: () => protoDescriptorsAdded,
+  };
+}
+
 // =============================================================================
 // Tests
 // =============================================================================
@@ -49,195 +70,300 @@ describe('extension_server', () => {
     mockFetch.mockClear();
   });
 
-  describe('loadServerStates', () => {
-    test('handles empty server list', async () => {
-      expect(await loadServerStates([])).toEqual([]);
-    });
-
-    test('loads state with manifest', async () => {
-      mockFetch.mockImplementation(() =>
-        mockJsonResponse({
-          name: 'Test Server',
-          modules: ['default', 'android'],
-        }),
-      );
-
-      const states = await loadServerStates([
-        {
-          url: 'github://owner/repo/main',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
-
-      expect(states[0]).toMatchObject({
-        displayName: 'Test Server',
-        availableModules: ['default', 'android'],
-        lastFetchError: undefined,
-      });
-    });
-
-    test('handles missing manifest', async () => {
-      mockFetch.mockImplementation(() => mockErrorResponse(404));
-
-      const states = await loadServerStates([
-        {
-          url: 'github://owner/repo/main',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
-
-      expect(states[0]).toMatchObject({
-        displayName: 'github://owner/repo/main',
-        availableModules: [],
-        lastFetchError: 'Failed to fetch manifest',
-      });
-    });
-
-    test('processes multiple servers in parallel', async () => {
-      mockFetch.mockImplementation((url: string) => {
-        if (url.includes('owner1')) {
-          return mockJsonResponse({name: 'Server 1', modules: ['default']});
-        }
-        return mockJsonResponse({name: 'Server 2', modules: ['android']});
-      });
-
-      const states = await loadServerStates([
-        {
-          url: 'github://owner1/repo/main',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-        {
-          url: 'github://owner2/repo/main',
-          enabledModules: ['android'],
-          enabled: false,
-        },
-      ]);
-
-      expect(states).toHaveLength(2);
-      expect(states[0]?.displayName).toBe('Server 1');
-      expect(states[1]?.displayName).toBe('Server 2');
-    });
-  });
-
-  describe('fetchManifest', () => {
+  describe('loadManifest', () => {
     test('validates manifest schema', async () => {
       const manifest = {
         name: 'Test',
+        namespace: 'test',
+        features: ['macros', 'sql_modules'],
         modules: ['default'],
       };
       mockFetch.mockImplementation(() => mockJsonResponse(manifest));
 
-      expect(await fetchManifest('https://server.com')).toEqual(manifest);
+      const result = await loadManifest('https://server.com');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toEqual(manifest);
+      }
     });
 
-    test('returns undefined for errors', async () => {
+    test('returns error for HTTP failures', async () => {
       mockFetch.mockImplementation(() => mockErrorResponse(404));
-      expect(await fetchManifest('https://server.com')).toBeUndefined();
+      const result = await loadManifest('https://server.com');
+      expect(result.ok).toBe(false);
+    });
 
+    test('returns error for invalid JSON', async () => {
       mockFetch.mockImplementation(() => mockJsonResponse('invalid'));
-      expect(await fetchManifest('https://server.com')).toBeUndefined();
+      const result = await loadManifest('https://server.com');
+      expect(result.ok).toBe(false);
+    });
 
-      mockFetch.mockImplementation(() => mockJsonResponse({modules: ['test']})); // missing name
-      expect(await fetchManifest('https://server.com')).toBeUndefined();
+    test('returns error for missing required fields', async () => {
+      // Missing namespace and features
+      mockFetch.mockImplementation(() =>
+        mockJsonResponse({name: 'Test', modules: ['test']}),
+      );
+      const result = await loadManifest('https://server.com');
+      expect(result.ok).toBe(false);
     });
   });
 
   describe('initializeExtensions', () => {
-    test('returns empty promises for no servers', async () => {
-      const result = await initializeExtensions([]);
+    test('handles empty server list', () => {
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, []);
 
-      expect(result.states).toEqual([]);
-      expect((await result.macrosPromise).size).toBe(0);
-      expect((await result.sqlModulesPromise).size).toBe(0);
-      expect((await result.protoDescriptorsPromise).length).toBe(0);
+      expect(mockApp.addMacros).not.toHaveBeenCalled();
+      expect(mockApp.addSqlPackages).not.toHaveBeenCalled();
+      expect(mockApp.addProtoDescriptors).not.toHaveBeenCalled();
     });
 
-    test('skips disabled servers', async () => {
-      mockFetch.mockImplementation(() =>
-        mockJsonResponse({name: 'Test', modules: ['default']}),
-      );
+    test('loads extensions for each enabled module', async () => {
+      const manifest = {
+        name: 'Test Server',
+        namespace: 'test',
+        features: ['macros', 'sql_modules', 'proto_descriptors'],
+        modules: ['default', 'android'],
+      };
 
-      const result = await initializeExtensions([
-        {
-          url: 'github://owner/repo/main',
-          enabledModules: ['default'],
-          enabled: false,
-        },
-      ]);
-
-      expect((await result.macrosPromise).size).toBe(0);
-    });
-
-    test('loads extensions with proper namespacing', async () => {
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('manifest.json')) {
-          return mockJsonResponse({name: 'Test', modules: ['default']});
+        if (url.includes('/manifest')) {
+          return mockJsonResponse(manifest);
         }
-        if (url.includes('macros')) {
+        if (url.includes('/macros')) {
           return mockJsonResponse({
-            macros: {
-              'Startup Analysis': [
-                {id: 'dev.perfetto.RunQuery', args: ['SELECT 1']},
-              ],
-            },
+            macros: [{name: 'Test Macro', steps: []}],
           });
         }
-        if (url.includes('sql_modules')) {
+        if (url.includes('/sql_modules')) {
           return mockJsonResponse({
-            modules: {'android.startup': 'CREATE TABLE...'},
+            sqlModules: [{name: 'test.module', sql: 'SELECT 1'}],
           });
         }
-        if (url.includes('proto_descriptors')) {
+        if (url.includes('/proto_descriptors')) {
           return mockJsonResponse({
-            descriptors: ['base64'],
+            descriptors: ['base64descriptor'],
           });
         }
         return mockErrorResponse(404);
       });
 
-      const result = await initializeExtensions([
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
         {
-          url: 'github://owner/repo/main',
+          url: 'https://server.com',
           enabledModules: ['default'],
           enabled: true,
         },
       ]);
 
-      const macros = await result.macrosPromise;
-      const sqlModules = await result.sqlModulesPromise;
-      const protos = await result.protoDescriptorsPromise;
+      // Wait for all promises to settle
+      await Promise.all([
+        ...mockApp.getMacrosAdded(),
+        ...mockApp.getSqlPackagesAdded(),
+        ...mockApp.getProtoDescriptorsAdded(),
+      ]);
 
-      expect(
-        macros.has(
-          '[raw-githubusercontent-com-owner-repo-main default] Startup Analysis',
-        ),
-      ).toBe(true);
-      expect(sqlModules.get('android.startup')).toBe('CREATE TABLE...');
-      expect(protos).toEqual(['base64']);
+      expect(mockApp.addMacros).toHaveBeenCalledTimes(1);
+      expect(mockApp.addSqlPackages).toHaveBeenCalledTimes(1);
+      expect(mockApp.addProtoDescriptors).toHaveBeenCalledTimes(1);
+    });
+
+    test('loads macros when feature is supported', async () => {
+      const manifest = {
+        name: 'Test',
+        namespace: 'test',
+        features: ['macros'],
+        modules: ['default'],
+      };
+      const macros = [{name: 'My Macro', steps: [{id: 'cmd', args: []}]}];
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/manifest')) {
+          return mockJsonResponse(manifest);
+        }
+        if (url.includes('/macros')) {
+          return mockJsonResponse({macros});
+        }
+        return mockErrorResponse(404);
+      });
+
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
+        {
+          url: 'https://server.com',
+          enabledModules: ['default'],
+          enabled: true,
+        },
+      ]);
+
+      const macrosResult = await mockApp.getMacrosAdded()[0];
+      expect(macrosResult).toEqual(macros);
+    });
+
+    test('returns empty array when feature is not supported', async () => {
+      const manifest = {
+        name: 'Test',
+        namespace: 'test',
+        features: [], // No features supported
+        modules: ['default'],
+      };
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/manifest')) {
+          return mockJsonResponse(manifest);
+        }
+        return mockErrorResponse(404);
+      });
+
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
+        {
+          url: 'https://server.com',
+          enabledModules: ['default'],
+          enabled: true,
+        },
+      ]);
+
+      const [macros, sqlPackages, protos] = await Promise.all([
+        mockApp.getMacrosAdded()[0],
+        mockApp.getSqlPackagesAdded()[0],
+        mockApp.getProtoDescriptorsAdded()[0],
+      ]);
+
+      expect(macros).toEqual([]);
+      expect(sqlPackages).toEqual([]);
+      expect(protos).toEqual([]);
+    });
+
+    test('returns empty array when module not found', async () => {
+      const manifest = {
+        name: 'Test',
+        namespace: 'test',
+        features: ['macros'],
+        modules: ['other'], // 'default' is not available
+      };
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/manifest')) {
+          return mockJsonResponse(manifest);
+        }
+        return mockErrorResponse(404);
+      });
+
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
+        {
+          url: 'https://server.com',
+          enabledModules: ['default'], // Requesting non-existent module
+          enabled: true,
+        },
+      ]);
+
+      const macros = await mockApp.getMacrosAdded()[0];
+      expect(macros).toEqual([]);
     });
 
     test('handles fetch failures gracefully', async () => {
-      mockFetch.mockImplementation((url: string) => {
-        if (url.includes('manifest.json')) {
-          return mockJsonResponse({name: 'Test', modules: ['default']});
-        }
-        return mockErrorResponse(500);
-      });
+      mockFetch.mockImplementation(() => mockErrorResponse(500));
 
-      const result = await initializeExtensions([
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
         {
-          url: 'github://owner/repo/main',
+          url: 'https://server.com',
           enabledModules: ['default'],
           enabled: true,
         },
       ]);
 
-      expect((await result.macrosPromise).size).toBe(0);
-      expect((await result.sqlModulesPromise).size).toBe(0);
-      expect((await result.protoDescriptorsPromise).length).toBe(0);
+      const [macros, sqlPackages, protos] = await Promise.all([
+        mockApp.getMacrosAdded()[0],
+        mockApp.getSqlPackagesAdded()[0],
+        mockApp.getProtoDescriptorsAdded()[0],
+      ]);
+
+      expect(macros).toEqual([]);
+      expect(sqlPackages).toEqual([]);
+      expect(protos).toEqual([]);
+    });
+
+    test('processes multiple modules from same server', async () => {
+      const manifest = {
+        name: 'Test',
+        namespace: 'test',
+        features: ['macros'],
+        modules: ['default', 'android'],
+      };
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/manifest')) {
+          return mockJsonResponse(manifest);
+        }
+        if (url.includes('/default/macros')) {
+          return mockJsonResponse({
+            macros: [{name: 'Default Macro', steps: []}],
+          });
+        }
+        if (url.includes('/android/macros')) {
+          return mockJsonResponse({
+            macros: [{name: 'Android Macro', steps: []}],
+          });
+        }
+        return mockErrorResponse(404);
+      });
+
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
+        {
+          url: 'https://server.com',
+          enabledModules: ['default', 'android'],
+          enabled: true,
+        },
+      ]);
+
+      // Should be called twice (once per module)
+      expect(mockApp.addMacros).toHaveBeenCalledTimes(2);
+      expect(mockApp.addSqlPackages).toHaveBeenCalledTimes(2);
+      expect(mockApp.addProtoDescriptors).toHaveBeenCalledTimes(2);
+    });
+
+    test('loads sql packages with correct structure', async () => {
+      const manifest = {
+        name: 'Test',
+        namespace: 'myext',
+        features: ['sql_modules'],
+        modules: ['default'],
+      };
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/manifest')) {
+          return mockJsonResponse(manifest);
+        }
+        if (url.includes('/sql_modules')) {
+          return mockJsonResponse({
+            sqlModules: [
+              {name: 'helpers', sql: 'CREATE TABLE t(x INT)'},
+              {name: 'utils', sql: 'SELECT 1'},
+            ],
+          });
+        }
+        return mockErrorResponse(404);
+      });
+
+      const mockApp = createMockAppImpl();
+      initializeExtensions(mockApp as unknown as AppImpl, [
+        {
+          url: 'https://server.com',
+          enabledModules: ['default'],
+          enabled: true,
+        },
+      ]);
+
+      const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
+      expect(sqlPackages).toHaveLength(1);
+      expect(sqlPackages[0]?.name).toBe('myext');
+      expect(sqlPackages[0]?.modules).toHaveLength(2);
     });
   });
 });
