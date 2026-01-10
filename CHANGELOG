@@ -6,6 +6,9 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
+    * Added support for specifying custom package names in `--add-sql-package`
+      and `--override-sql-package` flags using `PATH[@PACKAGE]` syntax. The
+      Python API now provides a `SqlPackage` class for typed configuration.
     * Added support for Firefox Profiler's preprocessed JSON format (used by
       Firefox Profiler's processed output with `stringArray` and separate column
       arrays).
