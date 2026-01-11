@@ -81,8 +81,11 @@ jobs:
           fi
           echo "Pre-generated bindings are up to date."
 
-      - name: Build and run tests
-        run: .cargo/bin/cargo test --manifest-path=contrib/rust-sdk/Cargo.toml --features=intrinsics
+      - name: Build
+        run: .cargo/bin/cargo build --manifest-path=contrib/rust-sdk/Cargo.toml --all-targets --features=intrinsics
+
+      - name: Run tests
+        run: .cargo/bin/cargo test --manifest-path=contrib/rust-sdk/Cargo.toml --all-targets --features=intrinsics
 
       - name: Run clippy
         run: .cargo/bin/cargo clippy --manifest-path=contrib/rust-sdk/Cargo.toml --all-targets --features=intrinsics -- -D warnings
