@@ -17,18 +17,29 @@ import {classNames} from '../base/classnames';
 
 /** Split configuration - either percentage or fixed pixel mode */
 export type SplitConfig =
-  | {readonly percent: number}
   | {
-      readonly fixed: {
-        readonly panel: 'first' | 'second';
-        readonly size: number;
-      };
+      readonly percent: number;
+      /** Which panel the percentage refers to (default: 'first') */
+      readonly panel?: 'first' | 'second';
+    }
+  | {
+      readonly pixels: number;
+      /** Which panel has the fixed pixel size */
+      readonly panel: 'first' | 'second';
     };
 
 export interface SplitPanelAttrs {
   readonly direction?: 'horizontal' | 'vertical';
-  /** Split configuration - defaults to { percent: 50 } */
+  /**
+   * Controlled split configuration. When provided, the component will use this
+   * value directly and the parent must update it via onResize to see changes.
+   */
   readonly split?: SplitConfig;
+  /**
+   * Initial split configuration for uncontrolled mode. Only read once in oninit.
+   * Ignored if `split` is provided.
+   */
+  readonly initialSplit?: SplitConfig;
   /** Minimum size in pixels for each panel */
   readonly minSize?: number;
   readonly className?: string;
@@ -37,23 +48,27 @@ export interface SplitPanelAttrs {
   readonly onResize?: (size: number) => void;
 }
 
-// Type guard for fixed mode
-function isFixedConfig(
+// Type guard for pixel mode
+function isPixelConfig(
   split: SplitConfig,
-): split is {fixed: {panel: 'first' | 'second'; size: number}} {
-  return 'fixed' in split;
+): split is {pixels: number; panel: 'first' | 'second'} {
+  return 'pixels' in split;
 }
 
 // Factory function to create SplitPanel instances with their own state
 export function SplitPanel(): m.Component<SplitPanelAttrs> {
-  let splitPercent = 50;
+  // Internal state for uncontrolled mode
+  let internalPercent = 50;
+  let internalFixedPx = 150;
   let isResizing = false;
 
   return {
     oninit(vnode) {
-      const split = vnode.attrs.split ?? {percent: 50};
-      if (!isFixedConfig(split) && 'percent' in split) {
-        splitPercent = split.percent;
+      const initial = vnode.attrs.initialSplit ?? {percent: 50};
+      if (isPixelConfig(initial)) {
+        internalFixedPx = initial.pixels;
+      } else if ('percent' in initial) {
+        internalPercent = initial.percent;
       }
     },
 
@@ -61,13 +76,17 @@ export function SplitPanel(): m.Component<SplitPanelAttrs> {
       const {
         direction = 'horizontal',
         minSize = 50,
-        split = {percent: 50},
+        split,
+        initialSplit,
         firstPanel,
         secondPanel,
       } = vnode.attrs;
 
-      const fixedPanel = isFixedConfig(split) ? split.fixed.panel : null;
-      const fixedSize = isFixedConfig(split) ? split.fixed.size : 0;
+      // Determine if we're in controlled or uncontrolled mode
+      const isControlled = split !== undefined;
+      const effectiveSplit = split ?? initialSplit ?? {percent: 50};
+      const isPixelMode = isPixelConfig(effectiveSplit);
+      const controlledPanel = effectiveSplit.panel ?? 'first';
 
       const containerClasses = classNames(
         'pf-split-panel',
@@ -76,20 +95,58 @@ export function SplitPanel(): m.Component<SplitPanelAttrs> {
       );
       const handleSize = 4;
 
+      // Get current size - from controlled prop or internal state
+      let currentPercent: number;
+      let currentPixels: number;
+      if (isControlled && isPixelMode) {
+        currentPixels = effectiveSplit.pixels;
+        currentPercent = 50; // unused in pixel mode
+      } else if (isControlled && 'percent' in effectiveSplit) {
+        currentPercent = effectiveSplit.percent;
+        currentPixels = 150; // unused in percent mode
+      } else {
+        currentPercent = internalPercent;
+        currentPixels = internalFixedPx;
+      }
+
       let firstStyle: Record<string, string>;
       let secondStyle: Record<string, string>;
 
-      if (fixedPanel === 'first') {
-        firstStyle = {flex: `0 0 ${fixedSize}px`};
-        secondStyle = {flex: '1 1 0'};
-      } else if (fixedPanel === 'second') {
-        firstStyle = {flex: '1 1 0'};
-        secondStyle = {flex: `0 0 ${fixedSize}px`};
+      // Use CSS min/max width/height to enforce size constraints
+      const minProp = direction === 'horizontal' ? 'minWidth' : 'minHeight';
+      const maxProp = direction === 'horizontal' ? 'maxWidth' : 'maxHeight';
+      const maxSize = `calc(100% - ${minSize}px - ${handleSize}px)`;
+
+      if (isPixelMode) {
+        // Pixel mode - one panel fixed, one flexible
+        if (controlledPanel === 'first') {
+          firstStyle = {
+            flex: `0 0 ${currentPixels}px`,
+            [minProp]: `${minSize}px`,
+            [maxProp]: maxSize,
+          };
+          secondStyle = {flex: '1 1 0', [minProp]: `${minSize}px`};
+        } else {
+          firstStyle = {flex: '1 1 0', [minProp]: `${minSize}px`};
+          secondStyle = {
+            flex: `0 0 ${currentPixels}px`,
+            [minProp]: `${minSize}px`,
+            [maxProp]: maxSize,
+          };
+        }
       } else {
         // Percentage mode
-        firstStyle = {flex: `0 0 calc(${splitPercent}% - ${handleSize / 2}px)`};
+        const firstPercent =
+          controlledPanel === 'first' ? currentPercent : 100 - currentPercent;
+        firstStyle = {
+          flex: `0 0 calc(${firstPercent}% - ${handleSize / 2}px)`,
+          [minProp]: `${minSize}px`,
+          [maxProp]: maxSize,
+        };
         secondStyle = {
-          flex: `0 0 calc(${100 - splitPercent}% - ${handleSize / 2}px)`,
+          flex: `0 0 calc(${100 - firstPercent}% - ${handleSize / 2}px)`,
+          [minProp]: `${minSize}px`,
+          [maxProp]: maxSize,
         };
       }
 
@@ -113,17 +170,18 @@ export function SplitPanel(): m.Component<SplitPanelAttrs> {
         const containerSize =
           direction === 'horizontal' ? rect.width : rect.height;
 
-        if (fixedPanel) {
-          // Fixed pixel mode
-          let pos: number;
-          if (direction === 'horizontal') {
-            pos = e.clientX - rect.left;
-          } else {
-            pos = e.clientY - rect.top;
-          }
+        // Calculate position from start of container
+        let pos: number;
+        if (direction === 'horizontal') {
+          pos = e.clientX - rect.left;
+        } else {
+          pos = e.clientY - rect.top;
+        }
 
+        if (isPixelMode) {
+          // Pixel mode
           let newSize: number;
-          if (fixedPanel === 'first') {
+          if (controlledPanel === 'first') {
             newSize = pos;
           } else {
             newSize = containerSize - pos;
@@ -135,24 +193,31 @@ export function SplitPanel(): m.Component<SplitPanelAttrs> {
             Math.min(containerSize - minSize - handleSize, newSize),
           );
 
+          // Update internal state only in uncontrolled mode
+          if (!isControlled) {
+            internalFixedPx = newSize;
+          }
+
           if (vnode.attrs.onResize) {
             vnode.attrs.onResize(newSize);
           }
         } else {
           // Percentage mode
-          let newPercent: number;
-          if (direction === 'horizontal') {
-            const x = e.clientX - rect.left;
-            newPercent = (x / rect.width) * 100;
-          } else {
-            const y = e.clientY - rect.top;
-            newPercent = (y / rect.height) * 100;
+          let newPercent = (pos / containerSize) * 100;
+
+          // If controlling second panel, invert the percentage
+          if (controlledPanel === 'second') {
+            newPercent = 100 - newPercent;
           }
 
           const minPercent = (minSize / containerSize) * 100;
           const maxPercent = 100 - minPercent;
           newPercent = Math.max(minPercent, Math.min(maxPercent, newPercent));
-          splitPercent = newPercent;
+
+          // Update internal state only in uncontrolled mode
+          if (!isControlled) {
+            internalPercent = newPercent;
+          }
 
           if (vnode.attrs.onResize) {
             vnode.attrs.onResize(newPercent);

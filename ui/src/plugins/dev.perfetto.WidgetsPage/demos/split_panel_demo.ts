@@ -14,7 +14,9 @@
 
 import m from 'mithril';
 import {SplitPanel} from '../../../widgets/split_panel';
-import {renderWidgetShowcase} from '../widgets_page_utils';
+import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
+
+let splitValue = 50;
 
 export function renderSplitPanel(): m.Children {
   return [
@@ -38,37 +40,72 @@ export function renderSplitPanel(): m.Children {
             },
           },
           m(SplitPanel, {
+            key: `${opts.vertical}-${opts.pixels}-${opts.controlledPanel}`,
             direction: opts.vertical ? 'vertical' : 'horizontal',
-            split: opts.fixed
-              ? {fixed: {panel: 'first', size: 150}}
-              : {percent: 50},
+            split: opts.pixels
+              ? {pixels: splitValue, panel: opts.controlledPanel}
+              : {percent: splitValue, panel: opts.controlledPanel},
             minSize: 50,
+            onResize: (size) => {
+              splitValue = size;
+            },
             firstPanel: m(
               '',
               {
                 style: {
                   padding: '8px',
-                  background: 'var(--pf-color-background)',
                 },
               },
-              'First Panel',
+              m('div', 'First Panel'),
+              m(
+                'div',
+                {
+                  style: {
+                    fontSize: '12px',
+                    color: 'var(--pf-color-text-muted)',
+                  },
+                },
+                opts.pixels
+                  ? opts.controlledPanel === 'first'
+                    ? `${splitValue.toFixed(0)}px`
+                    : 'flex'
+                  : opts.controlledPanel === 'first'
+                    ? `${splitValue.toFixed(1)}%`
+                    : `${(100 - splitValue).toFixed(1)}%`,
+              ),
             ),
             secondPanel: m(
               '',
               {
                 style: {
                   padding: '8px',
-                  background: 'var(--pf-color-background-secondary)',
                 },
               },
-              'Second Panel',
+              m('div', 'Second Panel'),
+              m(
+                'div',
+                {
+                  style: {
+                    fontSize: '12px',
+                    color: 'var(--pf-color-text-muted)',
+                  },
+                },
+                opts.pixels
+                  ? opts.controlledPanel === 'second'
+                    ? `${splitValue.toFixed(0)}px`
+                    : 'flex'
+                  : opts.controlledPanel === 'second'
+                    ? `${splitValue.toFixed(1)}%`
+                    : `${(100 - splitValue).toFixed(1)}%`,
+              ),
             ),
           }),
         );
       },
       initialOpts: {
         vertical: false,
-        fixed: false,
+        pixels: false,
+        controlledPanel: new EnumOption('first', ['first', 'second'] as const),
       },
     }),
   ];
