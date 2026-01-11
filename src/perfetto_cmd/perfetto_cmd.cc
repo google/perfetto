@@ -782,6 +782,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     trace_config_.reset(new TraceConfig());
   }
 
+  const bool traced_will_create_out_file =
+      trace_config_->write_into_file() && !trace_config_->output_path().empty();
   bool open_out_file = true;
   if (!will_trace_or_trigger) {
     open_out_file = false;
@@ -789,9 +791,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       PERFETTO_ELOG("Can't pass an --out file (or --upload) with this option");
       return 1;
     }
-  } else if (!triggers_to_activate_.empty() ||
-             (trace_config_->write_into_file() &&
-              !trace_config_->output_path().empty())) {
+  } else if (!triggers_to_activate_.empty() || traced_will_create_out_file) {
     open_out_file = false;
   } else if (trace_out_path_.empty() && !upload_flag_) {
     PERFETTO_ELOG("Either --out or --upload is required");
@@ -814,10 +814,15 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
   if (open_out_file) {
-    if (!OpenOutputFile())
+    auto trace_output = OpenOutputFile(trace_out_path_);
+    if (!trace_output.has_value())
       return 1;
+    trace_output_ = std::move(trace_output);
     if (!trace_config_->write_into_file())
-      packet_writer_.emplace(trace_out_stream_.get());
+      packet_writer_.emplace(trace_output_->out_stream_.get());
+  } else if (traced_will_create_out_file) {
+    trace_output_ =
+        TraceOutput{base::ScopedFstream(), trace_config_->output_path()};
   }
 
   bool will_trace_indefinitely =
@@ -1074,12 +1079,13 @@ void PerfettoCmd::OnConnect() {
       args.clone_trigger_delay_ms = snapshot_trigger_info_->trigger_delay_ms;
     }
 
-    if (trace_out_stream_) {
+    if (trace_output_.has_value() && trace_output_->out_stream_) {
       // We always send the file descriptor to the traced, because perfetto_cmd
       // doesn't know if the session to clone is 'write_into_file' session.
       // traced decides weither it writes the cloned buffers to this file
       // descriptor or send them to the perfetto_cmd.
-      args.output_file_fd = base::ScopedFile(dup(fileno(*trace_out_stream_)));
+      args.output_file_fd =
+          base::ScopedFile(dup(fileno(*trace_output_->out_stream_)));
     }
 
     consumer_endpoint_->CloneSession(std::move(args));
@@ -1101,8 +1107,11 @@ void PerfettoCmd::OnConnect() {
   // Set the statsd logging flag if we're uploading
 
   base::ScopedFile optional_fd;
-  if (trace_config_->write_into_file() && trace_config_->output_path().empty())
-    optional_fd.reset(dup(fileno(*trace_out_stream_)));
+  if (trace_config_->write_into_file() &&
+      trace_config_->output_path().empty()) {
+    PERFETTO_CHECK(trace_output_.has_value() && trace_output_->out_stream_);
+    optional_fd.reset(dup(fileno(*trace_output_->out_stream_)));
+  }
 
   consumer_endpoint_->EnableTracing(*trace_config_, std::move(optional_fd));
 
@@ -1190,10 +1199,12 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
     // In case of errors don't leave a partial file around. This happens
     // frequently in the case of --save-for-bugreport if there is no eligible
     // trace. See also b/279753347 .
-    uint64_t bytes_written = GetBytesWritten();
-    if (bytes_written == 0 && !trace_out_path_.empty() &&
-        trace_out_path_ != "-") {
-      remove(trace_out_path_.c_str());
+    if (trace_output_.has_value()) {
+      uint64_t bytes_written = trace_output_->GetBytesWritten();
+      std::string out_path = trace_output_->out_path_;
+      if (bytes_written == 0 && !out_path.empty() && out_path != "-") {
+        remove(out_path.c_str());
+      }
     }
 
     // Even though there was a failure, we mark this as success for legacy
@@ -1238,14 +1249,15 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     ReportTraceToAndroidFrameworkOrCrash();
 #endif
   } else {
-    uint64_t bytes_written = GetBytesWritten();
-    trace_out_stream_.reset();
-    if (trace_config_->write_into_file()) {
-      // trace_out_path_ might be empty in the case of --attach.
-      PERFETTO_LOG("Trace written into the output file");
-    } else {
+    if (trace_output_.has_value()) {
+      uint64_t bytes_written = trace_output_->GetBytesWritten();
+      std::string out_path = trace_output_->out_path_;
+      trace_output_.reset();
       PERFETTO_LOG("Wrote %" PRIu64 " bytes into %s", bytes_written,
-                   trace_out_path_ == "-" ? "stdout" : trace_out_path_.c_str());
+                   out_path == "-" ? "stdout" : out_path.c_str());
+    } else {
+      // trace_output_ might not be set in the case of --attach.
+      PERFETTO_LOG("Trace written into the output file");
     }
   }
 
@@ -1253,42 +1265,47 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   task_runner_.Quit();
 }
 
-bool PerfettoCmd::OpenOutputFile() {
+// static
+std::optional<PerfettoCmd::TraceOutput> PerfettoCmd::OpenOutputFile(
+    const std::string& output_file_path) {
   base::ScopedFile fd;
-  if (trace_out_path_.empty()) {
+  if (output_file_path.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     fd = CreateUnlinkedTmpFile();
 #endif
-  } else if (trace_out_path_ == "-") {
+  } else if (output_file_path == "-") {
     fd.reset(dup(fileno(stdout)));
   } else {
-    fd = base::OpenFile(trace_out_path_, O_RDWR | O_CREAT | O_TRUNC, 0600);
+    fd = base::OpenFile(output_file_path, O_RDWR | O_CREAT | O_TRUNC, 0600);
   }
   if (!fd) {
     PERFETTO_PLOG(
         "Failed to open %s. If you get permission denied in "
         "/data/misc/perfetto-traces, the file might have been "
         "created by another user, try deleting it first.",
-        trace_out_path_.c_str());
-    return false;
+        output_file_path.c_str());
+    return std::nullopt;
   }
-  trace_out_stream_.reset(fdopen(fd.release(), "wb"));
-  PERFETTO_CHECK(trace_out_stream_);
-  return true;
+  FILE* out_stream = fdopen(fd.release(), "wb");
+  PERFETTO_CHECK(out_stream);
+  return TraceOutput{base::ScopedFstream(out_stream), output_file_path};
 }
 
-uint64_t PerfettoCmd::GetBytesWritten() {
-  if (!trace_out_stream_)
-    return 0;
-  // Seek to the end of the file in case |trace_out_stream_| points to the file
-  // written by traced.
-  if (fseek(*trace_out_stream_, 0, SEEK_END) < 0) {
-    return 0;
+uint64_t PerfettoCmd::TraceOutput::GetBytesWritten() {
+  if (out_stream_) {
+    // Seek to the end of the file in case |out_stream_| points to the file
+    // written by traced.
+    if (fseek(*out_stream_, 0, SEEK_END) < 0) {
+      return 0;
+    }
+    off_t bytes_written = ftell(*out_stream_);
+    if (bytes_written < 0)
+      return 0;
+    return static_cast<uint64_t>(bytes_written);
   }
-  off_t bytes_written = ftell(*trace_out_stream_);
-  if (bytes_written < 0)
-    return 0;
-  return static_cast<uint64_t>(bytes_written);
+  // |out_path_| points to the file written by traced.
+  PERFETTO_CHECK(!out_path_.empty());
+  return base::GetFileSize(out_path_).value_or(0);
 }
 
 void PerfettoCmd::SetupCtrlCSignalHandler() {
