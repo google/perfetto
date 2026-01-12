@@ -84,6 +84,15 @@ class V8Tracker {
                 IsolateId v8_isolate_id,
                 const protos::pbzero::V8CodeMove::Decoder& code_move);
 
+  void AddICEvent(int64_t timestamp,
+                  UniqueTid utid,
+                  IsolateId isolate_id,
+                  const protos::pbzero::V8ICEvent::Decoder& ic_event);
+
+  tables::V8JsCodeTable::Id GetOrInsertJsCode(
+      IsolateId isolate_id,
+      uint64_t js_code_iid);
+
  private:
   struct JsFunctionHash {
     size_t operator()(const tables::V8JsFunctionTable::Row& v) const {
@@ -177,6 +186,8 @@ class V8Tracker {
                     tables::V8JsFunctionTable::Id,
                     JsFunctionHash>
       js_function_index_;
+  base::FlatHashMap<tables::JitCodeTable::Id, tables::V8JsCodeTable::Id>
+      jit_to_v8_js_code_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -544,6 +544,55 @@ void V8Tracker::MoveCode(int64_t timestamp,
                       code.to_instruction_start_address());
 }
 
+void V8Tracker::AddICEvent(int64_t timestamp,
+                           UniqueTid utid,
+                           IsolateId isolate_id,
+                           const protos::pbzero::V8ICEvent::Decoder& ic_event) {
+  if (!ic_event.has_pc()) {
+    return;
+  }
+  uint64_t pc = ic_event.pc();
+
+  JitCache* jit_cache =
+      FindJitCache(isolate_id, AddressRange::FromStartAndSize(pc, 1));
+  if (!jit_cache) {
+    // TODO: support bytecode.
+    return;
+  }
+
+  std::optional<tables::JitCodeTable::Id> jit_code_id = jit_cache->FindCode(pc);
+  if (!jit_code_id) {
+    return;
+  }
+
+  auto* v8_js_code_id = jit_to_v8_js_code_.Find(*jit_code_id);
+  if (!v8_js_code_id) {
+    return;
+  }
+
+  auto jit_code = context_->storage->jit_code_table().FindById(*jit_code_id);
+  // TODO: implement full source position table support.
+  uint32_t byte_offset = 0;
+
+  tables::V8IcEventTable::Row row;
+  row.v8_isolate_id = isolate_id;
+  row.utid = utid;
+  row.ts = timestamp;
+  row.type = context_->storage->InternString(ic_event.type());
+  row.keyed = ic_event.keyed();
+  row.map = ic_event.map();
+  row.key = context_->storage->InternString(ic_event.key());
+  row.old_state = context_->storage->InternString(ic_event.old_state());
+  row.new_state = context_->storage->InternString(ic_event.new_state());
+  row.modifier = context_->storage->InternString(ic_event.modifier());
+  row.slow_stub_reason =
+      context_->storage->InternString(ic_event.slow_stub_reason());
+  row.v8_js_code_id = *v8_js_code_id;
+  row.byte_offset = byte_offset;
+
+  context_->storage->mutable_v8_ic_event_table()->Insert(row);
+}
+
 StringId V8Tracker::InternV8String(const V8String::Decoder& v8_string) {
   auto& storage = *context_->storage;
   if (v8_string.has_latin1()) {
