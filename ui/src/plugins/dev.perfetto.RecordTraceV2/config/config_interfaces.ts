@@ -111,13 +111,6 @@ export interface RecordProbe {
    * method.
    */
   genConfig(tc: TraceConfigBuilder): void;
-
-  /**
-   * Optional. If defined, it returns the number of "active" items in the probe.
-   * This is used in the sidebar to show the count of enabled items.
-   * If not defined, it defaults to 1.
-   */
-  getProbeCount?: () => number;
 }
 
 /**
