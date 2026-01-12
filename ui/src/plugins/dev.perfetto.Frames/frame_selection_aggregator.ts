@@ -71,21 +71,25 @@ export class FrameSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [{field: 'jank_type'}],
+      groupBy: [{id: 'jank_type', field: 'jank_type'}],
       aggregates: [
         {
+          id: 'count',
           function: 'COUNT',
           sort: 'DESC',
         },
         {
+          id: 'dur_min',
           field: 'dur',
           function: 'MIN',
         },
         {
+          id: 'dur_max',
           field: 'dur',
           function: 'MAX',
         },
         {
+          id: 'dur_avg',
           field: 'dur',
           function: 'AVG',
         },
