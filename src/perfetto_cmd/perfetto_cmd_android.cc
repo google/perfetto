@@ -245,16 +245,14 @@ std::vector<base::ScopedFile>
 PerfettoCmd::UnlinkAndReturnPersistentTracesToUpload() {
   base::ScopedDir dir = base::ScopedDir(opendir(kAndroidPersistentStateDir));
   if (!dir) {
-    PERFETTO_PLOG("Failed to open directory %s", kAndroidPersistentStateDir);
+    PERFETTO_PLOG("Failed to open a persistent traces directory '%s'",
+                  kAndroidPersistentStateDir);
     return {};
   }
 
   std::vector<std::string> trace_paths;
   struct dirent* entry;
   while ((entry = readdir(*dir)) != nullptr) {
-    PERFETTO_LOG(
-        "UnlinkAndGetAllTracesToUpload, entry->d_name: %s, entry->d_type: %d",
-        entry->d_name, entry->d_type);
     if (entry->d_type != DT_REG)
       continue;
 
@@ -267,12 +265,13 @@ PerfettoCmd::UnlinkAndReturnPersistentTracesToUpload() {
   for (std::string& path : trace_paths) {
     base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
     if (!fd) {
-      PERFETTO_PLOG("Failed to open file %s", path.c_str());
+      PERFETTO_PLOG("Failed to open a persistent trace file %s", path.c_str());
       continue;
     }
     trace_fds.emplace_back(std::move(fd));
     if (unlink(path.c_str()) != 0) {
-      PERFETTO_PLOG("Failed to unlink file %s", path.c_str());
+      PERFETTO_PLOG("Failed to unlink a persistent trace file %s",
+                    path.c_str());
     }
   }
 
@@ -294,7 +293,7 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
     // This should never happen, but if it does we are in trouble. In this case
     // just crash, we don't care about traces to be reported.
     PERFETTO_FATAL(
-        "Failed to set property perfetto.persistent.uploader.status");
+        "Failed to set property 'perfetto.persistent.uploader.status'");
   }
 
   // Now we wait until boot completes to make sure Android reporter service is
@@ -310,10 +309,10 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
   if (!boot_completed) {
-    PERFETTO_ELOG(
-        "System did not boot within %ld seconds, persistent traces will not be "
-        "uploaded.",
-        kWaitForSysBootCompletedSeconds);
+    PERFETTO_ELOG("System did not boot within %" PRId64
+                  " seconds, persistent traces will not be "
+                  "uploaded.",
+                  kWaitForSysBootCompletedSeconds);
     return false;
   }
 
@@ -351,9 +350,6 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
       continue;
     }
 
-    PERFETTO_DLOG("ReportAllPersistentTraces: persistent trace found: %s",
-                  trace_config->unique_session_name().c_str());
-
     base::Uuid uuid(trace_config->trace_uuid_lsb(),
                     trace_config->trace_uuid_msb());
     // Respect the wishes of the config with respect to statsd logging, enable
@@ -367,8 +363,6 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
       PERFETTO_ELOG("ReportTraceToAndroidFramework failed: %s",
                     status.c_message());
       all_reports_succeed = false;
-    } else {
-      PERFETTO_DLOG("ReportTraceToAndroidFramework OK");
     }
   }
   return all_reports_succeed;
