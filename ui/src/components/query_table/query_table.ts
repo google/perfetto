@@ -293,7 +293,7 @@ export class QueryResultsTable
     return m(DataGrid, {
       schema,
       rootSchema: 'data',
-      initialColumns: resp.columns.map((col) => ({field: col})),
+      initialColumns: resp.columns.map((col) => ({id: col, field: col})),
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
       fillHeight: true,

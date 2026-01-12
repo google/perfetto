@@ -925,12 +925,6 @@ Advanced:
                                       packages already existing and clashing
                                       with stdlib package names so should be
                                       used with caution.
- --add-sql-module PACKAGE_PATH        Alias for --add-sql-package, kept for
-                                      backwards compatibility. Prefer
-                                      --add-sql-package.
- --override-sql-module PACKAGE_PATH   Alias for --override-sql-package, kept for
-                                      backwards compatibility. Prefer
-                                      --override-sql-package.
 
 Metrics (v1):
 
@@ -1014,10 +1008,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"query-file", required_argument, nullptr, 'q'},
       {"query-string", required_argument, nullptr, 'Q'},
-      {"add-sql-module", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
       {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
-      {"override-sql-module", required_argument, nullptr,
-       OPT_OVERRIDE_SQL_PACKAGE},
       {"override-sql-package", required_argument, nullptr,
        OPT_OVERRIDE_SQL_PACKAGE},
 
