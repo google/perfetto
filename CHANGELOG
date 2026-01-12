@@ -66,6 +66,7 @@ Unreleased:
       data sources to have custom clearing logic instead of creating/destroying
       state on every clear.
   Misc:
+    * Added automatic detection of profile type when using `traceconv profile`.
     * Upgraded standalone Bazel version to 8.5.0.
     * Switched Bazel usage to be fully based on bzlmod as, on Bazel 8,
       WORKSPACE builds are no longer supported.
