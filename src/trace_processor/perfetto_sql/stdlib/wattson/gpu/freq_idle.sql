@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE android.gpu.frequency;
 
 INCLUDE PERFETTO MODULE android.gpu.mali_power_state;
 
+INCLUDE PERFETTO MODULE android.gpu.pvr_power_state;
+
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
@@ -66,6 +68,21 @@ SELECT
   *
 FROM nominal_freqs;
 
+-- A single source for GPU power state information
+-- from either mali or pvr which are mutually exclusive
+CREATE PERFETTO VIEW _gpu_power_state AS
+SELECT
+  ts,
+  dur,
+  power_state
+FROM android_mali_gpu_power_state
+UNION ALL
+SELECT
+  ts,
+  dur,
+  power_state
+FROM android_pvr_gpu_power_state;
+
 -- Gapless time slices of GPU idle from trace_start() to trace_end()
 CREATE PERFETTO TABLE _gapless_gpu_power_state AS
 -- Prepend NULL slices up to first idle events
@@ -75,13 +92,13 @@ WITH
       trace_start() AS ts,
       min(ts) - trace_start() AS dur,
       NULL AS power_state
-    FROM android_mali_gpu_power_state
+    FROM _gpu_power_state
     UNION ALL
     SELECT
       ts,
       dur,
       power_state
-    FROM android_mali_gpu_power_state
+    FROM _gpu_power_state
   )
 SELECT
   *

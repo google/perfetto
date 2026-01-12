@@ -19,6 +19,7 @@ perfetto_sql_source_set("gpu") {
     "frequency.sql",
     "mali_power_state.sql",
     "memory.sql",
+    "pvr_power_state.sql",
     "work_period.sql",
   ]
 }
