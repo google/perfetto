@@ -135,7 +135,7 @@ class AddExtensionServerModal {
       m(
         Section,
         {
-          title: () => [
+          title: [
             m('span', 'Modules'),
             (this.loadedState?.type === 'ok' ||
               this.loadedState?.type === 'error') &&
