@@ -76,6 +76,7 @@ const pjoin = path.join;
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
 const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
+const LOCK_FILE = pjoin(ROOT_DIR, 'ui/watch.lock');
 
 const cfg = {
   minifyJs: '',
@@ -183,6 +184,9 @@ async function main() {
   cfg.outGenDir = ensureDir(pjoin(cfg.outUiDir, 'tsc/gen'));
   cfg.testFilter = args.test_filter || '';
   cfg.watch = !!args.watch;
+  if (cfg.watch) {
+    checkWatchLock();
+  }
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.bigtrace = !!args.bigtrace;
@@ -920,6 +924,43 @@ function mklink(src, dst) {
     }
   }
   fs.symlinkSync(src, dst);
+}
+
+function checkWatchLock() {
+  if (fs.existsSync(LOCK_FILE)) {
+    const oldPid = fs.readFileSync(LOCK_FILE).toString().trim();
+    let running = true;
+    try {
+      // Check if oldPid exists.
+      process.kill(parseInt(oldPid), 0);
+    } catch (e) {
+      running = false;
+    }
+    if (running) {
+      console.error(`
+A build.js with --watch instance is already running (PID=${oldPid}).
+Please kill it before starting a new one.
+You can use: kill ${oldPid}`);
+      process.exit(1);
+    } else {
+      console.log(`Removing stale lock file for PID ${oldPid}`);
+      fs.unlinkSync(LOCK_FILE);
+    }
+  }
+  fs.writeFileSync(LOCK_FILE, process.pid.toString());
+  process.on('exit', () => releaseWatchLock());
+}
+
+function releaseWatchLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      const pid = fs.readFileSync(LOCK_FILE).toString().trim();
+      if (pid === process.pid.toString()) {
+        fs.unlinkSync(LOCK_FILE);
+      }
+    }
+  } catch (e) {
+  }
 }
 
 main();
