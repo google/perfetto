@@ -17,6 +17,7 @@ import {CopyableLink} from '../../widgets/copyable_link';
 import {Tab} from '../../public/tab';
 import {Anchor} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
+import {SplitPanel} from '../../widgets/split_panel';
 
 const V8_JS_SCRIPT_SCHEMA_NAME = 'v8JsScript';
 const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
@@ -76,7 +77,7 @@ export class V8SourcesTab implements Tab {
   }
 
   getTitle(): string {
-    return 'V8 Sources';
+    return 'V8 Script Sources';
   }
 
   private async showSourceForScript(id: number) {
@@ -190,44 +191,51 @@ export class V8SourcesTab implements Tab {
     }
 
     return m(
-        '.pf-v8-source-view',
-        m('.pf-script-list-pane',
-          m(TextInput, {
-            oninput: (e: Event) => {
-              const searchTerm = (e.target as HTMLInputElement).value;
-              this.filterScript(searchTerm);
-            },
-            placeholder: 'Search scripts',
-          }),
-          m(DataGrid, {
-            data: this.dataSource,
-            schema: v8JsScriptUiSchema,
-            rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
-            filters: this.filters,
-            onFiltersChanged: (filters: readonly Filter[]) => {
-              this.filters = filters;
-              m.redraw();
-            },
-            initialColumns: [
-              {field: 'v8_js_script_id', id: 'v8_js_script_id'},
-              {field: 'script_size', id: 'script_size'},
-              {field: 'name', id: 'name'},
-            ],
-          })),
-        m('.pf-v8-source-script-details',
-            m(TabStrip, {
-              tabs: [
-                {key: 'source', title: 'Source'},
-                {key: 'details', title: 'Details'},
-              ],
-              currentTabKey: this.currentTab,
-              onTabChange: (key) => {
-                this.currentTab = key;
-                m.redraw();
-              },
-            }),
-            m('.pf-tab-page', this.renderTabContent()),
-          ),
-    );
+        SplitPanel,
+        {
+          className: 'pf-v8-source-view',
+          direction: 'horizontal',
+          initialSplit: {pixels: 400},
+          controlledPanel: 'first',
+          firstPanel: m(
+              '.pf-script-list-pane',
+                        m(TextInput, {
+                          oninput: (e: Event) => {
+                            const searchTerm = (e.target as HTMLInputElement).value;
+                            this.filterScript(searchTerm);
+                          },
+                          placeholder: 'Search scripts',
+                          leftIcon: 'search',
+                        }),              m(DataGrid, {
+                data: this.dataSource,
+                schema: v8JsScriptUiSchema,
+                rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
+                filters: this.filters,
+                onFiltersChanged: (filters: readonly Filter[]) => {
+                  this.filters = filters;
+                  m.redraw();
+                },
+                initialColumns: [
+                  {field: 'v8_js_script_id', id: 'v8_js_script_id'},
+                  {field: 'script_size', id: 'script_size'},
+                  {field: 'name', id: 'name'},
+                ],
+              })),
+          secondPanel: m(
+              '.pf-v8-source-script-details',
+              m(TabStrip, {
+                tabs: [
+                  {key: 'source', title: 'Source'},
+                  {key: 'details', title: 'Details'},
+                ],
+                currentTabKey: this.currentTab,
+                onTabChange: (key) => {
+                  this.currentTab = key;
+                  m.redraw();
+                },
+              }),
+              m('.pf-tab-page', this.renderTabContent()),
+              ),
+        });
   }
 }
