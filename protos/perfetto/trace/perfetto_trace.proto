@@ -5128,15 +5128,18 @@ message TraceConfig {
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
 
-  // Android-only. Not for general use. If set, saves the trace into a special
-  // directory, to be uploaded by the android after the system reboot.
-  // This field is read by perfetto_cmd, rather than the tracing
-  // service. This field is only used when perfetto_cmd started with the
-  // --upload flag.
-  // |write_into_file| should be also set to true to use this option.
+  // Android-only. Not for general use. If set, the trace is saved into a
+  // /data/misc/perfetto-traces/persistent directory, to be uploaded by Android
+  // after a system reboot. This field is read by perfetto_cmd
+  // rather than the tracing service and is only used when perfetto_cmd
+  // started with the --upload flag.
+  //
+  // The additional configuration is required to use this option:
+  // |write_into_file| must be set to true
+  // |output_path| must NOT be set
+  // |unique_session_name| must be set (used to generate the output file name)
   //
   // TODO(ktimofeev): Add "introduced in"
-  // TODO(ktimofeev): add more documentation?
   optional bool persist_trace_after_reboot = 44;
 }
 
