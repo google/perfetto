@@ -45,13 +45,22 @@ import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
 export interface QueryPageAttrs {
+  // The trace to run queries against.
   readonly trace: Trace;
+
+  // Current text displayed in the query editor.
   readonly editorText: string;
-  readonly executedQuery?: string;
+
+  // The results of the last executed query, if any.
   readonly queryResult?: QueryResponse;
 
+  // Whether a query is currently being executed.
+  readonly isLoading: boolean;
+
+  // Called when the content of the editor is updated.
   onEditorContentUpdate?(content: string): void;
 
+  // Called when the user requests to execute a query.
   onExecute?(query: string): void;
 }
 
@@ -80,6 +89,15 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
+    const {
+      isLoading,
+      editorText,
+      trace,
+      onEditorContentUpdate,
+      queryResult,
+      onExecute,
+    } = attrs;
+
     return m(
       '.pf-query-page',
       m(Box, {className: 'pf-query-page__toolbar'}, [
@@ -87,10 +105,11 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           m(Button, {
             label: 'Run Query',
             icon: 'play_arrow',
-            intent: Intent.Primary,
+            loading: isLoading,
+            intent: isLoading ? Intent.None : Intent.Primary,
             variant: ButtonVariant.Filled,
             onclick: () => {
-              attrs.onExecute?.(attrs.editorText);
+              attrs.onExecute?.(editorText);
             },
           }),
           m(
@@ -103,7 +122,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
           ),
           m(StackAuto), // The spacer pushes the following buttons to the right.
-          attrs.trace.isInternalUser &&
+          trace.isInternalUser &&
             m(Button, {
               icon: 'wand_stars',
               title:
@@ -114,7 +133,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               },
             }),
           m(CopyToClipboardButton, {
-            textToCopy: attrs.editorText,
+            textToCopy: editorText,
             title: 'Copy query to clipboard',
             label: 'Copy Query',
           }),
@@ -157,7 +176,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             ],
           ),
         ),
-      attrs.editorText.includes('"') &&
+      editorText.includes('"') &&
         m(
           Box,
           m(
@@ -171,9 +190,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       m(Editor, {
         ref: 'editor',
         language: 'perfetto-sql',
-        text: attrs.editorText,
-        onUpdate: attrs.onEditorContentUpdate,
-        onExecute: attrs.onExecute,
+        text: editorText,
+        onUpdate: onEditorContentUpdate,
+        onExecute: onExecute,
       }),
       m(ResizeHandle, {
         onResize: (deltaPx: number) => {
@@ -185,16 +204,16 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         },
       }),
       this.dataSource &&
-        attrs.queryResult &&
-        this.renderQueryResult(attrs.trace, attrs.queryResult, this.dataSource),
+        queryResult &&
+        this.renderQueryResult(trace, queryResult, this.dataSource),
       m(QueryHistoryComponent, {
         className: 'pf-query-page__history',
-        trace: attrs.trace,
+        trace: trace,
         runQuery: (query: string) => {
-          attrs.onExecute?.(query);
+          onExecute?.(query);
         },
         setQuery: (query: string) => {
-          attrs.onEditorContentUpdate?.(query);
+          onEditorContentUpdate?.(query);
         },
       }),
     );
@@ -260,7 +279,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           return m(DataGrid, {
             schema,
             rootSchema: 'data',
-            initialColumns: queryResult.columns.map((col) => ({field: col})),
+            initialColumns: queryResult.columns.map((col) => ({
+              id: col,
+              field: col,
+            })),
             className: 'pf-query-page__results',
             data: dataSource,
             showExportButton: true,

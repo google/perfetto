@@ -17,44 +17,53 @@ import {Row, SqlValue} from '../../../trace_processor/query_result';
 export type AggregateFunction = 'ANY' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
 export type SortDirection = 'ASC' | 'DESC';
 
-export interface Column {
-  readonly field: string;
+interface ColumnBase {
+  // Unique identifier for this column. Allows multiple columns with the same
+  // field but different configurations (e.g., different aggregate functions).
+  readonly id: string;
   readonly sort?: SortDirection;
-  readonly aggregate?: AggregateFunction;
+}
+
+export interface Column extends ColumnBase {
+  readonly field: string;
+  readonly aggregate?: AggregateFunction; // Rename to summary
 }
 
 export type Filter = {readonly field: string} & FilterOpAndValue;
 
-export type FilterOpAndValue =
-  | {
-      readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
-      readonly value: SqlValue;
-    }
-  | {
-      readonly op: 'in' | 'not in';
-      readonly value: ReadonlyArray<SqlValue>;
-    }
-  | {
-      readonly op: 'is null' | 'is not null';
-    };
+interface OpFilter {
+  readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
+  readonly value: SqlValue;
+}
 
-export type AggregateColumn = (
-  | {
-      readonly field: string;
-      readonly function: AggregateFunction;
-    }
-  | {
-      readonly function: 'COUNT';
-    }
-) & {readonly sort?: SortDirection};
+interface InFilter {
+  readonly op: 'in' | 'not in';
+  readonly value: readonly SqlValue[];
+}
 
-export interface GroupByColumn {
+interface NullFilter {
+  readonly op: 'is null' | 'is not null';
+}
+
+export type FilterOpAndValue = OpFilter | InFilter | NullFilter;
+
+interface AggregateField extends ColumnBase {
+  readonly function: AggregateFunction;
   readonly field: string;
-  readonly sort?: SortDirection;
+}
+
+interface AggregateFieldCount extends ColumnBase {
+  readonly function: 'COUNT';
+}
+
+export type AggregateColumn = AggregateField | AggregateFieldCount;
+
+export interface GroupByColumn extends ColumnBase {
+  readonly field: string;
 }
 
 export interface Pivot {
-  // List of fields to group by - supports both new GroupByColumn[] and legacy string[]
+  // List of fields to group by - supports both new GroupByColumn[]
   readonly groupBy: readonly GroupByColumn[];
 
   // List of aggregate column definitions.

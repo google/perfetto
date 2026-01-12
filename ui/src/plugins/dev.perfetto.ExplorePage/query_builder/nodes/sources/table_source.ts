@@ -68,6 +68,7 @@ export function modalForTableSelection(
     const updateModal = () => {
       showModal({
         key: 'table-selection-modal',
+        vAlign: 'TOP',
         title:
           selectedTables.size > 0
             ? `Choose tables - ${selectedTables.size} selected`

@@ -99,7 +99,8 @@ export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: LayoutMap;
-  readonly labels?: ReadonlyArray<TextLabelData>;
+  readonly labels: ReadonlyArray<TextLabelData>;
+  readonly loadGeneration?: number;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: Position) => void;
@@ -116,7 +117,6 @@ export interface GraphAttrs {
   ) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
-  readonly onRecenterReady?: (recenter: () => void) => void;
 }
 
 // ========================================
@@ -615,17 +615,16 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private labels: Label[] = [];
   private labelTexts: Map<string, string> = new Map();
   private editingLabels: Set<string> = new Set();
+  private previousLoadGeneration?: number;
 
   oninit(vnode: m.Vnode<GraphAttrs>) {
-    // Load initial labels from attrs if provided
-    if (vnode.attrs.labels) {
-      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
-    }
+    // Load initial labels from attrs
+    this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
   }
 
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
     // Only update labels if the reference changed (indicating external state update)
-    if (vnode.attrs.labels !== old.attrs.labels && vnode.attrs.labels) {
+    if (vnode.attrs.labels !== old.attrs.labels) {
       this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
     }
     return true;
@@ -784,6 +783,25 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
 
+    // Detect if loadGeneration has changed (indicates a load operation occurred)
+    const loadGenerationChanged =
+      attrs.loadGeneration !== undefined &&
+      attrs.loadGeneration !== this.previousLoadGeneration;
+
+    if (loadGenerationChanged) {
+      // Always sync previousLoadGeneration to prevent repeated detection
+      // This is critical - if we only update when nodes.length > 0, then when
+      // nodeGraphApi is initially null (causing empty nodes), we'd miss the update.
+      // Later panning would then trigger a late recenter causing infinite redraws.
+      this.previousLoadGeneration = attrs.loadGeneration;
+
+      if (nodes.length > 0) {
+        // Content was loaded - defer recenter to onReady callback
+        // We can't recenter immediately because NodeGraph hasn't rendered the new nodes yet
+        this.recenterRequired = true;
+      }
+    }
+
     // Perform auto-layout if nodeLayouts is empty and API is available
     if (
       !this.hasPerformedInitialLayout &&
@@ -831,13 +849,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
               this.nodeGraphApi.recenter();
               this.recenterRequired = false;
             }
-
-            // Expose recenter function to parent component
-            attrs.onRecenterReady?.(() => {
-              if (this.nodeGraphApi) {
-                this.nodeGraphApi.recenter();
-              }
-            });
           },
           multiselect: false,
           onNodeSelect: (nodeId: string) => {

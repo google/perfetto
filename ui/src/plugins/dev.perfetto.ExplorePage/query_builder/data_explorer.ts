@@ -372,7 +372,10 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         m(DataGrid, {
           schema,
           rootSchema: 'data',
-          initialColumns: attrs.response.columns.map((col) => ({field: col})),
+          initialColumns: attrs.response.columns.map((col) => ({
+            id: col,
+            field: col,
+          })),
           fillHeight: true,
           data: attrs.dataSource,
           enablePivotControls: false,
