@@ -239,9 +239,10 @@ export class V8SourcesTab implements Tab {
           },
         },
         m(Button, {
-          label: '{}',
+          icon: 'data_object',
           title: this.isPrettyPrinted ? 'Show Original' : 'Pretty Print',
-          variant: this.isPrettyPrinted ? ButtonVariant.Filled : ButtonVariant.Minimal,
+          variant: ButtonVariant.Filled,
+          intent: this.isPrettyPrinted ? Intent.Primary : undefined,
           active: this.isPrettyPrinted,
           onclick: () => this.togglePrettyPrint(),
         }),
