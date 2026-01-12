@@ -37,7 +37,6 @@
 /fuzz_out/
 /out*
 /ui/dist
-ui/watch.lock
 /venv/*
 depot_tools/
 examples/sdk/build/
