@@ -44,6 +44,22 @@ const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
   },
 };
 
+const V8_JS_FUNCTION_SCHEMA_NAME = 'v8JsFunction';
+const V8_JS_FUNCTION_SCHEMA: SQLSchemaRegistry = {
+  [V8_JS_FUNCTION_SCHEMA_NAME]: {
+    table: 'v8_js_function',
+    columns: {
+      v8_js_function_id: {},
+      name: {},
+      v8_js_script_id: {},
+      is_toplevel: {},
+      kind: {},
+      line: {},
+      col: {},
+    },
+  },
+};
+
 const UNIT_SIZE = 1024;
 const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
 function formatByteValue(value: SqlValue): string {
@@ -61,6 +77,7 @@ function formatByteValue(value: SqlValue): string {
 
 const TAB_SOURCE = 'source';
 const TAB_DETAILS = 'details';
+const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
@@ -69,6 +86,8 @@ export class V8SourcesTab implements Tab {
   private trace: Trace;
   private dataSource: SQLDataSource;
   private filters: readonly Filter[] = [];
+  private functionsDataSource: SQLDataSource;
+  private functionsFilters: readonly Filter[] = [];
   private isReady = false;
 
   constructor(trace: Trace) {
@@ -77,6 +96,11 @@ export class V8SourcesTab implements Tab {
       engine: this.trace.engine,
       sqlSchema: V8_JS_SCRIPT_SCHEMA,
       rootSchemaName: V8_JS_SCRIPT_SCHEMA_NAME,
+    });
+    this.functionsDataSource = new SQLDataSource({
+      engine: this.trace.engine,
+      sqlSchema: V8_JS_FUNCTION_SCHEMA,
+      rootSchemaName: V8_JS_FUNCTION_SCHEMA_NAME,
     });
     this.initialize();
   }
@@ -127,6 +151,13 @@ export class V8SourcesTab implements Tab {
         v8_isolate_id: it.v8_isolate_id as number,
         script_size: it.script_size as number,
       };
+      this.functionsFilters = [
+        {
+          field: 'v8_js_script_id',
+          op: '=',
+          value: id,
+        },
+      ];
     }
     m.redraw();
   }
@@ -186,9 +217,47 @@ export class V8SourcesTab implements Tab {
     );
   }
 
+  private renderFunctionsTab() {
+    if (!this.selectedScriptDetails) {
+      return m('div', 'No script selected');
+    }
+
+    const v8JsFunctionUiSchema: SchemaRegistry = {
+      v8JsFunction: {
+        v8_js_function_id: {title: 'ID'},
+        name: {title: 'Name'},
+        is_toplevel: {title: 'Is Toplevel'},
+        kind: {title: 'Kind'},
+        line: {title: 'Line'},
+        col: {title: 'Column'},
+      },
+    };
+
+    return m(DataGrid, {
+      data: this.functionsDataSource,
+      schema: v8JsFunctionUiSchema,
+      rootSchema: V8_JS_FUNCTION_SCHEMA_NAME,
+      initialFilters: this.functionsFilters,
+      onFiltersChanged: (filters: readonly Filter[]) => {
+        this.functionsFilters = filters;
+        m.redraw();
+      },
+      initialColumns: [
+        {field: 'v8_js_function_id', id: 'v8_js_function_id'},
+        {field: 'name', id: 'name'},
+        {field: 'kind', id: 'kind'},
+        {field: 'line', id: 'line'},
+        {field: 'col', id: 'col'},
+      ],
+    });
+  }
+
   private renderTabContent() {
     if (this.currentTab === TAB_SOURCE) {
       return this.renderSourceTab();
+    }
+    if (this.currentTab === TAB_FUNCTIONS) {
+      return this.renderFunctionsTab();
     }
     return this.renderDetailsTab();
   }
@@ -284,6 +353,7 @@ export class V8SourcesTab implements Tab {
         m(TabStrip, {
           tabs: [
             {key: TAB_SOURCE, title: 'Source'},
+            {key: TAB_FUNCTIONS, title: 'Functions'},
             {key: TAB_DETAILS, title: 'Details'},
           ],
           currentTabKey: this.currentTab,
