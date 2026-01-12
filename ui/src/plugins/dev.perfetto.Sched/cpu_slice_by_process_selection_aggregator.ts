@@ -187,17 +187,17 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
           columnId: 'process_name',
         },
         {
-          title: 'Wall Duration',
+          title: 'CPU Time',
           formatHint: 'DURATION_NS',
           columnId: 'dur',
         },
         {
-          title: 'Wall Duration as % of Total',
+          title: 'CPU Time %',
           formatHint: 'PERCENT',
           columnId: 'fraction_of_total',
         },
         {
-          title: 'Wall Duration as % of Selection',
+          title: 'CPU Time / Wall Time',
           columnId: 'fraction_of_selection',
           formatHint: 'PERCENT',
         },

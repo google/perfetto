@@ -204,17 +204,17 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           formatHint: 'STRING',
         },
         {
-          title: 'Wall Duration',
+          title: 'CPU Time',
           formatHint: 'DURATION_NS',
           columnId: 'dur',
         },
         {
-          title: 'Wall Duration as % of Total',
+          title: 'CPU Time %',
           columnId: 'fraction_of_total',
           formatHint: 'PERCENT',
         },
         {
-          title: 'Wall Duration % of Selection',
+          title: 'CPU Time / Wall Time',
           columnId: 'fraction_of_selection',
           formatHint: 'PERCENT',
         },
