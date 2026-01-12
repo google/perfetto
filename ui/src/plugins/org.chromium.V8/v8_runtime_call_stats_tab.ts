@@ -116,12 +116,29 @@ export class V8RuntimeCallStatsTab implements Tab {
       rootSchema: 'v8_rcs',
       data: this.dataSource,
       initialPivot: {
-        groupBy: [{field: 'v8_rcs_group'}],
+        groupBy: [{field: 'v8_rcs_group', id: 'v8_rcs_group'}],
         aggregates: [
-          {function: 'SUM', field: 'v8_rcs_dur', sort: 'DESC'},
-          {function: 'SUM', field: 'v8_rcs_dur_percent'},
-          {function: 'SUM', field: 'v8_rcs_count'},
-          {function: 'SUM', field: 'v8_rcs_count_percent'},
+          {
+            function: 'SUM',
+            field: 'v8_rcs_dur',
+            sort: 'DESC',
+            id: 'v8_rcs_dur',
+          },
+          {
+            function: 'SUM',
+            field: 'v8_rcs_dur_percent',
+            id: 'v8_rcs_dur_percent',
+          },
+          {
+            function: 'SUM',
+            field: 'v8_rcs_count',
+            id: 'v8_rcs_count',
+          },
+          {
+            function: 'SUM',
+            field: 'v8_rcs_count_percent',
+            id: 'v8_rcs_count_percent',
+          },
         ],
       },
     });
@@ -167,7 +184,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     value: SqlValue,
     row: Row,
   ): CellRenderResult | string {
-    const val = value as number;
+    const val = (value as number) ?? 0;
     const group = row['v8_rcs_group'] as string;
     const isHeaderRow = !group;
     if (isHeaderRow) {
