@@ -49,7 +49,12 @@ export interface VirtualOverlayCanvasDrawContext {
   readonly virtualCanvasSize: Size2D;
 
   // The rect of the actual canvas W.R.T to the virtual canvas element.
+  // Includes overdraw area for smooth scrolling.
   readonly canvasRect: Rect2D;
+
+  // The rect of the visible viewport W.R.T to the virtual canvas element.
+  // Does not include overdraw area.
+  readonly viewportRect: Rect2D;
 }
 
 export type Overflow = 'hidden' | 'visible' | 'auto';
@@ -217,6 +222,7 @@ export class VirtualOverlayCanvas
       ctx,
       virtualCanvasSize: virtualCanvas.size,
       canvasRect: virtualCanvas.canvasRect,
+      viewportRect: virtualCanvas.viewportRect,
     });
   }
 }

@@ -19,6 +19,10 @@
 -- This module provides tables and views for analyzing CPU scheduling behavior,
 -- including scheduling slices, thread states, and CPU information.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
+
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|

@@ -176,6 +176,53 @@ interface ExplorePageState {
 }
 ```
 
+**Query State Management** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts:60-86`)
+
+Builder maintains `this.query` as the single source of truth for query state:
+- Updated by both automatic analysis (from NodeExplorer) and manual execution (from Builder)
+- Passed to NodeExplorer as a prop for rendering SQL/Proto tabs
+- Ensures consistent query display for both autoExecute=true and autoExecute=false nodes
+
+Query State Flow:
+```
+Automatic execution (autoExecute=true):
+  NodeExplorer.updateQuery() → processNode({ manual: false })
+  → onAnalysisComplete → sets NodeExplorer.currentQuery
+  → onAnalysisComplete → calls onQueryAnalyzed callback → sets Builder.query
+  → Builder passes query as prop to NodeExplorer
+  → NodeExplorer.renderContent() uses attrs.query ?? this.currentQuery
+
+Manual execution (autoExecute=false):
+  User clicks "Run Query" → Builder calls processNode({ manual: true })
+  → onAnalysisComplete → sets Builder.query
+  → onAnalysisComplete → calls onNodeQueryAnalyzed callback → sets Builder.query
+  → Builder passes query as prop to NodeExplorer
+  → NodeExplorer.renderContent() uses attrs.query (this.currentQuery may be undefined)
+```
+
+This ensures SQL/Proto tabs display correctly for both automatic and manual execution modes.
+
+**Race Condition Prevention** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts:283-292`)
+
+The callback captures the selected node at creation time to prevent stale query leakage:
+```typescript
+const callbackNode = selectedNode;
+this.onNodeQueryAnalyzed = (query) => {
+  // Only update if still on the same node
+  if (callbackNode === this.previousSelectedNode) {
+    this.query = query;
+  }
+};
+```
+
+Without this check, rapid node switching can cause:
+1. User selects Node A → async analysis starts
+2. User quickly switches to Node B → Node A's component destroyed
+3. Node A's analysis completes → callback fires with Node A's query
+4. Node B incorrectly displays Node A's query in SQL/Proto tabs
+
+The validation ensures callbacks from old nodes are ignored after switching.
+
 **HistoryManager** (`ui/src/plugins/dev.perfetto.ExplorePage/history_manager.ts`)
 - Undo/redo stack with state snapshots
 - Serialization via `serializeState()` for each node

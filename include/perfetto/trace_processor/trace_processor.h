@@ -184,11 +184,6 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // NOTE: No Iterators can active when called.
   virtual size_t RestoreInitialTables() = 0;
 
-  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
-  // functionality to |RegisterSqlModule()| and the only difference is in
-  // the argument, which is directly translatable to |SqlPackage|.
-  virtual base::Status RegisterSqlModule(SqlModule) = 0;
-
   // =================================================================
   // |  Trace-based metrics (v1) related functionality starts here   |
   // =================================================================

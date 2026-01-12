@@ -20,6 +20,10 @@
 -- performance metrics collected across CPUs, processes, threads, GPUs,
 -- and other contexts.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
+
 -- Tracks containing counter-like events.
 CREATE PERFETTO VIEW counter_track (
   -- Unique identifier for this cpu counter track.

@@ -20,6 +20,10 @@
 -- events and slices including ftrace events, graphics frames, GPU events,
 -- and frame timeline information.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
+
 -- Contains all the ftrace events in the trace. This table exists only for
 -- debugging purposes and should not be relied on in production usecases (i.e.
 -- metrics, standard library etc). Note also that this table might be empty if

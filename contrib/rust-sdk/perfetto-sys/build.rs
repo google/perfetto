@@ -21,6 +21,7 @@ use std::{
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    #[cfg_attr(not(feature = "bindgen"), allow(unused_variables))]
     let include_path = env::var("PERFETTO_SYS_INCLUDE_DIR").unwrap_or_else(|_| {
         PathBuf::from(&crate_dir)
             .join("include")
@@ -94,26 +95,29 @@ fn main() {
     println!("cargo:rerun-if-env-changed=PERFETTO_SYS_INCLUDE_DIR");
     println!("cargo:rerun-if-changed=wrapper.h");
 
-    let bindings = bindgen::Builder::default()
-        .header("wrapper.h")
-        // This ensures that bindgen generates `bool` type for `_Atomic(bool)`.
-        // We include some extra code in the vendored shared library above to
-        // verify that the size of `_Atomic(bool)` and `bool` match.
-        .clang_arg("-DINCLUDE_PERFETTO_PUBLIC_ABI_ATOMIC_H_")
-        .clang_arg("-DPERFETTO_ATOMIC(x)=x")
-        .clang_arg(format!("-I{}", include_path))
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-        .allowlist_type("(?:Perfetto|perfetto).*")
-        .allowlist_function("(?:Perfetto|perfetto).*")
-        .allowlist_var("(?:PERFETTO|perfetto)_.*")
-        .layout_tests(false)
-        .derive_default(false)
-        .derive_eq(false)
-        .blocklist_type("max_align_t")
-        .generate()
-        .expect("Unable to generate bindings");
+    #[cfg(feature = "bindgen")]
+    {
+        let bindings = bindgen::Builder::default()
+            .header("wrapper.h")
+            // This ensures that bindgen generates `bool` type for `_Atomic(bool)`.
+            // We include some extra code in the vendored shared library above to
+            // verify that the size of `_Atomic(bool)` and `bool` match.
+            .clang_arg("-DINCLUDE_PERFETTO_PUBLIC_ABI_ATOMIC_H_")
+            .clang_arg("-DPERFETTO_ATOMIC(x)=x")
+            .clang_arg(format!("-I{}", include_path))
+            .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+            .allowlist_type("(?:Perfetto|perfetto).*")
+            .allowlist_function("(?:Perfetto|perfetto).*")
+            .allowlist_var("(?:PERFETTO|perfetto)_.*")
+            .layout_tests(false)
+            .derive_default(false)
+            .derive_eq(false)
+            .blocklist_type("max_align_t")
+            .generate()
+            .expect("Unable to generate bindings");
 
-    bindings
-        .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
+        bindings
+            .write_to_file(out_path.join("bindings.rs"))
+            .expect("Couldn't write bindings!");
+    }
 }

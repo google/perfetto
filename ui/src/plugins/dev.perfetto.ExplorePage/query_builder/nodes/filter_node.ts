@@ -381,6 +381,7 @@ export class FilterNode implements QueryNode {
     showModal({
       title: 'SQL Filter Expression',
       key: 'sql-expression-modal',
+      vAlign: 'TOP',
       content: () =>
         m(
           '.pf-filter-sql-editor',

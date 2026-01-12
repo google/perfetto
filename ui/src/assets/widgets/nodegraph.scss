@@ -34,8 +34,8 @@
   );
   background-image: radial-gradient(
     circle,
-    color-mix(in srgb, var(--pf-color-border-secondary) 85%, black 15%) 1.5px,
-    transparent 1.5px
+    color-mix(in srgb, var(--pf-color-border-secondary) 85%, black 15%) 1px,
+    transparent 0px
   );
   background-size: 20px 20px;
 

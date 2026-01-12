@@ -67,7 +67,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       text: 'Query (SQL)',
       href: '#!/query',
       icon: 'database',
-      sortOrder: 20,
+      sortOrder: 21,
     });
 
     trace.tabs.registerTab({

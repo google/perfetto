@@ -534,6 +534,7 @@ export class AddColumnsNode implements QueryNode {
         ? 'Configure Joined Columns'
         : 'Add Columns from Another Source',
       key: modalKey,
+      vAlign: 'TOP',
       className: 'pf-join-modal-wide',
       content: () => {
         return m('div', this.renderGuidedMode());
@@ -642,6 +643,7 @@ export class AddColumnsNode implements QueryNode {
     showModal({
       title: typeConfig.title,
       key: typeConfig.key,
+      vAlign: 'TOP',
       className:
         type === 'switch' || type === 'if'
           ? 'pf-computed-column-modal-wide'
@@ -753,6 +755,7 @@ export class AddColumnsNode implements QueryNode {
     showModal({
       title: 'Add Column from Args',
       key: modalKey,
+      vAlign: 'TOP',
       content: () => {
         const nameError = getColumnNameError();
         const hasMultipleArgSetIdCols = argSetIdCols.length > 1;
