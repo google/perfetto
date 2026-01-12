@@ -17,6 +17,15 @@ import {Anchor} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
 
+interface V8JsScript {
+  v8_js_script_id: number;
+  name: string;
+  script_type: string;
+  source: string;
+  v8_isolate_id: number;
+  script_size: number;
+}
+
 const V8_JS_SCRIPT_SCHEMA_NAME = 'v8JsScript';
 const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
   [V8_JS_SCRIPT_SCHEMA_NAME]: {
@@ -52,7 +61,7 @@ function formatByteValue(value: SqlValue): string {
 export class V8SourcesTab implements Tab {
   private currentTab = 'source';
   private selectedScriptSource: string | undefined = undefined;
-  private selectedScriptDetails: Object | undefined = undefined;
+  private selectedScriptDetails: V8JsScript | undefined = undefined;
   private trace: Trace;
   private dataSource: SQLDataSource;
   private filters: readonly Filter[] = [];
@@ -93,7 +102,14 @@ export class V8SourcesTab implements Tab {
     });
     if (it.valid()) {
       this.selectedScriptSource = it.source as string;
-      this.selectedScriptDetails = {...it};
+      this.selectedScriptDetails = {
+        v8_js_script_id: it.v8_js_script_id as number,
+        name: it.name as string,
+        script_type: it.script_type as string,
+        source: it.source as string,
+        v8_isolate_id: it.v8_isolate_id as number,
+        script_size: it.script_size as number,
+      };
     }
     m.redraw();
   }
@@ -122,19 +138,35 @@ export class V8SourcesTab implements Tab {
       });
     }
 
-    const scriptProperties = [];
-    if (this.selectedScriptDetails) {
-      for (const [key, value] of Object.entries(this.selectedScriptDetails)) {
-        if (key === 'source') continue;
-        scriptProperties.push(
-          m(TreeNode, {
-            left: key,
-            right: String(value),
-          }),
-        );
-      }
+    if (!this.selectedScriptDetails) {
+      return m('div', 'No script selected');
     }
-    return m(Tree, scriptProperties);
+
+    return m(
+      Tree,
+      m(TreeNode, {
+        left: 'ID',
+        right: String(this.selectedScriptDetails.v8_js_script_id),
+      }),
+      m(TreeNode, {
+        left: 'Name',
+        right: this.selectedScriptDetails.name.startsWith('http')
+          ? m(CopyableLink, {url: this.selectedScriptDetails.name})
+          : this.selectedScriptDetails.name,
+      }),
+      m(TreeNode, {
+        left: 'Type',
+        right: this.selectedScriptDetails.script_type,
+      }),
+      m(TreeNode, {
+        left: 'Isolate',
+        right: String(this.selectedScriptDetails.v8_isolate_id),
+      }),
+      m(TreeNode, {
+        left: 'Size',
+        right: formatByteValue(BigInt(this.selectedScriptDetails.script_size)),
+      }),
+    );
   }
 
   render() {
