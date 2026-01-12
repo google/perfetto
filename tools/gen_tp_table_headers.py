@@ -159,9 +159,9 @@ def generate_all_tables_header(args, all_tables: List[ParsedTable],
   # Replace the backslash with forward slash when building on Windows.
   # Caused b/327985369 without the replace.
   includes = '\n'.join([
-      f'#include "{p.replace("\\", "/")}"  // IWYU pragma: export'
+      f'#include "{p}"  // IWYU pragma: export'
       for p in sorted(fwd_header_paths)
-  ])
+  ]).replace("\\", "/")
   variant_entries = ', '.join([t.table.class_name for t in all_tables])
 
   content = f'''\
