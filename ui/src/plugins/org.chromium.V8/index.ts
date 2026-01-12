@@ -51,11 +51,16 @@ export default class implements PerfettoPlugin {
   }
 
 
-  private async hasAnyV8SourceData(trace : Trace) {
-      const hasRCSData = await trace.engine.query(
-      `SELECT 1 FROM v8_js_script LIMIT 1`,
-    );
-     return hasRCSData.numRows() > 0;
+  private async hasAnyV8SourceData(trace: Trace) {
+      try {
+        const hasV8Data = await trace.engine.query(
+          `INCLUDE PERFETTO MODULE v8.jit;
+           SELECT 1 FROM v8_js_script LIMIT 1`,
+        );
+        return hasV8Data.numRows() > 0;
+      } catch (_) {
+        return false;
+      }
   }
 
   private enableV8SourceView(trace : Trace) {
@@ -64,5 +69,6 @@ export default class implements PerfettoPlugin {
       content: new V8SourcesTab(trace),
       isEphemeral: false,
     });
+    trace.tabs.addDefaultTab(SOURCES_TAB_URI);
   }
 }
