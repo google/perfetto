@@ -31,7 +31,7 @@ import {AppImpl} from '../../core/app_impl';
 // Helpers
 // =============================================================================
 
-const FETCH_TIMEOUT_MS = 5000; // 5 seconds
+const FETCH_TIMEOUT_MS = 10000; // 10 seconds
 
 async function fetchJson<T extends z.ZodTypeAny>(
   url: string,
